@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+  <data>
+    <record id="dobtor_todolist_view_search" model="ir.ui.view">
+        <field name="name">dobtor.todolist.core.filter</field>
+        <field name="model">dobtor.todolist.core</field>
+        <field name="arch" type="xml">
+            <search string="Filter">
+                <field name="name" string="Description"/>
+                <filter string="TODO" domain="[('state','=','todo')]" name="done_todolist"/>
+                <group expand="0" string="Group By">
+                    <filter string="Type" domain="[]" context="{'group_by':'parent_model'}" name="ggg"/>
+                    <filter string="Todo" domain="[]" context="{'group_by':'ref_model'}"/>
+                    <filter string="User" domain="[]" context="{'group_by':'user_id'}"/>
+                    <filter string="State" domain="[]" context="{'group_by':'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!--
+     <record model="ir.ui.view" id="todo_list_core_view">
+        <field name="name">dobtor.todolist.core.form</field>
+        <field name="model">dobtor.todolist.core</field>
+        <field name="arch" type="xml">
+            <tree string="todo_list_core_form">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="user_id"/>
+                <field name="reviewer_id"/>
+                <field name="ref_model"/>
+                <field name="parent_model" onchange="0" readonly="True"/>
+            </tree>
+        </field>
+    </record>
+    -->
+
+    <record id="action_view_todolist" model="ir.actions.act_window">
+        <field name="name">TodoList</field>
+        <field name="res_model">dobtor.todolist.core</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context"> {
+            'search_default_my_todolist':1,
+            'search_default_done_todolist':1,
+            }
+        </field>
+    </record>
+
+    <menuitem name="Todo List"
+              id="menu_dobtor_todolist_management"/>
+
+    <menuitem name="Todo List"
+              parent="dobtor_todolist_core.menu_dobtor_todolist_management"
+              id="menu_dobtor_todolist_subItem"
+              action="action_view_todolist"/>
+
+  </data>
+</openerp>
