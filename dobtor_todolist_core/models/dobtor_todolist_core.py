@@ -1,20 +1,16 @@
 # -*- coding: utf-8 -*-
 
-import openerp
-from openerp import models, fields, api
-from openerp.addons.base.res import res_request
-from openerp.tools import html_escape as escape
-from openerp.exceptions import Warning as UserError
-from openerp.tools.translate import _
+import odoo
+from odoo import models, fields, api
+#from odoo.addons.base.res import res_request
+from odoo.tools import html_escape as escape
+from odoo.exceptions import Warning as UserError
+from odoo.tools.translate import _
 
 TODO_STATES = {'done': 'Done',
                   'todo': 'TODO',
                   'waiting': 'Waiting',
                   'cancelled': 'Cancelled'}
-
-def referencable_models(self):
-    return res_request.referencable_models(
-        self, self.env.cr, self.env.uid, context=self.env.context)
 
 class DobtorTodoListCore(models.Model):
     _name = "dobtor.todolist.core"
@@ -27,21 +23,25 @@ class DobtorTodoListCore(models.Model):
     user_id = fields.Many2one('res.users', 'Assigned to', required=True)
     hide_button = fields.Boolean(compute='_compute_hide_button')
     recolor = fields.Boolean(compute='_compute_recolor')
-    ref_model = fields.Reference(referencable_models, "Refer To", default=None)
+    ref_model = fields.Reference(selection='referencable_models', string="Refer To", default=None)
     ref_id = fields.Integer(string='ref_id')
     ref_name = fields.Char(string='ref_name')
-    parent_model = fields.Reference(referencable_models, "Parent", default=None)
+    parent_model = fields.Reference(selection='referencable_models', string="Parent", default=None)
     parent_id = fields.Integer(string='parent_id')
     parent_name = fields.Char(string='parent_name')
     survey_id = fields.Many2one("survey.survey", "Survey")
     partner_id = fields.Many2one('res.partner', default=lambda self: self.env.user.partner_id)
     response_id = fields.Many2one('survey.user_input', "Response", ondelete="set null", oldname="response")
-    date_assign = fields.Datetime('Assigning Date', select=True, default=fields.Datetime.now)
-    date_complete = fields.Datetime('Complete Date', select=True)
-    date_deadline = fields.Datetime("Deadline", select=True)
+    date_assign = fields.Datetime('Assigning Date', default=fields.Datetime.now)
+    date_complete = fields.Datetime('Complete Date')
+    date_deadline = fields.Datetime("Deadline")
     planned_hours = fields.Float(string='Planned Hours', default=0)
     out_of_deadline = fields.Boolean("Out of deadline", default=False, compute="check_deadline")
     sequence = fields.Integer()
+
+    @ api.model
+    def referencable_models(self):
+        models = self.env['res.request.link'].search([])
 
     @api.multi
     def check_deadline(self):

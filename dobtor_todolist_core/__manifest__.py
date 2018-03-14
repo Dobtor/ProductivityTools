@@ -6,7 +6,7 @@
     'author' : "Steven, www.dobtor.com",
     'depends' : ['base','survey'],
     'data' : [
-        'views/dobtor_todolist_core.xml',
+        'views/dobtor_todolist_core_view.xml',
         'data/subscription_template.xml',
     ],
     'installable' : True,
