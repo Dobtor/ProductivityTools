@@ -19,7 +19,8 @@ class DobtorTodoListCore(models.Model):
     state = fields.Selection([(k, v) for k, v in TODO_STATES.items()],
                              'Status', required=True, copy=False, default='todo')
     name = fields.Char(required=True, string="Description")
-    reviewer_id = fields.Many2one('res.users', 'Reviewer', readonly=True, default=lambda self: self.env.user)
+    creater = fields.Many2one('res.users', 'Creater', readonly=True, default=lambda self: self.env.user)
+    reviewer_id = fields.Many2one('res.users', 'Reviewer', default=lambda self: self.env.user)
     user_id = fields.Many2one('res.users', 'Assigned to', required=True)
     hide_button = fields.Boolean(compute='_compute_hide_button')
     recolor = fields.Boolean(compute='_compute_recolor')
@@ -39,9 +40,10 @@ class DobtorTodoListCore(models.Model):
     out_of_deadline = fields.Boolean("Out of deadline", default=False, compute="check_deadline")
     sequence = fields.Integer()
 
-    @ api.model
+    @api.model
     def referencable_models(self):
         models = self.env['res.request.link'].search([])
+        return [(model.object, model.name) for model in models] 
 
     @api.multi
     def check_deadline(self):

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<openerp>
+<odoo>
   <data>
     <record id="view_task_form2" model="ir.ui.view">
         <field name="name">dobtor.todolist.project.task.form</field>
@@ -21,13 +21,13 @@
                         <tree string="Task Work" editable="bottom" colors="red:recolor == True;gray:state == 'cancelled';green:state == 'done';#b818ce:state == 'waiting'">
                             <field name="name"/>
                             <field name="recolor" invisible="True"/>
-                            <field name="user_id"/>
+                            <field name="user_id" options="{'no_open': True}"/>
                             <field name="state"/>
                             <field name="hide_button" invisible="True"/>
-                            <button name="change_state_done" string="Change state to DONE" type="object" icon="gtk-apply" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_todo" string="Change state to TODO" type="object" icon="gtk-new" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="gtk-media-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="gtk-cancel" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>                           
+                            <button name="change_state_done" string="Change state to DONE" type="object" icon="fa fa-check" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
+                            <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa fa-file" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
+                            <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa fa-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
+                            <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>                           
                             <field name="survey_id"/>
                             <button name="open_survey"
                                 class="oe_stat_button"
@@ -35,10 +35,11 @@
                                 help=""
                                 attrs="{'invisible':[('survey_id','=',False)]}"
                                 string="Open"/>
-                            <field name="reviewer_id"/>
+                            <field name="reviewer_id" options="{'no_open': True}"/>
                             <field name="ref_model" invisible="True" />
                             <field name="parent_model" invisible="True"/>
                             <field name="write_date" readonly="True"/>
+                            <field name="creater" options="{'no_open': True}"/>
                         </tree>
                     </field>
                 </page>
@@ -63,6 +64,7 @@
         </field>
     </record>
 
+    <!--
     <record model="ir.ui.view" id="dobtor_todolist_task_form">
         <field name="name">dobtor.todolist.form</field>
         <field name="model">dobtor.todolist.core</field>
@@ -101,6 +103,7 @@
             </form>
         </field>
     </record>
+    -->
 
     <record id="project_task_todolist_view_search" model="ir.ui.view">
         <field name="name">dobtor.todolist.task.filter</field>
@@ -121,7 +124,7 @@
         </field>
     </record>
 
-    <record model="ir.ui.view" id="todo_list_view">
+    <record model="ir.ui.view" id="todo_list_project_task_view">
         <field name="name">dobtor.todolist.tree</field>
         <field name="model">dobtor.todolist.core</field>
         <field name="arch" type="xml">
@@ -153,7 +156,7 @@
         </field>
     </record>
 
-    <record id="action_view_todolist" model="ir.actions.act_window">
+    <record id="action_view_todolist_project_task" model="ir.actions.act_window">
         <field name="name">TodoList</field>
         <field name="res_model">dobtor.todolist.core</field>
         <field name="view_mode">tree,form</field>
@@ -167,7 +170,7 @@
     <menuitem name="TodoList"
               parent="project.menu_project_management"
               id="menu_action_view_todolist"
-              action="action_view_todolist"/>
+              action="action_view_todolist_project_task"/>
 
   </data>
-</openerp>
+</odoo>

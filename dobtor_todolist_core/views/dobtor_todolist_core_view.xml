@@ -35,10 +35,11 @@
                         </div>
                             <group>
                                 <group>
+                                    <field name='creater' readonly="True"/>
                                     <field name="user_id"/>
                                     <field name="state" string="Status"/>
-                                    <field name="reviewer_id" invisible='False'/>
-                                    <field name="ref_model" string="Mission"/>
+                                    <field name="reviewer_id" options="{'no_open': True}"/>
+                                    <field name="ref_model" widget='reference' string="Mission"/>
                                     <field name="parent_model" onchange="0" readonly="True"/>
                                     <field name="survey_id"/>                               
                                 </group>
