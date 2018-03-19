@@ -14,7 +14,7 @@
     <record id="todolist_lifeline_tree_view" model="ir.ui.view">
       <field name="name">todolist.lifeline.tree</field>
       <field name="model">dobtor.todolist.core</field>
-      <field name="inherit_id" ref="dobtor_todolist_project_task.todo_list_view"/>
+      <field name="inherit_id" ref="dobtor_todolist_core.todo_list_core_treeview"/>
       <field name="arch" type="xml">
           <xpath expr="//field[@name='parent_model']" position="after">
               <field name="lifeline" widget="progressbar" attrs="{'invisible':[('id','=',False)]}" class="oe_read_only"/>
@@ -24,7 +24,7 @@
     <record id="todolist_lifeline_form_view" model="ir.ui.view">
       <field name="name">todolist.lifeline.form</field>
       <field name="model">dobtor.todolist.core</field>
-      <field name="inherit_id" ref="dobtor_todolist_project_task.dobtor_todolist_task_form"/>
+      <field name="inherit_id" ref="dobtor_todolist_core.dobtor_todolist_core_form"/>
       <field name="arch" type="xml">
           <xpath expr="//field[@name='planned_hours']" position="after">
               <field name="lifeline" widget="progressbar"/>
