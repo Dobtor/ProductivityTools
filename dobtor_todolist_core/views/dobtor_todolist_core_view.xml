@@ -25,9 +25,6 @@
             <field name="arch" type="xml">
                 <form string="Todolist Message">
                     <sheet>
-                        <div class="oe_button_box" name="button_box">
-                            <button name="open_survey" type="object" class="oe_stat_button" icon="fa-edit" attrs="{'invisible':[('survey_id','=',False)]}" string="Open Survey"/>
-                        </div>
                         <div class="oe_title">
                             <h1 class="o_row">
                                 <field name="name" placeholder="Todo List..."/>
@@ -40,8 +37,7 @@
                                     <field name="state" string="Status"/>
                                     <field name="reviewer_id" options="{'no_open': True}"/>
                                     <field name="ref_model" widget='reference' string="Mission"/>
-                                    <field name="parent_model" onchange="0" readonly="True"/>
-                                    <field name="survey_id"/>                               
+                                    <field name="parent_model" onchange="0" readonly="True"/>                             
                                 </group>
                                 <group string="Time and Date">
                                     <field name="date_assign"/>
@@ -77,14 +73,7 @@
                     <button name="change_state_done" string="Change state to DONE" type="object" icon="fa fa-check" attrs="{'invisible': [ '|', '|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa fa-file" attrs="{'invisible': [ '|', '|',('state', '=', 'todo'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa fa-pause" attrs="{'invisible': [ '|', '|',('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}"/>
-                    <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|', '|',('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}"/>                           
-                    <field name="survey_id"/>
-                    <button name="open_survey"
-                        type="object"
-                        icon="gtk-edit"
-                        help=""
-                        attrs="{'invisible':[('survey_id','=',False)]}"
-                        string="Open"/>
+                    <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|', '|',('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <field name="reviewer_id"/>
                     <field name="ref_model"/>
                     <field name="parent_model" onchange="0" readonly="True"/>

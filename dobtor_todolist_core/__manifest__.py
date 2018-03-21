@@ -4,7 +4,7 @@
     'version' : '1.0',
     'description' : 'Dobtor todo list core',
     'author' : "Steven, www.dobtor.com",
-    'depends' : ['base','survey'],
+    'depends' : ['base','mail'],
     'data' : [
         'views/dobtor_todolist_core_view.xml',
         'data/subscription_template.xml',

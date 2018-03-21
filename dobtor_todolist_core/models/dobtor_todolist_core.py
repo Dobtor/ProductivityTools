@@ -30,9 +30,7 @@ class DobtorTodoListCore(models.Model):
     parent_model = fields.Reference(selection='referencable_models', string="Parent", default=None)
     parent_id = fields.Integer(string='parent_id')
     parent_name = fields.Char(string='parent_name')
-    survey_id = fields.Many2one("survey.survey", "Survey")
     partner_id = fields.Many2one('res.partner', default=lambda self: self.env.user.partner_id)
-    response_id = fields.Many2one('survey.user_input', "Response", ondelete="set null", oldname="response")
     date_assign = fields.Datetime('Assigning Date', default=fields.Datetime.now)
     date_complete = fields.Datetime('Complete Date')
     date_deadline = fields.Datetime("Deadline")
@@ -125,16 +123,6 @@ class DobtorTodoListCore(models.Model):
         for record in self:
             record.state = 'waiting'
             record.date_complete = None
-
-    @api.multi
-    def open_survey(self):
-        if not self.response_id:
-            response = self.env['survey.user_input'].create({'survey_id': self.survey_id.id, 'partner_id': self.partner_id.id})
-            self.response_id = response.id
-        else:
-            response = self.response_id
-        # grab the token of the response and start surveying
-        return self.survey_id.with_context(survey_token=response.token).action_start_survey()
 
     @api.onchange('user_id')
     def change_user_id(self):
