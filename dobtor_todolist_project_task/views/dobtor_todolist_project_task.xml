@@ -27,14 +27,7 @@
                             <button name="change_state_done" string="Change state to DONE" type="object" icon="fa fa-check" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
                             <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa fa-file" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
                             <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa fa-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>                           
-                            <field name="survey_id"/>
-                            <button name="open_survey"
-                                class="oe_stat_button"
-                                type="object"
-                                help=""
-                                attrs="{'invisible':[('survey_id','=',False)]}"
-                                string="Open"/>
+                            <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>
                             <field name="reviewer_id" options="{'no_open': True}"/>
                             <field name="ref_model" invisible="True" />
                             <field name="parent_model" invisible="True"/>
