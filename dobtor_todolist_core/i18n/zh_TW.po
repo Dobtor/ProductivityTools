@@ -1,0 +1,361 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+#	* dobtor_todolist_core
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 9.0c-20171030\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-03-20 09:15+0000\n"
+"PO-Revision-Date: 2018-03-20 09:15+0000\n"
+"Last-Translator: <>\n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_needaction
+msgid "Action Needed"
+msgstr "採取行動"
+
+#. module: dobtor_todolist_core
+#: model:mail.message.subtype,name:dobtor_todolist_core.todolist_core_subtype
+msgid "All todolist updates"
+msgstr "更新所有代辦清單"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_user_id
+msgid "Assigned to"
+msgstr "已指派給"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_date_assign
+msgid "Assigning Date"
+msgstr "指派日期"
+
+#. module: dobtor_todolist_core
+#: selection:dobtor.todolist.core,state:0
+msgid "Cancelled"
+msgstr "已取消"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.todo_list_core_treeview
+msgid "Change state to CANCELLED"
+msgstr "變更狀態為：已取消"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.todo_list_core_treeview
+msgid "Change state to DONE"
+msgstr "變更狀態為：已完成"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.todo_list_core_treeview
+msgid "Change state to TODO"
+msgstr "變更狀態為：待辦中"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.todo_list_core_treeview
+msgid "Change state to WAITING"
+msgstr "變更狀態為：遞延中"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_date_complete
+msgid "Complete Date"
+msgstr "完成日期"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_create_uid
+msgid "Created by"
+msgstr "建立者"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_create_date
+msgid "Created on"
+msgstr "已建立於"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_creater
+msgid "Creater"
+msgstr "建立者"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,help:dobtor_todolist_core.field_dobtor_todolist_core_message_last_post
+msgid "Date of the last message posted on the record."
+msgstr "釋出到記錄上的最後資訊的日期"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_date_deadline
+msgid "Deadline"
+msgstr "截止日期"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_name
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "Description"
+msgstr "說明"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_display_name
+msgid "Display Name"
+msgstr "顯示名稱"
+
+#. module: dobtor_todolist_core
+#: model:ir.model,name:dobtor_todolist_core.model_dobtor_todolist_core
+msgid "Dobtor Todo List Core"
+msgstr "Dobtor Todo List Core"
+
+#. module: dobtor_todolist_core
+#: selection:dobtor.todolist.core,state:0
+msgid "Done"
+msgstr "已完成"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "Filter"
+msgstr "篩選器"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_follower_ids
+msgid "Followers"
+msgstr "關注者"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_channel_ids
+msgid "Followers (Channels)"
+msgstr "追蹤者 (群組)"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_partner_ids
+msgid "Followers (Partners)"
+msgstr "追蹤者 (對象)"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "Group By"
+msgstr "分組方式"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_hide_button
+msgid "Hide button"
+msgstr "隱藏按鈕"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_id
+msgid "ID"
+msgstr "編號"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,help:dobtor_todolist_core.field_dobtor_todolist_core_message_unread
+msgid "If checked new messages require your attention."
+msgstr "當有新訊息時通知您。"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,help:dobtor_todolist_core.field_dobtor_todolist_core_message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "若確認,新訊息將要求你的關注"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_is_follower
+msgid "Is Follower"
+msgstr "為追蹤者"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_last_post
+msgid "Last Message Date"
+msgstr "最後訊息日期"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core___last_update
+msgid "Last Modified on"
+msgstr "最後修改:"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_write_uid
+msgid "Last Updated by"
+msgstr "最後更新："
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_write_date
+msgid "Last Updated on"
+msgstr "最後更新於"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_ids
+msgid "Messages"
+msgstr "訊息"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_core_form
+msgid "Mission"
+msgstr "關聯項目"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_needaction_counter
+msgid "Number of Actions"
+msgstr "行動數量"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,help:dobtor_todolist_core.field_dobtor_todolist_core_message_needaction_counter
+msgid "Number of messages which requires an action"
+msgstr "要求行動的訊息數量"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,help:dobtor_todolist_core.field_dobtor_todolist_core_message_unread_counter
+msgid "Number of unread messages"
+msgstr "未讀訊息的數量"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_out_of_deadline
+msgid "Out of deadline"
+msgstr "逾期"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_parent_model
+msgid "Parent"
+msgstr "上層"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_partner_id
+msgid "Partner id"
+msgstr "夥伴"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_planned_hours
+msgid "Planned Hours"
+msgstr "Planned Hours"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_recolor
+msgid "Recolor"
+msgstr "Recolor"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_ref_model
+msgid "Refer To"
+msgstr "關連項目"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_response_id
+msgid "Response"
+msgstr "Response"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_reviewer_id
+msgid "Reviewer"
+msgstr "檢查者"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_sequence
+msgid "Sequence"
+msgstr "序列"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "State"
+msgstr "省/州"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_state
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_core_form
+msgid "Status"
+msgstr "狀態"
+
+#. module: dobtor_todolist_core
+#: model:mail.message.subtype,description:dobtor_todolist_core.todolist_core_subtype
+msgid "Subscribe to todolist updates of other users. By default you are notified on todolist items to and from you only."
+msgstr "Subscribe to todolist updates of other users. By default you are notified on todolist items to and from you only."
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_survey_id
+msgid "Survey"
+msgstr "問卷"
+
+#. module: dobtor_todolist_core
+#: selection:dobtor.todolist.core,state:0
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "TODO"
+msgstr "待辦"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_core_form
+msgid "Time and Date"
+msgstr "時間及日期"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "Todo"
+msgstr "Todo"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.menu,name:dobtor_todolist_core.menu_dobtor_todolist_management
+#: model:ir.ui.menu,name:dobtor_todolist_core.menu_dobtor_todolist_subItem
+msgid "Todo List"
+msgstr "待辦清單"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_core_form
+msgid "Todo List..."
+msgstr "代辦清單..."
+
+#. module: dobtor_todolist_core
+#: model:ir.actions.act_window,name:dobtor_todolist_core.action_view_todolist
+msgid "TodoList"
+msgstr "代辦清單"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_core_form
+msgid "Todolist Message"
+msgstr "代辦清單訊息"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "Type"
+msgstr "類型"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_unread
+msgid "Unread Messages"
+msgstr "未讀訊息"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_message_unread_counter
+msgid "Unread Messages Counter"
+msgstr "未讀訊息計數"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.dobtor_todolist_view_search
+msgid "User"
+msgstr "用戶"
+
+#. module: dobtor_todolist_core
+#: selection:dobtor.todolist.core,state:0
+msgid "Waiting"
+msgstr "遞延"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_parent_id
+msgid "parent_id"
+msgstr "上層項目 ID"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_parent_name
+msgid "parent_name"
+msgstr "上層項目名稱"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_ref_id
+msgid "ref_id"
+msgstr "關聯項目 ID"
+
+#. module: dobtor_todolist_core
+#: model:ir.model.fields,field_description:dobtor_todolist_core.field_dobtor_todolist_core_ref_name
+msgid "ref_name"
+msgstr "關聯名稱"
+
+#. module: dobtor_todolist_core
+#: model:ir.ui.view,arch_db:dobtor_todolist_core.todo_list_core_treeview
+msgid "todo_list_tree"
+msgstr "todo_list_tree"
+
