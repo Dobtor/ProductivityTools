@@ -75,7 +75,7 @@ class DobtorTodoListCore(models.Model):
             if self.parent_name == 'project.project':
                 default_project_id = self.parent_id
                 account_id = self.env['project.project'].search(
-                    [('id', '=', self.parent_id)])[0].analytic_account_id.id
+                    [('id', '=', self.parent_id)])[0].analytic_account_id
     
         
         res = {
@@ -104,12 +104,21 @@ def referenceable_models(self):
     return res_request.referenceable_models(self)
 
 
-class AccountAnalyticLine(AccountAnalyticLine):
+class AccountAnalyticLineExtend(models.Model):
     _inherit = "account.analytic.line"
 
     todo_id = fields.Many2one('dobtor.todolist.core', 'Todo')
     todo_ref = fields.Reference(referenceable_models, "Refer To", default=None)
-    todo_ref_parent = fields.Reference(referenceable_models, "Parent", default=None)
+    todo_ref_parent = fields.Reference(
+        referenceable_models, "Parent", default=None)
+        
+    @api.multi
+    def submit_time_sheet(self):
+        pass
+
+
+class AccountAnalyticLine(AccountAnalyticLine):
+    _inherit = "account.analytic.line"
 
     def _get_timesheet_cost(self, values):
         values = values if values is not None else {}
@@ -133,6 +142,3 @@ class AccountAnalyticLine(AccountAnalyticLine):
             }
         return {}
 
-    @api.multi
-    def submit_time_sheet(self):
-        pass
