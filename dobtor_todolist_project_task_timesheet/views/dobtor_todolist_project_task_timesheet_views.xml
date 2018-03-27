@@ -1,68 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <openerp>
   <data>
-    <!-- explicit list view definition -->
-    <!--
-    <record model="ir.ui.view" id="dobtor_todolist_timesheets.list">
-      <field name="name">dobtor_todolist_timesheets list</field>
-      <field name="model">dobtor_todolist_timesheets.dobtor_todolist_timesheets</field>
-      <field name="arch" type="xml">
-        <tree>
-          <field name="name"/>
-          <field name="value"/>
-          <field name="value2"/>
-        </tree>
-      </field>
-    </record>
-    -->
 
-    <!-- actions opening views on models -->
-    <!--
-    <record model="ir.actions.act_window" id="dobtor_todolist_timesheets.action_window">
-      <field name="name">dobtor_todolist_timesheets window</field>
-      <field name="res_model">dobtor_todolist_timesheets.dobtor_todolist_timesheets</field>
-      <field name="view_mode">tree,form</field>
-    </record>
-    -->
-
-    <!-- server action to the one above -->
-    <!--
-    <record model="ir.actions.server" id="dobtor_todolist_timesheets.action_server">
-      <field name="name">dobtor_todolist_timesheets server</field>
-      <field name="model_id" ref="model_dobtor_todolist_timesheets_dobtor_todolist_timesheets"/>
-      <field name="code">
-        action = {
-          "type": "ir.actions.act_window",
-          "view_mode": "tree,form",
-          "res_model": self._name,
-        }
-      </field>
-    </record>
-    -->
     <record id="todo_list_view" model="ir.ui.view">
         <field name="name">dobtor.todolist.project.task.timesheets.tree</field>
         <field name="model">dobtor.todolist.core</field>
-        <field name="inherit_id" ref="dobtor_todolist_project_task.todo_list_view"/>
+        <field name="inherit_id" ref="dobtor_todolist_core.todo_list_core_treeview"/>
         <field name="arch" type="xml">
               <xpath expr="//tree" position='inside'>
-                <button name="create_timesheet" string="TimeSheets" icon="terp-project" type="object"/>
+                <button name="create_timesheet" string="TimeSheets" icon="fa fa-clock-o" type="object"/>
               </xpath>
         </field>
     </record>
 
-    <!--
-    <record id="dobtor_todolist_view_account_analytic_account_list" model="ir.ui.view">
-            <field name="name">dobtor_todolist_view_account_analytic_account_list</field>
-            <field name="model">account.analytic.account</field>
-            <field name="arch" type="xml">
-                <tree string="Analytic Account">
-                    <field name="display_name" string="Name"/>
-                    <field name="partner_id"/>
-                    <field name="company_id" groups="base.group_multi_company"/>
-                </tree>
-            </field>
-        </record>
-    -->
+
     <record id="dobtor_todolist_project_task_timesheet_wizard" model="ir.ui.view">
         <field name="name">dobtor_todolist_project_task_timesheet_wizard</field>
         <field name="model">account.analytic.line</field>
@@ -73,11 +24,6 @@
                         <field name="todo_id" readonly="True" options="{'no_open': True}"/> 
                         <field name="user_id" options="{'no_open': True}"/>
                         <field name="name"/>
-                        <field name="is_timesheet" invisible="1"/>
-                        <!--
-                        <field name="todo_ref" readonly="True" options="{'no_open': True}"/>
-                        <field name="todo_ref_parent" readonly="True" options="{'no_open': True}"/>
-                        -->
                         <field name="account_id" options="{'no_create': True,'no_open': True}"/>
                     </group>
                     <group string="Time and Date">
@@ -104,10 +50,28 @@
                 </field>
             </field>
         </record>
+                
+<!-- view -->
+        <record id="hr_timesheet_line_tree_extend" model="ir.ui.view">
+            <field name="name">account.analytic.line.tree.hr_timesheet.extend</field>
+            <field name="model">account.analytic.line</field>
+            <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='project_id']" position="attributes">
+                    <attribute name="required">0</attribute>
+                </xpath>
+                <xpath expr="//field[@name='project_id']" position="after">
+                    <field name="account_id"/>
+                </xpath>
+                <xpath expr="//field[@name='task_id']" position="attributes">
+                    <attribute name="domain">[]</attribute>
+                </xpath>
+            </field>
+        </record>
        <record id="view_account_analytic_line_tree_inherit_account_id" model="ir.ui.view">
             <field name="name">account.analytic.line.tree.account_id</field>
             <field name="model">account.analytic.line</field>
-            <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
+            <field name="inherit_id" ref="dobtor_todolist_project_task_timesheet.hr_timesheet_line_tree_extend"/>
             <field name="arch" type="xml">
                 <field name="account_id"  position="attributes">
                     <attribute name="string">Analytic account/project</attribute>
@@ -119,36 +83,19 @@
                 </field>
             </field>
         </record>
-    <!--
-    <record id="view_account_analytic_line_tree_inherit_account_id" model="ir.ui.view">
-            <field name="name">account.analytic.line.tree.account_id</field>
-            <field name="model">account.analytic.line</field>
-            <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
-            <field name="arch" type="xml">
-                <field name="account_id"  position="attributes">
-                    <attribute name="string">Analytic account/project</attribute>
-                </field>
-                <field name="account_id" position="after">
-                    <field name="task_id" domain="[('project_id.analytic_account_id', '=' , account_id)]"/>
-                </field>
+          
+
+        <!-- act_window -->
+        <record id="hr_timesheet.act_hr_timesheet_line" model="ir.actions.act_window">
+            <field name="name">Activities</field>
+            <field name="res_model">account.analytic.line</field>
+            <field name="domain">[]</field>
+            <field name="context">{"search_default_today":1}</field>
+            <field name="search_view_id" ref="hr_timesheet.hr_timesheet_line_search"/>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">                Click to record activities.              </p>
+                <p>                You can register and track your workings hours by project every                day. Every time spent on a project will become a cost and can be re-invoiced to                customers if required.              </p>
             </field>
         </record>
-    -->
-    <!-- Top menu item -->
-    <!--
-    <menuitem name="dobtor_todolist_timesheets" id="dobtor_todolist_timesheets.menu_root"/>
-    -->
-    <!-- menu categories -->
-    <!--
-    <menuitem name="Menu 1" id="dobtor_todolist_timesheets.menu_1" parent="dobtor_todolist_timesheets.menu_root"/>
-    <menuitem name="Menu 2" id="dobtor_todolist_timesheets.menu_2" parent="dobtor_todolist_timesheets.menu_root"/>
-    -->
-    <!-- actions -->
-    <!--
-    <menuitem name="List" id="dobtor_todolist_timesheets.menu_1_list" parent="dobtor_todolist_timesheets.menu_1"
-              action="dobtor_todolist_timesheets.action_window"/>
-    <menuitem name="Server to list" id="dobtor_todolist_timesheets" parent="dobtor_todolist_timesheets.menu_2"
-              action="dobtor_todolist_timesheets.action_server"/>
-    -->
   </data>
 </openerp>
