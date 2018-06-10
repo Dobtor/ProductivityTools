@@ -71,7 +71,7 @@ class Crm_Lead(models.Model):
     @api.constrains('stage_id')
     def restrict(self):
         if self.stage_id and self.lock_stage:
-            todo_list = self.env['dobtor.todolist.core'].search([('ref_name', '=', 'project.task'), ('ref_id', '=', self.id)])
+            todo_list = self.env['dobtor.todolist.core'].search([('ref_name', '=', 'crm.lead'), ('ref_id', '=', self.id)])
             if todo_list:
                 print("restrict")
                 for todo in todo_list:
