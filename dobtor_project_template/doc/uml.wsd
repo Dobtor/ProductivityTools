@@ -1,4 +1,8 @@
 @startuml
+' skinparam monochrome true
+' skinparam handwritten true
+' skinparam packageFontColor red
+
 package project {
     Class Task {
         + Project project_id
