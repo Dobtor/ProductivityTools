@@ -177,8 +177,9 @@ class Task(models.Model):
 
     @api.multi
     def unlink(self):
-        if self.todolist_ids:
-            raise UserError(_('Please remove existing todolist in the task linked to the accounts you want to delete.'))
+        for item in self:
+            if item.todolist_ids:
+                raise UserError(_('Please remove existing todolist in the task linked to the accounts you want to delete.'))
         return super(Task, self).unlink()
     
     @api.constrains('stage_id')
