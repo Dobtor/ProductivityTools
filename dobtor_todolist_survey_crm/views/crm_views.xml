@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <!-- task form -->
+  <record id="crm_survey_tree" model="ir.ui.view">
+    <field name="name">crm.survey.tree</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="dobtor_todolist_crm_opportunity.todolist_crm_opportunity_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='reviewer_id']" position="before">
+        <field name="survey_id"/>
+        <field name="response_id" invisible="True"/>
+        <field name="hide_survey" invisible="True" />
+        <button name="open_survey" type="object" icon="fa-edit" help="" attrs="{'invisible':['|','|',('survey_id','=',False),('response_id','!=',False),('hide_survey', '=', True)]}" string="Open"/>
+        <button name="open_survey" type="object" icon="fa-send" help="" attrs="{'invisible':['|','|',('survey_id','=',False),('response_id','=',False),('hide_button', '=', True)]}" string="Open"/>
+        <field name="hide_reject" invisible="True" />
+        <button name="reject_action" type="object" icon="fa-reply" help="" attrs="{'invisible':['|','|',('survey_id','=',False),('response_id','=',False),('hide_reject', '=', True)]}" string="reject"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>
