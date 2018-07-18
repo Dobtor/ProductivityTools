@@ -1,0 +1,60 @@
+@startuml
+package project {
+    Class Task {
+        + Project project_id
+        + ProjectTaskType stage_id
+    }
+
+    Class Project {
+        + Task[] task_ids 
+    }
+
+    Class project_task_type_rel {
+
+    }
+
+    Class ProjectTaskType {
+        {abstract} dict default_get()
+    }
+}
+
+package bi_project_template {
+    Class project_project {
+        + int sequence_state
+        + ProjectTaskType stage_id
+        + dict default_get()
+        - void count_sequence()
+        + void set_template()
+        + void new_project()
+        + record reset_project()
+        + void reset_project()
+        + void set_progress()
+    }
+
+    Class project_template_task {
+        + bool Project_check
+    }
+}
+
+package dobtor_todolist_project_task {
+    Class DobtorTodoListCore {
+        + string ref_model
+    }
+
+    Class Task_inhert {
+        + DobtorTodoListCore[] todolist_ids
+    }
+} 
+
+
+Task "*" --o "1" ProjectTaskType
+Project "1" o-- "*" Task
+Project "1" o-- "*" project_task_type_rel
+project_task_type_rel "*" --o "1" ProjectTaskType
+Project <|- project_project
+ProjectTaskType "1" o- "*" project_project
+Task ()- Task_inhert
+Task_inhert "1" o-- "*" DobtorTodoListCore
+ProjectTaskType <|- project_template_task
+project_project <-- project_template_task
+@enduml
