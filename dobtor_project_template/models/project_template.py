@@ -107,8 +107,7 @@ class project_project(models.Model):
     def copy(self, default=None):
         default = dict(default or {})
         project = super(project_project, self).copy(default)
-        if 'tasks' not in default:
-            self.reference_todolist(project)
+        self.reference_todolist(project)
         return project
    
     @api.multi
@@ -155,7 +154,7 @@ class project_task(models.Model):
                 'reviewer_id': todolist.reviewer_id.id,
                 'user_id': todolist.user_id.id,
                 'ref_model': 'project.task,' + str(new_task.id),
-                # 'parent_model': 'project.project,' + str(new_task.project_id.id),
+                'parent_model': 'project.project,' + str(new_task.project_id.id),
             }
             self.browse(new_task.id).write(
                 {'todolist_ids': todolist.copy(defaults)})

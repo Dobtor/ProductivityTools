@@ -13,3 +13,4 @@
 - [ ] Turn discussion content into todolist (1.5人天)
 - [ ] Odoo Calendar sync (google calender)  (unknown)
 - [ ] fixbug and modify require and Note    (1人天)
+
