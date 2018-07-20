@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dobtor_crm_opportunity_template_dobtor_crm_opportunity_template,dobtor_crm_opportunity_template.dobtor_crm_opportunity_template,model_dobtor_crm_opportunity_template_dobtor_crm_opportunity_template,,1,0,0,0
