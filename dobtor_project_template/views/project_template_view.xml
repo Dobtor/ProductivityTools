@@ -37,5 +37,18 @@
 			</field>
 		</record>
 
+		<record id="project_project_simplified_inherites" model="ir.ui.view">
+			<field name="name">project.project.simplified_template</field>
+			<field name="model">project.project</field>
+			<field name="inherit_id" ref="project.project_project_view_form_simplified"/>
+			<field name="arch" type="xml">
+				<xpath expr="//sheet/group" position="after">
+					<group>
+						<field name="picked_template" class="oe_inline" />
+					</group>
+				</xpath>
+			</field>
+		</record>
+
 	</data>
 </odoo>

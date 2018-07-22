@@ -111,15 +111,24 @@ class project_project(models.Model):
         return project
    
     @api.multi
-    def new_project(self):
+    def new_project(self, default=None):
         stage_type_obj = self.env['project.task.type']
-        project_id = self.copy()
+        project_id = self.copy(default)
         if stage_type_obj.get_type_template():
             project_id.write({
                 'stage_id': stage_type_obj.get_type_new().id,
                 'sequence_state': 1
             })
             return project_id
+    # TODO
+    @api.model
+    def create(self, vals):
+        if vals['picked_template']:
+            item = self.browse(vals['picked_template'])
+            project_id = item.new_project({'name':vals['name']})
+        else:
+            project_id = super(project_project, self).create(vals)
+        return project_id
 
     @api.multi
     def reset_project(self):
@@ -140,6 +149,17 @@ class project_project(models.Model):
     stage_id = fields.Many2one('project.task.type', string="state")
     sequence_state = fields.Integer(
         compute="count_sequence", string="State Check")
+
+    @api.multi
+    def _get_template(self):
+        stage_type_obj = self.env['project.task.type']
+        return [(x.id, x.name) for x in self.search([('stage_id', '=', stage_type_obj.get_type_template().id)])]
+
+    picked_template = fields.Selection(
+        string='Project Template',
+        selection='_get_template'
+    )
+    
 
 
 class project_task(models.Model):

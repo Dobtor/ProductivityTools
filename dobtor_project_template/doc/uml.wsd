@@ -22,7 +22,7 @@ package project {
     }
 }
 
-package bi_project_template {
+package dobtor_project_template {
     Class project_project {
         + int sequence_state
         + ProjectTaskType stage_id
@@ -33,10 +33,12 @@ package bi_project_template {
         + record reset_project()
         + void reset_project()
         + void set_progress()
+        + void copy()
     }
 
     Class project_template_task {
         + bool Project_check
+        + void copy()
     }
 }
 
@@ -60,5 +62,6 @@ ProjectTaskType "1" o- "*" project_project
 Task ()- Task_inhert
 Task_inhert "1" o-- "*" DobtorTodoListCore
 ProjectTaskType <|- project_template_task
-project_project <-- project_template_task
+project_project --> project_template_task
+project_template_task -> DobtorTodoListCore
 @enduml
