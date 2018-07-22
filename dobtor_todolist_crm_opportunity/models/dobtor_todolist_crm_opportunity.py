@@ -64,9 +64,10 @@ class Crm_Lead(models.Model):
 
     @api.multi
     def unlink(self):
-        if self.todolist_ids:
-            raise UserError(_('Please remove existing todolist in the task linked to the accounts you want to delete.'))
-        return super(Task, self).unlink()
+        for item in self:
+            if item.todolist_ids:
+                raise UserError(_('Please remove existing todolist in the task linked to the accounts you want to delete.'))
+        return super(Crm_Lead, self).unlink()
     
     @api.constrains('stage_id')
     def restrict(self):
