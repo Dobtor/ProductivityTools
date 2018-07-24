@@ -74,10 +74,12 @@ class Crm_Lead(models.Model):
         if self.stage_id and self.lock_stage:
             todo_list = self.env['dobtor.todolist.core'].search([('ref_name', '=', 'crm.lead'), ('ref_id', '=', self.id)])
             if todo_list:
-                print("restrict")
                 for todo in todo_list:
                     if todo.state in ('todo', 'waiting'):
                         raise ValidationError(_("You can't move it to next stage. Some todos are not completed yet.!"))
+        # stage_obj = self.env['crm.stage']
+        # if self.stage_id == int(stage_obj.get_stage_template()):
+
 
 
     

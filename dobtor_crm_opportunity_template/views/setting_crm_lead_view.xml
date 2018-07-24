@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="crm_opportunities_action" model="ir.actions.act_window">
+        <field name="name">opportunities</field>
+        <field name="res_model">crm.lead</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('type','=','opportunity')]</field>
+        <field name="context">{
+                    'default_type': 'opportunity',
+                    'default_user_id': uid,
+                    'search_default_assigned_to_me': 1,
+            }</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+                          (0, 0, {'view_mode': 'tree', 'view_id': ref('crm.crm_case_tree_view_oppor')}),
+                          (0, 0, {'view_mode': 'form', 'view_id': ref('crm.crm_case_form_view_oppor')})]"/>
+        <field name="search_view_id" ref="crm.view_crm_case_opportunities_filter"/>
+        <field name="help" type="html">
+            <p class="oe_view_nocontent_create">
+                Click to define a new opportunity.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_opportunities" name="opportunities" action="crm_opportunities_action" parent="crm.menu_crm_config_lead" sequence="10" groups="base.group_no_one"/>
+</odoo>

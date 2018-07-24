@@ -14,8 +14,6 @@
     'version': '0.1',
     'depends': ['dobtor_todolist_crm_opportunity'],
     'data': [
-        # 'security/ir.model.access.csv',
-        'views/views.xml',
-        'views/templates.xml',
+        'views/setting_crm_lead_view.xml',
     ],
 }

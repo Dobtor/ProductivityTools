@@ -1,13 +1,16 @@
 @startuml
 
-Class crm_lead { 
-    
-}
 
 Class CrmLead {
+    + CrmStage stage_id
     + crm_lead copy()
 }
 
-crm_lead ()- CrmLead
+Class CrmStage {
+    
+}
 
+' crm_lead ()-- CrmLead
+' crm_stage ()-- CrmStage
+CrmLead "*" --o "1" CrmStage
 @enduml
