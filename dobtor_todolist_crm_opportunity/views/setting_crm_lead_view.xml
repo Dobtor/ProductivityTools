@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <xpath expr="//form/header" position="inside">
                 <field name="is_template" invisible='1' />
-                <button name="set_as_template" type="object" string="Set as Template" class="oe_edit_only" attrs="{'invisible':[('is_template', '=', True)]}"/>
-                <button name="reset_as_origin" type="object" string="Reset as Opportunity" class="oe_edit_only oe_read_only" attrs="{'invisible':[('is_template', '=', False)]}"/>
+                <button name="set_as_template" type="object" string="Set as Template" attrs="{'invisible':[('is_template', '=', True)]}"/>
+                <button name="reset_as_origin" type="object" string="Reset as Opportunity" attrs="{'invisible':[('is_template', '=', False)]}"/>
             </xpath>
         </field>
     </record>
