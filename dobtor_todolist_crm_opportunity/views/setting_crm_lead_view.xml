@@ -14,7 +14,6 @@
         </field>
     </record>
 
-
     <record id="view_create_opportunity_simplified_inherit" model="ir.ui.view">
         <field name="name">crm.lead.form.simple.inherit</field>
         <field name="model">crm.lead</field>
@@ -34,7 +33,6 @@
                     'search_default_assigned_to_me': 1,
             }</field>
     </record>
-
 
     <record id="crm_opportunities_action" model="ir.actions.act_window">
         <field name="name">opportunities</field>
@@ -56,6 +54,8 @@
             </p>
         </field>
     </record>
+
+
     <!-- groups="base.group_no_one" -->
     <menuitem id="menu_opportunities" name="opportunities" action="crm_opportunities_action" parent="crm.menu_crm_config_lead" sequence="10" />
 </odoo>

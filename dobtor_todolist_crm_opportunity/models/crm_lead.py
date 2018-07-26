@@ -9,13 +9,13 @@ class CrmStage(models.Model):
     # TODO [FIX] : if user modify name field
     @api.multi
     def get_stage_new(self):
-        return self.search([('name','=','New')], limit=1)
+        return self.search([('name', '=', 'New')], limit=1)
 
 
 class CrmLead(models.Model):
     _inherit = 'crm.lead'
 
-    # TODO [IMP][REF] : batch create record and performance, 
+    # TODO [IMP][REF] : batch create record and performance,
     @api.multi
     def map_todolist(self, new_crm_lead):
         for todolist in self.todolist_ids:
@@ -42,7 +42,6 @@ class CrmLead(models.Model):
         string='Is Setting',
     )
 
-    
     @api.multi
     def new_opportunity(self, default=None):
         stage_obj = self.env['crm.stage']
@@ -68,6 +67,7 @@ class CrmLead(models.Model):
         string='Opportunity Template',
         selection='_get_template'
     )
+
 
     @api.multi
     def set_as_template(self):
