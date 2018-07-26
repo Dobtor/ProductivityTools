@@ -1,5 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
+
+    <record id="view_crm_opportunity_geo_assign_form" model="ir.ui.view">
+        <field name="name">crm.lead.geo_assign.inherit</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_case_form_view_oppor"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form/header" position="inside">
+                <field name="is_template" invisible='1' />
+                <button name="set_as_template" type="object" string="Set as Template" class="oe_edit_only" attrs="{'invisible':[('is_template', '=', True)]}"/>
+                <button name="reset_as_origin" type="object" string="Reset as Opportunity" class="oe_edit_only oe_read_only" attrs="{'invisible':[('is_template', '=', False)]}"/>
+            </xpath>
+        </field>
+    </record>
+
+
+    <record id="view_create_opportunity_simplified_inherit" model="ir.ui.view">
+        <field name="name">crm.lead.form.simple.inherit</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.view_create_opportunity_simplified"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form/sheet/group/group" position="inside">
+                <field name="picked_template"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="crm.crm_lead_opportunities_tree_view" model="ir.actions.act_window">
+        <field name="res_model">crm.lead</field>
+        <field name="context">{
+                    'default_type': 'opportunity',
+                    'default_user_id': uid,
+                    'search_default_assigned_to_me': 1,
+            }</field>
+    </record>
+
+
     <record id="crm_opportunities_action" model="ir.actions.act_window">
         <field name="name">opportunities</field>
         <field name="res_model">crm.lead</field>
@@ -20,6 +56,6 @@
             </p>
         </field>
     </record>
-
-    <menuitem id="menu_opportunities" name="opportunities" action="crm_opportunities_action" parent="crm.menu_crm_config_lead" sequence="10" groups="base.group_no_one"/>
+    <!-- groups="base.group_no_one" -->
+    <menuitem id="menu_opportunities" name="opportunities" action="crm_opportunities_action" parent="crm.menu_crm_config_lead" sequence="10" />
 </odoo>

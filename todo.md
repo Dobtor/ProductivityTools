@@ -1,10 +1,10 @@
 
 ### TodoList with Project Template
-- [ ] Project Template 7/24
+- [ ] Project Template 7/26
     - [X] design and analysis               (1人天)
     - [X] project and task template         (1人天)
     - [X] task todolist deep copy           (1人天)
-    - [ ] Sale pipeline                     (0.5人天)
+    - [ ] Sale pipeline                     (1.5人天) [延宕]
     - [X] Sale pipeline todolist deep copy  (0.5人天)
     - [ ] survey deep copy                  (1人天)
     - [ ] fixbug and modify require and Note(1人天)

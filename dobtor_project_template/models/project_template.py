@@ -7,14 +7,17 @@ class project_template_task(models.Model):
     _inherit = "project.task.type"
     project_check = fields.Boolean(string="Project Check")
 
+    # TODO [FIX] : if user modify name field
     @api.multi
     def get_type_template(self):
         return self.search([('name', '=', 'Template')], limit=1)
 
+    # TODO [FIX] : if user modify name field
     @api.multi
     def get_type_new(self):
         return self.search([('name', '=', 'New')], limit=1)
 
+    # TODO [FIX] : if user modify name field
     @api.multi
     def get_type_inprogress(self):
         return self.search([('name', '=', 'In Progress')], limit=1)
@@ -95,6 +98,7 @@ class project_project(models.Model):
             self.write({'stage_id': template_id.id, 'sequence_state': 3})
         state_template_id.write({'project_check': False})
 
+    # TODO [IMP][REF]
     @api.multi
     def reference_todolist(self, new_project):
         for task in new_project.tasks:
@@ -120,7 +124,7 @@ class project_project(models.Model):
                 'sequence_state': 1
             })
             return project_id
-    # TODO
+
     @api.model
     def create(self, vals):
         if vals['picked_template']:
