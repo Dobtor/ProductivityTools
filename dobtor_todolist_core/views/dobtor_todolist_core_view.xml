@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+        <!-- TODO: [FIX] project task and crm_lead nead diffence filter -->
         <record id="dobtor_todolist_view_search" model="ir.ui.view">
             <field name="name">dobtor.todolist.core.filter</field>
             <field name="model">dobtor.todolist.core</field>
