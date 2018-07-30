@@ -3,26 +3,6 @@
 from odoo import models, fields, api
 
 
-class project_template_task(models.Model):
-    _inherit = "project.task.type"
-    project_check = fields.Boolean(string="Project Check")
-
-    # TODO [FIX] : if user modify name field
-    @api.multi
-    def get_type_template(self):
-        return self.search([('name', '=', 'Template')], limit=1)
-
-    # TODO [FIX] : if user modify name field
-    @api.multi
-    def get_type_new(self):
-        return self.search([('name', '=', 'New')], limit=1)
-
-    # TODO [FIX] : if user modify name field
-    @api.multi
-    def get_type_inprogress(self):
-        return self.search([('name', '=', 'In Progress')], limit=1)
-
-
 class project_project(models.Model):
     _inherit = "project.project"
 
@@ -104,7 +84,7 @@ class project_project(models.Model):
         for task in new_project.tasks:
             for todolist in task.todolist_ids:
                 self.env['dobtor.todolist.core'].browse(todolist.id).write(
-                    {'parent_model': 'project.project, ' + str(new_project.id)})
+                    {'parent_model': 'project.project,' + str(new_project.id)})
         return True
 
     @api.multi
@@ -165,29 +145,3 @@ class project_project(models.Model):
     )
     
 
-
-class project_task(models.Model):
-    _inherit = "project.task"
-
-    @api.multi
-    def map_todolist(self, new_task):
-        for todolist in self.todolist_ids:
-            defaults = {
-                'name': todolist.name,
-                'creater': todolist.creater.id,
-                'reviewer_id': todolist.reviewer_id.id,
-                'user_id': todolist.user_id.id,
-                'ref_model': 'project.task,' + str(new_task.id),
-                'parent_model': 'project.project,' + str(new_task.project_id.id),
-            }
-            self.browse(new_task.id).write(
-                {'todolist_ids': todolist.copy(defaults)})
-        return True
-
-    @api.multi
-    def copy(self, default=None):
-        default = dict(default or {})
-        task = super(project_task, self).copy(default)
-        if 'todolist_ids' not in default:
-            self.map_todolist(task)
-        return task

@@ -2,17 +2,17 @@
 {
     'name': "dobtor_todolist_crm_opportunity",
     'summary': """
-        with crm opportunity template
+        crm opportunity extend freature
     """,
     'description': """
-        with crm opportunity template
+        1. crm opportunity has todolist freature
+        2. crm opportunity has template freature
     """,
     'author': "dobtor SI",
     'website': "http://www.dobtor.com",
     'category': 'crm',
     'version': '0.1',
     'depends': ['crm','sale','dobtor_todolist_core'],
-    # always loaded
     'data': [
         'views/dobtor_todolist_crm_opportunity_view.xml',
         'views/dobtor_todolist_crm_opportunity_data.xml',

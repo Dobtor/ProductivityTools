@@ -1,16 +1,27 @@
 @startuml
-
+abstract class AbstractTodolistCopy {
+    {abstract} T copy()
+    {abstract} bool map_todolist()
+}
+note left: In this Case T is CrmLead
 
 Class CrmLead {
     + CrmStage stage_id
-    + crm_lead copy()
+    + CrmLead map_todolist()
+    + Dobtor_TodoList_core[] todolist_ids
 }
+
+Class Dobtor_TodoList_core {
+    + T ref_id
+}
+note left: In this Case T is CrmLead
 
 Class CrmStage {
-    
+    + CrmStage get_stage_new()
 }
 
-' crm_lead ()-- CrmLead
-' crm_stage ()-- CrmStage
-CrmLead "*" --o "1" CrmStage
+
+AbstractTodolistCopy <|-- CrmLead
+CrmLead "*" -o "1" CrmStage
+CrmLead "1" o-- "*" Dobtor_TodoList_core
 @enduml

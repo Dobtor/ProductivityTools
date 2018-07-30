@@ -9,8 +9,8 @@
     - [X] task todolist deep copy           (1人天)
     - [X] Sale pipeline                     (1人天)
     - [X] Sale pipeline todolist deep copy  (0.5人天)
-    - [ ] survey deep copy                  (1人天)
-    - [ ] fixbug and modify require and Note(1人天)
+    - [X] survey shallow copy                  (0.5人天)
+    - [ ] fixbug/improvements/refactoring and modify require and Note(1人天)
 - [ ] issure 8/1
 	- [ ] todolist task 必須先建立, 才能建立todolist問題 (0.5人天)
     - [ ] todolist mission 不顯示 project (目的 : no show 沒裝的module) (1人天)

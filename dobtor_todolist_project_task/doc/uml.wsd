@@ -4,10 +4,18 @@
 ' skinparam packageFontColor red
 
 package project {
+
+    
     Class Task {
         + Project project_id
         + ProjectTaskType stage_id
     }
+
+    abstract class AbstractTodolistCopy {
+        {abstract} T copy()
+        {abstract} bool map_todolist()
+    }
+    note left: In this Case T is Task
 
     Class Project {
         + Task[] task_ids 
@@ -20,9 +28,11 @@ package project {
     Class ProjectTaskType {
         {abstract} dict default_get()
     }
+
+
 }
 
-package dobtor_project_template {
+package dobtor_todolist_project_task {
     Class project_project {
         + int sequence_state
         + ProjectTaskType stage_id
@@ -36,32 +46,27 @@ package dobtor_project_template {
         + void copy()
     }
 
-    Class project_template_task {
-        + bool Project_check
-        + void copy()
-    }
-}
-
-package dobtor_todolist_project_task {
     Class DobtorTodoListCore {
         + string ref_model
     }
 
-    Class Task_inhert {
+    Class project_task {
         + DobtorTodoListCore[] todolist_ids
+        + bool Project_check
+        + void map_todolist()
     }
 } 
 
-
+project_task --|> AbstractTodolistCopy
 Task "*" --o "1" ProjectTaskType
 Project "1" o-- "*" Task
 Project "1" o-- "*" project_task_type_rel
 project_task_type_rel "*" --o "1" ProjectTaskType
-Project <|- project_project
-ProjectTaskType "1" o- "*" project_project
-Task ()- Task_inhert
-Task_inhert "1" o-- "*" DobtorTodoListCore
-ProjectTaskType <|- project_template_task
-project_project --> project_template_task
-project_template_task -> DobtorTodoListCore
+project_project -() Project
+ProjectTaskType "1" o-- "*" project_project
+project_task --() Task
+project_task "1" o-- "*" DobtorTodoListCore
+' ProjectTaskType <|- project_task
+project_project --> project_task
+project_task -> DobtorTodoListCore
 @enduml

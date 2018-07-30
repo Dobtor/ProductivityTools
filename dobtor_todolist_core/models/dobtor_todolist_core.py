@@ -87,7 +87,7 @@ class DobtorTodoListCore(models.Model):
 
     @api.model
     def create(self, vals):
-        print("todo create")
+        # print("todo create")
         if 'ref_model' in vals and vals['ref_model']:
             vals['ref_id'] = vals['ref_model'].split(',')[1]
             vals['ref_name'] = vals['ref_model'].split(',')[0]
@@ -132,7 +132,30 @@ class DobtorTodoListCore(models.Model):
             self.date_assign = None
 
     
-    
+    @api.multi
+    def defaults_copy(self, default=None):
+        defaults = dict(default or {})
+        for item in self:
+            defaults.update({
+                'name': item.name,
+                'creater': item.creater.id,
+                'reviewer_id': item.reviewer_id.id,
+                'user_id': item.user_id.id,
+            })
+        return defaults
     
         
-        
+class AbstractTodolistCopy(models.AbstractModel):
+    _name = 'abstract.todolist.copy'
+
+    @api.multi
+    def map_todolist(self, new_obj):
+        pass
+
+    @api.multi
+    def copy(self, default=None):
+        default = dict(default or {})
+        new_obj = super(AbstractTodolistCopy, self).copy(default)
+        if 'todolist_ids' not in default:
+            self.map_todolist(new_obj)
+        return new_obj
