@@ -90,13 +90,9 @@ class Task(models.Model):
                             _("You can't move it to next stage. Some todos are not completed yet.!"))
 
     @api.multi
-    def map_todolist(self, new_task):
-        for todolist in self.todolist_ids:
-            defaults = todolist.defaults_copy()
-            defaults.update({
-                'ref_model': 'project.task,' + str(new_task.id),
-                'parent_model': 'project.project,' + str(new_task.project_id.id),
-            })
-            self.browse(new_task.id).write(
-                {'todolist_ids': todolist.copy(defaults)})
-        return True
+    def copy_default_extend(self, default, new_obj):
+        default.update({
+            'ref_model': 'project.task,' + str(new_obj.id),
+            'parent_model': 'project.project,' + str(new_obj.project_id.id),
+        })
+

@@ -143,19 +143,4 @@ class DobtorTodoListCore(models.Model):
                 'user_id': item.user_id.id,
             })
         return defaults
-    
-        
-class AbstractTodolistCopy(models.AbstractModel):
-    _name = 'abstract.todolist.copy'
 
-    @api.multi
-    def map_todolist(self, new_obj):
-        pass
-
-    @api.multi
-    def copy(self, default=None):
-        default = dict(default or {})
-        new_obj = super(AbstractTodolistCopy, self).copy(default)
-        if 'todolist_ids' not in default:
-            self.map_todolist(new_obj)
-        return new_obj

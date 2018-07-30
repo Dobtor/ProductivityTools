@@ -14,8 +14,10 @@ package project {
     abstract class AbstractTodolistCopy {
         {abstract} T copy()
         {abstract} bool map_todolist()
+        {abstract} void copy_default_extend()
     }
-    note left: In this Case T is Task
+    note left: In this Case T is Task 
+
 
     Class Project {
         + Task[] task_ids 
@@ -43,7 +45,7 @@ package dobtor_todolist_project_task {
         + record reset_project()
         + void reset_project()
         + void set_progress()
-        + void copy()
+        + void copy_default_extend()
     }
 
     Class DobtorTodoListCore {

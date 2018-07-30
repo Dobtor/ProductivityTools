@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from openerp import models, fields, api
-from openerp.tools import html_escape as escape
-from openerp.exceptions import Warning as UserError
-from openerp.exceptions import Warning, ValidationError
-from openerp.tools.translate import _
+from odoo import models, fields, api
+from odoo.tools import html_escape as escape
+from odoo.exceptions import Warning as UserError
+from odoo.exceptions import Warning, ValidationError
+from odoo.tools.translate import _
 
 
 class CrmLead(models.Model):
@@ -100,15 +100,10 @@ class CrmLead(models.Model):
         # if self.stage_id == int(stage_obj.get_stage_template()):
 
     @api.multi
-    def map_todolist(self, new_obj):
-        for todolist in self.todolist_ids:
-            defaults = todolist.defaults_copy()
-            defaults.update({
-                'ref_model': 'crm.lead,' + str(new_obj.id),
-            })
-            self.browse(new_obj.id).write(
-                {'todolist_ids': todolist.copy(defaults)})
-        return True
+    def copy_default_extend(self, default, new_obj):
+        default.update({
+            'ref_model': 'crm.lead,' + str(new_obj.id),
+        })
 
     @api.multi
     def new_opportunity(self, default=None):

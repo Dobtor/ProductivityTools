@@ -2,12 +2,13 @@
 abstract class AbstractTodolistCopy {
     {abstract} T copy()
     {abstract} bool map_todolist()
+    {abstract} void copy_default_extend()
 }
 note left: In this Case T is CrmLead
 
 Class CrmLead {
     + CrmStage stage_id
-    + CrmLead map_todolist()
+    + void copy_default_extend()
     + Dobtor_TodoList_core[] todolist_ids
 }
 
