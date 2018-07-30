@@ -8,7 +8,7 @@ class DobtorTodoListSurvey(models.Model):
     _inherit = 'dobtor.todolist.core'
     survey_id = fields.Many2one("survey.survey", "Survey")
     response_id = fields.Many2one(
-        'survey.user_input', "Response", ondelete="set null", oldname="response")
+        'survey.user_input', "Response", ondelete="set null", oldname="response", copy=False)
     hide_reject = fields.Boolean(compute='_compute_hide_reject')
     hide_survey = fields.Boolean(compute='_compute_hide_survey')
     todolist_user_input_ids = fields.One2many(

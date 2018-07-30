@@ -1,0 +1,8 @@
+@startuml
+
+Class dobtor_todolist_core {
+
+}
+
+
+@enduml
