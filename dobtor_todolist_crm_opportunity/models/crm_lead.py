@@ -27,10 +27,7 @@ class CrmLead(models.Model):
 
     is_template = fields.Boolean(
         string='Is Setting',
-    )    
-    picked_template = fields.Selection(
-        string='Opportunity Template',
-        selection='_get_template'
+        copy=False
     )
 
     @api.multi
@@ -115,17 +112,22 @@ class CrmLead(models.Model):
 
     @api.model
     def create(self, vals):
-        if vals['picked_template']:
-            item = self.browse(vals['picked_template'])
-            opportunity_id = item.new_opportunity({'name': vals['name']})
-        else:
-            opportunity_id = super(CrmLead, self).create(vals)
+        if 'picked_template' in vals:
+            if vals['picked_template']:
+                item = self.browse(vals['picked_template'])
+                opportunity_id = item.new_opportunity({'name': vals['name']})
+                return opportunity_id
+        opportunity_id = super(CrmLead, self).create(vals)
         return opportunity_id
 
     @api.multi
     def _get_template(self):
         return [(x.id, x.name) for x in self.search([('is_template', '=', 'True')])]
 
+    picked_template = fields.Selection(
+        string='Opportunity Template',
+        selection='_get_template'
+    )
 
     @api.multi
     def set_as_template(self):
