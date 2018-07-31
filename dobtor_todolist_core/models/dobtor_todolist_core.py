@@ -24,7 +24,8 @@ class DobtorTodoListCore(models.Model):
     user_id = fields.Many2one('res.users', 'Assigned to', required=True)
     hide_button = fields.Boolean(compute='_compute_hide_button')
     recolor = fields.Boolean(compute='_compute_recolor')
-    ref_model = fields.Reference(selection='referencable_models', string="Refer To", default=None)
+    ref_model = fields.Reference(
+        selection='set_ref_models', string="Refer To", default=None)
     ref_id = fields.Integer(string='ref_id')
     ref_name = fields.Char(string='ref_name')
     parent_model = fields.Reference(selection='referencable_models', string="Parent", default=None)
@@ -37,6 +38,10 @@ class DobtorTodoListCore(models.Model):
     planned_hours = fields.Float(string='Planned Hours', default=0)
     out_of_deadline = fields.Boolean("Out of deadline", default=False, compute="check_deadline")
     sequence = fields.Integer()
+
+    @api.model
+    def set_ref_models(self):
+        return []
 
     @api.model
     def referencable_models(self):
@@ -76,6 +81,7 @@ class DobtorTodoListCore(models.Model):
 
     @api.multi
     def write(self, vals):
+        print("todo write")
         if 'ref_model' in vals and vals['ref_model']:
             vals['ref_id'] = vals['ref_model'].split(',')[1]
             vals['ref_name'] = vals['ref_model'].split(',')[0]
@@ -87,7 +93,7 @@ class DobtorTodoListCore(models.Model):
 
     @api.model
     def create(self, vals):
-        # print("todo create")
+        print("todo create")
         if 'ref_model' in vals and vals['ref_model']:
             vals['ref_id'] = vals['ref_model'].split(',')[1]
             vals['ref_name'] = vals['ref_model'].split(',')[0]

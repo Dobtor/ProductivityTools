@@ -11,12 +11,15 @@ package project {
         + ProjectTaskType stage_id
     }
 
-    abstract class AbstractTodolistCopy {
-        {abstract} T copy()
-        {abstract} bool map_todolist()
+
+    abstract class AbstractTodolist {
+        + res_users default_user
+        + Dobtor_TodoList_core[] todolist_ids
+        + string kanban_todolists
+        + bool lock_stage
+        {abstract} Array set_todolist_domain()
         {abstract} void copy_default_extend()
     }
-    note left: In this Case T is Task 
 
 
     Class Project {
@@ -59,15 +62,15 @@ package dobtor_todolist_project_task {
     }
 } 
 
-project_task --|> AbstractTodolistCopy
+project_task --|> AbstractTodolist
 Task "*" --o "1" ProjectTaskType
 Project "1" o-- "*" Task
 Project "1" o-- "*" project_task_type_rel
 project_task_type_rel "*" --o "1" ProjectTaskType
-project_project -() Project
+Project ()- project_project
 ProjectTaskType "1" o-- "*" project_project
 project_task --() Task
-project_task "1" o-- "*" DobtorTodoListCore
+AbstractTodolist "1" o-- "*" DobtorTodoListCore
 ' ProjectTaskType <|- project_task
 project_project --> project_task
 project_task -> DobtorTodoListCore

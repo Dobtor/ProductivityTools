@@ -3,7 +3,7 @@
 from odoo import models, fields, api
 from odoo.tools import html_escape as escape
 from odoo.exceptions import Warning as UserError
-from odoo.exceptions import Warning, ValidationError
+from odoo.exceptions import ValidationError
 from odoo.tools.translate import _ 
 
 TODO_STATES = {'done': 'Done',
@@ -13,6 +13,12 @@ TODO_STATES = {'done': 'Done',
 
 class DobtorTodoListCore(models.Model):
     _inherit = 'dobtor.todolist.core'
+
+    @api.model
+    def set_ref_models(self):
+        selection = super(DobtorTodoListCore, self).set_ref_models()
+        selection.append(('project.task', 'Project task'))
+        return selection
 
     @api.model
     def create(self, vals):
