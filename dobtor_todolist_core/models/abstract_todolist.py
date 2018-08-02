@@ -18,7 +18,8 @@ class AbstractTodolist(models.AbstractModel):
         comodel_name='dobtor.todolist.core',
         inverse_name='ref_id',
         domain=set_todolist_domain,
-        string='Todo Item'
+        string='Todo Item',
+        ondelete='cascade'
     )
     kanban_todolists = fields.Text(
         compute='_compute_kanban_todolists'

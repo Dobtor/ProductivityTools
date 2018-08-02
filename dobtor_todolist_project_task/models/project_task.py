@@ -10,18 +10,9 @@ class Task(models.Model):
     _name = "project.task"
     _inherit = ["project.task", "abstract.todolist"]
 
-
     @api.model
     def set_todolist_domain(self):
         return [('ref_model', '=', 'project.task')]
-
-    @api.multi
-    def unlink(self):
-        for item in self:
-            if item.todolist_ids:
-                raise UserError(
-                    _('Please remove existing todolist in the task linked to the accounts you want to delete.'))
-        return super(Task, self).unlink()
 
     @api.constrains('stage_id')
     def restrict(self):
@@ -41,3 +32,8 @@ class Task(models.Model):
             'parent_model': 'project.project,' + str(new_obj.project_id.id),
         })
 
+    # @api.model
+    # def create(self, vals):
+    #     task = super(Task, self).create(vals)
+    #     if 'todolist_ids' in task:
+    #     return task
