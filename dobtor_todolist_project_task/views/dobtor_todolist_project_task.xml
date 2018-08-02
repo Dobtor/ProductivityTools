@@ -1,62 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-  <data>
-    <record id="view_task_form2" model="ir.ui.view">
-        <field name="name">dobtor.todolist.project.task.form</field>
-        <field name="model">project.task</field>
-        <field name="inherit_id" ref="project.view_task_form2"/>
-        <field name="arch" type="xml">
-            <xpath expr="//div[@class='oe_title']/h1" position='after'>
-                <div name="options_active" class="oe_edit_only">
-                    <div>
-                        <field name="lock_stage" class="oe_inline" string="Lock Stage"/>
-                        <label for="lock_stage" class="oe_inline"/>
+    <data>
+        <record id="view_task_form2" model="ir.ui.view">
+            <field name="name">dobtor.todolist.project.task.form</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_form2"/>
+            <field name="arch" type="xml">
+                <xpath expr="//div[@class='oe_title']/h1" position='after'>
+                    <div name="options_active" class="oe_edit_only">
+                        <div>
+                            <field name="lock_stage" class="oe_inline" string="Lock Stage"/>
+                            <label for="lock_stage" class="oe_inline"/>
+                        </div>
                     </div>
-                </div>
-            </xpath>
-            <xpath expr="//page[1]" position="before">
-                <page string="TodoList">
-                    <field name="default_user" invisible='True'/>
-                    <field name="todolist_ids" context="{'default_user_id': default_user,'default_ref_model' : 'project.task,' + str(active_id),'tree_view_ref':'dobtor_todolist_core.todolist_template_tree_view'}">
-                    </field>
-                </page>
-            </xpath>
-        </field>
-    </record>
+                </xpath>
+                <xpath expr="//page[1]" position="before">
+                    <page string="TodoList">
+                        <field name="default_user" invisible='True'/>
+                        <field name="todolist_ids" context="{'default_user_id': default_user,'default_ref_model' : 'project.task,' + str(active_id),'tree_view_ref':'dobtor_todolist_core.todolist_template_tree_view'}">
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
 
-    <record id="view_task_kanban_todolist" model="ir.ui.view">
-        <field name="name">dobtor.todolist.project.task.kanban.list</field>
-        <field name="model">project.task</field>
-        <field name="inherit_id" ref="project.view_task_kanban"/>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='tag_ids']" position="after">
-                <field name="todolist_ids"/>
-                <field name="kanban_todolists"/>
-            </xpath>
-            <xpath expr="//div[@class = 'oe_kanban_content']" postion="inside">
-                <div>
-                    <t t-raw="record.kanban_todolists.raw_value"/>
-                </div>
-            </xpath>
-        </field>
-    </record>
+        <record id="view_task_kanban_todolist" model="ir.ui.view">
+            <field name="name">dobtor.todolist.project.task.kanban.list</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_kanban"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='tag_ids']" position="after">
+                    <field name="todolist_ids"/>
+                    <field name="kanban_todolists"/>
+                </xpath>
+                <xpath expr="//div[@class='oe_kanban_content']/div[@class='oe_kanban_bottom_left']" position="before">
+                    <div style="border-top: 1px solid #DDD;">
+                        <t t-raw="record.kanban_todolists.raw_value" />
+                    </div>
+                </xpath>
+            </field>
+        </record>
 
-    <record id="action_view_todolist_project_task" model="ir.actions.act_window">
-        <field name="name">TodoList</field>
-        <field name="res_model">dobtor.todolist.core</field>
-        <field name="view_mode">tree,form</field>
-        <field name="domain">[('ref_name','=','project.task')]</field>
-        <field name="context"> {
-            'search_default_my_todolist':1,
-            'search_default_done_todolist':1,
+        <record id="action_view_todolist_project_task" model="ir.actions.act_window">
+            <field name="name">TodoList</field>
+            <field name="res_model">dobtor.todolist.core</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('ref_name','=','project.task')]</field>
+            <field name="context"> {
+                'search_default_my_todolist':1,
+                'search_default_done_todolist':1,
             }
-        </field>
-    </record>
+            </field>
+        </record>
 
-    <menuitem name="TodoList"
-              parent="project.menu_project_management"
-              id="menu_action_view_todolist"
-              action="action_view_todolist_project_task"/>
+        <menuitem name="TodoList" parent="project.menu_project_management" id="menu_action_view_todolist" action="action_view_todolist_project_task"/>
 
-  </data>
+    </data>
 </odoo>

@@ -1,62 +1,59 @@
 <odoo>
     <data>
-      <record id="todolist_crm_opportunity_form" model="ir.ui.view">
-        <field name="name">dobtor.todolist.crm.opportunity.form</field>
-        <field name="model">crm.lead</field>
-        <field name="inherit_id" ref="crm.crm_case_form_view_oppor"/>
-        <field name="arch" type="xml">
-            <xpath expr="//div[@class='oe_title']/h1" position='after'>
-                <div name="options_active" class="oe_edit_only">
-                    <div>
-                        <field name="lock_stage" class="oe_inline" string="Lock Stage"/>
-                        <label for="lock_stage" class="oe_inline"/>
+        <record id="todolist_crm_opportunity_form" model="ir.ui.view">
+            <field name="name">dobtor.todolist.crm.opportunity.form</field>
+            <field name="model">crm.lead</field>
+            <field name="inherit_id" ref="crm.crm_case_form_view_oppor"/>
+            <field name="arch" type="xml">
+                <xpath expr="//div[@class='oe_title']/h1" position='after'>
+                    <div name="options_active" class="oe_edit_only">
+                        <div>
+                            <field name="lock_stage" class="oe_inline" string="Lock Stage"/>
+                            <label for="lock_stage" class="oe_inline"/>
+                        </div>
                     </div>
-                </div>
-            </xpath>
-            <xpath expr="//page[1]" position="before">
-                <page string="TodoList">
-                    <field name="default_user" invisible='True'/>
-                    <field name="todolist_ids" context="{'default_user_id': default_user,'default_ref_model' : 'crm.lead,' + str(active_id), ,'tree_view_ref':'dobtor_todolist_core.todolist_template_tree_view'}">
-                    </field>
-                </page>
-            </xpath>
-        </field>
-      </record>
+                </xpath>
+                <xpath expr="//page[1]" position="before">
+                    <page string="TodoList">
+                        <field name="default_user" invisible='True'/>
+                        <field name="todolist_ids" context="{'default_user_id': default_user,'default_ref_model' : 'crm.lead,' + str(active_id), ,'tree_view_ref':'dobtor_todolist_core.todolist_template_tree_view'}">
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
 
-      <!-- kanban view -->
-      <record id="view_task_kanban_todolist" model="ir.ui.view">
-        <field name="name">dobtor.todolist.crm.opportunity.kanban.list</field>
-        <field name="model">crm.lead</field>
-        <field name="inherit_id" ref="crm.crm_case_kanban_view_leads"/>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='tag_ids']" position="after">
-                <field name="todolist_ids"/>
-                <field name="kanban_todolists"/>
-            </xpath>
-            <xpath expr="//div[@class = 'oe_kanban_content']" postion="inside">
-                <div>
-                    <t t-raw="record.kanban_todolists.raw_value"/>
-                </div>
-            </xpath>
-        </field>
-      </record>
+        <!-- kanban view -->
+        <record id="view_task_kanban_todolist" model="ir.ui.view">
+            <field name="name">dobtor.todolist.crm.opportunity.kanban.list</field>
+            <field name="model">crm.lead</field>
+            <field name="inherit_id" ref="crm.crm_case_kanban_view_leads"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='tag_ids']" position="after">
+                    <field name="todolist_ids"/>
+                    <field name="kanban_todolists"/>
+                </xpath>
+                <xpath expr="//div[@class='o_kanban_footer']" position="before">
+                    <div style="border-top: 1px solid #DDD;">
+                        <t t-raw="record.kanban_todolists.raw_value" />
+                    </div>
+                </xpath>
+            </field>
+        </record>
 
-      <record id="action_view_todolist_crm_opportunity" model="ir.actions.act_window">
-        <field name="name">TodoList</field>
-        <field name="res_model">dobtor.todolist.core</field>
-        <field name="view_mode">tree,form</field>
-        <field name="domain">[('ref_name','=','crm.lead')]</field>
-        <field name="context"> {
-            'search_default_my_todolist':1,
-            'search_default_done_todolist':1,
+        <record id="action_view_todolist_crm_opportunity" model="ir.actions.act_window">
+            <field name="name">TodoList</field>
+            <field name="res_model">dobtor.todolist.core</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('ref_name','=','crm.lead')]</field>
+            <field name="context"> {
+                'search_default_my_todolist':1,
+                'search_default_done_todolist':1,
             }
-        </field>
-      </record>
+            </field>
+        </record>
 
-      <menuitem name="TodoList"
-                parent="sales_team.menu_sales"
-                id="menu_action_view_todolist"
-                action="action_view_todolist_crm_opportunity"/>
-      
+        <menuitem name="TodoList" parent="sales_team.menu_sales" id="menu_action_view_todolist" action="action_view_todolist_crm_opportunity"/>
+
     </data>
 </odoo>
