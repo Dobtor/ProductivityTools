@@ -13,6 +13,6 @@
     'version': '0.1',
     'depends': ['project', 'dobtor_todolist_survey', 'dobtor_todolist_project_task'],
     'data': [
-        'views/project_task_views.xml',
+        # 'views/project_task_views.xml',
     ],
 }

@@ -16,31 +16,7 @@
             <xpath expr="//page[1]" position="before">
                 <page string="TodoList">
                     <field name="default_user" invisible='True'/>
-                    <field name="todolist_ids" context="{'default_user_id': default_user,'default_ref_model' : 'crm.lead,' + str(active_id)}">
-                        <tree string="Task Work" editable="bottom" colors="red:recolor == True;gray:state == 'cancelled';green:state == 'done';#b818ce:state == 'waiting'">
-                            <field name="name"/>
-                            <field name="recolor" invisible="True"/>
-                            <field name="user_id" options="{'no_open': True}"/>
-                            <field name="state"/>
-                            <field name="hide_button" invisible="True"/>
-                            <button name="change_state_done" string="Change state to DONE" type="object" icon="gtk-apply" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_todo" string="Change state to TODO" type="object" icon="gtk-new" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="gtk-media-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
-                            <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="gtk-cancel" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>                           
-                            <!--<field name="survey_id"/>
-                            <button name="open_survey"
-                                class="oe_stat_button"
-                                type="object"
-                                help=""
-                                attrs="{'invisible':[('survey_id','=',False)]}"
-                                string="Open"/>
-                                -->
-                            <field name="reviewer_id" options="{'no_open': True}"/>
-                            <field name="ref_model" invisible="True" />
-                            <field name="parent_model" invisible="True"/>
-                            <field name="write_date" readonly="True"/>
-                            <field name="creater" options="{'no_open': True}"/>
-                        </tree>
+                    <field name="todolist_ids" context="{'default_user_id': default_user,'default_ref_model' : 'crm.lead,' + str(active_id), ,'tree_view_ref':'dobtor_todolist_core.todolist_template_tree_view'}">
                     </field>
                 </page>
             </xpath>

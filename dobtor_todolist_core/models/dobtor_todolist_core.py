@@ -81,7 +81,6 @@ class DobtorTodoListCore(models.Model):
 
     @api.multi
     def write(self, vals):
-        print("todo write")
         if 'ref_model' in vals and vals['ref_model']:
             vals['ref_id'] = vals['ref_model'].split(',')[1]
             vals['ref_name'] = vals['ref_model'].split(',')[0]
@@ -93,7 +92,6 @@ class DobtorTodoListCore(models.Model):
 
     @api.model
     def create(self, vals):
-        print("todo create")
         if 'ref_model' in vals and vals['ref_model']:
             vals['ref_id'] = vals['ref_model'].split(',')[1]
             vals['ref_name'] = vals['ref_model'].split(',')[0]

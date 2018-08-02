@@ -6,6 +6,7 @@
     'author' : "Steven, www.dobtor.com",
     'depends' : ['base','mail'],
     'data' : [
+        'views/todolist_tree_view.xml',
         'views/dobtor_todolist_core_view.xml',
         'data/subscription_template.xml',
     ],

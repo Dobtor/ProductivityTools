@@ -10,6 +10,7 @@ abstract class AbstractTodolist {
 
 Class CrmLead {
     + CrmStage stage_id
+    + Array set_todolist_domain()
     + void copy_default_extend()
 }
 

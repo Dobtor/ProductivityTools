@@ -34,4 +34,21 @@
             </xpath>
         </field>
     </record>
+    <!-- todolist template tree -->
+    <record id="todolist_template_extend_tree_view" model="ir.ui.view">
+        <field name="name">todolist.template.extend.tree.view</field>
+        <field name="model">dobtor.todolist.core</field>
+        <field name="inherit_id" ref="dobtor_todolist_core.todolist_template_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree/button[@name='change_state_cancelled']" position="after">
+                <field name="survey_id"/>
+                <field name="response_id" invisible="True"/>
+                <field name="hide_survey" invisible="True" />
+                <button name="open_survey" type="object" icon="fa-edit" help="" attrs="{'invisible':['|','|',('survey_id','=',False),('response_id','!=',False),('hide_survey', '=', True)]}" string="Open"/>
+                <button name="open_survey" type="object" icon="fa-send" help="" attrs="{'invisible':['|','|',('survey_id','=',False),('response_id','=',False),('hide_button', '=', True)]}" string="Open"/>
+                <field name="hide_reject" invisible="True" />
+                <button name="reject_action" type="object" icon="fa-reply" help="" attrs="{'invisible':['|','|',('survey_id','=',False),('response_id','=',False),('hide_reject', '=', True)]}" string="reject"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>

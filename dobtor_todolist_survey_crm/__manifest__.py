@@ -13,6 +13,6 @@
     'version': '0.1',
     'depends': ['dobtor_todolist_survey', 'dobtor_todolist_crm_opportunity'],
     'data': [
-        'views/crm_views.xml',
+        # 'views/crm_views.xml',
     ],
 }
