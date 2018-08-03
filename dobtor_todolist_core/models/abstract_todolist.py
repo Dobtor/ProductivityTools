@@ -2,24 +2,20 @@
 
 from odoo import models, fields, api
 from odoo.tools import html_escape as escape
+from odoo.exceptions import Warning as UserError
+from odoo.tools.translate import _
 
 
 class AbstractTodolist(models.AbstractModel):
     _name = 'abstract.todolist'
-
-    @api.model
-    def set_todolist_domain(self):
-        return []
-
 
     default_user = fields.Many2one(
         'res.users', compute='_compute_default_user')
     todolist_ids = fields.One2many(
         comodel_name='dobtor.todolist.core',
         inverse_name='ref_id',
-        domain=set_todolist_domain,
+        domain=lambda self: [('ref_name', '=', self._name)],
         string='Todo Item',
-        ondelete='cascade'
     )
     kanban_todolists = fields.Text(
         compute='_compute_kanban_todolists'
@@ -27,7 +23,63 @@ class AbstractTodolist(models.AbstractModel):
 
     lock_stage = fields.Boolean(string="Lock Stage", default=True)
 
+    # region model operation (CRUD)
+    @api.multi
+    def handle_vals(self, vals, data):
+        if 'todolist_ids' in vals:
+            for todolist in vals['todolist_ids']:
+                if todolist[0] == 0 and todolist[2]:
+                    todolist[2].update(data)
+        return vals
 
+    @api.multi
+    def unlink(self):
+        for item in self:
+            if item.todolist_ids:
+                raise UserError(
+                    _('Please remove existing todolist in the relation linked to the accounts you want to delete.'))
+        return super(AbstractTodolist, self).unlink()
+
+    @api.model
+    def create(self, vals):
+        self.handle_vals(vals, {'ref_name': self._name})
+        obj = super(AbstractTodolist, self).create(vals)
+        if 'todolist_ids' in vals:
+            for item in vals['todolist_ids']:
+                todolist = self.env['dobtor.todolist.core'].search([('ref_id','=', obj.id),('ref_name','=', obj._name)])
+                todolist.write({'ref_model': u'{0},{1}'.format(obj._name, str(obj.id))})
+        return obj
+
+    @api.multi
+    def write(self, vals):
+        self.handle_vals(vals, {'ref_model': u'{0},{1}'.format(self._name, str(self.id))})
+        return super(AbstractTodolist, self).write(vals)
+    # endregion
+
+    # region Depp copy
+    @api.multi
+    def copy_default_extend(self, default=None, new_obj=None):
+        pass
+
+    @api.multi
+    def map_todolist(self, new_obj):
+        for todolist in self.todolist_ids:
+            defaults = todolist.defaults_copy()
+            self.copy_default_extend(defaults, new_obj)
+            self.browse(new_obj.id).write(
+                {'todolist_ids': todolist.copy(defaults)})
+        return True
+
+    @api.multi
+    def copy(self, default=None):
+        default = dict(default or {})
+        new_obj = super(AbstractTodolist, self).copy(default)
+        if 'todolist_ids' not in default:
+            self.map_todolist(new_obj)
+        return new_obj
+    # endregion
+
+    # region private method
     @api.multi
     def _compute_default_user(self):
         for record in self:
@@ -43,6 +95,7 @@ class AbstractTodolist(models.AbstractModel):
 
     @api.multi
     def _compute_kanban_todolists(self):
+        """ UI render """
         for record in self:
             result_string1 = ''
             result_string2 = ''
@@ -72,25 +125,4 @@ class AbstractTodolist(models.AbstractModel):
                         tmp_string2_1, tmp_string2_2)
             record.kanban_todolists = '<ul>' + result_string1 + \
                 result_string3 + result_string2 + '</ul>'
-
-
-    @api.multi
-    def copy_default_extend(self, default=None, new_obj=None):
-        pass
-
-    @api.multi
-    def map_todolist(self, new_obj):
-        for todolist in self.todolist_ids:
-            defaults = todolist.defaults_copy()
-            self.copy_default_extend(defaults, new_obj)
-            self.browse(new_obj.id).write(
-                {'todolist_ids': todolist.copy(defaults)})
-        return True
-
-    @api.multi
-    def copy(self, default=None):
-        default = dict(default or {})
-        new_obj = super(AbstractTodolist, self).copy(default)
-        if 'todolist_ids' not in default:
-            self.map_todolist(new_obj)
-        return new_obj
+    # endregion

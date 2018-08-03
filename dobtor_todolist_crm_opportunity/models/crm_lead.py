@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
-from odoo.exceptions import Warning as UserError
 from odoo.exceptions import ValidationError
 from odoo.tools.translate import _
 
@@ -15,15 +14,11 @@ class CrmLead(models.Model):
         copy=False
     )
 
-    @api.model
-    def set_todolist_domain(self):
-        return [('ref_model', '=', 'crm.lead')]
-
     @api.constrains('stage_id')
     def restrict(self):
         if self.stage_id and self.lock_stage:
             todo_list = self.env['dobtor.todolist.core'].search(
-                [('ref_name', '=', 'crm.lead'), ('ref_id', '=', self.id)])
+                [('ref_name', '=', self._name), ('ref_id', '=', self.id)])
             if todo_list:
                 for todo in todo_list:
                     if todo.state in ('todo', 'waiting'):
@@ -33,7 +28,7 @@ class CrmLead(models.Model):
     @api.multi
     def copy_default_extend(self, default, new_obj):
         default.update({
-            'ref_model': 'crm.lead,' + str(new_obj.id),
+            'ref_model': self._name + ',' + str(new_obj.id),
         })
 
     @api.multi

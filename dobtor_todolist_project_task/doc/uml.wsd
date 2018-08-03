@@ -3,7 +3,7 @@
 ' skinparam handwritten true
 ' skinparam packageFontColor red
 
-package project {
+package Project_and_todolistCore{
 
     
     Class Task {
@@ -17,7 +17,6 @@ package project {
         + Dobtor_TodoList_core[] todolist_ids
         + string kanban_todolists
         + bool lock_stage
-        {abstract} Array set_todolist_domain()
         {abstract} void copy_default_extend()
     }
 
@@ -55,10 +54,6 @@ package dobtor_todolist_project_task {
     }
 
     Class project_task {
-        + DobtorTodoListCore[] todolist_ids
-        + bool Project_check
-        + void map_todolist()
-        + Array set_todolist_domain()
         + void copy_default_extend()
     }
 } 

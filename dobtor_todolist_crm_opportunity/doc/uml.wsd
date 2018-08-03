@@ -4,13 +4,11 @@ abstract class AbstractTodolist {
     + Dobtor_TodoList_core[] todolist_ids
     + string kanban_todolists
     + bool lock_stage
-    {abstract} Array set_todolist_domain()
     {abstract} void copy_default_extend()
 }
 
 Class CrmLead {
     + CrmStage stage_id
-    + Array set_todolist_domain()
     + void copy_default_extend()
 }
 
