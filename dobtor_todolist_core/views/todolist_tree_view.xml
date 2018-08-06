@@ -11,10 +11,10 @@
                 <field name="user_id" options="{'no_open': True}"/>
                 <field name="state"/>
                 <field name="hide_button" invisible="True"/>
-                <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" invisible="['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]"/>
-                <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" invisible="[ '|',('state', '=', 'todo'), ('hide_button', '=', True)]"/>
-                <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" invisible="[ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]"/>
-                <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" invisible="[ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]"/>
+                <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
+                <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>
                 <field name="reviewer_id" options="{'no_open': True}"/>
                 <field name="ref_model" invisible="True" />
                 <field name="parent_model" invisible="True"/>
