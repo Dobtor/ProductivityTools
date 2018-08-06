@@ -76,8 +76,10 @@
                     <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa fa-pause" attrs="{'invisible': [ '|', '|',('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|', '|',('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <field name="reviewer_id"/>
-                    <field name="ref_model"/>
-                    <field name="parent_model" onchange="0" readonly="True"/>
+                    <field name="ref_model_name"/>
+                    <field name="ref_parent_model_name"/>
+                    <!-- <field name="ref_model"/> -->
+                    <!-- <field name="parent_model" onchange="0" readonly="True"/> -->
                 </tree>
             </field>
         </record>

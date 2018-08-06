@@ -16,6 +16,5 @@
     'data': [
         'views/todolist_views.xml',
         'views/history_survey.xml',
-        # 'views/configuration.xml',
     ]
 }

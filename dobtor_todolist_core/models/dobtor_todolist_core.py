@@ -39,6 +39,28 @@ class DobtorTodoListCore(models.Model):
     out_of_deadline = fields.Boolean("Out of deadline", default=False, compute="check_deadline")
     sequence = fields.Integer()
 
+    # region perferment Performance into tree view
+    ref_model_name = fields.Char(
+        compute='_compute_model_name', string="Refer To")
+    ref_parent_model_name = fields.Char(
+        compute='_compute_parent_model_name', string="Parent")
+
+    @api.depends('ref_name', 'ref_id')
+    @api.multi
+    def _compute_model_name(self):
+        for record in self:
+            if record.ref_name:
+                record.ref_model_name = self.env[record.ref_name].browse(record.ref_id).name
+
+    @api.depends('parent_name', 'parent_id')
+    @api.multi
+    def _compute_parent_model_name(self):
+        for record in self:
+            if record.parent_name:
+                record.ref_parent_model_name = self.env[record.parent_name].browse(
+                    record.parent_id).name
+    # endregion
+
     @api.model
     def set_ref_models(self):
         return []

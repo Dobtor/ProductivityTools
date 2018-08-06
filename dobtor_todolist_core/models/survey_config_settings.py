@@ -4,8 +4,15 @@ from odoo import models, fields, api
 
 
 class SurveyConfigSetting(models.TransientModel):
-    _name = 'dobtor_todolist_survey.config.settings'
+    _name = 'dobtor_todolist_core.config.settings'
     _inherit = 'res.config.settings'
+
+    module_dobtor_todolist_survey = fields.Selection([
+        (0, 'TodoList do not require Survey'),
+        (1, 'Allow TodoList with survey')
+    ],
+        string="TodoList Survey",
+    )
 
     # Is_open_dobtor_todolist_project_task = fields.Selection([
     #     (0, 'Project task do not require Survey'),

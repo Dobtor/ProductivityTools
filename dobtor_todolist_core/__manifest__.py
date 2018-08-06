@@ -9,6 +9,7 @@
         'views/todolist_tree_view.xml',
         'views/dobtor_todolist_core_view.xml',
         'data/subscription_template.xml',
+        'views/configuration.xml',
     ],
     'installable' : True,
 }
