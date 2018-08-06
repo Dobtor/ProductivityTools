@@ -10,7 +10,7 @@
                     <button string="Apply" type="object" name="execute" class="oe_highlight"/>
                     <button string="Cancel" type="object" name="cancel" class="oe_link"/>
                 </header>
-                <group string="Survey">
+                <group string="Survey" name="survey">
                     <field name="module_dobtor_todolist_survey" widget="radio"/>
                 </group>
             </form>
