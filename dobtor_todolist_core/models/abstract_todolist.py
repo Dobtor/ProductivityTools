@@ -22,6 +22,10 @@ class AbstractTodolist(models.AbstractModel):
     )
 
     lock_stage = fields.Boolean(string="Lock Stage", default=True)
+    default_tree_view_ref = fields.Char(
+        string='default tree view ref',
+        compute='_compute_tree_view_ref'
+    )
 
     # region model operation (CRUD)
     @api.multi
@@ -46,13 +50,16 @@ class AbstractTodolist(models.AbstractModel):
         obj = super(AbstractTodolist, self).create(vals)
         if 'todolist_ids' in vals:
             for item in vals['todolist_ids']:
-                todolist = self.env['dobtor.todolist.core'].search([('ref_id','=', obj.id),('ref_name','=', obj._name)])
-                todolist.write({'ref_model': u'{0},{1}'.format(obj._name, str(obj.id))})
+                todolist = self.env['dobtor.todolist.core'].search(
+                    [('ref_id', '=', obj.id), ('ref_name', '=', obj._name)])
+                todolist.write(
+                    {'ref_model': u'{0},{1}'.format(obj._name, str(obj.id))})
         return obj
 
     @api.multi
     def write(self, vals):
-        self.handle_vals(vals, {'ref_model': u'{0},{1}'.format(self._name, str(self.id))})
+        self.handle_vals(
+            vals, {'ref_model': u'{0},{1}'.format(self._name, str(self.id))})
         return super(AbstractTodolist, self).write(vals)
     # endregion
 
@@ -92,6 +99,11 @@ class AbstractTodolist(models.AbstractModel):
                     record.default_user = record.create_uid
                 elif self.env.user == record.create_uid and self.env.user == record.user_id:
                     record.default_user = self.env.user
+
+    @api.multi
+    def _compute_tree_view_ref(self):
+        for record in self:
+            record.default_tree_view_ref = 'dobtor_todolist_core.todolist_template_tree_view'
 
     @api.multi
     def _compute_kanban_todolists(self):

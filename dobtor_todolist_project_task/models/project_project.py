@@ -143,5 +143,3 @@ class project_project(models.Model):
         string='Project Template',
         selection='_get_template'
     )
-    
-

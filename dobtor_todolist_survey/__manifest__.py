@@ -12,10 +12,10 @@
     'website': "http://www.dobtor.com",
     'category': 'survey',
     'version': '0.1',
-    'depends': ['survey','dobtor_todolist_core'],
+    'depends': ['survey', 'dobtor_todolist_core'],
     'data': [
         'views/todolist_views.xml',
         'views/history_survey.xml',
-        'views/configuration.xml',
+        # 'views/configuration.xml',
     ]
 }

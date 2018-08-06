@@ -16,10 +16,11 @@
                 </xpath>
                 <xpath expr="//page[1]" position="before">
                     <page string="TodoList">
-                        <field name="default_user" invisible='True'/>
+                        <field name="default_user" invisible="1"/>
+                        <field name="default_tree_view_ref" invisible="1"/>
                         <field name="todolist_ids" context="{
                             'default_user_id': default_user,
-                            'tree_view_ref':'dobtor_todolist_core.todolist_template_tree_view'
+                            'tree_view_ref': default_tree_view_ref
                         }"/>
                     </page>
                 </xpath>

@@ -53,4 +53,4 @@ class DobtorTodoListSurvey(models.Model):
     @api.multi
     def reject_action(self):
         for record in self:
-             record.response_id = None
+            record.response_id = None
