@@ -58,9 +58,10 @@ class AbstractTodolist(models.AbstractModel):
 
     @api.multi
     def write(self, vals):
-        self.handle_vals(
-            vals, {'ref_model': u'{0},{1}'.format(self._name, str(self.id))})
-        return super(AbstractTodolist, self).write(vals)
+        for record in self:
+            self.handle_vals(
+                vals, {'ref_model': u'{0},{1}'.format(record._name, str(record.id))})
+            return super(AbstractTodolist, self).write(vals)
     # endregion
 
     # region Depp copy
@@ -115,26 +116,25 @@ class AbstractTodolist(models.AbstractModel):
 
             for todo in record.todolist_ids:
                 bounding_length = 25
-                tmp_list = (todo.name).split()
-                for index in range(len(tmp_list)):
-                    if (len(tmp_list[index]) > bounding_length):
-                        tmp_list[index] = tmp_list[index][:bounding_length] + '...'
-                tmp_todo_name = " ".join(tmp_list)
-                if todo.state == 'todo' and record.env.user == todo.user_id and record.env.user == todo.reviewer_id:
-                    tmp_string3 = escape(u': {0}'.format(tmp_todo_name))
-                    result_string3 += u'<li><b>TODO</b>{}</li>'.format(
-                        tmp_string3)
-                elif todo.state == 'todo' and record.env.user == todo.user_id:
-                    tmp_string1_1 = escape(
-                        u'{0}'.format(todo.reviewer_id.name))
-                    tmp_string1_2 = escape(u'{0}'.format(tmp_todo_name))
-                    result_string1 += u'<li><b>TODO</b> from <em>{0}</em>: {1}</li>'.format(
-                        tmp_string1_1, tmp_string1_2)
-                elif todo.state == 'todo' and record.env.user == todo.reviewer_id:
-                    tmp_string2_1 = escape(u'{0}'.format(todo.user_id.name))
-                    tmp_string2_2 = escape(u'{0}'.format(tmp_todo_name))
-                    result_string2 += u'<li>TODO for <em>{0}</em>: {1}</li>'.format(
-                        tmp_string2_1, tmp_string2_2)
+                tmp_todo_name = (todo.name)[
+                    :bounding_length] + '...' if len(todo.name) > bounding_length else todo.name
+                if todo.state == 'todo':
+                    if record.env.user == todo.user_id and record.env.user == todo.reviewer_id:
+                        tmp_string3 = escape(u': {0}'.format(tmp_todo_name))
+                        result_string3 += u'<li><b>TODO</b>{}</li>'.format(
+                            tmp_string3)
+                    elif record.env.user == todo.user_id:
+                        tmp_string1_1 = escape(
+                            u'{0}'.format(todo.reviewer_id.name))
+                        tmp_string1_2 = escape(u'{0}'.format(tmp_todo_name))
+                        result_string1 += u'<li><b>TODO</b> from <em>{0}</em>: {1}</li>'.format(
+                            tmp_string1_1, tmp_string1_2)
+                    elif record.env.user == todo.reviewer_id:
+                        tmp_string2_1 = escape(
+                            u'{0}'.format(todo.user_id.name))
+                        tmp_string2_2 = escape(u'{0}'.format(tmp_todo_name))
+                        result_string2 += u'<li>TODO for <em>{0}</em>: {1}</li>'.format(
+                            tmp_string2_1, tmp_string2_2)
             record.kanban_todolists = '<ul>' + result_string1 + \
                 result_string3 + result_string2 + '</ul>'
     # endregion

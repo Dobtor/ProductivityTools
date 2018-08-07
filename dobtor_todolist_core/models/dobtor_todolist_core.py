@@ -36,7 +36,7 @@ class DobtorTodoListCore(models.Model):
     date_complete = fields.Datetime('Complete Date')
     date_deadline = fields.Datetime("Deadline")
     planned_hours = fields.Float(string='Planned Hours', default=0)
-    out_of_deadline = fields.Boolean("Out of deadline", default=False, compute="check_deadline")
+    out_of_deadline = fields.Boolean(string="Out of deadline", default=False, compute="_compute_check_deadline")
     sequence = fields.Integer()
 
     # region perferment Performance into tree view
@@ -71,7 +71,7 @@ class DobtorTodoListCore(models.Model):
         return [(model.object, model.name) for model in models] 
 
     @api.multi
-    def check_deadline(self):
+    def _compute_check_deadline(self):
         for record in self:
             if record.date_deadline and record.date_deadline <= fields.Datetime.now():
                 record.out_of_deadline = True
