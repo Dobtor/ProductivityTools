@@ -26,6 +26,11 @@
             <field name="arch" type="xml">
                 <form string="Todolist Message">
                     <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_get_attachment_view" class="oe_stat_button" icon="fa-book" type="object">
+                                <field name="attachment_number" widget="statinfo" string="Documents"/>
+                            </button>
+                        </div>
                         <div class="oe_title">
                             <h1 class="o_row">
                                 <field name="name" placeholder="Todo List..."/>
@@ -78,8 +83,8 @@
                     <field name="reviewer_id"/>
                     <field name="ref_model_name"/>
                     <field name="ref_parent_model_name"/>
-                    <!-- <field name="ref_model"/> -->
-                    <!-- <field name="parent_model" onchange="0" readonly="True"/> -->
+                    <field name="attachment_number" invisible="True"/>
+                    <button name="action_get_attachment_view" string="View Attached Documents" type="object" icon="fa-paperclip" attrs="{'invisible': [('attachment_number', '=', 0)]}"/>
                 </tree>
             </field>
         </record>
