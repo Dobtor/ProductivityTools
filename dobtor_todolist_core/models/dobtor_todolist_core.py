@@ -210,7 +210,6 @@ class DobtorTodoListCore(models.Model):
         self.ensure_one()
         return {
             'name': _('Attachments'),
-            'domain': [('res_model', '=', self._name), ('res_id', '=', self.id)],
             'res_model': 'ir.attachment',
             'type': 'ir.actions.act_window',
             'view_id': self.env.ref('dobtor_todolist_core.view_todolist_core_attachment_form').id,
