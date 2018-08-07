@@ -138,3 +138,46 @@ class AbstractTodolist(models.AbstractModel):
             record.kanban_todolists = '<ul>' + result_string1 + \
                 result_string3 + result_string2 + '</ul>'
     # endregion
+
+    # region upload freature (Attchment)
+    @api.multi
+    def _get_attachment_domain(self,obj):
+        return [
+            '|',
+            '&',
+            ('res_model', '=', obj._name),
+            ('res_id', 'in', obj.ids),
+            '&',
+            ('res_model', '=', 'dobtor.todolist.core'),
+            ('res_id', 'in', obj.todolist_ids.ids)
+        ]
+
+    doc_count = fields.Integer(
+        compute='_compute_attached_docs_count', string="Number of documents attached")
+
+    @api.multi
+    def _compute_attached_docs_count(self):
+        for project in self:
+            project.doc_count = self.env['ir.attachment'].search_count(
+                self._get_attachment_domain(project))
+
+    @api.multi
+    def attachment_tree_view(self):
+        self.ensure_one()
+        return {
+            'name': _('Attachments'),
+            'domain': self._get_attachment_domain(self),
+            'res_model': 'ir.attachment',
+            'type': 'ir.actions.act_window',
+            'view_id': False,
+            'view_mode': 'kanban,tree,form',
+            'view_type': 'form',
+            'help': _('''<p class="oe_view_nocontent_create">
+                        Documents are attached to the tasks and issues of your project.</p><p>
+                        Send messages or log internal notes with attachments to link
+                        documents to your project.
+                    </p>'''),
+            'limit': 80,
+            'context': "{'default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
+        }
+    # endregion
