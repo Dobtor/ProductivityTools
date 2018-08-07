@@ -157,9 +157,9 @@ class AbstractTodolist(models.AbstractModel):
 
     @api.multi
     def _compute_attached_docs_count(self):
-        for project in self:
-            project.doc_count = self.env['ir.attachment'].search_count(
-                self._get_attachment_domain(project))
+        for record in self:
+            record.doc_count = self.env['ir.attachment'].search_count(
+                self._get_attachment_domain(record))
 
     @api.multi
     def attachment_tree_view(self):
