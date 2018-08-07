@@ -64,7 +64,7 @@ Project "1" o-- "*" Task
 Project "1" o-- "*" project_task_type_rel
 project_task_type_rel "*" --o "1" ProjectTaskType
 Project ()- project_project
-ProjectTaskType "1" o-- "*" project_project
+' ProjectTaskType "1" o-- "*" project_project
 project_task --() Task
 AbstractTodolist "1" o-- "*" DobtorTodoListCore
 ' ProjectTaskType <|- project_task

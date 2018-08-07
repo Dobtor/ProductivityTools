@@ -9,15 +9,17 @@
     - [X] task todolist deep copy           (1人天)
     - [X] Sale pipeline                     (1人天)
     - [X] Sale pipeline todolist deep copy  (0.5人天)
-    - [X] survey shallow copy                  (0.5人天)
+    - [X] survey shallow copy                (0.5人天)
     - [X] fixbug/improvements/refactoring and modify require and Note(1人天)
 - [X] issure 8/1
 	- [X] todolist task 必須先建立, 才能建立todolist問題 (0.5人天)
     - [X] todolist mission 不顯示 project (目的 : no show 沒裝的module) (1人天)
     - [X] todolist core project task and crm_lead nead diffence filter (0.5人天) [層級往後擺放]
-    
+    - [ ] todolist project stage 分離 (1人天)
+    - [ ] 建立成 template 後就不顯示, domain 分離 (0.5人天)
 - [ ] Group (權限)                           (0.5人天)
-
+- [X] TodoList upload file                   (1人天)
+    - [ ] upload input file 效果             (1人天) 
 - [ ] Turn discussion content into todolist (1.5人天)
 - [ ] Odoo Calendar sync (google calender)  (unknown)
 - [ ] fixbug and modify require and Note    (1人天)
