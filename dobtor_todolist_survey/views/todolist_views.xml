@@ -24,10 +24,8 @@
         <field name="model">dobtor.todolist.core</field>
         <field name="inherit_id" ref="dobtor_todolist_core.dobtor_todolist_core_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//form/sheet/div[@class='oe_title']" position="before">
-                <div class="oe_button_box" name="button_box">
-                    <button name="open_survey" type="object" class="oe_stat_button" icon="fa-edit" attrs="{'invisible':[('survey_id','=',False)]}" string="Open Survey"/>
-                </div>
+            <xpath expr="//form/sheet/div[@class='oe_button_box']" position="inside">
+                <button name="open_survey" type="object" class="oe_stat_button" icon="fa-edit" attrs="{'invisible':[('survey_id','=',False)]}" string="Open Survey"/>
             </xpath>
             <xpath expr="//form/sheet/group/group" position="inside">
                 <field name="survey_id"/>
