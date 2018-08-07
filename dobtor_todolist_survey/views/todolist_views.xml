@@ -63,6 +63,8 @@
                 <field name="parent_model" invisible="True"/>
                 <field name="write_date" readonly="True"/>
                 <field name="creater" options="{'no_open': True}"/>
+                <field name="attachment_number" invisible="True"/>
+                <button name="action_get_attachment_view" string="View Attached Documents" type="object" icon="fa-paperclip" attrs="{'invisible': [('attachment_number', '=', 0)]}"/>
             </tree>
         </field>
     </record>
