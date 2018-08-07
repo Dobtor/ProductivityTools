@@ -180,4 +180,7 @@ class AbstractTodolist(models.AbstractModel):
             'limit': 80,
             'context': "{'default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
         }
+
+
+
     # endregion

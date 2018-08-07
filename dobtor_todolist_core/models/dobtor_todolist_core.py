@@ -204,4 +204,18 @@ class DobtorTodoListCore(models.Model):
             'default_res_id': self.id
         }
         return res
+
+    @api.multi
+    def attachment_form_view(self):
+        self.ensure_one()
+        return {
+            'name': _('Attachments'),
+            'domain': [('res_model', '=', self._name), ('res_id', '=', self.id)],
+            'res_model': 'ir.attachment',
+            'type': 'ir.actions.act_window',
+            'view_id': self.env.ref('dobtor_todolist_core.view_todolist_core_attachment_form').id,
+            'view_mode': 'form',
+            'view_type': 'form',
+            'context': "{'default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
+        }
     # endregion
