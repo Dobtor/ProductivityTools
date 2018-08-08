@@ -15,10 +15,12 @@ class CrmLead(models.Model):
     )
 
     @api.constrains('stage_id')
+    @api.multi
     def restrict(self):
+        self.ensure_one()
         if self.stage_id and self.lock_stage:
             todo_list = self.env['dobtor.todolist.core'].search(
-                [('ref_name', '=', self._name), ('ref_id', '=', self.id)])
+                [('ref_model', '=', u'{0},{1}'.format(self._name, str(self.id)))])
             if todo_list:
                 for todo in todo_list:
                     if todo.state in ('todo', 'waiting'):

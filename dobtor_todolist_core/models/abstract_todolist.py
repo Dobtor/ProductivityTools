@@ -22,9 +22,11 @@ class AbstractTodolist(models.AbstractModel):
     )
 
     lock_stage = fields.Boolean(string="Lock Stage", default=True)
+    
     default_tree_view_ref = fields.Char(
         string='default tree view ref',
-        compute='_compute_tree_view_ref'
+        compute='_compute_tree_view_ref',
+        default='dobtor_todolist_core.todolist_template_tree_view',
     )
 
     # region model operation (CRUD)

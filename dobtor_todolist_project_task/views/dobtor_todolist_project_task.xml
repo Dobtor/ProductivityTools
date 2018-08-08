@@ -23,41 +23,41 @@
                     <page string="TodoList">
                         <field name="default_user" invisible="1"/>
                         <field name="default_tree_view_ref" invisible="1"/>
-                        <field name="todolist_ids" context="{
-                            'default_user_id': default_user,
-                            'tree_view_ref': default_tree_view_ref
-                        }"/>
-                    </page>
-                </xpath>
-            </field>
-        </record>
+                            <field name="todolist_ids" context="{
+                                'default_user_id': default_user,
+                                'tree_view_ref': default_tree_view_ref
+                            }"/>
+                        </page>
+                    </xpath>
+                </field>
+            </record>
 
-        <record id="view_task_kanban_todolist" model="ir.ui.view">
-            <field name="name">dobtor.todolist.project.task.kanban.list</field>
-            <field name="model">project.task</field>
-            <field name="inherit_id" ref="project.view_task_kanban"/>
-            <field name="arch" type="xml">
-                <xpath expr="//field[@name='tag_ids']" position="after">
-                    <field name="todolist_ids"/>
-                    <field name="kanban_todolists"/>
-                </xpath>
-                <xpath expr="//div[@class='oe_kanban_content']/div[@class='oe_kanban_bottom_left']" position="before">
-                    <div style="border-top: 1px solid #DDD;">
-                        <t t-raw="record.kanban_todolists.raw_value" />
-                    </div>
-                </xpath>
-            </field>
-        </record>
+            <record id="view_task_kanban_todolist" model="ir.ui.view">
+                <field name="name">dobtor.todolist.project.task.kanban.list</field>
+                <field name="model">project.task</field>
+                <field name="inherit_id" ref="project.view_task_kanban"/>
+                <field name="arch" type="xml">
+                    <xpath expr="//field[@name='tag_ids']" position="after">
+                        <field name="todolist_ids"/>
+                        <field name="kanban_todolists"/>
+                    </xpath>
+                    <xpath expr="//div[@class='oe_kanban_content']/div[@class='oe_kanban_bottom_left']" position="before">
+                        <div style="border-top: 1px solid #DDD;">
+                            <t t-raw="record.kanban_todolists.raw_value" />
+                        </div>
+                    </xpath>
+                </field>
+            </record>
 
-        <record id="action_view_todolist_project_task" model="ir.actions.act_window">
-            <field name="name">TodoList</field>
-            <field name="res_model">dobtor.todolist.core</field>
-            <field name="view_mode">tree,form</field>
-            <field name="domain">[('ref_name','=','project.task')]</field>
-            <field name="context">{'search_default_done_todolist': 1}</field>
-        </record>
+            <record id="action_view_todolist_project_task" model="ir.actions.act_window">
+                <field name="name">TodoList</field>
+                <field name="res_model">dobtor.todolist.core</field>
+                <field name="view_mode">tree,form</field>
+                <field name="domain">[('ref_name','=','project.task')]</field>
+                <field name="context">{'search_default_done_todolist': 1}</field>
+            </record>
 
-        <menuitem name="TodoList" parent="project.menu_project_management" id="menu_action_view_todolist" action="action_view_todolist_project_task"/>
+            <menuitem name="TodoList" parent="project.menu_project_management" id="menu_action_view_todolist" action="action_view_todolist_project_task"/>
 
-    </data>
-</odoo>
+        </data>
+    </odoo>
