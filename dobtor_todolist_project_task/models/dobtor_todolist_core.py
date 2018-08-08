@@ -21,6 +21,7 @@ class DobtorTodoListCore(models.Model):
         selection.append(('project.task', 'Project task'))
         return selection
 
+    # TODO: [REF] Single Responsibility Principle : project and todolist to much Dependency
     @api.model
     def create(self, vals):
         ref_model = vals.get('ref_model')
@@ -40,6 +41,7 @@ class DobtorTodoListCore(models.Model):
             record.name, record.state, record.reviewer_id.id, record.user_id.id, task)
         return record
 
+    # TODO: [REF] Single Responsibility Principle : project and todolist to much Dependency
     @api.multi
     def write(self, vals):
         old_names = dict(zip(self.mapped('id'), self.mapped('name')))
@@ -70,6 +72,7 @@ class DobtorTodoListCore(models.Model):
                     r.name, r.state, r.reviewer_id.id, r.user_id.id, r.ref_model)
         return record
 
+    # TODO: [REF]
     @api.multi
     def send_todolist_email(self, todo_name, todo_state, todo_reviewer_id, todo_user_id, ref_model=None, old_name=None):
         reviewer = self.env["res.users"].browse(todo_reviewer_id)

@@ -36,14 +36,13 @@ class project_project(models.Model):
     # region form action
 
     @api.multi
-    def set_template(self):
+    def action_set_template(self):
         """ Action """
         self.ensure_one()
         self.update({'state_id': 'template', 'sequence_state': 1})
 
     @api.multi
     def new_project(self, default=None):
-        """ Action """
         self.ensure_one()
         project_id = self.copy(default)
         project_id.write({
@@ -53,7 +52,21 @@ class project_project(models.Model):
         return project_id
 
     @api.multi
-    def reset_project(self):
+    def action_new_project(self, default=None):
+        """ Action """
+        project_id = self.new_project(default)
+        return {
+            'name': _('new project'),
+            'view_type': 'form',
+            'view_mode': 'form',
+            'res_model': self._name,
+            'type': 'ir.actions.act_window',
+            'target': 'current',
+            'res_id': project_id.id,
+        }
+
+    @api.multi
+    def action_reset_project(self):
         """ Action """
         self.ensure_one()
         self.write({
@@ -65,7 +78,8 @@ class project_project(models.Model):
 
     state_id = fields.Selection(
         string='state',
-        selection=[('new', 'New'), ('template', 'Template')]
+        selection=[('new', 'New'), ('template', 'Template')],
+        default='new',
     )
     sequence_state = fields.Integer(
         compute="count_sequence", string="State Check")
