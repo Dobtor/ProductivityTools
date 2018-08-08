@@ -54,11 +54,7 @@
             <field name="res_model">dobtor.todolist.core</field>
             <field name="view_mode">tree,form</field>
             <field name="domain">[('ref_name','=','crm.lead')]</field>
-            <field name="context"> {
-                'search_default_my_todolist':1,
-                'search_default_done_todolist':1,
-            }
-            </field>
+            <field name="context">{'search_default_done_todolist': 1}</field>
         </record>
 
         <menuitem name="TodoList" parent="sales_team.menu_sales" id="menu_action_view_todolist" action="action_view_todolist_crm_opportunity"/>

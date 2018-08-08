@@ -44,7 +44,7 @@
 		</record>
 
 		<record id="project.open_view_project_all_config" model="ir.actions.act_window">
-			<field name="context"> {'search_default_is_template':1}</field>
+			<field name="context">{'search_default_is_template':1}</field>
 		</record>
 
 		<record id="project.open_view_project_all" model="ir.actions.act_window">
