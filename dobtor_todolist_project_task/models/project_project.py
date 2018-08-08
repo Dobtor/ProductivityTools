@@ -6,7 +6,7 @@ from odoo import models, fields, api, _
 class project_project(models.Model):
     _inherit = "project.project"
 
-    # region model operation (Create, Copy)
+    # region model operation (Create,Deep Copy)
     # TODO [IMP][REF]
     @api.multi
     def reference_todolist(self, new_project):

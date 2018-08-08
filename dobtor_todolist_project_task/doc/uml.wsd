@@ -39,14 +39,12 @@ package Project_and_todolistCore{
 package dobtor_todolist_project_task {
     Class project_project {
         + int sequence_state
-        + ProjectTaskType stage_id
-        + dict default_get()
+        + selection state_id
+        + selection picked_template
         - void count_sequence()
         + void set_template()
         + void new_project()
-        + record reset_project()
         + void reset_project()
-        + void set_progress()
     }
 
     Class DobtorTodoListCore {
@@ -55,6 +53,7 @@ package dobtor_todolist_project_task {
 
     Class project_task {
         + void copy_default_extend()
+        + void restrict()
     }
 } 
 
@@ -64,7 +63,6 @@ Project "1" o-- "*" Task
 Project "1" o-- "*" project_task_type_rel
 project_task_type_rel "*" --o "1" ProjectTaskType
 Project ()- project_project
-' ProjectTaskType "1" o-- "*" project_project
 project_task --() Task
 AbstractTodolist "1" o-- "*" DobtorTodoListCore
 ' ProjectTaskType <|- project_task
