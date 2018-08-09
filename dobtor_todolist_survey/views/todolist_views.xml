@@ -40,6 +40,7 @@
         <field name="priority">30</field>
         <field name="arch" type="xml">
             <tree string="Task Work" editable="bottom" colors="red:recolor == True;gray:state == 'cancelled';green:state == 'done';#b818ce:state == 'waiting'">
+                <button name="action_form_todolist" type="object" icon="fa-link"/>
                 <field name="name"/>
                 <field name="recolor" invisible="True"/>
                 <field name="user_id" options="{'no_open': True}"/>
