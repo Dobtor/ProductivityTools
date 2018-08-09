@@ -16,7 +16,7 @@
       <field name="model">dobtor.todolist.core</field>
       <field name="inherit_id" ref="dobtor_todolist_core.todo_list_core_treeview"/>
       <field name="arch" type="xml">
-          <xpath expr="//field[@name='parent_model']" position="after">
+          <xpath expr="//button[@name='action_get_attachment_view']" position="after">
               <field name="lifeline" widget="progressbar" attrs="{'invisible':[('id','=',False)]}" class="oe_read_only"/>
           </xpath>
       </field>
