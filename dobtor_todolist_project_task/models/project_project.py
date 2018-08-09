@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models, fields, api, _
-
+from odoo import models, fields, api
+from odoo.tools.translate import _
 
 class project_project(models.Model):
     _inherit = "project.project"
