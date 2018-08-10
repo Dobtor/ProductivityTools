@@ -25,9 +25,10 @@ class project_project(models.Model):
 
     @api.model
     def create(self, vals):
-        if vals['picked_template']:
-            item = self.browse(vals['picked_template'])
-            project_id = item.new_project({'name': vals['name']})
+        if 'picked_template' in vals:
+            if vals['picked_template']:
+                item = self.browse(vals['picked_template'])
+                project_id = item.new_project({'name': vals['name']})
         else:
             project_id = super(project_project, self).create(vals)
         return project_id
