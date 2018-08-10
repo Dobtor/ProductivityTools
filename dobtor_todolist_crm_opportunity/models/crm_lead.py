@@ -35,9 +35,6 @@ class CrmLead(models.Model):
 
     @api.multi
     def new_opportunity(self, default=None):
-        stage_obj = self.env['crm.stage']
-        if stage_obj.get_stage_new():
-            default.update({'stage_id': stage_obj.get_stage_new().id})
         crm_lead_id = self.copy(default)
         return crm_lead_id
 
