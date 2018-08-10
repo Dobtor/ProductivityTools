@@ -14,6 +14,7 @@
     'version': '0.1',
     'depends': ['project', 'dobtor_todolist_core'],
     'data': [
+        'views/analytic_account.xml',
         'views/dobtor_todolist_project_task.xml',
         'data/subscription_template.xml',
         'views/project_template_view.xml',

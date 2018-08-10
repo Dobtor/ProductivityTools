@@ -3,6 +3,7 @@
 from odoo import models, fields, api
 from odoo.tools.translate import _
 
+
 class project_project(models.Model):
     _inherit = "project.project"
 
@@ -25,10 +26,11 @@ class project_project(models.Model):
 
     @api.model
     def create(self, vals):
-        if 'picked_template' in vals:
-            if vals['picked_template']:
-                item = self.browse(vals['picked_template'])
-                project_id = item.new_project({'name': vals['name']})
+        if vals.get('picked_template'):
+            analytic_account_id = None if not vals.get('analytic_account_id') else vals.get('analytic_account_id')
+            item = self.browse(vals['picked_template'])
+            project_id = item.new_project(
+                {'name': vals['name']}, analytic_account_id)
         else:
             project_id = super(project_project, self).create(vals)
         return project_id
@@ -43,13 +45,21 @@ class project_project(models.Model):
         self.update({'state_id': 'template', 'sequence_state': 1})
 
     @api.multi
-    def new_project(self, default=None):
+    def new_project(self, default=None, analytic_account_id=None):
         self.ensure_one()
         project_id = self.copy(default)
-        project_id.write({
-            'state_id': 'new',
-            'sequence_state': 0
-        })
+        if analytic_account_id:
+            project_id.write({
+                'state_id': 'new',
+                'sequence_state': 0,
+                'analytic_account_id': analytic_account_id,
+                'use_tasks': True,
+            })
+        else :
+            project_id.write({
+                'state_id': 'new',
+                'sequence_state': 0
+            })
         return project_id
 
     @api.multi
