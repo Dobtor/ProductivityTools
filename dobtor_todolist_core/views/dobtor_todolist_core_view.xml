@@ -52,11 +52,18 @@
                                 <field name="planned_hours" widget="float_time"/>
                             </group>
                         </group>
-                        <div class="oe_chatter">
-                            <field name="message_follower_ids" widget="mail_followers" groups="base.group_user"/>
-                            <field name="message_ids" widget="mail_thread"/>
-                        </div>
+
+                        <notebook>
+                            <page name="description_page" string="Description">
+                            <field name="discription" type="html"/>
+                            <div class="oe_clear"/>
+                            </page>
+                        </notebook>
                     </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers" groups="base.group_user"/>
+                        <field name="message_ids" widget="mail_thread"/>
+                    </div>
                 </form>
             </field>
         </record>
