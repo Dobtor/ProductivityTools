@@ -26,11 +26,16 @@
       <field name="model">dobtor.todolist.core</field>
       <field name="inherit_id" ref="dobtor_todolist_core.dobtor_todolist_core_form"/>
       <field name="arch" type="xml">
+          <xpath expr="//form/sheet/div[@class='oe_button_box']" position="inside">
+                <button name="create_timesheet" type="object" class="oe_stat_button" icon="fa-briefcase" string="Log Work"/>
+            </xpath>
           <xpath expr="//field[@name='planned_hours']" position="after">
               <field name="lifeline" widget="progressbar"/>
           </xpath>
       </field>
     </record>
+
+
     <!-- explicit list view definition -->
     <!--
     <record model="ir.ui.view" id="dobtor_todolist_lifetime.list">
