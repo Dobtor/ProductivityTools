@@ -55,7 +55,7 @@
 
                         <notebook>
                             <page name="description_page" string="Description">
-                            <field name="discription" type="html"/>
+                            <field name="description"/>
                             <div class="oe_clear"/>
                             </page>
                         </notebook>

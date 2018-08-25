@@ -21,17 +21,19 @@
             <form>
                 <group>
                     <group string="Todo Time Sheet">
-                        <field name="todo_id" readonly="True" options="{'no_open': True}"/> 
+                        <field name="todo_id" readonly="True" options="{'no_open': True}"/>
                         <field name="user_id" options="{'no_open': True}"/>
-                        <field name="name"/>
                         <field name="account_id" options="{'no_create': True,'no_open': True}"/>
                     </group>
                     <group string="Time and Date">
                         <field name="date" string="Create Date" readonly="True"/>
                         <field name="unit_amount" widget="float_time" string="Duration"/>
                     </group>
+                    <field name="name" widget="text"
+                           placeholder="Describe your activity"
+                           colspan="4"/>
                 </group>
-                    
+
                 <footer>
                     <button class="btn-primary" type="object"
                             name="submit_time_sheet" string="Save"/>
@@ -50,7 +52,7 @@
                 </field>
             </field>
         </record>
-                
+
 <!-- view -->
         <record id="hr_timesheet_line_tree_extend" model="ir.ui.view">
             <field name="name">account.analytic.line.tree.hr_timesheet.extend</field>
@@ -83,7 +85,7 @@
                 </field>
             </field>
         </record>
-          
+
 
         <!-- act_window -->
         <record id="hr_timesheet.act_hr_timesheet_line" model="ir.actions.act_window">

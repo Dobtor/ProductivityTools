@@ -19,7 +19,7 @@ class DobtorTodoListCore(models.Model):
     _description = 'Dobtor Todo List Core'
     state = fields.Selection([(k, v) for k, v in TODO_STATES.items()],
                              'Status', required=True, copy=False, default='todo')
-    name = fields.Char(required=True, string="Description")
+    name = fields.Text(required=True, string="Description")
     creater = fields.Many2one('res.users', 'Creater',
                               readonly=True, default=lambda self: self.env.user)
     reviewer_id = fields.Many2one(
@@ -45,6 +45,7 @@ class DobtorTodoListCore(models.Model):
     out_of_deadline = fields.Boolean(
         string="Out of deadline", default=False, compute="_compute_check_deadline")
     sequence = fields.Integer()
+    description = fields.Html(string='Description')
 
     # region perferment Performance into tree view
     ref_model_name = fields.Char(
