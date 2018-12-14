@@ -1,0 +1,71 @@
+@startuml
+' skinparam monochrome true
+' skinparam handwritten true
+' skinparam packageFontColor red
+
+package Project_and_todolistCore{
+
+    
+    Class Task {
+        + Project project_id
+        + ProjectTaskType stage_id
+    }
+
+
+    abstract class AbstractTodolist {
+        + res_users default_user
+        + Dobtor_TodoList_core[] todolist_ids
+        + string kanban_todolists
+        + bool lock_stage
+        {abstract} void copy_default_extend()
+    }
+
+
+    Class Project {
+        + Task[] task_ids 
+    }
+
+    Class project_task_type_rel {
+
+    }
+
+    Class ProjectTaskType {
+        {abstract} dict default_get()
+    }
+
+
+}
+
+package dobtor_todolist_project_task {
+    Class project_project {
+        + int sequence_state
+        + selection state_id
+        + selection picked_template
+        - void count_sequence()
+        + void set_template()
+        + void new_project()
+        + void reset_project()
+    }
+
+    Class DobtorTodoListCore {
+        + string ref_model
+    }
+
+    Class project_task {
+        + void copy_default_extend()
+        + void restrict()
+    }
+} 
+
+project_task --|> AbstractTodolist
+Task "*" --o "1" ProjectTaskType
+Project "1" o-- "*" Task
+Project "1" o-- "*" project_task_type_rel
+project_task_type_rel "*" --o "1" ProjectTaskType
+Project ()- project_project
+project_task --() Task
+AbstractTodolist "1" o-- "*" DobtorTodoListCore
+' ProjectTaskType <|- project_task
+project_project --> project_task
+project_task -> DobtorTodoListCore
+@enduml

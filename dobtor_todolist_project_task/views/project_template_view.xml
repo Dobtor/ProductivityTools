@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+	<data>
+		<record id="project_project_inherites" model="ir.ui.view">
+			<field name="name">project.project.form</field>
+			<field name="model">project.project</field>
+			<field name="inherit_id" ref="project.edit_project"/>
+			<field name="arch" type="xml">
+				<sheet position="before">
+					<header>
+						<field name="sequence_state" invisible="1"/>
+						<button string="Set as Template" type="object" name="action_set_template" class="oe_highlight" attrs="{'invisible': [('sequence_state', '!=', 0)]}"/>
+						<button string="New Project Based On Template" type="object" name="action_new_project" class="oe_highlight" attrs="{'invisible': [('sequence_state', '!=', 1)]}"/>
+						<button string="Reset as Project" type="object" name="action_reset_project" class="oe_highlight" attrs="{'invisible': [('sequence_state', '!=', 1)]}" />
+						<field name="state_id" widget="statusbar"/>
+					</header>
+				</sheet>
+			</field>
+		</record>
+
+		<record id="project_project_simplified_inherites" model="ir.ui.view">
+			<field name="name">project.project.simplified_template</field>
+			<field name="model">project.project</field>
+			<field name="inherit_id" ref="project.project_project_view_form_simplified"/>
+			<field name="arch" type="xml">
+				<xpath expr="//sheet/group" position="after">
+					<group>
+						<field name="picked_template" class="oe_inline" />
+					</group>
+				</xpath>
+			</field>
+		</record>
+
+		<record id="view_project_project_filter_inherites" model="ir.ui.view">
+			<field name="name">project.project.select.template</field>
+			<field name="model">project.project</field>
+			<field name="inherit_id" ref="project.view_project_project_filter"/>
+			<field name="arch" type="xml">
+				<xpath expr="//search" position="inside">
+					<field name="state_id" string="State"/>
+					<filter string="Project Template" domain="[('state_id', '=', 'template')]" name="is_template"/>
+				</xpath>
+			</field>
+		</record>
+
+		<record id="project.open_view_project_all_config" model="ir.actions.act_window">
+			<field name="context">{'search_default_is_template':1}</field>
+		</record>
+
+		<record id="project.open_view_project_all" model="ir.actions.act_window">
+			<field name="domain">[('state_id', 'in', [False, 'new'])]</field>
+		</record>
+	</data>
+</odoo>

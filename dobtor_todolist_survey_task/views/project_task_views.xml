@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- <record id="view_task_form2_inherit" model="ir.ui.view">
+        <field name="name">dobtor.todolist.project.task.form.inherit</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="dobtor_todolist_project_task.view_task_form2"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@class='todolist_ids']" position="attributes">
+                <attribute name="context">{
+                    'default_user_id': default_user,
+                    'tree_view_ref': 'dobtor_todolist_survey.todolist_survey_template_tree_view'
+                }
+                </attribute>
+            </xpath>
+        </field>
+    </record> -->
+</odoo>

@@ -1,0 +1,28 @@
+
+### TodoList with Project Template
+- [X] Project Template 7/27 
+    - [延宕,零時交辦] EFCO 零時交辦, 
+    - [延宕,開會] 參與韓娛最前線開會workpass cms 搬家問題,
+    - [延宕,學習] 和學習 python prototype pattern相關知識
+    - [X] design and analysis               (1人天)
+    - [X] project and task template         (1人天)
+    - [X] task todolist deep copy           (1人天)
+    - [X] Sale pipeline                     (1人天)
+    - [X] Sale pipeline todolist deep copy  (0.5人天)
+    - [X] survey shallow copy                (0.5人天)
+    - [X] fixbug/improvements/refactoring and modify require and Note(1人天)
+- [X] issure 8/1
+	- [X] todolist task 必須先建立, 才能建立todolist問題 (0.5人天)
+        -[ ] todolist 在 task/crm 尚未建立的, mail message 不會有留言 (1人天) [層級往後擺放]
+    - [X] todolist mission 不顯示 project (目的 : no show 沒裝的module) (1人天)
+    - [X] fix project task and crm_lead nead diffence todolist filter (0.5人天) [層級往後擺放]
+    - [X] todolist project stage 分離 (1人天)
+    - [X] 建立成 template 後就不顯示, domain 分離 (0.5人天)
+- [ ] Group (權限)                           (0.5人天)
+- [X] TodoList upload file                   (1人天)
+    - [ ] upload input file 效果             (1人天) [層級往後擺放]
+- [ ] Turn discussion content into todolist (1.5人天)
+- [ ] Odoo Calendar sync (google calender)  (unknown)
+- [ ] fixbug and modify require and Note    (1人天)
+- [ ] Generating project schedule           (1.5人天)
+
