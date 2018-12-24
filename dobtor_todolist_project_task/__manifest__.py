@@ -12,7 +12,11 @@
     'website': "http://www.dobtor.com",
     'category': 'project',
     'version': '0.1',
-    'depends': ['project', 'dobtor_todolist_core'],
+    'depends': [
+        'project',
+        'dobtor_project_core',
+        'dobtor_todolist_core'
+    ],
     'data': [
         'views/analytic_account.xml',
         'views/dobtor_todolist_project_task.xml',
