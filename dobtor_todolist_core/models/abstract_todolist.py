@@ -175,7 +175,7 @@ class AbstractTodolist(models.AbstractModel):
             'view_mode': 'kanban,tree,form',
             'view_type': 'form',
             'limit': 80,
-            'context': "{'default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
+            'context': "{'form_view_ref': 'dobtor_todolist_core.view_todolist_core_attachment_form','default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
         }
 
 
