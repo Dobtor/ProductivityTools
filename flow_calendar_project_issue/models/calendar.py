@@ -109,13 +109,15 @@ class Attendee(models.Model):
         soup = BeautifulSoup(template.body_html, 'html.parser')
         if soup:
             lis = soup.find_all('li')
+            need_update = False
             for li in lis:
                 if li.text == 'Description: ${object.event_id.description}':
                     li.string = 'Description: ${object.event_id.description|safe}'
-            template.update({
-                'body_html' : str(soup)
-            })
-
+                    need_update = True
+            if need_update:
+                template.update({
+                    'body_html' : str(soup)
+                })
         return template
 
     @api.multi
