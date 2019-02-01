@@ -111,8 +111,9 @@ class Attendee(models.Model):
             lis = soup.find_all('li')
             need_update = False
             for li in lis:
-                if li.text == _('Description: ') + '${object.event_id.description}':
-                    li.string = _('Description: ') + '${object.event_id.description|safe}'
+                if li.text[-30:] == '${object.event_id.description}':
+                    li.string = li.text.replace(
+                        '${object.event_id.description}', '${object.event_id.description|safe}')
                     need_update = True
             if need_update:
                 template.update({
