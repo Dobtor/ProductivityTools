@@ -3,12 +3,13 @@
 # See LICENSE file for full licensing details.
 
 from datetime import datetime
-
+import logging
 from odoo import api, fields, models, tools, _
 from odoo.exceptions import ValidationError
 from bs4 import BeautifulSoup
 
 ISSUE_EVENT_PREFIX = 'P'
+_logger = logging.getLogger(__name__)
 
 
 class Meeting(models.Model):
@@ -111,8 +112,9 @@ class Attendee(models.Model):
             lis = soup.find_all('li')
             need_update = False
             for li in lis:
-                if li.text == _('Description: ') + '${object.event_id.description}':
-                    li.string = _('Description: ') + '${object.event_id.description|safe}'
+                if li.text[-30:] == '${object.event_id.description}':
+                    li.string = li.text.replace(
+                        '${object.event_id.description}', '${object.event_id.description|safe}')
                     need_update = True
             if need_update:
                 template.update({
