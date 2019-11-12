@@ -6,19 +6,18 @@ from odoo.exceptions import Warning as UserError
 from odoo.tools.translate import _
 
 
-class AbstractTodolist(models.AbstractModel):
-    _name = 'abstract.todolist'
+class AbstractChecklist(models.AbstractModel):
+    _name = 'abstract.checklist'
 
-    default_user = fields.Many2one(
-        'res.users', compute='_compute_default_user')
-    todolist_ids = fields.One2many(
-        comodel_name='dobtor.todolist.core',
+    default_user = fields.Many2one('res.users',compute='_compute_default_user')
+    checklist_ids = fields.One2many(
+        comodel_name='dobtor.checklist.core',
         inverse_name='ref_id',
         domain=lambda self: [('ref_name', '=', self._name)],
         string='Todo Item',
     )
-    kanban_todolists = fields.Text(
-        compute='_compute_kanban_todolists'
+    kanban_checklists = fields.Text(
+        compute='_compute_kanban_checklists'
     )
 
     lock_stage = fields.Boolean(string="Lock Stage", default=True)
@@ -26,35 +25,35 @@ class AbstractTodolist(models.AbstractModel):
     default_tree_view_ref = fields.Char(
         string='default tree view ref',
         compute='_compute_tree_view_ref',
-        default='dobtor_todolist_core.todolist_template_tree_view',
+        default='dobtor_checklist_core.checklist_template_tree_view',
     )
 
     # region model operation (CRUD)
     @api.multi
     def handle_vals(self, vals, data):
-        if 'todolist_ids' in vals:
-            for todolist in vals['todolist_ids']:
-                if todolist[0] == 0 and todolist[2]:
-                    todolist[2].update(data)
+        if 'checklist_ids' in vals:
+            for checklist in vals['checkilist_ids']:
+                if checklist[0] == 0 and checklist[2]:
+                    checklist[2].update(data)
         return vals
 
     @api.multi
     def unlink(self):
         for item in self:
-            if item.todolist_ids:
+            if item.checklist_ids:
                 raise UserError(
-                    _('Please remove existing todolist in the relation linked to the accounts you want to delete.'))
-        return super(AbstractTodolist, self).unlink()
+                    _('Please remove existing check-list in the relation linked to the accounts you want to delete.'))
+        return super().unlink()
 
     @api.model
     def create(self, vals):
         self.handle_vals(vals, {'ref_name': self._name})
-        obj = super(AbstractTodolist, self).create(vals)
-        if 'todolist_ids' in vals:
-            for item in vals['todolist_ids']:
-                todolist = self.env['dobtor.todolist.core'].search(
+        obj = super().create(vals)
+        if 'checklist_ids' in vals:
+            for item in vals['checklist_ids']:
+                checklist = self.env['dobtor.checklist.core'].search(
                     [('ref_id', '=', obj.id), ('ref_name', '=', obj._name)])
-                todolist.write(
+                checklist.write(
                     {'ref_model': u'{0},{1}'.format(obj._name, str(obj.id))})
         return obj
 
@@ -63,7 +62,7 @@ class AbstractTodolist(models.AbstractModel):
         for record in self:
             self.handle_vals(
                 vals, {'ref_model': u'{0},{1}'.format(record._name, str(record.id))})
-            return super(AbstractTodolist, self).write(vals)
+            return super().write(vals)
     # endregion
 
     # region Depp copy
@@ -72,20 +71,20 @@ class AbstractTodolist(models.AbstractModel):
         pass
 
     @api.multi
-    def map_todolist(self, new_obj):
-        for todolist in self.todolist_ids:
-            defaults = todolist.defaults_copy()
+    def map_checklist(self, new_obj):
+        for checklist in self.checklist_ids:
+            defaults = checklist.defaults_copy()
             self.copy_default_extend(defaults, new_obj)
             self.browse(new_obj.id).write(
-                {'todolist_ids': todolist.copy(defaults)})
+                {'checklist_ids': checklist.copy(defaults)})
         return True
 
     @api.multi
     def copy(self, default=None):
         default = dict(default or {})
-        new_obj = super(AbstractTodolist, self).copy(default)
-        if 'todolist_ids' not in default:
-            self.map_todolist(new_obj)
+        new_obj = super().copy(default)
+        if 'checklist_ids' not in default:
+            self.map_checklist(new_obj)
         return new_obj
     # endregion
 
@@ -106,17 +105,17 @@ class AbstractTodolist(models.AbstractModel):
     @api.multi
     def _compute_tree_view_ref(self):
         for record in self:
-            record.default_tree_view_ref = 'dobtor_todolist_core.todolist_template_tree_view'
+            record.default_tree_view_ref = 'dobtor_checklist_core.checklist_template_tree_view'
 
     @api.multi
-    def _compute_kanban_todolists(self):
+    def _compute_kanban_checklists(self):
         """ UI render """
         for record in self:
             result_string1 = ''
             result_string2 = ''
             result_string3 = ''
 
-            for todo in record.todolist_ids:
+            for todo in record.checklist_ids:
                 bounding_length = 25
                 tmp_todo_name = (todo.name)[
                     :bounding_length] + '...' if len(todo.name) > bounding_length else todo.name
@@ -137,7 +136,7 @@ class AbstractTodolist(models.AbstractModel):
                         tmp_string2_2 = escape(u'{0}'.format(tmp_todo_name))
                         result_string2 += u'<li>TODO for <em>{0}</em>: {1}</li>'.format(
                             tmp_string2_1, tmp_string2_2)
-            record.kanban_todolists = '<ul>' + result_string1 + \
+            record.kanban_checklists = '<ul>' + result_string1 + \
                 result_string3 + result_string2 + '</ul>'
     # endregion
 
@@ -150,8 +149,8 @@ class AbstractTodolist(models.AbstractModel):
             ('res_model', '=', obj._name),
             ('res_id', 'in', obj.ids),
             '&',
-            ('res_model', '=', 'dobtor.todolist.core'),
-            ('res_id', 'in', obj.todolist_ids.ids)
+            ('res_model', '=', 'dobtor.checklist.core'),
+            ('res_id', 'in', obj.checklist_ids.ids)
         ]
 
     doc_count = fields.Integer(
@@ -175,7 +174,7 @@ class AbstractTodolist(models.AbstractModel):
             'view_mode': 'kanban,tree,form',
             'view_type': 'form',
             'limit': 80,
-            'context': "{'form_view_ref': 'dobtor_todolist_core.view_todolist_core_attachment_form','default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
+            'context': "{'form_view_ref': 'dobtor_checklist_core.view_checklist_core_attachment_form','default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
         }
 
 

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- TODO: [FIX] project task and crm_lead nead diffence filter -->
-        <record id="dobtor_todolist_view_search" model="ir.ui.view">
-            <field name="name">dobtor.todolist.core.filter</field>
-            <field name="model">dobtor.todolist.core</field>
+        <!-- #TODO: [FIX] project task and crm_lead nead diffence filter -->
+        <!-- <record id="dobtor_checklist_view_search" model="ir.ui.view">
+            <field name="name">dobtor.checklist.core.filter</field>
+            <field name="model">dobtor.checklist.core</field>
             <field name="arch" type="xml">
                 <search string="Filter">
                     <field name="name" string="Description"/>
-                    <filter string="TODO" domain="[('state','=','todo')]" name="done_todolist"/>
+                    <filter string="TODO" domain="[('state','=','todo')]" name="done_checklist"/>
                     <group expand="0" string="Group By">
                         <filter string="Type" domain="[]" context="{'group_by':'parent_model'}" name="ggg"/>
                         <filter string="Todo" domain="[]" context="{'group_by':'ref_model'}"/>
@@ -17,14 +17,14 @@
                     </group>
                 </search>
             </field>
-        </record>
+        </record> -->
 
-        <!-- todo list core form -->
-        <record model="ir.ui.view" id="dobtor_todolist_core_form">
-            <field name="name">dobtor.todolist.core.form</field>
-            <field name="model">dobtor.todolist.core</field>
+        <!-- check list core form -->
+        <record model="ir.ui.view" id="dobtor_checklist_core_form">
+            <field name="name">dobtor.checklist.core.form</field>
+            <field name="model">dobtor.checklist.core</field>
             <field name="arch" type="xml">
-                <form string="Todolist Message">
+                <form string="Check list Message">
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button name="action_get_attachment_view" class="oe_stat_button" icon="fa-book" type="object">
@@ -33,7 +33,7 @@
                         </div>
                         <div class="oe_title">
                             <h1 class="o_row">
-                                <field name="name" placeholder="Todo List..."/>
+                                <field name="name" placeholder="Check List..."/>
                             </h1>
                         </div>
                         <group>
@@ -69,11 +69,11 @@
         </record>
 
         <!-- todo list tree view -->
-        <record model="ir.ui.view" id="todo_list_core_treeview">
-            <field name="name">dobtor.todolist.core.tree</field>
-            <field name="model">dobtor.todolist.core</field>
+        <record model="ir.ui.view" id="check_list_core_treeview">
+            <field name="name">dobtor.checklist.core.tree</field>
+            <field name="model">dobtor.checklist.core</field>
             <field name="arch" type="xml">
-                <tree string="todo_list_tree" colors="red:out_of_deadline==True;blue:planned_hours==0">
+                <tree string="check_list_tree" colors="red:out_of_deadline==True;blue:planned_hours==0">
                     <field name="id" invisible="True"/>
                     <field name="sequence" widget="handle"/>
                     <field name="ref_parent_model_name"/>
@@ -95,10 +95,10 @@
                 </tree>
             </field>
         </record>
-        <!-- todo list calendra view -->
-        <record id="todo_list_core_calendarview" model="ir.ui.view">
-           <field name="name">dobtor.todolist.core.calendar</field>
-           <field name="model">dobtor.todolist.core</field>
+        <!-- check list calendar view -->
+        <record id="check_list_core_calendar_view" model="ir.ui.view">
+           <field name="name">dobtor.checklist.core.calendar</field>
+           <field name="model">dobtor.checklist.core</field>
            <field eval="2" name="priority"/>
            <field name="arch" type="xml">
                <calendar date_start="date_deadline" string="Todo" mode="month" color="user_id">
@@ -109,18 +109,18 @@
        </record>
 
         <!-- menu action -->
-        <record id="action_view_todolist" model="ir.actions.act_window">
-            <field name="name">TodoList</field>
-            <field name="res_model">dobtor.todolist.core</field>
+        <record id="action_view_checklist" model="ir.actions.act_window">
+            <field name="name">CheckList</field>
+            <field name="res_model">dobtor.checklist.core</field>
             <field name="view_mode">tree,form,calendar</field>
-            <field name="context">{'search_default_done_todolist': 1}</field>
+            <field name="context">{'search_default_done_checklist': 1}</field>
         </record>
 
         <!-- top menu -->
-        <menuitem name="Todo List" id="menu_dobtor_todolist_management"/>
+        <menuitem name="Check List" id="menu_dobtor_checklist_management"/>
 
         <!-- left side menu -->
-        <menuitem name="Todo List" parent="dobtor_todolist_core.menu_dobtor_todolist_management" id="menu_dobtor_todolist_subItem" action="action_view_todolist"/>
+        <menuitem name="Check List" parent="dobtor_checklist_core.menu_dobtor_checklist_management" id="menu_dobtor_checklist_subItem" action="action_view_checklist"/>
 
     </data>
 </odoo>

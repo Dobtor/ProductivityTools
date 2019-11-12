@@ -13,9 +13,9 @@ TODO_STATES = {'done': 'Done',
                'cancelled': 'Cancelled'}
 
 
-class DobtorTodoListCore(models.Model):
-    _name = "dobtor.todolist.core"
-    _inherit = ["mail.thread", 'ir.needaction_mixin']
+class DobtorCheckListCore(models.Model):
+    _name = "dobtor.checklist.core"
+    _inherit = ["mail.thread", 'mail.activity.mixin']
     _description = 'Dobtor Todo List Core'
     state = fields.Selection([(k, v) for k, v in TODO_STATES.items()],
                              'Status', required=True, copy=False, default='todo')
@@ -78,6 +78,8 @@ class DobtorTodoListCore(models.Model):
     def referencable_models(self):
         models = self.env['res.request.link'].search([])
         return [(model.object, model.name) for model in models]
+        # return [('project.project', 'Project'), ('crm.lead', 'Crm Lead')]
+
 
     @api.multi
     def _compute_check_deadline(self):
@@ -129,22 +131,22 @@ class DobtorTodoListCore(models.Model):
         vals = self._handle_ref_model(vals)
         vals = self._handle_parent_model(vals)
         old_names = dict(zip(self.mapped('id'), self.mapped('name')))
-        result = super(DobtorTodoListCore, self).write(vals)
+        result = super().write(vals)
         for r in self:
             if (vals.get('state')):
-                self.send_todolist_email(
+                self.send_checklist_email(
                     r.name, r.state, r.reviewer_id.id, r.user_id.id, r.ref_model)
                 if self.env.user != r.reviewer_id and self.env.user != r.user_id:
                     raise UserError(
                         _('Only users related to that subtask can change state.'))
             if vals.get('name'):
-                self.send_todolist_email(
+                self.send_checklist_email(
                     r.name, r.state, r.reviewer_id.id, r.user_id.id, r.ref_model, old_name=old_names[r.id])
                 if self.env.user != r.reviewer_id and self.env.user != r.user_id:
                     raise UserError(
                         _('Only users related to that subtask can change state.'))
             if vals.get('user_id'):
-                self.send_todolist_email(
+                self.send_checklist_email(
                     r.name, r.state, r.reviewer_id.id, r.user_id.id, r.ref_model)
         return result
 
@@ -152,9 +154,9 @@ class DobtorTodoListCore(models.Model):
     def create(self, vals):
         vals = self._handle_ref_model(vals)
         vals = self._handle_parent_model(vals)
-        result = super(DobtorTodoListCore, self).create(vals)
+        result = super().create(vals)
         # vals = self._add_missing_default_values(vals)
-        self.send_todolist_email(
+        self.send_checklist_email(
             result.name, result.state, result.reviewer_id.id, result.user_id.id)
         return result
 
@@ -236,7 +238,7 @@ class DobtorTodoListCore(models.Model):
             'name': _('Attachments'),
             'res_model': 'ir.attachment',
             'type': 'ir.actions.act_window',
-            'view_id': self.env.ref('dobtor_todolist_core.view_todolist_core_attachment_form').id,
+            'view_id': self.env.ref('dobtor_checklist_core.view_checklist_core_attachment_form').id,
             'view_mode': 'form',
             'view_type': 'form',
             'context': "{'default_res_model': '%s','default_res_id': %d}" % (self._name, self.id)
@@ -246,7 +248,7 @@ class DobtorTodoListCore(models.Model):
 
     # region Send mail
     @api.multi
-    def send_todolist_email(self, todo_name, todo_state, todo_reviewer_id, todo_user_id, ref_model=None, old_name=None):
+    def send_checklist_email(self, todo_name, todo_state, todo_reviewer_id, todo_user_id, ref_model=None, old_name=None):
         reviewer = self.env["res.users"].browse(todo_reviewer_id)
         user = self.env["res.users"].browse(todo_user_id)
         state = TODO_STATES[todo_state]
@@ -259,7 +261,7 @@ class DobtorTodoListCore(models.Model):
         if todo_state == 'waiting':
             state = '<span style="color:#b818ce">' + state + '</span>'
 
-        subtype = 'dobtor_todolist_core.todolist_core_subtype'
+        subtype = 'dobtor_checklist_core.checklist_core_subtype'
 
         body = ''
         partner_ids = []
@@ -272,11 +274,11 @@ class DobtorTodoListCore(models.Model):
                 state + '</strong>: ' + escape(todo_name)
             partner_ids = [user.partner_id.id]
         elif self.env.user == user:
-            body = '<p>' + escape(reviewer.name) + ', <em style="color:#999">I updated todolist item assigned to me:</em> <br><strong>' + \
+            body = '<p>' + escape(reviewer.name) + ', <em style="color:#999">I updated check-list item assigned to me:</em> <br><strong>' + \
                 state + '</strong>: ' + escape(todo_name)
             partner_ids = [reviewer.partner_id.id]
         else:
-            body = '<p>' + escape(user.name) + ', ' + escape(reviewer.name) + ', <em style="color:#999">I updated todolist item, now its assigned to ' + \
+            body = '<p>' + escape(user.name) + ', ' + escape(reviewer.name) + ', <em style="color:#999">I updated check-list item, now its assigned to ' + \
                 escape(user.name) + ': </em> <br><strong>' + \
                 state + '</strong>: ' + escape(todo_name)
             partner_ids = [user.partner_id.id, reviewer.partner_id.id]
@@ -293,9 +295,9 @@ class DobtorTodoListCore(models.Model):
                           partner_ids=partner_ids)
     # endregion
     @api.multi
-    def action_form_todolist(self):
+    def action_form_checklist(self):
         return {
-            'name': _('Todolist'),
+            'name': _('Check-list'),
             'res_model': self._name,
             'type': 'ir.actions.act_window',
             'view_id': False,
