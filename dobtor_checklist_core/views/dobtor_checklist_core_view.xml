@@ -86,10 +86,10 @@
                     <field name="planned_hours" invisible="True"/>
                     <field name="state" attrs="{'invisible':[('id', '=', False)]}" readonly="True"/>
                     <field name="hide_button" invisible="True"/>
-                    <button name="change_state_done" string="Change state to DONE" type="object" icon="fa fa-check" attrs="{'invisible': [ '|', '|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True), ('id', '=', False)]}"/>
-                    <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa fa-file" attrs="{'invisible': [ '|', '|',('state', '=', 'todo'), ('hide_button', '=', True), ('id', '=', False)]}"/>
-                    <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa fa-pause" attrs="{'invisible': [ '|', '|',('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}"/>
-                    <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa fa-ban" attrs="{'invisible': [ '|', '|',('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}"/>
+                    <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': [ '|', '|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True), ('id', '=', False)]}"/>
+                    <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" attrs="{'invisible': [ '|', '|',('state', '=', 'todo'), ('hide_button', '=', True), ('id', '=', False)]}"/>
+                    <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|', '|',('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}"/>
+                    <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" attrs="{'invisible': [ '|', '|',('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <field name="attachment_number" invisible="True"/>
                     <button name="action_get_attachment_view" string="View Attached Documents" type="object" icon="fa-paperclip" attrs="{'invisible': [('attachment_number', '=', 0)]}"/>
                 </tree>
