@@ -6,7 +6,7 @@
         <field name="priority">30</field>
         <field name="arch" type="xml">
             <tree string="Task Work" editable="bottom" colors="red:recolor == True;gray:state == 'cancelled';green:state == 'done';#b818ce:state == 'waiting'">
-                <button name="action_form_checklist" type="object" icon="fa-envelope"/>
+                <button name="action_form_checklist" string="action_form_checklist" type="object" icon="fa-envelope"/>
                 <field name="parent_model" invisible="True"/>
                 <field name="ref_model" invisible="True" />
                 <field name="name"/>

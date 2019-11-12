@@ -12,6 +12,7 @@
     'http://www.dobtor.com',
     'depends': ['base', 'mail'],
     'data': [
+        'security/ir.model.access.csv',
         'views/ir_attachment_view.xml',
         'views/checklist_tree_view.xml',
         'views/dobtor_checklist_core_view.xml',
