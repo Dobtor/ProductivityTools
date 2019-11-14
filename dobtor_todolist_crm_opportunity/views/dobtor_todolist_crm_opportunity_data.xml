@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <data noupdate="1">
-        <record forcecreate="False" id="dobtor_todolist_crm_opportunity_reference_model_data" model="res.request.link">
-            <field name="name">Crm Lead</field>
-            <field name="object">crm.lead</field>
-        </record>
-    </data>
-</odoo>
