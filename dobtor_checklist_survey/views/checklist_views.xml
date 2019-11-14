@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
 
-    <!-- todolist tree -->
-    <record id="todolist_survey_tree" model="ir.ui.view">
-        <field name="name">todolist.survey.tree</field>
-        <field name="model">dobtor.todolist.core</field>
-        <field name="inherit_id" ref="dobtor_todolist_core.todo_list_core_treeview"/>
+    <!-- checklist tree -->
+    <record id="checklist_survey_tree" model="ir.ui.view">
+        <field name="name">checklist.survey.tree</field>
+        <field name="model">dobtor.checklist.core</field>
+        <field name="inherit_id" ref="dobtor_checklist_core.check_list_core_treeview"/>
         <field name="arch" type="xml">
             <xpath expr="//tree/button[@name='change_state_cancelled']" position="after">
                 <field name="survey_id"/>
@@ -18,11 +18,11 @@
             </xpath>
         </field>
     </record>
-    <!-- todolist form -->
-    <record id="todolist_survey_form" model="ir.ui.view">
-        <field name="name">todolist.survey.form</field>
-        <field name="model">dobtor.todolist.core</field>
-        <field name="inherit_id" ref="dobtor_todolist_core.dobtor_todolist_core_form"/>
+    <!-- checklist form -->
+    <record id="checklist_survey_form" model="ir.ui.view">
+        <field name="name">checklist.survey.form</field>
+        <field name="model">dobtor.checklist.core</field>
+        <field name="inherit_id" ref="dobtor_checklist_core.dobtor_checklist_core_form"/>
         <field name="arch" type="xml">
             <xpath expr="//form/sheet/div[@class='oe_button_box']" position="inside">
                 <button name="open_survey" type="object" class="oe_stat_button" icon="fa-edit" attrs="{'invisible':[('survey_id','=',False)]}" string="Open Survey"/>
@@ -33,14 +33,14 @@
         </field>
     </record>
 
-    <!-- todolist survey template tree -->
-    <record id="todolist_survey_template_tree_view" model="ir.ui.view">
-        <field name="name">todolist.survey.template.tree.view</field>
-        <field name="model">dobtor.todolist.core</field>
+    <!-- checklist survey template tree -->
+    <record id="checklist_survey_template_tree_view" model="ir.ui.view">
+        <field name="name">checklist.survey.template.tree.view</field>
+        <field name="model">dobtor.checklist.core</field>
         <field name="priority">30</field>
         <field name="arch" type="xml">
             <tree string="Task Work" editable="bottom" colors="red:recolor == True;gray:state == 'cancelled';green:state == 'done';#b818ce:state == 'waiting'">
-                <button name="action_form_todolist" type="object" icon="fa-envelope"/>
+                <button name="action_form_checklist" string="Checklist" type="object" icon="fa-envelope"/>
                 <field name="name"/>
                 <field name="recolor" invisible="True"/>
                 <field name="user_id" options="{'no_open': True}"/>

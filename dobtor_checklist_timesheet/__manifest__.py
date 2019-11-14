@@ -9,7 +9,6 @@
     """,
     'author': "Dobtor SI",
     'website': "http://www.dobtor.com",
-    'category': 'todolist',
     'version': '0.1',
     'depends': ['base', 'dobtor_checklist_project_task', 'hr_timesheet', 'sale_timesheet'],
     'data': [

@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
-from odoo.addons.website.models.website import slug
+from odoo.addons.http_routing.models.ir_http import slug
 
 class SurveyHistory(models.Model):
-    _name = 'dobtor.todolist.user_input.ref'
+    _name = 'dobtor.checklist.user_input.ref'
 
-    @api.depends('todolist_ids')
+    @api.depends('checklist_ids')
     def _compute_response_id(self):
         for recode in self:
-            recode.reject = recode.todolist_ids.response_id
+            recode.reject = recode.checklist_ids.response_id
 
-    todolist_ids = fields.Many2one(
-        comodel_name='dobtor.todolist.core',
-        string='ToDo List Item'
+    checklist_ids = fields.Many2one(
+        comodel_name='dobtor.checklist.core',
+        string='Check List Item'
     )
     user_input_ids = fields.Many2one(
         comodel_name='survey.user_input',
@@ -36,8 +36,8 @@ class SurveyHistory(models.Model):
 class SurveyUserInput(models.Model):
 
     _inherit = 'survey.user_input'
-    todolist_user_input_ids = fields.One2many(
+    checklist_user_input_ids = fields.One2many(
         string='user_input',
-        comodel_name='dobtor.todolist.user_input.ref',
+        comodel_name='dobtor.checklist.user_input.ref',
         inverse_name='user_input_ids',
     )
