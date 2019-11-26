@@ -41,12 +41,19 @@ class DobtorCheckListCore(models.Model):
         vals = self._handle_vals(vals)
         record = super().write(vals)
         return record
-
+    
     @api.onchange('ref_model')
     def change_parent(self):
-        if self.ref_model:
-            if ('project.task' in str(self.ref_model)) and self.ref_model.project_id:
-                self.parent_model = self.ref_model.project_id
-            else:
-                self.parent_model = None
-        pass
+        for record in self:
+            if record.ref_model:
+                if ('project.task' in str(record.ref_model)) and record.ref_model.project_id:
+                    print("parent: {}".format(record.ref_model.project_id))
+                    record.parent_model = 'project.project,' + str(record.ref_model.project_id.id)
+            pass
+    # @api.onchange('ref_model')
+    # def change_parent(self):
+    #     if self.ref_model:
+    #         print("ref_model: {}, str: {}".format(self.ref_model, str(self.ref_model)))
+    #         if ('project.task' in str(self.ref_model)):
+    #             self.parent_model = self.ref_model.project_id
+    #     pass
