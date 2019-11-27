@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<openerp>
+  <data>
+    <record id="todo_list_project_task_subtype" model="mail.message.subtype">
+      <field name="name">All todo-list updates</field>
+      <field name="res_model">project.task</field>
+      <field name="description">Subscribe to todo-list updates of other users. By default you are notified on todo-list items to and from you only.</field>
+      <field name="default" eval="False"/>
+    </record>
+
+    <record id="all_todo_list_project_task_subtype" model="mail.message.subtype">
+      <field name="name">All todo-list updates</field>
+      <field name="description">Subscribe to todo-list updates of other users. By default you are notified on todo_-list items to and from you only.</field>
+      <field name="sequence">10</field>
+      <field name="res_model">project.project</field>
+      <field name="parent_id" eval="ref('todo_list_project_task_subtype')"/>
+      <field name="relation_field">parent_model</field>
+      <field name="default" eval="True"/>
+    </record>
+  </data>
+</openerp>

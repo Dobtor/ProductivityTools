@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="todo_list_template_tree_view" model="ir.ui.view">
+        <field name="name">todo.list.template.tree.view</field>
+        <field name="model">dobtor.todo.list.core</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <tree string="Task Work" editable="bottom" colors="red:recolor == True;gray:state == 'cancelled';green:state == 'done';#b818ce:state == 'waiting'">
+                <button name="action_form_todo_list" string="action_form_todo_list" type="object" icon="fa-envelope"/>
+                <field name="parent_model" invisible="True"/>
+                <field name="ref_model" invisible="True" />
+                <field name="name"/>
+                <field name="recolor" invisible="True"/>
+                <field name="user_id" options="{'no_open': True}"/>
+                <field name="state"/>
+                <field name="hide_button" invisible="True"/>
+                <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
+                <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>
+                <field name="reviewer_id" options="{'no_open': True}"/>
+                <field name="write_date" readonly="True"/>
+                <field name="creater" options="{'no_open': True}"/>
+                <field name="attachment_number" invisible="True"/>
+                <button name="attachment_form_view" string="Open Attached Documents" type="object" icon="fa-upload" />
+                <button name="action_get_attachment_view" string="View Attached Documents" type="object" icon="fa-paperclip" attrs="{'invisible': [('attachment_number', '=', 0)]}"/>
+            </tree>
+        </field>
+    </record>
+</odoo>

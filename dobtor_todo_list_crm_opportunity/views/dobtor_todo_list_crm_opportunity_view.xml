@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="todo_list_crm_opportunity_form" model="ir.ui.view">
+            <field name="name">dobtor.todo.list.crm.opportunity.form</field>
+            <field name="model">crm.lead</field>
+            <field name="inherit_id" ref="crm.crm_case_form_view_oppor"/>
+            <field name="arch" type="xml">
+                <xpath expr="//div[@class='oe_button_box']" position="inside">
+                    <button class="oe_stat_button" name="attachment_tree_view" type="object" icon="fa-files-o">
+                        <field string="Documents" name="doc_count" widget="statinfo"/>
+                    </button>
+                </xpath>
+                <xpath expr="//div[@class='oe_title']/h1" position='after'>
+                    <div name="options_active" class="oe_edit_only">
+                        <div>
+                            <field name="lock_stage" class="oe_inline" string="Lock Stage"/>
+                            <label for="lock_stage" class="oe_inline"/>
+                        </div>
+                    </div>
+                </xpath>
+                <xpath expr="//page[1]" position="before">
+                    <page string="Todo-List">
+                        <field name="default_user" invisible="1"/>
+                        <field name="default_tree_view_ref" invisible="1"/>
+                        <field name="todo_list_ids" context="{
+                            'default_user_id': default_user,
+                            'tree_view_ref': default_tree_view_ref
+                        }"/>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- kanban view -->
+        <record id="view_task_kanban_todo_list" model="ir.ui.view">
+            <field name="name">dobtor.todo.list.crm.opportunity.kanban.list</field>
+            <field name="model">crm.lead</field>
+            <field name="inherit_id" ref="crm.crm_case_kanban_view_leads"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='tag_ids']" position="after">
+                    <field name="todo_list_ids"/>
+                    <field name="kanban_todo_lists"/>
+                </xpath>
+                <!-- <xpath expr="//div[@class='o_kanban_footer']" position="before">
+                    <div style="border-top: 1px solid #DDD;">
+                        <t t-raw="record.kanban_todo_lists.raw_value" />
+                    </div>
+                </xpath> -->
+            </field>
+        </record>
+
+        <record id="action_view_todo_list_crm_opportunity" model="ir.actions.act_window">
+            <field name="name">Todo List</field>
+            <field name="res_model">dobtor.todo.list.core</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('ref_name','=','crm.lead')]</field>
+            <field name="context">{'search_default_done_todo_list': 1}</field>
+        </record>
+
+        <!-- <menuitem name="todo_ List" parent="sales_team.menu_sales" id="menu_action_view_todo_list" action="action_view_todo_list_crm_opportunity"/> -->
+
+    </data>
+</odoo>
