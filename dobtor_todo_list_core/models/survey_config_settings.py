@@ -10,6 +10,4 @@ class SurveyConfigSetting(models.TransientModel):
     module_dobtor_todo_list_survey = fields.Selection([
         (0, 'Todo-List do not require Survey'),
         (1, 'Allow Todo-List with survey')
-    ],
-        string="Todo-List Survey",
-    )
+    ], string="Todo-List Survey",)

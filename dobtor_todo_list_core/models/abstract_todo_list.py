@@ -123,7 +123,7 @@ class AbstractTodoList(models.AbstractModel):
                 bounding_length = 25
                 tmp_todo_name = (todo.name)[:bounding_length] + '...' if len(
                     todo.name) > bounding_length else todo.name
-                if todo.state == 'todo':
+                if todo.state == 'todo' and todo.user_id:
                     if record.env.user == todo.user_id and record.env.user == todo.reviewer_id:
                         tmp_string3 = escape(u': {0}'.format(tmp_todo_name))
                         result_string3 += u'<li><b>TODO</b>{}</li>'.format(

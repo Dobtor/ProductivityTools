@@ -1,0 +1,26 @@
+<?xml version="1.0" ?>
+<odoo>
+    <data>
+
+        <record id="todo_user_wizards" model="ir.ui.view">
+            <field name="name">Assign User</field>
+            <field name="model">todo.list.core.user</field>
+            <field name="arch" type="xml">
+                <form string="Assign User">
+                    <group>
+                        <group>
+                            <field name="todo_id" invisible="1"/>
+                            <field name="user_id"/>
+                        </group>
+                    </group>
+                    <footer>
+                        <button name="action_assign_user" string="Save" type="object" class="btn-primary"/>
+                        <button string="Cancel" class="btn-default" special="cancel"/>
+                    </footer>
+                </form>
+
+            </field>
+        </record>
+
+    </data>
+</odoo>

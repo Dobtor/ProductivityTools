@@ -1,0 +1,22 @@
+<odoo>
+  <data>
+
+    <record model="ir.ui.view" id="dobtor_todo_list_core_form_extend_button">
+      <field name="name">dobtor.todo.list.core.form.extend_button</field>
+      <field name="model">dobtor.todo.list.core</field>
+      <field name="inherit_id" ref="dobtor_todo_list_core.dobtor_todo_list_core_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//header" position="inside">
+          <field name="apply_transfer" invisible="1"/>
+          <button name="action_apply_transfer" type="object" string="Apply Transfer" attrs="{'invisible': ['|',('apply_transfer', '=', True),('state', '!=', 'assign')]}"/>
+          <button name="action_transfer_todo" type="object" string="Transfer" attrs="{'invisible': [('apply_transfer', '=', False)]}"/>
+          <button name="action_assign_todo" type="object" string="Assign" states="todo,transfer"/>
+        </xpath>
+        <field name="state" position="attributes">
+          <attribute name="statusbar_visible">todo,assign,done</attribute>
+        </field>
+      </field>
+    </record>
+
+  </data>
+</odoo>

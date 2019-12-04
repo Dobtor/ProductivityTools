@@ -47,7 +47,6 @@ class DobtorTodoListCore(models.Model):
         for record in self:
             if record.ref_model:
                 if ('project.task' in str(record.ref_model)) and record.ref_model.project_id:
-                    print("parent: {}".format(record.ref_model.project_id))
                     record.parent_model = 'project.project,' + str(record.ref_model.project_id.id)
             pass
     # @api.onchange('ref_model')

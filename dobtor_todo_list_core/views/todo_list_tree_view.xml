@@ -14,10 +14,10 @@
                 <field name="user_id" options="{'no_open': True}"/>
                 <field name="state"/>
                 <field name="hide_button" invisible="True"/>
-                <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': ['|', ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
-                <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" attrs="{'invisible': [ '|',('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
-                <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|',('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
-                <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" attrs="{'invisible': [ '|',('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': ['|','|',('user_id','=',False), ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True)]}"/>
+                <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" attrs="{'invisible': [ '|','|',('user_id','=',False),('state', '=', 'todo'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|','|',('user_id','=',False),('state', '=', 'waiting'), ('hide_button', '=', True)]}"/>
+                <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" attrs="{'invisible': [ '|','|',('user_id','=',False),('state', '=', 'cancelled'), ('hide_button', '=', True)]}"/>
                 <field name="reviewer_id" options="{'no_open': True}"/>
                 <field name="write_date" readonly="True"/>
                 <field name="creater" options="{'no_open': True}"/>

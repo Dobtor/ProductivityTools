@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_task_form_multiplayer_todo" model="ir.ui.view">
+        <field name="name">project.task.form.multiplayer_todo</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_form2"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="create_resource_plan" string="Resource Plan" type="object"/>
+            </xpath>
+
+            <xpath expr="//notebook" position="inside">
+                <page string="Resource Plan">
+                    <field name="plan_ids">
+                        <tree>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name" string="Name"/>
+                            <field name="planned_people_str"/>
+                            <field name="reviewer_id"/>
+                            <field name="date_deadline"/>
+                            <field name="planned_hours"/>
+                            <!-- <field name="state" readonly="True"/> -->
+                            <!-- <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': [ '|', '|','|',('user_id','=',False), ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True), ('id', '=', False)]}"/> -->
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
