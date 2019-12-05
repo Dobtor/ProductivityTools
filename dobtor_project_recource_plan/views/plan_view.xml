@@ -6,12 +6,16 @@
             <field name="arch" type="xml">
                 <form string="Todo list Message">
                     <header>
-                        <field name="state" widget="statusbar" statusbar_visible="todo,done,cancel" options="{'clickable': '1'}"/>
+                        <field name="state" widget="statusbar" options="{'clickable': '1'}"/>
+                        <button name="apply_todo_request" string="Apply todo" type="object"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button name="action_get_attachment_view" class="oe_stat_button" icon="fa-book" type="object">
                                 <field name="attachment_number" widget="statinfo" string="Documents"/>
+                            </button>
+                            <button name="action_get_requests_view" class="oe_stat_button" icon="fa-file-o" type="object">
+                                <field name="request_number" widget="statinfo" string="Requests"/>
                             </button>
                         </div>
                         <div class="oe_title">

@@ -5,3 +5,4 @@ from . import res_partner
 from . import project_task
 from . import dobtor_todo_list_core
 from . import resource_plan
+from . import resource_plan_request

@@ -29,6 +29,7 @@
     'data': [
         'security/ir.model.access.csv',
         'views/plan_view.xml',
+        'views/plan_request.xml',
         'views/views.xml',
         'views/project_task.xml',
         'wizard/todo_user_wizards.xml',

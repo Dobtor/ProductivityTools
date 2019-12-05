@@ -1,0 +1,46 @@
+<odoo>
+    <data>
+        <record model="ir.ui.view" id="resource_plan_request_form">
+            <field name="name">resource.plan.request.form</field>
+            <field name="model">resource.plan.request</field>
+            <field name="arch" type="xml">
+                <form>
+                    <!-- <header>
+                        <field name="state" widget="statusbar" options="{'clickable': '1'}"/>
+                        <button name="apply_todo_request" string="Apply todo" type="object"/>
+                    </header> -->
+                    <sheet>
+                        <group>
+                            <field name='plan_id' readonly="True"/>
+                            <field name="assigner"/>
+                            <field name="user_id"/>
+                            <field name="reviewer_id"/>
+                        </group>
+
+                        <notebook>
+                            <page name="description_page" string="Description">
+                                <field name="description"/>
+                                <div class="oe_clear"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+
+                </form>
+            </field>
+        </record>
+
+        <record model="ir.ui.view" id="resource_plan_request_tree">
+            <field name="name">resource.plan.request.tree</field>
+            <field name="model">resource.plan.request</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name='plan_id' readonly="True"/>
+                    <field name="assigner"/>
+                    <field name="user_id"/>
+                    <field name="reviewer_id"/>
+                </tree>
+            </field>
+        </record>
+
+    </data>
+</odoo>
