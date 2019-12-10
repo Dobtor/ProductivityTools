@@ -12,5 +12,6 @@ class TodoUserWizard(models.TransientModel):
     def action_assign_user(self):
         for res in self:
             if res.user_id:
-                res.todo_id.write({'user_id': res.user_id.id,'state':'todo'})
+                res.todo_id.user_id = res.user_id
+                res.todo_id.state='todo'
                 

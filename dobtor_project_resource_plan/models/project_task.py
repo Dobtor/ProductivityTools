@@ -21,7 +21,7 @@ class ProjectTask(models.Model):
                     'res_model':'project.task.resource.plan',
                     'view_type': 'form',
                     'view_mode':'form',
-                    'view_id':self.env.ref('dobtor_project_recource_plan.project_resource_plan_wizards').id,
+                    'view_id':self.env.ref('dobtor_project_resource_plan.project_resource_plan_wizards').id,
                     'target': 'new',
                     'context': {
                         'default_task_id': task.id,

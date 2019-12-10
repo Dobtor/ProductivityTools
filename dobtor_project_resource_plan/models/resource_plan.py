@@ -59,6 +59,7 @@ class ResourcePlan(models.Model):
                 }
             }
 
+    @api.multi
     @api.depends('planned_people', 'todo_ids')
     def _compute_planned_people_str(self):
         for rec in self:
@@ -67,11 +68,11 @@ class ResourcePlan(models.Model):
             elif not rec.todo_ids and rec.planned_people:
                 rec.planned_people_str = (_("0 applied, %s planned") %
                                           (str(rec.planned_people)))
-            if rec.todo_ids and rec.planned_people > 0:
+            elif rec.todo_ids and rec.planned_people > 0:
                 rec.planned_people_str = (
                     _("%s applied, %s planned") %
                     (str(len(rec.todo_ids)), str(rec.planned_people)))
-            if rec.todo_ids and rec.planned_people <= 0:
+            elif rec.todo_ids and rec.planned_people <= 0:
                 rec.planned_people_str = (_("%s applied, unlimited") %
                                           (str(len(rec.todo_ids))))
             if rec.is_limited==False:
@@ -97,7 +98,7 @@ class ResourcePlan(models.Model):
                 'form',
                 'view_id':
                 self.env.ref(
-                    'dobtor_project_recource_plan.resource_plan_request_wizard'
+                    'dobtor_project_resource_plan.resource_plan_request_wizard'
                 ).id,
                 'target':
                 'new',

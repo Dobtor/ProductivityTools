@@ -27,7 +27,7 @@
                         <group>
                             <group string="Human Resources">
                                 <field name='creater' readonly="True"/>
-                                <field name="user_ids" widget="many2many_tags"/>
+                                <field name="user_ids" widget="many2many_tags" attrs="{'invisible': [('limit','=',False)]}"/>
                                 <field name="reviewer_id" options="{'no_open': True}"/>
                                 <field name="ref_model" widget='reference' string="Mission"/>
                                 <field name="parent_model" onchange="0" readonly="True"/>

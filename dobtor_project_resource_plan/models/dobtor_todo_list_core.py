@@ -28,7 +28,7 @@ class DobtorTodoListCore(models.Model):
                     'res_model':'todo.user.wizard',
                     'view_type': 'form',
                     'view_mode':'form',
-                    'view_id':self.env.ref('dobtor_project_recource_plan.todo_user_wizards').id,
+                    'view_id':self.env.ref('dobtor_project_resource_plan.todo_user_wizards').id,
                     'target': 'new',
                     'context': {
                         'default_todo_id': todo.id,
@@ -41,7 +41,7 @@ class DobtorTodoListCore(models.Model):
             if request.user_id:
                 result.append((request.id, request.user_id.name))
             else:
-                result.append((request.id, _("Transfering Todo")))
+                result.append((request.id, request.name or request.description))
         return result
 
     @api.model
@@ -69,41 +69,38 @@ class DobtorTodoListCore(models.Model):
     @api.multi
     def action_transfer_todo(self):
         for todo in self:
-            todo.write({'state': 'transfer'})
-            todo.send_transfer_todo_email(todo.name,
-                                          todo.reviewer_id.id, todo.user_id.id,
-                                          todo.ref_model)
+            todo.state='transfer'
             todo.user_id = None
             todo.apply_transfer = False
 
-    @api.multi
-    def send_transfer_todo_email(
-            self,
-            todo_name,
-            todo_reviewer_id,
-            todo_user_id,
-            ref_model=None,
-    ):
-        reviewer = self.env["res.users"].browse(todo_reviewer_id)
-        user = self.env["res.users"].browse(todo_user_id)
+    # @api.multi
+    # def send_transfer_todo_email(
+    #         self,
+    #         todo_name,
+    #         todo_reviewer_id,
+    #         todo_user_id,
+    #         ref_model=None,
+    # ):
+    #     reviewer = self.env["res.users"].browse(todo_reviewer_id)
+    #     user = self.env["res.users"].browse(todo_user_id)
 
-        subtype = 'dobtor_todo_list_core.todo_list_core_subtype'
+    #     subtype = 'dobtor_todo_list_core.todo_list_core_subtype'
 
-        body = ''
-        partner_ids = []
+    #     body = ''
+    #     partner_ids = []
 
-        if self.env.user == reviewer:
-            body = "The planned todo status has been changed to transfer, please check the plan."
-            partner_ids = [user.partner_id.id]
-        elif self.env.user == user:
-            body = 'Your todo has been approved for transfer. Please help to find the right volunteer'
-            partner_ids = [reviewer.partner_id.id]
-        else:
-            body = 'The planned todo status has been changed to transfer, please check the plan.'
-            partner_ids = [user.partner_id.id, reviewer.partner_id.id]
+    #     if self.env.user == reviewer:
+    #         body = "The planned todo status has been changed to transfer, please check the plan."
+    #         partner_ids = [user.partner_id.id]
+    #     elif self.env.user == user:
+    #         body = 'Your todo has been approved for transfer. Please help to find the right volunteer'
+    #         partner_ids = [reviewer.partner_id.id]
+    #     else:
+    #         body = 'The planned todo status has been changed to transfer, please check the plan.'
+    #         partner_ids = [user.partner_id.id, reviewer.partner_id.id]
 
-        self.message_post(subject='Your todo list',
-                          message_type='comment',
-                          subtype=subtype,
-                          body=body,
-                          partner_ids=partner_ids)
+    #     self.message_post(subject='Your todo list',
+    #                       message_type='comment',
+    #                       subtype=subtype,
+    #                       body=body,
+    #                       partner_ids=partner_ids)

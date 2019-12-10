@@ -325,13 +325,14 @@ class DobtorTodoListCore(models.Model):
         state_str = '<span></span>'
         if todo_state == 'done':
             state_str = '<span style="color:#080">' + state + '</span>'
-        if todo_state == 'todo':
+        elif todo_state == 'todo':
             state_str = '<span style="color:#A00">' + state + '</span>'
-        if todo_state == 'cancelled':
+        elif todo_state == 'cancelled':
             state_str = '<span style="color:#777">' + state + '</span>'
-        if todo_state == 'waiting':
+        elif todo_state == 'waiting':
             state_str = '<span style="color:#b818ce">' + state + '</span>'
-
+        else:
+            state_str = '<span>' + state + '</span>'
 
         subtype = 'dobtor_todo_list_core.todo_list_core_subtype'
 
@@ -339,7 +340,7 @@ class DobtorTodoListCore(models.Model):
         partner_ids = []
         if user == self.env.user and reviewer == self.env.user:
             body = '<p>' + '<strong>' + state_str + \
-                '</strong>: ' + escape(todo_name)
+                '</strong> ' + escape(todo_name)
             subtype = False
         elif self.env.user == reviewer:
             body = '<p>' + escape(user.name) + ', <br><strong>' + \
