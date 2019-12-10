@@ -7,3 +7,4 @@ class ResPartner(models.Model):
 
     caregiver_id  = fields.Many2one(string=u'Caregiver', comodel_name='res.partner')
     recipient_ids  = fields.One2many(string=u'Recipient',comodel_name='partner.recipient',inverse_name='partner_id')
+    

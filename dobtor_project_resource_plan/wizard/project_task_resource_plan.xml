@@ -17,8 +17,9 @@
                             <group string="Resource">
                                 <field name="task_id" invisible="1"/>
                                 <field name="user_ids" widget="many2many_tags"/>
-                                <field name="reviewer_id" options="{'no_open': True}"/>
-                                <field name="planned_people"/>
+                                <field name="reviewer_id" options="{'no_open': True}" required="1"/>
+                                <field name="is_limited"/>
+                                <field name="planned_people"  attrs="{'invisible': [('is_limited','=',False)]}"/>
                             </group>
                             <group string="Time and Date">
                                 <field name="date_assign"/>

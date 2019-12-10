@@ -28,11 +28,13 @@
     # always loaded
     'data': [
         'security/ir.model.access.csv',
+        'wizard/resource_plan_request_wizard.xml',
+        'wizard/project_task_resource_plan.xml',
+        'wizard/todo_user_wizard.xml',
         'views/plan_view.xml',
         'views/plan_request.xml',
         'views/views.xml',
         'views/project_task.xml',
-        'wizard/todo_user_wizards.xml',
-        'wizard/project_task_resource_plan.xml',
+     
     ],
 }

@@ -5,10 +5,17 @@
             <field name="model">resource.plan.request</field>
             <field name="arch" type="xml">
                 <form>
-                    <!-- <header>
-                        <field name="state" widget="statusbar" options="{'clickable': '1'}"/>
-                        <button name="apply_todo_request" string="Apply todo" type="object"/>
-                    </header> -->
+                    <header>
+                        <field name="user_check" invisible="1"/>
+                        <field name="reviewer_check" invisible="1"/>
+                        <field name="created_todo" invisible="1"/>
+                        <button name="user_confirm_todo_request" string="User Approved" attrs="{'invisible': ['|',('state','!=','draft'),('user_check','=',True)]}" type="object"/>
+                        <button name="user_refused_todo_request" string="User Refused" attrs="{'invisible': ['|',('state','!=','draft'),('user_check','=',True)]}" type="object"/>
+                        <button name="reviewer_confirm_todo_request" string="Reviewer Approved"  attrs="{'invisible': ['|',('state','!=','draft'),('reviewer_check','=',True)]}" type="object"/>
+                        <button name="reviewer_refused_todo_request" string="Reviewer Refused"  attrs="{'invisible': ['|',('state','!=','draft'),('reviewer_check','=',True)]}" type="object"/>
+                        <button name="create_plan_todo" string="Create Todo"  attrs="{'invisible': ['|','|','|',('state','!=','confirm'),('created_todo','=',True),('user_check','=',False),('reviewer_check','=',False)]}" type="object"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,confirm,done"/>
+                    </header>
                     <sheet>
                         <group>
                             <field name='plan_id' readonly="True"/>
@@ -38,6 +45,7 @@
                     <field name="assigner"/>
                     <field name="user_id"/>
                     <field name="reviewer_id"/>
+                    <field name="state"/>
                 </tree>
             </field>
         </record>

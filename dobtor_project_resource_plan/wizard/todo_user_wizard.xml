@@ -4,7 +4,7 @@
 
         <record id="todo_user_wizards" model="ir.ui.view">
             <field name="name">Assign User</field>
-            <field name="model">todo.list.core.user</field>
+            <field name="model">todo.user.wizard</field>
             <field name="arch" type="xml">
                 <form string="Assign User">
                     <group>
