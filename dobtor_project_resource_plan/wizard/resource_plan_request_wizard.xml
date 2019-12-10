@@ -31,5 +31,18 @@
             </field>
         </record>
 
+        <record id="resource_plan_request_tree_wizard" model="ir.ui.view">
+            <field name="name">resource.plan.request.tree.wizard</field>
+            <field name="model">resource.plan.request.wizard</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name='plan_id' readonly="True"/>
+                    <field name="assigner"/>
+                    <field name="user_id"/>
+                    <field name="reviewer_id"/>
+                </tree>
+
+            </field>
+        </record>
     </data>
 </odoo>

@@ -40,6 +40,8 @@ class DobtorTodoListCore(models.Model):
         for request in self:
             if request.user_id:
                 result.append((request.id, request.user_id.name))
+            elif request.state =='transfer':
+                result.append((request.id, _('Transfering Todo')))
             else:
                 result.append((request.id, request.name or request.description))
         return result

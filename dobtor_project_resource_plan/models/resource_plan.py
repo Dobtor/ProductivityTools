@@ -54,6 +54,9 @@ class ResourcePlan(models.Model):
                 'res_model': 'resource.plan.request',
                 'view_type': 'form',
                 'view_mode': 'tree,form',
+                'target':'self',
+                # 'view_id':self.env.ref('dobtor_project_resource_plan.resource_plan_request_tree_wizard').id,
+                'domain':[('plan_id','=',record.id)],
                 'context': {
                     'default_plan_id': record.id,
                 }
