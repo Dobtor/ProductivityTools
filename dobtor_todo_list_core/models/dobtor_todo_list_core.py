@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import odoo
-from odoo import models, fields, api
+from odoo import models, fields, api ,SUPERUSER_ID , _
 #from odoo.addons.base.res import res_request
 from odoo.tools import html_escape as escape
 from odoo.exceptions import Warning as UserError
-from odoo.tools.translate import _
+
 
 TODO_STATES = {
             'todo': 'Todo',
@@ -18,6 +18,15 @@ class DobtorTodoListCore(models.Model):
     _inherit = ["mail.thread", 'mail.activity.mixin']
     _description = 'Dobtor Todo List Core'
 
+ 
+    tag_ids = fields.Many2many(
+        string='Tags',
+        comodel_name='todo.list.tags',
+        relation='todo_list_tags_rel',
+        column1='tag_id',
+        column2='todo_id',
+    )
+    stage_id = fields.Many2one('todo.list.type', string='Stage', ondelete='restrict', track_visibility='onchange', index=True,group_expand='_read_group_stage_ids', copy=False)
     state = fields.Selection(selection='get_todo_state',
                              string='Status',
                              required=True,
@@ -380,3 +389,50 @@ class DobtorTodoListCore(models.Model):
             'target': 'current',
             'res_id': self.id,
         }
+
+    @api.model
+    def _read_group_stage_ids(self, stages, domain, order):
+        """ Read group customization in order to display all the stages in the
+            kanban view, even if they are empty
+        """
+        stage_ids = stages._search([], order=order, access_rights_uid=SUPERUSER_ID)
+        return stages.browse(stage_ids)
+
+    @api.onchange('ref_model')
+    def _add_followers(self):
+        for todo in self:
+            if todo.ref_model and todo.ref_model.message_follower_ids:
+                todo.ref_model.update({
+                    'message_follower_ids':[(4,todo.reviewer_id.id,0),(4,todo.user_id.id,0),(4,todo.creater.id,0)]
+                })
+
+            
+
+
+
+class TodoListType(models.Model):
+    _name = 'todo.list.type'
+    _description = 'Todo Stage'
+    _order = 'sequence, id'
+
+
+    name = fields.Char(string='Stage Name', required=True, translate=True)
+    description = fields.Text(translate=True)
+    sequence = fields.Integer(default=1)
+    todo_ids = fields.One2many('dobtor.todo.list.core', 'stage_id', string='Todo',)
+    fold = fields.Boolean(string='Folded in Kanban')
+
+class TodoListTags(models.Model):
+    _name = 'todo.list.tags'
+    _description = 'Todo Tags'
+
+    name = fields.Char(string='Name', required=True, translate=True)
+    
+    todo_ids = fields.Many2many(
+        string='todo',
+        comodel_name='dobtor.todo.list.core',
+        relation='todo_list_tags_rel',
+        column1='todo_id',
+        column2='tag_id',
+    )
+    

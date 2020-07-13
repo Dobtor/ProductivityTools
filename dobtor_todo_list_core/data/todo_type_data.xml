@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Stages -->
+        <record id="project_stage_0" model="todo.list.type">
+            <field name="sequence">1</field>
+            <field name="name">Undefined</field>
+        </record>
+        <record id="project_stage_1" model="todo.list.type">
+            <field name="sequence">10</field>
+            <field name="name">Mon.</field>
+        </record>
+        <record id="project_stage_2" model="todo.list.type">
+            <field name="sequence">20</field>
+            <field name="name">Tue.</field>
+        </record>
+        <record id="project_stage_3" model="todo.list.type">
+            <field name="sequence">30</field>
+            <field name="name">Wed.</field>
+        </record>
+        <record id="project_stage_4" model="todo.list.type">
+            <field name="sequence">40</field>
+            <field name="name">Thu.</field>
+        </record>
+        <record id="project_stage_5" model="todo.list.type">
+            <field name="sequence">50</field>
+            <field name="name">Fri.</field>
+        </record>
+        <record id="project_stage_6" model="todo.list.type">
+            <field name="sequence">60</field>
+            <field name="name">Sat.</field>
+            <field name="fold" eval="True"/>
+        </record>
+        <record id="project_stage_7" model="todo.list.type">
+            <field name="sequence">70</field>
+            <field name="name">Sun.</field>
+            <field name="fold" eval="True"/>
+        </record>
+        <record id="project_stage_8" model="todo.list.type">
+            <field name="sequence">80</field>
+            <field name="name">Done</field>
+            <field name="fold" eval="True"/>
+        </record>
+        <record id="project_stage_9" model="todo.list.type">
+            <field name="sequence">90</field>
+            <field name="name">Pending</field>
+            <field name="fold" eval="True"/>
+        </record>
+        <record id="project_stage_10" model="todo.list.type">
+            <field name="sequence">100</field>
+            <field name="name">Cancelled</field>
+            <field name="fold" eval="True"/>
+        </record>
+    </data>
+</odoo>

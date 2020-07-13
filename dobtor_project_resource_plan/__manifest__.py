@@ -24,7 +24,7 @@
 
     # any module necessary for this one to work correctly
     'depends': ['dobtor_todo_list_project_task'],
-
+    'staus':'uninstallable',
     # always loaded
     'data': [
         'security/ir.model.access.csv',

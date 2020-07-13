@@ -25,5 +25,6 @@
         'data/reference_model_data.xml',
         'views/dobtor_todo_list_crm_opportunity_view.xml',
         'views/setting_crm_lead_view.xml',
+        'views/analytic_account_view.xml',
     ],
 }

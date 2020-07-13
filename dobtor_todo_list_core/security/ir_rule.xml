@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<odoo>
+    <data>
+        <record id="todo_list_user" model="ir.rule">
+            <field name="name">todo list user</field>
+            <field ref="model_dobtor_todo_list_core" name="model_id"/>
+            <field name="domain_force">
+            [ '|','|','|','|', ('user_id','=',user.id), ('user_id','=',False),
+            ('creater', '=',user.id), ('reviewer_id','=',user.id),
+            ('message_partner_ids', 'in', [user.partner_id.id])]
+            </field>
+        </record>
+    </data>
+</odoo>
+        

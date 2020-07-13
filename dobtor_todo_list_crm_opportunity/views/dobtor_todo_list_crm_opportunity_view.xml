@@ -25,7 +25,7 @@
                         <field name="default_tree_view_ref" invisible="1"/>
                         <field name="todo_list_ids" context="{
                             'default_user_id': default_user,
-                            'tree_view_ref': default_tree_view_ref
+                            'tree_view_ref': default_tree_view_ref,
                         }"/>
                     </page>
                 </xpath>
