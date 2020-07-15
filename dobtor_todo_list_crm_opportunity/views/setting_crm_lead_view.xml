@@ -11,7 +11,7 @@
                 <button name="set_as_template" type="object" string="Set as Template" attrs="{'invisible':[('is_template', '=', True)]}"/>
                 <button name="reset_as_origin" type="object" string="Reset as Opportunity" attrs="{'invisible':[('is_template', '=', False)]}"/>
             </xpath>
-            <field name="team_id" position="after">
+            <!-- <field name="team_id" position="after">
                 <field name="allow_timesheets" attrs="{'invisible':[('analytic_account_id','!=',False)]}"/>
                 <field name="analytic_account_options" attrs="{'invisible':['|',('allow_timesheets','=',False),('analytic_account_id','!=',False)]}"/>
                 <field name="analytic_account_id" options="{'no_create': True,'no_create_edit':True}" attrs="{'invisible':['|',('allow_timesheets','=',False),('analytic_account_options','=',False)]}"/>
@@ -36,22 +36,22 @@
 
                 <field name="picked_template"/>
 
-            </xpath>
+            </xpath> -->
 
         </field>
     </record>
 
-<!-- 
+
     <record id="view_create_opportunity_simplified_inherit" model="ir.ui.view">
         <field name="name">crm.lead.form.simple.inherit</field>
         <field name="model">crm.lead</field>
         <field name="inherit_id" ref="crm.view_create_opportunity_simplified"/>
         <field name="arch" type="xml">
             <xpath expr="//form/sheet/group/group" position="inside">
-
+                <field name="picked_template"/>
             </xpath>
         </field>
-    </record> -->
+    </record>
 
     <record id="crm.crm_lead_opportunities_tree_view" model="ir.actions.act_window">
         <field name="res_model">crm.lead</field>

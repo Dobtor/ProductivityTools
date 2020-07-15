@@ -1,24 +1,26 @@
 # -*- coding: utf-8 -*-
 
 import odoo
-from odoo import models, fields, api ,SUPERUSER_ID , _
+from odoo import models, fields, api, SUPERUSER_ID, _
 #from odoo.addons.base.res import res_request
 from odoo.tools import html_escape as escape
 from odoo.exceptions import Warning as UserError
 
+from datetime import timedelta, date, datetime
 
 TODO_STATES = {
-            'todo': 'Todo',
+    'todo': 'Todo',
             'done': 'Done',
             'pending': 'Pending',
             'cancelled': 'Cancelled'
-        }
+}
+
+
 class DobtorTodoListCore(models.Model):
     _name = "dobtor.todo.list.core"
     _inherit = ["mail.thread", 'mail.activity.mixin']
     _description = 'Dobtor Todo List Core'
 
- 
     tag_ids = fields.Many2many(
         string='Tags',
         comodel_name='todo.list.tags',
@@ -26,7 +28,8 @@ class DobtorTodoListCore(models.Model):
         column1='tag_id',
         column2='todo_id',
     )
-    stage_id = fields.Many2one('todo.list.type', string='Stage', ondelete='restrict', track_visibility='onchange', index=True,group_expand='_read_group_stage_ids', copy=False)
+    stage_id = fields.Many2one('todo.list.type', string='Stage', ondelete='restrict',
+                               track_visibility='onchange', index=True, group_expand='_read_group_stage_ids', copy=False)
     state = fields.Selection(selection='get_todo_state',
                              string='Status',
                              required=True,
@@ -72,6 +75,28 @@ class DobtorTodoListCore(models.Model):
     ref_parent_model_name = fields.Char(compute='_compute_parent_model_name',
                                         string="Parent")
 
+    @api.depends("date_deadline", "date_assign")
+    def compute_todo_week(self):
+        for todo in self:
+            if todo.date_deadline:
+                todo.week_start = todo.date_deadline - \
+                    timedelta(days=datetime.now().weekday())
+                todo.week_end = todo.date_deadline + timedelta(weeks=1)
+
+    @api.depends("week_start", "week_end")
+    def compute_on_week(self):
+        for todo in self:
+            today = str(datetime.today())
+            if today > str(todo.week_start) and today <= str(todo.week_end):
+                todo.on_week = True
+            else:
+                todo.on_week = False
+
+    week_start = fields.Datetime("week start", compute="compute_todo_week")
+    week_end = fields.Datetime("week end", compute="compute_todo_week")
+    on_week = fields.Boolean(
+        string='on_week', compute="compute_on_week", store=True)
+
     @api.depends('ref_name', 'ref_id')
     @api.multi
     def _compute_model_name(self):
@@ -79,7 +104,6 @@ class DobtorTodoListCore(models.Model):
             if record.ref_name:
                 record.ref_model_name = self.env[record.ref_name].browse(
                     record.ref_id).name
-
 
     @api.model
     def index_state(self):
@@ -327,8 +351,8 @@ class DobtorTodoListCore(models.Model):
 
         state_list = self.get_todo_state()
         state_dict = {}
-        for i in range(0,len(state_list)):
-            state_dict.update( {state_list[i][0]: state_list[i][1] } )
+        for i in range(0, len(state_list)):
+            state_dict.update({state_list[i][0]: state_list[i][1]})
         state = state_dict[todo_state]
 
         state_str = '<span></span>'
@@ -395,18 +419,22 @@ class DobtorTodoListCore(models.Model):
         """ Read group customization in order to display all the stages in the
             kanban view, even if they are empty
         """
-        stage_ids = stages._search([], order=order, access_rights_uid=SUPERUSER_ID)
+        stage_ids = stages._search(
+            [], order=order, access_rights_uid=SUPERUSER_ID)
         return stages.browse(stage_ids)
+        
 
     @api.onchange('ref_model')
     def _add_followers(self):
         for todo in self:
-            if todo.ref_model and todo.ref_model.message_follower_ids:
-                todo.ref_model.update({
-                    'message_follower_ids':[(4,todo.reviewer_id.id,0),(4,todo.user_id.id,0),(4,todo.creater.id,0)]
-                })
-
-            
+            if todo.ref_model:
+                if todo.reviewer_id:
+                    todo.ref_model.message_subscribe([todo.reviewer_id.partner_id.id])
+                if todo.creater:
+                    todo.ref_model.message_subscribe([todo.creater.partner_id.id])
+                if todo.user_id:
+                    todo.ref_model.message_subscribe([todo.user_id.partner_id.id])
+                 
 
 
 
@@ -415,19 +443,20 @@ class TodoListType(models.Model):
     _description = 'Todo Stage'
     _order = 'sequence, id'
 
-
     name = fields.Char(string='Stage Name', required=True, translate=True)
     description = fields.Text(translate=True)
     sequence = fields.Integer(default=1)
-    todo_ids = fields.One2many('dobtor.todo.list.core', 'stage_id', string='Todo',)
+    todo_ids = fields.One2many(
+        'dobtor.todo.list.core', 'stage_id', string='Todo',)
     fold = fields.Boolean(string='Folded in Kanban')
+
 
 class TodoListTags(models.Model):
     _name = 'todo.list.tags'
     _description = 'Todo Tags'
 
     name = fields.Char(string='Name', required=True, translate=True)
-    
+
     todo_ids = fields.Many2many(
         string='todo',
         comodel_name='dobtor.todo.list.core',
@@ -435,4 +464,3 @@ class TodoListTags(models.Model):
         column1='todo_id',
         column2='tag_id',
     )
-    
