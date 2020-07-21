@@ -75,13 +75,17 @@ class DobtorTodoListCore(models.Model):
     ref_parent_model_name = fields.Char(compute='_compute_parent_model_name',
                                         string="Parent")
 
-    @api.depends("date_deadline", "date_assign")
+    @api.depends("date_deadline", "state")
     def compute_todo_week(self):
         for todo in self:
             if todo.date_deadline:
                 todo.week_start = todo.date_deadline - \
                     timedelta(days=datetime.now().weekday())
                 todo.week_end = todo.date_deadline + timedelta(weeks=1)
+            if str(todo.date_deadline)<str(datetime.today()) and todo.state =='todo':
+                todo.overdue = True
+            else:
+                todo.overdue = False 
 
     @api.depends("week_start", "week_end")
     def compute_on_week(self):
@@ -92,10 +96,15 @@ class DobtorTodoListCore(models.Model):
             else:
                 todo.on_week = False
 
+
     week_start = fields.Datetime("week start", compute="compute_todo_week")
     week_end = fields.Datetime("week end", compute="compute_todo_week")
     on_week = fields.Boolean(
-        string='on_week', compute="compute_on_week", store=True)
+        string='On Week', compute="compute_on_week", store=True)
+    overdue =  fields.Boolean(
+        string='OverDue',compute="compute_todo_week", store=True
+    )
+    
 
     @api.depends('ref_name', 'ref_id')
     @api.multi

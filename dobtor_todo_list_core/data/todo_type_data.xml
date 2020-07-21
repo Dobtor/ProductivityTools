@@ -2,10 +2,10 @@
 <odoo>
     <data>
         <!-- Stages -->
-        <record id="project_stage_0" model="todo.list.type">
+        <!-- <record id="project_stage_0" model="todo.list.type">
             <field name="sequence">1</field>
-            <field name="name">Undefined</field>
-        </record>
+            <field name="name">Overdue</field>
+        </record> -->
         <record id="project_stage_1" model="todo.list.type">
             <field name="sequence">10</field>
             <field name="name">Mon.</field>
@@ -36,20 +36,6 @@
             <field name="name">Sun.</field>
             <field name="fold" eval="True"/>
         </record>
-        <record id="project_stage_8" model="todo.list.type">
-            <field name="sequence">80</field>
-            <field name="name">Done</field>
-            <field name="fold" eval="True"/>
-        </record>
-        <record id="project_stage_9" model="todo.list.type">
-            <field name="sequence">90</field>
-            <field name="name">Pending</field>
-            <field name="fold" eval="True"/>
-        </record>
-        <record id="project_stage_10" model="todo.list.type">
-            <field name="sequence">100</field>
-            <field name="name">Cancelled</field>
-            <field name="fold" eval="True"/>
-        </record>
+
     </data>
 </odoo>

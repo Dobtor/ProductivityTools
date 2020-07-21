@@ -7,15 +7,17 @@
             <field name="priority" eval="15"/>
             <field name="arch" type="xml">
                 <search string="Search Todo List">
-                    <!-- <field name="name" string="Sales Order" filter_domain="['|','|',('name','ilike',self),('client_order_ref','ilike',self),('partner_id','child_of',self)]"/> -->
                     <field name="user_id"/>
                     <field name="date_deadline"/>
                     <field name="on_week"/>
+                    <field name="overdue"/>
+                    <field name="state"/>
                     <separator/>
-                    <filter string="Week Todo" name="my_todo" domain="[('on_week', '=',True)]"/>
-                    <!-- <filter string="Week Todo" name="my_todo" domain="['|',('on_week', '=',True),('date_deadline', '=',False)]"/> -->
+                    <filter string="Week Todo" name="week_todo" domain="['|','|',('on_week', '=',True),('date_deadline', '=',False),('overdue','=',True)]"/>
+                    <filter string="Completed Todo" name="done_todo_list" domain="[('state', '=','done')]"/>
                     <separator/>
-               </search>
+
+                </search>
             </field>
         </record>
 
@@ -52,9 +54,7 @@
                                 <field name="date_deadline"/>
                                 <field name="date_complete"/>
                                 <field name="planned_hours" widget="float_time"/>
-                                <field name="week_start"/>
-                                <field name="week_end"/>
-                                <field name="on_week"/>
+                            
                             </group>
                         </group>
 
@@ -122,6 +122,7 @@
                     <field name="sequence"/>
                     <field name="reviewer_id"/>
                     <field name="date_deadline"/>
+                    <field name="hide_button"/>
                     <progressbar field="state" colors='{"done": "success", "cancelled": "danger","todo":"warning"}'/>
                     <templates>
                         <t t-name="kanban-box">
@@ -142,6 +143,7 @@
                                                     </i>
                                                 </span>
                                             </small>
+
                                         </div>
                                         <div class="o_dropdown_kanban dropdown" groups="base.group_user">
                                             <a role="button" class="dropdown-toggle o-no-caret btn" data-toggle="dropdown" data-display="static" href="#" aria-label="Dropdown menu" title="Dropdown menu">
@@ -158,13 +160,25 @@
                                         <field name="tag_ids" widget="many2many_tags"/>
                                     </div>
                                     <div class="o_kanban_record_bottom">
-                                        <div>
+                                        <div class="oe_kanban_bottom_left">
                                             <field name="state" widget="state_selection" groups="base.group_user"/>
                                         </div>
                                         <div class="oe_kanban_bottom_right">
 
                                             <label for="user_id"/>
                                             <field name="user_id"/>
+                                            <button name="change_state_done" class="btn btn-outline-success" type="object" attrs="{'invisible': [ '|', '|','|',('user_id','=',False), ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True), ('id', '=', False)]}">
+                                                <i class="fa fa-check"/>
+                                            </button>
+                                            <button name="change_state_todo"  class="btn btn-outline-secondary" type="object" icon="fa-file" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'todo'), ('hide_button', '=', True), ('id', '=', False)]}">
+                                                <i class="fa fa-file"/>
+                                            </button>
+                                            <button name="change_state_waiting" class="btn btn-outline-warning" type="object" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}">
+                                                <i class="fa fa-pause"/>
+                                            </button>
+                                            <button name="change_state_cancelled" type="object" class="btn btn-outline-danger" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}">
+                                                <i class="fa fa-ban"/>
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -180,7 +194,7 @@
             <field name="name">Todo-List</field>
             <field name="res_model">dobtor.todo.list.core</field>
             <field name="view_mode">tree,form,kanban,calendar</field>
-            <field name="context">{'search_default_done_todo_list': 1}</field>
+            <field name="context">{'search_default_week_todo': 1}</field>
         </record>
 
         <!-- top menu -->

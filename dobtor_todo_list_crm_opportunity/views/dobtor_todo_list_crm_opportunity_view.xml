@@ -39,8 +39,8 @@
             <field name="inherit_id" ref="crm.crm_case_kanban_view_leads"/>
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='tag_ids']" position="after">
-                    <field name="todo_list_ids"/>
-                    <field name="kanban_todo_lists"/>
+                    <!-- <field name="todo_list_ids"/> -->
+                    <field name="kanban_todo_lists" invisible="1"/>
                 </xpath>
                 <!-- <xpath expr="//div[@class='o_kanban_footer']" position="before">
                     <div style="border-top: 1px solid #DDD;">
