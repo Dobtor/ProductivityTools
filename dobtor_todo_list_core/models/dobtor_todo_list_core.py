@@ -100,10 +100,9 @@ class DobtorTodoListCore(models.Model):
     week_start = fields.Datetime("week start", compute="compute_todo_week")
     week_end = fields.Datetime("week end", compute="compute_todo_week")
     on_week = fields.Boolean(
-        string='On Week', compute="compute_on_week", store=True)
+        string='On Week', compute="compute_on_week", default=False,store=True)
     overdue =  fields.Boolean(
-        string='OverDue',compute="compute_todo_week", store=True
-    )
+        string='OverDue',compute="compute_todo_week",default=False, store=True)
     
 
     @api.depends('ref_name', 'ref_id')
