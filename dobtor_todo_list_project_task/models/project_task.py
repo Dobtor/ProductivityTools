@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models, api
 from odoo.exceptions import ValidationError
 from odoo.tools.translate import _
-
+from odoo import models, fields, api, _
 
 class Task(models.Model):
     _name = "project.task"
@@ -29,3 +28,4 @@ class Task(models.Model):
             'parent_model': 'project.project,' + str(new_obj.project_id.id),
         })
 
+    # task_type_id = fields.Many2one('project.task.type', 'Task Type')

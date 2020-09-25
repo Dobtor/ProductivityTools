@@ -78,12 +78,14 @@ class DobtorTodoListCore(models.Model):
     @api.onchange('stage_id')
     def reset_date_deadline(self):
         today = datetime.today()
+        w_today = today.weekday()
         for todo in self:
-            if todo.state=='todo' and not todo.date_deadline or todo.date_deadline < today :
-                w_today = today.weekday()
-                diff = int(todo.stage_id.weekday) - w_today 
+            todo_weekday = int(todo.stage_id.weekday)
+            diff = todo_weekday - w_today 
+            if  (not todo.date_deadline or todo_weekday >= w_today) and todo.state == 'todo':
                 todo.date_deadline = today + timedelta(days=diff)
-
+            elif todo.state=='todo' and todo_weekday < w_today:
+                todo.date_deadline = today + timedelta(days=diff+7)
 
     @api.depends("date_deadline", "state")
     def compute_todo_week(self):
