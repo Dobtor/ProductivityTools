@@ -9,31 +9,38 @@
         <record id="project_stage_1" model="todo.list.type">
             <field name="sequence">10</field>
             <field name="name">Mon.</field>
+            <field name="weekday">0</field>
         </record>
         <record id="project_stage_2" model="todo.list.type">
             <field name="sequence">20</field>
             <field name="name">Tue.</field>
+            <field name="weekday">1</field>
         </record>
         <record id="project_stage_3" model="todo.list.type">
             <field name="sequence">30</field>
             <field name="name">Wed.</field>
+            <field name="weekday">2</field>
         </record>
         <record id="project_stage_4" model="todo.list.type">
             <field name="sequence">40</field>
             <field name="name">Thu.</field>
+            <field name="weekday">3</field>
         </record>
         <record id="project_stage_5" model="todo.list.type">
             <field name="sequence">50</field>
             <field name="name">Fri.</field>
+            <field name="weekday">4</field>
         </record>
         <record id="project_stage_6" model="todo.list.type">
             <field name="sequence">60</field>
             <field name="name">Sat.</field>
+            <field name="weekday">5</field>
             <field name="fold" eval="True"/>
         </record>
         <record id="project_stage_7" model="todo.list.type">
             <field name="sequence">70</field>
             <field name="name">Sun.</field>
+            <field name="weekday">6</field>
             <field name="fold" eval="True"/>
         </record>
 

@@ -75,6 +75,16 @@ class DobtorTodoListCore(models.Model):
     ref_parent_model_name = fields.Char(compute='_compute_parent_model_name',
                                         string="Parent")
 
+    @api.onchange('stage_id')
+    def reset_date_deadline(self):
+        today = datetime.today()
+        for todo in self:
+            if todo.state=='todo' and not todo.date_deadline or todo.date_deadline < today :
+                w_today = today.weekday()
+                diff = int(todo.stage_id.weekday) - w_today 
+                todo.date_deadline = today + timedelta(days=diff)
+
+
     @api.depends("date_deadline", "state")
     def compute_todo_week(self):
         for todo in self:
@@ -457,6 +467,18 @@ class TodoListType(models.Model):
     todo_ids = fields.One2many(
         'dobtor.todo.list.core', 'stage_id', string='Todo',)
     fold = fields.Boolean(string='Folded in Kanban')
+    weekday = fields.Selection(
+        string='WeekDay',
+        selection=[
+            ('0', _('Monday')),
+            ('1', _('Tuesday')),
+            ('2', _('Wednesday')),
+            ('3', _('Thursday')),
+            ('4', _('Friday')),
+            ('5', _('Saturday')),
+            ('6', _('Sunday'))
+        ],
+    )
 
 
 class TodoListTags(models.Model):
