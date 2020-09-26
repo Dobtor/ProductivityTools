@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="view_project_task_type_tree" model="ir.ui.view">
+            <field name="name">dobtor.todo.list.project.task.type.type</field>
+            <field name="model">task.type</field>
+            <field name="arch" type="xml">
+                <tree editable="top">
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="config_project_task_type" model="ir.actions.act_window">
+            <field name="name">Project Task Types</field>
+            <field name="res_model">task.type</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+        </record>
+
+        <menuitem id="project_menu_config_task_type" action="config_project_task_type" parent="project.menu_project_config"/>
+
+        <record id="view_task_kanban_task_type" model="ir.ui.view">
+            <field name="name">project.task.type.kanban.list</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_kanban"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='tag_ids']" position="after">
+                    <field name="task_type_id"/>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

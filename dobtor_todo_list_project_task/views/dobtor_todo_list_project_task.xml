@@ -6,6 +6,9 @@
             <field name="model">project.task</field>
             <field name="inherit_id" ref="project.view_task_form2"/>
             <field name="arch" type="xml">
+                <field name="tag_ids" position="after">
+                    <field name="task_type_id" options="{'no_create': True, 'no_create_edit':True}"/>
+                </field>
                 <xpath expr="//div[@class='oe_button_box']" position="inside">
                     <button class="oe_stat_button" name="attachment_tree_view" type="object" icon="fa-files-o">
                         <field string="Documents" name="doc_count" widget="statinfo"/>
@@ -24,7 +27,6 @@
                         <field name="default_user" invisible="1"/>
                         <field name="default_tree_view_ref" invisible="1"/>
                         <field name="todo_list_ids" context="{'default_user_id': default_user, 'tree_view_ref': default_tree_view_ref}">
-                            
                         </field>
                     </page>
                 </xpath>

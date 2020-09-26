@@ -19,9 +19,11 @@
         'dobtor_todo_list_core'
     ],
     'data': [
+        'security/ir.model.access.csv',
         'views/analytic_account.xml',
         'views/dobtor_todo_list_project_task.xml',
         'data/subscription_template.xml',
         'views/project_template_view.xml',
+        'views/task_type.xml',
     ],
 }

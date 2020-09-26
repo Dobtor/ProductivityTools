@@ -28,4 +28,5 @@ class Task(models.Model):
             'parent_model': 'project.project,' + str(new_obj.project_id.id),
         })
 
-    # task_type_id = fields.Many2one('project.task.type', 'Task Type')
+    task_type_id = fields.Many2one('task.type', 'Task Type')
+    
