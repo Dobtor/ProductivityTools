@@ -13,7 +13,7 @@
                     <field name="overdue"/>
                     <field name="state"/>
                     <separator/>
-                    <filter string="Week Todo" name="week_todo" domain="['|','|',('on_week', '=',True),('date_deadline', '=',False),('overdue','=',True)]"/>
+                    <filter string="Week Todo" name="week_todo" domain="['|','|','&amp;',('on_week', '=',True),('date_deadline', '=',False),('overdue','=',True),('state','=','todo')]"/>
                     <filter string="Completed Todo" name="done_todo_list" domain="[('state', '=','done')]"/>
                     <separator/>
 
