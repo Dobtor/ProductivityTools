@@ -29,4 +29,4 @@ class Task(models.Model):
         })
 
     task_type_id = fields.Many2one('task.type', 'Task Type')
-    
+    module_id = fields.Many2one('product.product',String="Module")
