@@ -92,7 +92,7 @@
                     <field name="hide_button" invisible="True"/>
                     <button name="change_state_done" string="Change state to DONE" type="object" icon="fa-check" attrs="{'invisible': [ '|', '|','|',('user_id','=',False), ('state', 'in',['done', 'cancelled']), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <button name="change_state_todo" string="Change state to TODO" type="object" icon="fa-file" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'todo'), ('hide_button', '=', True), ('id', '=', False)]}"/>
-                    <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}"/>
+                    <button name="change_state_waiting" type="object" string="Change state to WAITING" icon="fa-pause" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'pending'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <button name="change_state_cancelled" type="object" string="Change state to CANCELLED" icon="fa-ban" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}"/>
                     <field name="attachment_number" invisible="True"/>
                     <button name="action_get_attachment_view" string="View Attached Documents" type="object" icon="fa-paperclip" attrs="{'invisible': [('attachment_number', '=', 0)]}"/>
@@ -173,7 +173,7 @@
                                             <button name="change_state_todo"  class="btn btn-outline-secondary" type="object" icon="fa-file" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'todo'), ('hide_button', '=', True), ('id', '=', False)]}">
                                                 <i class="fa fa-file"/>
                                             </button>
-                                            <button name="change_state_waiting" class="btn btn-outline-warning" type="object" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'waiting'), ('hide_button', '=', True), ('id', '=', False)]}">
+                                            <button name="change_state_waiting" class="btn btn-outline-warning" type="object" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'pending'), ('hide_button', '=', True), ('id', '=', False)]}">
                                                 <i class="fa fa-pause"/>
                                             </button>
                                             <button name="change_state_cancelled" type="object" class="btn btn-outline-danger" attrs="{'invisible': [ '|', '|','|',('user_id','=',False),('state', '=', 'cancelled'), ('hide_button', '=', True), ('id', '=', False)]}">

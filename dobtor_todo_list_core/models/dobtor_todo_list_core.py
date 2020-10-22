@@ -282,7 +282,7 @@ class DobtorTodoListCore(models.Model):
     @api.multi
     def change_state_waiting(self):
         for record in self:
-            record.state = 'waiting'
+            record.state = 'pending'
             record.date_complete = None
 
     @api.onchange('user_id')
@@ -382,7 +382,7 @@ class DobtorTodoListCore(models.Model):
             state_str = '<span style="color:#A00">' + state + '</span>'
         elif todo_state == 'cancelled':
             state_str = '<span style="color:#777">' + state + '</span>'
-        elif todo_state == 'waiting':
+        elif todo_state == 'pending':
             state_str = '<span style="color:#b818ce">' + state + '</span>'
         else:
             state_str = '<span>' + state + '</span>'
