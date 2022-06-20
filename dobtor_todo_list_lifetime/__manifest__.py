@@ -14,7 +14,11 @@
 
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'dobtor_todo_list_project_task'],
+    'depends': [
+        'base', 
+        'dobtor_todo_list_project_task',
+        'dobtor_todo_list_timesheet',
+        ],
 
     # always loaded
     'data': [
