@@ -52,7 +52,7 @@ class DobtorTodoListCore(models.Model):
                 record.total_hours = record.remaining_hours + aa_id.unit_amount
                 record.delay_hours = record.total_hours - record.planned_hours
                 record.progress = 0
-                if (record.panned_hours > 0.0 ):
+                if (record.planned_hours > 0.0 ):
                     record.progress = round(min(100 * aa_id.amount) / record.plananed_hours, 99.99)
                 if record.state == 'done':
                     record.progress = 100.0
