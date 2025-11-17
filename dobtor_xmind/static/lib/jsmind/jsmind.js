@@ -519,13 +519,14 @@
         }
 
         create_node_element(node) {
-            const d = $c('jmnode');
+            const d = $c('div');
+            d.className = 'jmnode';
             const d_topic = $c('span');
             $t(d_topic, node.topic);
             d.appendChild(d_topic);
 
             if (node.isroot) {
-                d.className = 'root';
+                d.className = 'jmnode root';
             }
 
             d.setAttribute('nodeid', node.id);

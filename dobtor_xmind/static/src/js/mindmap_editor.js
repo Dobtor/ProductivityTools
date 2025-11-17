@@ -381,6 +381,16 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
                 return false;
             }
 
+            // Additional check: ensure container is a valid DOM node
+            console.log('[MindmapEditor] Container type:', Object.prototype.toString.call(container));
+            console.log('[MindmapEditor] Container is Node:', container instanceof Node);
+            console.log('[MindmapEditor] Container tagName:', container.tagName);
+
+            if (!(container instanceof Node)) {
+                console.error('[MindmapEditor] Container is not a valid DOM Node');
+                return false;
+            }
+
             // Check for OdooXMind library (our namespaced version)
             // IMPORTANT: Only use OdooXMind to avoid conflicts with other jsMind versions
             console.log('[MindmapEditor] Checking libraries:', {
