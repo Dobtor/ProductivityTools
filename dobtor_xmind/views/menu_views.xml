@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Main Menu -->
+    <menuitem id="menu_xmind_root"
+              name="Mind Maps"
+              web_icon="dobtor_xmind,static/description/icon.png"
+              sequence="100"/>
+
+    <!-- Workbooks Menu -->
+    <menuitem id="menu_xmind_workbook"
+              name="Workbooks"
+              parent="menu_xmind_root"
+              action="action_xmind_workbook"
+              sequence="10"/>
+
+    <!-- Configuration Menu -->
+    <menuitem id="menu_xmind_config"
+              name="Configuration"
+              parent="menu_xmind_root"
+              sequence="90"/>
+
+    <!-- Topics Menu (under Configuration) -->
+    <menuitem id="menu_xmind_topics"
+              name="All Topics"
+              parent="menu_xmind_config"
+              action="action_xmind_topic"
+              sequence="10"/>
+
+    <!-- Markers Menu (under Configuration) -->
+    <menuitem id="menu_xmind_markers"
+              name="Markers"
+              parent="menu_xmind_config"
+              action="action_xmind_marker"
+              sequence="20"
+              groups="base.group_system"/>
+
+    <!-- Marker Action -->
+    <record id="action_xmind_marker" model="ir.actions.act_window">
+        <field name="name">Markers</field>
+        <field name="res_model">xmind.marker</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- Marker Tree View -->
+    <record id="view_xmind_marker_tree" model="ir.ui.view">
+        <field name="name">xmind.marker.tree</field>
+        <field name="model">xmind.marker</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="group_name"/>
+                <field name="name"/>
+                <field name="marker_id"/>
+                <field name="icon_class"/>
+                <field name="color"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+
+</odoo>

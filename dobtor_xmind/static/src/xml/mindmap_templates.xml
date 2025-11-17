@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Main Editor Template -->
+    <t t-name="dobtor_xmind.MindmapEditorTemplate">
+        <div class="o_xmind_editor">
+            <!-- Toolbar -->
+            <div class="o_xmind_toolbar">
+                <div class="btn-group">
+                    <button class="btn btn-primary o_xmind_btn_save" title="Save (Ctrl+S)">
+                        <i class="fa fa-save"></i> Save
+                    </button>
+                    <button class="btn btn-secondary o_xmind_btn_export" title="Export to .xmind">
+                        <i class="fa fa-download"></i> Export
+                    </button>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary o_xmind_btn_add_child" title="Add Child (Insert)">
+                        <i class="fa fa-plus"></i> Child
+                    </button>
+                    <button class="btn btn-outline-secondary o_xmind_btn_add_sibling" title="Add Sibling (Enter)">
+                        <i class="fa fa-plus-circle"></i> Sibling
+                    </button>
+                    <button class="btn btn-outline-danger o_xmind_btn_delete" title="Delete (Del)">
+                        <i class="fa fa-trash"></i>
+                    </button>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary o_xmind_btn_expand_all" title="Expand All">
+                        <i class="fa fa-expand"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary o_xmind_btn_collapse_all" title="Collapse All">
+                        <i class="fa fa-compress"></i>
+                    </button>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary o_xmind_btn_zoom_in" title="Zoom In">
+                        <i class="fa fa-search-plus"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary o_xmind_btn_zoom_out" title="Zoom Out">
+                        <i class="fa fa-search-minus"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="o_xmind_main">
+                <!-- Canvas Area -->
+                <div class="o_xmind_canvas_wrapper">
+                    <div class="o_xmind_canvas" id="jsmind_container"></div>
+                    <div class="o_xmind_zoom_controls">
+                        <button class="btn btn-sm btn-light o_xmind_btn_zoom_in">
+                            <i class="fa fa-plus"></i>
+                        </button>
+                        <button class="btn btn-sm btn-light o_xmind_btn_zoom_out">
+                            <i class="fa fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="o_xmind_sidebar">
+                    <h4>Topic Properties</h4>
+
+                    <div class="form-group">
+                        <label>Selected Topic:</label>
+                        <div class="o_xmind_selected_topic">-</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="xmind_note">Notes:</label>
+                        <textarea class="form-control o_xmind_note_input"
+                                  id="xmind_note"
+                                  placeholder="Add notes for this topic..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="xmind_theme">Theme:</label>
+                        <select class="form-control o_xmind_theme_select" id="xmind_theme">
+                            <option value="primary">Primary</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Danger</option>
+                            <option value="success">Success</option>
+                            <option value="info">Info</option>
+                            <option value="greensea">Green Sea</option>
+                            <option value="nephrite">Nephrite</option>
+                            <option value="belizehole">Belize Hole</option>
+                            <option value="wisteria">Wisteria</option>
+                            <option value="asphalt">Asphalt</option>
+                            <option value="orange">Orange</option>
+                            <option value="pumpkin">Pumpkin</option>
+                            <option value="pomegranate">Pomegranate</option>
+                            <option value="clouds">Clouds</option>
+                            <option value="asbestos">Asbestos</option>
+                        </select>
+                    </div>
+
+                    <hr/>
+
+                    <h4>Keyboard Shortcuts</h4>
+                    <ul class="small text-muted">
+                        <li><strong>Insert</strong> - Add child</li>
+                        <li><strong>Enter</strong> - Add sibling</li>
+                        <li><strong>F2</strong> - Edit topic</li>
+                        <li><strong>Delete</strong> - Delete topic</li>
+                        <li><strong>Space</strong> - Toggle expand</li>
+                        <li><strong>Arrow keys</strong> - Navigate</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="o_xmind_status_bar">
+                <span>Mind Map Editor</span>
+                <span class="badge badge-info">Ready</span>
+            </div>
+        </div>
+    </t>
+
+</templates>

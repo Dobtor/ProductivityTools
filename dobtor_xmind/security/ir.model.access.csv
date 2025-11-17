@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_xmind_workbook,xmind.workbook,model_xmind_workbook,base.group_user,1,1,1,1
+access_xmind_sheet,xmind.sheet,model_xmind_sheet,base.group_user,1,1,1,1
+access_xmind_topic,xmind.topic,model_xmind_topic,base.group_user,1,1,1,1
+access_xmind_marker,xmind.marker,model_xmind_marker,base.group_user,1,0,0,0
+access_xmind_marker_admin,xmind.marker.admin,model_xmind_marker,base.group_system,1,1,1,1

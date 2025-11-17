@@ -1,0 +1,192 @@
+/* XMind Editor Styles */
+
+.o_xmind_editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #f8f9fa;
+}
+
+.o_xmind_toolbar {
+    background: #ffffff;
+    border-bottom: 1px solid #dee2e6;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.o_xmind_toolbar .btn-group {
+    margin-right: 10px;
+}
+
+.o_xmind_toolbar .btn {
+    padding: 6px 12px;
+}
+
+.o_xmind_toolbar .btn i {
+    margin-right: 5px;
+}
+
+.o_xmind_main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.o_xmind_canvas_wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    margin: 10px;
+    border-radius: 4px;
+}
+
+.o_xmind_canvas {
+    width: 100%;
+    height: 100%;
+    min-height: 500px;
+}
+
+.o_xmind_sidebar {
+    width: 300px;
+    background: #ffffff;
+    border-left: 1px solid #dee2e6;
+    padding: 15px;
+    overflow-y: auto;
+}
+
+.o_xmind_sidebar h4 {
+    margin-bottom: 15px;
+    color: #495057;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.o_xmind_sidebar .form-group {
+    margin-bottom: 15px;
+}
+
+.o_xmind_sidebar label {
+    font-weight: 500;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.o_xmind_selected_topic {
+    font-weight: bold;
+    color: #007bff;
+    padding: 5px;
+    background: #e7f1ff;
+    border-radius: 4px;
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.o_xmind_note_input {
+    width: 100%;
+    min-height: 100px;
+    resize: vertical;
+}
+
+.o_xmind_theme_select {
+    width: 100%;
+}
+
+/* jsMind customizations */
+jmnodes {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+jmnodes jmnode {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+jmnodes jmnode:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+jmnodes jmnode.selected {
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5);
+}
+
+jmnodes jmnode.root {
+    font-size: 18px;
+    font-weight: bold;
+    padding: 12px 20px;
+}
+
+/* Fallback tree view */
+.o_xmind_tree_fallback {
+    padding: 20px;
+    background: #fff;
+    border-radius: 4px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.o_xmind_tree_item {
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.o_xmind_tree_title {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.o_xmind_tree_title:hover {
+    background: #e7f1ff;
+}
+
+/* Zoom controls */
+.o_xmind_zoom_controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.o_xmind_zoom_controls .btn {
+    padding: 4px 8px;
+}
+
+/* Status bar */
+.o_xmind_status_bar {
+    background: #f1f3f5;
+    padding: 5px 15px;
+    font-size: 12px;
+    color: #6c757d;
+    border-top: 1px solid #dee2e6;
+}
+
+.o_xmind_status_bar .badge {
+    margin-left: 10px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .o_xmind_sidebar {
+        display: none;
+    }
+
+    .o_xmind_toolbar {
+        flex-wrap: wrap;
+    }
+}
