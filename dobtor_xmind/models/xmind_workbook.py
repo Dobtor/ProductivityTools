@@ -1,222 +1,218 @@
 # -*- coding: utf-8 -*-
+import base64
 import json
 import zipfile
-import base64
-from io import BytesIO
-from odoo import api, fields, models, _
+import io
+import uuid
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
-class XmindWorkbook(models.Model):
+class XMindWorkbook(models.Model):
     _name = 'xmind.workbook'
     _description = 'XMind Workbook'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _order = 'write_date desc'
 
-    name = fields.Char('Name', required=True, tracking=True)
+    name = fields.Char('Name', required=True, default='New Mind Map')
     description = fields.Text('Description')
-    sheet_ids = fields.One2many('xmind.sheet', 'workbook_id', 'Sheets')
-    sheet_count = fields.Integer('Sheet Count', compute='_compute_sheet_count')
+    creator = fields.Char('Creator')
+    created_time = fields.Datetime('Created Time', default=fields.Datetime.now)
+    modified_time = fields.Datetime('Modified Time')
 
-    # File storage
-    attachment_id = fields.Many2one('ir.attachment', 'XMind File Backup',
-                                     help='Original .xmind file backup')
-    json_data = fields.Text('JSON Data', help='Complete mindmap structure in JSON')
+    sheet_ids = fields.One2many('xmind.sheet', 'workbook_id', string='Sheets')
 
-    # Theme settings
-    theme = fields.Selection([
-        ('robust', 'Robust'),
-        ('snowbrush', 'Snowbrush'),
-        ('business', 'Business')
-    ], string='Theme', default='robust')
+    # File import/export
+    xmind_file = fields.Binary('XMind File', attachment=True)
+    xmind_filename = fields.Char('Filename')
 
-    # Metadata
-    creator = fields.Char('Creator', default=lambda self: self.env.user.name)
-    last_modified = fields.Datetime('Last Modified', default=fields.Datetime.now)
+    # Thumbnail
+    thumbnail = fields.Binary('Thumbnail', attachment=True)
 
-    state = fields.Selection([
-        ('draft', 'Draft'),
-        ('active', 'Active'),
-        ('archived', 'Archived')
-    ], string='State', default='draft', tracking=True)
+    # Statistics
+    topic_count = fields.Integer('Topic Count', compute='_compute_stats', store=True)
+    sheet_count = fields.Integer('Sheet Count', compute='_compute_stats', store=True)
 
-    @api.depends('sheet_ids')
-    def _compute_sheet_count(self):
+    @api.depends('sheet_ids', 'sheet_ids.topic_ids')
+    def _compute_stats(self):
         for record in self:
             record.sheet_count = len(record.sheet_ids)
-
-    def action_view_editor(self):
-        """Open the visual mindmap editor"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'xmind_editor',
-            'params': {
-                'workbook_id': self.id,
-            },
-            'target': 'current',
-        }
-
-    def action_create_sheet(self):
-        """Create a new sheet in this workbook"""
-        self.ensure_one()
-        sheet = self.env['xmind.sheet'].create({
-            'name': _('New Sheet'),
-            'workbook_id': self.id,
-        })
-        # Create root topic for the sheet
-        root_topic = self.env['xmind.topic'].create({
-            'title': _('Central Topic'),
-            'sheet_id': sheet.id,
-            'is_root': True,
-        })
-        sheet.root_topic_id = root_topic.id
-        return sheet
+            record.topic_count = sum(len(sheet.topic_ids) for sheet in record.sheet_ids)
 
     def get_mindmap_data(self):
-        """Get mindmap data in jsMind format for frontend editor"""
+        """Get mindmap data in jsMind format with XMind 2 features"""
         self.ensure_one()
-        if not self.sheet_ids:
-            return {'meta': {'name': self.name}, 'data': []}
 
-        sheet = self.sheet_ids[0]  # Get first sheet
-        if not sheet.root_topic_id:
-            return {'meta': {'name': self.name}, 'data': []}
-
-        def build_topic_tree(topic):
-            node = {
-                'id': str(topic.id),
-                'topic': topic.title,
-                'expanded': True,
+        default_data = {
+            'id': 'root',
+            'topic': self.name or _('Central Topic'),
+            'expanded': True,
+            'children': [],
+            'data': {
+                'style': {
+                    'background': '#428bca',
+                    'color': '#ffffff',
+                    'font-weight': 'bold',
+                    'font-size': '18px',
+                }
             }
-            if topic.note:
-                node['note'] = topic.note
-            if topic.markers:
-                node['markers'] = json.loads(topic.markers)
-            if topic.labels:
-                node['labels'] = json.loads(topic.labels)
+        }
 
-            children = []
-            for child in topic.child_ids.sorted('sequence'):
-                children.append(build_topic_tree(child))
-            if children:
-                node['children'] = children
+        if not self.sheet_ids:
+            return {
+                'meta': {
+                    'name': self.name,
+                    'author': self.creator or '',
+                    'version': '1.0'
+                },
+                'format': 'node_tree',
+                'data': default_data,
+            }
 
-            return node
+        # Use first sheet as main mindmap
+        sheet = self.sheet_ids[0]
+        root_topic = sheet.topic_ids.filtered(lambda t: not t.parent_id)
 
-        root_data = build_topic_tree(sheet.root_topic_id)
+        if root_topic:
+            data = self._topic_to_jsmind(root_topic[0])
+        else:
+            data = default_data
 
         return {
             'meta': {
                 'name': self.name,
-                'author': self.creator,
-                'version': '1.0',
+                'author': self.creator or '',
+                'version': '1.0'
             },
             'format': 'node_tree',
-            'data': root_data,
+            'data': data,
         }
 
+    def _topic_to_jsmind(self, topic):
+        """Convert topic to jsMind format with styling"""
+        node = {
+            'id': topic.component_id or str(uuid.uuid4()),
+            'topic': topic.title,
+            'expanded': topic.expanded,
+            'children': [],
+            'data': {
+                'note': topic.note or '',
+                'markers': topic.marker_ids.mapped('marker_id.code') if topic.marker_ids else [],
+                'labels': topic.labels.split(',') if topic.labels else [],
+                'style': self._get_topic_style(topic),
+            }
+        }
+
+        for child in topic.child_ids.sorted('sequence'):
+            node['children'].append(self._topic_to_jsmind(child))
+
+        return node
+
+    def _get_topic_style(self, topic):
+        """Get topic styling in XMind 2 format"""
+        style = {}
+        if topic.background_color:
+            style['background'] = topic.background_color
+        if topic.text_color:
+            style['color'] = topic.text_color
+        if topic.font_size:
+            style['font-size'] = f'{topic.font_size}px'
+        if topic.font_weight:
+            style['font-weight'] = topic.font_weight
+        if topic.border_color:
+            style['border-color'] = topic.border_color
+        if topic.border_width:
+            style['border-width'] = f'{topic.border_width}px'
+        return style
+
     def save_mindmap_data(self, data):
-        """Save mindmap data from frontend editor"""
+        """Save mindmap data from jsMind editor with command history"""
         self.ensure_one()
 
-        if not data or 'data' not in data:
-            return False
+        if not self.sheet_ids:
+            sheet = self.env['xmind.sheet'].create({
+                'workbook_id': self.id,
+                'name': self.name,
+            })
+        else:
+            sheet = self.sheet_ids[0]
 
-        sheet = self.sheet_ids[0] if self.sheet_ids else self.action_create_sheet()
+        # Clear existing topics
+        sheet.topic_ids.unlink()
 
-        def save_topic_tree(node_data, parent_id=False, sequence=0):
-            topic_vals = {
-                'title': node_data.get('topic', 'Untitled'),
-                'sheet_id': sheet.id,
-                'parent_id': parent_id,
-                'sequence': sequence,
-                'is_root': not parent_id,
-            }
+        # Import from jsMind format
+        if 'data' in data:
+            self._import_jsmind_node(data['data'], sheet, False)
 
-            if 'note' in node_data:
-                topic_vals['note'] = node_data['note']
-            if 'markers' in node_data:
-                topic_vals['markers'] = json.dumps(node_data['markers'])
-            if 'labels' in node_data:
-                topic_vals['labels'] = json.dumps(node_data['labels'])
-
-            # Check if topic exists (by id in node_data)
-            existing_topic = False
-            if 'id' in node_data and node_data['id'].isdigit():
-                existing_topic = self.env['xmind.topic'].browse(int(node_data['id'])).exists()
-
-            if existing_topic:
-                existing_topic.write(topic_vals)
-                topic = existing_topic
-            else:
-                topic = self.env['xmind.topic'].create(topic_vals)
-
-            # Process children
-            if 'children' in node_data:
-                for idx, child_data in enumerate(node_data['children']):
-                    save_topic_tree(child_data, topic.id, idx * 10)
-
-            return topic
-
-        # Clear existing topics if needed
-        if sheet.root_topic_id:
-            sheet.root_topic_id.unlink()
-
-        root_topic = save_topic_tree(data['data'])
-        sheet.root_topic_id = root_topic.id
-
-        # Update JSON data backup
-        self.json_data = json.dumps(data)
-        self.last_modified = fields.Datetime.now()
-
+        self.modified_time = fields.Datetime.now()
         return True
 
-    def export_to_xmind(self):
-        """Export workbook to .xmind file format"""
+    def _import_jsmind_node(self, node, sheet, parent=False):
+        """Import node from jsMind data with styling"""
+        style_data = node.get('data', {}).get('style', {})
+
+        topic_vals = {
+            'sheet_id': sheet.id,
+            'component_id': node.get('id', str(uuid.uuid4())),
+            'title': node.get('topic', ''),
+            'expanded': node.get('expanded', True),
+            'note': node.get('data', {}).get('note', ''),
+            'labels': ','.join(node.get('data', {}).get('labels', [])),
+            'background_color': style_data.get('background', ''),
+            'text_color': style_data.get('color', ''),
+            'font_size': int(style_data.get('font-size', '14').replace('px', '')) if style_data.get('font-size') else 14,
+            'font_weight': style_data.get('font-weight', 'normal'),
+            'border_color': style_data.get('border-color', ''),
+            'border_width': int(style_data.get('border-width', '1').replace('px', '')) if style_data.get('border-width') else 1,
+        }
+
+        if parent:
+            topic_vals['parent_id'] = parent.id
+
+        topic = self.env['xmind.topic'].create(topic_vals)
+
+        # Import children
+        for idx, child_node in enumerate(node.get('children', [])):
+            child = self._import_jsmind_node(child_node, sheet, topic)
+            child.sequence = idx
+
+        return topic
+
+    def export_xmind_file(self):
+        """Export workbook as .xmind file"""
         self.ensure_one()
 
-        buffer = BytesIO()
-        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Generate content.json
+        # Create ZIP file structure
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # content.json - main content
             content = self._generate_xmind_content()
             zf.writestr('content.json', json.dumps(content, indent=2))
 
-            # Generate manifest.json
-            manifest = {
-                'file-entries': {
-                    'content.json': {},
-                    'metadata.json': {},
-                }
-            }
-            zf.writestr('manifest.json', json.dumps(manifest, indent=2))
-
-            # Generate metadata.json
+            # metadata.json
             metadata = {
                 'creator': {
-                    'name': 'Odoo XMind Editor',
+                    'name': 'Dobtor XMind Editor',
                     'version': '14.0.1.0.0'
                 }
             }
             zf.writestr('metadata.json', json.dumps(metadata, indent=2))
 
-        buffer.seek(0)
-        file_data = base64.b64encode(buffer.read())
+            # manifest.json
+            manifest = {
+                'file-entries': {
+                    'content.json': {},
+                    'metadata.json': {}
+                }
+            }
+            zf.writestr('manifest.json', json.dumps(manifest, indent=2))
 
-        # Create attachment
-        attachment = self.env['ir.attachment'].create({
-            'name': f'{self.name}.xmind',
-            'type': 'binary',
-            'datas': file_data,
-            'res_model': self._name,
-            'res_id': self.id,
-            'mimetype': 'application/x-xmind',
-        })
-
-        self.attachment_id = attachment.id
+        zip_buffer.seek(0)
+        self.xmind_file = base64.b64encode(zip_buffer.read())
+        self.xmind_filename = f'{self.name}.xmind'
 
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',
             'target': 'self',
         }
 
@@ -225,126 +221,193 @@ class XmindWorkbook(models.Model):
         sheets_data = []
 
         for sheet in self.sheet_ids:
-            if not sheet.root_topic_id:
-                continue
-
-            def topic_to_xmind(topic):
-                topic_data = {
-                    'id': topic.component_id or f'topic_{topic.id}',
-                    'class': 'topic',
-                    'title': topic.title,
+            root_topic = sheet.topic_ids.filtered(lambda t: not t.parent_id)
+            if root_topic:
+                sheet_data = {
+                    'id': sheet.component_id or str(uuid.uuid4()),
+                    'class': 'sheet',
+                    'title': sheet.name,
+                    'rootTopic': self._topic_to_xmind(root_topic[0]),
+                    'relationships': self._get_relationships(sheet),
                 }
-
-                if topic.note:
-                    topic_data['notes'] = {
-                        'plain': {'content': topic.note}
-                    }
-
-                if topic.markers:
-                    markers = json.loads(topic.markers)
-                    topic_data['markers'] = [{'markerId': m} for m in markers]
-
-                if topic.labels:
-                    topic_data['labels'] = json.loads(topic.labels)
-
-                children = topic.child_ids.sorted('sequence')
-                if children:
-                    topic_data['children'] = {
-                        'attached': [topic_to_xmind(child) for child in children]
-                    }
-
-                return topic_data
-
-            sheet_data = {
-                'id': f'sheet_{sheet.id}',
-                'class': 'sheet',
-                'title': sheet.name,
-                'rootTopic': topic_to_xmind(sheet.root_topic_id),
-            }
-
-            if self.theme:
-                sheet_data['theme'] = {'id': self.theme}
-
-            sheets_data.append(sheet_data)
+                sheets_data.append(sheet_data)
 
         return sheets_data
 
-    @api.model
-    def import_from_xmind(self, file_data):
-        """Import workbook from .xmind file"""
-        buffer = BytesIO(base64.b64decode(file_data))
-
-        with zipfile.ZipFile(buffer, 'r') as zf:
-            content_data = json.loads(zf.read('content.json'))
-
-        return self._import_from_content(content_data)
-
-    @api.model
-    def _import_from_content(self, content_data):
-        """Create workbook from XMind content structure"""
-        if not content_data:
-            raise UserError(_('Invalid XMind file: empty content'))
-
-        # Get first sheet for workbook name
-        first_sheet = content_data[0] if isinstance(content_data, list) else content_data
-        workbook_name = first_sheet.get('title', 'Imported Mindmap')
-
-        workbook = self.create({
-            'name': workbook_name,
-            'state': 'active',
-        })
-
-        # Import each sheet
-        sheets = content_data if isinstance(content_data, list) else [content_data]
-        for sheet_data in sheets:
-            sheet = self.env['xmind.sheet'].create({
-                'name': sheet_data.get('title', 'Sheet'),
-                'workbook_id': workbook.id,
-            })
-
-            # Import root topic
-            if 'rootTopic' in sheet_data:
-                root_topic = self._import_topic(sheet_data['rootTopic'], sheet.id)
-                sheet.root_topic_id = root_topic.id
-
-        # Store original JSON
-        workbook.json_data = json.dumps(content_data)
-
-        return workbook
-
-    def _import_topic(self, topic_data, sheet_id, parent_id=False, sequence=0):
-        """Recursively import topic from XMind structure"""
-        topic_vals = {
-            'title': topic_data.get('title', 'Untitled'),
-            'component_id': topic_data.get('id'),
-            'sheet_id': sheet_id,
-            'parent_id': parent_id,
-            'sequence': sequence,
-            'is_root': not parent_id,
+    def _topic_to_xmind(self, topic):
+        """Convert topic to XMind format"""
+        xmind_topic = {
+            'id': topic.component_id,
+            'class': 'topic',
+            'title': topic.title,
+            'structureClass': topic.structure_class or 'org.xmind.ui.map.unbalanced',
         }
 
-        # Import notes
+        if topic.note:
+            xmind_topic['notes'] = {
+                'plain': {'content': topic.note}
+            }
+
+        if topic.labels:
+            xmind_topic['labels'] = topic.labels.split(',')
+
+        if topic.marker_ids:
+            xmind_topic['markers'] = [
+                {'markerId': m.marker_id.code} for m in topic.marker_ids
+            ]
+
+        # Style
+        style = {}
+        if topic.background_color:
+            style['background'] = topic.background_color
+        if topic.text_color:
+            style['color'] = topic.text_color
+        if style:
+            xmind_topic['style'] = {'properties': style}
+
+        # Children
+        if topic.child_ids:
+            xmind_topic['children'] = {
+                'attached': [
+                    self._topic_to_xmind(child) for child in topic.child_ids.sorted('sequence')
+                ]
+            }
+
+        return xmind_topic
+
+    def _get_relationships(self, sheet):
+        """Get relationships for a sheet"""
+        relationships = []
+        for rel in sheet.relationship_ids:
+            relationships.append({
+                'id': rel.component_id or str(uuid.uuid4()),
+                'end1Id': rel.source_topic_id.component_id,
+                'end2Id': rel.target_topic_id.component_id,
+                'title': rel.title or '',
+            })
+        return relationships
+
+    def import_xmind_file(self):
+        """Import .xmind file"""
+        self.ensure_one()
+
+        if not self.xmind_file:
+            raise UserError(_('Please select a .xmind file to import'))
+
+        file_data = base64.b64decode(self.xmind_file)
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(file_data), 'r') as zf:
+                content_json = zf.read('content.json')
+                content = json.loads(content_json)
+
+                # Clear existing sheets
+                self.sheet_ids.unlink()
+
+                # Import sheets
+                for sheet_data in content:
+                    self._import_xmind_sheet(sheet_data)
+
+                self.modified_time = fields.Datetime.now()
+        except Exception as e:
+            raise UserError(_('Error importing XMind file: %s') % str(e))
+
+        return True
+
+    def _import_xmind_sheet(self, sheet_data):
+        """Import XMind sheet data"""
+        sheet = self.env['xmind.sheet'].create({
+            'workbook_id': self.id,
+            'name': sheet_data.get('title', 'Sheet'),
+            'component_id': sheet_data.get('id', str(uuid.uuid4())),
+        })
+
+        if 'rootTopic' in sheet_data:
+            self._import_xmind_topic(sheet_data['rootTopic'], sheet)
+
+        # Import relationships
+        for rel_data in sheet_data.get('relationships', []):
+            self._import_relationship(rel_data, sheet)
+
+        return sheet
+
+    def _import_xmind_topic(self, topic_data, sheet, parent=False):
+        """Import XMind topic data"""
+        style_props = topic_data.get('style', {}).get('properties', {})
+
+        topic_vals = {
+            'sheet_id': sheet.id,
+            'component_id': topic_data.get('id', str(uuid.uuid4())),
+            'title': topic_data.get('title', ''),
+            'structure_class': topic_data.get('structureClass', ''),
+            'background_color': style_props.get('background', ''),
+            'text_color': style_props.get('color', ''),
+        }
+
+        if parent:
+            topic_vals['parent_id'] = parent.id
+
+        # Notes
         if 'notes' in topic_data:
             notes = topic_data['notes']
             if 'plain' in notes:
                 topic_vals['note'] = notes['plain'].get('content', '')
 
-        # Import markers
-        if 'markers' in topic_data:
-            marker_ids = [m.get('markerId') for m in topic_data['markers'] if m.get('markerId')]
-            topic_vals['markers'] = json.dumps(marker_ids)
-
-        # Import labels
+        # Labels
         if 'labels' in topic_data:
-            topic_vals['labels'] = json.dumps(topic_data['labels'])
+            topic_vals['labels'] = ','.join(topic_data['labels'])
 
         topic = self.env['xmind.topic'].create(topic_vals)
 
+        # Import markers
+        if 'markers' in topic_data:
+            for marker_data in topic_data['markers']:
+                marker = self.env['xmind.marker'].search([
+                    ('code', '=', marker_data.get('markerId', ''))
+                ], limit=1)
+                if marker:
+                    self.env['xmind.topic.marker'].create({
+                        'topic_id': topic.id,
+                        'marker_id': marker.id,
+                    })
+
         # Import children
-        if 'children' in topic_data:
-            children = topic_data['children']
-            if 'attached' in children:
-                for idx, child_data in enumerate(children['attached']):
-                    self._import_topic(child_data, sheet_id, topic.id, idx * 10)
+        children_data = topic_data.get('children', {})
+        attached = children_data.get('attached', [])
+        for idx, child_data in enumerate(attached):
+            child = self._import_xmind_topic(child_data, sheet, topic)
+            child.sequence = idx
 
         return topic
+
+    def _import_relationship(self, rel_data, sheet):
+        """Import relationship data"""
+        source = self.env['xmind.topic'].search([
+            ('sheet_id', '=', sheet.id),
+            ('component_id', '=', rel_data.get('end1Id'))
+        ], limit=1)
+        target = self.env['xmind.topic'].search([
+            ('sheet_id', '=', sheet.id),
+            ('component_id', '=', rel_data.get('end2Id'))
+        ], limit=1)
+
+        if source and target:
+            self.env['xmind.relationship'].create({
+                'sheet_id': sheet.id,
+                'source_topic_id': source.id,
+                'target_topic_id': target.id,
+                'title': rel_data.get('title', ''),
+                'component_id': rel_data.get('id', str(uuid.uuid4())),
+            })
+
+    def action_open_editor(self):
+        """Open visual mindmap editor"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'dobtor_xmind.mindmap_editor',
+            'params': {
+                'workbook_id': self.id,
+            },
+            'target': 'current',
+        }

@@ -1,123 +1,872 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<templates xml:space="preserve">
-
-    <!-- Main Editor Template -->
-    <t t-name="dobtor_xmind.MindmapEditorTemplate">
-        <div class="o_xmind_editor">
+<templates id="template" xml:space="preserve">
+    <t t-name="dobtor_xmind.MindmapEditor">
+        <div class="o_mindmap_editor_container">
             <!-- Toolbar -->
-            <div class="o_xmind_toolbar">
-                <div class="btn-group">
-                    <button class="btn btn-primary o_xmind_btn_save" title="Save (Ctrl+S)">
-                        <i class="fa fa-save"></i> Save
+            <div class="o_mindmap_toolbar">
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_undo" title="Undo (Ctrl+Z)" disabled="disabled">
+                        <i class="fa fa-undo"/>
                     </button>
-                    <button class="btn btn-secondary o_xmind_btn_export" title="Export to .xmind">
-                        <i class="fa fa-download"></i> Export
-                    </button>
-                </div>
-
-                <div class="btn-group">
-                    <button class="btn btn-outline-secondary o_xmind_btn_add_child" title="Add Child (Insert)">
-                        <i class="fa fa-plus"></i> Child
-                    </button>
-                    <button class="btn btn-outline-secondary o_xmind_btn_add_sibling" title="Add Sibling (Enter)">
-                        <i class="fa fa-plus-circle"></i> Sibling
-                    </button>
-                    <button class="btn btn-outline-danger o_xmind_btn_delete" title="Delete (Del)">
-                        <i class="fa fa-trash"></i>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_redo" title="Redo (Ctrl+Y)" disabled="disabled">
+                        <i class="fa fa-redo"/>
                     </button>
                 </div>
 
-                <div class="btn-group">
-                    <button class="btn btn-outline-secondary o_xmind_btn_expand_all" title="Expand All">
-                        <i class="fa fa-expand"></i>
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-primary o_mindmap_btn_add_child" title="Add Child (Tab)">
+                        <i class="fa fa-plus"/> Child
                     </button>
-                    <button class="btn btn-outline-secondary o_xmind_btn_collapse_all" title="Collapse All">
-                        <i class="fa fa-compress"></i>
+                    <button class="btn btn-sm btn-outline-primary o_mindmap_btn_add_sibling" title="Add Sibling (Enter)">
+                        <i class="fa fa-plus"/> Sibling
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger o_mindmap_btn_delete" title="Delete (Delete)">
+                        <i class="fa fa-trash"/>
                     </button>
                 </div>
 
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_expand_all" title="Expand All">
+                        <i class="fa fa-expand"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_collapse_all" title="Collapse All">
+                        <i class="fa fa-compress"/>
+                    </button>
+                </div>
+
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_note" title="Add Note">
+                        <i class="fa fa-sticky-note"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning o_mindmap_btn_marker" title="Add Marker">
+                        <i class="fa fa-flag"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_relationship" title="Add Relationship">
+                        <i class="fa fa-link"/>
+                    </button>
+                </div>
+
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-warning o_mindmap_btn_boundary" title="Add Boundary">
+                        <i class="fa fa-square-o"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_summary" title="Add Summary">
+                        <i class="fa fa-indent"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary o_mindmap_btn_callout" title="Add Callout">
+                        <i class="fa fa-comment"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_floating" title="Add Floating Topic">
+                        <i class="fa fa-plus-circle"/>
+                    </button>
+                </div>
+
+                <!-- Insert Dropdown Menu -->
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-success dropdown-toggle" data-toggle="dropdown" title="Insert">
+                        <i class="fa fa-plus"/> Insert
+                    </button>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item o_mindmap_insert_image" href="#">
+                            <i class="fa fa-image text-success"/> Image/Sticker
+                        </a>
+                        <a class="dropdown-item o_mindmap_insert_hyperlink" href="#">
+                            <i class="fa fa-link text-primary"/> Hyperlink
+                        </a>
+                        <a class="dropdown-item o_mindmap_insert_note" href="#">
+                            <i class="fa fa-sticky-note text-info"/> Note
+                        </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item o_mindmap_insert_attachment" href="#">
+                            <i class="fa fa-paperclip text-secondary"/> File Attachment
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Format Dropdown Menu -->
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-info dropdown-toggle" data-toggle="dropdown" title="Format">
+                        <i class="fa fa-paint-brush"/> Format
+                    </button>
+                    <div class="dropdown-menu o_format_menu" style="min-width: 280px;">
+                        <!-- Shape Style Section -->
+                        <h6 class="dropdown-header">
+                            <i class="fa fa-square"/> Shape Style
+                        </h6>
+                        <div class="px-3 py-1">
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Shape Type</label>
+                                <select class="form-control form-control-sm o_format_shape_type">
+                                    <option value="rectangle">Rectangle</option>
+                                    <option value="rounded" selected="selected">Rounded Rectangle</option>
+                                    <option value="ellipse">Ellipse</option>
+                                    <option value="diamond">Diamond</option>
+                                    <option value="parallelogram">Parallelogram</option>
+                                    <option value="hexagon">Hexagon</option>
+                                    <option value="cloud">Cloud</option>
+                                    <option value="underline">Underline Only</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Fill Color</label>
+                                <input type="color" class="form-control form-control-sm o_format_fill_color" value="#ffffff"/>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Border Color</label>
+                                <input type="color" class="form-control form-control-sm o_format_border_color" value="#558ED5"/>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Border Width</label>
+                                <select class="form-control form-control-sm o_format_border_width">
+                                    <option value="1">Thin (1px)</option>
+                                    <option value="2" selected="selected">Normal (2px)</option>
+                                    <option value="3">Medium (3px)</option>
+                                    <option value="4">Thick (4px)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="dropdown-divider"></div>
+
+                        <!-- Text Style Section -->
+                        <h6 class="dropdown-header">
+                            <i class="fa fa-font"/> Text Style
+                        </h6>
+                        <div class="px-3 py-1">
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Font Family</label>
+                                <select class="form-control form-control-sm o_format_font_family">
+                                    <option value="inherit">Default</option>
+                                    <option value="Arial, sans-serif">Arial</option>
+                                    <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+                                    <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                                    <option value="Georgia, serif">Georgia</option>
+                                    <option value="'Courier New', Courier, monospace">Courier New</option>
+                                    <option value="Verdana, sans-serif">Verdana</option>
+                                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Font Size</label>
+                                <select class="form-control form-control-sm o_format_font_size">
+                                    <option value="10">10px</option>
+                                    <option value="12">12px</option>
+                                    <option value="14" selected="selected">14px</option>
+                                    <option value="16">16px</option>
+                                    <option value="18">18px</option>
+                                    <option value="20">20px</option>
+                                    <option value="24">24px</option>
+                                    <option value="28">28px</option>
+                                    <option value="32">32px</option>
+                                </select>
+                            </div>
+                            <div class="btn-group btn-group-sm mb-2" role="group">
+                                <button class="btn btn-outline-secondary o_format_bold" title="Bold">
+                                    <i class="fa fa-bold"/>
+                                </button>
+                                <button class="btn btn-outline-secondary o_format_italic" title="Italic">
+                                    <i class="fa fa-italic"/>
+                                </button>
+                                <button class="btn btn-outline-secondary o_format_underline" title="Underline">
+                                    <i class="fa fa-underline"/>
+                                </button>
+                                <button class="btn btn-outline-secondary o_format_strikethrough" title="Strikethrough">
+                                    <i class="fa fa-strikethrough"/>
+                                </button>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Text Color</label>
+                                <input type="color" class="form-control form-control-sm o_format_text_color" value="#333333"/>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Background Color</label>
+                                <input type="color" class="form-control form-control-sm o_format_bg_color" value="#ffffff"/>
+                            </div>
+                        </div>
+
+                        <div class="dropdown-divider"></div>
+
+                        <!-- Structure Section -->
+                        <h6 class="dropdown-header">
+                            <i class="fa fa-sitemap"/> Structure
+                        </h6>
+                        <div class="px-3 py-1">
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Layout Type</label>
+                                <select class="form-control form-control-sm o_format_structure_type">
+                                    <option value="map">Mind Map (Balanced)</option>
+                                    <option value="tree_right">Tree Right</option>
+                                    <option value="tree_left">Tree Left</option>
+                                    <option value="logic_right">Logic Right</option>
+                                    <option value="logic_left">Logic Left</option>
+                                    <option value="org_chart_down">Org Chart Down</option>
+                                    <option value="org_chart_up">Org Chart Up</option>
+                                    <option value="fishbone_left">Fishbone Left</option>
+                                    <option value="fishbone_right">Fishbone Right</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Horizontal Spacing</label>
+                                <input type="range" class="form-control-range o_format_h_space" min="30" max="150" value="80"/>
+                                <small class="text-muted o_format_h_space_val">80px</small>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Vertical Spacing</label>
+                                <input type="range" class="form-control-range o_format_v_space" min="10" max="80" value="25"/>
+                                <small class="text-muted o_format_v_space_val">25px</small>
+                            </div>
+                        </div>
+
+                        <div class="dropdown-divider"></div>
+
+                        <!-- Branch Style Section -->
+                        <h6 class="dropdown-header">
+                            <i class="fa fa-code-fork"/> Branch Style
+                        </h6>
+                        <div class="px-3 py-1">
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Line Type</label>
+                                <select class="form-control form-control-sm o_format_line_type">
+                                    <option value="curved">Curved</option>
+                                    <option value="straight">Straight</option>
+                                    <option value="angular">Angular</option>
+                                    <option value="rounded">Rounded</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Line Width</label>
+                                <select class="form-control form-control-sm o_format_line_width">
+                                    <option value="1">Thin (1px)</option>
+                                    <option value="2" selected="selected">Normal (2px)</option>
+                                    <option value="3">Medium (3px)</option>
+                                    <option value="4">Thick (4px)</option>
+                                    <option value="5">Extra Thick (5px)</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Line Color</label>
+                                <input type="color" class="form-control form-control-sm o_format_line_color" value="#558ED5"/>
+                            </div>
+                            <div class="form-group mb-2">
+                                <label class="small mb-1">Line Style</label>
+                                <select class="form-control form-control-sm o_format_line_style">
+                                    <option value="solid">Solid</option>
+                                    <option value="dashed">Dashed</option>
+                                    <option value="dotted">Dotted</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="dropdown-divider"></div>
+
+                        <div class="px-3 py-1">
+                            <button class="btn btn-sm btn-primary btn-block o_format_apply">
+                                <i class="fa fa-check"/> Apply to Selected
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary btn-block mt-1 o_format_apply_all">
+                                <i class="fa fa-globe"/> Apply to All
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning btn-block mt-1 o_format_reset">
+                                <i class="fa fa-undo"/> Reset to Default
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group mr-2">
+                    <select class="form-control form-control-sm o_mindmap_layout_select">
+                        <option value="map">Mind Map</option>
+                        <option value="tree_right">Tree Right</option>
+                        <option value="tree_left">Tree Left</option>
+                        <option value="logic_right">Logic Right</option>
+                        <option value="org_chart_down">Org Chart</option>
+                    </select>
+                </div>
+
+                <div class="btn-group mr-2">
+                    <select class="form-control form-control-sm o_mindmap_theme_select">
+                        <option value="primary">Primary</option>
+                        <option value="warning">Warning</option>
+                        <option value="danger">Danger</option>
+                        <option value="success">Success</option>
+                        <option value="info">Info</option>
+                        <option value="greensea">Green Sea</option>
+                        <option value="nephrite">Nephrite</option>
+                        <option value="belizehole">Belize Hole</option>
+                        <option value="wisteria">Wisteria</option>
+                        <option value="asphalt">Asphalt</option>
+                        <option value="orange">Orange</option>
+                        <option value="pumpkin">Pumpkin</option>
+                        <option value="pomegranate">Pomegranate</option>
+                    </select>
+                </div>
+
                 <div class="btn-group">
-                    <button class="btn btn-outline-secondary o_xmind_btn_zoom_in" title="Zoom In">
-                        <i class="fa fa-search-plus"></i>
+                    <button class="btn btn-sm btn-outline-success o_mindmap_btn_save" title="Save (Ctrl+S)">
+                        <i class="fa fa-save"/> Save
                     </button>
-                    <button class="btn btn-outline-secondary o_xmind_btn_zoom_out" title="Zoom Out">
-                        <i class="fa fa-search-minus"></i>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_export" title="Export">
+                        <i class="fa fa-download"/> Export
                     </button>
+                </div>
+
+                <div class="btn-group mr-2">
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_multiselect" title="Multi-Select Mode (Hold Shift)">
+                        <i class="fa fa-object-group"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_clear_selection" title="Clear Selection">
+                        <i class="fa fa-times-circle"/>
+                    </button>
+                </div>
+
+                <div class="ml-auto d-flex align-items-center">
+                    <span class="badge badge-info mr-2 o_mindmap_selection_count" style="display:none;">
+                        <i class="fa fa-check-square"/> <span class="count">0</span> selected
+                    </span>
+                    <span class="badge badge-secondary o_mindmap_command_count">0 commands</span>
                 </div>
             </div>
 
-            <!-- Main Content -->
-            <div class="o_xmind_main">
-                <!-- Canvas Area -->
-                <div class="o_xmind_canvas_wrapper">
-                    <div class="o_xmind_canvas" id="jsmind_container"></div>
-                    <div class="o_xmind_zoom_controls">
-                        <button class="btn btn-sm btn-light o_xmind_btn_zoom_in">
-                            <i class="fa fa-plus"></i>
-                        </button>
-                        <button class="btn btn-sm btn-light o_xmind_btn_zoom_out">
-                            <i class="fa fa-minus"></i>
-                        </button>
-                    </div>
+            <!-- Sidebar for Properties -->
+            <div class="o_mindmap_sidebar">
+                <div class="o_mindmap_sidebar_header">
+                    <h5>Topic Properties</h5>
+                    <button class="btn btn-sm btn-link o_mindmap_sidebar_close">
+                        <i class="fa fa-times"/>
+                    </button>
                 </div>
-
-                <!-- Sidebar -->
-                <div class="o_xmind_sidebar">
-                    <h4>Topic Properties</h4>
-
+                <div class="o_mindmap_sidebar_content">
                     <div class="form-group">
-                        <label>Selected Topic:</label>
-                        <div class="o_xmind_selected_topic">-</div>
+                        <label>Title</label>
+                        <input type="text" class="form-control form-control-sm o_topic_title"/>
+                    </div>
+
+                    <!-- Hyperlink Section -->
+                    <div class="form-group">
+                        <label>
+                            <i class="fa fa-link text-primary"/> Hyperlink
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <input type="url" class="form-control o_topic_hyperlink" placeholder="https://..."/>
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-primary o_topic_hyperlink_open" type="button" title="Open Link">
+                                    <i class="fa fa-external-link"/>
+                                </button>
+                            </div>
+                        </div>
+                        <input type="text" class="form-control form-control-sm o_topic_hyperlink_title mt-1" placeholder="Link Title (optional)"/>
+                    </div>
+
+                    <!-- Image/Attachment Preview -->
+                    <div class="form-group">
+                        <label>
+                            <i class="fa fa-image text-success"/> Image/Attachment
+                        </label>
+                        <div class="o_topic_image_preview" style="min-height: 60px; border: 1px dashed #ccc; border-radius: 4px; padding: 8px; text-align: center;">
+                            <span class="text-muted">No image attached</span>
+                        </div>
+                        <button class="btn btn-sm btn-outline-success mt-1 o_topic_change_image">
+                            <i class="fa fa-upload"/> Change Image
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger mt-1 o_topic_remove_image" style="display:none;">
+                            <i class="fa fa-trash"/> Remove
+                        </button>
                     </div>
 
                     <div class="form-group">
-                        <label for="xmind_note">Notes:</label>
-                        <textarea class="form-control o_xmind_note_input"
-                                  id="xmind_note"
-                                  placeholder="Add notes for this topic..."></textarea>
+                        <label>Background Color</label>
+                        <input type="color" class="form-control form-control-sm o_topic_bg_color"/>
                     </div>
-
                     <div class="form-group">
-                        <label for="xmind_theme">Theme:</label>
-                        <select class="form-control o_xmind_theme_select" id="xmind_theme">
-                            <option value="primary">Primary</option>
-                            <option value="warning">Warning</option>
-                            <option value="danger">Danger</option>
-                            <option value="success">Success</option>
-                            <option value="info">Info</option>
-                            <option value="greensea">Green Sea</option>
-                            <option value="nephrite">Nephrite</option>
-                            <option value="belizehole">Belize Hole</option>
-                            <option value="wisteria">Wisteria</option>
-                            <option value="asphalt">Asphalt</option>
-                            <option value="orange">Orange</option>
-                            <option value="pumpkin">Pumpkin</option>
-                            <option value="pomegranate">Pomegranate</option>
-                            <option value="clouds">Clouds</option>
-                            <option value="asbestos">Asbestos</option>
+                        <label>Text Color</label>
+                        <input type="color" class="form-control form-control-sm o_topic_text_color" value="#333333"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Font Size</label>
+                        <input type="number" class="form-control form-control-sm o_topic_font_size" min="10" max="36" value="14"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Font Weight</label>
+                        <select class="form-control form-control-sm o_topic_font_weight">
+                            <option value="normal">Normal</option>
+                            <option value="bold">Bold</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label>
+                            <i class="fa fa-sticky-note text-info"/> Notes
+                        </label>
+                        <textarea class="form-control form-control-sm o_topic_note" rows="4" placeholder="Add notes here..."></textarea>
+                        <small class="text-muted o_topic_note_count">0 characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Labels (comma separated)</label>
+                        <input type="text" class="form-control form-control-sm o_topic_labels"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Markers</label>
+                        <div class="o_topic_markers"></div>
+                    </div>
 
-                    <hr/>
-
-                    <h4>Keyboard Shortcuts</h4>
-                    <ul class="small text-muted">
-                        <li><strong>Insert</strong> - Add child</li>
-                        <li><strong>Enter</strong> - Add sibling</li>
-                        <li><strong>F2</strong> - Edit topic</li>
-                        <li><strong>Delete</strong> - Delete topic</li>
-                        <li><strong>Space</strong> - Toggle expand</li>
-                        <li><strong>Arrow keys</strong> - Navigate</li>
-                    </ul>
+                    <!-- Attachments List -->
+                    <div class="form-group">
+                        <label>
+                            <i class="fa fa-paperclip text-secondary"/> Attachments
+                        </label>
+                        <div class="o_topic_attachments" style="max-height: 150px; overflow-y: auto;">
+                            <small class="text-muted">No attachments</small>
+                        </div>
+                    </div>
                 </div>
             </div>
 
+            <!-- Canvas -->
+            <div class="o_mindmap_canvas" id="jsmind_container"></div>
+
             <!-- Status Bar -->
-            <div class="o_xmind_status_bar">
-                <span>Mind Map Editor</span>
-                <span class="badge badge-info">Ready</span>
+            <div class="o_mindmap_statusbar">
+                <span class="o_mindmap_status_text">Ready</span>
+                <span class="o_mindmap_autosave_indicator"></span>
             </div>
         </div>
     </t>
 
+    <!-- Marker Selector Dialog -->
+    <t t-name="dobtor_xmind.MarkerSelector">
+        <div class="o_marker_selector">
+            <div class="o_marker_categories">
+                <t t-foreach="categories" t-as="category">
+                    <div class="o_marker_category">
+                        <h6 t-esc="category.name"/>
+                        <div class="o_marker_list">
+                            <t t-foreach="category.markers" t-as="marker">
+                                <button class="btn btn-sm o_marker_item" t-att-data-marker-id="marker.id" t-att-title="marker.name">
+                                    <i t-att-class="marker.icon" t-att-style="'color:' + marker.color"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </div>
+    </t>
+
+    <!-- Summary Properties Dialog -->
+    <t t-name="dobtor_xmind.SummaryProperties">
+        <div class="o_summary_properties">
+            <!-- Summary Line Settings -->
+            <h6 class="text-muted mb-2">
+                <i class="fa fa-minus"/> Summary Line
+            </h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Line Type</label>
+                        <select class="form-control form-control-sm o_sum_line_type">
+                            <option value="bracket" selected="selected">Bracket</option>
+                            <option value="brace">Brace</option>
+                            <option value="straight">Straight</option>
+                            <option value="curved">Curved</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Line Width</label>
+                        <select class="form-control form-control-sm o_sum_line_width">
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                            <option value="4">Thick (4px)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="small">Line Color</label>
+                <input type="color" class="form-control form-control-sm o_sum_line_color" value="#6c757d"/>
+            </div>
+
+            <hr/>
+
+            <!-- Summary Topic Settings -->
+            <h6 class="text-muted mb-2">
+                <i class="fa fa-square"/> Summary Topic Shape
+            </h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Shape Type</label>
+                        <select class="form-control form-control-sm o_sum_topic_shape">
+                            <option value="rounded" selected="selected">Rounded Rectangle</option>
+                            <option value="rectangle">Rectangle</option>
+                            <option value="ellipse">Ellipse</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="parallelogram">Parallelogram</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Border Width</label>
+                        <select class="form-control form-control-sm o_sum_topic_border_width">
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Fill Color</label>
+                        <input type="color" class="form-control form-control-sm o_sum_topic_fill" value="#E3F2FD"/>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Border Color</label>
+                        <input type="color" class="form-control form-control-sm o_sum_topic_border" value="#2196F3"/>
+                    </div>
+                </div>
+            </div>
+
+            <hr/>
+
+            <!-- Summary Topic Text -->
+            <h6 class="text-muted mb-2">
+                <i class="fa fa-font"/> Topic Text Style
+            </h6>
+            <div class="form-group">
+                <label class="small">Summary Text</label>
+                <input type="text" class="form-control form-control-sm o_sum_topic_text" value="Summary"/>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Font Size</label>
+                        <select class="form-control form-control-sm o_sum_topic_font_size">
+                            <option value="12">12px</option>
+                            <option value="14" selected="selected">14px</option>
+                            <option value="16">16px</option>
+                            <option value="18">18px</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Text Color</label>
+                        <input type="color" class="form-control form-control-sm o_sum_topic_text_color" value="#1565C0"/>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-secondary o_sum_topic_bold" title="Bold">
+                        <i class="fa fa-bold"/>
+                    </button>
+                    <button class="btn btn-outline-secondary o_sum_topic_italic" title="Italic">
+                        <i class="fa fa-italic"/>
+                    </button>
+                </div>
+            </div>
+
+            <hr/>
+
+            <!-- Branch Settings (for child nodes) -->
+            <h6 class="text-muted mb-2">
+                <i class="fa fa-code-fork"/> Child Branch Style
+            </h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Branch Line Type</label>
+                        <select class="form-control form-control-sm o_sum_branch_type">
+                            <option value="curved" selected="selected">Curved</option>
+                            <option value="straight">Straight</option>
+                            <option value="angular">Angular</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">End Marker</label>
+                        <select class="form-control form-control-sm o_sum_branch_end">
+                            <option value="none" selected="selected">None</option>
+                            <option value="arrow">Arrow</option>
+                            <option value="circle">Circle</option>
+                            <option value="diamond">Diamond</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Branch Width</label>
+                        <select class="form-control form-control-sm o_sum_branch_width">
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Branch Color</label>
+                        <input type="color" class="form-control form-control-sm o_sum_branch_color" value="#2196F3"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <!-- Boundary Properties Dialog -->
+    <t t-name="dobtor_xmind.BoundaryProperties">
+        <div class="o_boundary_properties">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">
+                        <i class="fa fa-square-o"/> Shape Style
+                    </h6>
+                    <div class="form-group">
+                        <label class="small">Shape Type</label>
+                        <select class="form-control form-control-sm o_bnd_shape_type">
+                            <option value="rectangle">Rectangle</option>
+                            <option value="rounded" selected="selected">Rounded Rectangle</option>
+                            <option value="wave">Wave/Scallops</option>
+                            <option value="cloud">Cloud</option>
+                            <option value="bracket">Bracket</option>
+                            <option value="underline">Underline</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Fill Color</label>
+                        <div class="input-group input-group-sm">
+                            <input type="color" class="form-control o_bnd_fill_color" value="#FFFACD"/>
+                            <div class="input-group-append">
+                                <span class="input-group-text">
+                                    <input type="range" class="o_bnd_fill_opacity" min="0" max="100" value="30" style="width: 60px;"/>
+                                </span>
+                            </div>
+                        </div>
+                        <small class="text-muted">Opacity: <span class="o_bnd_fill_opacity_val">30%</span></small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">
+                        <i class="fa fa-pencil"/> Border Style
+                    </h6>
+                    <div class="form-group">
+                        <label class="small">Border Color</label>
+                        <input type="color" class="form-control form-control-sm o_bnd_border_color" value="#FFC107"/>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Border Width</label>
+                        <select class="form-control form-control-sm o_bnd_border_width">
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                            <option value="4">Thick (4px)</option>
+                            <option value="5">Extra Thick (5px)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Border Style</label>
+                        <select class="form-control form-control-sm o_bnd_border_style">
+                            <option value="solid">Solid</option>
+                            <option value="dashed">Dashed</option>
+                            <option value="dotted">Dotted</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <hr/>
+            <h6 class="text-muted mb-2">
+                <i class="fa fa-font"/> Title Text
+            </h6>
+            <div class="form-group">
+                <label class="small">Title</label>
+                <input type="text" class="form-control form-control-sm o_bnd_title_text" placeholder="Enter boundary title..."/>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Title Position</label>
+                        <select class="form-control form-control-sm o_bnd_title_position">
+                            <option value="top-left">Top Left</option>
+                            <option value="top-center" selected="selected">Top Center</option>
+                            <option value="top-right">Top Right</option>
+                            <option value="bottom-left">Bottom Left</option>
+                            <option value="bottom-center">Bottom Center</option>
+                            <option value="bottom-right">Bottom Right</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Font Size</label>
+                        <select class="form-control form-control-sm o_bnd_title_font_size">
+                            <option value="10">10px</option>
+                            <option value="12">12px</option>
+                            <option value="14" selected="selected">14px</option>
+                            <option value="16">16px</option>
+                            <option value="18">18px</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="small">Font Color</label>
+                <input type="color" class="form-control form-control-sm o_bnd_title_color" value="#856404"/>
+            </div>
+            <div class="form-group">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-secondary o_bnd_title_bold" title="Bold">
+                        <i class="fa fa-bold"/>
+                    </button>
+                    <button class="btn btn-outline-secondary o_bnd_title_italic" title="Italic">
+                        <i class="fa fa-italic"/>
+                    </button>
+                </div>
+                <div class="form-check form-check-inline ml-2">
+                    <input class="form-check-input o_bnd_title_background" type="checkbox" id="bndTitleBg" checked="checked"/>
+                    <label class="form-check-label small" for="bndTitleBg">Background</label>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <!-- Relationship Properties Dialog -->
+    <t t-name="dobtor_xmind.RelationshipProperties">
+        <div class="o_relationship_properties">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">
+                        <i class="fa fa-arrows"/> Line Style
+                    </h6>
+                    <div class="form-group">
+                        <label class="small">Shape Type</label>
+                        <select class="form-control form-control-sm o_rel_shape_type">
+                            <option value="curved">Curved</option>
+                            <option value="straight">Straight</option>
+                            <option value="angled">Angled (Z-Shape)</option>
+                            <option value="zigzag">Zigzag</option>
+                            <option value="arc">Arc</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Line Style</label>
+                        <select class="form-control form-control-sm o_rel_line_style">
+                            <option value="solid">Solid</option>
+                            <option value="dashed">Dashed</option>
+                            <option value="dotted">Dotted</option>
+                            <option value="dash-dot">Dash-Dot</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Line Width</label>
+                        <select class="form-control form-control-sm o_rel_line_width">
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                            <option value="4">Thick (4px)</option>
+                            <option value="5">Extra Thick (5px)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Line Color</label>
+                        <input type="color" class="form-control form-control-sm o_rel_line_color" value="#999999"/>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">
+                        <i class="fa fa-long-arrow-right"/> Markers
+                    </h6>
+                    <div class="form-group">
+                        <label class="small">Start Marker</label>
+                        <select class="form-control form-control-sm o_rel_start_marker">
+                            <option value="none">None</option>
+                            <option value="arrow">Arrow</option>
+                            <option value="arrow-open">Open Arrow</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="diamond-filled">Diamond (Filled)</option>
+                            <option value="circle">Circle</option>
+                            <option value="circle-filled">Circle (Filled)</option>
+                            <option value="square">Square</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">End Marker</label>
+                        <select class="form-control form-control-sm o_rel_end_marker">
+                            <option value="none">None</option>
+                            <option value="arrow" selected="selected">Arrow</option>
+                            <option value="arrow-open">Open Arrow</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="diamond-filled">Diamond (Filled)</option>
+                            <option value="circle">Circle</option>
+                            <option value="circle-filled">Circle (Filled)</option>
+                            <option value="square">Square</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small">Marker Size</label>
+                        <select class="form-control form-control-sm o_rel_marker_size">
+                            <option value="small">Small</option>
+                            <option value="medium" selected="selected">Medium</option>
+                            <option value="large">Large</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <hr/>
+            <h6 class="text-muted mb-2">
+                <i class="fa fa-font"/> Label Text
+            </h6>
+            <div class="form-group">
+                <label class="small">Label</label>
+                <input type="text" class="form-control form-control-sm o_rel_label_text" placeholder="Enter relationship label..."/>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Font Size</label>
+                        <select class="form-control form-control-sm o_rel_label_font_size">
+                            <option value="10">10px</option>
+                            <option value="12" selected="selected">12px</option>
+                            <option value="14">14px</option>
+                            <option value="16">16px</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="small">Font Color</label>
+                        <input type="color" class="form-control form-control-sm o_rel_label_color" value="#666666"/>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-secondary o_rel_label_bold" title="Bold">
+                        <i class="fa fa-bold"/>
+                    </button>
+                    <button class="btn btn-outline-secondary o_rel_label_italic" title="Italic">
+                        <i class="fa fa-italic"/>
+                    </button>
+                </div>
+                <div class="form-check form-check-inline ml-2">
+                    <input class="form-check-input o_rel_label_background" type="checkbox" id="relLabelBg"/>
+                    <label class="form-check-label small" for="relLabelBg">Background</label>
+                </div>
+            </div>
+            <hr/>
+            <div class="text-center">
+                <small class="text-muted">
+                    <i class="fa fa-info-circle"/> After creating, drag control points to adjust curve
+                </small>
+            </div>
+        </div>
+    </t>
 </templates>

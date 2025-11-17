@@ -1,169 +1,106 @@
 # -*- coding: utf-8 -*-
-import json
 import uuid
-from odoo import api, fields, models
+from odoo import models, fields, api
 
 
-class XmindTopic(models.Model):
+class XMindTopic(models.Model):
     _name = 'xmind.topic'
     _description = 'XMind Topic'
     _parent_name = 'parent_id'
     _parent_store = True
-    _rec_name = 'title'
-    _order = 'sequence, id'
+    _order = 'parent_path, sequence'
 
+    name = fields.Char('Name', compute='_compute_name', store=True)
     title = fields.Char('Title', required=True)
-    component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()),
-                                help='Unique identifier for XMind format')
-
-    # Hierarchy
-    parent_id = fields.Many2one('xmind.topic', 'Parent Topic',
-                                 ondelete='cascade', index=True)
-    child_ids = fields.One2many('xmind.topic', 'parent_id', 'Subtopics')
-    parent_path = fields.Char(index=True)
-    is_root = fields.Boolean('Is Root Topic', default=False)
-
-    # Relationship to sheet
-    sheet_id = fields.Many2one('xmind.sheet', 'Sheet', required=True,
-                                ondelete='cascade')
-    workbook_id = fields.Many2one('xmind.workbook', 'Workbook',
-                                   related='sheet_id.workbook_id', store=True)
-
-    # Content
-    note = fields.Text('Note', help='Text note attached to this topic')
-    markers = fields.Text('Markers', default='[]',
-                          help='JSON array of marker IDs')
-    labels = fields.Text('Labels', default='[]',
-                         help='JSON array of label strings')
-
-    # Visual properties
-    position_x = fields.Float('X Position', default=0)
-    position_y = fields.Float('Y Position', default=0)
     sequence = fields.Integer('Sequence', default=10)
 
+    sheet_id = fields.Many2one('xmind.sheet', string='Sheet', ondelete='cascade', required=True)
+    component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
+
+    # Hierarchy
+    parent_id = fields.Many2one('xmind.topic', string='Parent Topic', ondelete='cascade', index=True)
+    child_ids = fields.One2many('xmind.topic', 'parent_id', string='Child Topics')
+    parent_path = fields.Char(index=True)
+
+    # Display
+    expanded = fields.Boolean('Expanded', default=True)
+
+    # Content
+    note = fields.Text('Note')
+    labels = fields.Char('Labels (comma separated)')
+    hyperlink = fields.Char('Hyperlink')
+    hyperlink_title = fields.Char('Hyperlink Title')
+
     # Attachments
-    image_attachment_id = fields.Many2one('ir.attachment', 'Image')
-    image_width = fields.Integer('Image Width')
-    image_height = fields.Integer('Image Height')
+    attachment_ids = fields.One2many('xmind.attachment', 'topic_id', string='Attachments')
+    has_attachment = fields.Boolean('Has Attachment', compute='_compute_has_attachment', store=True)
+    has_note = fields.Boolean('Has Note', compute='_compute_has_note', store=True)
+    has_hyperlink = fields.Boolean('Has Hyperlink', compute='_compute_has_hyperlink', store=True)
 
-    # Styling
-    style_id = fields.Char('Style ID')
+    @api.depends('attachment_ids')
+    def _compute_has_attachment(self):
+        for record in self:
+            record.has_attachment = bool(record.attachment_ids)
 
-    # Summary (for boundary/grouping)
-    summary_title = fields.Char('Summary Title')
-    summary_edge_id = fields.Many2one('xmind.topic', 'Summary Edge')
+    @api.depends('note')
+    def _compute_has_note(self):
+        for record in self:
+            record.has_note = bool(record.note and record.note.strip())
+
+    @api.depends('hyperlink')
+    def _compute_has_hyperlink(self):
+        for record in self:
+            record.has_hyperlink = bool(record.hyperlink and record.hyperlink.strip())
+
+    # Styling (XMind 2 features)
+    background_color = fields.Char('Background Color')
+    text_color = fields.Char('Text Color')
+    font_size = fields.Integer('Font Size', default=14)
+    font_weight = fields.Selection([
+        ('normal', 'Normal'),
+        ('bold', 'Bold'),
+    ], string='Font Weight', default='normal')
+    border_color = fields.Char('Border Color')
+    border_width = fields.Integer('Border Width', default=1)
+    shape = fields.Selection([
+        ('rect', 'Rectangle'),
+        ('rounded', 'Rounded Rectangle'),
+        ('ellipse', 'Ellipse'),
+        ('underline', 'Underline'),
+    ], string='Shape', default='rounded')
+
+    # Structure
+    structure_class = fields.Char('Structure Class', default='org.xmind.ui.map.unbalanced')
+
+    # Markers
+    marker_ids = fields.One2many('xmind.topic.marker', 'topic_id', string='Markers')
 
     # Computed fields
-    child_count = fields.Integer('Child Count', compute='_compute_child_count')
-    depth = fields.Integer('Depth', compute='_compute_depth')
-    full_path = fields.Char('Full Path', compute='_compute_full_path')
+    level = fields.Integer('Level', compute='_compute_level', store=True)
+    has_children = fields.Boolean('Has Children', compute='_compute_has_children', store=True)
 
-    @api.depends('child_ids')
-    def _compute_child_count(self):
+    @api.depends('title')
+    def _compute_name(self):
         for record in self:
-            record.child_count = len(record.child_ids)
+            record.name = record.title
 
     @api.depends('parent_path')
-    def _compute_depth(self):
+    def _compute_level(self):
         for record in self:
             if record.parent_path:
-                record.depth = len(record.parent_path.split('/')) - 2
+                record.level = record.parent_path.count('/') - 1
             else:
-                record.depth = 0
+                record.level = 0
 
-    @api.depends('title', 'parent_id', 'parent_id.full_path')
-    def _compute_full_path(self):
+    @api.depends('child_ids')
+    def _compute_has_children(self):
         for record in self:
-            if record.parent_id and record.parent_id.full_path:
-                record.full_path = f"{record.parent_id.full_path} / {record.title}"
-            else:
-                record.full_path = record.title
+            record.has_children = bool(record.child_ids)
 
-    @api.model
-    def create(self, vals):
-        if not vals.get('component_id'):
-            vals['component_id'] = str(uuid.uuid4())
-        return super().create(vals)
 
-    def add_marker(self, marker_id):
-        """Add a marker to this topic"""
-        self.ensure_one()
-        markers = json.loads(self.markers or '[]')
-        if marker_id not in markers:
-            markers.append(marker_id)
-            self.markers = json.dumps(markers)
+class XMindTopicMarker(models.Model):
+    _name = 'xmind.topic.marker'
+    _description = 'Topic Marker Assignment'
 
-    def remove_marker(self, marker_id):
-        """Remove a marker from this topic"""
-        self.ensure_one()
-        markers = json.loads(self.markers or '[]')
-        if marker_id in markers:
-            markers.remove(marker_id)
-            self.markers = json.dumps(markers)
-
-    def add_label(self, label):
-        """Add a label to this topic"""
-        self.ensure_one()
-        labels = json.loads(self.labels or '[]')
-        if label not in labels:
-            labels.append(label)
-            self.labels = json.dumps(labels)
-
-    def remove_label(self, label):
-        """Remove a label from this topic"""
-        self.ensure_one()
-        labels = json.loads(self.labels or '[]')
-        if label in labels:
-            labels.remove(label)
-            self.labels = json.dumps(labels)
-
-    def add_child_topic(self, title='New Topic'):
-        """Add a child topic"""
-        self.ensure_one()
-        return self.create({
-            'title': title,
-            'parent_id': self.id,
-            'sheet_id': self.sheet_id.id,
-            'sequence': (max(self.child_ids.mapped('sequence') or [0]) + 10),
-        })
-
-    def get_ancestors(self):
-        """Get all ancestor topics"""
-        self.ensure_one()
-        ancestors = self.env['xmind.topic']
-        current = self.parent_id
-        while current:
-            ancestors |= current
-            current = current.parent_id
-        return ancestors
-
-    def get_descendants(self):
-        """Get all descendant topics (recursive children)"""
-        self.ensure_one()
-        descendants = self.env['xmind.topic']
-
-        def collect_children(topic):
-            nonlocal descendants
-            for child in topic.child_ids:
-                descendants |= child
-                collect_children(child)
-
-        collect_children(self)
-        return descendants
-
-    def to_dict(self):
-        """Convert topic to dictionary (for JSON export)"""
-        self.ensure_one()
-        data = {
-            'id': self.component_id,
-            'title': self.title,
-            'note': self.note or '',
-            'markers': json.loads(self.markers or '[]'),
-            'labels': json.loads(self.labels or '[]'),
-            'position': {
-                'x': self.position_x,
-                'y': self.position_y,
-            },
-            'children': [child.to_dict() for child in self.child_ids.sorted('sequence')],
-        }
-        return data
+    topic_id = fields.Many2one('xmind.topic', string='Topic', ondelete='cascade', required=True)
+    marker_id = fields.Many2one('xmind.marker', string='Marker', ondelete='cascade', required=True)

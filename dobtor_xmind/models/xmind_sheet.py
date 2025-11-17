@@ -1,44 +1,51 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+import uuid
+from odoo import models, fields, api
 
 
-class XmindSheet(models.Model):
+class XMindSheet(models.Model):
     _name = 'xmind.sheet'
     _description = 'XMind Sheet'
     _order = 'sequence, id'
 
-    name = fields.Char('Title', required=True)
-    workbook_id = fields.Many2one('xmind.workbook', 'Workbook',
-                                   required=True, ondelete='cascade')
-    root_topic_id = fields.Many2one('xmind.topic', 'Root Topic',
-                                     ondelete='set null')
-    topic_ids = fields.One2many('xmind.topic', 'sheet_id', 'Topics')
-    topic_count = fields.Integer('Topic Count', compute='_compute_topic_count')
-
+    name = fields.Char('Sheet Name', required=True, default='Sheet 1')
     sequence = fields.Integer('Sequence', default=10)
+    workbook_id = fields.Many2one('xmind.workbook', string='Workbook', ondelete='cascade', required=True)
 
-    # Theme override (if different from workbook)
-    theme_override = fields.Selection([
-        ('robust', 'Robust'),
-        ('snowbrush', 'Snowbrush'),
-        ('business', 'Business')
-    ], string='Theme Override')
+    component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
 
-    @api.depends('topic_ids')
-    def _compute_topic_count(self):
-        for record in self:
-            record.topic_count = len(record.topic_ids)
+    topic_ids = fields.One2many('xmind.topic', 'sheet_id', string='Topics')
+    relationship_ids = fields.One2many('xmind.relationship', 'sheet_id', string='Relationships')
+    boundary_ids = fields.One2many('xmind.boundary', 'sheet_id', string='Boundaries')
+    summary_ids = fields.One2many('xmind.summary', 'sheet_id', string='Summaries')
+    floating_topic_ids = fields.One2many('xmind.floating.topic', 'sheet_id', string='Floating Topics')
 
-    def action_view_topics(self):
-        """View all topics in this sheet as tree"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': f'Topics - {self.name}',
-            'res_model': 'xmind.topic',
-            'view_mode': 'tree,form',
-            'domain': [('sheet_id', '=', self.id)],
-            'context': {
-                'default_sheet_id': self.id,
-            },
-        }
+    # Layout settings
+    layout_type = fields.Selection([
+        ('map', 'Mind Map'),
+        ('tree_right', 'Tree Right'),
+        ('tree_left', 'Tree Left'),
+        ('logic_right', 'Logic Right'),
+        ('org_chart_down', 'Org Chart Down'),
+        ('fishbone_left', 'Fishbone Left'),
+    ], string='Layout Type', default='map')
+
+    # Theme
+    theme = fields.Selection([
+        ('default', 'Default'),
+        ('primary', 'Primary'),
+        ('warning', 'Warning'),
+        ('danger', 'Danger'),
+        ('success', 'Success'),
+        ('info', 'Info'),
+        ('greensea', 'Green Sea'),
+        ('nephrite', 'Nephrite'),
+        ('belizehole', 'Belize Hole'),
+        ('wisteria', 'Wisteria'),
+        ('asphalt', 'Asphalt'),
+        ('orange', 'Orange'),
+        ('pumpkin', 'Pumpkin'),
+        ('pomegranate', 'Pomegranate'),
+        ('clouds', 'Clouds'),
+        ('asbestos', 'Asbestos'),
+    ], string='Theme', default='primary')

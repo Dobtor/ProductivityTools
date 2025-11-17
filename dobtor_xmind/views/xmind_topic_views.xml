@@ -1,20 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-
-    <!-- Topic Tree View (Hierarchical) -->
+    <!-- Topic Tree View -->
     <record id="view_xmind_topic_tree" model="ir.ui.view">
         <field name="name">xmind.topic.tree</field>
         <field name="model">xmind.topic</field>
         <field name="arch" type="xml">
-            <tree>
+            <tree string="Topics">
                 <field name="sequence" widget="handle"/>
                 <field name="title"/>
+                <field name="level"/>
                 <field name="parent_id"/>
-                <field name="child_count"/>
-                <field name="note" optional="hide"/>
-                <field name="markers" optional="hide"/>
-                <field name="labels" optional="hide"/>
-                <field name="depth"/>
+                <field name="has_children"/>
             </tree>
         </field>
     </record>
@@ -26,64 +22,56 @@
         <field name="arch" type="xml">
             <form string="Topic">
                 <sheet>
-                    <div class="oe_title">
-                        <h1>
-                            <field name="title" placeholder="Topic Title"/>
-                        </h1>
-                    </div>
                     <group>
                         <group>
-                            <field name="sheet_id"/>
+                            <field name="title"/>
                             <field name="parent_id"/>
-                            <field name="is_root"/>
                             <field name="sequence"/>
+                            <field name="expanded"/>
                         </group>
                         <group>
-                            <field name="component_id" readonly="1"/>
-                            <field name="depth"/>
-                            <field name="full_path"/>
-                            <field name="child_count"/>
+                            <field name="sheet_id"/>
+                            <field name="component_id"/>
+                            <field name="level"/>
+                            <field name="hyperlink"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="Content" name="content">
+                        <page string="Content">
                             <group>
-                                <field name="note" placeholder="Add notes here..."/>
-                            </group>
-                            <group string="Markers">
-                                <field name="markers" widget="char"/>
-                            </group>
-                            <group string="Labels">
-                                <field name="labels" widget="char"/>
+                                <field name="note"/>
+                                <field name="labels"/>
                             </group>
                         </page>
-                        <page string="Children" name="children">
+                        <page string="Styling">
+                            <group>
+                                <group>
+                                    <field name="background_color" widget="color"/>
+                                    <field name="text_color" widget="color"/>
+                                    <field name="font_size"/>
+                                    <field name="font_weight"/>
+                                </group>
+                                <group>
+                                    <field name="border_color" widget="color"/>
+                                    <field name="border_width"/>
+                                    <field name="shape"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Markers">
+                            <field name="marker_ids">
+                                <tree editable="bottom">
+                                    <field name="marker_id"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Children">
                             <field name="child_ids">
                                 <tree>
                                     <field name="sequence" widget="handle"/>
                                     <field name="title"/>
-                                    <field name="child_count"/>
-                                    <field name="note"/>
                                 </tree>
                             </field>
-                        </page>
-                        <page string="Visual" name="visual">
-                            <group>
-                                <field name="position_x"/>
-                                <field name="position_y"/>
-                                <field name="style_id"/>
-                            </group>
-                            <group string="Image">
-                                <field name="image_attachment_id"/>
-                                <field name="image_width"/>
-                                <field name="image_height"/>
-                            </group>
-                        </page>
-                        <page string="Summary" name="summary">
-                            <group>
-                                <field name="summary_title"/>
-                                <field name="summary_edge_id"/>
-                            </group>
                         </page>
                     </notebook>
                 </sheet>
@@ -91,24 +79,71 @@
         </field>
     </record>
 
-    <!-- Topic Search View -->
-    <record id="view_xmind_topic_search" model="ir.ui.view">
-        <field name="name">xmind.topic.search</field>
-        <field name="model">xmind.topic</field>
+    <!-- Topic Action -->
+    <record id="action_xmind_topic" model="ir.actions.act_window">
+        <field name="name">Topics</field>
+        <field name="res_model">xmind.topic</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <!-- Sheet Tree View -->
+    <record id="view_xmind_sheet_tree" model="ir.ui.view">
+        <field name="name">xmind.sheet.tree</field>
+        <field name="model">xmind.sheet</field>
         <field name="arch" type="xml">
-            <search string="Search Topics">
-                <field name="title"/>
-                <field name="note"/>
-                <field name="sheet_id"/>
+            <tree string="Sheets">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
                 <field name="workbook_id"/>
-                <filter string="Root Topics" name="root" domain="[('is_root', '=', True)]"/>
-                <filter string="Has Notes" name="has_notes" domain="[('note', '!=', False)]"/>
-                <group expand="0" string="Group By">
-                    <filter string="Sheet" name="group_sheet" context="{'group_by': 'sheet_id'}"/>
-                    <filter string="Parent" name="group_parent" context="{'group_by': 'parent_id'}"/>
-                    <filter string="Depth" name="group_depth" context="{'group_by': 'depth'}"/>
-                </group>
-            </search>
+                <field name="layout_type"/>
+                <field name="theme"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Sheet Form View -->
+    <record id="view_xmind_sheet_form" model="ir.ui.view">
+        <field name="name">xmind.sheet.form</field>
+        <field name="model">xmind.sheet</field>
+        <field name="arch" type="xml">
+            <form string="Sheet">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="workbook_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="layout_type"/>
+                            <field name="theme"/>
+                            <field name="component_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Topics">
+                            <field name="topic_ids">
+                                <tree>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="title"/>
+                                    <field name="parent_id"/>
+                                    <field name="level"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Relationships">
+                            <field name="relationship_ids">
+                                <tree>
+                                    <field name="source_topic_id"/>
+                                    <field name="target_topic_id"/>
+                                    <field name="title"/>
+                                    <field name="line_type"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
         </field>
     </record>
 
@@ -118,13 +153,4 @@
         <field name="res_model">xmind.sheet</field>
         <field name="view_mode">tree,form</field>
     </record>
-
-    <!-- Topic Action -->
-    <record id="action_xmind_topic" model="ir.actions.act_window">
-        <field name="name">Topics</field>
-        <field name="res_model">xmind.topic</field>
-        <field name="view_mode">tree,form</field>
-        <field name="search_view_id" ref="view_xmind_topic_search"/>
-    </record>
-
 </odoo>

@@ -1,135 +1,116 @@
 # -*- coding: utf-8 -*-
 import json
-import base64
 from odoo import http
 from odoo.http import request
 
 
-class XmindController(http.Controller):
+class XMindController(http.Controller):
 
     @http.route('/xmind/workbook/<int:workbook_id>/data', type='json', auth='user')
-    def get_workbook_data(self, workbook_id, **kw):
-        """Get mindmap data for frontend editor"""
+    def get_workbook_data(self, workbook_id, **kwargs):
+        """Get mindmap data for visual editor"""
         workbook = request.env['xmind.workbook'].browse(workbook_id)
         if not workbook.exists():
             return {'error': 'Workbook not found'}
 
-        return workbook.get_mindmap_data()
-
-    @http.route('/xmind/workbook/<int:workbook_id>/save', type='json', auth='user')
-    def save_workbook_data(self, workbook_id, data, **kw):
-        """Save mindmap data from frontend editor"""
-        workbook = request.env['xmind.workbook'].browse(workbook_id)
-        if not workbook.exists():
-            return {'error': 'Workbook not found'}
-
-        success = workbook.save_mindmap_data(data)
-        return {'success': success}
-
-    @http.route('/xmind/export/<int:workbook_id>', type='http', auth='user')
-    def export_xmind_file(self, workbook_id, **kw):
-        """Export workbook as .xmind file"""
-        workbook = request.env['xmind.workbook'].browse(workbook_id)
-        if not workbook.exists():
-            return request.not_found()
-
-        # Generate the file
-        import zipfile
-        from io import BytesIO
-
-        buffer = BytesIO()
-        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            content = workbook._generate_xmind_content()
-            zf.writestr('content.json', json.dumps(content, indent=2))
-
-            manifest = {
-                'file-entries': {
-                    'content.json': {},
-                    'metadata.json': {},
-                }
-            }
-            zf.writestr('manifest.json', json.dumps(manifest, indent=2))
-
-            metadata = {
-                'creator': {
-                    'name': 'Odoo XMind Editor',
-                    'version': '14.0.1.0.0'
-                }
-            }
-            zf.writestr('metadata.json', json.dumps(metadata, indent=2))
-
-        buffer.seek(0)
-        file_content = buffer.read()
-
-        filename = f'{workbook.name}.xmind'
-        return request.make_response(
-            file_content,
-            headers=[
-                ('Content-Type', 'application/x-xmind'),
-                ('Content-Disposition', f'attachment; filename="{filename}"'),
-                ('Content-Length', len(file_content)),
-            ]
-        )
-
-    @http.route('/xmind/import', type='http', auth='user', methods=['POST'], csrf=False)
-    def import_xmind_file(self, **kw):
-        """Import .xmind file"""
-        file = kw.get('file')
-        if not file:
-            return json.dumps({'error': 'No file uploaded'})
-
-        try:
-            file_data = base64.b64encode(file.read())
-            workbook = request.env['xmind.workbook'].import_from_xmind(file_data)
-            return json.dumps({
-                'success': True,
-                'workbook_id': workbook.id,
-                'workbook_name': workbook.name,
-            })
-        except Exception as e:
-            return json.dumps({'error': str(e)})
-
-    @http.route('/xmind/markers', type='json', auth='user')
-    def get_markers(self, **kw):
-        """Get all available markers"""
-        return request.env['xmind.marker'].get_markers_by_group()
-
-    @http.route('/xmind/topic/<int:topic_id>/add_child', type='json', auth='user')
-    def add_child_topic(self, topic_id, title='New Topic', **kw):
-        """Add a child topic"""
-        topic = request.env['xmind.topic'].browse(topic_id)
-        if not topic.exists():
-            return {'error': 'Topic not found'}
-
-        child = topic.add_child_topic(title)
         return {
-            'success': True,
-            'topic_id': child.id,
-            'component_id': child.component_id,
+            'id': workbook.id,
+            'name': workbook.name,
+            'mindmap_data': workbook.get_mindmap_data(),
+            'sheet_settings': self._get_sheet_settings(workbook),
         }
 
-    @http.route('/xmind/topic/<int:topic_id>/update', type='json', auth='user')
-    def update_topic(self, topic_id, values, **kw):
-        """Update topic properties"""
-        topic = request.env['xmind.topic'].browse(topic_id)
-        if not topic.exists():
-            return {'error': 'Topic not found'}
+    def _get_sheet_settings(self, workbook):
+        """Get sheet layout and theme settings"""
+        if not workbook.sheet_ids:
+            return {
+                'layout': 'map',
+                'theme': 'primary',
+            }
 
-        allowed_fields = ['title', 'note', 'markers', 'labels', 'position_x', 'position_y']
-        update_vals = {k: v for k, v in values.items() if k in allowed_fields}
+        sheet = workbook.sheet_ids[0]
+        return {
+            'layout': sheet.layout_type or 'map',
+            'theme': sheet.theme or 'primary',
+        }
 
-        topic.write(update_vals)
+    @http.route('/xmind/workbook/<int:workbook_id>/save', type='json', auth='user')
+    def save_workbook_data(self, workbook_id, data, **kwargs):
+        """Save mindmap data from visual editor"""
+        workbook = request.env['xmind.workbook'].browse(workbook_id)
+        if not workbook.exists():
+            return {'error': 'Workbook not found'}
+
+        workbook.save_mindmap_data(data)
         return {'success': True}
 
-    @http.route('/xmind/topic/<int:topic_id>/delete', type='json', auth='user')
-    def delete_topic(self, topic_id, **kw):
-        """Delete a topic and its children"""
-        topic = request.env['xmind.topic'].browse(topic_id)
-        if not topic.exists():
-            return {'error': 'Topic not found'}
+    @http.route('/xmind/workbook/<int:workbook_id>/settings', type='json', auth='user')
+    def save_sheet_settings(self, workbook_id, settings, **kwargs):
+        """Save sheet layout and theme settings"""
+        workbook = request.env['xmind.workbook'].browse(workbook_id)
+        if not workbook.exists():
+            return {'error': 'Workbook not found'}
 
-        if topic.is_root:
-            return {'error': 'Cannot delete root topic'}
+        if not workbook.sheet_ids:
+            request.env['xmind.sheet'].create({
+                'workbook_id': workbook.id,
+                'name': workbook.name,
+                'layout_type': settings.get('layout', 'map'),
+                'theme': settings.get('theme', 'primary'),
+            })
+        else:
+            workbook.sheet_ids[0].write({
+                'layout_type': settings.get('layout', 'map'),
+                'theme': settings.get('theme', 'primary'),
+            })
 
-        topic.unlink()
         return {'success': True}
+
+    @http.route('/xmind/workbook/<int:workbook_id>/relationships', type='json', auth='user')
+    def save_relationships(self, workbook_id, relationships, **kwargs):
+        """Save relationship lines between topics"""
+        workbook = request.env['xmind.workbook'].browse(workbook_id)
+        if not workbook.exists() or not workbook.sheet_ids:
+            return {'error': 'Workbook or sheet not found'}
+
+        sheet = workbook.sheet_ids[0]
+
+        # Clear existing relationships
+        sheet.relationship_ids.unlink()
+
+        # Create new relationships
+        for rel in relationships:
+            source = request.env['xmind.topic'].search([
+                ('sheet_id', '=', sheet.id),
+                ('component_id', '=', rel.get('source_id'))
+            ], limit=1)
+            target = request.env['xmind.topic'].search([
+                ('sheet_id', '=', sheet.id),
+                ('component_id', '=', rel.get('target_id'))
+            ], limit=1)
+
+            if source and target:
+                request.env['xmind.relationship'].create({
+                    'sheet_id': sheet.id,
+                    'source_topic_id': source.id,
+                    'target_topic_id': target.id,
+                    'title': rel.get('title', ''),
+                    'line_type': rel.get('line_type', 'curved'),
+                    'line_color': rel.get('line_color', '#999999'),
+                    'line_width': rel.get('line_width', 2),
+                })
+
+        return {'success': True}
+
+    @http.route('/xmind/markers', type='json', auth='user')
+    def get_markers(self, **kwargs):
+        """Get available markers"""
+        markers = request.env['xmind.marker'].search([])
+        return [{
+            'id': m.id,
+            'name': m.name,
+            'code': m.code,
+            'category': m.category,
+            'icon': m.icon,
+            'color': m.color,
+        } for m in markers]

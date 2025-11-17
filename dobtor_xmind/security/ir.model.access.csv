@@ -2,5 +2,11 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_xmind_workbook,xmind.workbook,model_xmind_workbook,base.group_user,1,1,1,1
 access_xmind_sheet,xmind.sheet,model_xmind_sheet,base.group_user,1,1,1,1
 access_xmind_topic,xmind.topic,model_xmind_topic,base.group_user,1,1,1,1
-access_xmind_marker,xmind.marker,model_xmind_marker,base.group_user,1,0,0,0
-access_xmind_marker_admin,xmind.marker.admin,model_xmind_marker,base.group_system,1,1,1,1
+access_xmind_marker,xmind.marker,model_xmind_marker,base.group_user,1,1,1,1
+access_xmind_topic_marker,xmind.topic.marker,model_xmind_topic_marker,base.group_user,1,1,1,1
+access_xmind_relationship,xmind.relationship,model_xmind_relationship,base.group_user,1,1,1,1
+access_xmind_boundary,xmind.boundary,model_xmind_boundary,base.group_user,1,1,1,1
+access_xmind_summary,xmind.summary,model_xmind_summary,base.group_user,1,1,1,1
+access_xmind_callout,xmind.callout,model_xmind_callout,base.group_user,1,1,1,1
+access_xmind_floating_topic,xmind.floating.topic,model_xmind_floating_topic,base.group_user,1,1,1,1
+access_xmind_attachment,xmind.attachment,model_xmind_attachment,base.group_user,1,1,1,1

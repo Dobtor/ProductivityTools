@@ -1,25 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-
-    <!-- XMind Editor Client Action -->
-    <record id="action_xmind_editor" model="ir.actions.client">
-        <field name="name">Mind Map Editor</field>
-        <field name="tag">xmind_editor</field>
-        <field name="target">current</field>
-    </record>
-
-    <!-- Assets for Odoo 14 -->
-    <template id="assets_backend" inherit_id="web.assets_backend">
-        <xpath expr="." position="inside">
-            <link rel="stylesheet" type="text/css"
-                  href="/dobtor_xmind/static/lib/jsmind/jsmind.css"/>
-            <script type="text/javascript"
-                    src="/dobtor_xmind/static/lib/jsmind/jsmind.js"/>
-            <link rel="stylesheet" type="text/css"
-                  href="/dobtor_xmind/static/src/css/mindmap_editor.css"/>
-            <script type="text/javascript"
-                    src="/dobtor_xmind/static/src/js/mindmap_editor.js"/>
-        </xpath>
-    </template>
-
+    <!-- Backend Assets are defined in __manifest__.py -->
 </odoo>

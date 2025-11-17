@@ -1,236 +1,192 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <data noupdate="1">
-
         <!-- Priority Markers -->
         <record id="marker_priority_1" model="xmind.marker">
             <field name="name">Priority 1</field>
-            <field name="marker_id">priority-1</field>
-            <field name="group_name">priority</field>
-            <field name="icon_class">fa fa-exclamation-circle text-danger</field>
+            <field name="code">priority-1</field>
+            <field name="category">priority</field>
+            <field name="icon">fas fa-exclamation-circle</field>
             <field name="color">#ff0000</field>
             <field name="sequence">1</field>
         </record>
         <record id="marker_priority_2" model="xmind.marker">
             <field name="name">Priority 2</field>
-            <field name="marker_id">priority-2</field>
-            <field name="group_name">priority</field>
-            <field name="icon_class">fa fa-exclamation-circle text-warning</field>
-            <field name="color">#ff8800</field>
+            <field name="code">priority-2</field>
+            <field name="category">priority</field>
+            <field name="icon">fas fa-exclamation-triangle</field>
+            <field name="color">#ff6600</field>
             <field name="sequence">2</field>
         </record>
         <record id="marker_priority_3" model="xmind.marker">
             <field name="name">Priority 3</field>
-            <field name="marker_id">priority-3</field>
-            <field name="group_name">priority</field>
-            <field name="icon_class">fa fa-exclamation-circle text-info</field>
-            <field name="color">#0088ff</field>
+            <field name="code">priority-3</field>
+            <field name="category">priority</field>
+            <field name="icon">fas fa-info-circle</field>
+            <field name="color">#ffcc00</field>
             <field name="sequence">3</field>
         </record>
 
         <!-- Task Markers -->
         <record id="marker_task_start" model="xmind.marker">
             <field name="name">Task Start</field>
-            <field name="marker_id">task-start</field>
-            <field name="group_name">task</field>
-            <field name="icon_class">fa fa-play-circle text-success</field>
+            <field name="code">task-start</field>
+            <field name="category">task</field>
+            <field name="icon">fas fa-play</field>
             <field name="color">#28a745</field>
             <field name="sequence">10</field>
         </record>
         <record id="marker_task_quarter" model="xmind.marker">
-            <field name="name">25% Complete</field>
-            <field name="marker_id">task-quarter</field>
-            <field name="group_name">task</field>
-            <field name="icon_class">fa fa-battery-quarter text-warning</field>
+            <field name="name">Task 25%</field>
+            <field name="code">task-quarter</field>
+            <field name="category">task</field>
+            <field name="icon">fas fa-battery-quarter</field>
             <field name="color">#ffc107</field>
             <field name="sequence">11</field>
         </record>
         <record id="marker_task_half" model="xmind.marker">
-            <field name="name">50% Complete</field>
-            <field name="marker_id">task-half</field>
-            <field name="group_name">task</field>
-            <field name="icon_class">fa fa-battery-half text-info</field>
-            <field name="color">#17a2b8</field>
+            <field name="name">Task 50%</field>
+            <field name="code">task-half</field>
+            <field name="category">task</field>
+            <field name="icon">fas fa-battery-half</field>
+            <field name="color">#fd7e14</field>
             <field name="sequence">12</field>
         </record>
-        <record id="marker_task_3quar" model="xmind.marker">
-            <field name="name">75% Complete</field>
-            <field name="marker_id">task-3quar</field>
-            <field name="group_name">task</field>
-            <field name="icon_class">fa fa-battery-three-quarters text-primary</field>
-            <field name="color">#007bff</field>
+        <record id="marker_task_3quarter" model="xmind.marker">
+            <field name="name">Task 75%</field>
+            <field name="code">task-3quarter</field>
+            <field name="category">task</field>
+            <field name="icon">fas fa-battery-three-quarters</field>
+            <field name="color">#17a2b8</field>
             <field name="sequence">13</field>
         </record>
         <record id="marker_task_done" model="xmind.marker">
             <field name="name">Task Done</field>
-            <field name="marker_id">task-done</field>
-            <field name="group_name">task</field>
-            <field name="icon_class">fa fa-check-circle text-success</field>
+            <field name="code">task-done</field>
+            <field name="category">task</field>
+            <field name="icon">fas fa-check-circle</field>
             <field name="color">#28a745</field>
             <field name="sequence">14</field>
         </record>
 
         <!-- Smiley Markers -->
-        <record id="marker_smiley_smile" model="xmind.marker">
-            <field name="name">Smile</field>
-            <field name="marker_id">smiley-smile</field>
-            <field name="group_name">smiley</field>
-            <field name="icon_class">fa fa-smile text-warning</field>
-            <field name="color">#ffc107</field>
+        <record id="marker_smiley_happy" model="xmind.marker">
+            <field name="name">Happy</field>
+            <field name="code">smiley-happy</field>
+            <field name="category">smiley</field>
+            <field name="icon">fas fa-smile</field>
+            <field name="color">#28a745</field>
             <field name="sequence">20</field>
-        </record>
-        <record id="marker_smiley_laugh" model="xmind.marker">
-            <field name="name">Laugh</field>
-            <field name="marker_id">smiley-laugh</field>
-            <field name="group_name">smiley</field>
-            <field name="icon_class">fa fa-laugh text-warning</field>
-            <field name="color">#ffc107</field>
-            <field name="sequence">21</field>
         </record>
         <record id="marker_smiley_sad" model="xmind.marker">
             <field name="name">Sad</field>
-            <field name="marker_id">smiley-sad</field>
-            <field name="group_name">smiley</field>
-            <field name="icon_class">fa fa-frown text-secondary</field>
-            <field name="color">#6c757d</field>
+            <field name="code">smiley-sad</field>
+            <field name="category">smiley</field>
+            <field name="icon">fas fa-frown</field>
+            <field name="color">#dc3545</field>
+            <field name="sequence">21</field>
+        </record>
+        <record id="marker_smiley_neutral" model="xmind.marker">
+            <field name="name">Neutral</field>
+            <field name="code">smiley-neutral</field>
+            <field name="category">smiley</field>
+            <field name="icon">fas fa-meh</field>
+            <field name="color">#ffc107</field>
             <field name="sequence">22</field>
         </record>
 
         <!-- Flag Markers -->
         <record id="marker_flag_red" model="xmind.marker">
             <field name="name">Red Flag</field>
-            <field name="marker_id">flag-red</field>
-            <field name="group_name">flag</field>
-            <field name="icon_class">fa fa-flag text-danger</field>
+            <field name="code">flag-red</field>
+            <field name="category">flag</field>
+            <field name="icon">fas fa-flag</field>
             <field name="color">#dc3545</field>
             <field name="sequence">30</field>
         </record>
-        <record id="marker_flag_orange" model="xmind.marker">
-            <field name="name">Orange Flag</field>
-            <field name="marker_id">flag-orange</field>
-            <field name="group_name">flag</field>
-            <field name="icon_class">fa fa-flag text-warning</field>
-            <field name="color">#fd7e14</field>
-            <field name="sequence">31</field>
-        </record>
         <record id="marker_flag_green" model="xmind.marker">
             <field name="name">Green Flag</field>
-            <field name="marker_id">flag-green</field>
-            <field name="group_name">flag</field>
-            <field name="icon_class">fa fa-flag text-success</field>
+            <field name="code">flag-green</field>
+            <field name="category">flag</field>
+            <field name="icon">fas fa-flag</field>
             <field name="color">#28a745</field>
-            <field name="sequence">32</field>
+            <field name="sequence">31</field>
         </record>
         <record id="marker_flag_blue" model="xmind.marker">
             <field name="name">Blue Flag</field>
-            <field name="marker_id">flag-blue</field>
-            <field name="group_name">flag</field>
-            <field name="icon_class">fa fa-flag text-primary</field>
+            <field name="code">flag-blue</field>
+            <field name="category">flag</field>
+            <field name="icon">fas fa-flag</field>
             <field name="color">#007bff</field>
-            <field name="sequence">33</field>
+            <field name="sequence">32</field>
         </record>
 
         <!-- Star Markers -->
         <record id="marker_star_red" model="xmind.marker">
             <field name="name">Red Star</field>
-            <field name="marker_id">star-red</field>
-            <field name="group_name">star</field>
-            <field name="icon_class">fa fa-star text-danger</field>
+            <field name="code">star-red</field>
+            <field name="category">star</field>
+            <field name="icon">fas fa-star</field>
             <field name="color">#dc3545</field>
             <field name="sequence">40</field>
         </record>
         <record id="marker_star_orange" model="xmind.marker">
             <field name="name">Orange Star</field>
-            <field name="marker_id">star-orange</field>
-            <field name="group_name">star</field>
-            <field name="icon_class">fa fa-star text-warning</field>
+            <field name="code">star-orange</field>
+            <field name="category">star</field>
+            <field name="icon">fas fa-star</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">41</field>
         </record>
+        <record id="marker_star_yellow" model="xmind.marker">
+            <field name="name">Yellow Star</field>
+            <field name="code">star-yellow</field>
+            <field name="category">star</field>
+            <field name="icon">fas fa-star</field>
+            <field name="color">#ffc107</field>
+            <field name="sequence">42</field>
+        </record>
         <record id="marker_star_green" model="xmind.marker">
             <field name="name">Green Star</field>
-            <field name="marker_id">star-green</field>
-            <field name="group_name">star</field>
-            <field name="icon_class">fa fa-star text-success</field>
+            <field name="code">star-green</field>
+            <field name="category">star</field>
+            <field name="icon">fas fa-star</field>
             <field name="color">#28a745</field>
-            <field name="sequence">42</field>
+            <field name="sequence">43</field>
         </record>
         <record id="marker_star_blue" model="xmind.marker">
             <field name="name">Blue Star</field>
-            <field name="marker_id">star-blue</field>
-            <field name="group_name">star</field>
-            <field name="icon_class">fa fa-star text-primary</field>
+            <field name="code">star-blue</field>
+            <field name="category">star</field>
+            <field name="icon">fas fa-star</field>
             <field name="color">#007bff</field>
-            <field name="sequence">43</field>
-        </record>
-
-        <!-- Arrow Markers -->
-        <record id="marker_arrow_up" model="xmind.marker">
-            <field name="name">Up Arrow</field>
-            <field name="marker_id">arrow-up</field>
-            <field name="group_name">arrow</field>
-            <field name="icon_class">fa fa-arrow-up text-success</field>
-            <field name="color">#28a745</field>
-            <field name="sequence">50</field>
-        </record>
-        <record id="marker_arrow_down" model="xmind.marker">
-            <field name="name">Down Arrow</field>
-            <field name="marker_id">arrow-down</field>
-            <field name="group_name">arrow</field>
-            <field name="icon_class">fa fa-arrow-down text-danger</field>
-            <field name="color">#dc3545</field>
-            <field name="sequence">51</field>
-        </record>
-        <record id="marker_arrow_right" model="xmind.marker">
-            <field name="name">Right Arrow</field>
-            <field name="marker_id">arrow-right</field>
-            <field name="group_name">arrow</field>
-            <field name="icon_class">fa fa-arrow-right text-primary</field>
-            <field name="color">#007bff</field>
-            <field name="sequence">52</field>
+            <field name="sequence">44</field>
         </record>
 
         <!-- Symbol Markers -->
-        <record id="marker_symbol_plus" model="xmind.marker">
-            <field name="name">Plus</field>
-            <field name="marker_id">symbol-plus</field>
-            <field name="group_name">symbol</field>
-            <field name="icon_class">fa fa-plus-square text-success</field>
-            <field name="color">#28a745</field>
-            <field name="sequence">60</field>
-        </record>
-        <record id="marker_symbol_minus" model="xmind.marker">
-            <field name="name">Minus</field>
-            <field name="marker_id">symbol-minus</field>
-            <field name="group_name">symbol</field>
-            <field name="icon_class">fa fa-minus-square text-danger</field>
-            <field name="color">#dc3545</field>
-            <field name="sequence">61</field>
-        </record>
         <record id="marker_symbol_question" model="xmind.marker">
             <field name="name">Question</field>
-            <field name="marker_id">symbol-question</field>
-            <field name="group_name">symbol</field>
-            <field name="icon_class">fa fa-question-circle text-info</field>
+            <field name="code">symbol-question</field>
+            <field name="category">symbol</field>
+            <field name="icon">fas fa-question-circle</field>
             <field name="color">#17a2b8</field>
-            <field name="sequence">62</field>
+            <field name="sequence">50</field>
         </record>
-        <record id="marker_symbol_exclam" model="xmind.marker">
-            <field name="name">Exclamation</field>
-            <field name="marker_id">symbol-exclam</field>
-            <field name="group_name">symbol</field>
-            <field name="icon_class">fa fa-exclamation-triangle text-warning</field>
+        <record id="marker_symbol_warning" model="xmind.marker">
+            <field name="name">Warning</field>
+            <field name="code">symbol-warning</field>
+            <field name="category">symbol</field>
+            <field name="icon">fas fa-exclamation-triangle</field>
             <field name="color">#ffc107</field>
-            <field name="sequence">63</field>
+            <field name="sequence">51</field>
         </record>
         <record id="marker_symbol_info" model="xmind.marker">
             <field name="name">Info</field>
-            <field name="marker_id">symbol-info</field>
-            <field name="group_name">symbol</field>
-            <field name="icon_class">fa fa-info-circle text-primary</field>
-            <field name="color">#007bff</field>
-            <field name="sequence">64</field>
+            <field name="code">symbol-info</field>
+            <field name="category">symbol</field>
+            <field name="icon">fas fa-info-circle</field>
+            <field name="color">#17a2b8</field>
+            <field name="sequence">52</field>
         </record>
-
     </data>
 </odoo>
