@@ -29,19 +29,20 @@
     const $w = window;
     const $d = document;
 
+    // Use .bind() to ensure proper context for DOM methods
     const $g = function (id) {
-        return $d.getElementById(id);
+        return document.getElementById(id);
     };
 
     const $c = function (tag) {
-        return $d.createElement(tag);
+        return document.createElement(tag);
     };
 
     const $t = function (n, t) {
         if (n.hasChildNodes()) {
             n.firstChild.nodeValue = t;
         } else {
-            n.appendChild($d.createTextNode(t));
+            n.appendChild(document.createTextNode(t));
         }
     };
 
@@ -439,8 +440,8 @@
         }
 
         init_nodes() {
-            const f = $c('jmnodes');
-            f.className = 'theme-' + this.jm.options.theme;
+            const f = $c('div');
+            f.className = 'jmnodes theme-' + this.jm.options.theme;
             this.e_nodes = f;
             this.e_panel.appendChild(f);
         }
@@ -828,8 +829,6 @@
 
     // Main jsMind class
     class jsMind {
-        static version = '0.5.0-odoo';
-
         constructor(options) {
             this.options = {
                 container: null,
@@ -856,10 +855,14 @@
                 },
             };
 
-            // Merge options
+            // Merge options (with defensive checks)
             if (options) {
                 for (let key in options) {
-                    if (typeof options[key] === 'object' && !Array.isArray(options[key])) {
+                    if (typeof options[key] === 'object' && !Array.isArray(options[key]) && options[key] !== null) {
+                        // Ensure the target object exists
+                        if (!this.options[key] || typeof this.options[key] !== 'object') {
+                            this.options[key] = {};
+                        }
                         for (let subkey in options[key]) {
                             this.options[key][subkey] = options[key][subkey];
                         }
@@ -1104,6 +1107,9 @@
             this.view.refresh();
         }
     }
+
+    // Add version as static property (ES5 compatible)
+    jsMind.version = '0.5.0-odoo';
 
     return jsMind;
 }));
