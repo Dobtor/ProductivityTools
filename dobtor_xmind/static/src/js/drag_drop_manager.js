@@ -31,6 +31,11 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
         }
 
         init() {
+            // Defensive check
+            if (!this.jm || !this.jm.view) {
+                console.error('[DragDropManager] Cannot initialize: jsMind instance or view not available');
+                return;
+            }
             this._createDropIndicator();
             this._attachEvents();
         }

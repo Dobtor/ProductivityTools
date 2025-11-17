@@ -298,21 +298,168 @@ class XMindWorkbook(models.Model):
 
         try:
             with zipfile.ZipFile(io.BytesIO(file_data), 'r') as zf:
-                content_json = zf.read('content.json')
-                content = json.loads(content_json)
+                file_list = zf.namelist()
 
-                # Clear existing sheets
-                self.sheet_ids.unlink()
+                # Check file format (XMind 8+ uses JSON, older versions use XML)
+                if 'content.json' in file_list:
+                    # XMind 8+ JSON format
+                    content_json = zf.read('content.json')
+                    content = json.loads(content_json)
 
-                # Import sheets
-                for sheet_data in content:
-                    self._import_xmind_sheet(sheet_data)
+                    # Clear existing sheets
+                    self.sheet_ids.unlink()
+
+                    # Import sheets
+                    for sheet_data in content:
+                        self._import_xmind_sheet(sheet_data)
+
+                elif 'content.xml' in file_list:
+                    # Old XMind XML format (XMind 7 and earlier)
+                    content_xml = zf.read('content.xml')
+                    self._import_xmind_xml(content_xml)
+
+                else:
+                    raise UserError(_('Invalid XMind file: neither content.json nor content.xml found'))
 
                 self.modified_time = fields.Datetime.now()
+        except zipfile.BadZipFile:
+            raise UserError(_('Invalid file: not a valid ZIP/XMind archive'))
+        except json.JSONDecodeError as e:
+            raise UserError(_('Error parsing XMind JSON content: %s') % str(e))
         except Exception as e:
             raise UserError(_('Error importing XMind file: %s') % str(e))
 
         return True
+
+    def _import_xmind_xml(self, content_xml):
+        """Import old XMind XML format (XMind 7 and earlier)"""
+        import xml.etree.ElementTree as ET
+
+        # Clear existing sheets
+        self.sheet_ids.unlink()
+
+        root = ET.fromstring(content_xml)
+        ns = {'xmap': 'urn:xmind:xmap:xmlns:content:2.0'}
+
+        # Find all sheets
+        for sheet_elem in root.findall('.//xmap:sheet', ns):
+            sheet_id = sheet_elem.get('id', str(uuid.uuid4()))
+            sheet_title = 'Sheet'
+
+            # Get sheet title
+            title_elem = sheet_elem.find('xmap:title', ns)
+            if title_elem is not None and title_elem.text:
+                sheet_title = title_elem.text
+
+            sheet = self.env['xmind.sheet'].create({
+                'workbook_id': self.id,
+                'name': sheet_title,
+                'component_id': sheet_id,
+            })
+
+            # Find root topic
+            root_topic_elem = sheet_elem.find('xmap:topic', ns)
+            if root_topic_elem is not None:
+                self._import_xmind_xml_topic(root_topic_elem, sheet, ns)
+
+            # Import relationships
+            rels_elem = sheet_elem.find('xmap:relationships', ns)
+            if rels_elem is not None:
+                for rel_elem in rels_elem.findall('xmap:relationship', ns):
+                    self._import_xmind_xml_relationship(rel_elem, sheet, ns)
+
+    def _import_xmind_xml_topic(self, topic_elem, sheet, ns, parent=False):
+        """Import topic from XML format"""
+        topic_id = topic_elem.get('id', str(uuid.uuid4()))
+
+        # Get title
+        title = ''
+        title_elem = topic_elem.find('xmap:title', ns)
+        if title_elem is not None and title_elem.text:
+            title = title_elem.text
+
+        # Get structure class
+        structure_class = topic_elem.get('structure-class', '')
+
+        topic_vals = {
+            'sheet_id': sheet.id,
+            'component_id': topic_id,
+            'title': title,
+            'structure_class': structure_class,
+        }
+
+        if parent:
+            topic_vals['parent_id'] = parent.id
+
+        # Get notes
+        notes_elem = topic_elem.find('.//xmap:notes/xmap:plain', ns)
+        if notes_elem is not None and notes_elem.text:
+            topic_vals['note'] = notes_elem.text
+
+        # Get labels
+        labels = []
+        for label_elem in topic_elem.findall('.//xmap:labels/xmap:label', ns):
+            if label_elem.text:
+                labels.append(label_elem.text)
+        if labels:
+            topic_vals['labels'] = ','.join(labels)
+
+        topic = self.env['xmind.topic'].create(topic_vals)
+
+        # Import markers
+        for marker_elem in topic_elem.findall('.//xmap:marker-refs/xmap:marker-ref', ns):
+            marker_id = marker_elem.get('marker-id', '')
+            if marker_id:
+                marker = self.env['xmind.marker'].search([
+                    ('code', '=', marker_id)
+                ], limit=1)
+                if marker:
+                    self.env['xmind.topic.marker'].create({
+                        'topic_id': topic.id,
+                        'marker_id': marker.id,
+                    })
+
+        # Import children
+        children_elem = topic_elem.find('xmap:children', ns)
+        if children_elem is not None:
+            topics_elem = children_elem.find('xmap:topics', ns)
+            if topics_elem is not None:
+                for idx, child_elem in enumerate(topics_elem.findall('xmap:topic', ns)):
+                    child = self._import_xmind_xml_topic(child_elem, sheet, ns, topic)
+                    child.sequence = idx
+
+        return topic
+
+    def _import_xmind_xml_relationship(self, rel_elem, sheet, ns):
+        """Import relationship from XML format"""
+        rel_id = rel_elem.get('id', str(uuid.uuid4()))
+        end1_id = rel_elem.get('end1', '')
+        end2_id = rel_elem.get('end2', '')
+
+        # Get title
+        title = ''
+        title_elem = rel_elem.find('xmap:title', ns)
+        if title_elem is not None and title_elem.text:
+            title = title_elem.text
+
+        if end1_id and end2_id:
+            source = self.env['xmind.topic'].search([
+                ('sheet_id', '=', sheet.id),
+                ('component_id', '=', end1_id)
+            ], limit=1)
+            target = self.env['xmind.topic'].search([
+                ('sheet_id', '=', sheet.id),
+                ('component_id', '=', end2_id)
+            ], limit=1)
+
+            if source and target:
+                self.env['xmind.relationship'].create({
+                    'sheet_id': sheet.id,
+                    'source_topic_id': source.id,
+                    'target_topic_id': target.id,
+                    'title': title,
+                    'component_id': rel_id,
+                })
 
     def _import_xmind_sheet(self, sheet_data):
         """Import XMind sheet data"""

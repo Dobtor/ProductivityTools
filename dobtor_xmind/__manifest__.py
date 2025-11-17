@@ -26,21 +26,11 @@
         'views/menu_views.xml',
         'views/templates.xml',
     ],
-    'assets': {
-        'web.assets_backend': [
-            'dobtor_xmind/static/lib/jsmind/jsmind.css',
-            'dobtor_xmind/static/lib/jsmind/jsmind.js',
-            'dobtor_xmind/static/src/css/mindmap_editor.css',
-            'dobtor_xmind/static/src/js/command_stack.js',
-            'dobtor_xmind/static/src/js/xmind_features.js',
-            'dobtor_xmind/static/src/js/drag_drop_manager.js',
-            'dobtor_xmind/static/src/js/relationship_manager.js',
-            'dobtor_xmind/static/src/js/mindmap_editor.js',
-        ],
-        'web.assets_qweb': [
-            'dobtor_xmind/static/src/xml/mindmap_templates.xml',
-        ],
-    },
+    # Note: Assets are defined in views/templates.xml for Odoo 14 compatibility
+    # The 'assets' key is only supported in Odoo 15+
+    'qweb': [
+        'static/src/xml/mindmap_templates.xml',
+    ],
     'installable': True,
     'application': True,
     'auto_install': False,

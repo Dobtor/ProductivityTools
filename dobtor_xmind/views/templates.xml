@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <!-- Backend Assets are defined in __manifest__.py -->
+    <!-- Backend Assets for Odoo 14 -->
+    <template id="assets_backend" name="dobtor_xmind assets" inherit_id="web.assets_backend">
+        <xpath expr="." position="inside">
+            <!-- jsMind Library -->
+            <link rel="stylesheet" href="/dobtor_xmind/static/lib/jsmind/jsmind.css"/>
+            <script src="/dobtor_xmind/static/lib/jsmind/jsmind.js"></script>
+
+            <!-- Custom CSS -->
+            <link rel="stylesheet" href="/dobtor_xmind/static/src/css/mindmap_editor.css"/>
+
+            <!-- JavaScript Modules (order matters!) -->
+            <script src="/dobtor_xmind/static/src/js/command_stack.js"></script>
+            <script src="/dobtor_xmind/static/src/js/xmind_features.js"></script>
+            <script src="/dobtor_xmind/static/src/js/drag_drop_manager.js"></script>
+            <script src="/dobtor_xmind/static/src/js/relationship_manager.js"></script>
+            <script src="/dobtor_xmind/static/src/js/mindmap_editor.js"></script>
+        </xpath>
+    </template>
 </odoo>

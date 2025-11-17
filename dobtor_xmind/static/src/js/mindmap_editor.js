@@ -147,7 +147,11 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
         start: function () {
             const self = this;
             return this._super.apply(this, arguments).then(function () {
-                self._initJsMind();
+                const jmInitSuccess = self._initJsMind();
+                if (!jmInitSuccess) {
+                    self._updateStatus(_t('Initialization failed'));
+                    return;
+                }
                 self._initXMindFeatures();
                 self._setupCommandStackListener();
                 self._setupKeyboardShortcuts();
@@ -258,7 +262,18 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
         },
 
         _initXMindFeatures: function () {
+            // Defensive check
+            if (!this.jm) {
+                console.error('[MindmapEditor] Cannot initialize XMind features: jsMind not initialized');
+                return;
+            }
+
             const canvas = this.$('.o_mindmap_canvas')[0];
+            if (!canvas) {
+                console.error('[MindmapEditor] Canvas element not found');
+                return;
+            }
+
             this.relationshipRenderer = new XMindFeatures.RelationshipRenderer(canvas);
             this.advancedRelationshipManager = new RelationshipManager(canvas);
             this.boundaryRenderer = new XMindFeatures.BoundaryRenderer(canvas);
@@ -355,6 +370,53 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
             const self = this;
             const container = this.$('#jsmind_container')[0];
 
+            // Defensive check: ensure container exists
+            if (!container) {
+                console.error('[MindmapEditor] Container #jsmind_container not found. Template may not be rendered.');
+                this.displayNotification({
+                    title: _t('Initialization Error'),
+                    message: _t('Mind map container not found. Please refresh the page.'),
+                    type: 'danger',
+                });
+                return false;
+            }
+
+            // Check for OdooXMind library (our namespaced version)
+            // IMPORTANT: Only use OdooXMind to avoid conflicts with other jsMind versions
+            console.log('[MindmapEditor] Checking libraries:', {
+                OdooXMind: typeof window.OdooXMind,
+                jsMind: typeof window.jsMind,
+                OdooXMindVersion: window.OdooXMind ? 'custom-odoo' : 'not loaded'
+            });
+
+            if (!window.OdooXMind) {
+                console.error('[MindmapEditor] OdooXMind library not loaded. Check that dobtor_xmind assets are loaded.');
+
+                // If jsMind exists but OdooXMind doesn't, there's a conflict
+                if (window.jsMind) {
+                    console.error('[MindmapEditor] WARNING: Another jsMind library is loaded, but OdooXMind is not. This causes conflicts.');
+                    console.error('[MindmapEditor] SOLUTION: Clear Odoo asset cache and restart server.');
+                }
+
+                this.displayNotification({
+                    title: _t('Library Error'),
+                    message: _t('Mind map library (OdooXMind) not loaded. Please clear cache and refresh.'),
+                    type: 'danger',
+                });
+                return false;
+            }
+
+            // Verify it's our custom version (not the official jsMind which causes conflicts)
+            // Our custom version should NOT have any 'align' property issues
+            const MindMapClass = window.OdooXMind;
+            console.log('[MindmapEditor] Using MindMapClass:', MindMapClass.name || 'jsMind');
+
+            // Quick sanity check - our version should have these characteristics
+            if (MindMapClass.toString().includes('textAlign') || MindMapClass.toString().includes('.align')) {
+                console.error('[MindmapEditor] WARNING: This appears to be the official jsMind library, not OdooXMind custom version!');
+                console.error('[MindmapEditor] The official library has canvas textAlign issues. Please clear all caches.');
+            }
+
             const options = {
                 container: container,
                 theme: this.sheetSettings.theme || 'primary',
@@ -383,8 +445,18 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
             // Apply layout based on settings
             this._applyLayoutSettings(options);
 
-            this.jm = new jsMind(options);
-            this.jm.show(this.mindmapData);
+            try {
+                this.jm = new MindMapClass(options);
+                this.jm.show(this.mindmapData);
+            } catch (error) {
+                console.error('[MindmapEditor] Failed to initialize jsMind:', error);
+                this.displayNotification({
+                    title: _t('Initialization Error'),
+                    message: _t('Failed to initialize mind map: ') + error.message,
+                    type: 'danger',
+                });
+                return false;
+            }
 
             // Event handlers
             this.jm.add_event_listener(function (type, data) {
@@ -397,6 +469,8 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
             // Update theme/layout selectors
             this.$('.o_mindmap_theme_select').val(this.sheetSettings.theme || 'primary');
             this.$('.o_mindmap_layout_select').val(this.sheetSettings.layout || 'map');
+
+            return true;
         },
 
         _applyLayoutSettings: function (options) {

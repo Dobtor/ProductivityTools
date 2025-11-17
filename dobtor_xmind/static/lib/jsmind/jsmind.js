@@ -2,6 +2,7 @@
  * jsMind - Mind Mapping Library
  * Open Source (MIT License)
  * Adapted for Odoo XMind Editor
+ * Namespaced as OdooXMind to avoid conflicts with other jsMind versions
  */
 (function (factory) {
     if (typeof define === 'function' && define.amd) {
@@ -9,7 +10,17 @@
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
-        window.jsMind = factory();
+        // Use unique namespace to avoid conflicts with other jsMind libraries
+        console.log('[OdooXMind] Loading custom jsMind library...');
+        window.OdooXMind = factory();
+        console.log('[OdooXMind] Registered as window.OdooXMind:', typeof window.OdooXMind);
+        // Also provide jsMind alias if not already defined
+        if (!window.jsMind) {
+            window.jsMind = window.OdooXMind;
+            console.log('[OdooXMind] Also registered as window.jsMind (no conflict)');
+        } else {
+            console.warn('[OdooXMind] WARNING: window.jsMind already exists! Not overwriting. Using OdooXMind namespace.');
+        }
     }
 }(function () {
     'use strict';
@@ -37,6 +48,10 @@
     const $h = function (n, t) {
         n.innerHTML = t;
     };
+
+    // Version marker - if you see this, the correct library is loaded
+    const ODOO_XMIND_VERSION = '1.0.0-odoo-custom';
+    console.log('[OdooXMind] Version:', ODOO_XMIND_VERSION, '- Custom library loaded successfully');
 
     const logger = {
         log: function () { },
