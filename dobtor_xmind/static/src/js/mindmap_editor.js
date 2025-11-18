@@ -473,6 +473,13 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
 
             try {
                 this.jm = new MindMapClass(options);
+
+                // Set layout mode before showing
+                const layoutMode = this.sheetSettings.layout || 'map';
+                if (this.jm.layout && this.jm.layout.setLayoutMode) {
+                    this.jm.layout.setLayoutMode(layoutMode);
+                }
+
                 this.jm.show(this.mindmapData);
             } catch (error) {
                 console.error('[MindmapEditor] Failed to initialize jsMind:', error);
@@ -1391,9 +1398,18 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
             this._saveSettings();
             this._updateStatus(_t('Layout changed to: ') + layout);
 
-            // Reload with new layout
-            // Note: jsMind doesn't support runtime layout change easily
-            // We would need to reload the mindmap
+            // Change layout mode and refresh
+            if (this.jm && this.jm.layout) {
+                this.jm.layout.setLayoutMode(layout);
+                this.jm.layout.layout();
+                this.jm.view.show(true);
+                this.jm.view.relayout();
+
+                // Redraw relationship lines if any
+                if (this.relationshipManager) {
+                    this.relationshipManager.redrawAll();
+                }
+            }
         },
 
         _onThemeChange: function (ev) {

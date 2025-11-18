@@ -237,10 +237,15 @@
             this.jm = jm;
             this.bounds = null;
             this.cache_valid = false;
+            this.mode = 'map'; // 'map', 'tree_right', 'tree_left', 'logic_right', 'org_chart_down'
         }
 
         reset() {
             this.bounds = { n: 0, s: 0, w: 0, e: 0 };
+        }
+
+        setLayoutMode(mode) {
+            this.mode = mode || 'map';
         }
 
         layout() {
@@ -258,21 +263,56 @@
             const children = root.children;
             const children_count = children.length;
 
-            const left_children = [];
-            const right_children = [];
+            // Different layout modes
+            if (this.mode === 'map') {
+                // Mind Map: left and right sides
+                const left_children = [];
+                const right_children = [];
 
-            for (let i = 0; i < children_count; i++) {
-                if (children[i].direction === -1) {
-                    left_children.push(children[i]);
-                } else {
-                    right_children.push(children[i]);
+                for (let i = 0; i < children_count; i++) {
+                    if (children[i].direction === -1) {
+                        left_children.push(children[i]);
+                    } else {
+                        right_children.push(children[i]);
+                    }
                 }
-            }
 
-            layout_data.left_nodes = left_children;
-            layout_data.right_nodes = right_children;
-            layout_data.outer_height_left = this._layout_children_nodes(left_children, -1);
-            layout_data.outer_height_right = this._layout_children_nodes(right_children, 1);
+                layout_data.left_nodes = left_children;
+                layout_data.right_nodes = right_children;
+                layout_data.outer_height_left = this._layout_children_nodes(left_children, -1);
+                layout_data.outer_height_right = this._layout_children_nodes(right_children, 1);
+            } else if (this.mode === 'tree_right' || this.mode === 'logic_right') {
+                // Tree/Logic Right: all children to the right
+                const direction = 1;
+                for (let i = 0; i < children_count; i++) {
+                    children[i].direction = direction;
+                }
+                layout_data.outer_height_right = this._layout_children_nodes(children, direction);
+                layout_data.left_nodes = [];
+                layout_data.right_nodes = children;
+                layout_data.outer_height_left = 0;
+            } else if (this.mode === 'tree_left') {
+                // Tree Left: all children to the left
+                const direction = -1;
+                for (let i = 0; i < children_count; i++) {
+                    children[i].direction = direction;
+                }
+                layout_data.outer_height_left = this._layout_children_nodes(children, direction);
+                layout_data.left_nodes = children;
+                layout_data.right_nodes = [];
+                layout_data.outer_height_right = 0;
+            } else if (this.mode === 'org_chart_down') {
+                // Org Chart: all children downward
+                const direction = 2; // 2 = down
+                for (let i = 0; i < children_count; i++) {
+                    children[i].direction = direction;
+                }
+                layout_data.outer_width = this._layout_children_nodes_vertical(children);
+                layout_data.left_nodes = [];
+                layout_data.right_nodes = [];
+                layout_data.outer_height_left = 0;
+                layout_data.outer_height_right = 0;
+            }
 
             root._data.layout = layout_data;
         }
@@ -321,15 +361,83 @@
             let outer_height = 0;
 
             if (node.expanded && node.children.length > 0) {
-                outer_height = this._layout_children_nodes(node.children, direction);
+                if (direction === 2) {
+                    // Vertical layout for org chart
+                    layout_data.outer_width = this._layout_children_nodes_vertical(node.children);
+                    outer_height = height;
+                } else {
+                    outer_height = this._layout_children_nodes(node.children, direction);
+                }
             }
 
             outer_height = Math.max(height, outer_height);
             layout_data.outer_height = outer_height;
-            layout_data.offset_x = this.jm.view.layout.hspace * direction;
+
+            if (direction === 2) {
+                layout_data.offset_x = 0;
+                layout_data.offset_y = this.jm.view.layout.vspace;
+            } else {
+                layout_data.offset_x = this.jm.view.layout.hspace * direction;
+            }
 
             node._data.layout = layout_data;
             return outer_height;
+        }
+
+        _layout_children_nodes_vertical(children) {
+            // Org chart vertical layout
+            let total_width = 0;
+            const count = children.length;
+            if (count === 0) return total_width;
+
+            const sibling_offset = this.jm.view.layout.hspace;
+
+            let i = count;
+            let outer_width = 0;
+
+            while (i--) {
+                outer_width = this._layout_node_vertical(children[i]);
+                children[i]._data.layout.outer_width = outer_width;
+                total_width += outer_width;
+            }
+
+            if (count > 1) {
+                total_width += sibling_offset * (count - 1);
+            }
+
+            let x = total_width / -2;
+            for (let i = 0; i < count; i++) {
+                const child = children[i];
+                const child_data = child._data.layout;
+                child_data.offset_x = x + child_data.outer_width / 2;
+                x += child_data.outer_width + sibling_offset;
+            }
+
+            return total_width;
+        }
+
+        _layout_node_vertical(node) {
+            const layout_data = {};
+            layout_data.direction = 2; // down
+            layout_data.side_index = 0;
+
+            const view_data = node._data.view || {};
+            const width = view_data.width || 0;
+            const height = view_data.height || 0;
+
+            let outer_width = 0;
+
+            if (node.expanded && node.children.length > 0) {
+                outer_width = this._layout_children_nodes_vertical(node.children);
+            }
+
+            outer_width = Math.max(width, outer_width);
+            layout_data.outer_width = outer_width;
+            layout_data.outer_height = height;
+            layout_data.offset_y = this.jm.view.layout.vspace;
+
+            node._data.layout = layout_data;
+            return outer_width;
         }
 
         _layout_offset() {
@@ -342,16 +450,23 @@
             layout_data.offset_x = 0;
             layout_data.offset_y = 0;
 
-            // Layout left side
-            let left_y_start = -(layout_data.outer_height_left / 2);
-            for (let node of layout_data.left_nodes) {
-                this._layout_offset_node(node, -root_width / 2, 0);
-            }
+            if (this.mode === 'org_chart_down') {
+                // Org chart: children positioned below
+                const children = root.children;
+                for (let node of children) {
+                    this._layout_offset_node_vertical(node, 0, root_height / 2);
+                }
+            } else {
+                // Horizontal layouts (map, tree, logic)
+                // Layout left side
+                for (let node of layout_data.left_nodes || []) {
+                    this._layout_offset_node(node, -root_width / 2, 0);
+                }
 
-            // Layout right side
-            let right_y_start = -(layout_data.outer_height_right / 2);
-            for (let node of layout_data.right_nodes) {
-                this._layout_offset_node(node, root_width / 2, 0);
+                // Layout right side
+                for (let node of layout_data.right_nodes || []) {
+                    this._layout_offset_node(node, root_width / 2, 0);
+                }
             }
 
             this._update_bounds();
@@ -379,6 +494,32 @@
             if (node.expanded && node.children.length > 0) {
                 for (let child of node.children) {
                     this._layout_offset_node(child, abs_x, abs_y);
+                }
+            }
+        }
+
+        _layout_offset_node_vertical(node, parent_x, parent_y) {
+            const layout_data = node._data.layout;
+            const view_data = node._data.view || {};
+
+            const abs_x = parent_x + layout_data.offset_x;
+            const abs_y = parent_y + layout_data.offset_y;
+
+            layout_data.abs_x = abs_x;
+            layout_data.abs_y = abs_y;
+
+            // Update bounds
+            const w = view_data.width || 50;
+            const h = view_data.height || 20;
+
+            this.bounds.w = Math.min(this.bounds.w, abs_x - w / 2);
+            this.bounds.e = Math.max(this.bounds.e, abs_x + w / 2);
+            this.bounds.n = Math.min(this.bounds.n, abs_y - h / 2);
+            this.bounds.s = Math.max(this.bounds.s, abs_y + h / 2);
+
+            if (node.expanded && node.children.length > 0) {
+                for (let child of node.children) {
+                    this._layout_offset_node_vertical(child, abs_x, abs_y);
                 }
             }
         }
@@ -738,35 +879,94 @@
                 const c_w = child_view.width || 50;
                 const c_h = child_view.height || 20;
 
-                // Draw bezier curve
-                const direction = child_layout.direction || 1;
-                let sp_x, ep_x;
+                // Calculate shortest edge connection points
+                const points = this._calculateShortestEdgePoints(
+                    p_x, p_y, p_w, p_h,
+                    c_x, c_y, c_w, c_h
+                );
 
-                if (direction === -1) {
-                    sp_x = p_x - p_w / 2;
-                    ep_x = c_x + c_w / 2;
-                } else {
-                    sp_x = p_x + p_w / 2;
-                    ep_x = c_x - c_w / 2;
-                }
-
-                const sp_y = p_y;
-                const ep_y = c_y;
+                const sp_x = points.start.x;
+                const sp_y = points.start.y;
+                const ep_x = points.end.x;
+                const ep_y = points.end.y;
 
                 ctx.beginPath();
                 ctx.moveTo(sp_x, sp_y);
 
-                const cp1_x = sp_x + (ep_x - sp_x) * 0.5;
-                const cp1_y = sp_y;
-                const cp2_x = sp_x + (ep_x - sp_x) * 0.5;
-                const cp2_y = ep_y;
+                // Calculate bezier control points based on connection direction
+                const dx = ep_x - sp_x;
+                const dy = ep_y - sp_y;
+                const abs_dx = Math.abs(dx);
+                const abs_dy = Math.abs(dy);
 
-                ctx.bezierCurveTo(cp1_x, cp1_y, cp2_x, cp2_y, ep_x, ep_y);
+                if (abs_dy > abs_dx) {
+                    // Primarily vertical connection
+                    const cp1_x = sp_x;
+                    const cp1_y = sp_y + dy * 0.5;
+                    const cp2_x = ep_x;
+                    const cp2_y = sp_y + dy * 0.5;
+                    ctx.bezierCurveTo(cp1_x, cp1_y, cp2_x, cp2_y, ep_x, ep_y);
+                } else {
+                    // Primarily horizontal connection
+                    const cp1_x = sp_x + dx * 0.5;
+                    const cp1_y = sp_y;
+                    const cp2_x = sp_x + dx * 0.5;
+                    const cp2_y = ep_y;
+                    ctx.bezierCurveTo(cp1_x, cp1_y, cp2_x, cp2_y, ep_x, ep_y);
+                }
+
                 ctx.stroke();
 
                 // Recursively draw for children
                 this._draw_lines_for_node(child, center_x, center_y);
             }
+        }
+
+        _calculateShortestEdgePoints(p_x, p_y, p_w, p_h, c_x, c_y, c_w, c_h) {
+            // Define all possible edge points for both rectangles
+            // Parent edge points (center of each edge)
+            const parent_edges = {
+                top: { x: p_x, y: p_y - p_h / 2 },
+                bottom: { x: p_x, y: p_y + p_h / 2 },
+                left: { x: p_x - p_w / 2, y: p_y },
+                right: { x: p_x + p_w / 2, y: p_y }
+            };
+
+            // Child edge points (center of each edge)
+            const child_edges = {
+                top: { x: c_x, y: c_y - c_h / 2 },
+                bottom: { x: c_x, y: c_y + c_h / 2 },
+                left: { x: c_x - c_w / 2, y: c_y },
+                right: { x: c_x + c_w / 2, y: c_y }
+            };
+
+            // Find the pair of edges with minimum distance
+            let min_distance = Infinity;
+            let best_start = parent_edges.right;
+            let best_end = child_edges.left;
+
+            for (let p_edge in parent_edges) {
+                for (let c_edge in child_edges) {
+                    const p_point = parent_edges[p_edge];
+                    const c_point = child_edges[c_edge];
+
+                    const distance = Math.sqrt(
+                        Math.pow(c_point.x - p_point.x, 2) +
+                        Math.pow(c_point.y - p_point.y, 2)
+                    );
+
+                    if (distance < min_distance) {
+                        min_distance = distance;
+                        best_start = p_point;
+                        best_end = c_point;
+                    }
+                }
+            }
+
+            return {
+                start: best_start,
+                end: best_end
+            };
         }
 
         select_node(node) {
