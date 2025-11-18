@@ -368,7 +368,16 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
 
         _initJsMind: function () {
             const self = this;
-            const container = this.$('#jsmind_container')[0];
+
+            // Get container - ensure we get the actual DOM element, not jQuery object
+            let container = this.$('#jsmind_container');
+
+            // If it's a jQuery object, extract the DOM element
+            if (container && container.length > 0) {
+                container = container[0];
+            } else if (container && container.get) {
+                container = container.get(0);
+            }
 
             // Defensive check: ensure container exists
             if (!container) {
@@ -384,10 +393,17 @@ odoo.define('dobtor_xmind.MindmapEditor', function (require) {
             // Additional check: ensure container is a valid DOM node
             console.log('[MindmapEditor] Container type:', Object.prototype.toString.call(container));
             console.log('[MindmapEditor] Container is Node:', container instanceof Node);
+            console.log('[MindmapEditor] Container is Element:', container instanceof Element);
             console.log('[MindmapEditor] Container tagName:', container.tagName);
+            console.log('[MindmapEditor] Container id:', container.id);
 
             if (!(container instanceof Node)) {
-                console.error('[MindmapEditor] Container is not a valid DOM Node');
+                console.error('[MindmapEditor] Container is not a valid DOM Node. Got:', container);
+                this.displayNotification({
+                    title: _t('Initialization Error'),
+                    message: _t('Container is not a valid DOM element. Please contact support.'),
+                    type: 'danger',
+                });
                 return false;
             }
 

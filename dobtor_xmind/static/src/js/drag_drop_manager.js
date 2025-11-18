@@ -25,9 +25,18 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             this.dragThreshold = 10;
             this.dropProximity = 80; // pixels to detect drop target
 
+            // XMind-style drag and drop
+            this.freePositioningMode = false; // Default to XMind behavior (attach to parent)
+            this.shiftPressed = false; // Track Shift key
+            this.draggedChildren = []; // Store child nodes being dragged with parent
+            this.childrenOffsets = []; // Store relative offsets of children
+            this.attachmentDistance = 50; // Distance to trigger attachment (pixels)
+
             this._boundMouseDown = this._onMouseDown.bind(this);
             this._boundMouseMove = this._onMouseMove.bind(this);
             this._boundMouseUp = this._onMouseUp.bind(this);
+            this._boundKeyDown = this._onKeyDown.bind(this);
+            this._boundKeyUp = this._onKeyUp.bind(this);
         }
 
         init() {
@@ -108,6 +117,8 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             container.addEventListener('mousedown', this._boundMouseDown);
             document.addEventListener('mousemove', this._boundMouseMove);
             document.addEventListener('mouseup', this._boundMouseUp);
+            document.addEventListener('keydown', this._boundKeyDown);
+            document.addEventListener('keyup', this._boundKeyUp);
         }
 
         _detachEvents() {
@@ -117,11 +128,33 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             }
             document.removeEventListener('mousemove', this._boundMouseMove);
             document.removeEventListener('mouseup', this._boundMouseUp);
+            document.removeEventListener('keydown', this._boundKeyDown);
+            document.removeEventListener('keyup', this._boundKeyUp);
+        }
+
+        _onKeyDown(e) {
+            if (e.key === 'Shift') {
+                this.shiftPressed = true;
+                if (this.isDragging) {
+                    // Update visual feedback when Shift is pressed during drag
+                    this._hideDropIndicator();
+                    this.editor._updateStatus(_t('Shift: Create floating topic'));
+                }
+            }
+        }
+
+        _onKeyUp(e) {
+            if (e.key === 'Shift') {
+                this.shiftPressed = false;
+                if (this.isDragging) {
+                    this.editor._updateStatus(_t('Dragging: ') + this.draggedNode.topic);
+                }
+            }
         }
 
         _onMouseDown(e) {
-            // Check if clicking on a jmnode
-            const nodeElement = e.target.closest('jmnode');
+            // Check if clicking on a jmnode (now using class selector)
+            const nodeElement = e.target.closest('.jmnode');
             if (!nodeElement) return;
 
             const nodeId = nodeElement.getAttribute('nodeid');
@@ -172,6 +205,11 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
         _startDrag(e) {
             this.isDragging = true;
 
+            // In free positioning mode, collect all children
+            if (this.freePositioningMode) {
+                this._collectChildrenForDrag();
+            }
+
             // Create ghost element
             this._createGhost();
 
@@ -183,6 +221,37 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             document.body.style.cursor = 'grabbing';
 
             this.editor._updateStatus(_t('Dragging: ') + this.draggedNode.topic);
+        }
+
+        _collectChildrenForDrag() {
+            this.draggedChildren = [];
+            this.childrenOffsets = [];
+
+            const parentRect = this.draggedElement.getBoundingClientRect();
+            const containerRect = this.jm.view.e_panel.getBoundingClientRect();
+
+            const collectDescendants = (node) => {
+                if (!node.children || node.children.length === 0) return;
+
+                for (let child of node.children) {
+                    const childElement = document.querySelector(`.jmnode[nodeid="${child.id}"]`);
+                    if (childElement) {
+                        const childRect = childElement.getBoundingClientRect();
+
+                        // Calculate relative offset to parent
+                        const offsetX = (childRect.left - containerRect.left) - (parentRect.left - containerRect.left);
+                        const offsetY = (childRect.top - containerRect.top) - (parentRect.top - containerRect.top);
+
+                        this.draggedChildren.push({ node: child, element: childElement });
+                        this.childrenOffsets.push({ x: offsetX, y: offsetY });
+
+                        // Recursively collect descendants
+                        collectDescendants(child);
+                    }
+                }
+            };
+
+            collectDescendants(this.draggedNode);
         }
 
         _createGhost() {
@@ -207,17 +276,60 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
                 this.ghostElement.style.top = (e.clientY - this.offsetY - this.ghostElement.offsetHeight / 2) + 'px';
             }
 
-            // Find potential drop target
-            this._findDropTarget(e);
+            // Find potential attachment target (unless Shift is pressed)
+            if (!this.shiftPressed) {
+                this._findAttachmentTarget(e);
+            } else {
+                this._hideDropIndicator();
+            }
         }
 
-        _findDropTarget(e) {
+        _moveNodeToPosition(element, x, y) {
+            element.style.left = x + 'px';
+            element.style.top = y + 'px';
+        }
+
+        _checkOverlaps() {
+            if (!this.draggedElement) return;
+
+            const draggedRect = this.draggedElement.getBoundingClientRect();
+            let hasOverlap = false;
+
+            // Check all other nodes
+            const allNodes = document.querySelectorAll('.jmnode');
+            allNodes.forEach(node => {
+                if (node === this.draggedElement) return;
+                if (this.draggedChildren.some(c => c.element === node)) return;
+
+                const nodeRect = node.getBoundingClientRect();
+
+                // Check if rectangles overlap
+                if (!(draggedRect.right < nodeRect.left ||
+                      draggedRect.left > nodeRect.right ||
+                      draggedRect.bottom < nodeRect.top ||
+                      draggedRect.top > nodeRect.bottom)) {
+                    hasOverlap = true;
+                    node.classList.add('overlap-warning');
+                } else {
+                    node.classList.remove('overlap-warning');
+                }
+            });
+
+            // Add visual feedback to dragged node
+            if (hasOverlap) {
+                this.draggedElement.classList.add('overlap-warning');
+            } else {
+                this.draggedElement.classList.remove('overlap-warning');
+            }
+        }
+
+        _findAttachmentTarget(e) {
             const containerRect = this.jm.view.e_panel.getBoundingClientRect();
             const mouseX = e.clientX - containerRect.left;
             const mouseY = e.clientY - containerRect.top;
 
             let closestNode = null;
-            let closestDistance = this.dropProximity;
+            let closestDistance = this.attachmentDistance; // Smaller distance for attachment
 
             // Check all nodes for proximity
             const nodes = this.jm.mind.nodes;
@@ -227,7 +339,7 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
                 // Skip self and descendants
                 if (this._isDescendant(this.draggedNode, node)) continue;
 
-                const element = this.jm.view.get_node_element(id);
+                const element = document.querySelector(`.jmnode[nodeid="${id}"]`);
                 if (!element) continue;
 
                 const rect = element.getBoundingClientRect();
@@ -244,7 +356,7 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
 
             // Update visual feedback
             if (closestNode) {
-                this._showDropIndicator(closestNode);
+                this._showAttachmentIndicator(closestNode);
                 this.potentialTarget = closestNode.node;
             } else {
                 this._hideDropIndicator();
@@ -262,14 +374,16 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             return false;
         }
 
-        _showDropIndicator(targetInfo) {
+        _showAttachmentIndicator(targetInfo) {
             const element = targetInfo.element;
             const rect = element.getBoundingClientRect();
 
-            // Position drop indicator around target
+            // Position attachment indicator around target (green/blue for attachment)
             const box = this.dropIndicator.querySelector('.drop-target-box');
             box.style.width = (rect.width + 20) + 'px';
             box.style.height = (rect.height + 20) + 'px';
+            box.style.borderColor = '#17a2b8'; // Blue color for attachment
+            box.style.background = 'rgba(23, 162, 184, 0.1)';
 
             this.dropIndicator.style.left = (rect.left - 10) + 'px';
             this.dropIndicator.style.top = (rect.top - 10) + 'px';
@@ -279,21 +393,23 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             const arrow = this.dropIndicator.querySelector('.drop-arrow');
             arrow.style.left = (rect.width / 2) + 'px';
             arrow.style.top = '-20px';
+            arrow.style.borderTopColor = '#17a2b8'; // Blue arrow
 
             // Update label
             const label = this.dropIndicator.querySelector('.drop-label');
             label.textContent = _t('Attach to: ') + targetInfo.node.topic;
+            label.style.background = '#17a2b8'; // Blue label
 
-            // Highlight target element
-            element.classList.add('drop-target');
+            // Highlight target element with blue glow
+            element.classList.add('attachment-target');
         }
 
         _hideDropIndicator() {
             this.dropIndicator.style.display = 'none';
 
             // Remove highlight from all nodes
-            const highlighted = document.querySelectorAll('.drop-target');
-            highlighted.forEach(el => el.classList.remove('drop-target'));
+            const highlighted = document.querySelectorAll('.attachment-target');
+            highlighted.forEach(el => el.classList.remove('attachment-target'));
         }
 
         _endDrag(e) {
@@ -315,15 +431,142 @@ odoo.define('dobtor_xmind.DragDropManager', function (require) {
             // Hide drop indicator
             this._hideDropIndicator();
 
-            // Perform the move operation
-            if (this.potentialTarget && this.draggedNode) {
-                this._performMove(this.draggedNode, this.potentialTarget);
-            } else if (this.draggedNode) {
-                // Dropped in empty space - could convert to floating topic
-                this._handleEmptySpaceDrop(e);
+            // XMind behavior: if Shift is pressed, create floating topic
+            // Otherwise, try to attach to nearby node
+            if (this.shiftPressed) {
+                this._createFloatingTopic(e);
+            } else if (this.potentialTarget && this.draggedNode) {
+                // Attach to target node
+                this._performAttachment(this.draggedNode, this.potentialTarget);
+            } else {
+                // No target nearby, create floating topic with auto-avoid
+                this._createFloatingTopicWithAvoid(e);
             }
 
             this.potentialTarget = null;
+            this.draggedChildren = [];
+            this.childrenOffsets = [];
+        }
+
+        _performAttachment(sourceNode, targetNode) {
+            // Attach source node as child of target node
+            this._performMove(sourceNode, targetNode);
+            this.editor._updateStatus(_t('Attached to: ') + targetNode.topic);
+        }
+
+        _createFloatingTopic(e) {
+            const containerRect = this.jm.view.e_panel.getBoundingClientRect();
+            const finalX = e.clientX - containerRect.left - this.offsetX;
+            const finalY = e.clientY - containerRect.top - this.offsetY;
+
+            this._convertToFloating(finalX, finalY);
+            this.editor._updateStatus(_t('Created floating topic'));
+        }
+
+        _createFloatingTopicWithAvoid(e) {
+            const containerRect = this.jm.view.e_panel.getBoundingClientRect();
+            let finalX = e.clientX - containerRect.left - this.offsetX;
+            let finalY = e.clientY - containerRect.top - this.offsetY;
+
+            // Auto-avoid overlaps
+            const adjustedPos = this._findNonOverlappingPosition(finalX, finalY);
+            finalX = adjustedPos.x;
+            finalY = adjustedPos.y;
+
+            this._convertToFloating(finalX, finalY);
+            this.editor._updateStatus(_t('Created floating topic (auto-positioned)'));
+        }
+
+        _convertToFloating(x, y) {
+            // Mark node as floating and detach from parent
+            this.draggedNode.isFloating = true;
+            this.draggedNode.absolutePosition = { x: x, y: y };
+
+            // Remove from parent's children
+            if (this.draggedNode.parent && !this.draggedNode.isroot) {
+                const parentChildren = this.draggedNode.parent.children;
+                const index = parentChildren.indexOf(this.draggedNode);
+                if (index > -1) {
+                    parentChildren.splice(index, 1);
+                }
+                this.draggedNode.parent = null;
+            }
+
+            // Save positions for all children with relative offsets
+            for (let i = 0; i < this.draggedChildren.length; i++) {
+                const childData = this.draggedChildren[i];
+                const offset = this.childrenOffsets[i];
+                childData.node.absolutePosition = { x: x + offset.x, y: y + offset.y };
+            }
+
+            // Redraw
+            this.jm.view.refresh();
+        }
+
+        _findNonOverlappingPosition(startX, startY) {
+            const nodeWidth = this.draggedElement.offsetWidth;
+            const nodeHeight = this.draggedElement.offsetHeight;
+            const margin = 20; // Minimum space between nodes
+
+            let bestX = startX;
+            let bestY = startY;
+            let minOverlap = Infinity;
+
+            // Try the original position first
+            const overlap = this._calculateOverlapArea(startX, startY, nodeWidth, nodeHeight);
+            if (overlap === 0) {
+                return { x: startX, y: startY };
+            }
+
+            // Try positions in a spiral pattern around the drop point
+            const maxAttempts = 8;
+            const radius = 50;
+
+            for (let i = 0; i < maxAttempts; i++) {
+                const angle = (i / maxAttempts) * 2 * Math.PI;
+                const testX = startX + Math.cos(angle) * radius;
+                const testY = startY + Math.sin(angle) * radius;
+
+                const testOverlap = this._calculateOverlapArea(testX, testY, nodeWidth, nodeHeight);
+
+                if (testOverlap === 0) {
+                    return { x: testX, y: testY };
+                }
+
+                if (testOverlap < minOverlap) {
+                    minOverlap = testOverlap;
+                    bestX = testX;
+                    bestY = testY;
+                }
+            }
+
+            return { x: bestX, y: bestY };
+        }
+
+        _calculateOverlapArea(x, y, width, height) {
+            let totalOverlap = 0;
+
+            const allNodes = document.querySelectorAll('.jmnode');
+            allNodes.forEach(node => {
+                if (node === this.draggedElement) return;
+                if (this.draggedChildren.some(c => c.element === node)) return;
+
+                const rect = node.getBoundingClientRect();
+                const containerRect = this.jm.view.e_panel.getBoundingClientRect();
+
+                const nodeX = rect.left - containerRect.left;
+                const nodeY = rect.top - containerRect.top;
+                const nodeW = rect.width;
+                const nodeH = rect.height;
+
+                // Calculate overlap
+                const overlapX = Math.max(0, Math.min(x + width, nodeX + nodeW) - Math.max(x, nodeX));
+                const overlapY = Math.max(0, Math.min(y + height, nodeY + nodeH) - Math.max(y, nodeY));
+
+                totalOverlap += overlapX * overlapY;
+            });
+
+            return totalOverlap;
         }
 
         _performMove(sourceNode, targetNode) {

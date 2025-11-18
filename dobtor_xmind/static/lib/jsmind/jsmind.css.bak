@@ -91,116 +91,116 @@ input.jmnode-input {
 }
 
 /* Theme: Primary */
-.jmnodes.theme-primary .jmnode {
+jmnodes.theme-primary jmnode {
     background-color: #428bca;
     color: #ffffff;
     border-color: #357ebd;
 }
 
-.jmnodes.theme-primary .jmnode.selected {
+jmnodes.theme-primary jmnode.selected {
     background-color: #2a6496;
     border-color: #1f4f75;
 }
 
 /* Theme: Warning */
-.jmnodes.theme-warning .jmnode {
+jmnodes.theme-warning jmnode {
     background-color: #f0ad4e;
     color: #ffffff;
     border-color: #eea236;
 }
 
-.jmnodes.theme-warning .jmnode.selected {
+jmnodes.theme-warning jmnode.selected {
     background-color: #ec971f;
     border-color: #d58512;
 }
 
 /* Theme: Danger */
-.jmnodes.theme-danger .jmnode {
+jmnodes.theme-danger jmnode {
     background-color: #d9534f;
     color: #ffffff;
     border-color: #d43f3a;
 }
 
-.jmnodes.theme-danger .jmnode.selected {
+jmnodes.theme-danger jmnode.selected {
     background-color: #c9302c;
     border-color: #ac2925;
 }
 
 /* Theme: Success */
-.jmnodes.theme-success .jmnode {
+jmnodes.theme-success jmnode {
     background-color: #5cb85c;
     color: #ffffff;
     border-color: #4cae4c;
 }
 
-.jmnodes.theme-success .jmnode.selected {
+jmnodes.theme-success jmnode.selected {
     background-color: #449d44;
     border-color: #398439;
 }
 
 /* Theme: Info */
-.jmnodes.theme-info .jmnode {
+jmnodes.theme-info jmnode {
     background-color: #5bc0de;
     color: #ffffff;
     border-color: #46b8da;
 }
 
-.jmnodes.theme-info .jmnode.selected {
+jmnodes.theme-info jmnode.selected {
     background-color: #31b0d5;
     border-color: #269abc;
 }
 
 /* Theme: Greensea */
-.jmnodes.theme-greensea .jmnode {
+jmnodes.theme-greensea jmnode {
     background-color: #16a085;
     color: #ffffff;
     border-color: #138d75;
 }
 
 /* Theme: Nephrite */
-.jmnodes.theme-nephrite .jmnode {
+jmnodes.theme-nephrite jmnode {
     background-color: #27ae60;
     color: #ffffff;
     border-color: #229954;
 }
 
 /* Theme: Belizehole */
-.jmnodes.theme-belizehole .jmnode {
+jmnodes.theme-belizehole jmnode {
     background-color: #2980b9;
     color: #ffffff;
     border-color: #2471a3;
 }
 
 /* Theme: Wisteria */
-.jmnodes.theme-wisteria .jmnode {
+jmnodes.theme-wisteria jmnode {
     background-color: #8e44ad;
     color: #ffffff;
     border-color: #7d3c98;
 }
 
 /* Theme: Asphalt */
-.jmnodes.theme-asphalt .jmnode {
+jmnodes.theme-asphalt jmnode {
     background-color: #34495e;
     color: #ffffff;
     border-color: #2c3e50;
 }
 
 /* Theme: Orange */
-.jmnodes.theme-orange .jmnode {
+jmnodes.theme-orange jmnode {
     background-color: #f39c12;
     color: #ffffff;
     border-color: #d68910;
 }
 
 /* Theme: Pumpkin */
-.jmnodes.theme-pumpkin .jmnode {
+jmnodes.theme-pumpkin jmnode {
     background-color: #d35400;
     color: #ffffff;
     border-color: #ba4a00;
 }
 
 /* Theme: Pomegranate */
-.jmnodes.theme-pomegranate .jmnode {
+jmnodes.theme-pomegranate jmnode {
     background-color: #c0392b;
     color: #ffffff;
     border-color: #a93226;

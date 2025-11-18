@@ -75,6 +75,10 @@
             this.expanded = bExpanded !== false;
             this.children = [];
             this._data = {};
+
+            // Free positioning support
+            this.isFloating = false; // true if detached from parent
+            this.absolutePosition = null; // {x, y} for free positioned nodes
         }
     }
 
@@ -106,8 +110,8 @@
         }
 
         add_node(parent_node, nodeid, topic, data, direction, expanded) {
+            const c = parent_node.children.length;
             if (parent_node.isroot) {
-                const c = parent_node.children.length;
                 direction = (c % 2 === 0) ? -1 : 1;
             } else {
                 direction = parent_node.direction;
@@ -437,6 +441,14 @@
                 vspace: 20,
                 pspace: 13,
             };
+            // Canvas drag state
+            this.drag_state = {
+                active: false,
+                start_x: 0,
+                start_y: 0,
+                scroll_left: 0,
+                scroll_top: 0
+            };
         }
 
         init_nodes() {
@@ -452,6 +464,55 @@
             this.e_canvas = f;
             this.canvas_ctx = f.getContext('2d');
             this.e_panel.appendChild(f);
+
+            // Enable canvas dragging if configured
+            if (this.jm.options.view.draggable) {
+                this._init_draggable();
+            }
+        }
+
+        _init_draggable() {
+            const self = this;
+            const container = this.container;
+
+            container.style.cursor = 'grab';
+
+            container.addEventListener('mousedown', function(e) {
+                // Don't drag if clicking on a node
+                if (e.target.classList.contains('jmnode') || e.target.closest('.jmnode')) {
+                    return;
+                }
+
+                self.drag_state.active = true;
+                self.drag_state.start_x = e.pageX - container.offsetLeft;
+                self.drag_state.start_y = e.pageY - container.offsetTop;
+                self.drag_state.scroll_left = container.scrollLeft;
+                self.drag_state.scroll_top = container.scrollTop;
+                container.style.cursor = 'grabbing';
+                e.preventDefault();
+            });
+
+            container.addEventListener('mousemove', function(e) {
+                if (!self.drag_state.active) return;
+
+                e.preventDefault();
+                const x = e.pageX - container.offsetLeft;
+                const y = e.pageY - container.offsetTop;
+                const walk_x = (x - self.drag_state.start_x);
+                const walk_y = (y - self.drag_state.start_y);
+                container.scrollLeft = self.drag_state.scroll_left - walk_x;
+                container.scrollTop = self.drag_state.scroll_top - walk_y;
+            });
+
+            container.addEventListener('mouseup', function() {
+                self.drag_state.active = false;
+                container.style.cursor = 'grab';
+            });
+
+            container.addEventListener('mouseleave', function() {
+                self.drag_state.active = false;
+                container.style.cursor = 'grab';
+            });
         }
 
         add_event(node, event_name, handler) {
@@ -564,7 +625,8 @@
         }
 
         _create_expander(node) {
-            const e = $c('jmexpander');
+            const e = $c('span');
+            e.className = 'jmexpander';
             e.textContent = node.expanded ? '-' : '+';
             this.e_nodes.appendChild(e);
 
@@ -826,6 +888,11 @@
             this.position_nodes();
             this.draw_lines();
         }
+
+        // Alias for refresh - used by layout changes
+        relayout() {
+            this.refresh();
+        }
     }
 
     // Main jsMind class
@@ -859,7 +926,13 @@
             // Merge options (with defensive checks)
             if (options) {
                 for (let key in options) {
-                    if (typeof options[key] === 'object' && !Array.isArray(options[key]) && options[key] !== null) {
+                    // Check if it's a plain object (not DOM Node, not Array, not null)
+                    const isPlainObject = typeof options[key] === 'object'
+                        && !Array.isArray(options[key])
+                        && options[key] !== null
+                        && !(options[key] instanceof Node);  // Important: exclude DOM nodes
+
+                    if (isPlainObject) {
                         // Ensure the target object exists
                         if (!this.options[key] || typeof this.options[key] !== 'object') {
                             this.options[key] = {};
@@ -868,6 +941,7 @@
                             this.options[key][subkey] = options[key][subkey];
                         }
                     } else {
+                        // Direct assignment for primitives, arrays, DOM nodes, etc.
                         this.options[key] = options[key];
                     }
                 }
@@ -889,7 +963,15 @@
 
             // Create inner panel
             const panel = $c('div');
+            if (!panel || !(panel instanceof Node)) {
+                throw new Error('jsMind: Failed to create panel element. $c returned: ' + typeof panel);
+            }
             panel.className = 'jsmind-inner';
+
+            if (!this.container || !(this.container instanceof Node)) {
+                throw new Error('jsMind: Container is not a valid Node. Type: ' + typeof this.container);
+            }
+
             this.container.appendChild(panel);
 
             // Initialize components
