@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- note.stage List View                                          -->
+    <!-- 階段清單視圖，支援行內編輯                                      -->
+    <!-- ============================================================ -->
+    <record id="view_note_stage_list" model="ir.ui.view">
+        <field name="name">note.stage.list</field>
+        <field name="model">note.stage</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <list string="筆記階段" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name" string="階段名稱"/>
+                <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
+                <field name="fold" string="預設收合" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.stage Form View                                          -->
+    <!-- 階段表單視圖                                                   -->
+    <!-- ============================================================ -->
+    <record id="view_note_stage_form" model="ir.ui.view">
+        <field name="name">note.stage.form</field>
+        <field name="model">note.stage</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <form string="筆記階段">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" string="階段名稱"/>
+                            <field name="sequence" string="順序"/>
+                        </group>
+                        <group>
+                            <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
+                            <field name="fold" string="預設收合" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Actions                                                       -->
+    <!-- ============================================================ -->
+
+    <!-- Action - 筆記階段 -->
+    <record id="action_note_stage" model="ir.actions.act_window">
+        <field name="name">筆記階段</field>
+        <field name="res_model">note.stage</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('user_id', '=', uid)]</field>
+        <field name="context">{'default_user_id': uid}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立您的第一個階段</p>
+            <p>使用階段來組織您的筆記，例如：待處理、進行中、已完成。</p>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_stage_list">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_note_stage_list"/>
+        <field name="act_window_id" ref="action_note_stage"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_stage_form">
+        <field name="sequence">2</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_note_stage_form"/>
+        <field name="act_window_id" ref="action_note_stage"/>
+    </record>
+
+</odoo>

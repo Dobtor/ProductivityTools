@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--             系統設定擴展 - 生產力工具設定                        -->
+    <!-- ============================================================ -->
+    <record id="res_config_settings_view_form_inherit_productivity" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.productivity</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="生產力工具" string="生產力工具" name="dobtor_mail_activity" groups="dobtor_mail_activity.group_activity_manager">
+                    <block title="工時表設定" name="timesheet_settings">
+                        <setting id="default_timesheet_project_setting"
+                                 string="預設工時表專案"
+                                 help="當待辦完成時，若無關聯專案，使用此預設專案建立工時表記錄。">
+                            <field name="default_timesheet_project_id"
+                                   domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

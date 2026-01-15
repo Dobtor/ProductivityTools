@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- =====================================================
+         完成待辦 Wizard (mail.activity.done.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_done_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.done.wizard.form</field>
+        <field name="model">mail.activity.done.wizard</field>
+        <field name="arch" type="xml">
+            <form string="完成待辦">
+                <group>
+                    <group string="待辦資訊">
+                        <field name="activity_id" invisible="1"/>
+                        <field name="summary" readonly="1"/>
+                        <field name="activity_type_name" readonly="1"/>
+                        <field name="planned_date" readonly="1"/>
+                        <field name="estimated_hours" widget="float_time" readonly="1"/>
+                    </group>
+                    <group string="執行資訊">
+                        <field name="actual_hours" widget="float_time" required="1"/>
+                    </group>
+                </group>
+                <group string="回饋/說明">
+                    <field name="feedback" nolabel="1" placeholder="請輸入完成回饋或說明..."/>
+                </group>
+                <group string="附件">
+                    <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                </group>
+                <field name="schedule_next" invisible="1"/>
+                <group string="安排下一次待辦" invisible="not schedule_next">
+                    <field name="next_activity_type_id" invisible="not schedule_next"/>
+                    <field name="next_date_deadline" invisible="not schedule_next"/>
+                    <field name="next_summary" invisible="not schedule_next"/>
+                    <field name="next_user_id" widget="many2one_avatar_user" invisible="not schedule_next"/>
+                </group>
+                <footer>
+                    <button string="完成" name="action_done" type="object" class="btn-primary"/>
+                    <button string="完成並安排下一次" name="action_done_and_schedule_next" type="object"
+                            class="btn-secondary"
+                            context="{'default_schedule_next': True}"/>
+                    <button string="延至下週" name="action_postpone" type="object" class="btn-secondary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_done_wizard" model="ir.actions.act_window">
+        <field name="name">完成待辦</field>
+        <field name="res_model">mail.activity.done.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- =====================================================
+         延期待辦 Wizard (mail.activity.postpone.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_postpone_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.postpone.wizard.form</field>
+        <field name="model">mail.activity.postpone.wizard</field>
+        <field name="arch" type="xml">
+            <form string="延至下週">
+                <group>
+                    <group string="待辦資訊">
+                        <field name="activity_id" invisible="1"/>
+                        <field name="summary" readonly="1"/>
+                        <field name="planned_date" readonly="1"/>
+                        <field name="date_deadline" readonly="1"/>
+                        <field name="postpone_count" readonly="1"/>
+                    </group>
+                </group>
+                <group string="延期原因">
+                    <field name="reason" nolabel="1" placeholder="請說明延期的原因..." required="1"/>
+                </group>
+                <div class="alert alert-info" role="alert" invisible="postpone_count == 0">
+                    <i class="fa fa-info-circle"/>
+                    此待辦已延期 <field name="postpone_count" readonly="1" nolabel="1" class="d-inline"/> 次。
+                </div>
+                <footer>
+                    <button string="確認延期" name="action_postpone" type="object" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_postpone_wizard" model="ir.actions.act_window">
+        <field name="name">延至下週</field>
+        <field name="res_model">mail.activity.postpone.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- =====================================================
+         轉移待辦 Wizard (mail.activity.transfer.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_transfer_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.transfer.wizard.form</field>
+        <field name="model">mail.activity.transfer.wizard</field>
+        <field name="arch" type="xml">
+            <form string="轉移待辦">
+                <group>
+                    <group string="待辦資訊">
+                        <field name="activity_id" invisible="1"/>
+                        <field name="activity_summary" readonly="1" string="摘要"/>
+                    </group>
+                    <group string="來源">
+                        <field name="source_model" invisible="1"/>
+                        <field name="source_id" invisible="1"/>
+                        <field name="source_display" readonly="1" string="來源文件"/>
+                    </group>
+                </group>
+                <group string="目標">
+                    <field name="target_ref" string="目標記錄" options="{'no_create': True}" required="1"/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <i class="fa fa-info-circle"/>
+                    轉移後，待辦將關聯到選定的目標記錄，原來源將被記錄以供追蹤。
+                </div>
+                <footer>
+                    <button string="轉移" name="action_transfer" type="object" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_transfer_wizard" model="ir.actions.act_window">
+        <field name="name">轉移待辦</field>
+        <field name="res_model">mail.activity.transfer.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- =====================================================
+         從訊息建立待辦 Wizard (mail.activity.from.message.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_from_message_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.from.message.wizard.form</field>
+        <field name="model">mail.activity.from.message.wizard</field>
+        <field name="arch" type="xml">
+            <form string="從訊息建立待辦">
+                <field name="message_id" invisible="1"/>
+
+                <!-- 訊息來源 - 僅在有來源訊息時顯示 -->
+                <group invisible="not message_id">
+                    <group string="訊息來源" col="1">
+                        <div class="mb-2">
+                            <strong>作者:</strong>
+                            <field name="message_author" readonly="1" nolabel="1" class="d-inline"/>
+                            <span class="ms-2 text-muted">
+                                <field name="message_date" readonly="1" nolabel="1" widget="datetime" class="d-inline"/>
+                            </span>
+                        </div>
+                        <field name="message_body_preview" readonly="1" nolabel="1"
+                               class="oe_read_only"
+                               style="max-height: 100px; overflow-y: auto; background: #f8f9fa; padding: 8px; border-radius: 4px;"/>
+                    </group>
+                </group>
+
+                <!-- 摘要 - 置頂明顯 -->
+                <group>
+                    <field name="summary" placeholder="請輸入待辦摘要..."
+                           nolabel="1" colspan="2"
+                           style="font-size: 1.2em; font-weight: 500;"/>
+                </group>
+
+                <group>
+                    <!-- 左側：基本資訊 + 時程工時 -->
+                    <group>
+                        <field name="activity_type_id" string="待辦類型"
+                               options="{'no_create': True}" required="1"/>
+                        <field name="target_ref" string="目標文件"
+                               options="{'no_create': True}" required="1"/>
+                        <field name="date_deadline" string="截止日期" required="1"/>
+                        <field name="estimated_hours" string="預估工時" widget="float_time"/>
+                    </group>
+
+                    <!-- 右側：優先級 + 指派 -->
+                    <group>
+                        <field name="urgency" string="時間性" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <field name="importance" string="重要性" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <field name="user_id" string="指派給"
+                               widget="many2one_avatar_user"
+                               options="{'no_create': True}"/>
+                    </group>
+                </group>
+
+                <!-- 備註 -->
+                <group string="備註">
+                    <field name="note" placeholder="待辦備註（選填）..."
+                           nolabel="1" colspan="2"/>
+                </group>
+
+                <footer>
+                    <button string="建立待辦" name="action_create_activity"
+                            type="object" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_from_message_wizard" model="ir.actions.act_window">
+        <field name="name">從訊息建立待辦</field>
+        <field name="res_model">mail.activity.from.message.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- =====================================================
+         變更指派 Wizard (mail.activity.reassign.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_reassign_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.reassign.wizard.form</field>
+        <field name="model">mail.activity.reassign.wizard</field>
+        <field name="arch" type="xml">
+            <form string="變更指派">
+                <group>
+                    <group string="原待辦資訊">
+                        <field name="activity_id" invisible="1"/>
+                        <field name="activity_summary" readonly="1" string="摘要"/>
+                        <field name="activity_type_name" readonly="1" string="類型"/>
+                        <field name="activity_deadline" readonly="1" string="截止日"/>
+                        <field name="current_user_id" readonly="1"
+                               widget="many2one_avatar_user" string="目前負責人"/>
+                    </group>
+                    <group string="新指派">
+                        <field name="new_user_id"
+                               widget="many2one_avatar_user"
+                               options="{'no_create': True}"
+                               required="1"/>
+                        <field name="reason" placeholder="說明變更原因（選填）..."/>
+                    </group>
+                </group>
+                <div class="alert alert-warning" role="alert">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    確認後，原待辦將被取消，並建立新待辦指派給選定的負責人。
+                    所有相關歷史記錄將被保留。
+                </div>
+                <footer>
+                    <button name="action_confirm" string="確認變更"
+                            type="object" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_reassign_wizard" model="ir.actions.act_window">
+        <field name="name">變更指派</field>
+        <field name="res_model">mail.activity.reassign.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

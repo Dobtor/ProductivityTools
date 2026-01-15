@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--                週報排程配置 Form View                          -->
+    <!-- ============================================================ -->
+    <record id="weekly_schedule_config_view_form" model="ir.ui.view">
+        <field name="name">weekly.schedule.config.form</field>
+        <field name="model">weekly.schedule.config</field>
+        <field name="arch" type="xml">
+            <form string="週報排程配置">
+                <sheet>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group name="basic" string="基本設定">
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="user_id" widget="many2one_avatar_user"
+                                   options="{'no_create': True}"/>
+                            <field name="activity_type_id" options="{'no_create': True}"/>
+                        </group>
+                        <group name="schedule" string="排程設定">
+                            <field name="schedule_day"/>
+                            <field name="schedule_time"/>
+                            <field name="deadline_offset"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group name="target" string="關聯文件">
+                            <field name="target_model"/>
+                            <field name="note_id" invisible="target_model != 'note.note'"/>
+                            <field name="auto_create_note" invisible="target_model != 'note.note'"/>
+                        </group>
+                        <group name="content" string="內容設定">
+                            <field name="summary_template"/>
+                            <field name="include_note"/>
+                        </group>
+                    </group>
+                    <group string="執行記錄" name="history">
+                        <group>
+                            <field name="last_created_date" readonly="1"/>
+                            <field name="last_activity_id" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_create_activity_now"
+                            string="立即建立待辦"
+                            type="object"
+                            class="btn-primary"
+                            confirm="確定要立即建立週報排程待辦嗎？"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                週報排程配置 List View                          -->
+    <!-- ============================================================ -->
+    <record id="weekly_schedule_config_view_list" model="ir.ui.view">
+        <field name="name">weekly.schedule.config.list</field>
+        <field name="model">weekly.schedule.config</field>
+        <field name="arch" type="xml">
+            <list string="週報排程配置">
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="active" widget="boolean_toggle"/>
+                <field name="activity_type_id"/>
+                <field name="schedule_day"/>
+                <field name="schedule_time"/>
+                <field name="target_model"/>
+                <field name="last_created_date"/>
+                <field name="last_activity_id"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--               週報排程配置 Search View                         -->
+    <!-- ============================================================ -->
+    <record id="weekly_schedule_config_view_search" model="ir.ui.view">
+        <field name="name">weekly.schedule.config.search</field>
+        <field name="model">weekly.schedule.config</field>
+        <field name="arch" type="xml">
+            <search string="週報排程配置">
+                <field name="user_id"/>
+                <field name="activity_type_id"/>
+                <separator/>
+                <filter string="已啟用" name="active" domain="[('active', '=', True)]"/>
+                <filter string="已停用" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="週一建立" name="monday" domain="[('schedule_day', '=', '0')]"/>
+                <filter string="週五建立" name="friday" domain="[('schedule_day', '=', '4')]"/>
+                <filter string="週日建立" name="sunday" domain="[('schedule_day', '=', '6')]"/>
+                <separator/>
+                <group expand="0" string="分組">
+                    <filter string="建立日期" name="group_schedule_day" context="{'group_by': 'schedule_day'}"/>
+                    <filter string="關聯類型" name="group_target_model" context="{'group_by': 'target_model'}"/>
+                    <filter string="用戶" name="group_user" context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                週報排程配置 Actions                            -->
+    <!-- ============================================================ -->
+
+    <!-- 週報排程配置管理 -->
+    <record id="action_weekly_schedule_config" model="ir.actions.act_window">
+        <field name="name">週報排程配置</field>
+        <field name="res_model">weekly.schedule.config</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立週報排程配置
+            </p>
+            <p>
+                配置後系統將自動在指定日期建立週報排程待辦，提醒用戶安排本週工作。
+            </p>
+        </field>
+    </record>
+
+    <!-- 我的週報排程（表單模式）-->
+    <record id="action_weekly_schedule_config_my" model="ir.actions.act_window">
+        <field name="name">我的週報排程</field>
+        <field name="res_model">weekly.schedule.config</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="context">{'form_view_initial_mode': 'edit'}</field>
+    </record>
+
+    <!-- Server Action: 開啟我的配置 -->
+    <record id="action_open_my_weekly_schedule_config" model="ir.actions.server">
+        <field name="name">我的週報排程設定</field>
+        <field name="model_id" ref="model_weekly_schedule_config"/>
+        <field name="binding_model_id" eval="False"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_my_config()</field>
+    </record>
+
+</odoo>

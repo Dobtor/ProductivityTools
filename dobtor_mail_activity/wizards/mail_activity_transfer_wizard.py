@@ -1,0 +1,161 @@
+# -*- coding: utf-8 -*-
+
+import logging
+
+from odoo import api, fields, models, _
+from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+
+class MailActivityTransferWizard(models.TransientModel):
+    """待辦轉移精靈
+
+    功能說明:
+    - 將待辦從一個文件轉移到另一個文件
+    - 使用 Reference 欄位選擇目標（依 transfer.config 配置）
+    - 記錄轉移來源以供追蹤
+    - 標記待辦來源為「轉移」
+    """
+    _name = 'mail.activity.transfer.wizard'
+    _description = '待辦轉移精靈'
+
+    # ===== 待辦資訊（唯讀）=====
+    activity_id = fields.Many2one(
+        'mail.activity',
+        string='待辦',
+        required=True,
+        readonly=True,
+        ondelete='cascade',
+    )
+    source_model = fields.Char(
+        string='來源模型',
+        readonly=True,
+    )
+    source_id = fields.Integer(
+        string='來源記錄 ID',
+        readonly=True,
+    )
+    source_display = fields.Char(
+        string='來源',
+        compute='_compute_source_display',
+    )
+    activity_summary = fields.Char(
+        string='待辦摘要',
+        related='activity_id.summary',
+        readonly=True,
+    )
+
+    # ===== 目標選擇 =====
+    target_ref = fields.Reference(
+        string='目標記錄',
+        selection='_selection_target_model',
+        required=True,
+    )
+
+    @api.model
+    def _selection_target_model(self):
+        """取得允許的目標模型選項（使用共用方法）"""
+        return self.env['mail.activity.transfer.config'].get_target_model_selection()
+
+    @api.model
+    def default_get(self, fields_list):
+        """預設值處理：從 context 取得待辦和來源資訊"""
+        res = super().default_get(fields_list)
+
+        # 從 context 取得 activity_id
+        if 'activity_id' not in res and self.env.context.get('default_activity_id'):
+            res['activity_id'] = self.env.context.get('default_activity_id')
+
+        # 從 context 取得來源資訊
+        if self.env.context.get('default_source_model'):
+            res['source_model'] = self.env.context.get('default_source_model')
+        if self.env.context.get('default_source_id'):
+            res['source_id'] = self.env.context.get('default_source_id')
+
+        # 若有 activity_id 但沒有來源資訊，從待辦取得
+        if res.get('activity_id') and not res.get('source_model'):
+            activity = self.env['mail.activity'].browse(res['activity_id'])
+            if activity.exists():
+                res['source_model'] = activity.res_model
+                res['source_id'] = activity.res_id
+
+        return res
+
+    @api.depends('source_model', 'source_id')
+    def _compute_source_display(self):
+        """計算來源顯示名稱"""
+        for wizard in self:
+            if wizard.source_model and wizard.source_id:
+                try:
+                    record = self.env[wizard.source_model].browse(wizard.source_id)
+                    if record.exists():
+                        model_name = self.env['ir.model']._get(wizard.source_model).name
+                        wizard.source_display = f'{record.display_name} ({model_name})'
+                    else:
+                        wizard.source_display = _('(記錄已刪除)')
+                except Exception as e:
+                    _logger.debug('Failed to compute source_display: %s', str(e))
+                    wizard.source_display = f'ID {wizard.source_id} ({wizard.source_model})'
+            else:
+                wizard.source_display = False
+
+    def _validate_transfer(self):
+        """驗證轉移操作"""
+        self.ensure_one()
+
+        if not self.target_ref:
+            raise UserError(_('請選擇目標記錄。'))
+
+        # 檢查目標記錄存在
+        if not self.target_ref.exists():
+            raise UserError(_('目標記錄不存在。'))
+
+        # 檢查待辦存在且有效
+        if not self.activity_id.exists():
+            raise UserError(_('待辦記錄不存在。'))
+
+        if not self.activity_id.active:
+            raise UserError(_('此待辦已封存，無法轉移。'))
+
+        # 檢查目標不是同一個記錄
+        target_model = self.target_ref._name
+        target_id = self.target_ref.id
+        if target_model == self.source_model and target_id == self.source_id:
+            raise UserError(_('目標記錄與來源相同，無需轉移。'))
+
+    def _prepare_transfer_values(self):
+        """準備轉移更新值"""
+        self.ensure_one()
+
+        target_model = self.target_ref._name
+        target_id = self.target_ref.id
+        target_model_id = self.env['ir.model']._get(target_model)
+
+        vals = {
+            'res_model_id': target_model_id.id,
+            'res_id': target_id,
+            'transferred_from_model': self.source_model,
+            'transferred_from_id': self.source_id,
+            'schedule_origin': 'transferred',  # 標記為轉移來源
+        }
+
+        # 如果來源是 note.note，保留 note_id 關聯
+        if self.source_model == 'note.note':
+            vals['note_id'] = self.source_id
+
+        return vals
+
+    def action_transfer(self):
+        """執行轉移"""
+        self.ensure_one()
+        self._validate_transfer()
+
+        # 更新待辦
+        self.activity_id.write(self._prepare_transfer_values())
+
+        # 刷新視圖
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }

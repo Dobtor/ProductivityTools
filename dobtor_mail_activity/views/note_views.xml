@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- note.note Kanban View                                         -->
+    <!-- 筆記本看板視圖，依階段分組                                      -->
+    <!-- ============================================================ -->
+    <record id="view_note_note_kanban" model="ir.ui.view">
+        <field name="name">note.note.kanban</field>
+        <field name="model">note.note</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="stage_id"
+                    class="o_kanban_small_column"
+                    on_create="quick_create"
+                    quick_create_view="dobtor_mail_activity.view_note_note_quick_create"
+                    archivable="true"
+                    sample="1">
+                <field name="color"/>
+                <field name="stage_id"/>
+                <field name="user_id"/>
+                <field name="tag_ids"/>
+                <field name="active_activity_count"/>
+                <field name="active"/>
+                <field name="open"/>
+
+                <templates>
+                    <t t-name="menu">
+                        <a role="menuitem" type="archive" class="dropdown-item">封存</a>
+                        <a role="menuitem" type="delete" class="dropdown-item">刪除</a>
+                        <field name="color" widget="kanban_color_picker"/>
+                    </t>
+                    <t t-name="card" class="flex-row">
+                        <aside>
+                            <field name="color" widget="color_picker"/>
+                        </aside>
+                        <main class="ms-2 w-100">
+                            <div class="o_kanban_record_title mb-1">
+                                <field name="name" placeholder="(無標題)"/>
+                            </div>
+                            <div class="o_kanban_record_body text-muted small">
+                                <field name="memo" class="text-truncate"/>
+                            </div>
+                            <div class="o_kanban_record_bottom mt-2">
+                                <div class="oe_kanban_bottom_left">
+                                    <field name="tag_ids" widget="many2many_tags"
+                                           options="{'color_field': 'color'}"/>
+                                </div>
+                                <div class="oe_kanban_bottom_right d-flex align-items-center">
+                                    <span t-if="record.active_activity_count.raw_value > 0"
+                                          class="badge text-bg-primary me-2">
+                                        <i class="fa fa-tasks"/>
+                                        <field name="active_activity_count"/>
+                                    </span>
+                                    <field name="user_id" widget="many2one_avatar_user"/>
+                                </div>
+                            </div>
+                        </main>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.note Quick Create Form                                   -->
+    <!-- 筆記本快速建立表單                                             -->
+    <!-- ============================================================ -->
+    <record id="view_note_note_quick_create" model="ir.ui.view">
+        <field name="name">note.note.quick.create</field>
+        <field name="model">note.note</field>
+        <field name="priority">1000</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="memo" string="筆記內容" placeholder="請輸入筆記內容..." widget="text"/>
+                </group>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.note List View                                           -->
+    <!-- 筆記本清單視圖                                                 -->
+    <!-- ============================================================ -->
+    <record id="view_note_note_list" model="ir.ui.view">
+        <field name="name">note.note.list</field>
+        <field name="model">note.note</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <list string="筆記" expand="1">
+                <field name="name" string="標題"/>
+                <field name="stage_id" string="階段"/>
+                <field name="tag_ids" string="標籤" widget="many2many_tags"
+                       options="{'color_field': 'color'}"/>
+                <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
+                <field name="active_activity_count" string="進行中待辦"/>
+                <field name="open" string="開啟中"/>
+                <field name="date_done" string="完成日期" optional="hide"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.note Form View                                           -->
+    <!-- 筆記本表單視圖                                                 -->
+    <!-- ============================================================ -->
+    <record id="view_note_note_form" model="ir.ui.view">
+        <field name="name">note.note.form</field>
+        <field name="model">note.note</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <form string="筆記">
+                <header>
+                    <field name="stage_id" widget="statusbar"
+                           options="{'clickable': '1', 'fold_field': 'fold'}"/>
+                </header>
+                <sheet>
+                    <field name="active" invisible="1"/>
+                    <field name="open" invisible="1"/>
+                    <field name="activity_count" invisible="1"/>
+
+                    <widget name="web_ribbon" title="已封存" bg_color="text-bg-danger"
+                            invisible="active"/>
+
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_activities" type="object"
+                                class="oe_stat_button" icon="fa-tasks"
+                                invisible="activity_count == 0">
+                            <field name="active_activity_count" widget="statinfo" string="進行中"/>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="name" string="標題"/>
+                        <h1>
+                            <field name="name" placeholder="筆記標題..."/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
+                            <field name="tag_ids" string="標籤" widget="many2many_tags"
+                                   options="{'color_field': 'color'}"/>
+                        </group>
+                        <group>
+                            <field name="date_done" string="完成日期" invisible="open"/>
+                            <field name="color" widget="color_picker" string="顏色"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="內容" name="content">
+                            <field name="memo" placeholder="在此輸入筆記內容..."
+                                   options="{'collaborative': true}"/>
+                        </page>
+                        <page string="關聯待辦" name="activities" invisible="activity_count == 0">
+                            <field name="activity_ids" context="{'active_test': False}">
+                                <list>
+                                    <field name="summary" string="摘要"/>
+                                    <field name="activity_type_id" string="類型"/>
+                                    <field name="user_id" string="負責人" widget="many2one_avatar_user"/>
+                                    <field name="date_deadline" string="截止日" widget="remaining_days"/>
+                                    <field name="activity_state" string="狀態" widget="badge"
+                                           decoration-success="activity_state == 'done'"
+                                           decoration-danger="activity_state == 'cancelled'"
+                                           decoration-info="activity_state == 'active'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.note Search View                                         -->
+    <!-- 筆記本搜尋視圖                                                 -->
+    <!-- ============================================================ -->
+    <record id="view_note_note_search" model="ir.ui.view">
+        <field name="name">note.note.search</field>
+        <field name="model">note.note</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <search string="搜尋筆記">
+                <field name="name" string="標題"/>
+                <field name="memo" string="內容"/>
+                <field name="user_id" string="擁有者"/>
+                <field name="tag_ids" string="標籤"/>
+                <field name="stage_id" string="階段"/>
+
+                <separator/>
+                <filter string="我的筆記" name="my_notes"
+                        domain="[('user_id', '=', uid)]"/>
+                <filter string="開啟中" name="open_true"
+                        domain="[('open', '=', True)]"/>
+                <filter string="已完成" name="open_false"
+                        domain="[('open', '=', False)]"/>
+
+                <separator/>
+                <filter string="有進行中待辦" name="has_activities"
+                        domain="[('active_activity_count', '>', 0)]"/>
+
+                <separator/>
+                <filter string="已封存" name="archived"
+                        domain="[('active', '=', False)]"/>
+
+                <group expand="0" string="分組">
+                    <filter string="階段" name="group_stage"
+                            context="{'group_by': 'stage_id'}"/>
+                    <filter string="擁有者" name="group_user"
+                            context="{'group_by': 'user_id'}"/>
+                    <filter string="標籤" name="group_tag"
+                            context="{'group_by': 'main_tag_id'}"/>
+                </group>
+
+                <searchpanel>
+                    <field name="main_tag_id"
+                           select="one"
+                           icon="fa-tag"
+                           string="標籤"
+                           enable_counters="1"
+                           expand="1"/>
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Actions                                                       -->
+    <!-- ============================================================ -->
+
+    <!-- Action - 筆記本 -->
+    <record id="action_note_note" model="ir.actions.act_window">
+        <field name="name">筆記本</field>
+        <field name="res_model">note.note</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[]</field>
+        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1}</field>
+        <field name="search_view_id" ref="view_note_note_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立您的第一個筆記</p>
+            <p>使用筆記本來記錄想法、待辦事項和重要資訊。</p>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_note_kanban">
+        <field name="sequence">1</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_note_note_kanban"/>
+        <field name="act_window_id" ref="action_note_note"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_note_list">
+        <field name="sequence">2</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_note_note_list"/>
+        <field name="act_window_id" ref="action_note_note"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_note_form">
+        <field name="sequence">3</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_note_note_form"/>
+        <field name="act_window_id" ref="action_note_note"/>
+    </record>
+
+</odoo>

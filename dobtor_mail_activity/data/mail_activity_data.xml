@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 週報排程待辦類型 -->
+        <record id="mail_activity_type_weekly_report_schedule" model="mail.activity.type">
+            <field name="name">週報排程</field>
+            <field name="summary">安排本週工作計畫</field>
+            <field name="category">reminder</field>
+            <field name="delay_count">7</field>
+            <field name="delay_unit">days</field>
+            <field name="delay_from">current_date</field>
+            <field name="icon">fa-calendar-check-o</field>
+            <field name="decoration_type">warning</field>
+            <field name="default_description"><![CDATA[
+<p>請完成以下事項：</p>
+<ol>
+    <li>回顧上週完成情況</li>
+    <li>確認本週優先事項</li>
+    <li>排程本週每日待辦</li>
+    <li>預排下週重要工作</li>
+</ol>
+]]></field>
+        </record>
+
+    </data>
+</odoo>

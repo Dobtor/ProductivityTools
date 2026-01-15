@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--                   效率指標 Form View                          -->
+    <!-- ============================================================ -->
+    <record id="activity_efficiency_metrics_view_form" model="ir.ui.view">
+        <field name="name">activity.efficiency.metrics.view.form</field>
+        <field name="model">activity.efficiency.metrics</field>
+        <field name="arch" type="xml">
+            <form string="效率指標">
+                <sheet>
+                    <group>
+                        <group string="期間資訊">
+                            <field name="user_id" widget="many2one_avatar_user"/>
+                            <field name="department_id"/>
+                            <field name="period_type"/>
+                            <field name="period_name" readonly="1"/>
+                            <field name="period_start"/>
+                            <field name="period_end"/>
+                        </group>
+                        <group string="效率指標">
+                            <field name="completion_rate" widget="progressbar"/>
+                            <field name="on_time_rate" widget="progressbar"/>
+                            <field name="estimation_accuracy" widget="progressbar"/>
+                            <field name="postpone_rate" widget="progressbar"/>
+                            <div class="d-flex align-items-center">
+                                <label for="efficiency_index" class="me-2"/>
+                                <field name="efficiency_index" readonly="1"/>
+                                <span class="ms-1 text-muted">/ 5.0</span>
+                            </div>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="待辦統計">
+                            <field name="total_activities"/>
+                            <field name="completed_activities"/>
+                            <field name="on_time_activities"/>
+                            <field name="postponed_activities"/>
+                            <field name="cancelled_activities"/>
+                        </group>
+                        <group string="工時統計">
+                            <field name="total_estimated_hours" widget="float_time"/>
+                            <field name="total_actual_hours" widget="float_time"/>
+                            <field name="planned_source_count"/>
+                            <field name="inserted_source_count"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                   效率指標 List View                          -->
+    <!-- ============================================================ -->
+    <record id="activity_efficiency_metrics_view_list" model="ir.ui.view">
+        <field name="name">activity.efficiency.metrics.view.list</field>
+        <field name="model">activity.efficiency.metrics</field>
+        <field name="arch" type="xml">
+            <list string="效率指標">
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="department_id" optional="show"/>
+                <field name="period_type"/>
+                <field name="period_name"/>
+                <field name="total_activities"/>
+                <field name="completed_activities"/>
+                <field name="completion_rate" widget="progressbar"/>
+                <field name="on_time_rate" widget="progressbar"/>
+                <field name="estimation_accuracy" widget="progressbar" optional="show"/>
+                <field name="postpone_rate" widget="progressbar" optional="hide"/>
+                <field name="efficiency_index"
+                       decoration-success="efficiency_index >= 4"
+                       decoration-warning="efficiency_index >= 2.5 and efficiency_index &lt; 4"
+                       decoration-danger="efficiency_index &lt; 2.5"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                   效率指標 Pivot View                         -->
+    <!-- ============================================================ -->
+    <record id="activity_efficiency_metrics_view_pivot" model="ir.ui.view">
+        <field name="name">activity.efficiency.metrics.view.pivot</field>
+        <field name="model">activity.efficiency.metrics</field>
+        <field name="arch" type="xml">
+            <pivot string="效率分析" sample="1">
+                <field name="user_id" type="row"/>
+                <field name="period_name" type="col"/>
+                <field name="completion_rate" type="measure"/>
+                <field name="on_time_rate" type="measure"/>
+                <field name="efficiency_index" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                   效率指標 Graph View                         -->
+    <!-- ============================================================ -->
+    <record id="activity_efficiency_metrics_view_graph" model="ir.ui.view">
+        <field name="name">activity.efficiency.metrics.view.graph</field>
+        <field name="model">activity.efficiency.metrics</field>
+        <field name="arch" type="xml">
+            <graph string="效率趨勢" type="line" sample="1">
+                <field name="period_name"/>
+                <field name="completion_rate" type="measure"/>
+                <field name="on_time_rate" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                  效率指標 Search View                         -->
+    <!-- ============================================================ -->
+    <record id="activity_efficiency_metrics_view_search" model="ir.ui.view">
+        <field name="name">activity.efficiency.metrics.view.search</field>
+        <field name="model">activity.efficiency.metrics</field>
+        <field name="arch" type="xml">
+            <search string="效率指標">
+                <field name="user_id"/>
+                <field name="department_id"/>
+                <field name="period_name"/>
+                <separator/>
+                <filter string="我的" name="my_metrics" domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <filter string="週" name="week" domain="[('period_type', '=', 'week')]"/>
+                <filter string="月" name="month" domain="[('period_type', '=', 'month')]"/>
+                <filter string="季" name="quarter" domain="[('period_type', '=', 'quarter')]"/>
+                <separator/>
+                <filter string="高效率 (>=4)" name="high_efficiency"
+                        domain="[('efficiency_index', '>=', 4)]"/>
+                <filter string="低效率 (&lt;2.5)" name="low_efficiency"
+                        domain="[('efficiency_index', '&lt;', 2.5)]"/>
+                <separator/>
+                <group expand="0" string="分組">
+                    <filter string="依用戶" name="group_by_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="依部門" name="group_by_department" context="{'group_by': 'department_id'}"/>
+                    <filter string="依期間類型" name="group_by_period_type" context="{'group_by': 'period_type'}"/>
+                    <filter string="依期間" name="group_by_period" context="{'group_by': 'period_start:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--                      效率指標 Actions                         -->
+    <!-- ============================================================ -->
+
+    <!-- 個人效率儀表板 -->
+    <record id="action_efficiency_personal" model="ir.actions.act_window">
+        <field name="name">個人儀表板</field>
+        <field name="res_model">activity.efficiency.metrics</field>
+        <field name="view_mode">graph,pivot,list,form</field>
+        <field name="domain">[('user_id', '=', uid)]</field>
+        <field name="context">{'search_default_week': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">您的效率指標尚未計算</p>
+            <p>效率指標會在每週一自動計算，您也可以手動觸發計算。</p>
+        </field>
+    </record>
+
+    <!-- 團隊效率分析 -->
+    <record id="action_efficiency_team" model="ir.actions.act_window">
+        <field name="name">團隊分析</field>
+        <field name="res_model">activity.efficiency.metrics</field>
+        <field name="view_mode">pivot,graph,list,form</field>
+        <field name="context">{'search_default_month': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">尚無團隊效率資料</p>
+            <p>效率指標會在每週一、每月1號自動計算。</p>
+        </field>
+    </record>
+
+    <!-- 趨勢報表 -->
+    <record id="action_efficiency_trend" model="ir.actions.act_window">
+        <field name="name">趨勢報表</field>
+        <field name="res_model">activity.efficiency.metrics</field>
+        <field name="view_mode">graph,list,form</field>
+        <field name="context">{'search_default_my_metrics': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">查看效率趨勢</p>
+            <p>追蹤您的效率指標隨時間的變化。</p>
+        </field>
+    </record>
+
+    <!-- 所有效率指標（管理員用）-->
+    <record id="action_efficiency_all" model="ir.actions.act_window">
+        <field name="name">所有效率指標</field>
+        <field name="res_model">activity.efficiency.metrics</field>
+        <field name="view_mode">list,pivot,graph,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">管理所有效率指標</p>
+        </field>
+    </record>
+
+    <!-- Server Action: 手動計算當前週效率 -->
+    <record id="action_compute_current_week_efficiency" model="ir.actions.server">
+        <field name="name">計算當前週效率指標</field>
+        <field name="model_id" ref="model_activity_efficiency_metrics"/>
+        <field name="binding_model_id" eval="False"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_compute_current_week()</field>
+    </record>
+
+</odoo>

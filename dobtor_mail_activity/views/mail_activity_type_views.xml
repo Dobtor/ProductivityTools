@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--     繼承 mail.activity.type 表單視圖，新增通知模板設定           -->
+    <!-- ============================================================ -->
+    <record id="mail_activity_type_view_form_inherit" model="ir.ui.view">
+        <field name="name">mail.activity.type.form.inherit.dobtor</field>
+        <field name="model">mail.activity.type</field>
+        <field name="inherit_id" ref="mail.mail_activity_type_view_form"/>
+        <field name="arch" type="xml">
+            <field name="mail_template_ids" position="after">
+                <separator string="指派通知設定"/>
+                <field name="use_custom_notify"/>
+                <field name="notify_template_id"
+                       invisible="not use_custom_notify"
+                       required="use_custom_notify"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

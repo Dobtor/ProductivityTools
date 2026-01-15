@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--               用戶表單擴展 - 加入生產力設定                      -->
+    <!-- ============================================================ -->
+    <record id="res_users_view_form_inherit_productivity" model="ir.ui.view">
+        <field name="name">res.users.view.form.inherit.productivity</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <!-- 在偏好設定頁面新增生產力設定 -->
+            <xpath expr="//page[@name='preferences']" position="after">
+                <page string="生產力工具" name="productivity">
+                    <group string="工作時數設定">
+                        <field name="weekly_committed_hours" widget="float_time"/>
+                    </group>
+                    <group string="統計資訊">
+                        <field name="weekly_report_count" readonly="1"/>
+                        <field name="latest_efficiency_index" readonly="1"/>
+                    </group>
+                    <group string="快速操作" col="4">
+                        <button name="action_view_weekly_reports"
+                                string="查看週報告"
+                                type="object"
+                                class="btn-secondary"
+                                icon="fa-calendar"/>
+                        <button name="action_view_efficiency_metrics"
+                                string="查看效率指標"
+                                type="object"
+                                class="btn-secondary"
+                                icon="fa-bar-chart"/>
+                        <button name="action_open_weekly_schedule_config"
+                                string="週報排程設定"
+                                type="object"
+                                class="btn-secondary"
+                                icon="fa-cog"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--            用戶簡化表單擴展（偏好設定）                          -->
+    <!-- ============================================================ -->
+    <record id="res_users_view_simple_form_inherit_productivity" model="ir.ui.view">
+        <field name="name">res.users.view.simple.form.inherit.productivity</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='preferences']" position="inside">
+                <group string="生產力設定">
+                    <field name="weekly_committed_hours" widget="float_time"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- note.tag List View                                            -->
+    <!-- 標籤清單視圖，顯示階層結構                                      -->
+    <!-- ============================================================ -->
+    <record id="view_note_tag_list" model="ir.ui.view">
+        <field name="name">note.tag.list</field>
+        <field name="model">note.tag</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <list string="筆記標籤" editable="bottom">
+                <field name="name" string="標籤名稱"/>
+                <field name="parent_id" string="父類別"/>
+                <field name="color" string="顏色" widget="color_picker"/>
+                <field name="active" string="啟用" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.tag Form View                                            -->
+    <!-- 標籤表單視圖                                                   -->
+    <!-- ============================================================ -->
+    <record id="view_note_tag_form" model="ir.ui.view">
+        <field name="name">note.tag.form</field>
+        <field name="model">note.tag</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <form string="筆記標籤">
+                <sheet>
+                    <group col="4">
+                        <field name="name" string="標籤名稱"/>
+                        <field name="active" string="啟用" widget="boolean_toggle"/>
+                        <field name="parent_id" string="父類別"/>
+                        <field name="color" string="顏色" widget="color_picker"/>
+                    </group>
+                    <group string="子標籤">
+                        <field name="child_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="name" string="標籤名稱"/>
+                                <field name="color" string="顏色" widget="color_picker"/>
+                                <field name="active" string="啟用" widget="boolean_toggle"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.tag Search View                                          -->
+    <!-- 標籤搜尋視圖                                                   -->
+    <!-- ============================================================ -->
+    <record id="view_note_tag_search" model="ir.ui.view">
+        <field name="name">note.tag.search</field>
+        <field name="model">note.tag</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <search string="搜尋標籤">
+                <field name="name" string="標籤名稱"/>
+                <field name="parent_id" string="父類別"/>
+
+                <separator/>
+                <filter string="根標籤" name="root_tags"
+                        domain="[('parent_id', '=', False)]"/>
+                <filter string="已封存" name="inactive"
+                        domain="[('active', '=', False)]"/>
+
+                <group expand="0" string="分組">
+                    <filter string="父類別" name="group_parent"
+                            context="{'group_by': 'parent_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Actions                                                       -->
+    <!-- ============================================================ -->
+
+    <!-- Action - 筆記標籤 -->
+    <record id="action_note_tag" model="ir.actions.act_window">
+        <field name="name">筆記標籤</field>
+        <field name="res_model">note.tag</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_note_tag_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立您的第一個標籤</p>
+            <p>使用標籤來分類您的筆記，支援階層式結構。</p>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_tag_list">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_note_tag_list"/>
+        <field name="act_window_id" ref="action_note_tag"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_tag_form">
+        <field name="sequence">2</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_note_tag_form"/>
+        <field name="act_window_id" ref="action_note_tag"/>
+    </record>
+
+</odoo>

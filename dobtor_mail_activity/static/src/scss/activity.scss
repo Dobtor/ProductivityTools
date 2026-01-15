@@ -1,0 +1,195 @@
+// Activity Module Main Styles
+// dobtor_mail_activity
+
+// ============================================
+// Activity Form View
+// ============================================
+.o_activity_form_view {
+    .o_form_sheet_bg {
+        .o_form_sheet {
+            .oe_title {
+                max-width: initial;
+            }
+        }
+    }
+
+    .o_activity_state_widget {
+        font-size: large;
+    }
+
+    // Chatter panel responsive widths
+    @include media-breakpoint-up(xxl) {
+        .o_widget_activity_chatter_panel {
+            width: 35%;
+        }
+    }
+
+    @include media-breakpoint-down(xxl, $o-extra-grid-breakpoints) {
+        .o_widget_activity_chatter_panel {
+            min-width: 100%;
+        }
+    }
+}
+
+// Full width form sheet for xxl screens
+.o_form_view.o_xxl_form_view {
+    .o_activity_form_sheet_bg {
+        max-width: unset;
+
+        > .o_form_statusbar,
+        > .alert {
+            margin-left: 0;
+            margin-right: 0;
+        }
+    }
+}
+
+// ============================================
+// Activity Kanban View
+// ============================================
+.o_activity_kanban {
+    .o_kanban_record {
+        border-radius: 8px;
+        transition: all 0.2s ease;
+
+        &:hover {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+    }
+
+    .o_activity_card {
+        // Urgent activities (overdue)
+        &.border-danger {
+            border-left: 4px solid $danger !important;
+        }
+
+        // Important activities
+        &.fw-bold {
+            background-color: rgba($danger, 0.1);
+        }
+
+        // Done activities
+        &.o_activity_done {
+            opacity: 0.5;
+
+            .o_activity_summary {
+                text-decoration: line-through;
+            }
+        }
+    }
+}
+
+// ============================================
+// Activity State Colors
+// ============================================
+$activity-urgent-color: $danger;
+$activity-standard-color: $warning;
+$activity-flexible-color: $success;
+
+.o_activity_deadline {
+    &.o_activity_overdue {
+        color: $activity-urgent-color;
+    }
+
+    &.o_activity_today {
+        color: $activity-standard-color;
+    }
+
+    &.o_activity_planned {
+        color: $activity-flexible-color;
+    }
+}
+
+// ============================================
+// Activity Priority Badge
+// ============================================
+.o_activity_priority {
+    &.o_priority_urgent {
+        background-color: $activity-urgent-color;
+        color: white;
+    }
+
+    &.o_priority_high {
+        background-color: $activity-standard-color;
+        color: $dark;
+    }
+
+    &.o_priority_normal {
+        background-color: $secondary;
+        color: white;
+    }
+
+    &.o_priority_low {
+        background-color: $light;
+        color: $dark;
+    }
+}
+
+// ============================================
+// Week Selector
+// ============================================
+.o_week_selector {
+    .o_week_item {
+        min-width: 100px;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+        cursor: pointer;
+
+        &:hover {
+            border-color: $primary;
+            transform: translateY(-2px);
+        }
+
+        &.active,
+        &.bg-primary {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+    }
+}
+
+// ============================================
+// Related Notes Section
+// ============================================
+.o_related_notes {
+    .o_related_notes_header {
+        cursor: pointer;
+
+        &:hover {
+            background-color: darken($light, 5%) !important;
+        }
+    }
+
+    .o_related_note_item {
+        .o_note_activities {
+            border-left: 2px solid $secondary;
+        }
+    }
+
+    .o_activity_item {
+        &:hover {
+            background-color: $light;
+        }
+    }
+}
+
+// ============================================
+// Control Panel Button
+// ============================================
+.btn-chatter.activity_toggle_chatter {
+    &.active {
+        background-color: $primary;
+        color: white;
+
+        &:hover {
+            background-color: darken($primary, 10%);
+        }
+    }
+}
+
+// ============================================
+// Hide avatar in certain contexts
+// ============================================
+.o_activity_hide_avatar .o_avatar {
+    display: none;
+}
