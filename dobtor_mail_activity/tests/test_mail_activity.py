@@ -1,0 +1,234 @@
+# -*- coding: utf-8 -*-
+
+from datetime import date, timedelta
+from odoo.tests.common import TransactionCase, tagged
+from odoo.exceptions import ValidationError, UserError
+
+
+@tagged('post_install', '-at_install')
+class TestMailActivity(TransactionCase):
+    """測試 mail.activity 擴展功能"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = cls.env.ref('base.user_demo')
+        cls.partner = cls.env.ref('base.partner_demo')
+
+        # 建立測試用待辦類型
+        cls.activity_type = cls.env['mail.activity.type'].create({
+            'name': '測試待辦類型',
+            'category': 'default',
+        })
+
+        # 建立測試用筆記（作為待辦目標）
+        cls.note = cls.env['note.note'].create({
+            'memo': '<p>測試筆記內容</p>',
+            'user_id': cls.user.id,
+        })
+
+    def test_01_create_activity(self):
+        """測試建立待辦"""
+        activity = self.env['mail.activity'].create({
+            'summary': '測試待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+        })
+
+        self.assertTrue(activity.id)
+        self.assertEqual(activity.summary, '測試待辦')
+        self.assertTrue(activity.active)
+        self.assertEqual(activity.activity_state, 'active')
+
+    def test_02_activity_without_user(self):
+        """測試建立無指派人的待辦"""
+        activity = self.env['mail.activity'].create({
+            'summary': '無指派人待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'user_id': False,
+        })
+
+        self.assertTrue(activity.id)
+        self.assertFalse(activity.user_id)
+
+    def test_03_activity_priority(self):
+        """測試待辦優先級欄位"""
+        activity = self.env['mail.activity'].create({
+            'summary': '緊急重要待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'urgency': 'urgent',
+            'importance': 'important',
+        })
+
+        self.assertEqual(activity.urgency, 'urgent')
+        self.assertEqual(activity.importance, 'important')
+
+    def test_04_activity_schedule(self):
+        """測試待辦排程功能"""
+        activity = self.env['mail.activity'].create({
+            'summary': '排程測試',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'schedule_status': 'monday',
+            'planned_date': date.today(),
+        })
+
+        self.assertEqual(activity.schedule_status, 'monday')
+        self.assertTrue(activity.planned_date)
+
+    def test_05_activity_done(self):
+        """測試完成待辦（封存）"""
+        activity = self.env['mail.activity'].create({
+            'summary': '待完成待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'user_id': self.user.id,
+            'actual_hours': 1.0,
+        })
+
+        # 執行完成（透過內部方法）
+        activity._action_done(feedback='測試完成')
+
+        self.assertFalse(activity.active)
+        self.assertTrue(activity.done_date)
+        self.assertEqual(activity.activity_state, 'done')
+
+    def test_06_activity_cancel(self):
+        """測試取消待辦"""
+        activity = self.env['mail.activity'].create({
+            'summary': '待取消待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+        })
+
+        activity.action_cancel()
+
+        self.assertFalse(activity.active)
+        self.assertTrue(activity.cancel_date)
+        self.assertEqual(activity.activity_state, 'cancelled')
+
+    def test_07_activity_restore(self):
+        """測試恢復已封存待辦"""
+        activity = self.env['mail.activity'].create({
+            'summary': '待恢復待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+        })
+
+        # 先取消
+        activity.action_cancel()
+        self.assertFalse(activity.active)
+
+        # 再恢復
+        activity.action_restore()
+        self.assertTrue(activity.active)
+        self.assertFalse(activity.cancel_date)
+
+    def test_08_schedule_week_compute(self):
+        """測試週次計算"""
+        today = date.today()
+        current_week_start = today - timedelta(days=today.weekday())
+
+        # 本週待辦
+        activity_this_week = self.env['mail.activity'].create({
+            'summary': '本週待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': today,
+            'planned_date': current_week_start,
+        })
+        self.assertEqual(activity_this_week.schedule_week, 'week0')
+        self.assertEqual(activity_this_week.schedule_week_number, 0)
+
+        # 下週待辦
+        activity_next_week = self.env['mail.activity'].create({
+            'summary': '下週待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': today + timedelta(days=7),
+            'planned_date': current_week_start + timedelta(days=7),
+        })
+        self.assertEqual(activity_next_week.schedule_week, 'week1')
+        self.assertEqual(activity_next_week.schedule_week_number, 1)
+
+    def test_09_assignment_history(self):
+        """測試指派歷史"""
+        user2 = self.env['res.users'].create({
+            'name': '測試用戶2',
+            'login': 'test_user_2',
+        })
+
+        activity = self.env['mail.activity'].create({
+            'summary': '指派測試',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'user_id': self.user.id,
+        })
+
+        # 變更指派
+        activity.write({'user_id': user2.id})
+
+        # 檢查歷史記錄
+        self.assertEqual(len(activity.assignment_history_ids), 1)
+        history = activity.assignment_history_ids[0]
+        self.assertEqual(history.previous_user_id.id, self.user.id)
+        self.assertEqual(history.new_user_id.id, user2.id)
+
+    def test_10_note_relation(self):
+        """測試筆記關聯"""
+        activity = self.env['mail.activity'].create({
+            'summary': '關聯筆記測試',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'note_id': self.note.id,
+        })
+
+        self.assertEqual(activity.note_id.id, self.note.id)
+
+        # 檢查筆記的待辦計數
+        self.assertGreaterEqual(self.note.activity_count, 1)
+
+    def test_11_estimated_hours(self):
+        """測試工時相關欄位"""
+        activity = self.env['mail.activity'].create({
+            'summary': '工時測試',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'estimated_hours': 2.5,
+        })
+
+        self.assertEqual(activity.estimated_hours, 2.5)
+
+    def test_12_target_ref_validation(self):
+        """測試目標文件驗證"""
+        with self.assertRaises(ValidationError):
+            self.env['mail.activity'].create({
+                'summary': '無目標文件',
+                'activity_type_id': self.activity_type.id,
+                'date_deadline': date.today(),
+                # 缺少 res_model_id 和 res_id
+            })

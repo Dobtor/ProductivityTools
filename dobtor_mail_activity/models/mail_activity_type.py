@@ -7,10 +7,18 @@ class MailActivityType(models.Model):
     """待辦類型擴展
 
     新增功能:
+    - 預設說明：建立待辦時自動填入的說明內容
     - 自定義指派通知模板：允許為特定待辦類型配置專屬的通知郵件模板
     - 使用自定義通知開關：控制是否使用自定義模板取代系統預設通知
     """
     _inherit = 'mail.activity.type'
+
+    # ===== 預設說明 =====
+    default_description = fields.Html(
+        string='預設說明',
+        help='建立此類型待辦時，自動填入的說明內容。',
+        translate=True,
+    )
 
     # ===== 自定義通知模板 =====
     notify_template_id = fields.Many2one(

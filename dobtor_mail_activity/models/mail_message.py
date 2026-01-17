@@ -118,6 +118,7 @@ class MailMessage(models.Model):
             'name': _('從訊息建立待辦'),
             'res_model': 'mail.activity.from.message.wizard',
             'view_mode': 'form',
+            'views': [[False, 'form']],
             'target': 'new',
             'context': {
                 'default_message_id': self.id,

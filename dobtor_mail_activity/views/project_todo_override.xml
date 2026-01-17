@@ -2,26 +2,16 @@
 <odoo>
 
     <!-- ============================================================ -->
-    <!--      隱藏 project_todo 主選單 (避免與本模組重複)                 -->
+    <!--      替換 project_todo 主選單 Action                           -->
     <!-- ============================================================ -->
 
     <!--
-        注意: project_todo 是 Odoo 18 中的內建模組，提供基本的待辦功能。
-        本模組 (dobtor_mail_activity) 提供更完整的生產力管理功能，
-        因此我們隱藏原本的 project_todo 選單以避免混淆。
+        將 project_todo 主選單的 action 替換為本模組的「我的待辦事項」，
+        點擊主選單直接開啟 mail.activity 的週排程 Kanban 視圖。
     -->
 
-    <!-- 方法一：限制選單存取群組為空（隱藏但不刪除）-->
     <record id="project_todo.menu_todo_todos" model="ir.ui.menu">
-        <field name="groups_id" eval="[(6, 0, [])]"/>
+        <field name="action" ref="dobtor_mail_activity.action_mail_activity_my_schedule"/>
     </record>
-
-    <!--
-        備註：如果 project_todo 模組未安裝，上述記錄會在模組安裝時失敗。
-        為了安全起見，我們在 __manifest__.py 中不將 project_todo 列為依賴，
-        而是使用 noupdate="0" 來確保此設定僅在模組存在時生效。
-
-        如果您希望保留 project_todo 的選單，請將此檔案從 __manifest__.py 中移除。
-    -->
 
 </odoo>

@@ -36,6 +36,14 @@ class MailActivity(models.Model):
         default=False,   # 移除預設值（官方預設為當前用戶）
     )
 
+    # ===== 覆寫 res_id 為可寫入（官方預設 readonly=True）=====
+    # 這讓 target_ref 的 onchange 能正確設定 res_id
+    res_id = fields.Many2oneReference(
+        index='btree_not_null',
+        model_field='res_model',
+        readonly=False,  # 改為可寫入
+    )
+
     # ===== 封存相關 =====
     active = fields.Boolean(
         string='啟用',
@@ -343,8 +351,51 @@ class MailActivity(models.Model):
             if not activity.res_model_id or not activity.res_id:
                 raise ValidationError(_('請選擇「目標文件」，待辦必須關聯到一個文件記錄。'))
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """覆寫 create 方法
+
+        1. 處理 target_ref 轉換為 res_model_id 和 res_id
+        2. 繞過 Odoo 18 base mail.activity create 中的 UnboundLocalError bug
+        """
+        for vals in vals_list:
+            # 處理 target_ref 欄位（格式：'model.name,id'）
+            if vals.get('target_ref'):
+                target_ref = vals.pop('target_ref')
+                if isinstance(target_ref, str) and ',' in target_ref:
+                    model_name, res_id_str = target_ref.rsplit(',', 1)
+                    try:
+                        res_id = int(res_id_str)
+                        vals['res_model_id'] = self.env['ir.model']._get(model_name).id
+                        vals['res_id'] = res_id
+                    except (ValueError, TypeError):
+                        _logger.warning('Invalid target_ref format: %s', target_ref)
+
+            # 設定預設的 activity_type_id（如果未提供）
+            if not vals.get('activity_type_id'):
+                activity_type = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
+                if activity_type:
+                    vals['activity_type_id'] = activity_type.id
+
+        # 直接呼叫 models.Model.create 繞過 base mail.activity 的 buggy code
+        # Odoo 18 的 mail/models/mail_activity.py 有 UnboundLocalError bug
+        activities = models.Model.create(self, vals_list)
+
+        # 手動處理 bus 通知（原本在 base create 中，但有 bug）
+        for activity in activities:
+            if activity.user_id:
+                try:
+                    activity.user_id._bus_send(
+                        'mail.activity/updated',
+                        {'activity_created': True}
+                    )
+                except Exception as e:
+                    _logger.debug('Bus notification failed: %s', str(e))
+
+        return activities
+
     @api.model
-    def _group_expand_schedule_status(self, statuses, domain, order):
+    def _group_expand_schedule_status(self, statuses, domain, order=None):
         """確保所有排程狀態都顯示在 Kanban 視圖中"""
         return [
             'waiting', 'monday', 'tuesday', 'wednesday',
@@ -522,25 +573,6 @@ class MailActivity(models.Model):
                 activity.schedule_warning = _('需於%s前安排執行') % weekday_names.get(weekday, '')
 
     # ========== Override Methods ==========
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        """覆寫 create 方法，處理 target_ref 欄位"""
-        for vals in vals_list:
-            # 如果有 target_ref，從中解析 res_model_id 和 res_id
-            target_ref = vals.get('target_ref')
-            if target_ref:
-                # target_ref 格式為 "model,id"
-                if isinstance(target_ref, str) and ',' in target_ref:
-                    model, res_id = target_ref.split(',', 1)
-                    vals['res_model_id'] = self.env['ir.model']._get(model).id
-                    vals['res_id'] = int(res_id)
-
-            # 確保 res_model_id 和 res_id 都有值
-            if vals.get('res_model_id') and not vals.get('res_id'):
-                raise UserError(_('請選擇「目標文件」，待辦必須關聯到一個文件記錄。'))
-
-        return super().create(vals_list)
 
     def write(self, vals):
         """覆寫 write 方法以記錄指派變更"""

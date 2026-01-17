@@ -553,7 +553,7 @@
     <!-- mail.activity Search View (Schedule)                          -->
     <!-- 搜尋視圖，含多種篩選與分組                                      -->
     <!-- ============================================================ -->
-    <record id="mail_activity_view_search_schedule" model="ir.ui.view">
+    <record id="mail_activity_view_search_productivity" model="ir.ui.view">
         <field name="name">mail.activity.search.schedule</field>
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
@@ -677,132 +677,6 @@
                 <button name="action_restore" type="object" string="恢復"
                         icon="fa-undo" class="btn-secondary"/>
             </list>
-        </field>
-    </record>
-
-    <!-- ============================================================ -->
-    <!-- Actions                                                       -->
-    <!-- ============================================================ -->
-
-    <!-- Action - 我的待辦事項 -->
-    <record id="action_mail_activity_my_schedule" model="ir.actions.act_window">
-        <field name="name">我的待辦事項</field>
-        <field name="res_model">mail.activity</field>
-        <field name="view_mode">kanban,calendar,list,form</field>
-        <field name="domain">[('user_id', '=', uid)]</field>
-        <field name="context">{'search_default_active': 1}</field>
-        <field name="search_view_id" ref="mail_activity_view_search_schedule"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">建立您的第一個待辦事項</p>
-            <p>使用 Kanban 視圖來規劃您的每週工作安排。</p>
-        </field>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_mail_activity_my_schedule_kanban">
-        <field name="sequence">1</field>
-        <field name="view_mode">kanban</field>
-        <field name="view_id" ref="mail_activity_view_kanban_schedule"/>
-        <field name="act_window_id" ref="action_mail_activity_my_schedule"/>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_mail_activity_my_schedule_calendar">
-        <field name="sequence">2</field>
-        <field name="view_mode">calendar</field>
-        <field name="view_id" ref="mail_activity_view_calendar_schedule"/>
-        <field name="act_window_id" ref="action_mail_activity_my_schedule"/>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_mail_activity_my_schedule_list">
-        <field name="sequence">3</field>
-        <field name="view_mode">list</field>
-        <field name="view_id" ref="mail_activity_view_list_schedule"/>
-        <field name="act_window_id" ref="action_mail_activity_my_schedule"/>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_mail_activity_my_schedule_form">
-        <field name="sequence">4</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="mail_activity_view_form_schedule"/>
-        <field name="act_window_id" ref="action_mail_activity_my_schedule"/>
-    </record>
-
-    <!-- Action - 我建立的待辦 -->
-    <record id="action_mail_activity_created_by_me" model="ir.actions.act_window">
-        <field name="name">我建立的待辦</field>
-        <field name="res_model">mail.activity</field>
-        <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('create_uid', '=', uid), ('user_id', '!=', uid)]</field>
-        <field name="context">{'search_default_active': 1}</field>
-        <field name="search_view_id" ref="mail_activity_view_search_schedule"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">您尚未建立指派給他人的待辦</p>
-            <p>此處顯示您建立並指派給他人的待辦。</p>
-        </field>
-    </record>
-
-    <!-- Action - 尚未指派 -->
-    <record id="action_mail_activity_unassigned" model="ir.actions.act_window">
-        <field name="name">尚未指派</field>
-        <field name="res_model">mail.activity</field>
-        <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('user_id', '=', False)]</field>
-        <field name="context">{}</field>
-        <field name="search_view_id" ref="mail_activity_view_search_schedule"/>
-    </record>
-
-    <!-- Action - 我的歷史代辦 -->
-    <record id="action_mail_activity_my_history" model="ir.actions.act_window">
-        <field name="name">我的歷史代辦</field>
-        <field name="res_model">mail.activity</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">['|', ('create_uid', '=', uid), ('user_id', '=', uid), ('active', '=', False)]</field>
-        <field name="context">{'active_test': False}</field>
-        <field name="search_view_id" ref="mail_activity_view_search_schedule"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">沒有歷史代辦事項</p>
-            <p>您建立或被指派的已完成/已取消待辦會顯示在這裡。</p>
-        </field>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_mail_activity_my_history_list">
-        <field name="sequence">1</field>
-        <field name="view_mode">list</field>
-        <field name="view_id" ref="mail_activity_view_list_history"/>
-        <field name="act_window_id" ref="action_mail_activity_my_history"/>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_mail_activity_my_history_form">
-        <field name="sequence">2</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="mail_activity_view_form_schedule"/>
-        <field name="act_window_id" ref="action_mail_activity_my_history"/>
-    </record>
-
-    <!-- Action - 所有歷史代辦（管理者專用） -->
-    <record id="action_mail_activity_archived" model="ir.actions.act_window">
-        <field name="name">所有歷史代辦</field>
-        <field name="res_model">mail.activity</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">[('active', '=', False)]</field>
-        <field name="context">{'active_test': False}</field>
-        <field name="search_view_id" ref="mail_activity_view_search_schedule"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">沒有歷史代辦事項</p>
-            <p>所有人的已完成或已取消待辦會顯示在這裡。</p>
-        </field>
-    </record>
-
-    <!-- Action - 所有代辦事項（管理者專用） -->
-    <record id="action_mail_activity_all" model="ir.actions.act_window">
-        <field name="name">所有代辦事項</field>
-        <field name="res_model">mail.activity</field>
-        <field name="view_mode">kanban,calendar,list,form</field>
-        <field name="domain">[]</field>
-        <field name="context">{'search_default_active': 1}</field>
-        <field name="search_view_id" ref="mail_activity_view_search_schedule"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">目前沒有代辦事項</p>
-            <p>此視圖顯示所有人的代辦事項，僅限管理者檢視。</p>
         </field>
     </record>
 

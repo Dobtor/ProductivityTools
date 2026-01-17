@@ -58,6 +58,7 @@
         'hr_timesheet',
         'hr',
         'project',
+        'project_todo',
         'crm',
     ],
     'data': [
@@ -90,6 +91,8 @@
     ],
     'assets': {
         'web.assets_backend': [
+            # Core (mail extensions)
+            'dobtor_mail_activity/static/src/core/**/*',
             # Components
             'dobtor_mail_activity/static/src/components/**/*',
             # Views
@@ -98,6 +101,9 @@
             'dobtor_mail_activity/static/src/web/**/*',
             # Styles
             'dobtor_mail_activity/static/src/scss/**/*',
+        ],
+        'web.assets_unit_tests': [
+            'dobtor_mail_activity/static/tests/**/*',
         ],
     },
     'installable': True,

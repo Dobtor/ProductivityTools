@@ -1,0 +1,51 @@
+.o_week_selector {
+    .o_week_item {
+        min-width: 90px;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+
+        &:hover {
+            border-color: var(--bs-primary) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        &.bg-primary {
+            box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.4);
+
+            &:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.5);
+            }
+
+            .badge {
+                background-color: rgba(255, 255, 255, 0.2) !important;
+                color: white !important;
+            }
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+        }
+    }
+
+    // 上週樣式
+    .o_week_item.opacity-75 {
+        filter: grayscale(30%);
+    }
+}
+
+// 響應式調整
+@media (max-width: 576px) {
+    .o_week_selector {
+        .o_week_item {
+            min-width: 70px;
+            padding: 0.5rem !important;
+
+            .small {
+                font-size: 0.65rem !important;
+            }
+        }
+    }
+}

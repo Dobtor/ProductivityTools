@@ -202,10 +202,6 @@
                         domain="[('open', '=', False)]"/>
 
                 <separator/>
-                <filter string="有進行中待辦" name="has_activities"
-                        domain="[('active_activity_count', '>', 0)]"/>
-
-                <separator/>
                 <filter string="已封存" name="archived"
                         domain="[('active', '=', False)]"/>
 

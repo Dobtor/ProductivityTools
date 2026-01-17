@@ -15,7 +15,7 @@
                         <setting id="default_timesheet_project_setting"
                                  string="預設工時表專案"
                                  help="當待辦完成時，若無關聯專案，使用此預設專案建立工時表記錄。">
-                            <field name="default_timesheet_project_id"
+                            <field name="timesheet_project_id"
                                    domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
                         </setting>
                     </block>

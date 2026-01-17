@@ -1,69 +1,25 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-# ==================================================
-# Wizards (Transient Models)
-# 所有 wizard 都需要給 base.group_user 完整權限
-# ==================================================
 access_mail_activity_done_wizard,mail.activity.done.wizard,model_mail_activity_done_wizard,base.group_user,1,1,1,1
 access_mail_activity_postpone_wizard,mail.activity.postpone.wizard,model_mail_activity_postpone_wizard,base.group_user,1,1,1,1
 access_mail_activity_transfer_wizard,mail.activity.transfer.wizard,model_mail_activity_transfer_wizard,base.group_user,1,1,1,1
 access_mail_activity_from_message_wizard,mail.activity.from.message.wizard,model_mail_activity_from_message_wizard,base.group_user,1,1,1,1
 access_mail_activity_reassign_wizard,mail.activity.reassign.wizard,model_mail_activity_reassign_wizard,base.group_user,1,1,1,1
-
-# ==================================================
-# Note Models
-# ==================================================
-# note.note - 用戶完整權限
 access_note_note,note.note,model_note_note,base.group_user,1,1,1,1
-
-# note.stage - 用戶完整權限
 access_note_stage,note.stage,model_note_stage,base.group_user,1,1,1,1
-
-# note.tag - 用戶不可刪除，系統管理員完整權限
 access_note_tag_user,note.tag.user,model_note_tag,base.group_user,1,1,1,0
 access_note_tag_admin,note.tag.admin,model_note_tag,base.group_system,1,1,1,1
-
-# ==================================================
-# Transfer Config
-# 用戶唯讀，系統管理員完整權限
-# ==================================================
 access_mail_activity_transfer_config_user,mail.activity.transfer.config.user,model_mail_activity_transfer_config,base.group_user,1,0,0,0
 access_mail_activity_transfer_config_admin,mail.activity.transfer.config.admin,model_mail_activity_transfer_config,base.group_system,1,1,1,1
-
-# ==================================================
-# History Models
-# ==================================================
-# assignment.history - 用戶唯讀，管理者完整權限
 access_mail_activity_assignment_history_user,mail.activity.assignment.history.user,model_mail_activity_assignment_history,base.group_user,1,0,0,0
 access_mail_activity_assignment_history_manager,mail.activity.assignment.history.manager,model_mail_activity_assignment_history,dobtor_mail_activity.group_activity_manager,1,1,1,1
-
-# postpone.history - 用戶可建立但不可刪除
 access_mail_activity_postpone_history,mail.activity.postpone.history,model_mail_activity_postpone_history,base.group_user,1,1,1,0
 access_mail_activity_postpone_history_manager,mail.activity.postpone.history.manager,model_mail_activity_postpone_history,dobtor_mail_activity.group_activity_manager,1,1,1,1
-
-# ==================================================
-# Weekly Report Models
-# ==================================================
-# weekly.report - 用戶不可刪除，管理者完整權限
 access_weekly_report_user,weekly.report.user,model_weekly_report,base.group_user,1,1,1,0
 access_weekly_report_manager,weekly.report.manager,model_weekly_report,dobtor_mail_activity.group_activity_manager,1,1,1,1
-
-# weekly.report.snapshot.line - 用戶完整權限
 access_weekly_report_snapshot_line,weekly.report.snapshot.line,model_weekly_report_snapshot_line,base.group_user,1,1,1,1
-
-# weekly.report.review.line - 用戶完整權限
 access_weekly_report_review_line,weekly.report.review.line,model_weekly_report_review_line,base.group_user,1,1,1,1
-
-# ==================================================
-# Efficiency Metrics
-# 用戶唯讀，工時管理員/待辦管理者完整權限
-# ==================================================
 access_activity_efficiency_metrics_user,activity.efficiency.metrics.user,model_activity_efficiency_metrics,base.group_user,1,0,0,0
 access_activity_efficiency_metrics_timesheet_manager,activity.efficiency.metrics.timesheet.manager,model_activity_efficiency_metrics,hr_timesheet.group_timesheet_manager,1,1,1,1
 access_activity_efficiency_metrics_activity_manager,activity.efficiency.metrics.activity.manager,model_activity_efficiency_metrics,dobtor_mail_activity.group_activity_manager,1,1,1,1
-
-# ==================================================
-# Weekly Schedule Config
-# 用戶不可刪除，系統管理員完整權限
-# ==================================================
 access_weekly_schedule_config_user,weekly.schedule.config.user,model_weekly_schedule_config,base.group_user,1,1,1,0
 access_weekly_schedule_config_admin,weekly.schedule.config.admin,model_weekly_schedule_config,base.group_system,1,1,1,1

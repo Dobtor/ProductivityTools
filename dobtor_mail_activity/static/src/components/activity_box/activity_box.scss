@@ -1,0 +1,57 @@
+.o_activity_box {
+    transition: all 0.2s ease;
+
+    &:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+
+    &.border-danger {
+        border-left: 4px solid var(--bs-danger) !important;
+    }
+
+    &.border-success {
+        border-left: 4px solid var(--bs-success) !important;
+    }
+
+    &.bg-warning-subtle {
+        background-color: rgba(var(--bs-warning-rgb), 0.1) !important;
+    }
+
+    .o_activity_icon {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bs-gray-200);
+        border-radius: 50%;
+    }
+
+    .o_activity_actions {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+
+        .btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    }
+
+    &:hover .o_activity_actions {
+        opacity: 1;
+    }
+
+    // 完成狀態樣式
+    &.o_activity_done {
+        opacity: 0.7;
+
+        .fw-bold {
+            text-decoration: line-through;
+        }
+    }
+}

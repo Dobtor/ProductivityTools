@@ -216,11 +216,11 @@
 
                 <templates>
                     <t t-name="card" class="flex-column">
-                        <!-- 卡片底色優先級：逾期(danger) > 緊急(warning) > 重要(info) -->
+                        <!-- 卡片底色優先級：逾期(紅) > 緊急(橙) > 重要(藍) -->
                         <div t-attf-class="p-2
-                            #{record.state.raw_value == 'overdue' ? 'bg-danger-subtle border-danger' :
-                              record.urgency.raw_value == 'urgent' ? 'bg-warning-subtle border-warning' :
-                              record.importance.raw_value == 'important' ? 'bg-info-subtle border-info' : ''}">
+                            #{record.state.raw_value == 'overdue' ? 'border-start border-danger border-3 bg-danger-subtle' :
+                              record.urgency.raw_value == 'urgent' ? 'border-start border-warning border-3 bg-warning-subtle' :
+                              record.importance.raw_value == 'important' ? 'border-start border-primary border-3 bg-primary-subtle' : ''}">
 
                             <!-- 第一列：摘要 -->
                             <div class="o_kanban_record_top mb-1">
@@ -233,99 +233,100 @@
                             </div>
 
                             <!-- 第二列：截止日期(左) + [緊急][類型](右) -->
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <!-- 截止日期 -->
-                                <span t-attf-class="badge #{record.state.raw_value == 'overdue' ? 'text-bg-danger' : record.state.raw_value == 'today' ? 'text-bg-warning' : 'text-bg-secondary'}"
+                            <div class="d-flex justify-content-between align-items-center mb-1 small">
+                                <!-- 截止日期（僅顯示日期） -->
+                                <span t-attf-class="badge text-nowrap d-inline-flex align-items-center #{record.state.raw_value == 'overdue' ? 'text-bg-danger' : record.state.raw_value == 'today' ? 'text-bg-warning' : 'text-bg-secondary'}"
                                       title="截止日期">
-                                    <i class="fa fa-calendar-o"/> <field name="date_deadline"/>
+                                    <i class="fa fa-calendar-o me-1"/><field name="date_deadline" widget="date"/>
                                 </span>
                                 <!-- 標籤區：緊急 + 類型 -->
-                                <div class="d-flex align-items-center" style="gap: 4px;">
+                                <div class="d-flex align-items-center flex-nowrap" style="gap: 4px;">
                                     <!-- 緊急標籤 -->
-                                    <span t-if="record.urgency.raw_value == 'urgent'" class="badge text-bg-danger">
-                                        <i class="fa fa-exclamation-circle"/> 緊急
+                                    <span t-if="record.urgency.raw_value == 'urgent'" class="badge rounded-pill text-bg-danger text-nowrap">
+                                        緊急
                                     </span>
                                     <!-- 待辦類型 -->
-                                    <span class="badge rounded-pill text-bg-light">
-                                        <i class="fa fa-tag" title="待辦類型"/> <field name="activity_type_id"/>
+                                    <span class="badge rounded-pill text-bg-light text-nowrap text-truncate" style="max-width: 100px;">
+                                        <field name="activity_type_id"/>
                                     </span>
                                 </div>
                             </div>
 
                             <!-- 第三列：關聯資訊（CRM/專案/筆記/文件/客戶） -->
-                            <div class="text-muted small mb-1">
-                                <span t-if="record.crm_lead_id.raw_value" class="me-2" title="CRM 商機">
-                                    <i class="fa fa-usd text-success"/> <field name="crm_lead_id"/>
+                            <div class="text-muted mb-1 d-flex flex-wrap small" style="gap: 4px 8px;">
+                                <span t-if="record.crm_lead_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="CRM 商機">
+                                    <i class="fa fa-usd text-success me-1"/><field name="crm_lead_id"/>
                                 </span>
-                                <span t-if="record.project_id.raw_value" class="me-2" title="專案">
-                                    <i class="fa fa-folder-open-o text-primary"/> <field name="project_id"/>
+                                <span t-if="record.project_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="專案">
+                                    <i class="fa fa-folder-open-o text-primary me-1"/><field name="project_id"/>
                                 </span>
-                                <span t-if="record.note_id.raw_value" class="me-2" title="筆記">
-                                    <i class="fa fa-sticky-note-o text-warning"/> <field name="note_id"/>
+                                <span t-if="record.note_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="筆記">
+                                    <i class="fa fa-sticky-note-o text-warning me-1"/><field name="note_id"/>
                                 </span>
-                                <span t-if="!record.crm_lead_id.raw_value and !record.project_id.raw_value and !record.note_id.raw_value">
-                                    <a type="object" name="action_open_document" title="開啟文件">
-                                        <i class="fa fa-external-link"/> <field name="res_name"/>
+                                <span t-if="!record.crm_lead_id.raw_value and !record.project_id.raw_value and !record.note_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 150px;">
+                                    <a type="object" name="action_open_document" class="d-inline-flex align-items-center" title="開啟文件">
+                                        <i class="fa fa-external-link me-1"/><field name="res_name"/>
                                     </a>
                                 </span>
-                                <span t-if="record.partner_id.raw_value" class="ms-2" title="客戶">
-                                    <i class="fa fa-building-o text-info"/> <field name="partner_id"/>
+                                <span t-if="record.partner_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="客戶">
+                                    <i class="fa fa-building-o text-info me-1"/><field name="partner_id"/>
                                 </span>
                             </div>
 
-                            <!-- 第四列：建立日期+重要+轉移(左) + 建立者(右) -->
+                            <!-- 第四列：建立日期+重要+轉移(左) + 建立者(右靠齊) -->
                             <div class="d-flex justify-content-between align-items-center mb-1 small">
-                                <div class="d-flex align-items-center" style="gap: 4px;">
-                                    <span class="text-muted" title="建立日期">
-                                        <i class="fa fa-plus-circle"/> <field name="create_date" widget="date"/>
+                                <div class="d-flex align-items-center flex-nowrap" style="gap: 4px;">
+                                    <!-- 建立日期（僅顯示日期） -->
+                                    <span class="badge text-bg-secondary text-nowrap d-inline-flex align-items-center" title="建立日期">
+                                        <i class="fa fa-plus-circle me-1"/><t t-out="record.create_date.value.slice(0, 10)"/>
                                     </span>
                                     <!-- 重要標籤 -->
-                                    <span t-if="record.importance.raw_value == 'important'" class="badge text-bg-info">
-                                        <i class="fa fa-star"/> 重要
+                                    <span t-if="record.importance.raw_value == 'important'" class="badge rounded-pill border border-danger text-danger text-nowrap">
+                                        重要
                                     </span>
                                     <!-- 已轉移 -->
-                                    <span t-if="record.is_transferred.raw_value" class="badge text-bg-secondary" title="已轉移">
-                                        <i class="fa fa-exchange"/> 轉移
+                                    <span t-if="record.is_transferred.raw_value" class="badge text-bg-secondary text-nowrap d-inline-flex align-items-center" title="已轉移">
+                                        <i class="fa fa-exchange"/>
                                     </span>
                                 </div>
-                                <div class="d-flex align-items-center">
-                                    <span class="text-muted me-1">建立：</span>
+                                <div class="d-flex align-items-center text-end text-nowrap">
+                                    <span class="text-muted me-1">建立:</span>
                                     <field name="create_uid" widget="many2one_avatar_user" readonly="1"/>
                                 </div>
                             </div>
 
-                            <!-- 第五列：工時 + 按鈕群組(左) + 執行者(右) -->
-                            <div class="o_kanban_record_bottom mt-1 pt-1 border-top">
-                                <div class="oe_kanban_bottom_left d-flex align-items-center" style="gap: 4px;">
+                            <!-- 第五列：工時+按鈕群組(左) + 執行者(右靠齊) -->
+                            <div class="o_kanban_record_bottom d-flex justify-content-between mt-1 pt-1 border-top small">
+                                <div class="oe_kanban_bottom_left d-flex align-items-center flex-nowrap" style="gap: 4px;">
                                     <!-- 預估工時 -->
-                                    <span t-if="record.estimated_hours.raw_value" class="text-muted small me-1" title="預估工時">
-                                        <i class="fa fa-hourglass-half"/> <field name="estimated_hours" widget="float_time"/>
+                                    <span t-if="record.estimated_hours.raw_value" class="badge text-bg-secondary text-nowrap d-inline-flex align-items-center" title="預估工時">
+                                        <i class="fa fa-clock-o me-1"/><field name="estimated_hours" widget="float_time"/>
                                     </span>
                                     <!-- 領取按鈕（未指派時） -->
                                     <t t-if="!record.user_id.raw_value">
-                                        <button name="action_claim_activity" type="object" class="btn btn-sm btn-outline-primary" title="領取此待辦">
-                                            <i class="fa fa-hand-paper-o"/> 領取
+                                        <button name="action_claim_activity" type="object" class="btn btn-sm btn-outline-primary py-0 d-inline-flex align-items-center" title="領取此待辦">
+                                            <i class="fa fa-hand-paper-o me-1"/><span>領取</span>
                                         </button>
                                     </t>
                                     <!-- 延期按鈕（已指派時） -->
                                     <t t-if="record.user_id.raw_value">
-                                        <button name="action_postpone_wizard" type="object" class="btn btn-sm btn-outline-secondary" title="延期">
-                                            <i class="fa fa-clock-o"/> 延期
+                                        <button name="action_postpone_wizard" type="object" class="btn btn-sm btn-outline-warning py-0 d-inline-flex align-items-center" title="延期">
+                                            <i class="fa fa-arrow-right me-1"/><span>延期</span>
                                         </button>
                                     </t>
                                     <!-- 完成按鈕 -->
-                                    <button name="action_done_wizard" type="object" class="btn btn-sm btn-success" title="完成待辦">
-                                        <i class="fa fa-check"/> 完成
+                                    <button name="action_done_wizard" type="object" class="btn btn-sm btn-outline-success py-0 d-inline-flex align-items-center" title="完成待辦">
+                                        <i class="fa fa-check me-1"/><span>完成</span>
                                     </button>
                                 </div>
-                                <div class="oe_kanban_bottom_right d-flex align-items-center">
+                                <div class="oe_kanban_bottom_right d-flex align-items-center text-end">
                                     <t t-if="record.user_id.raw_value">
-                                        <span class="text-muted small me-1">執行：</span>
+                                        <span class="text-muted me-1">執行:</span>
                                         <field name="user_id" widget="many2one_avatar_user"/>
                                     </t>
                                     <t t-else="">
-                                        <span class="badge text-bg-light text-muted">
-                                            <i class="fa fa-user-o"/> 未指派
+                                        <span class="badge text-bg-light text-muted d-inline-flex align-items-center">
+                                            <i class="fa fa-user-o me-1"/><span>未指派</span>
                                         </span>
                                     </t>
                                 </div>
@@ -406,8 +407,8 @@
     <!-- ============================================================ -->
     <!--              待辦事項 Search View 擴展                         -->
     <!-- ============================================================ -->
-    <record id="mail_activity_view_search_schedule" model="ir.ui.view">
-        <field name="name">mail.activity.view.search.schedule</field>
+    <record id="mail_activity_view_search_inherit" model="ir.ui.view">
+        <field name="name">mail.activity.view.search.inherit</field>
         <field name="model">mail.activity</field>
         <field name="inherit_id" ref="mail.mail_activity_view_search"/>
         <field name="arch" type="xml">

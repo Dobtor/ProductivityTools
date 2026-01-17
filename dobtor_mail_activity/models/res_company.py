@@ -28,7 +28,7 @@ class ResConfigSettings(models.TransientModel):
     """
     _inherit = 'res.config.settings'
 
-    default_timesheet_project_id = fields.Many2one(
+    timesheet_project_id = fields.Many2one(
         related='company_id.default_timesheet_project_id',
         string='預設工時表專案',
         readonly=False,

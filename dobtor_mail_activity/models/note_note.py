@@ -53,6 +53,7 @@ class NoteNote(models.Model):
         string='階段',
         compute='_compute_stage_id',
         inverse='_inverse_stage_id',
+        store=True,
         default=lambda self: self._get_default_stage_id(),
         group_expand='_read_group_stage_ids',
     )
@@ -129,6 +130,7 @@ class NoteNote(models.Model):
             note.activity_count = len(activities)
             note.active_activity_count = len(activities.filtered('active'))
 
+    @api.depends('stage_ids')
     def _compute_stage_id(self):
         """計算當前用戶的階段"""
         first_user_stage = self.env['note.stage'].search(
@@ -158,7 +160,7 @@ class NoteNote(models.Model):
         )
 
     @api.model
-    def _read_group_stage_ids(self, stages, domain):
+    def _read_group_stage_ids(self, stages, domain, order=None):
         """看板視圖階段展開 - 顯示當前用戶的所有階段"""
         return self.env['note.stage'].search([('user_id', '=', self.env.uid)])
 

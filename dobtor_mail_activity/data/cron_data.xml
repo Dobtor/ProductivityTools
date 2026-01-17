@@ -10,9 +10,7 @@
             <field name="code">model._cron_weekly_transition()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">weeks</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
         </record>
 
         <!-- 效率指標計算定時任務 -->
@@ -23,9 +21,7 @@
             <field name="code">model._cron_compute_metrics()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
         </record>
 
         <!-- 週報排程自動建立定時任務 -->
@@ -36,10 +32,7 @@
             <field name="code">model._cron_create_weekly_activities()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
-            <field name="numbercall">-1</field>
             <field name="active">True</field>
-            <field name="doall">False</field>
-            <!-- 建議設定在每天早上 7:00 執行 -->
         </record>
 
     </data>

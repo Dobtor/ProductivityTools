@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="100" height="100" rx="20" fill="#714B67"/>
+
+  <!-- Checklist icon -->
+  <g fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Clipboard outline -->
+    <rect x="25" y="20" width="50" height="65" rx="5" fill="rgba(255,255,255,0.1)"/>
+
+    <!-- Clipboard top -->
+    <rect x="35" y="15" width="30" height="12" rx="3" fill="#714B67" stroke="white"/>
+
+    <!-- Check marks -->
+    <polyline points="32,40 38,46 48,36"/>
+    <polyline points="32,55 38,61 48,51"/>
+    <polyline points="32,70 38,76 48,66"/>
+
+    <!-- Lines -->
+    <line x1="55" y1="43" x2="68" y2="43"/>
+    <line x1="55" y1="58" x2="68" y2="58"/>
+    <line x1="55" y1="73" x2="68" y2="73"/>
+  </g>
+
+  <!-- Clock indicator -->
+  <circle cx="75" cy="25" r="12" fill="#FFC107" stroke="white" stroke-width="2"/>
+  <line x1="75" y1="25" x2="75" y2="18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <line x1="75" y1="25" x2="80" y2="27" stroke="white" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- 擴展 Message 模板，在作者和日期後面顯示已建立的待辦 -->
+    <t t-name="mail.Message" t-inherit="mail.Message" t-inherit-mode="extension">
+        <!-- 在日期後面插入已建立的待辦 -->
+        <xpath expr="//div[hasclass('o-mail-Message-header')]//small[hasclass('o-mail-Message-date')][last()]" position="after">
+            <t t-if="createdActivitiesState.activities.length > 0">
+                <span class="o-mail-Message-createdActivities ms-2 small d-inline-flex align-items-center flex-wrap" style="gap: 4px;">
+                    <t t-foreach="createdActivitiesState.activities" t-as="activity" t-key="activity.id">
+                        <a href="#" class="text-decoration-none d-inline-flex align-items-center"
+                           t-att-class="{
+                               'text-success': activity.state === 'done',
+                               'text-danger': activity.state === 'cancelled',
+                               'text-info': activity.state === 'active'
+                           }"
+                           t-att-title="activity.summary + ' (' + activity.activity_type_name + ') - ' + activity.user_name"
+                           t-on-click.prevent="() => this.onClickCreatedActivity(activity)"
+                           style="max-width: 150px;">
+                            <i t-att-class="{
+                                'fa fa-check-circle': activity.state === 'done',
+                                'fa fa-times-circle': activity.state === 'cancelled',
+                                'fa fa-clock-o': activity.state === 'active'
+                            }" class="me-1 flex-shrink-0"/>
+                            <img t-if="activity.user_id"
+                                 t-att-src="'/web/image/res.users/' + activity.user_id + '/avatar_128'"
+                                 t-att-alt="activity.user_name"
+                                 t-att-title="activity.user_name"
+                                 class="rounded-circle me-1 flex-shrink-0"
+                                 style="width: 18px; height: 18px; object-fit: cover;"/>
+                            <i t-else="" class="fa fa-user-o me-1 flex-shrink-0" title="未指派"/>
+                            <span class="text-truncate" t-esc="activity.summary"/>
+                        </a>
+                    </t>
+                </span>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

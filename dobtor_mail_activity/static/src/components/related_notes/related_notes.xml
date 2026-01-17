@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="dobtor_mail_activity.RelatedNotes">
+        <div class="o_related_notes" t-if="state.notes.length > 0 || state.isLoading">
+            <!-- 載入中 -->
+            <div t-if="state.isLoading" class="p-3 text-center text-muted">
+                <i class="fa fa-spinner fa-spin me-2"/>
+                <span>載入關聯筆記中...</span>
+            </div>
+
+            <t t-else="">
+                <!-- 標題列 -->
+                <div class="o_related_notes_header d-flex align-items-center p-2 bg-100 cursor-pointer border-bottom"
+                     t-on-click="toggleSection">
+                    <i t-attf-class="fa fa-caret-#{state.isExpanded ? 'down' : 'right'} me-2"/>
+                    <i class="fa fa-sticky-note-o me-2 text-warning"/>
+                    <span class="fw-bold">關聯筆記</span>
+                    <span class="badge bg-secondary ms-2" t-esc="state.notes.length"/>
+                </div>
+
+                <!-- 筆記列表 -->
+                <div t-if="state.isExpanded" class="o_related_notes_content">
+                    <t t-foreach="state.notes" t-as="note" t-key="note.id">
+                        <div class="o_related_note_item border-bottom">
+                            <!-- 筆記標題列 -->
+                            <div class="d-flex align-items-center p-2 bg-light">
+                                <i class="fa fa-sticky-note me-2 text-warning"/>
+                                <a href="#" class="text-decoration-none flex-grow-1"
+                                   t-on-click.prevent="() => this.openNote(note.id)">
+                                    <t t-esc="note.name"/>
+                                </a>
+                                <span class="ms-2">
+                                    <span t-if="note.is_all_done" class="badge bg-success">
+                                        <i class="fa fa-check me-1"/>全部完成
+                                    </span>
+                                    <span t-else="" class="badge bg-info">
+                                        <t t-esc="note.active_count"/>/<t t-esc="note.total_count"/>
+                                    </span>
+                                </span>
+                                <button class="btn btn-sm btn-link p-0 ms-2"
+                                        t-on-click.stop="() => this.toggleNoteActivities(note.id)"
+                                        t-att-title="state.expandedNotes[note.id] ? '收合' : '展開'">
+                                    <i t-attf-class="fa fa-chevron-#{state.expandedNotes[note.id] ? 'up' : 'down'}"/>
+                                </button>
+                            </div>
+
+                            <!-- 筆記的待辦列表 -->
+                            <div t-if="state.expandedNotes[note.id]" class="o_note_activities ps-4 py-1 bg-white">
+                                <t t-foreach="note.activities" t-as="activity" t-key="activity.id">
+                                    <div class="o_activity_item d-flex align-items-center py-1 px-2">
+                                        <i t-att-class="getActivityIconClass(activity.state)" class="me-2"/>
+                                        <a href="#" class="text-decoration-none small flex-grow-1"
+                                           t-att-class="{'text-muted': activity.state !== 'active'}"
+                                           t-on-click.prevent="() => this.openActivity(activity.id)">
+                                            <t t-esc="activity.summary || '(無摘要)'"/>
+                                        </a>
+                                        <span t-if="activity.state === 'done'" class="badge bg-success-subtle text-success small">
+                                            完成
+                                        </span>
+                                        <span t-elif="activity.state === 'cancelled'" class="badge bg-danger-subtle text-danger small">
+                                            取消
+                                        </span>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+</templates>

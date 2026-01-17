@@ -273,11 +273,11 @@
              mail.activity.postpone.history 記錄規則
              ========================================== -->
 
-        <!-- 用戶可查看自己的延期歷史 -->
+        <!-- 用戶可查看自己延期的歷史或自己待辦的延期歷史 -->
         <record id="postpone_history_rule_user" model="ir.rule">
-            <field name="name">延期歷史：用戶查看自己的記錄</field>
+            <field name="name">延期歷史：用戶查看相關記錄</field>
             <field name="model_id" ref="model_mail_activity_postpone_history"/>
-            <field name="domain_force">[('user_id', '=', user.id)]</field>
+            <field name="domain_force">['|', ('postpone_by', '=', user.id), ('activity_id.user_id', '=', user.id)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>

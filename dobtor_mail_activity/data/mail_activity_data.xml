@@ -6,7 +6,7 @@
         <record id="mail_activity_type_weekly_report_schedule" model="mail.activity.type">
             <field name="name">週報排程</field>
             <field name="summary">安排本週工作計畫</field>
-            <field name="category">reminder</field>
+            <field name="category">default</field>
             <field name="delay_count">7</field>
             <field name="delay_unit">days</field>
             <field name="delay_from">current_date</field>
