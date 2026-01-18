@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 {
-    'name': '生產力工具',
+    'name': '待辦管理進階整合',
     'version': '18.0.1.0.0',
     'category': 'Productivity',
-    'summary': '整合待辦管理、筆記本、週報告與效率分析的生產力工具',
+    'summary': '整合待辦管理、筆記本、週報告與效率分析的待辦管理進階整合系統',
     'description': """
-生產力工具 (Productivity Tool)
+待辦管理進階整合 (Productivity Tool)
 ==============================
-整合 mail.activity + note.note 的完整生產力管理系統
+整合 mail.activity + note.note 的完整待辦管理進階整合系統
 
 主要功能：
 ---------
