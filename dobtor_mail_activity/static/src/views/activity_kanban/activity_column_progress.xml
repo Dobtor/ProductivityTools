@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 自訂活動進度條：根據總工時顯示顏色 -->
+    <t t-name="dobtor_mail_activity.ActivityColumnProgress">
+        <div class="o_column_progress o_activity_progress progress bg-300 w-75"
+             t-att-title="progressTooltip"
+             data-tooltip-delay="0">
+            <!-- 工時進度條：根據總工時變色 -->
+            <div role="progressbar"
+                 class="progress-bar"
+                 t-attf-class="bg-{{ progressBarColor }}"
+                 t-attf-style="width: {{ progressPercentage }}%;"
+                 aria-valuemin="0"
+                 aria-valuemax="9"
+                 t-att-aria-valuenow="props.aggregate.value"
+                 aria-label="工時進度">
+            </div>
+
+            <!-- 顯示原有的分類進度條（疊加在工時進度條上方） -->
+            <t t-if="props.progressBar and props.progressBar.bars">
+                <t t-set="maxWidth" t-value="100 - Math.max(0, props.progressBar.bars.filter(x => x.count > 0).length - 1) * 5"/>
+                <t t-foreach="props.progressBar.bars" t-as="bar" t-key="bar.value">
+                    <t t-set="progressWidth" t-value="Math.max(5, bar.count / (props.group.count or 1) * 100)"/>
+                    <div t-if="bar.count > 0"
+                        role="progressbar"
+                        class="progress-bar o_bar_has_records cursor-pointer position-absolute"
+                        style="opacity: 0.3; top: 0; height: 100%;"
+                        t-att-class="{ 'progress-bar-animated progress-bar-striped': props.progressBar.activeBar === bar.value }"
+                        t-attf-class="bg-{{ bar.color }}"
+                        t-attf-style="width: {{ Math.min(progressWidth, maxWidth) }}%;"
+                        aria-valuemin="0"
+                        t-att-aria-valuemax="props.group.count"
+                        t-att-aria-valuenow="bar.count"
+                        aria-label="Progress bar"
+                        t-attf-data-tooltip="{{ bar.count }} {{ bar.string }}"
+                        data-tooltip-delay="0"
+                        t-on-click="() => this.onBarClick(bar)"
+                    />
+                </t>
+            </t>
+        </div>
+
+        <!-- 總工時數字顯示 -->
+        <div class="o_activity_hours_display d-flex align-items-center">
+            <AnimatedNumber
+                value="props.aggregate.value"
+                title="props.aggregate.title"
+                duration="1000"
+                currency="props.aggregate.currency"
+                animationClass="props.aggregate.value > 999 ? 'o_animated_grow' : 'o_animated_grow_huge'"
+            />
+            <span class="ms-1 text-muted small">小時</span>
+        </div>
+    </t>
+
+</templates>

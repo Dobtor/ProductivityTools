@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Activity Kanban View with Week Selector -->
+    <t t-name="dobtor_mail_activity.ActivityKanbanView">
+        <div t-att-class="className" t-ref="root">
+            <Layout className="model.useSampleModel ? 'o_view_sample_data' : ''" display="props.display">
+                <!-- 創建按鈕 -->
+                <t t-set-slot="control-panel-create-button">
+                    <t t-if="canCreate and props.showButtons">
+                        <button type="button" class="btn btn-primary o-kanban-button-new" accesskey="c" t-on-click="() => this.createRecord()" data-bounce-button="">
+                            New
+                        </button>
+                    </t>
+                </t>
+
+                <!-- 移除原本的週次按鈕區域，改用 Dropdown 放在齒輪旁 -->
+
+                <!-- 其他控制面板按鈕 -->
+                <t t-set-slot="control-panel-always-buttons">
+                    <t t-foreach="headerButtons" t-as="button" t-key="button.id" t-if="!evalViewModifier(button.invisible)">
+                        <MultiRecordViewButton
+                            t-if="button.display === 'always'"
+                            list="model.root"
+                            className="button.className"
+                            clickParams="button.clickParams"
+                            defaultRank="'btn-secondary'"
+                            domain="props.domain"
+                            icon="button.icon"
+                            string="button.string"
+                            title="button.title"
+                            attrs="button.attrs"
+                        />
+                    </t>
+                </t>
+
+                <t t-set-slot="control-panel-additional-actions">
+                    <CogMenu/>
+                    <!-- 週次選擇器 - 使用原生 select -->
+                    <div class="o_activity_week_selector ms-2 d-flex align-items-center">
+                        <select class="form-select form-select-sm"
+                                t-on-change="onWeekSelectChange"
+                                t-att-disabled="weekState.isLoading">
+                            <t t-foreach="weekState.weeks" t-as="week" t-key="week.key">
+                                <option t-att-value="week.number"
+                                        t-att-selected="week.number === weekState.currentWeek">
+                                    <t t-esc="week.name"/> (<t t-esc="week.count"/>項<t t-if="week.total_hours"> / <t t-esc="formatHours(week.total_hours)"/></t>)
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                </t>
+
+                <t t-set-slot="layout-actions">
+                    <SearchBar toggler="searchBarToggler"/>
+                </t>
+
+                <t t-set-slot="control-panel-navigation-additional">
+                    <t t-component="searchBarToggler.component" t-props="searchBarToggler.props"/>
+                </t>
+
+                <!-- Kanban Renderer -->
+                <t t-component="props.Renderer"
+                    list="model.root"
+                    archInfo="props.archInfo"
+                    Compiler="props.Compiler"
+                    readonly="true"
+                    forceGlobalClick="props.forceGlobalClick"
+                    deleteRecord.bind="deleteRecord"
+                    openRecord.bind="openRecord"
+                    noContentHelp="props.info.noContentHelp"
+                    scrollTop.bind="scrollTop"
+                    canQuickCreate="canQuickCreate"
+                    quickCreateState="quickCreateState"
+                    progressBarState="progressBarState"
+                />
+            </Layout>
+        </div>
+    </t>
+
+</templates>

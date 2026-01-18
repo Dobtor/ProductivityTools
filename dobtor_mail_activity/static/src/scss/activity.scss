@@ -127,8 +127,22 @@ $activity-flexible-color: $success;
 }
 
 // ============================================
-// Week Selector
+// Week Selector (Control Panel)
 // ============================================
+.o_activity_week_selector {
+    .form-select {
+        min-width: 180px;
+        font-size: 0.875rem;
+        padding: 0.25rem 2rem 0.25rem 0.5rem;
+        cursor: pointer;
+
+        &:focus {
+            box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+        }
+    }
+}
+
+// Week Selector (Standalone Component)
 .o_week_selector {
     .o_week_item {
         min-width: 100px;
@@ -144,6 +158,55 @@ $activity-flexible-color: $success;
         &.active,
         &.bg-primary {
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+    }
+}
+
+// ============================================
+// Column Header Date Info
+// ============================================
+.o_column_title .week-date-info {
+    font-weight: inherit;
+    font-size: inherit;
+    color: inherit;
+}
+
+// ============================================
+// Activity Hours Progress Bar
+// ============================================
+.o_activity_progress {
+    position: relative;
+    height: 8px;
+    overflow: visible;
+
+    .progress-bar {
+        transition: width 0.3s ease, background-color 0.3s ease;
+    }
+}
+
+.o_activity_hours_display {
+    font-weight: 600;
+
+    .o_animated_number {
+        font-size: 1.1em;
+    }
+}
+
+// Progress bar color based on hours
+.o_kanban_counter {
+    .o_activity_progress {
+        // 進度條動畫效果
+        .progress-bar {
+            animation: progressPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes progressPulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.8;
+            }
         }
     }
 }
