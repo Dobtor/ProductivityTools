@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Meeting Minutes PDF Report                                    -->
+    <!-- 會議記錄 PDF 報告                                             -->
+    <!-- ============================================================ -->
+    <record id="action_report_meeting_minutes" model="ir.actions.report">
+        <field name="name">Meeting Minutes</field>
+        <field name="model">note.note</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">dobtor_mail_activity.report_meeting_minutes</field>
+        <field name="report_file">dobtor_mail_activity.report_meeting_minutes</field>
+        <field name="print_report_name">'Meeting Minutes - %s' % object.name</field>
+        <field name="binding_model_id" ref="model_note_note"/>
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

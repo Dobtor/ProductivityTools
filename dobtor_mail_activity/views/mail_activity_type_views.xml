@@ -10,7 +10,7 @@
         <field name="inherit_id" ref="mail.mail_activity_type_view_form"/>
         <field name="arch" type="xml">
             <field name="mail_template_ids" position="after">
-                <separator string="指派通知設定"/>
+                <separator string="Assignment Notification Settings"/>
                 <field name="use_custom_notify"/>
                 <field name="notify_template_id"
                        invisible="not use_custom_notify"

@@ -55,11 +55,11 @@ export class ActivityKanbanController extends KanbanController {
         } catch (e) {
             console.error('Failed to load week info:', e);
             this.weekState.weeks = [
-                { number: -1, name: '上週', key: 'week_prev', count: 0, total_hours: 0, dates: {} },
-                { number: 0, name: '本週', key: 'week0', count: 0, total_hours: 0, dates: {} },
-                { number: 1, name: '下週', key: 'week1', count: 0, total_hours: 0, dates: {} },
-                { number: 2, name: '第三週', key: 'week2', count: 0, total_hours: 0, dates: {} },
-                { number: 3, name: '第四週', key: 'week3', count: 0, total_hours: 0, dates: {} },
+                { number: -1, name: _t('Last Week'), key: 'week_prev', count: 0, total_hours: 0, dates: {} },
+                { number: 0, name: _t('This Week'), key: 'week0', count: 0, total_hours: 0, dates: {} },
+                { number: 1, name: _t('Next Week'), key: 'week1', count: 0, total_hours: 0, dates: {} },
+                { number: 2, name: _t('Week 3'), key: 'week2', count: 0, total_hours: 0, dates: {} },
+                { number: 3, name: _t('Week 4'), key: 'week3', count: 0, total_hours: 0, dates: {} },
             ];
         }
         this.weekState.isLoading = false;
@@ -173,14 +173,14 @@ export class ActivityKanbanController extends KanbanController {
 
         // 週天對應的 schedule_status 值
         const titleToKey = {
-            '週一': 'monday',
-            '週二': 'tuesday',
-            '週三': 'wednesday',
-            '週四': 'thursday',
-            '週五': 'friday',
-            '週六': 'saturday',
-            '週日': 'sunday',
-            '等待排程': 'waiting'
+            'Monday': 'monday',
+            'Tuesday': 'tuesday',
+            'Wednesday': 'wednesday',
+            'Thursday': 'thursday',
+            'Friday': 'friday',
+            'Saturday': 'saturday',
+            'Sunday': 'sunday',
+            'Waiting Schedule': 'waiting'
         };
 
         // 延遲執行以確保 DOM 已更新
@@ -237,7 +237,7 @@ export class ActivityKanbanController extends KanbanController {
      */
     formatHours(hours) {
         if (!hours) return '';
-        return hours.toFixed(1) + _t('小時');
+        return hours.toFixed(1) + _t(' hours');
     }
 
     /**
@@ -264,7 +264,7 @@ export class ActivityKanbanController extends KanbanController {
     async onBatchPostpone() {
         const selectedRecords = this.model.root.selection;
         if (!selectedRecords.length) {
-            this.notification.add(_t("請先選擇要延期的待辦"), {
+            this.notification.add(_t("Please select activities to postpone first"), {
                 type: "warning",
             });
             return;
@@ -272,10 +272,10 @@ export class ActivityKanbanController extends KanbanController {
 
         const activityIds = selectedRecords.map(r => r.resId);
 
-        // 開啟批次延期 wizard
+        // Open batch postpone wizard
         await this.actionService.doAction({
             type: 'ir.actions.act_window',
-            name: _t('批次延期'),
+            name: _t('Batch Postpone'),
             res_model: 'mail.activity.postpone.wizard',
             view_mode: 'form',
             views: [[false, 'form']],
@@ -293,7 +293,7 @@ export class ActivityKanbanController extends KanbanController {
     async onBatchDone() {
         const selectedRecords = this.model.root.selection;
         if (!selectedRecords.length) {
-            this.notification.add(_t("請先選擇要完成的待辦"), {
+            this.notification.add(_t("Please select activities to complete first"), {
                 type: "warning",
             });
             return;
@@ -309,7 +309,7 @@ export class ActivityKanbanController extends KanbanController {
             { context: { mail_activity_quick_update: true } }
         );
 
-        this.notification.add(_t("已完成 %s 個待辦", activityIds.length), {
+        this.notification.add(_t("Completed %s activities", activityIds.length), {
             type: "success",
         });
 
@@ -323,7 +323,7 @@ export class ActivityKanbanController extends KanbanController {
     async scheduleToWeek(weekNumber) {
         const selectedRecords = this.model.root.selection;
         if (!selectedRecords.length) {
-            this.notification.add(_t("請先選擇要排程的待辦"), {
+            this.notification.add(_t("Please select activities to schedule first"), {
                 type: "warning",
             });
             return;
@@ -337,15 +337,15 @@ export class ActivityKanbanController extends KanbanController {
         );
 
         const weekNames = {
-            '-1': _t('上週'),
-            '0': _t('本週'),
-            '1': _t('下週'),
-            '2': _t('第三週'),
-            '3': _t('第四週'),
+            '-1': _t('Last Week'),
+            '0': _t('This Week'),
+            '1': _t('Next Week'),
+            '2': _t('Week 3'),
+            '3': _t('Week 4'),
         };
-        const weekName = weekNames[String(weekNumber)] || _t('指定週次');
+        const weekName = weekNames[String(weekNumber)] || _t('Specified Week');
 
-        this.notification.add(_t("已將 %s 個待辦排程至%s", activityIds.length, weekName), {
+        this.notification.add(_t("Scheduled %s activities to %s", activityIds.length, weekName), {
             type: "success",
         });
 
@@ -386,7 +386,7 @@ export class ActivityKanbanController extends KanbanController {
     async onCreateActivity() {
         await this.actionService.doAction({
             type: 'ir.actions.act_window',
-            name: _t('新增待辦'),
+            name: _t('New Activity'),
             res_model: 'mail.activity',
             view_mode: 'form',
             views: [[false, 'form']],

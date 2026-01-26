@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 在 Chatter 的 ActivityList 前面添加 RelatedNotes -->
+    <t t-name="mail.Chatter" t-inherit="mail.Chatter" t-inherit-mode="extension">
+        <!-- 在 ActivityList 之前添加 RelatedNotes（最上方） -->
+        <xpath expr="//t[@t-call='mail.ActivityList']/.." position="before">
+            <t t-if="props.threadId and !messageSearch.searching and !messageSearch.searched">
+                <RelatedNotes resModel="props.threadModel" resId="props.threadId"/>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

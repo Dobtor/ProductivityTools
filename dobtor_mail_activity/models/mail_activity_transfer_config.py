@@ -13,39 +13,39 @@ class MailActivityTransferConfig(models.Model):
     - 限制待辦可以轉移到哪些文件類型
     """
     _name = 'mail.activity.transfer.config'
-    _description = '待辦轉移配置'
+    _description = 'Transfer Configuration'
     _order = 'sequence, id'
 
     name = fields.Char(
-        string='名稱',
+        string='Name',
         compute='_compute_name',
         store=True,
     )
     sequence = fields.Integer(
-        string='順序',
+        string='Sequence',
         default=10,
     )
     model_id = fields.Many2one(
         'ir.model',
-        string='模型',
+        string='Model',
         required=True,
         ondelete='cascade',
         domain=[('is_mail_thread', '=', True), ('transient', '=', False)],
-        help='允許作為待辦目標的模型。只能選擇繼承 mail.thread 的模型。',
+        help='Model allowed as activity target. Only models inheriting mail.thread can be selected.',
     )
     model = fields.Char(
-        string='模型名稱',
+        string='Model Name',
         related='model_id.model',
         store=True,
         readonly=True,
     )
     active = fields.Boolean(
-        string='啟用',
+        string='Active',
         default=True,
     )
 
     _sql_constraints = [
-        ('model_unique', 'unique(model_id)', '每個模型只能配置一次！')
+        ('model_unique', 'unique(model_id)', 'Each model can only be configured once!')
     ]
 
     @api.depends('model_id', 'model_id.name')
@@ -55,7 +55,7 @@ class MailActivityTransferConfig(models.Model):
             if record.model_id:
                 record.name = record.model_id.name
             else:
-                record.name = _('新配置')
+                record.name = _('New Configuration')
 
     @api.constrains('model_id')
     def _check_model_is_mail_thread(self):
@@ -63,7 +63,7 @@ class MailActivityTransferConfig(models.Model):
         for record in self:
             if record.model_id and not record.model_id.is_mail_thread:
                 raise ValidationError(_(
-                    '模型「%s」未繼承 mail.thread，無法作為待辦目標。',
+                    'Model "%s" does not inherit mail.thread and cannot be used as activity target.',
                     record.model_id.name
                 ))
 

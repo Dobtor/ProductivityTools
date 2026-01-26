@@ -25,7 +25,7 @@ patch(ActivityMenu.prototype, {
 
         // Global hotkey Alt+Shift+A: Add new activity
         useCommand(
-            _t("新增待辦"),
+            _t("New Activity"),
             () => {
                 document.body.click(); // Close command palette
                 this.createActivity();
@@ -39,7 +39,7 @@ patch(ActivityMenu.prototype, {
 
         // Global hotkey Alt+Shift+N: Add new note
         useCommand(
-            _t("新增筆記"),
+            _t("New Note"),
             () => {
                 document.body.click(); // Close command palette
                 this.createNote();
@@ -58,7 +58,7 @@ patch(ActivityMenu.prototype, {
     async createActivity() {
         await this.actionService.doAction({
             type: "ir.actions.act_window",
-            name: _t("新增待辦"),
+            name: _t("New Activity"),
             res_model: "mail.activity",
             view_mode: "form",
             views: [[false, "form"]],
@@ -77,7 +77,7 @@ patch(ActivityMenu.prototype, {
     async createNote() {
         await this.actionService.doAction({
             type: "ir.actions.act_window",
-            name: _t("新增筆記"),
+            name: _t("New Note"),
             res_model: "note.note",
             view_mode: "form",
             views: [[false, "form"]],

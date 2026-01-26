@@ -1,60 +1,62 @@
 # -*- coding: utf-8 -*-
 {
-    'name': '待辦管理進階整合',
+    'name': 'Advanced Activity Management',
     'version': '18.0.1.0.0',
     'category': 'Productivity',
-    'summary': '整合待辦管理、筆記本、週報告與效率分析的待辦管理進階整合系統',
+    'summary': 'Advanced activity management system integrating tasks, notes, weekly reports and efficiency analytics',
     'description': """
-待辦管理進階整合 (Productivity Tool)
-==============================
-整合 mail.activity + note.note 的完整待辦管理進階整合系統
+Advanced Activity Management (Productivity Tool)
+=================================================
+Complete activity management system integrating mail.activity + note.note
 
-主要功能：
----------
-* 筆記本功能
-  - 封存機制
-  - 關聯顯示（CRM/Task）
-  - 待辦整合
-  - 階層式標籤
+Main Features:
+--------------
+* Note Features
+  - Archive mechanism
+  - Related display (CRM/Task)
+  - Activity integration
+  - Hierarchical tags
 
-* 代辦指派
-  - 指派篩選（我指派的/被委任的/所有的）
-  - 更改指派與歷史記錄
-  - 未指派管理
-  - 優先級設定（時間性/重要性）
-  - 預估工時
+* Activity Assignment
+  - Assignment filters (assigned by me/assigned to me/all)
+  - Change assignment with history
+  - Unassigned management
+  - Priority settings (urgency/importance)
+  - Estimated hours
 
-* 代辦執行
-  - 計畫日期管理
-  - 延至下週功能
-  - 完成與工時記錄
-  - 工時表整合
+* Activity Execution
+  - Planned date management
+  - Postpone to next week
+  - Completion and timesheet recording
+  - Timesheet integration
 
-* 預排管理
-  - 下週預排
-  - 週轉換機制
-  - 排程追蹤
+* Pre-scheduling Management
+  - Next week pre-scheduling
+  - Week transition mechanism
+  - Schedule tracking
 
-* 週報告
-  - 本週計畫
-  - 前週差異分析
-  - 自評建議
+* Weekly Report
+  - This week plan
+  - Previous week variance analysis
+  - Self-evaluation suggestions
 
-* 效率分析
-  - 個人效率儀表板
-  - 團隊效率分析
-  - 預估準確度分析
-  - 延期/完成率分析
+* Efficiency Analytics
+  - Personal efficiency dashboard
+  - Team efficiency analysis
+  - Estimation accuracy analysis
+  - Postponement/completion rate analysis
 
-* 待辦轉移
-  - 可配置的轉移目標模型
-  - 轉移歷史追蹤
-  - 從訊息建立待辦
+* Activity Transfer
+  - Configurable transfer target models
+  - Transfer history tracking
+  - Create activity from message
     """,
     'author': 'Dobtor SI',
     'website': 'https://www.dobtor.com',
     'depends': [
         'mail',
+        'calendar',
+        'portal',
         'hr_timesheet',
         'hr',
         'project',
@@ -65,21 +67,28 @@
         # Security
         'security/security.xml',
         'security/ir.model.access.csv',
+        # Reports (must be loaded before mail templates that reference them)
+        'report/ir_actions_report.xml',
+        'report/report_meeting_minutes_templates.xml',
         # Data
         'data/mail_activity_data.xml',
         'data/mail_activity_transfer_config_data.xml',
         'data/note_data.xml',
         'data/cron_data.xml',
+        'data/mail_template_data.xml',
         # Wizards
         'views/wizard_views.xml',
         # Views
+        'views/calendar_event_views.xml',
         'views/mail_activity_views.xml',
+        'views/mail_message_templates.xml',
         'views/mail_activity_type_views.xml',
         'views/mail_activity_schedule_views.xml',
         'views/mail_activity_transfer_config_views.xml',
         'views/note_tag_views.xml',
         'views/note_stage_views.xml',
         'views/note_views.xml',
+        'views/note_signature_views.xml',
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
         'views/res_users_views.xml',
@@ -88,6 +97,8 @@
         'views/weekly_schedule_config_views.xml',
         'views/project_todo_override.xml',
         'views/menu_views.xml',
+        # Portal
+        'views/meeting_portal_templates.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -110,4 +121,5 @@
     'auto_install': False,
     'application': True,
     'license': 'LGPL-3',
+    'post_init_hook': '_create_default_note_stages_for_existing_users',
 }

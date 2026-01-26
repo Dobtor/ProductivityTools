@@ -10,17 +10,17 @@
         <field name="inherit_id" ref="base.view_company_form"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="生產力設定" name="productivity">
+                <page string="Productivity Settings" name="productivity">
                     <group>
-                        <group string="工時表設定">
+                        <group string="Timesheet Settings">
                             <field name="default_timesheet_project_id"
                                    domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', id)]"/>
                         </group>
                     </group>
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-info-circle me-1"/>
-                        當待辦完成時，若無關聯專案，系統將使用此預設專案建立工時表記錄。
-                        請確保選擇的專案已啟用工時表功能。
+                        When a task is completed without a linked project, the system will use this default project to create timesheet entries.
+                        Please ensure the selected project has timesheet feature enabled.
                     </div>
                 </page>
             </xpath>

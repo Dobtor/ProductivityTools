@@ -20,14 +20,14 @@
                 <field name="stage_id"/>
                 <field name="user_id"/>
                 <field name="tag_ids"/>
-                <field name="active_activity_count"/>
+                <field name="note_active_activity_count"/>
                 <field name="active"/>
                 <field name="open"/>
 
                 <templates>
                     <t t-name="menu">
-                        <a role="menuitem" type="archive" class="dropdown-item">封存</a>
-                        <a role="menuitem" type="delete" class="dropdown-item">刪除</a>
+                        <a role="menuitem" type="archive" class="dropdown-item">Archive</a>
+                        <a role="menuitem" type="delete" class="dropdown-item">Delete</a>
                         <field name="color" widget="kanban_color_picker"/>
                     </t>
                     <t t-name="card" class="flex-row">
@@ -36,7 +36,7 @@
                         </aside>
                         <main class="ms-2 w-100">
                             <div class="o_kanban_record_title mb-1">
-                                <field name="name" placeholder="(無標題)"/>
+                                <field name="name" placeholder="(No Title)"/>
                             </div>
                             <div class="o_kanban_record_body text-muted small">
                                 <field name="memo" class="text-truncate"/>
@@ -47,10 +47,11 @@
                                            options="{'color_field': 'color'}"/>
                                 </div>
                                 <div class="oe_kanban_bottom_right d-flex align-items-center">
-                                    <span t-if="record.active_activity_count.raw_value > 0"
-                                          class="badge text-bg-primary me-2">
-                                        <i class="fa fa-tasks"/>
-                                        <field name="active_activity_count"/>
+                                    <span t-if="record.note_active_activity_count.raw_value > 0"
+                                          class="badge text-bg-primary me-2"
+                                          title="Active Tasks">
+                                        <i class="fa fa-tasks" title="Tasks"/>
+                                        <field name="note_active_activity_count"/>
                                     </span>
                                     <field name="user_id" widget="many2one_avatar_user"/>
                                 </div>
@@ -73,7 +74,7 @@
         <field name="arch" type="xml">
             <form>
                 <group>
-                    <field name="memo" string="筆記內容" placeholder="請輸入筆記內容..." widget="text"/>
+                    <field name="memo" string="Note Content" placeholder="Enter note content..." widget="text"/>
                 </group>
             </form>
         </field>
@@ -88,15 +89,24 @@
         <field name="model">note.note</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="筆記" expand="1">
-                <field name="name" string="標題"/>
-                <field name="stage_id" string="階段"/>
-                <field name="tag_ids" string="標籤" widget="many2many_tags"
+            <list string="Notes" expand="1">
+                <field name="name" string="Title"/>
+                <field name="note_type" string="Type" optional="show"/>
+                <field name="stage_id" string="Stage" optional="show"/>
+                <field name="state" string="Status" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state in ('sent', 'partial')"
+                       decoration-success="state == 'signed'"
+                       optional="show"/>
+                <field name="tag_ids" string="Tags" widget="many2many_tags"
                        options="{'color_field': 'color'}"/>
-                <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
-                <field name="active_activity_count" string="進行中待辦"/>
-                <field name="open" string="開啟中"/>
-                <field name="date_done" string="完成日期" optional="hide"/>
+                <field name="user_id" string="Owner" widget="many2one_avatar_user"/>
+                <field name="activity_ids" string="Next Activity" widget="list_activity"/>
+                <field name="signed_count" string="Signed" optional="hide"/>
+                <field name="signature_count" string="Total Signers" optional="hide"/>
+                <field name="note_active_activity_count" string="Active Tasks" optional="hide"/>
+                <field name="open" string="Open" optional="hide"/>
+                <field name="date_done" string="Completed Date" optional="hide"/>
                 <field name="active" column_invisible="1"/>
             </list>
         </field>
@@ -111,62 +121,180 @@
         <field name="model">note.note</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <form string="筆記">
+            <form string="Note">
                 <header>
+                    <!-- 會議記錄按鈕（只有在有關聯日曆事件時才顯示） -->
+                    <button name="action_send_for_signature" type="object"
+                            string="Send for Signature" class="btn-primary"
+                            icon="fa-paper-plane"
+                            invisible="note_type != 'meeting' or state != 'draft' or calendar_event_count == 0"/>
+                    <button name="action_preview_portal" type="object"
+                            string="Preview in Portal" class="btn-secondary"
+                            icon="fa-eye"
+                            invisible="note_type != 'meeting' or calendar_event_count == 0"/>
+                    <button name="action_reset_to_draft" type="object"
+                            string="Reset to Draft" class="btn-secondary"
+                            invisible="note_type != 'meeting' or state == 'draft'"
+                            confirm="This will reset the meeting minutes to draft and clear all signatures. Continue?"/>
+
+                    <!-- 筆記按鈕 -->
+                    <button name="action_add_calendar_event" type="object"
+                            string="Schedule Meeting" class="btn-secondary"
+                            icon="fa-calendar-plus-o"
+                            invisible="note_type == 'meeting'"/>
+
+                    <!-- 狀態列 -->
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,sent,partial,signed"
+                           invisible="note_type != 'meeting' or calendar_event_count == 0"/>
                     <field name="stage_id" widget="statusbar"
-                           options="{'clickable': '1', 'fold_field': 'fold'}"/>
+                           options="{'clickable': '1', 'fold_field': 'fold'}"
+                           invisible="note_type == 'meeting'"/>
                 </header>
                 <sheet>
                     <field name="active" invisible="1"/>
                     <field name="open" invisible="1"/>
-                    <field name="activity_count" invisible="1"/>
+                    <field name="note_type" invisible="1"/>
+                    <field name="is_locked" invisible="1"/>
+                    <field name="note_activity_count" invisible="1"/>
+                    <field name="calendar_event_count" invisible="1"/>
+                    <field name="signature_count" invisible="1"/>
+                    <field name="available_signer_ids" invisible="1"/>
 
-                    <widget name="web_ribbon" title="已封存" bg_color="text-bg-danger"
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
+                    <widget name="web_ribbon" title="Fully Signed" bg_color="text-bg-success"
+                            invisible="state != 'signed' or calendar_event_count == 0"/>
+                    <widget name="web_ribbon" title="Locked" bg_color="text-bg-warning"
+                            invisible="not is_locked or state == 'signed' or calendar_event_count == 0"/>
 
                     <div class="oe_button_box" name="button_box">
+                        <button name="action_view_signatures" type="object"
+                                class="oe_stat_button" icon="fa-pencil"
+                                invisible="note_type != 'meeting' or signature_count == 0 or calendar_event_count == 0">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="signed_count" nolabel="1"/>/<field name="signature_count" nolabel="1"/>
+                                </span>
+                                <span class="o_stat_text">Signatures</span>
+                            </div>
+                        </button>
+                        <button name="action_view_calendar_events" type="object"
+                                class="oe_stat_button" icon="fa-calendar"
+                                invisible="calendar_event_count == 0">
+                            <field name="calendar_event_count" widget="statinfo" string="Events"/>
+                        </button>
                         <button name="action_view_activities" type="object"
                                 class="oe_stat_button" icon="fa-tasks"
-                                invisible="activity_count == 0">
-                            <field name="active_activity_count" widget="statinfo" string="進行中"/>
+                                invisible="note_activity_count == 0">
+                            <field name="note_active_activity_count" widget="statinfo" string="In Progress"/>
                         </button>
                     </div>
 
                     <div class="oe_title">
-                        <label for="name" string="標題"/>
+                        <label for="name" string="Title"/>
                         <h1>
-                            <field name="name" placeholder="筆記標題..."/>
+                            <field name="name" placeholder="Note title..."/>
                         </h1>
                     </div>
 
                     <group>
                         <group>
-                            <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
-                            <field name="tag_ids" string="標籤" widget="many2many_tags"
+                            <field name="note_type" string="Type" widget="radio"
+                                   options="{'horizontal': true}"
+                                   readonly="is_locked"/>
+                            <field name="user_id" string="Owner" widget="many2one_avatar_user"/>
+                            <field name="tag_ids" string="Tags" widget="many2many_tags"
                                    options="{'color_field': 'color'}"/>
                         </group>
                         <group>
-                            <field name="date_done" string="完成日期" invisible="open"/>
-                            <field name="color" widget="color_picker" string="顏色"/>
+                            <field name="date_done" string="Completed Date" invisible="open or note_type == 'meeting'"/>
+                            <field name="color" widget="color_picker" string="Color"/>
                         </group>
                     </group>
 
+                    <!-- 鎖定提示 -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not is_locked or calendar_event_count == 0">
+                        <i class="fa fa-lock me-2" title="Locked"/>
+                        <strong>This meeting minutes is locked.</strong>
+                        Content cannot be modified after sending for signature.
+                        To make changes, please click "Reset to Draft" (this will clear all existing signatures).
+                    </div>
+
+                    <!-- 簽名者設定（只有在有關聯日曆事件時才顯示，從行事曆參與者中選擇） -->
+                    <group string="Signature Settings"
+                           invisible="note_type != 'meeting' or calendar_event_count == 0">
+                        <group colspan="2">
+                            <field name="signer_ids" string="Required Signers"
+                                   widget="many2many_tags"
+                                   options="{'color_field': 'color'}"
+                                   domain="[('id', 'in', available_signer_ids)]"
+                                   readonly="is_locked"
+                                   help="Select signers from calendar event attendees"/>
+                        </group>
+                    </group>
+
+                    <!-- 提示：需要先關聯日曆事件 -->
+                    <div class="alert alert-info" role="alert"
+                         invisible="note_type != 'meeting' or calendar_event_count > 0">
+                        <i class="fa fa-info-circle me-2" title="Information"/>
+                        <strong>Link a calendar event to enable meeting minutes features.</strong>
+                        Use the "Calendar Events" tab below to link an existing event or schedule a new meeting.
+                        The meeting attendees will become available as signers.
+                    </div>
+
                     <notebook>
-                        <page string="內容" name="content">
-                            <field name="memo" placeholder="在此輸入筆記內容..."
-                                   options="{'collaborative': true}"/>
+                        <page string="Content" name="content">
+                            <field name="memo" placeholder="Enter note content here..."
+                                   options="{'collaborative': true}"
+                                   readonly="is_locked and note_type == 'meeting'"/>
                         </page>
-                        <page string="關聯待辦" name="activities" invisible="activity_count == 0">
-                            <field name="activity_ids" context="{'active_test': False}">
+                        <page string="Signatures" name="signatures"
+                              invisible="note_type != 'meeting' or signature_count == 0 or calendar_event_count == 0">
+                            <field name="signature_ids">
+                                <list create="false" delete="false" editable="bottom">
+                                    <field name="partner_id" string="Signer"/>
+                                    <field name="is_signed" string="Signed" widget="boolean_toggle" readonly="1"/>
+                                    <field name="signed_by" string="Signed By"/>
+                                    <field name="signed_on" string="Signed On"/>
+                                    <field name="signature" string="Signature" widget="image" options="{'size': [100, 50]}"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Related Tasks" name="activities" invisible="note_activity_count == 0">
+                            <field name="note_activity_ids" context="{'active_test': False}">
                                 <list>
-                                    <field name="summary" string="摘要"/>
-                                    <field name="activity_type_id" string="類型"/>
-                                    <field name="user_id" string="負責人" widget="many2one_avatar_user"/>
-                                    <field name="date_deadline" string="截止日" widget="remaining_days"/>
-                                    <field name="activity_state" string="狀態" widget="badge"
-                                           decoration-success="activity_state == 'done'"
-                                           decoration-danger="activity_state == 'cancelled'"
-                                           decoration-info="activity_state == 'active'"/>
+                                    <field name="summary" string="Summary"/>
+                                    <field name="activity_type_id" string="Type"/>
+                                    <field name="user_id" string="Assignee" widget="many2one_avatar_user"/>
+                                    <field name="date_deadline" string="Due Date" widget="remaining_days"/>
+                                    <field name="activity_status" string="Status" widget="badge"
+                                           decoration-success="activity_status == 'done'"
+                                           decoration-danger="activity_status == 'cancelled'"
+                                           decoration-info="activity_status == 'active'"/>
+                                    <button name="action_transfer_activity" type="object"
+                                            string="Transfer" icon="fa-exchange"
+                                            invisible="activity_status != 'active'"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Calendar Events" name="calendar_events">
+                            <group>
+                                <group>
+                                    <button name="action_add_calendar_event" type="object"
+                                            string="Schedule Meeting" class="btn-secondary"
+                                            icon="fa-calendar-plus-o" colspan="2"/>
+                                </group>
+                            </group>
+                            <field name="calendar_event_ids">
+                                <list>
+                                    <field name="name" string="Meeting"/>
+                                    <field name="start" string="Start"/>
+                                    <field name="stop" string="End"/>
+                                    <field name="location" string="Location" optional="show"/>
+                                    <field name="user_id" string="Organizer" widget="many2one_avatar_user"/>
+                                    <field name="partner_ids" string="Attendees" widget="many2many_tags"/>
                                 </list>
                             </field>
                         </page>
@@ -186,31 +314,51 @@
         <field name="model">note.note</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <search string="搜尋筆記">
-                <field name="name" string="標題"/>
-                <field name="memo" string="內容"/>
-                <field name="user_id" string="擁有者"/>
-                <field name="tag_ids" string="標籤"/>
-                <field name="stage_id" string="階段"/>
+            <search string="Search Notes">
+                <field name="name" string="Title"/>
+                <field name="memo" string="Content"/>
+                <field name="user_id" string="Owner"/>
+                <field name="tag_ids" string="Tags"/>
+                <field name="stage_id" string="Stage"/>
 
                 <separator/>
-                <filter string="我的筆記" name="my_notes"
+                <filter string="My Notes" name="my_notes"
                         domain="[('user_id', '=', uid)]"/>
-                <filter string="開啟中" name="open_true"
+                <filter string="Open" name="open_true"
                         domain="[('open', '=', True)]"/>
-                <filter string="已完成" name="open_false"
+                <filter string="Completed" name="open_false"
                         domain="[('open', '=', False)]"/>
 
                 <separator/>
-                <filter string="已封存" name="archived"
+                <filter string="Notes" name="type_note"
+                        domain="[('note_type', '=', 'note')]"/>
+                <filter string="Meeting Minutes" name="type_meeting"
+                        domain="[('note_type', '=', 'meeting')]"/>
+
+                <separator/>
+                <filter string="Draft" name="state_draft"
+                        domain="[('state', '=', 'draft'), ('note_type', '=', 'meeting')]"/>
+                <filter string="Sent" name="state_sent"
+                        domain="[('state', '=', 'sent'), ('note_type', '=', 'meeting')]"/>
+                <filter string="Partially Signed" name="state_partial"
+                        domain="[('state', '=', 'partial'), ('note_type', '=', 'meeting')]"/>
+                <filter string="Fully Signed" name="state_signed"
+                        domain="[('state', '=', 'signed'), ('note_type', '=', 'meeting')]"/>
+
+                <separator/>
+                <filter string="Archived" name="archived"
                         domain="[('active', '=', False)]"/>
 
-                <group expand="0" string="分組">
-                    <filter string="階段" name="group_stage"
+                <group expand="0" string="Group By">
+                    <filter string="Type" name="group_type"
+                            context="{'group_by': 'note_type'}"/>
+                    <filter string="Stage" name="group_stage"
                             context="{'group_by': 'stage_id'}"/>
-                    <filter string="擁有者" name="group_user"
+                    <filter string="Status" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="Owner" name="group_user"
                             context="{'group_by': 'user_id'}"/>
-                    <filter string="標籤" name="group_tag"
+                    <filter string="Tag" name="group_tag"
                             context="{'group_by': 'main_tag_id'}"/>
                 </group>
 
@@ -218,7 +366,7 @@
                     <field name="main_tag_id"
                            select="one"
                            icon="fa-tag"
-                           string="標籤"
+                           string="Tags"
                            enable_counters="1"
                            expand="1"/>
                 </searchpanel>
@@ -232,29 +380,29 @@
 
     <!-- Action - 筆記本 -->
     <record id="action_note_note" model="ir.actions.act_window">
-        <field name="name">筆記本</field>
+        <field name="name">Notebook</field>
         <field name="res_model">note.note</field>
-        <field name="view_mode">kanban,list,form</field>
+        <field name="view_mode">list,kanban,form</field>
         <field name="domain">[]</field>
         <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1}</field>
         <field name="search_view_id" ref="view_note_note_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">建立您的第一個筆記</p>
-            <p>使用筆記本來記錄想法、待辦事項和重要資訊。</p>
+            <p class="o_view_nocontent_smiling_face">Create your first note</p>
+            <p>Use the notebook to record ideas, tasks, and important information.</p>
         </field>
     </record>
 
-    <record model="ir.actions.act_window.view" id="action_note_note_kanban">
+    <record model="ir.actions.act_window.view" id="action_note_note_list">
         <field name="sequence">1</field>
-        <field name="view_mode">kanban</field>
-        <field name="view_id" ref="view_note_note_kanban"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_note_note_list"/>
         <field name="act_window_id" ref="action_note_note"/>
     </record>
 
-    <record model="ir.actions.act_window.view" id="action_note_note_list">
+    <record model="ir.actions.act_window.view" id="action_note_note_kanban">
         <field name="sequence">2</field>
-        <field name="view_mode">list</field>
-        <field name="view_id" ref="view_note_note_list"/>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_note_note_kanban"/>
         <field name="act_window_id" ref="action_note_note"/>
     </record>
 

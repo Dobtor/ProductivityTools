@@ -3,37 +3,37 @@
     <data noupdate="1">
 
         <!-- =====================================================
-             筆記預設階段 (note.stage)
-             給管理員用戶的預設階段設定
+             Note Default Stages (note.stage)
+             Default stages for admin user
              ===================================================== -->
 
-        <!-- 收件匣 - 新進筆記的預設階段 -->
-        <record id="note_stage_inbox" model="note.stage">
-            <field name="name">收件匣</field>
+        <!-- Notes - General notes -->
+        <record id="note_stage_notes" model="note.stage">
+            <field name="name">Notes</field>
             <field name="sequence">1</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <!-- 進行中 - 正在處理的筆記 -->
-        <record id="note_stage_in_progress" model="note.stage">
-            <field name="name">進行中</field>
+        <!-- Meeting Minutes - Meeting records -->
+        <record id="note_stage_meeting" model="note.stage">
+            <field name="name">Meeting Minutes</field>
             <field name="sequence">5</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <!-- 筆記 - 一般參考筆記 -->
-        <record id="note_stage_notes" model="note.stage">
-            <field name="name">筆記</field>
+        <!-- Manuals - Documentation and guides -->
+        <record id="note_stage_manuals" model="note.stage">
+            <field name="name">Manuals</field>
             <field name="sequence">10</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <!-- 待辦 - 需要追蹤執行的項目 -->
-        <record id="note_stage_todo" model="note.stage">
-            <field name="name">待辦</field>
+        <!-- References - Reference materials -->
+        <record id="note_stage_references" model="note.stage">
+            <field name="name">References</field>
             <field name="sequence">50</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">True</field>

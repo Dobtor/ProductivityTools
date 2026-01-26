@@ -40,7 +40,7 @@ class TestMailActivity(TransactionCase):
         self.assertTrue(activity.id)
         self.assertEqual(activity.summary, '測試待辦')
         self.assertTrue(activity.active)
-        self.assertEqual(activity.activity_state, 'active')
+        self.assertEqual(activity.activity_status, 'active')
 
     def test_02_activity_without_user(self):
         """測試建立無指派人的待辦"""
@@ -103,7 +103,7 @@ class TestMailActivity(TransactionCase):
 
         self.assertFalse(activity.active)
         self.assertTrue(activity.done_date)
-        self.assertEqual(activity.activity_state, 'done')
+        self.assertEqual(activity.activity_status, 'done')
 
     def test_06_activity_cancel(self):
         """測試取消待辦"""
@@ -119,7 +119,7 @@ class TestMailActivity(TransactionCase):
 
         self.assertFalse(activity.active)
         self.assertTrue(activity.cancel_date)
-        self.assertEqual(activity.activity_state, 'cancelled')
+        self.assertEqual(activity.activity_status, 'cancelled')
 
     def test_07_activity_restore(self):
         """測試恢復已封存待辦"""
@@ -207,8 +207,8 @@ class TestMailActivity(TransactionCase):
 
         self.assertEqual(activity.note_id.id, self.note.id)
 
-        # 檢查筆記的待辦計數
-        self.assertGreaterEqual(self.note.activity_count, 1)
+        # 檢查筆記的待辦計數（透過 note_id 關聯）
+        self.assertGreaterEqual(self.note.note_activity_count, 1)
 
     def test_11_estimated_hours(self):
         """測試工時相關欄位"""
@@ -232,3 +232,68 @@ class TestMailActivity(TransactionCase):
                 'date_deadline': date.today(),
                 # 缺少 res_model_id 和 res_id
             })
+
+    def test_13_transfer_activity(self):
+        """測試轉移待辦功能"""
+        # 建立另一個目標文件 (res.partner)
+        partner = self.env['res.partner'].create({
+            'name': '轉移目標客戶',
+        })
+
+        # 建立待辦
+        activity = self.env['mail.activity'].create({
+            'summary': '待轉移待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'note_id': self.note.id,
+        })
+
+        # 確認初始狀態
+        self.assertFalse(activity.is_transferred)
+        self.assertEqual(activity.res_model, 'note.note')
+        self.assertEqual(activity.res_id, self.note.id)
+
+        # 使用 wizard 轉移
+        wizard = self.env['mail.activity.transfer.wizard'].create({
+            'activity_id': activity.id,
+            'source_model': 'note.note',
+            'source_id': self.note.id,
+            'target_ref': f'res.partner,{partner.id}',
+        })
+        wizard.action_transfer()
+
+        # 驗證轉移結果
+        self.assertTrue(activity.is_transferred)
+        self.assertEqual(activity.res_model, 'res.partner')
+        self.assertEqual(activity.res_id, partner.id)
+        self.assertEqual(activity.transferred_from_model, 'note.note')
+        self.assertEqual(activity.transferred_from_id, self.note.id)
+        self.assertEqual(activity.note_id.id, self.note.id)  # note_id 應保留
+        self.assertEqual(activity.schedule_origin, 'transferred')
+
+    def test_14_get_related_notes(self):
+        """測試取得關聯筆記 API"""
+        # 建立目標文件
+        partner = self.env['res.partner'].create({
+            'name': '測試客戶',
+        })
+
+        # 建立筆記待辦並轉移
+        activity = self.env['mail.activity'].create({
+            'summary': '筆記關聯待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
+            'res_id': partner.id,
+            'date_deadline': date.today(),
+            'note_id': self.note.id,
+        })
+
+        # 取得關聯筆記
+        notes = self.env['mail.activity'].get_related_notes('res.partner', partner.id)
+
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0]['id'], self.note.id)
+        self.assertEqual(notes[0]['total_count'], 1)
+        self.assertEqual(notes[0]['active_count'], 1)

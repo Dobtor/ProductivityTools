@@ -29,13 +29,13 @@ export class ActivityFormController extends FormController {
         const activityData = this.model.root.data;
 
         // Add postpone action if activity is active
-        if (activityData.activity_state === "active") {
+        if (activityData.activity_status === "active") {
             filteredActions.push({
-                description: _t("延期"),
+                description: _t("Postpone"),
                 callback: async () => {
                     await this.model.action.doAction({
                         type: "ir.actions.act_window",
-                        name: _t("延期活動"),
+                        name: _t("Postpone Activity"),
                         res_model: "mail.activity.postpone.wizard",
                         view_mode: "form",
                         views: [[false, "form"]],
@@ -48,11 +48,11 @@ export class ActivityFormController extends FormController {
             });
 
             filteredActions.push({
-                description: _t("轉移"),
+                description: _t("Transfer"),
                 callback: async () => {
                     await this.model.action.doAction({
                         type: "ir.actions.act_window",
-                        name: _t("轉移活動"),
+                        name: _t("Transfer Activity"),
                         res_model: "mail.activity.transfer.wizard",
                         view_mode: "form",
                         views: [[false, "form"]],

@@ -17,132 +17,132 @@ class ActivityEfficiencyMetrics(models.Model):
     - 定時任務自動計算
     """
     _name = 'activity.efficiency.metrics'
-    _description = '效率指標'
+    _description = 'Efficiency Metrics'
     _order = 'period_end desc'
 
     user_id = fields.Many2one(
         'res.users',
-        string='用戶',
+        string='User',
         index=True,
         ondelete='cascade',
     )
 
     department_id = fields.Many2one(
         'hr.department',
-        string='部門',
+        string='Department',
         index=True,
         ondelete='set null',
     )
 
     period_type = fields.Selection([
-        ('week', '週'),
-        ('month', '月'),
-        ('quarter', '季'),
-    ], string='期間類型', required=True, index=True)
+        ('week', 'Week'),
+        ('month', 'Month'),
+        ('quarter', 'Quarter'),
+    ], string='Period Type', required=True, index=True)
 
     period_start = fields.Date(
-        string='期間起始',
+        string='Period Start',
         required=True,
         index=True,
     )
 
     period_end = fields.Date(
-        string='期間結束',
+        string='Period End',
         required=True,
         index=True,
     )
 
     period_name = fields.Char(
-        string='期間名稱',
+        string='Period Name',
         compute='_compute_period_name',
         store=True,
-        help='格式：2026-W02（週）、2026-01（月）、2026-Q1（季）',
+        help='Format: 2026-W02 (week), 2026-01 (month), 2026-Q1 (quarter)',
     )
 
     # ===== 基礎統計 =====
     total_activities = fields.Integer(
-        string='總待辦數',
+        string='Total Activities',
         default=0,
     )
     completed_activities = fields.Integer(
-        string='完成待辦數',
+        string='Completed Activities',
         default=0,
     )
     on_time_activities = fields.Integer(
-        string='準時完成數',
+        string='On-time Completions',
         default=0,
-        help='在截止日前完成的待辦數',
+        help='Number of activities completed before deadline',
     )
     postponed_activities = fields.Integer(
-        string='延期待辦數',
+        string='Postponed Activities',
         default=0,
     )
     cancelled_activities = fields.Integer(
-        string='取消待辦數',
+        string='Cancelled Activities',
         default=0,
     )
 
     # ===== 工時統計 =====
     total_estimated_hours = fields.Float(
-        string='總預估工時',
+        string='Total Estimated Hours',
         default=0,
     )
     total_actual_hours = fields.Float(
-        string='總執行工時',
+        string='Total Actual Hours',
         default=0,
     )
 
     # ===== 來源統計 =====
     planned_source_count = fields.Integer(
-        string='預排計畫數',
+        string='Planned Count',
         default=0,
-        help='來源為「計畫工作」的待辦數',
+        help='Number of activities with "Planned" origin',
     )
     inserted_source_count = fields.Integer(
-        string='臨時插入數',
+        string='Inserted Count',
         default=0,
-        help='來源為「臨時插入」的待辦數',
+        help='Number of activities with "Inserted" origin',
     )
 
     # ===== 計算指標 =====
     completion_rate = fields.Float(
-        string='完成率',
+        string='Completion Rate',
         compute='_compute_metrics',
         store=True,
-        help='完成數 / 總數 * 100',
+        help='Completed / Total * 100',
     )
 
     on_time_rate = fields.Float(
-        string='準時完成率',
+        string='On-time Rate',
         compute='_compute_metrics',
         store=True,
-        help='準時完成數 / 完成數 * 100',
+        help='On-time Completions / Completed * 100',
     )
 
     estimation_accuracy = fields.Float(
-        string='預估準確度',
+        string='Estimation Accuracy',
         compute='_compute_metrics',
         store=True,
-        help='1 - |預估-實際| / 預估 * 100',
+        help='1 - |Estimated - Actual| / Estimated * 100',
     )
 
     postpone_rate = fields.Float(
-        string='延期率',
+        string='Postpone Rate',
         compute='_compute_metrics',
         store=True,
-        help='延期數 / 總數 * 100',
+        help='Postponed / Total * 100',
     )
 
     efficiency_index = fields.Float(
-        string='效率指數',
+        string='Efficiency Index',
         compute='_compute_metrics',
         store=True,
-        help='綜合效率評分（滿分 5 分）',
+        help='Comprehensive efficiency score (max 5 points)',
     )
 
     _sql_constraints = [
         ('unique_user_period', 'unique(user_id, period_type, period_start)',
-         '同一用戶在同一期間只能有一筆效率指標記錄！'),
+         'Each user can only have one efficiency metric record per period!'),
     ]
 
     # ========== Computed Methods ==========
@@ -367,8 +367,8 @@ class ActivityEfficiencyMetrics(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _('計算完成'),
-                'message': _('已計算 %s 至 %s 的週效率指標') % (week_start, week_end),
+                'title': _('Calculation Complete'),
+                'message': _('Weekly efficiency metrics calculated from %s to %s') % (week_start, week_end),
                 'sticky': False,
                 'type': 'success',
             }

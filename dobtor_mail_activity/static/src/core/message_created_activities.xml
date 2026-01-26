@@ -28,7 +28,7 @@
                                  t-att-title="activity.user_name"
                                  class="rounded-circle me-1 flex-shrink-0"
                                  style="width: 18px; height: 18px; object-fit: cover;"/>
-                            <i t-else="" class="fa fa-user-o me-1 flex-shrink-0" title="未指派"/>
+                            <i t-else="" class="fa fa-user-o me-1 flex-shrink-0" title="Unassigned"/>
                             <span class="text-truncate" t-esc="activity.summary"/>
                         </a>
                     </t>

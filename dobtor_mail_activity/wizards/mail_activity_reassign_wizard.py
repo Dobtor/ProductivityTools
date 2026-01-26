@@ -15,34 +15,34 @@ class MailActivityReassignWizard(models.TransientModel):
     - 發送通知給新負責人
     """
     _name = 'mail.activity.reassign.wizard'
-    _description = '變更待辦指派精靈'
+    _description = 'Reassign Activity Wizard'
 
     # ===== 待辦資訊（唯讀）=====
     activity_id = fields.Many2one(
         'mail.activity',
-        string='待辦',
+        string='Activity',
         required=True,
         readonly=True,
         ondelete='cascade',
     )
     current_user_id = fields.Many2one(
         'res.users',
-        string='目前負責人',
+        string='Current Assignee',
         related='activity_id.user_id',
         readonly=True,
     )
     activity_summary = fields.Char(
-        string='待辦摘要',
+        string='Activity Summary',
         related='activity_id.summary',
         readonly=True,
     )
     activity_deadline = fields.Date(
-        string='截止日期',
+        string='Deadline',
         related='activity_id.date_deadline',
         readonly=True,
     )
     activity_type_name = fields.Char(
-        string='待辦類型',
+        string='Activity Type',
         related='activity_id.activity_type_id.name',
         readonly=True,
     )
@@ -50,13 +50,13 @@ class MailActivityReassignWizard(models.TransientModel):
     # ===== 變更資訊 =====
     new_user_id = fields.Many2one(
         'res.users',
-        string='新負責人',
+        string='New Assignee',
         required=True,
         domain="[('id', '!=', current_user_id)]",
     )
     reason = fields.Text(
-        string='變更原因',
-        help='說明變更指派的原因',
+        string='Change Reason',
+        help='Explain the reason for reassignment',
     )
 
     @api.model
@@ -75,28 +75,28 @@ class MailActivityReassignWizard(models.TransientModel):
         self.ensure_one()
 
         if not self.new_user_id:
-            raise UserError(_('請選擇新的負責人。'))
+            raise UserError(_('Please select a new assignee.'))
 
         if self.new_user_id == self.current_user_id:
-            raise UserError(_('新負責人不能與目前負責人相同。'))
+            raise UserError(_('New assignee cannot be the same as current assignee.'))
 
         if not self.activity_id.exists():
-            raise UserError(_('待辦記錄不存在。'))
+            raise UserError(_('Activity record does not exist.'))
 
         if not self.activity_id.active:
-            raise UserError(_('此待辦已封存，無法變更指派。'))
+            raise UserError(_('This activity is archived and cannot be reassigned.'))
 
     def _format_reassign_note(self, now_str):
         """格式化變更指派備註"""
         self.ensure_one()
 
-        note = _('\n\n--- %s 變更指派 ---\n由 %s 轉給 %s') % (
+        note = _('\n\n--- %s Reassigned ---\nFrom %s to %s') % (
             now_str,
-            self.current_user_id.name if self.current_user_id else _('未指派'),
+            self.current_user_id.name if self.current_user_id else _('Unassigned'),
             self.new_user_id.name,
         )
         if self.reason:
-            note += _('\n原因: %s') % self.reason
+            note += _('\nReason: %s') % self.reason
 
         return note
 
@@ -145,7 +145,7 @@ class MailActivityReassignWizard(models.TransientModel):
             'activity_id': new_activity.id,
             'previous_user_id': self.current_user_id.id if self.current_user_id else False,
             'new_user_id': self.new_user_id.id,
-            'reason': self.reason or _('變更指派'),
+            'reason': self.reason or _('Reassignment'),
         })
 
     def _cancel_original_activity(self, cancel_note):
@@ -199,12 +199,12 @@ class MailActivityReassignWizard(models.TransientModel):
         self._create_assignment_history(new_activity)
 
         # 取消原待辦
-        cancel_note = _('\n\n--- %s 已變更指派給 %s ---') % (
+        cancel_note = _('\n\n--- %s Reassigned to %s ---') % (
             now_str,
             self.new_user_id.name,
         )
         if self.reason:
-            cancel_note += _('\n原因: %s') % self.reason
+            cancel_note += _('\nReason: %s') % self.reason
 
         self._cancel_original_activity(cancel_note)
 

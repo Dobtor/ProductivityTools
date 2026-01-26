@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- ============================================================ -->
+    <!-- Calendar Popover Footer Extension                             -->
+    <!-- 日曆 Popover 頁腳擴展 - 增加會議記錄功能按鈕                    -->
+    <!-- ============================================================ -->
+    <t t-name="dobtor_mail_activity.AttendeeCalendarCommonPopover.footer"
+       t-inherit="calendar.AttendeeCalendarCommonPopover.footer"
+       t-inherit-mode="primary">
+
+        <!-- 在 footer 最前面增加筆記相關按鈕 -->
+        <xpath expr="//t[@t-if='isEventEditable']" position="before">
+            <!-- Create Meeting Minutes 按鈕 -->
+            <a href="#"
+               class="btn btn-outline-secondary o_cw_popover_create_note"
+               t-on-click="onCreateNote"
+               title="Create Meeting Minutes">
+                <i class="fa fa-sticky-note-o me-1"/>
+                <span class="d-none d-lg-inline">Minutes</span>
+            </a>
+            <!-- View Meeting Minutes 按鈕 (如果有關聯會議記錄) -->
+            <a t-if="hasNotes"
+               href="#"
+               class="btn btn-outline-info o_cw_popover_view_notes"
+               t-on-click="onViewNotes"
+               title="View Meeting Minutes">
+                <i class="fa fa-sticky-note me-1"/>
+                <span class="badge text-bg-info" t-esc="noteCount"/>
+            </a>
+        </xpath>
+
+    </t>
+
+</templates>

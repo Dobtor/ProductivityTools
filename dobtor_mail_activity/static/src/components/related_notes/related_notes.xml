@@ -2,19 +2,19 @@
 <templates xml:space="preserve">
     <t t-name="dobtor_mail_activity.RelatedNotes">
         <div class="o_related_notes" t-if="state.notes.length > 0 || state.isLoading">
-            <!-- 載入中 -->
+            <!-- Loading -->
             <div t-if="state.isLoading" class="p-3 text-center text-muted">
                 <i class="fa fa-spinner fa-spin me-2"/>
-                <span>載入關聯筆記中...</span>
+                <span>Loading related notes...</span>
             </div>
 
             <t t-else="">
-                <!-- 標題列 -->
+                <!-- Header -->
                 <div class="o_related_notes_header d-flex align-items-center p-2 bg-100 cursor-pointer border-bottom"
                      t-on-click="toggleSection">
                     <i t-attf-class="fa fa-caret-#{state.isExpanded ? 'down' : 'right'} me-2"/>
                     <i class="fa fa-sticky-note-o me-2 text-warning"/>
-                    <span class="fw-bold">關聯筆記</span>
+                    <span class="fw-bold">Related Notes</span>
                     <span class="badge bg-secondary ms-2" t-esc="state.notes.length"/>
                 </div>
 
@@ -31,7 +31,7 @@
                                 </a>
                                 <span class="ms-2">
                                     <span t-if="note.is_all_done" class="badge bg-success">
-                                        <i class="fa fa-check me-1"/>全部完成
+                                        <i class="fa fa-check me-1"/>All Done
                                     </span>
                                     <span t-else="" class="badge bg-info">
                                         <t t-esc="note.active_count"/>/<t t-esc="note.total_count"/>
@@ -39,7 +39,7 @@
                                 </span>
                                 <button class="btn btn-sm btn-link p-0 ms-2"
                                         t-on-click.stop="() => this.toggleNoteActivities(note.id)"
-                                        t-att-title="state.expandedNotes[note.id] ? '收合' : '展開'">
+                                        t-att-title="state.expandedNotes[note.id] ? 'Collapse' : 'Expand'">
                                     <i t-attf-class="fa fa-chevron-#{state.expandedNotes[note.id] ? 'up' : 'down'}"/>
                                 </button>
                             </div>
@@ -52,13 +52,13 @@
                                         <a href="#" class="text-decoration-none small flex-grow-1"
                                            t-att-class="{'text-muted': activity.state !== 'active'}"
                                            t-on-click.prevent="() => this.openActivity(activity.id)">
-                                            <t t-esc="activity.summary || '(無摘要)'"/>
+                                            <t t-esc="activity.summary || '(No Summary)'"/>
                                         </a>
                                         <span t-if="activity.state === 'done'" class="badge bg-success-subtle text-success small">
-                                            完成
+                                            Done
                                         </span>
                                         <span t-elif="activity.state === 'cancelled'" class="badge bg-danger-subtle text-danger small">
-                                            取消
+                                            Cancelled
                                         </span>
                                     </div>
                                 </t>

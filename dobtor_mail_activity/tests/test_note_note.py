@@ -117,7 +117,7 @@ class TestNoteNote(TransactionCase):
             'note_id': note.id,
         })
 
-        self.assertGreaterEqual(note.activity_count, 1)
+        self.assertGreaterEqual(note.note_activity_count, 1)
 
 
 @tagged('post_install', '-at_install')

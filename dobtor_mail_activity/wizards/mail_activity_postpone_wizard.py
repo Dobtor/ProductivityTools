@@ -13,42 +13,42 @@ class MailActivityPostponeWizard(models.TransientModel):
     - 標記待辦來源為「延期」
     """
     _name = 'mail.activity.postpone.wizard'
-    _description = '延期待辦精靈'
+    _description = 'Postpone Activity Wizard'
 
     # ===== 待辦資訊（唯讀）=====
     activity_id = fields.Many2one(
         'mail.activity',
-        string='待辦',
+        string='Activity',
         required=True,
         readonly=True,
         ondelete='cascade',
     )
     summary = fields.Char(
-        string='待辦摘要',
+        string='Activity Summary',
         related='activity_id.summary',
         readonly=True,
     )
     planned_date = fields.Date(
-        string='原計畫日期',
+        string='Original Planned Date',
         related='activity_id.planned_date',
         readonly=True,
     )
     date_deadline = fields.Date(
-        string='截止日期',
+        string='Deadline',
         related='activity_id.date_deadline',
         readonly=True,
     )
     postpone_count = fields.Integer(
-        string='已延期次數',
+        string='Postpone Count',
         related='activity_id.postpone_count',
         readonly=True,
     )
 
     # ===== 延期資訊 =====
     reason = fields.Text(
-        string='延期原因',
+        string='Postponement Reason',
         required=True,
-        help='請說明延期的原因',
+        help='Please explain the reason for postponement',
     )
 
     @api.model
@@ -70,15 +70,15 @@ class MailActivityPostponeWizard(models.TransientModel):
 
         # 檢查待辦是否存在
         if not activity.exists():
-            raise UserError(_('待辦記錄不存在。'))
+            raise UserError(_('Activity record does not exist.'))
 
         # 檢查待辦是否已完成或取消
         if not activity.active:
-            raise UserError(_('此待辦已封存，無法延期。'))
+            raise UserError(_('This activity is archived and cannot be postponed.'))
 
         # 檢查是否有計畫日期
         if not activity.planned_date:
-            raise UserError(_('此待辦尚未排程，無需延期。'))
+            raise UserError(_('This activity is not scheduled yet, no need to postpone.'))
 
     def _get_original_week(self):
         """取得原始週次字串（格式：2026-W02）"""

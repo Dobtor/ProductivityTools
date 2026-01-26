@@ -14,10 +14,10 @@ class ResCompany(models.Model):
 
     default_timesheet_project_id = fields.Many2one(
         'project.project',
-        string='預設工時表專案',
+        string='Default Timesheet Project',
         domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', id)]",
-        help='待辦完成時，若無關聯專案，使用此專案建立工時表記錄。'
-             '專案必須啟用工時表功能。',
+        help='When activity is completed without an associated project, this project will be used to create timesheet entries. '
+             'The project must have timesheets enabled.',
     )
 
 
@@ -30,7 +30,7 @@ class ResConfigSettings(models.TransientModel):
 
     timesheet_project_id = fields.Many2one(
         related='company_id.default_timesheet_project_id',
-        string='預設工時表專案',
+        string='Default Timesheet Project',
         readonly=False,
         domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
     )

@@ -8,15 +8,15 @@
         <field name="name">weekly.report.view.form</field>
         <field name="model">weekly.report</field>
         <field name="arch" type="xml">
-            <form string="週報告">
+            <form string="Weekly Report">
                 <header>
-                    <button name="action_generate_report" type="object" string="產生報告"
+                    <button name="action_generate_report" type="object" string="Generate Report"
                             class="btn-primary"
                             invisible="state == 'confirmed'"/>
-                    <button name="action_confirm" type="object" string="確認"
+                    <button name="action_confirm" type="object" string="Confirm"
                             class="btn-primary"
                             invisible="state == 'confirmed'"/>
-                    <button name="action_reset_draft" type="object" string="重設為草稿"
+                    <button name="action_reset_draft" type="object" string="Reset to Draft"
                             invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed"/>
                 </header>
@@ -27,24 +27,24 @@
                         </h1>
                     </div>
                     <group>
-                        <group string="基本資訊">
+                        <group string="Basic Information">
                             <field name="user_id" widget="many2one_avatar_user"/>
                             <field name="week_start"/>
                             <field name="week_end" readonly="1"/>
                             <field name="week_number" readonly="1"/>
                             <field name="previous_report_id" readonly="1"/>
                         </group>
-                        <group string="統計資訊">
-                            <field name="total_planned_hours" widget="float_time" string="本週計畫工時" readonly="1"/>
-                            <field name="total_review_planned_hours" widget="float_time" string="上週計畫工時" readonly="1"/>
-                            <field name="total_review_actual_hours" widget="float_time" string="上週實際工時" readonly="1"/>
+                        <group string="Statistics">
+                            <field name="total_planned_hours" widget="float_time" string="This Week Planned Hours" readonly="1"/>
+                            <field name="total_review_planned_hours" widget="float_time" string="Last Week Planned Hours" readonly="1"/>
+                            <field name="total_review_actual_hours" widget="float_time" string="Last Week Actual Hours" readonly="1"/>
                             <field name="completion_rate" widget="progressbar" readonly="1"/>
                             <field name="planned_completion_rate" widget="progressbar" readonly="1"/>
                             <field name="inserted_count" readonly="1"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="上週執行回顧" name="review">
+                        <page string="Last Week Review" name="review">
                             <field name="previous_week_review_ids" readonly="1">
                                 <list decoration-muted="status == 'cancelled'"
                                       decoration-danger="status == 'pending'"
@@ -68,7 +68,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="本週計畫" name="this_week">
+                        <page string="This Week Plan" name="this_week">
                             <group>
                                 <group>
                                     <field name="total_planned_hours" widget="float_time" readonly="1"/>
@@ -92,8 +92,8 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="本週計畫快照" name="snapshot" groups="base.group_no_one">
-                            <p class="text-muted">此快照將供下週報告比對使用，確認後不可修改。</p>
+                        <page string="This Week Plan Snapshot" name="snapshot" groups="base.group_no_one">
+                            <p class="text-muted">This snapshot will be used for next week report comparison. Cannot be modified after confirmation.</p>
                             <field name="this_week_snapshot_ids" readonly="1">
                                 <list>
                                     <field name="summary"/>
@@ -105,7 +105,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="未來安排" name="future">
+                        <page string="Future Schedule" name="future">
                             <field name="future_activity_ids" readonly="1">
                                 <list>
                                     <field name="summary"/>
@@ -118,7 +118,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="尚未安排" name="unscheduled">
+                        <page string="Unscheduled" name="unscheduled">
                             <field name="unscheduled_activity_ids" readonly="1">
                                 <list>
                                     <field name="summary"/>
@@ -132,8 +132,8 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="自評或建議" name="evaluation">
-                            <field name="self_evaluation" widget="html" placeholder="本週自我評價與下週改進建議..."/>
+                        <page string="Self Evaluation" name="evaluation">
+                            <field name="self_evaluation" widget="html" placeholder="Self evaluation and suggestions for next week improvement..."/>
                         </page>
                     </notebook>
                 </sheet>
@@ -149,15 +149,15 @@
         <field name="name">weekly.report.view.list</field>
         <field name="model">weekly.report</field>
         <field name="arch" type="xml">
-            <list string="週報告">
+            <list string="Weekly Reports">
                 <field name="name"/>
                 <field name="user_id" widget="many2one_avatar_user"/>
                 <field name="week_start"/>
                 <field name="week_end"/>
-                <field name="total_planned_hours" widget="float_time" string="本週計畫"/>
-                <field name="total_review_actual_hours" widget="float_time" string="上週實際"/>
+                <field name="total_planned_hours" widget="float_time" string="This Week Plan"/>
+                <field name="total_review_actual_hours" widget="float_time" string="Last Week Actual"/>
                 <field name="completion_rate" widget="progressbar"/>
-                <field name="inserted_count" string="臨時插入"/>
+                <field name="inserted_count" string="Inserted Tasks"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'draft'"
                        decoration-success="state == 'confirmed'"/>
@@ -172,21 +172,21 @@
         <field name="name">weekly.report.view.search</field>
         <field name="model">weekly.report</field>
         <field name="arch" type="xml">
-            <search string="週報告">
+            <search string="Weekly Report">
                 <field name="name"/>
                 <field name="user_id"/>
                 <field name="week_number"/>
                 <separator/>
-                <filter string="我的報告" name="my_reports"
+                <filter string="My Reports" name="my_reports"
                         domain="[('user_id', '=', uid)]"/>
                 <separator/>
-                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
-                <filter string="已確認" name="confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Confirmed" name="confirmed" domain="[('state', '=', 'confirmed')]"/>
                 <separator/>
-                <group expand="0" string="分組">
-                    <filter string="依用戶" name="group_by_user" context="{'group_by': 'user_id'}"/>
-                    <filter string="依月份" name="group_by_month" context="{'group_by': 'week_start:month'}"/>
-                    <filter string="依狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                <group expand="0" string="Group By">
+                    <filter string="By User" name="group_by_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="By Month" name="group_by_month" context="{'group_by': 'week_start:month'}"/>
+                    <filter string="By Status" name="group_by_state" context="{'group_by': 'state'}"/>
                 </group>
             </search>
         </field>
@@ -199,7 +199,7 @@
         <field name="name">weekly.report.snapshot.line.view.list</field>
         <field name="model">weekly.report.snapshot.line</field>
         <field name="arch" type="xml">
-            <list string="計畫快照" editable="bottom">
+            <list string="Plan Snapshot" editable="bottom">
                 <field name="report_id" column_invisible="1"/>
                 <field name="activity_id" readonly="1"/>
                 <field name="summary"/>
@@ -219,7 +219,7 @@
         <field name="name">weekly.report.review.line.view.list</field>
         <field name="model">weekly.report.review.line</field>
         <field name="arch" type="xml">
-            <list string="執行回顧"
+            <list string="Execution Review"
                   decoration-muted="status == 'cancelled'"
                   decoration-danger="status == 'pending'"
                   decoration-warning="status == 'postponed'">
@@ -248,23 +248,23 @@
     <!--                      週報告 Action                            -->
     <!-- ============================================================ -->
     <record id="action_weekly_report" model="ir.actions.act_window">
-        <field name="name">我的報告</field>
+        <field name="name">My Reports</field>
         <field name="res_model">weekly.report</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_my_reports': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">建立您的第一份週報告</p>
-            <p>週報告可幫助您追蹤每週工作執行情況，包含上週回顧和本週計畫。</p>
+            <p class="o_view_nocontent_smiling_face">Create your first weekly report</p>
+            <p>Weekly reports help you track weekly work execution, including last week review and this week plan.</p>
         </field>
     </record>
 
     <!-- 所有週報告（管理員用）-->
     <record id="action_weekly_report_all" model="ir.actions.act_window">
-        <field name="name">所有週報告</field>
+        <field name="name">All Weekly Reports</field>
         <field name="res_model">weekly.report</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">查看所有用戶的週報告</p>
+            <p class="o_view_nocontent_smiling_face">View all users' weekly reports</p>
         </field>
     </record>
 

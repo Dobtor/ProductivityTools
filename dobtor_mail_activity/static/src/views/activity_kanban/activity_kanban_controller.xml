@@ -44,7 +44,7 @@
                             <t t-foreach="weekState.weeks" t-as="week" t-key="week.key">
                                 <option t-att-value="week.number"
                                         t-att-selected="week.number === weekState.currentWeek">
-                                    <t t-esc="week.name"/> (<t t-esc="week.count"/>項<t t-if="week.total_hours"> / <t t-esc="formatHours(week.total_hours)"/></t>)
+                                    <t t-esc="week.name"/> (<t t-esc="week.count"/><t t-if="week.total_hours"> / <t t-esc="formatHours(week.total_hours)"/></t>)
                                 </option>
                             </t>
                         </select>

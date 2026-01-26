@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Portal Home - Meeting Minutes Entry                           -->
+    <!-- 首頁入口 - 會議記錄                                            -->
+    <!-- ============================================================ -->
+    <template id="portal_my_home_meeting" name="Portal My Home - Meeting Minutes"
+              inherit_id="portal.portal_my_home" priority="30">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
+            <t t-set="portal_client_category_enable" t-value="True"/>
+        </xpath>
+        <div id="portal_client_category" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/dobtor_mail_activity/static/src/img/meeting.svg'"/>
+                <t t-set="title">Meeting Minutes</t>
+                <t t-set="url" t-value="'/my/meetings'"/>
+                <t t-set="text">View and sign meeting minutes</t>
+                <t t-set="placeholder_count" t-value="'meeting_count'"/>
+            </t>
+        </div>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- Portal Breadcrumbs - Meeting Minutes                          -->
+    <!-- 麵包屑導航 - 會議記錄                                          -->
+    <!-- ============================================================ -->
+    <template id="portal_my_home_menu_meeting" name="Portal layout : meeting menu entries"
+              inherit_id="portal.portal_breadcrumbs" priority="30">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'meeting' or note"
+                t-attf-class="breadcrumb-item #{'active ' if not note else ''}">
+                <a t-if="note" t-attf-href="/my/meetings?{{ keep_query() }}">Meeting Minutes</a>
+                <t t-else="">Meeting Minutes</t>
+            </li>
+            <li t-if="note" class="breadcrumb-item active">
+                <span t-field="note.name"/>
+            </li>
+        </xpath>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- Meeting Minutes List                                          -->
+    <!-- 會議記錄列表                                                   -->
+    <!-- ============================================================ -->
+    <template id="portal_my_meetings" name="My Meeting Minutes">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">Meeting Minutes</t>
+            </t>
+
+            <div t-if="not meetings" class="alert alert-warning" role="alert">
+                There are currently no meeting minutes for your account.
+            </div>
+
+            <t t-if="meetings" t-call="portal.portal_table">
+                <thead>
+                    <tr class="active">
+                        <th>Title</th>
+                        <th class="text-end">Created</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Signatures</th>
+                    </tr>
+                </thead>
+                <t t-foreach="meetings" t-as="meeting">
+                    <tr>
+                        <td>
+                            <a t-att-href="meeting.get_portal_url()">
+                                <t t-esc="meeting.name or 'Untitled'"/>
+                            </a>
+                        </td>
+                        <td class="text-end">
+                            <span t-field="meeting.create_date"
+                                  t-options='{"format": "yyyy-MM-dd"}'/>
+                        </td>
+                        <td class="text-center">
+                            <span t-if="meeting.state == 'draft'" class="badge rounded-pill text-bg-secondary">
+                                Draft
+                            </span>
+                            <span t-if="meeting.state == 'sent'" class="badge rounded-pill text-bg-info">
+                                Sent
+                            </span>
+                            <span t-if="meeting.state == 'partial'" class="badge rounded-pill text-bg-warning">
+                                Partially Signed
+                            </span>
+                            <span t-if="meeting.state == 'signed'" class="badge rounded-pill text-bg-success">
+                                <i class="fa fa-fw fa-check"/> Fully Signed
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span t-esc="meeting.signed_count"/>/<span t-esc="meeting.signature_count"/>
+                        </td>
+                    </tr>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- Meeting Minutes Detail Page                                   -->
+    <!-- 會議記錄詳情頁                                                 -->
+    <!-- ============================================================ -->
+    <template id="meeting_portal_template" name="Meeting Minutes" inherit_id="portal.portal_sidebar" primary="True">
+        <xpath expr="//div[hasclass('o_portal_sidebar')]" position="inside">
+
+            <div class="row o_portal_meeting_sidebar">
+                <!-- 側邊欄 -->
+                <t t-call="portal.portal_record_sidebar">
+                    <t t-set="classes" t-value="'col-lg-4 col-xxl-3 d-print-none'"/>
+
+                    <t t-set="title">
+                        <h4 class="mb-0 text-break" t-field="note.name"/>
+                    </t>
+
+                    <t t-set="entries">
+                        <div class="d-flex flex-column gap-4 mt-3">
+
+                            <!-- 簽名按鈕 -->
+                            <div class="d-flex flex-column gap-2" id="meeting_sidebar_buttons">
+                                <a t-if="needs_signature" role="button"
+                                   class="btn btn-primary" data-bs-toggle="modal"
+                                   data-bs-target="#modalSign" href="#">
+                                    <i class="fa fa-pencil me-1"/> Accept &amp; Sign
+                                </a>
+
+                                <div class="o_download_pdf d-flex gap-2 flex-lg-column flex-xl-row flex-wrap">
+                                    <a class="btn btn-light o_print_btn flex-grow-1"
+                                       t-att-href="note.get_portal_url(report_type='pdf')"
+                                       title="Download PDF" role="button" target="_blank">
+                                        <i class="fa fa-download me-1"/> Download PDF
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- 狀態摘要 -->
+                            <div class="list-group-item flex-grow-1">
+                                <small><b class="text-muted">Status</b></small>
+                                <div class="mt-1">
+                                    <span t-if="note.state == 'draft'" class="badge text-bg-secondary">Draft</span>
+                                    <span t-if="note.state == 'sent'" class="badge text-bg-info">Sent</span>
+                                    <span t-if="note.state == 'partial'" class="badge text-bg-warning">Partially Signed</span>
+                                    <span t-if="note.state == 'signed'" class="badge text-bg-success">
+                                        <i class="fa fa-check"/> Fully Signed
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- 簽名進度 -->
+                            <div t-if="note.signature_ids" class="list-group-item flex-grow-1">
+                                <small><b class="text-muted">Signature Progress</b></small>
+                                <div class="mt-1">
+                                    <span class="h5" t-esc="note.signed_count"/>
+                                    <span class="text-muted">/ <t t-esc="note.signature_count"/> signed</span>
+                                </div>
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                         t-attf-style="width: {{ (note.signed_count / note.signature_count * 100) if note.signature_count else 0 }}%"/>
+                                </div>
+                            </div>
+
+                            <!-- 準備者 -->
+                            <div t-if="note.user_id">
+                                <h6><small class="text-muted">Prepared by</small></h6>
+                                <t t-call="portal.portal_my_contact">
+                                    <t t-set="_contactAvatar" t-value="image_data_uri(note.user_id.avatar_128)"/>
+                                    <t t-set="_contactName" t-value="note.user_id.name"/>
+                                    <t t-set="_contactLink" t-value="True"/>
+                                </t>
+                            </div>
+
+                        </div>
+                    </t>
+                </t>
+
+                <!-- 主內容區 -->
+                <div id="meeting_content" class="col-12 col-lg-8 col-xxl-9 mt-5 mt-lg-0">
+
+                    <!-- 簽名模態框 -->
+                    <div t-if="needs_signature" role="dialog" class="modal fade" id="modalSign">
+                        <div class="modal-dialog">
+                            <form id="signForm" method="POST"
+                                  t-att-data-note-id="note.id"
+                                  t-att-data-token="note.access_token"
+                                  t-att-data-signature-id="signature_id"
+                                  t-att-data-signature-token="signature_token"
+                                  class="modal-content js_website_submit_form">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <header class="modal-header">
+                                    <h4 class="modal-title">Sign Meeting Minutes</h4>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"/>
+                                </header>
+                                <main class="modal-body" id="sign-dialog">
+                                    <p>
+                                        By signing, you confirm that you have reviewed and agree to the content of this meeting minutes.
+                                    </p>
+                                    <t t-set="sign_url" t-value="'/my/meeting/%s/sign?access_token=%s' % (note.id, note.access_token)"/>
+                                    <t t-if="signature_id and signature_token">
+                                        <t t-set="sign_url" t-value="sign_url + '&amp;signature_id=%s&amp;signature_token=%s' % (signature_id, signature_token)"/>
+                                    </t>
+                                    <t t-call="portal.signature_form">
+                                        <t t-set="call_url" t-value="sign_url"/>
+                                        <t t-set="default_name" t-value="partner.name if partner else ''"/>
+                                        <t t-set="submit_label">Sign Meeting Minutes</t>
+                                    </t>
+                                </main>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 狀態訊息 -->
+                    <div t-if="message == 'sign_ok'" class="alert alert-success alert-dismissible d-print-none" role="status">
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"/>
+                        <strong>Thank You!</strong><br/>
+                        <t t-if="note.all_signed">
+                            All signers have signed. The meeting minutes is now complete.
+                        </t>
+                        <t t-else="">
+                            Your signature has been recorded.
+                        </t>
+                    </div>
+
+                    <!-- 會議記錄內容 -->
+                    <div id="portal_meeting_content" t-attf-class="#{'pb-5' if report_type == 'html' else ''}">
+                        <t t-call="dobtor_mail_activity.report_meeting_minutes_content"/>
+                    </div>
+
+                    <!-- 附件區塊 -->
+                    <section t-if="attachments" id="meeting_attachments" class="mb-4">
+                        <h5 class="mb-1">Attachments</h5>
+                        <hr class="mt-1 mb-2"/>
+                        <div class="d-flex flex-wrap gap-2">
+                            <t t-foreach="attachments" t-as="attachment">
+                                <a t-attf-href="/my/meeting/{{ note.id }}/attachment/{{ attachment.id }}?access_token={{ note.access_token }}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="fa fa-download me-1"/>
+                                    <t t-esc="attachment.name"/>
+                                </a>
+                            </t>
+                        </div>
+                    </section>
+
+                    <!-- 簽名狀態區塊 -->
+                    <section t-if="note.signature_ids" id="signature_status" class="mb-4">
+                        <h5 class="mb-1">Signature Status</h5>
+                        <hr class="mt-1 mb-2"/>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Signer</th>
+                                        <th class="text-center">Status</th>
+                                        <th>Signed On</th>
+                                        <th>Signature</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="note.signature_ids" t-as="sig">
+                                        <tr>
+                                            <td><t t-esc="sig.partner_id.name"/></td>
+                                            <td class="text-center">
+                                                <span t-if="sig.is_signed" class="badge text-bg-success">
+                                                    <i class="fa fa-check"/> Signed
+                                                </span>
+                                                <span t-else="" class="badge text-bg-warning">
+                                                    <i class="fa fa-clock-o"/> Pending
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span t-if="sig.signed_on"
+                                                      t-field="sig.signed_on"
+                                                      t-options='{"format": "yyyy-MM-dd HH:mm"}'/>
+                                                <span t-else="" class="text-muted">-</span>
+                                            </td>
+                                            <td>
+                                                <img t-if="sig.signature"
+                                                     t-att-src="image_data_uri(sig.signature)"
+                                                     style="max-height: 40px; max-width: 100px;"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- 底部簽名按鈕 -->
+                    <div t-if="needs_signature" class="d-flex justify-content-center gap-1 d-print-none mb-4">
+                        <div class="col-sm-auto mt8">
+                            <a role="button" class="btn btn-primary" data-bs-toggle="modal"
+                               data-bs-target="#modalSign" href="#">
+                                <i class="fa fa-pencil me-1"/> Accept &amp; Sign
+                            </a>
+                        </div>
+                        <div class="col-sm-auto mt8">
+                            <a role="button" class="btn btn-light" href="#discussion">
+                                <i class="fa fa-comment me-1"/> Add Comment
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- 討論區 -->
+                    <hr/>
+                    <div id="meeting_discussion">
+                        <h5>Comments</h5>
+                        <t t-call="portal.message_thread"/>
+
+                        <!-- 新增留言表單 -->
+                        <div class="mt-3" id="discussion">
+                            <form t-attf-action="/my/meeting/{{ note.id }}/message?access_token={{ note.access_token }}"
+                                  method="post" class="o_portal_chatter_composer">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <div class="mb-3">
+                                    <textarea name="message" class="form-control" rows="3"
+                                              placeholder="Add a comment..."/>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-paper-plane me-1"/> Post Comment
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div><!-- // #meeting_content -->
+            </div>
+        </xpath>
+    </template>
+
+</odoo>

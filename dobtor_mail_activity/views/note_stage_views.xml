@@ -10,11 +10,11 @@
         <field name="model">note.stage</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="筆記階段" editable="bottom">
+            <list string="Note Stages" editable="bottom">
                 <field name="sequence" widget="handle"/>
-                <field name="name" string="階段名稱"/>
-                <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
-                <field name="fold" string="預設收合" widget="boolean_toggle"/>
+                <field name="name" string="Stage Name"/>
+                <field name="user_id" string="Owner" widget="many2one_avatar_user"/>
+                <field name="fold" string="Folded by Default" widget="boolean_toggle"/>
             </list>
         </field>
     </record>
@@ -28,16 +28,16 @@
         <field name="model">note.stage</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <form string="筆記階段">
+            <form string="Note Stage">
                 <sheet>
                     <group>
                         <group>
-                            <field name="name" string="階段名稱"/>
-                            <field name="sequence" string="順序"/>
+                            <field name="name" string="Stage Name"/>
+                            <field name="sequence" string="Sequence"/>
                         </group>
                         <group>
-                            <field name="user_id" string="擁有者" widget="many2one_avatar_user"/>
-                            <field name="fold" string="預設收合" widget="boolean_toggle"/>
+                            <field name="user_id" string="Owner" widget="many2one_avatar_user"/>
+                            <field name="fold" string="Folded by Default" widget="boolean_toggle"/>
                         </group>
                     </group>
                 </sheet>
@@ -51,14 +51,14 @@
 
     <!-- Action - 筆記階段 -->
     <record id="action_note_stage" model="ir.actions.act_window">
-        <field name="name">筆記階段</field>
+        <field name="name">Note Stages</field>
         <field name="res_model">note.stage</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
         <field name="context">{'default_user_id': uid}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">建立您的第一個階段</p>
-            <p>使用階段來組織您的筆記，例如：待處理、進行中、已完成。</p>
+            <p class="o_view_nocontent_smiling_face">Create your first stage</p>
+            <p>Use stages to organize your notes, e.g.: Pending, In Progress, Completed.</p>
         </field>
     </record>
 

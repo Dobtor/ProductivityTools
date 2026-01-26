@@ -24,14 +24,14 @@ export class ActivityKanbanHeader extends KanbanHeader {
 
         // 週天對應的 schedule_status 值
         const keyToWeekday = {
-            'monday': '週一',
-            'tuesday': '週二',
-            'wednesday': '週三',
-            'thursday': '週四',
-            'friday': '週五',
-            'saturday': '週六',
-            'sunday': '週日',
-            'waiting': '等待排程'
+            'monday': 'Monday',
+            'tuesday': 'Tuesday',
+            'wednesday': 'Wednesday',
+            'thursday': 'Thursday',
+            'friday': 'Friday',
+            'saturday': 'Saturday',
+            'sunday': 'Sunday',
+            'waiting': 'Waiting Schedule'
         };
 
         // 這裡應該從控制器獲取日期資訊，但由於組件分離，

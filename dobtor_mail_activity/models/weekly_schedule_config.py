@@ -18,18 +18,18 @@ class WeeklyScheduleConfig(models.Model):
     - 摘要模板支援變數替換
     """
     _name = 'weekly.schedule.config'
-    _description = '週報排程配置'
+    _description = 'Weekly Schedule Configuration'
     _order = 'user_id'
 
     name = fields.Char(
-        string='名稱',
+        string='Name',
         compute='_compute_name',
         store=True,
     )
 
     user_id = fields.Many2one(
         'res.users',
-        string='用戶',
+        string='User',
         required=True,
         default=lambda self: self.env.user,
         index=True,
@@ -37,88 +37,88 @@ class WeeklyScheduleConfig(models.Model):
     )
 
     active = fields.Boolean(
-        string='啟用',
+        string='Active',
         default=True,
-        help='啟用後將自動建立週報排程待辦',
+        help='When enabled, weekly schedule activities will be created automatically',
     )
 
     activity_type_id = fields.Many2one(
         'mail.activity.type',
-        string='待辦類型',
+        string='Activity Type',
         required=True,
         default=lambda self: self._default_activity_type(),
         ondelete='restrict',
     )
 
     schedule_day = fields.Selection([
-        ('0', '週一'),
-        ('1', '週二'),
-        ('2', '週三'),
-        ('3', '週四'),
-        ('4', '週五'),
-        ('5', '週六'),
-        ('6', '週日'),
-    ], string='建立日期', default='0', required=True,
-       help='每週在此日期自動建立待辦')
+        ('0', 'Monday'),
+        ('1', 'Tuesday'),
+        ('2', 'Wednesday'),
+        ('3', 'Thursday'),
+        ('4', 'Friday'),
+        ('5', 'Saturday'),
+        ('6', 'Sunday'),
+    ], string='Schedule Day', default='0', required=True,
+       help='Automatically create activities on this day each week')
 
     schedule_time = fields.Selection([
-        ('morning', '上午 (08:00)'),
-        ('noon', '中午 (12:00)'),
-        ('evening', '晚上 (18:00)'),
-    ], string='建立時段', default='morning')
+        ('morning', 'Morning (08:00)'),
+        ('noon', 'Noon (12:00)'),
+        ('evening', 'Evening (18:00)'),
+    ], string='Schedule Time', default='morning')
 
     deadline_offset = fields.Integer(
-        string='截止日偏移（天）',
+        string='Deadline Offset (Days)',
         default=0,
-        help='截止日期 = 建立日期 + 偏移天數。0 表示當天截止。',
+        help='Deadline = Schedule Day + Offset Days. 0 means due on the same day.',
     )
 
     target_model = fields.Selection([
-        ('note.note', '筆記本'),
-        ('res.users', '用戶'),
-        ('weekly.report', '週報告'),
-    ], string='關聯文件類型', default='res.users', required=True,
-       help='待辦將關聯到此類型的文件')
+        ('note.note', 'Note'),
+        ('res.users', 'User'),
+        ('weekly.report', 'Weekly Report'),
+    ], string='Target Document Type', default='res.users', required=True,
+       help='Activity will be linked to this type of document')
 
     note_id = fields.Many2one(
         'note.note',
-        string='指定筆記本',
+        string='Specified Note',
         domain="[('user_id', '=', user_id)]",
-        help='當關聯文件類型為「筆記本」時，指定關聯的筆記本',
+        help='When target document type is "Note", specify the note to link',
     )
 
     auto_create_note = fields.Boolean(
-        string='自動建立筆記本',
+        string='Auto Create Note',
         default=False,
-        help='當關聯文件類型為「筆記本」且未指定筆記本時，自動建立新筆記本',
+        help='When target document type is "Note" and no note is specified, automatically create a new note',
     )
 
     summary_template = fields.Char(
-        string='摘要模板',
-        default='週報排程 - {week}',
-        help='可用變數：{week}=週次, {user}=用戶名稱, {date}=日期',
+        string='Summary Template',
+        default='Weekly Schedule - {week}',
+        help='Available variables: {week}=Week number, {user}=User name, {date}=Date',
     )
 
     include_note = fields.Boolean(
-        string='包含預設說明',
+        string='Include Default Note',
         default=True,
-        help='建立待辦時包含待辦類型的預設說明',
+        help='Include activity type default note when creating activity',
     )
 
     last_created_date = fields.Date(
-        string='上次建立日期',
+        string='Last Created Date',
         readonly=True,
     )
 
     last_activity_id = fields.Many2one(
         'mail.activity',
-        string='上次建立的待辦',
+        string='Last Created Activity',
         readonly=True,
         ondelete='set null',
     )
 
     _sql_constraints = [
-        ('user_unique', 'unique(user_id)', '每個用戶只能有一個週報排程配置！')
+        ('user_unique', 'unique(user_id)', 'Each user can only have one weekly schedule configuration!')
     ]
 
     # ========== Default Methods ==========
@@ -137,9 +137,9 @@ class WeeklyScheduleConfig(models.Model):
     def _compute_name(self):
         for record in self:
             if record.user_id:
-                record.name = _('%s 的週報排程') % record.user_id.name
+                record.name = _('%s Weekly Schedule') % record.user_id.name
             else:
-                record.name = _('週報排程')
+                record.name = _('Weekly Schedule')
 
     # ========== Onchange Methods ==========
 
@@ -159,14 +159,14 @@ class WeeklyScheduleConfig(models.Model):
         if activity:
             return {
                 'type': 'ir.actions.act_window',
-                'name': _('已建立的待辦'),
+                'name': _('Created Activity'),
                 'res_model': 'mail.activity',
                 'res_id': activity.id,
                 'view_mode': 'form',
                 'target': 'current',
             }
         else:
-            raise UserError(_('建立待辦失敗，請檢查配置。'))
+            raise UserError(_('Failed to create activity. Please check the configuration.'))
 
     def _get_target_record(self):
         """取得目標文件記錄
@@ -188,7 +188,7 @@ class WeeklyScheduleConfig(models.Model):
                 week_str = today.strftime('%Y-W%W')
                 note = self.env['note.note'].create({
                     'user_id': self.user_id.id,
-                    'memo': _('<p>週報排程 - %s</p><p>本週工作計畫</p>') % week_str,
+                    'memo': _('<p>Weekly Schedule - %s</p><p>This week work plan</p>') % week_str,
                 })
                 return ('note.note', note.id)
             else:
@@ -222,7 +222,7 @@ class WeeklyScheduleConfig(models.Model):
         today = fields.Date.today()
         week_str = today.strftime('%Y-W%W')
 
-        summary = self.summary_template or _('週報排程')
+        summary = self.summary_template or _('Weekly Schedule')
         summary = summary.replace('{week}', week_str)
         summary = summary.replace('{user}', self.user_id.name or '')
         summary = summary.replace('{date}', today.strftime('%Y-%m-%d'))
@@ -373,7 +373,7 @@ class WeeklyScheduleConfig(models.Model):
 
         return {
             'type': 'ir.actions.act_window',
-            'name': _('我的週報排程'),
+            'name': _('My Weekly Schedule'),
             'res_model': 'weekly.schedule.config',
             'res_id': config.id,
             'view_mode': 'form',

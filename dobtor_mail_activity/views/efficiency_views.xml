@@ -8,10 +8,10 @@
         <field name="name">activity.efficiency.metrics.view.form</field>
         <field name="model">activity.efficiency.metrics</field>
         <field name="arch" type="xml">
-            <form string="效率指標">
+            <form string="Efficiency Metrics">
                 <sheet>
                     <group>
-                        <group string="期間資訊">
+                        <group string="Period Information">
                             <field name="user_id" widget="many2one_avatar_user"/>
                             <field name="department_id"/>
                             <field name="period_type"/>
@@ -19,7 +19,7 @@
                             <field name="period_start"/>
                             <field name="period_end"/>
                         </group>
-                        <group string="效率指標">
+                        <group string="Efficiency Metrics">
                             <field name="completion_rate" widget="progressbar"/>
                             <field name="on_time_rate" widget="progressbar"/>
                             <field name="estimation_accuracy" widget="progressbar"/>
@@ -32,14 +32,14 @@
                         </group>
                     </group>
                     <group>
-                        <group string="待辦統計">
+                        <group string="Task Statistics">
                             <field name="total_activities"/>
                             <field name="completed_activities"/>
                             <field name="on_time_activities"/>
                             <field name="postponed_activities"/>
                             <field name="cancelled_activities"/>
                         </group>
-                        <group string="工時統計">
+                        <group string="Hours Statistics">
                             <field name="total_estimated_hours" widget="float_time"/>
                             <field name="total_actual_hours" widget="float_time"/>
                             <field name="planned_source_count"/>
@@ -58,7 +58,7 @@
         <field name="name">activity.efficiency.metrics.view.list</field>
         <field name="model">activity.efficiency.metrics</field>
         <field name="arch" type="xml">
-            <list string="效率指標">
+            <list string="Efficiency Metrics">
                 <field name="user_id" widget="many2one_avatar_user"/>
                 <field name="department_id" optional="show"/>
                 <field name="period_type"/>
@@ -84,7 +84,7 @@
         <field name="name">activity.efficiency.metrics.view.pivot</field>
         <field name="model">activity.efficiency.metrics</field>
         <field name="arch" type="xml">
-            <pivot string="效率分析" sample="1">
+            <pivot string="Efficiency Analysis" sample="1">
                 <field name="user_id" type="row"/>
                 <field name="period_name" type="col"/>
                 <field name="completion_rate" type="measure"/>
@@ -101,7 +101,7 @@
         <field name="name">activity.efficiency.metrics.view.graph</field>
         <field name="model">activity.efficiency.metrics</field>
         <field name="arch" type="xml">
-            <graph string="效率趨勢" type="line" sample="1">
+            <graph string="Efficiency Trend" type="line" sample="1">
                 <field name="period_name"/>
                 <field name="completion_rate" type="measure"/>
                 <field name="on_time_rate" type="measure"/>
@@ -116,27 +116,27 @@
         <field name="name">activity.efficiency.metrics.view.search</field>
         <field name="model">activity.efficiency.metrics</field>
         <field name="arch" type="xml">
-            <search string="效率指標">
+            <search string="Efficiency Metrics">
                 <field name="user_id"/>
                 <field name="department_id"/>
                 <field name="period_name"/>
                 <separator/>
-                <filter string="我的" name="my_metrics" domain="[('user_id', '=', uid)]"/>
+                <filter string="Mine" name="my_metrics" domain="[('user_id', '=', uid)]"/>
                 <separator/>
-                <filter string="週" name="week" domain="[('period_type', '=', 'week')]"/>
-                <filter string="月" name="month" domain="[('period_type', '=', 'month')]"/>
-                <filter string="季" name="quarter" domain="[('period_type', '=', 'quarter')]"/>
+                <filter string="Week" name="week" domain="[('period_type', '=', 'week')]"/>
+                <filter string="Month" name="month" domain="[('period_type', '=', 'month')]"/>
+                <filter string="Quarter" name="quarter" domain="[('period_type', '=', 'quarter')]"/>
                 <separator/>
-                <filter string="高效率 (>=4)" name="high_efficiency"
+                <filter string="High Efficiency (>=4)" name="high_efficiency"
                         domain="[('efficiency_index', '>=', 4)]"/>
-                <filter string="低效率 (&lt;2.5)" name="low_efficiency"
+                <filter string="Low Efficiency (&lt;2.5)" name="low_efficiency"
                         domain="[('efficiency_index', '&lt;', 2.5)]"/>
                 <separator/>
-                <group expand="0" string="分組">
-                    <filter string="依用戶" name="group_by_user" context="{'group_by': 'user_id'}"/>
-                    <filter string="依部門" name="group_by_department" context="{'group_by': 'department_id'}"/>
-                    <filter string="依期間類型" name="group_by_period_type" context="{'group_by': 'period_type'}"/>
-                    <filter string="依期間" name="group_by_period" context="{'group_by': 'period_start:month'}"/>
+                <group expand="0" string="Group By">
+                    <filter string="By User" name="group_by_user" context="{'group_by': 'user_id'}"/>
+                    <filter string="By Department" name="group_by_department" context="{'group_by': 'department_id'}"/>
+                    <filter string="By Period Type" name="group_by_period_type" context="{'group_by': 'period_type'}"/>
+                    <filter string="By Period" name="group_by_period" context="{'group_by': 'period_start:month'}"/>
                 </group>
             </search>
         </field>
@@ -148,54 +148,54 @@
 
     <!-- 個人效率儀表板 -->
     <record id="action_efficiency_personal" model="ir.actions.act_window">
-        <field name="name">個人儀表板</field>
+        <field name="name">Personal Dashboard</field>
         <field name="res_model">activity.efficiency.metrics</field>
         <field name="view_mode">graph,pivot,list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
         <field name="context">{'search_default_week': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">您的效率指標尚未計算</p>
-            <p>效率指標會在每週一自動計算，您也可以手動觸發計算。</p>
+            <p class="o_view_nocontent_smiling_face">Your efficiency metrics have not been calculated yet</p>
+            <p>Efficiency metrics are automatically calculated every Monday, or you can trigger calculation manually.</p>
         </field>
     </record>
 
     <!-- 團隊效率分析 -->
     <record id="action_efficiency_team" model="ir.actions.act_window">
-        <field name="name">團隊分析</field>
+        <field name="name">Team Analysis</field>
         <field name="res_model">activity.efficiency.metrics</field>
         <field name="view_mode">pivot,graph,list,form</field>
         <field name="context">{'search_default_month': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">尚無團隊效率資料</p>
-            <p>效率指標會在每週一、每月1號自動計算。</p>
+            <p class="o_view_nocontent_smiling_face">No team efficiency data yet</p>
+            <p>Efficiency metrics are automatically calculated every Monday and 1st of each month.</p>
         </field>
     </record>
 
     <!-- 趨勢報表 -->
     <record id="action_efficiency_trend" model="ir.actions.act_window">
-        <field name="name">趨勢報表</field>
+        <field name="name">Trend Report</field>
         <field name="res_model">activity.efficiency.metrics</field>
         <field name="view_mode">graph,list,form</field>
         <field name="context">{'search_default_my_metrics': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">查看效率趨勢</p>
-            <p>追蹤您的效率指標隨時間的變化。</p>
+            <p class="o_view_nocontent_smiling_face">View efficiency trends</p>
+            <p>Track how your efficiency metrics change over time.</p>
         </field>
     </record>
 
     <!-- 所有效率指標（管理員用）-->
     <record id="action_efficiency_all" model="ir.actions.act_window">
-        <field name="name">所有效率指標</field>
+        <field name="name">All Efficiency Metrics</field>
         <field name="res_model">activity.efficiency.metrics</field>
         <field name="view_mode">list,pivot,graph,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">管理所有效率指標</p>
+            <p class="o_view_nocontent_smiling_face">Manage all efficiency metrics</p>
         </field>
     </record>
 
     <!-- Server Action: 手動計算當前週效率 -->
     <record id="action_compute_current_week_efficiency" model="ir.actions.server">
-        <field name="name">計算當前週效率指標</field>
+        <field name="name">Compute Current Week Efficiency</field>
         <field name="model_id" ref="model_activity_efficiency_metrics"/>
         <field name="binding_model_id" eval="False"/>
         <field name="state">code</field>

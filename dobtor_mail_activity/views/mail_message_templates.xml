@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 訊息上下文預覽模板                                            -->
+    <!-- 用於待辦「來源訊息」書籤中顯示訊息列表                          -->
+    <!-- 採用類似官方 chatter 的樣式                                   -->
+    <!-- ============================================================ -->
+    <template id="message_context_preview">
+        <div class="o-mail-MessageContextPreview">
+            <t t-foreach="messages" t-as="msg">
+                <div t-attf-class="card mb-2 #{'border-primary border-2' if msg.id == source_message_id else ''}">
+                    <div t-attf-class="card-body py-2 #{'bg-primary-subtle' if msg.id == source_message_id else ''}">
+                        <div class="d-flex align-items-start">
+                            <!-- 頭像 -->
+                            <t t-if="msg.author_id">
+                                <img t-attf-src="/web/image/res.partner/{{ msg.author_id.id }}/avatar_128"
+                                     class="rounded-circle me-2 flex-shrink-0"
+                                     style="width: 36px; height: 36px; object-fit: cover;"
+                                     t-att-alt="msg.author_id.name"
+                                     onerror="this.src='/mail/static/src/img/smiley/avatar.jpg'"/>
+                            </t>
+                            <t t-else="">
+                                <img src="/mail/static/src/img/smiley/avatar.jpg"
+                                     class="rounded-circle me-2 flex-shrink-0"
+                                     style="width: 36px; height: 36px; object-fit: cover;"
+                                     alt="Unknown"/>
+                            </t>
+
+                            <!-- 內容 -->
+                            <div class="flex-grow-1 min-width-0">
+                                <!-- 標題列：作者 + 時間 -->
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="d-flex align-items-center">
+                                        <strong class="text-truncate" style="max-width: 200px;">
+                                            <t t-esc="msg.author_id.name if msg.author_id else msg.email_from or 'Unknown'"/>
+                                        </strong>
+                                        <!-- 來源訊息標記 -->
+                                        <t t-if="msg.id == source_message_id">
+                                            <span class="badge bg-primary ms-2">Source Message</span>
+                                        </t>
+                                    </div>
+                                    <small class="text-muted flex-shrink-0 ms-2">
+                                        <t t-esc="msg.date.strftime('%Y-%m-%d %H:%M') if msg.date else ''"/>
+                                    </small>
+                                </div>
+
+                                <!-- 訊息正文 -->
+                                <div class="o-mail-Message-body small"
+                                     style="word-break: break-word; overflow-wrap: break-word;">
+                                    <t t-if="msg.body">
+                                        <t t-raw="msg.body"/>
+                                    </t>
+                                    <t t-else="">
+                                        <span class="text-muted fst-italic">(No content)</span>
+                                    </t>
+                                </div>
+
+                                <!-- 附件（如果有） -->
+                                <t t-if="msg.attachment_ids">
+                                    <div class="mt-2">
+                                        <t t-foreach="msg.attachment_ids" t-as="attachment">
+                                            <a t-attf-href="/web/content/{{ attachment.id }}?download=true"
+                                               class="badge bg-secondary text-decoration-none me-1 mb-1"
+                                               target="_blank">
+                                                <i class="fa fa-paperclip me-1"/>
+                                                <t t-esc="attachment.name"/>
+                                            </a>
+                                        </t>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </div>
+    </template>
+
+</odoo>

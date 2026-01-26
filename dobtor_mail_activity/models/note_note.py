@@ -1,56 +1,111 @@
 # -*- coding: utf-8 -*-
 
+import uuid
 from odoo import api, fields, models, _
+from odoo.exceptions import ValidationError
 from odoo.tools import html2plaintext
 
 
 class NoteNote(models.Model):
-    """筆記本 - 個人筆記管理
+    """筆記本 - 個人筆記管理與會議記錄
 
     提供類似便利貼的筆記功能，支援：
     - 階段式看板管理
     - 標籤分類
     - 待辦整合
     - 封存機制
+    - 會議記錄（含 PDF 報告、Portal 檢視、簽名確認）
     """
     _name = 'note.note'
-    _description = '筆記本'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _description = 'Note'
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'portal.mixin']
     _order = 'sequence, id desc'
 
     # ===== 基本欄位 =====
     name = fields.Text(
-        string='筆記摘要',
+        string='Note Summary',
         compute='_compute_name',
         store=True,
     )
     user_id = fields.Many2one(
         'res.users',
-        string='擁有者',
+        string='Owner',
         default=lambda self: self.env.uid,
         index=True,
     )
     memo = fields.Html(
-        string='筆記內容',
+        string='Note Content',
     )
     sequence = fields.Integer(
-        string='順序',
+        string='Sequence',
         default=0,
     )
     color = fields.Integer(
-        string='顏色索引',
+        string='Color Index',
         default=0,
     )
     active = fields.Boolean(
-        string='啟用',
+        string='Active',
         default=True,
-        help="取消勾選可封存此筆記，封存後不會顯示在列表中。",
+        help="Uncheck to archive this note, archived notes will not appear in the list.",
+    )
+
+    # ===== 會議記錄欄位 =====
+    note_type = fields.Selection([
+        ('note', 'Note'),
+        ('meeting', 'Meeting Minutes'),
+    ], string='Type', default='note', tracking=True)
+
+    # 指定簽名者（從行事曆事件參與者中選擇）
+    signer_ids = fields.Many2many(
+        'res.partner',
+        'note_note_signer_rel',
+        'note_id',
+        'partner_id',
+        string='Required Signers',
+        help='Partners who must sign this meeting minutes',
+    )
+
+    # 簽名記錄
+    signature_ids = fields.One2many(
+        'note.signature',
+        'note_id',
+        string='Signatures',
+    )
+    signature_count = fields.Integer(
+        string='Signature Count',
+        compute='_compute_signature_count',
+    )
+    signed_count = fields.Integer(
+        string='Signed Count',
+        compute='_compute_signature_count',
+    )
+    all_signed = fields.Boolean(
+        string='All Signed',
+        compute='_compute_all_signed',
+        store=True,
+    )
+
+    # 狀態
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('partial', 'Partially Signed'),
+        ('signed', 'Fully Signed'),
+    ], string='Status', default='draft', tracking=True)
+
+    # 鎖定狀態（會議記錄寄出後鎖定內容）
+    is_locked = fields.Boolean(
+        string='Locked',
+        compute='_compute_is_locked',
+        store=True,
+        help='Meeting minutes is locked after being sent for signature',
     )
 
     # ===== 階段欄位 =====
     stage_id = fields.Many2one(
         'note.stage',
-        string='階段',
+        string='Stage',
         compute='_compute_stage_id',
         inverse='_inverse_stage_id',
         store=True,
@@ -62,17 +117,17 @@ class NoteNote(models.Model):
         'note_note_stage_rel',
         'note_id',
         'stage_id',
-        string='用戶階段',
+        string='User Stages',
         default=lambda self: self._get_default_stage_id(),
     )
 
     # ===== 狀態欄位 =====
     open = fields.Boolean(
-        string='開啟中',
+        string='Open',
         default=True,
     )
     date_done = fields.Date(
-        string='完成日期',
+        string='Done Date',
     )
 
     # ===== 標籤欄位 =====
@@ -81,29 +136,52 @@ class NoteNote(models.Model):
         'note_note_tag_rel',
         'note_id',
         'tag_id',
-        string='標籤',
+        string='Tags',
     )
     main_tag_id = fields.Many2one(
         'note.tag',
-        string='主要標籤',
+        string='Main Tag',
         compute='_compute_main_tag_id',
         store=True,
-        help="筆記的第一個標籤，用於左側樹狀篩選面板。",
+        help="The first tag of the note, used for the left tree filter panel.",
     )
 
-    # ===== 待辦關聯欄位 =====
-    activity_ids = fields.One2many(
+    # ===== 日曆事件關聯欄位 =====
+    calendar_event_ids = fields.Many2many(
+        'calendar.event',
+        'calendar_event_note_rel',
+        'note_id',
+        'event_id',
+        string='Calendar Events',
+        help='Calendar events linked to this note',
+    )
+    calendar_event_count = fields.Integer(
+        string='Event Count',
+        compute='_compute_calendar_event_count',
+    )
+    # 可選擇的簽名者（從關聯行事曆事件的參與者中取得）
+    available_signer_ids = fields.Many2many(
+        'res.partner',
+        string='Available Signers',
+        compute='_compute_available_signer_ids',
+        help='Partners who can be selected as signers (from calendar event attendees)',
+    )
+
+    # ===== 筆記專屬待辦關聯欄位 =====
+    # 注意：不要覆寫 mail.activity.mixin 的 activity_ids，否則會影響標準活動功能
+    note_activity_ids = fields.One2many(
         'mail.activity',
         'note_id',
-        string='關聯待辦',
+        string='Note Activities',
+        help='Activities linked via note_id (activities created from note)',
     )
-    activity_count = fields.Integer(
-        string='待辦數量',
-        compute='_compute_activity_count',
+    note_activity_count = fields.Integer(
+        string='Note Activity Count',
+        compute='_compute_note_activity_count',
     )
-    active_activity_count = fields.Integer(
-        string='進行中待辦',
-        compute='_compute_activity_count',
+    note_active_activity_count = fields.Integer(
+        string='Active Note Activities',
+        compute='_compute_note_activity_count',
     )
 
     # ===== 計算方法 =====
@@ -120,15 +198,59 @@ class NoteNote(models.Model):
         for note in self:
             note.main_tag_id = note.tag_ids[:1]
 
-    @api.depends('activity_ids', 'activity_ids.active')
-    def _compute_activity_count(self):
-        """計算關聯待辦數量"""
+    @api.depends('calendar_event_ids')
+    def _compute_calendar_event_count(self):
+        """計算關聯日曆事件數量"""
+        for note in self:
+            note.calendar_event_count = len(note.calendar_event_ids)
+
+    @api.depends('calendar_event_ids', 'calendar_event_ids.partner_ids')
+    def _compute_available_signer_ids(self):
+        """計算可選擇的簽名者（從關聯行事曆事件的參與者中取得）"""
+        for note in self:
+            partners = self.env['res.partner']
+            for event in note.calendar_event_ids:
+                partners |= event.partner_ids
+            note.available_signer_ids = partners
+
+    @api.depends('note_activity_ids', 'note_activity_ids.active')
+    def _compute_note_activity_count(self):
+        """計算筆記關聯待辦數量（透過 note_id 關聯）"""
         for note in self:
             activities = self.env['mail.activity'].with_context(active_test=False).search([
                 ('note_id', '=', note.id)
             ])
-            note.activity_count = len(activities)
-            note.active_activity_count = len(activities.filtered('active'))
+            note.note_activity_count = len(activities)
+            note.note_active_activity_count = len(activities.filtered('active'))
+
+    @api.depends('signature_ids', 'signature_ids.is_signed')
+    def _compute_signature_count(self):
+        """計算簽名數量"""
+        for note in self:
+            note.signature_count = len(note.signature_ids)
+            note.signed_count = len(note.signature_ids.filtered('is_signed'))
+
+    @api.depends('signature_ids.is_signed', 'signer_ids')
+    def _compute_all_signed(self):
+        """檢查是否全部簽名完成"""
+        for note in self:
+            if note.note_type != 'meeting' or not note.signer_ids:
+                note.all_signed = False
+            else:
+                # 檢查所有指定簽名者是否都已簽名
+                signed_partners = note.signature_ids.filtered('is_signed').mapped('partner_id')
+                note.all_signed = all(
+                    signer in signed_partners for signer in note.signer_ids
+                )
+
+    @api.depends('note_type', 'state')
+    def _compute_is_locked(self):
+        """計算是否鎖定（會議記錄寄出後鎖定）"""
+        for note in self:
+            note.is_locked = (
+                note.note_type == 'meeting'
+                and note.state in ('sent', 'partial', 'signed')
+            )
 
     @api.depends('stage_ids')
     def _compute_stage_id(self):
@@ -168,7 +290,56 @@ class NoteNote(models.Model):
     @api.model
     def name_create(self, name):
         """從名稱快速建立筆記"""
-        return self.create({'memo': name}).name_get()[0]
+        record = self.create({'memo': name})
+        return record.id, record.display_name
+
+    def write(self, vals):
+        """覆寫 write 方法以實現鎖定檢查
+
+        會議記錄在寄出簽名後，以下欄位將被鎖定：
+        - memo (內容)
+        - signer_ids (指定簽名者)
+        - note_type (類型)
+        """
+        # 定義鎖定欄位清單
+        locked_fields = {
+            'memo', 'signer_ids', 'note_type',
+        }
+
+        # 允許的欄位（即使鎖定也可以修改）
+        allowed_fields = {
+            'state', 'signature_ids', 'access_token', 'is_locked',
+            'all_signed', 'message_ids', 'activity_ids',
+            # 筆記相關欄位（會議記錄鎖定時仍可改）
+            'stage_id', 'stage_ids', 'tag_ids', 'color', 'sequence',
+            'active', 'open', 'date_done',
+            # 日曆事件可以在鎖定後新增
+            'calendar_event_ids',
+        }
+
+        # 檢查是否嘗試修改鎖定欄位
+        fields_to_modify = set(vals.keys())
+        locked_fields_to_modify = fields_to_modify & locked_fields
+
+        if locked_fields_to_modify:
+            for note in self:
+                # 只檢查已鎖定的會議記錄
+                if note.is_locked:
+                    # 檢查是否為重設草稿操作
+                    if vals.get('state') == 'draft':
+                        # 重設草稿時允許修改
+                        continue
+
+                    raise ValidationError(
+                        _('Cannot modify locked meeting minutes.\n\n'
+                          'The following fields are locked after sending for signature:\n'
+                          '- Content (memo)\n'
+                          '- Required Signers\n'
+                          '- Type\n\n'
+                          'To modify, please reset to draft first (this will clear all signatures).')
+                    )
+
+        return super().write(vals)
 
     # ===== 動作方法 =====
     def action_close(self):
@@ -190,11 +361,48 @@ class NoteNote(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('關聯待辦'),
+            'name': _('Related Activities'),
             'res_model': 'mail.activity',
             'view_mode': 'tree,form',
+            'views': [(False, 'tree'), (False, 'form')],
             'domain': [('note_id', '=', self.id)],
             'context': {'active_test': False},
+        }
+
+    def action_view_calendar_events(self):
+        """查看關聯日曆事件"""
+        self.ensure_one()
+        action = {
+            'type': 'ir.actions.act_window',
+            'name': _('Related Events'),
+            'res_model': 'calendar.event',
+            'view_mode': 'calendar,list,form',
+            'views': [(False, 'calendar'), (False, 'list'), (False, 'form')],
+            'domain': [('id', 'in', self.calendar_event_ids.ids)],
+            'context': {
+                'default_note_ids': [(4, self.id)],
+            },
+        }
+        if len(self.calendar_event_ids) == 1:
+            action['view_mode'] = 'form'
+            action['views'] = [(False, 'form')]
+            action['res_id'] = self.calendar_event_ids.id
+        return action
+
+    def action_add_calendar_event(self):
+        """新增日曆事件並關聯到此筆記"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Schedule Meeting'),
+            'res_model': 'calendar.event',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
+            'context': {
+                'default_name': self.name or _('Meeting'),
+                'default_note_ids': [(4, self.id)],
+            },
         }
 
     # ===== API 方法 =====
@@ -221,7 +429,224 @@ class NoteNote(models.Model):
                     'res_id': activity.res_id,
                     'res_name': activity.res_name,
                     'activity_summary': activity.summary,
-                    'activity_state': 'active' if activity.active else 'done',
+                    'activity_status': 'active' if activity.active else 'done',
                 })
 
         return documents
+
+    # ===== Portal 方法 =====
+    def _compute_access_url(self):
+        """計算 Portal 存取網址"""
+        super()._compute_access_url()
+        for note in self:
+            note.access_url = f'/my/meeting/{note.id}'
+
+    def _get_signer_status(self, partner):
+        """檢查特定簽名者的簽名狀態
+
+        Args:
+            partner: res.partner 記錄
+
+        Returns:
+            bool: 是否已簽名
+        """
+        self.ensure_one()
+        signature = self.signature_ids.filtered(
+            lambda s: s.partner_id == partner and s.is_signed
+        )
+        return bool(signature)
+
+    def _has_to_be_signed_by(self, partner):
+        """檢查是否需要此人簽名
+
+        Args:
+            partner: res.partner 記錄
+
+        Returns:
+            bool: 是否需要此人簽名
+        """
+        self.ensure_one()
+        return (
+            self.note_type == 'meeting'
+            and self.state in ('sent', 'partial')
+            and partner in self.signer_ids
+            and not self._get_signer_status(partner)
+        )
+
+    def _has_to_be_signed(self):
+        """檢查會議記錄是否需要簽名"""
+        self.ensure_one()
+        return (
+            self.note_type == 'meeting'
+            and self.state in ('sent', 'partial')
+            and self.signer_ids
+            and not self.all_signed
+        )
+
+    def _check_all_signed(self):
+        """檢查是否全部簽名完成，並更新狀態"""
+        for note in self:
+            if note.note_type != 'meeting':
+                continue
+
+            signed_partners = note.signature_ids.filtered('is_signed').mapped('partner_id')
+            if not note.signer_ids:
+                continue
+
+            all_signed = all(signer in signed_partners for signer in note.signer_ids)
+            some_signed = any(signer in signed_partners for signer in note.signer_ids)
+
+            if all_signed:
+                note.write({'state': 'signed'})
+                # 發送簽名完成通知
+                note.message_post(
+                    body=_('All signers have signed the meeting minutes.'),
+                    message_type='notification',
+                )
+            elif some_signed and note.state == 'sent':
+                note.write({'state': 'partial'})
+
+    def _get_signature_for_partner(self, partner):
+        """取得特定合作夥伴的簽名記錄
+
+        Args:
+            partner: res.partner 記錄
+
+        Returns:
+            note.signature 記錄或 False
+        """
+        self.ensure_one()
+        return self.signature_ids.filtered(lambda s: s.partner_id == partner)[:1]
+
+    # ===== 會議記錄動作 =====
+    def action_send_for_signature(self):
+        """寄出會議記錄請求簽名"""
+        self.ensure_one()
+        if self.note_type != 'meeting':
+            return
+
+        if not self.calendar_event_ids:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Warning'),
+                    'message': _('Please link at least one calendar event before sending for signature.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        if not self.signer_ids:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Warning'),
+                    'message': _('Please specify at least one signer from the calendar event attendees.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        # 驗證簽名者必須是行事曆參與者
+        invalid_signers = self.signer_ids - self.available_signer_ids
+        if invalid_signers:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Warning'),
+                    'message': _('The following signers are not calendar event attendees: %s') % ', '.join(invalid_signers.mapped('name')),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        # 確保有 access_token
+        if not self.access_token:
+            self.access_token = str(uuid.uuid4())
+
+        # 為每位簽名者建立簽名記錄（如果不存在）
+        existing_signers = self.signature_ids.mapped('partner_id')
+        for signer in self.signer_ids:
+            if signer not in existing_signers:
+                self.env['note.signature'].create({
+                    'note_id': self.id,
+                    'partner_id': signer.id,
+                })
+
+        # 更新狀態
+        self.write({'state': 'sent'})
+
+        # 為每位簽名者發送個別郵件（包含專屬簽名連結）
+        template = self.env.ref(
+            'dobtor_mail_activity.mail_template_meeting_minutes',
+            raise_if_not_found=False
+        )
+
+        if template:
+            for signature in self.signature_ids.filtered(lambda s: not s.is_signed):
+                # 取得該簽名者的專屬連結
+                signer_portal_url = signature._get_portal_url()
+                # 發送郵件給該簽名者
+                template.with_context(
+                    signer_portal_url=signer_portal_url,
+                    signer_name=signature.partner_id.name,
+                ).send_mail(
+                    self.id,
+                    force_send=False,
+                    email_values={
+                        'recipient_ids': [(4, signature.partner_id.id)],
+                        'email_to': signature.partner_id.email,
+                    },
+                )
+
+            # 記錄寄送訊息
+            self.message_post(
+                body=_('Meeting minutes sent for signature to: %s') % ', '.join(self.signer_ids.mapped('name')),
+                message_type='notification',
+            )
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Success'),
+                'message': _('Meeting minutes sent to %d signer(s).') % len(self.signer_ids),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
+    def action_view_signatures(self):
+        """查看簽名記錄"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Signatures'),
+            'res_model': 'note.signature',
+            'view_mode': 'list,form',
+            'domain': [('note_id', '=', self.id)],
+            'context': {'default_note_id': self.id},
+        }
+
+    def action_reset_to_draft(self):
+        """重設為草稿狀態"""
+        self.ensure_one()
+        if self.state != 'draft':
+            self.write({'state': 'draft'})
+            # 清除現有簽名
+            self.signature_ids.unlink()
+        return True
+
+    def action_preview_portal(self):
+        """在 Portal 預覽會議記錄"""
+        self.ensure_one()
+        if not self.access_token:
+            self.access_token = str(uuid.uuid4())
+        return {
+            'type': 'ir.actions.act_url',
+            'url': self.get_portal_url(),
+            'target': 'new',
+        }

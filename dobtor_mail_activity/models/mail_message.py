@@ -16,12 +16,12 @@ class MailMessage(models.Model):
     created_activity_ids = fields.One2many(
         'mail.activity',
         'source_message_id',
-        string='建立的待辦',
-        help='從此訊息建立的待辦事項',
+        string='Created Activities',
+        help='Activities created from this message',
     )
 
     created_activity_count = fields.Integer(
-        string='待辦數量',
+        string='Activity Count',
         compute='_compute_created_activity_count',
     )
 
@@ -52,16 +52,16 @@ class MailMessage(models.Model):
             # 判斷待辦狀態
             if activity.active:
                 state = 'active'
-                state_label = _('進行中')
+                state_label = _('In Progress')
             elif activity.done_date:
                 state = 'done'
-                state_label = _('已完成')
+                state_label = _('Completed')
             elif activity.cancel_date:
                 state = 'cancelled'
-                state_label = _('已取消')
+                state_label = _('Cancelled')
             else:
                 state = 'archived'
-                state_label = _('已封存')
+                state_label = _('Archived')
 
             result.append({
                 'id': activity.id,
@@ -69,7 +69,7 @@ class MailMessage(models.Model):
                 'state': state,
                 'state_label': state_label,
                 'user_id': activity.user_id.id if activity.user_id else False,
-                'user_name': activity.user_id.name if activity.user_id else _('未指派'),
+                'user_name': activity.user_id.name if activity.user_id else _('Unassigned'),
                 'date_deadline': activity.date_deadline.strftime('%Y-%m-%d') if activity.date_deadline else False,
                 'activity_type_id': activity.activity_type_id.id,
                 'activity_type_name': activity.activity_type_id.name,
@@ -91,7 +91,7 @@ class MailMessage(models.Model):
             # 單一待辦：直接開啟表單
             return {
                 'type': 'ir.actions.act_window',
-                'name': _('待辦事項'),
+                'name': _('Activity'),
                 'res_model': 'mail.activity',
                 'res_id': activities.id,
                 'view_mode': 'form',
@@ -102,7 +102,7 @@ class MailMessage(models.Model):
             # 多個待辦：開啟列表視圖
             return {
                 'type': 'ir.actions.act_window',
-                'name': _('從此訊息建立的待辦'),
+                'name': _('Activities Created from This Message'),
                 'res_model': 'mail.activity',
                 'view_mode': 'list,form',
                 'domain': [('id', 'in', activities.ids)],
@@ -115,7 +115,7 @@ class MailMessage(models.Model):
 
         return {
             'type': 'ir.actions.act_window',
-            'name': _('從訊息建立待辦'),
+            'name': _('Create Activity from Message'),
             'res_model': 'mail.activity.from.message.wizard',
             'view_mode': 'form',
             'views': [[False, 'form']],

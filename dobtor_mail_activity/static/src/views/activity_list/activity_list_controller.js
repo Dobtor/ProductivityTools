@@ -18,7 +18,7 @@ export class ActivityListController extends ListController {
     async onBatchPostpone() {
         const selectedRecords = this.model.root.selection;
         if (!selectedRecords.length) {
-            this.notification.add(_t("請先選擇要延期的待辦"), {
+            this.notification.add(_t("Please select activities to postpone first"), {
                 type: "warning",
             });
             return;
@@ -28,7 +28,7 @@ export class ActivityListController extends ListController {
 
         await this.actionService.doAction({
             type: 'ir.actions.act_window',
-            name: _t('批次延期'),
+            name: _t('Batch Postpone'),
             res_model: 'mail.activity.postpone.wizard',
             view_mode: 'form',
             views: [[false, 'form']],
@@ -46,7 +46,7 @@ export class ActivityListController extends ListController {
     async onBatchDone() {
         const selectedRecords = this.model.root.selection;
         if (!selectedRecords.length) {
-            this.notification.add(_t("請先選擇要完成的待辦"), {
+            this.notification.add(_t("Please select activities to complete first"), {
                 type: "warning",
             });
             return;
@@ -61,7 +61,7 @@ export class ActivityListController extends ListController {
             { context: { mail_activity_quick_update: true } }
         );
 
-        this.notification.add(_t("已完成 %s 個待辦", activityIds.length), {
+        this.notification.add(_t("Completed %s activities", activityIds.length), {
             type: "success",
         });
 
@@ -74,7 +74,7 @@ export class ActivityListController extends ListController {
     async scheduleToWeek(weekNumber) {
         const selectedRecords = this.model.root.selection;
         if (!selectedRecords.length) {
-            this.notification.add(_t("請先選擇要排程的待辦"), {
+            this.notification.add(_t("Please select activities to schedule first"), {
                 type: "warning",
             });
             return;

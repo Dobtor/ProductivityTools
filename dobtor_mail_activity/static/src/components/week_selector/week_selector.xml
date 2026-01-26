@@ -2,10 +2,10 @@
 <templates xml:space="preserve">
     <t t-name="dobtor_mail_activity.WeekSelector">
         <div class="o_week_selector">
-            <!-- 載入中 -->
+            <!-- Loading -->
             <div t-if="state.isLoading" class="d-flex align-items-center text-muted p-2">
                 <i class="fa fa-spinner fa-spin me-2"/>
-                <span>載入週次資訊...</span>
+                <span>Loading week info...</span>
             </div>
 
             <!-- 週次選擇器 -->
@@ -19,19 +19,19 @@
                         <div class="small fw-bold mb-1">
                             <t t-esc="week.name"/>
                             <span t-if="week.number === 0" class="ms-1">
-                                <i class="fa fa-star text-warning" title="本週"/>
+                                <i class="fa fa-star text-warning" title="This Week"/>
                             </span>
                         </div>
 
                         <!-- 統計資訊 -->
                         <div t-if="props.showStats" class="d-flex justify-content-center gap-2 small">
                             <span t-att-class="'badge ' + getBadgeClass(week)"
-                                  t-att-title="'待辦數: ' + week.count">
+                                  t-att-title="'Activities: ' + week.count">
                                 <i class="fa fa-tasks me-1"/>
                                 <t t-esc="week.count"/>
                             </span>
                             <span class="badge bg-info"
-                                  t-att-title="'預估工時: ' + week.total_hours + '小時'">
+                                  t-att-title="'Est. Hours: ' + week.total_hours + ' hours'">
                                 <i class="fa fa-clock-o me-1"/>
                                 <t t-esc="week.total_hours"/>h
                             </span>
@@ -49,7 +49,7 @@
             <div class="mt-2 text-end">
                 <button class="btn btn-sm btn-link text-muted p-0"
                         t-on-click="loadWeekInfo"
-                        title="重新載入">
+                        title="Reload">
                     <i class="fa fa-refresh"/>
                 </button>
             </div>

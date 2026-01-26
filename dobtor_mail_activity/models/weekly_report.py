@@ -15,19 +15,19 @@ class WeeklyReport(models.Model):
     - 統計指標計算
     """
     _name = 'weekly.report'
-    _description = '週報告'
+    _description = 'Weekly Report'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'week_start desc'
 
     name = fields.Char(
-        string='報告名稱',
+        string='Report Name',
         compute='_compute_name',
         store=True,
     )
 
     user_id = fields.Many2one(
         'res.users',
-        string='用戶',
+        string='User',
         default=lambda self: self.env.user,
         required=True,
         tracking=True,
@@ -35,34 +35,34 @@ class WeeklyReport(models.Model):
     )
 
     week_start = fields.Date(
-        string='週起始日',
+        string='Week Start',
         required=True,
         index=True,
     )
 
     week_end = fields.Date(
-        string='週結束日',
+        string='Week End',
         compute='_compute_week_end',
         store=True,
     )
 
     week_number = fields.Char(
-        string='週次',
+        string='Week Number',
         compute='_compute_week_number',
         store=True,
-        help='格式：2026-W02',
+        help='Format: 2026-W02',
     )
 
     state = fields.Selection([
-        ('draft', '草稿'),
-        ('confirmed', '已確認'),
-    ], string='狀態', default='draft', tracking=True)
+        ('draft', 'Draft'),
+        ('confirmed', 'Confirmed'),
+    ], string='State', default='draft', tracking=True)
 
     # ===== 上週執行回顧（比對結果）=====
     previous_week_review_ids = fields.One2many(
         'weekly.report.review.line',
         'report_id',
-        string='上週執行回顧',
+        string='Previous Week Review',
     )
 
     # ===== 本週計畫（即時連結）=====
@@ -71,14 +71,14 @@ class WeeklyReport(models.Model):
         'weekly_report_this_week_activity_rel',
         'report_id',
         'activity_id',
-        string='本週計畫',
+        string='This Week Plan',
     )
 
     # ===== 本週計畫快照（關鍵！供下週比對）=====
     this_week_snapshot_ids = fields.One2many(
         'weekly.report.snapshot.line',
         'report_id',
-        string='本週計畫快照',
+        string='This Week Plan Snapshot',
     )
 
     # ===== 未來安排 =====
@@ -87,7 +87,7 @@ class WeeklyReport(models.Model):
         'weekly_report_future_activity_rel',
         'report_id',
         'activity_id',
-        string='未來安排',
+        string='Future Schedule',
     )
 
     # ===== 尚未安排 =====
@@ -96,63 +96,63 @@ class WeeklyReport(models.Model):
         'weekly_report_unscheduled_activity_rel',
         'report_id',
         'activity_id',
-        string='尚未安排',
+        string='Unscheduled',
     )
 
     # ===== 統計資訊 =====
     total_planned_hours = fields.Float(
-        string='本週計畫工時',
+        string='This Week Planned Hours',
         compute='_compute_stats',
         store=True,
     )
 
     total_review_planned_hours = fields.Float(
-        string='上週計畫工時',
+        string='Last Week Planned Hours',
         compute='_compute_stats',
         store=True,
     )
 
     total_review_actual_hours = fields.Float(
-        string='上週實際工時',
+        string='Last Week Actual Hours',
         compute='_compute_stats',
         store=True,
     )
 
     completion_rate = fields.Float(
-        string='完成率',
+        string='Completion Rate',
         compute='_compute_stats',
         store=True,
-        help='上週回顧中已完成的比例（百分比）',
+        help='Percentage of completed activities in last week review',
     )
 
     planned_completion_rate = fields.Float(
-        string='計畫完成率',
+        string='Planned Completion Rate',
         compute='_compute_stats',
         store=True,
-        help='上週計畫內工作的完成率（百分比）',
+        help='Completion rate of planned work from last week (percentage)',
     )
 
     inserted_count = fields.Integer(
-        string='臨時插入數',
+        string='Inserted Count',
         compute='_compute_stats',
         store=True,
     )
 
     # ===== 自評建議 =====
     self_evaluation = fields.Html(
-        string='自評或建議',
+        string='Self Evaluation',
     )
 
     # ===== 前一週報告（用於比對）=====
     previous_report_id = fields.Many2one(
         'weekly.report',
-        string='前一週報告',
+        string='Previous Week Report',
         compute='_compute_previous_report',
     )
 
     _sql_constraints = [
         ('user_week_unique', 'unique(user_id, week_start)',
-         '同一用戶在同一週只能有一份週報告！'),
+         'A user can only have one weekly report per week!'),
     ]
 
     # ========== Computed Methods ==========
@@ -163,9 +163,9 @@ class WeeklyReport(models.Model):
             if report.week_start:
                 week_str = report.week_start.strftime('%Y-W%W')
                 user_name = report.user_id.name if report.user_id else ''
-                report.name = _('%s 週報告 (%s)') % (user_name, week_str)
+                report.name = _('%s Weekly Report (%s)') % (user_name, week_str)
             else:
-                report.name = _('週報告')
+                report.name = _('Weekly Report')
 
     @api.depends('week_start')
     def _compute_week_end(self):
@@ -395,13 +395,13 @@ class WeeklyReport(models.Model):
         # 檢查是否有待處理待辦
         if pending_activities:
             activity_names = ', '.join(
-                a.summary or _('(無摘要)') for a in pending_activities[:5]
+                a.summary or _('(No summary)') for a in pending_activities[:5]
             )
             if len(pending_activities) > 5:
-                activity_names += _(' 等 %d 項') % len(pending_activities)
+                activity_names += _(' and %d more') % len(pending_activities)
 
             raise UserError(_(
-                '上週有 %d 個待辦未處理，請先完成或延期後再建立報告：\n%s'
+                'There are %d pending activities from last week. Please complete or postpone them before creating the report:\n%s'
             ) % (len(pending_activities), activity_names))
 
         # 建立回顧記錄
@@ -498,7 +498,7 @@ class WeeklyReport(models.Model):
         self.ensure_one()
 
         if self.state == 'confirmed':
-            raise UserError(_('已確認的報告無法重新產生，請先重設為草稿。'))
+            raise UserError(_('Confirmed report cannot be regenerated. Please reset to draft first.'))
 
         # Step 1: 產生上週執行回顧
         self._generate_previous_week_review()
@@ -518,9 +518,9 @@ class WeeklyReport(models.Model):
         """確認報告"""
         for report in self:
             if not report.this_week_snapshot_ids:
-                raise UserError(_('請先產生報告內容（至少需要本週計畫快照）'))
+                raise UserError(_('Please generate report content first (at least this week plan snapshot is required)'))
             if report.state == 'confirmed':
-                raise UserError(_('報告已經確認，無法重複確認。'))
+                raise UserError(_('Report is already confirmed and cannot be confirmed again.'))
 
         self.write({'state': 'confirmed'})
         return True
@@ -538,12 +538,12 @@ class WeeklyReportSnapshotLine(models.Model):
     供下週產生報告時作為比對基準。
     """
     _name = 'weekly.report.snapshot.line'
-    _description = '週報告計畫快照'
+    _description = 'Weekly Report Plan Snapshot'
     _order = 'planned_date, id'
 
     report_id = fields.Many2one(
         'weekly.report',
-        string='週報告',
+        string='Weekly Report',
         required=True,
         ondelete='cascade',
         index=True,
@@ -551,38 +551,38 @@ class WeeklyReportSnapshotLine(models.Model):
 
     activity_id = fields.Many2one(
         'mail.activity',
-        string='待辦',
+        string='Activity',
         ondelete='set null',
         index=True,
     )
 
     user_id = fields.Many2one(
         'res.users',
-        string='負責人',
+        string='Assignee',
     )
 
     # 快照欄位（凍結當時值）
     summary = fields.Char(
-        string='摘要',
+        string='Summary',
     )
     estimated_hours = fields.Float(
-        string='預估工時',
+        string='Estimated Hours',
     )
     planned_date = fields.Date(
-        string='計畫日期',
+        string='Planned Date',
     )
     date_deadline = fields.Date(
-        string='截止日',
+        string='Deadline',
     )
     urgency = fields.Selection([
-        ('urgent', '緊急'),
-        ('standard', '標準'),
-        ('flexible', '彈性'),
-    ], string='時間性')
+        ('urgent', 'Urgent'),
+        ('standard', 'Standard'),
+        ('flexible', 'Flexible'),
+    ], string='Urgency')
     importance = fields.Selection([
-        ('important', '重要'),
-        ('normal', '一般'),
-    ], string='重要性')
+        ('important', 'Important'),
+        ('normal', 'Normal'),
+    ], string='Importance')
 
 
 class WeeklyReportReviewLine(models.Model):
@@ -592,12 +592,12 @@ class WeeklyReportReviewLine(models.Model):
     包含完成狀態、工時差異等資訊。
     """
     _name = 'weekly.report.review.line'
-    _description = '週報告執行回顧'
+    _description = 'Weekly Report Execution Review'
     _order = 'source, planned_date, id'
 
     report_id = fields.Many2one(
         'weekly.report',
-        string='週報告',
+        string='Weekly Report',
         required=True,
         ondelete='cascade',
         index=True,
@@ -605,53 +605,53 @@ class WeeklyReportReviewLine(models.Model):
 
     activity_id = fields.Many2one(
         'mail.activity',
-        string='待辦',
+        string='Activity',
         ondelete='set null',
         index=True,
     )
 
     snapshot_line_id = fields.Many2one(
         'weekly.report.snapshot.line',
-        string='原計畫快照',
+        string='Original Plan Snapshot',
         ondelete='set null',
     )
 
     # 比對資訊
     source = fields.Selection([
-        ('planned', '計畫內'),
-        ('inserted', '臨時插入'),
-    ], string='來源')
+        ('planned', 'Planned'),
+        ('inserted', 'Inserted'),
+    ], string='Source')
 
     status = fields.Selection([
-        ('completed', '已完成'),
-        ('postponed', '已延期'),
-        ('cancelled', '已取消'),
-        ('pending', '待處理'),
-    ], string='狀態')
+        ('completed', 'Completed'),
+        ('postponed', 'Postponed'),
+        ('cancelled', 'Cancelled'),
+        ('pending', 'Pending'),
+    ], string='Status')
 
     # 內容欄位
     summary = fields.Char(
-        string='摘要',
+        string='Summary',
     )
     planned_hours = fields.Float(
-        string='計畫工時',
+        string='Planned Hours',
     )
     actual_hours = fields.Float(
-        string='實際工時',
+        string='Actual Hours',
     )
     planned_date = fields.Date(
-        string='計畫日期',
+        string='Planned Date',
     )
     done_date = fields.Datetime(
-        string='完成時間',
+        string='Completion Time',
     )
 
     # 工時差異
     hours_diff = fields.Float(
-        string='工時差異',
+        string='Hours Difference',
         compute='_compute_hours_diff',
         store=True,
-        help='實際工時 - 計畫工時',
+        help='Actual Hours - Planned Hours',
     )
 
     @api.depends('planned_hours', 'actual_hours')

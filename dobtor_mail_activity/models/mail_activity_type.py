@@ -15,25 +15,25 @@ class MailActivityType(models.Model):
 
     # ===== 預設說明 =====
     default_description = fields.Html(
-        string='預設說明',
-        help='建立此類型待辦時，自動填入的說明內容。',
+        string='Default Task Note',
+        help='Default note content when creating activities of this type.',
         translate=True,
     )
 
     # ===== 自定義通知模板 =====
     notify_template_id = fields.Many2one(
         'mail.template',
-        string='指派通知模板',
-        help='當待辦指派給用戶時使用的郵件模板。'
-             '若未設定或未啟用自定義通知，將使用系統預設通知。',
+        string='Assignment Notification Template',
+        help='Email template to use when activity is assigned to a user. '
+             'If not set or custom notification is disabled, system default notification will be used.',
         domain="[('model_id.model', '=', res_model)]",
     )
 
     use_custom_notify = fields.Boolean(
-        string='使用自定義通知',
+        string='Use Custom Notification',
         default=False,
-        help='啟用後，待辦指派通知將使用上方設定的郵件模板，'
-             '而非系統預設的通知格式。',
+        help='When enabled, activity assignment notifications will use the email template above '
+             'instead of the system default notification format.',
     )
 
     @api.onchange('res_model')
@@ -49,8 +49,8 @@ class MailActivityType(models.Model):
         if not self.use_custom_notify and self.notify_template_id:
             return {
                 'warning': {
-                    'title': _('提示'),
-                    'message': _('已停用自定義通知，但通知模板設定仍保留。'
-                                '若需完全移除，請手動清除「指派通知模板」欄位。'),
+                    'title': _('Notice'),
+                    'message': _('Custom notification has been disabled, but the notification template setting is retained. '
+                                'To completely remove it, please manually clear the "Assignment Notification Template" field.'),
                 }
             }

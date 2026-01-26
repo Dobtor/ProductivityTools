@@ -53,14 +53,14 @@ export class ActivityBox extends Component {
      * 取得狀態徽章
      */
     get stateInfo() {
-        const state = this.props.activity.activity_state || 'active';
+        const state = this.props.activity.activity_status || 'active';
         switch (state) {
             case 'done':
-                return { label: _t('完成'), class: 'bg-success', icon: 'fa-check' };
+                return { label: _t('Done'), class: 'bg-success', icon: 'fa-check' };
             case 'cancelled':
-                return { label: _t('取消'), class: 'bg-danger', icon: 'fa-times' };
+                return { label: _t('Cancelled'), class: 'bg-danger', icon: 'fa-times' };
             default:
-                return { label: _t('進行中'), class: 'bg-primary', icon: 'fa-clock-o' };
+                return { label: _t('In Progress'), class: 'bg-primary', icon: 'fa-clock-o' };
         }
     }
 
@@ -71,9 +71,9 @@ export class ActivityBox extends Component {
         const urgency = this.props.activity.urgency;
         switch (urgency) {
             case 'urgent':
-                return { label: _t('緊急'), class: 'text-danger', icon: 'fa-exclamation-circle' };
+                return { label: _t('Urgent'), class: 'text-danger', icon: 'fa-exclamation-circle' };
             case 'flexible':
-                return { label: _t('彈性'), class: 'text-success', icon: 'fa-leaf' };
+                return { label: _t('Flexible'), class: 'text-success', icon: 'fa-leaf' };
             default:
                 return null;
         }
@@ -112,6 +112,19 @@ export class ActivityBox extends Component {
         await this.orm.call(
             'mail.activity',
             'action_postpone_wizard',
+            [[this.props.activity.id]]
+        ).then(action => {
+            this.actionService.doAction(action);
+        });
+    }
+
+    /**
+     * 轉移
+     */
+    async transfer() {
+        await this.orm.call(
+            'mail.activity',
+            'action_transfer_activity',
             [[this.props.activity.id]]
         ).then(action => {
             this.actionService.doAction(action);

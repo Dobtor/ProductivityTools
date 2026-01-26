@@ -13,49 +13,49 @@ class MailActivityPostponeHistory(models.Model):
     - 支援延期次數統計
     """
     _name = 'mail.activity.postpone.history'
-    _description = '待辦延期歷史'
+    _description = 'Activity Postpone History'
     _order = 'postpone_date desc'
 
     activity_id = fields.Many2one(
         'mail.activity',
-        string='待辦',
+        string='Activity',
         required=True,
         ondelete='cascade',
         index=True,
     )
 
     original_planned_date = fields.Date(
-        string='原計畫日期',
-        help='延期前的計畫執行日期',
+        string='Original Planned Date',
+        help='Planned execution date before postponement',
     )
 
     original_week = fields.Char(
-        string='原週次',
-        help='延期前的週次，格式: 2026-W02',
+        string='Original Week',
+        help='Week before postponement, format: 2026-W02',
     )
 
     postpone_date = fields.Datetime(
-        string='延期時間',
+        string='Postpone Date',
         default=fields.Datetime.now,
         readonly=True,
     )
 
     postpone_by = fields.Many2one(
         'res.users',
-        string='延期者',
+        string='Postponed By',
         default=lambda self: self.env.user,
-        help='執行此延期操作的用戶',
+        help='User who performed this postponement',
     )
 
     reason = fields.Text(
-        string='延期原因',
+        string='Postponement Reason',
         required=True,
-        help='說明為何需要延期',
+        help='Reason for postponement',
     )
 
     # ===== 顯示用計算欄位 =====
     display_name = fields.Char(
-        string='顯示名稱',
+        string='Display Name',
         compute='_compute_display_name',
     )
 
@@ -64,7 +64,7 @@ class MailActivityPostponeHistory(models.Model):
         """計算顯示名稱"""
         for record in self:
             date_str = record.postpone_date.strftime('%Y-%m-%d %H:%M') if record.postpone_date else ''
-            original = record.original_planned_date.strftime('%Y-%m-%d') if record.original_planned_date else record.original_week or _('無')
+            original = record.original_planned_date.strftime('%Y-%m-%d') if record.original_planned_date else record.original_week or _('None')
             record.display_name = '%s (%s)' % (date_str, original)
 
     @api.constrains('reason')
@@ -72,7 +72,7 @@ class MailActivityPostponeHistory(models.Model):
         """確保延期原因不為空"""
         for record in self:
             if not record.reason or not record.reason.strip():
-                raise ValidationError(_('請填寫延期原因。'))
+                raise ValidationError(_('Please explain the reason for postponement.'))
 
     @api.model
     def create_postpone_record(self, activity, reason):

@@ -9,30 +9,30 @@ class NoteStage(models.Model):
     每個用戶可以有自己的階段設定，支援個人化的筆記管理流程。
     """
     _name = 'note.stage'
-    _description = '筆記階段'
+    _description = 'Note Stage'
     _order = 'sequence, id'
 
     # ===== 基本欄位 =====
     name = fields.Char(
-        string='階段名稱',
+        string='Stage Name',
         required=True,
         translate=True,
     )
     sequence = fields.Integer(
-        string='順序',
+        string='Sequence',
         default=1,
-        help="用於排序階段的順序。",
+        help="Used to sort the stages.",
     )
     user_id = fields.Many2one(
         'res.users',
-        string='擁有者',
+        string='Owner',
         required=True,
         ondelete='cascade',
         default=lambda self: self.env.uid,
-        help="階段的擁有者，每個用戶可以有自己的階段設定。",
+        help="Owner of the stage, each user can have their own stage settings.",
     )
     fold = fields.Boolean(
-        string='預設收合',
+        string='Folded by Default',
         default=False,
-        help="勾選後，此階段在看板視圖中預設會收合。",
+        help="When checked, this stage will be folded by default in kanban view.",
     )

@@ -106,7 +106,7 @@ export class WeekSelector extends Component {
     async openWeekActivities(weekNumber) {
         await this.actionService.doAction({
             type: 'ir.actions.act_window',
-            name: _t('週待辦'),
+            name: _t('Weekly Activities'),
             res_model: 'mail.activity',
             view_mode: 'kanban,list,form',
             domain: [

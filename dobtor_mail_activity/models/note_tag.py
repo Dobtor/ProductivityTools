@@ -11,37 +11,37 @@ class NoteTag(models.Model):
     使用 _parent_store 實現高效的階層查詢。
     """
     _name = 'note.tag'
-    _description = '筆記標籤'
+    _description = 'Note Tag'
     _parent_store = True
     _order = 'parent_path, name'
 
     # ===== 基本欄位 =====
     name = fields.Char(
-        string='標籤名稱',
+        string='Tag Name',
         required=True,
         translate=True,
     )
     color = fields.Integer(
-        string='顏色索引',
+        string='Color Index',
         default=0,
     )
     active = fields.Boolean(
-        string='啟用',
+        string='Active',
         default=True,
-        help="設為非啟用可隱藏此標籤，而不需刪除它。",
+        help="Set to inactive to hide this tag without deleting it.",
     )
 
     # ===== 階層欄位 =====
     parent_id = fields.Many2one(
         'note.tag',
-        string='父類別',
+        string='Parent Category',
         index=True,
         ondelete='cascade',
     )
     child_ids = fields.One2many(
         'note.tag',
         'parent_id',
-        string='子類別',
+        string='Child Tags',
     )
     parent_path = fields.Char(
         index=True,
@@ -53,7 +53,7 @@ class NoteTag(models.Model):
         (
             'name_parent_uniq',
             'unique (name, parent_id)',
-            "同一類別下標籤名稱不可重複！"
+            "Tag name must be unique within the same category!"
         ),
     ]
 
@@ -62,7 +62,7 @@ class NoteTag(models.Model):
     def _check_parent_id(self):
         """檢查父標籤是否造成循環"""
         if not self._check_recursion():
-            raise ValidationError(_('不可建立循環的標籤層級。'))
+            raise ValidationError(_('Cannot create circular tag hierarchy.'))
 
     # ===== 顯示方法 =====
     def _compute_display_name(self):
@@ -89,5 +89,4 @@ class NoteTag(models.Model):
         if name:
             # 取得路徑中的最後一個名稱進行搜尋
             name = name.split(' / ')[-1]
-            domain = [('name', operator, name)] + domain
-        return self._search(domain, limit=limit, order=order)
+        return super()._name_search(name, domain=domain, operator=operator, limit=limit, order=order)

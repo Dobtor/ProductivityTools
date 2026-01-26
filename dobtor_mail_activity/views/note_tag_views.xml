@@ -10,11 +10,11 @@
         <field name="model">note.tag</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="筆記標籤" editable="bottom">
-                <field name="name" string="標籤名稱"/>
-                <field name="parent_id" string="父類別"/>
-                <field name="color" string="顏色" widget="color_picker"/>
-                <field name="active" string="啟用" widget="boolean_toggle"/>
+            <list string="Note Tags" editable="bottom">
+                <field name="name" string="Tag Name"/>
+                <field name="parent_id" string="Parent Category"/>
+                <field name="color" string="Color" widget="color_picker"/>
+                <field name="active" string="Active" widget="boolean_toggle"/>
             </list>
         </field>
     </record>
@@ -28,20 +28,20 @@
         <field name="model">note.tag</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <form string="筆記標籤">
+            <form string="Note Tag">
                 <sheet>
                     <group col="4">
-                        <field name="name" string="標籤名稱"/>
-                        <field name="active" string="啟用" widget="boolean_toggle"/>
-                        <field name="parent_id" string="父類別"/>
-                        <field name="color" string="顏色" widget="color_picker"/>
+                        <field name="name" string="Tag Name"/>
+                        <field name="active" string="Active" widget="boolean_toggle"/>
+                        <field name="parent_id" string="Parent Category"/>
+                        <field name="color" string="Color" widget="color_picker"/>
                     </group>
-                    <group string="子標籤">
+                    <group string="Child Tags">
                         <field name="child_ids" nolabel="1">
                             <list editable="bottom">
-                                <field name="name" string="標籤名稱"/>
-                                <field name="color" string="顏色" widget="color_picker"/>
-                                <field name="active" string="啟用" widget="boolean_toggle"/>
+                                <field name="name" string="Tag Name"/>
+                                <field name="color" string="Color" widget="color_picker"/>
+                                <field name="active" string="Active" widget="boolean_toggle"/>
                             </list>
                         </field>
                     </group>
@@ -59,18 +59,18 @@
         <field name="model">note.tag</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <search string="搜尋標籤">
-                <field name="name" string="標籤名稱"/>
-                <field name="parent_id" string="父類別"/>
+            <search string="Search Tags">
+                <field name="name" string="Tag Name"/>
+                <field name="parent_id" string="Parent Category"/>
 
                 <separator/>
-                <filter string="根標籤" name="root_tags"
+                <filter string="Root Tags" name="root_tags"
                         domain="[('parent_id', '=', False)]"/>
-                <filter string="已封存" name="inactive"
+                <filter string="Archived" name="inactive"
                         domain="[('active', '=', False)]"/>
 
-                <group expand="0" string="分組">
-                    <filter string="父類別" name="group_parent"
+                <group expand="0" string="Group By">
+                    <filter string="Parent Category" name="group_parent"
                             context="{'group_by': 'parent_id'}"/>
                 </group>
             </search>
@@ -83,13 +83,13 @@
 
     <!-- Action - 筆記標籤 -->
     <record id="action_note_tag" model="ir.actions.act_window">
-        <field name="name">筆記標籤</field>
+        <field name="name">Note Tags</field>
         <field name="res_model">note.tag</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_note_tag_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">建立您的第一個標籤</p>
-            <p>使用標籤來分類您的筆記，支援階層式結構。</p>
+            <p class="o_view_nocontent_smiling_face">Create your first tag</p>
+            <p>Use tags to categorize your notes with hierarchical structure support.</p>
         </field>
     </record>
 

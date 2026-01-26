@@ -17,31 +17,31 @@ class MailActivityFromMessageWizard(models.TransientModel):
     - 若指派給用戶，自動將其加入訊息所在頻道
     """
     _name = 'mail.activity.from.message.wizard'
-    _description = '從訊息建立待辦精靈'
+    _description = 'Create Activity from Message Wizard'
 
     # ===== 訊息資訊 =====
     message_id = fields.Many2one(
         'mail.message',
-        string='來源訊息',
+        string='Source Message',
         readonly=True,
     )
     message_body_preview = fields.Html(
-        string='訊息預覽',
+        string='Message Preview',
         compute='_compute_message_preview',
     )
     message_author = fields.Char(
-        string='訊息作者',
+        string='Message Author',
         compute='_compute_message_preview',
     )
     message_date = fields.Datetime(
-        string='訊息時間',
+        string='Message Time',
         related='message_id.date',
         readonly=True,
     )
 
     # ===== 目標選擇 =====
     target_ref = fields.Reference(
-        string='目標記錄',
+        string='Target Record',
         selection='_selection_target_model',
         required=True,
     )
@@ -49,38 +49,38 @@ class MailActivityFromMessageWizard(models.TransientModel):
     # ===== 待辦設定 =====
     activity_type_id = fields.Many2one(
         'mail.activity.type',
-        string='待辦類型',
+        string='Activity Type',
         required=True,
         default=lambda self: self._default_activity_type(),
     )
     summary = fields.Char(
-        string='摘要',
+        string='Summary',
     )
     note = fields.Html(
-        string='備註',
+        string='Note',
     )
     date_deadline = fields.Date(
-        string='截止日期',
+        string='Deadline',
         required=True,
         default=fields.Date.context_today,
     )
     estimated_hours = fields.Float(
-        string='預估工時',
+        string='Estimated Hours',
         default=1.0,
     )
     urgency = fields.Selection([
-        ('urgent', '緊急'),
-        ('standard', '標準'),
-        ('flexible', '彈性'),
-    ], string='時間性', default='standard', required=True)
+        ('urgent', 'Urgent'),
+        ('standard', 'Standard'),
+        ('flexible', 'Flexible'),
+    ], string='Urgency', default='standard', required=True)
     importance = fields.Selection([
-        ('important', '重要'),
-        ('normal', '一般'),
-    ], string='重要性', default='normal', required=True)
+        ('important', 'Important'),
+        ('normal', 'Normal'),
+    ], string='Importance', default='normal', required=True)
     user_id = fields.Many2one(
         'res.users',
-        string='指派給',
-        help='若不指派，待辦將等待領取',
+        string='Assign To',
+        help='If not assigned, activity will wait to be claimed',
     )
 
     @api.model
@@ -113,7 +113,7 @@ class MailActivityFromMessageWizard(models.TransientModel):
                 # 截取前 500 字元作為預覽
                 wizard.message_body_preview = body[:500] if len(body) > 500 else body
                 # 作者名稱
-                wizard.message_author = wizard.message_id.author_id.name if wizard.message_id.author_id else _('未知')
+                wizard.message_author = wizard.message_id.author_id.name if wizard.message_id.author_id else _('Unknown')
             else:
                 wizard.message_body_preview = False
                 wizard.message_author = False
@@ -124,7 +124,7 @@ class MailActivityFromMessageWizard(models.TransientModel):
         if self.message_id:
             body = self.message_id.body or ''
             plain_text = self._strip_html_tags(body, max_length=100)
-            self.summary = plain_text or _('來自訊息')
+            self.summary = plain_text or _('From Message')
 
             # 預填備註為完整訊息內容
             if not self.note:
@@ -145,17 +145,17 @@ class MailActivityFromMessageWizard(models.TransientModel):
         self.ensure_one()
 
         if not self.target_ref:
-            raise UserError(_('請選擇目標記錄。'))
+            raise UserError(_('Please select a target record.'))
 
         # 驗證目標記錄存在
         if not self.target_ref.exists():
-            raise UserError(_('目標記錄不存在。'))
+            raise UserError(_('Target record does not exist.'))
 
         if not self.activity_type_id:
-            raise UserError(_('請選擇待辦類型。'))
+            raise UserError(_('Please select an activity type.'))
 
         if not self.date_deadline:
-            raise UserError(_('請選擇截止日期。'))
+            raise UserError(_('Please select a deadline.'))
 
     def _prepare_activity_values(self):
         """準備建立待辦的值"""
@@ -199,7 +199,7 @@ class MailActivityFromMessageWizard(models.TransientModel):
         """從訊息 ID 開啟 wizard（供外部調用）"""
         return {
             'type': 'ir.actions.act_window',
-            'name': _('從訊息建立待辦'),
+            'name': _('Create Activity from Message'),
             'res_model': 'mail.activity.from.message.wizard',
             'view_mode': 'form',
             'views': [(False, 'form')],

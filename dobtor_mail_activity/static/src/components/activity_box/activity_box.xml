@@ -13,8 +13,8 @@
 
                     <!-- 摘要 -->
                     <span class="flex-grow-1 text-truncate small"
-                          t-att-class="{'text-decoration-line-through text-muted': props.activity.activity_state === 'done'}">
-                        <t t-esc="props.activity.summary || props.activity.activity_type_id[1] || '(無摘要)'"/>
+                          t-att-class="{'text-decoration-line-through text-muted': props.activity.activity_status === 'done'}">
+                        <t t-esc="props.activity.summary || props.activity.activity_type_id[1] || '(No Summary)'"/>
                     </span>
 
                     <!-- 緊急標記 -->
@@ -41,8 +41,8 @@
                     <div class="flex-grow-1">
                         <!-- 摘要 -->
                         <div class="fw-bold"
-                             t-att-class="{'text-decoration-line-through text-muted': props.activity.activity_state === 'done'}">
-                            <t t-esc="props.activity.summary || '(無摘要)'"/>
+                             t-att-class="{'text-decoration-line-through text-muted': props.activity.activity_status === 'done'}">
+                            <t t-esc="props.activity.summary || '(No Summary)'"/>
                         </div>
 
                         <!-- 類型與關聯文件 -->
@@ -76,7 +76,7 @@
 
                             <!-- 重要標記 -->
                             <span t-if="props.activity.importance === 'important'" class="badge bg-warning text-dark">
-                                <i class="fa fa-star me-1"/>重要
+                                <i class="fa fa-star me-1"/>Important
                             </span>
 
                             <!-- 截止日期 -->
@@ -100,13 +100,16 @@
                     </div>
 
                     <!-- 動作按鈕（懸停顯示） -->
-                    <div t-if="props.showActions and state.isHovered and props.activity.activity_state === 'active'"
+                    <div t-if="props.showActions and state.isHovered and props.activity.activity_status === 'active'"
                          class="o_activity_actions d-flex gap-1">
-                        <button class="btn btn-sm btn-success" t-on-click.stop="markDone" title="完成">
+                        <button class="btn btn-sm btn-success" t-on-click.stop="markDone" title="Complete">
                             <i class="fa fa-check"/>
                         </button>
-                        <button class="btn btn-sm btn-warning" t-on-click.stop="postpone" title="延期">
+                        <button class="btn btn-sm btn-warning" t-on-click.stop="postpone" title="Postpone">
                             <i class="fa fa-clock-o"/>
+                        </button>
+                        <button class="btn btn-sm btn-secondary" t-on-click.stop="transfer" title="Transfer">
+                            <i class="fa fa-exchange"/>
                         </button>
                     </div>
                 </div>

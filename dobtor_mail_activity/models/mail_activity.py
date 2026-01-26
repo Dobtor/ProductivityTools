@@ -19,17 +19,25 @@ class MailActivity(models.Model):
     - 封存機制：完成/取消待辦時封存而非刪除
     - 排程系統：支援週計畫與預排功能
     - 優先級管理：時間性與重要性標記
-    - 工時追蹤：預估與實際工時記錄
+    - 工時追蹤：預估與實際工時記錄（支援多次登錄）
     - 歷史追蹤：指派變更與延期記錄
     - 轉移功能：支援待辦在不同文件間轉移
     - 訊息來源：追蹤從訊息建立的待辦
+    - 訊息功能：支援發送訊息、建立備註、加入關注者（mail.thread）
     """
-    _inherit = 'mail.activity'
+    _name = 'mail.activity'
+    _inherit = ['mail.activity', 'mail.thread']
+    _description = 'Activity'
+
+    # ===== mail.thread 設定 =====
+    _mail_post_access = 'read'  # 讀取權限即可發送訊息
+
+    # ========== 欄位定義 ==========
 
     # ===== 覆寫 user_id 為非必填且無預設值 =====
     user_id = fields.Many2one(
         'res.users',
-        string='指派給',
+        string='Assigned to',
         index=True,
         tracking=True,
         required=False,  # 改為非必填
@@ -46,47 +54,47 @@ class MailActivity(models.Model):
 
     # ===== 封存相關 =====
     active = fields.Boolean(
-        string='啟用',
+        string='Active',
         default=True,
     )
     done_date = fields.Datetime(
-        string='完成時間',
+        string='Done Date',
         readonly=True,
     )
     cancel_date = fields.Datetime(
-        string='取消時間',
+        string='Cancel Date',
         readonly=True,
     )
 
     # 注意：原始 state 是計算欄位，無法使用 selection_add
-    # 改用 activity_state 來追蹤自定義狀態
-    activity_state = fields.Selection([
-        ('active', '進行中'),
-        ('done', '已完成'),
-        ('cancelled', '已取消'),
-    ], string='待辦狀態', compute='_compute_activity_state', store=True)
+    # 改用 activity_status 來追蹤自定義狀態（activity_state 已被 mixin 使用）
+    activity_status = fields.Selection([
+        ('active', 'Active'),
+        ('done', 'Done'),
+        ('cancelled', 'Cancelled'),
+    ], string='Activity Status', compute='_compute_activity_status', store=True)
 
     # ===== 關聯筆記 =====
     note_id = fields.Many2one(
         'note.note',
-        string='關聯筆記',
+        string='Related Note',
         index=True,
         ondelete='set null',
-        help='待辦關聯的筆記本',
+        help='Note linked to this activity',
     )
 
     # ===== res_name 儲存計算結果以提升效能 =====
     res_name = fields.Char(
-        string='文件名稱',
+        string='Document Name',
         compute='_compute_res_name',
         compute_sudo=True,
         store=True,
-        help='關聯文件的顯示名稱',
+        help='Display name of the related document',
     )
 
     # ===== 目標文件選擇（用於建立待辦時選擇關聯文件）=====
     target_ref = fields.Reference(
-        string='目標文件',
+        string='Target Document',
         selection='_selection_target_model',
         compute='_compute_target_ref',
         inverse='_inverse_target_ref',
@@ -94,70 +102,70 @@ class MailActivity(models.Model):
 
     # ===== 排程相關 =====
     schedule_status = fields.Selection([
-        ('waiting', '等待排程'),
-        ('monday', '週一'),
-        ('tuesday', '週二'),
-        ('wednesday', '週三'),
-        ('thursday', '週四'),
-        ('friday', '週五'),
-        ('saturday', '週六'),
-        ('sunday', '週日'),
-    ], string='排程狀態', default='waiting', index=True,
+        ('waiting', 'Waiting'),
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday'),
+    ], string='Schedule Status', default='waiting', index=True,
        group_expand='_group_expand_schedule_status')
 
     planned_date = fields.Date(
-        string='計畫日期',
-        help='排入本週計畫的日期',
+        string='Planned Date',
+        help='Date scheduled for this week plan',
     )
 
     scheduled_date = fields.Date(
-        string='預排日期',
-        help='用於下週預排，週轉換時複製到計畫日期',
+        string='Scheduled Date',
+        help='For next week pre-scheduling, copied to planned date on week transition',
     )
 
     schedule_week = fields.Selection([
-        ('week_prev', '上週'),
-        ('week0', '本週'),
-        ('week1', '下週'),
-        ('week2', '第三週'),
-        ('week3', '第四週'),
-        ('future', '未來'),
-    ], string='排程週次', compute='_compute_schedule_week', store=True)
+        ('week_prev', 'Previous Week'),
+        ('week0', 'This Week'),
+        ('week1', 'Next Week'),
+        ('week2', 'Week 3'),
+        ('week3', 'Week 4'),
+        ('future', 'Future'),
+    ], string='Schedule Week', compute='_compute_schedule_week', store=True)
 
     schedule_week_number = fields.Integer(
-        string='週次編號',
+        string='Week Number',
         compute='_compute_schedule_week',
         store=True,
-        help='0=本週, 1=下週, 2=第三週, 3=第四週, 4+=未來',
+        help='0=This Week, 1=Next Week, 2=Week 3, 3=Week 4, 4+=Future',
     )
 
     schedule_origin = fields.Selection([
-        ('planned', '計畫工作'),      # 建立週報告時在本週計畫內
-        ('inserted', '臨時插入'),     # 週間新增，不在週報告快照中
-        ('postponed', '延期'),        # 從延期而來
-        ('transferred', '轉移'),      # 從其他文件轉移
-    ], string='來源')  # 建立時留空，排入週天時才標記
+        ('planned', 'Planned'),           # 建立週報告時在本週計畫內
+        ('inserted', 'Inserted'),         # 週間新增，不在週報告快照中
+        ('postponed', 'Postponed'),       # 從延期而來
+        ('transferred', 'Transferred'),   # 從其他文件轉移
+    ], string='Origin')  # 建立時留空，排入週天時才標記
 
     original_schedule_week = fields.Char(
-        string='原始預排週次',
-        help='格式：2026-W02',
+        string='Original Schedule Week',
+        help='Format: 2026-W02',
     )
 
     # ===== 轉移追蹤 =====
     transferred_from_model = fields.Char(
-        string='轉移來源模型',
+        string='Transferred From Model',
         readonly=True,
     )
     transferred_from_id = fields.Integer(
-        string='轉移來源 ID',
+        string='Transferred From ID',
         readonly=True,
     )
     transferred_from_name = fields.Char(
-        string='轉移來源',
+        string='Transferred From',
         compute='_compute_transferred_from_name',
     )
     is_transferred = fields.Boolean(
-        string='已轉移',
+        string='Is Transferred',
         compute='_compute_is_transferred',
         store=True,
     )
@@ -165,119 +173,180 @@ class MailActivity(models.Model):
     # ===== 訊息來源追蹤 =====
     source_message_id = fields.Many2one(
         'mail.message',
-        string='來源訊息',
+        string='Source Message',
         index=True,
         readonly=True,
-        help='建立此待辦的來源訊息',
+        help='Message this activity was created from',
     )
     source_message_preview = fields.Html(
-        string='訊息預覽',
+        string='Message Preview',
         compute='_compute_source_message_preview',
     )
 
     # ===== 優先級欄位 =====
     urgency = fields.Selection([
-        ('urgent', '緊急'),
-        ('standard', '標準'),
-        ('flexible', '彈性'),
-    ], string='時間性', default='standard')
+        ('urgent', 'Urgent'),
+        ('standard', 'Standard'),
+        ('flexible', 'Flexible'),
+    ], string='Urgency', default='standard')
 
     importance = fields.Selection([
-        ('important', '重要'),
-        ('normal', '一般'),
-    ], string='重要性', default='normal')
+        ('important', 'Important'),
+        ('normal', 'Normal'),
+    ], string='Importance', default='normal')
 
     # ===== 指派歷史 =====
     assignment_history_ids = fields.One2many(
         'mail.activity.assignment.history',
         'activity_id',
-        string='指派歷史',
+        string='Assignment History',
     )
 
     # ===== 延期歷史 =====
     postpone_history_ids = fields.One2many(
         'mail.activity.postpone.history',
         'activity_id',
-        string='延期歷史',
+        string='Postpone History',
     )
 
     postpone_count = fields.Integer(
-        string='延期次數',
+        string='Postpone Count',
         compute='_compute_postpone_count',
         store=True,
     )
 
-    # ===== 工時相關 =====
+    # ===== 工時相關（改版）=====
     estimated_hours = fields.Float(
-        string='預估工時',
-        help='預估執行所需時間（小時）',
+        string='Estimated Hours',
+        help='Estimated time required for execution (hours)',
     )
 
+    # 改為 One2many 關聯多個工時記錄
+    timesheet_ids = fields.One2many(
+        'account.analytic.line',
+        'activity_id',
+        string='Timesheet Entries',
+    )
+
+    # actual_hours 改為計算欄位
     actual_hours = fields.Float(
-        string='執行工時',
-        help='實際執行時間（小時）',
+        string='Actual Hours',
+        compute='_compute_actual_hours',
+        store=True,
+        readonly=True,
+        help='Total of all logged hours',
     )
 
+    # 保留原有欄位作為相容（之後可移除）
     timesheet_id = fields.Many2one(
         'account.analytic.line',
-        string='工時表記錄',
+        string='Timesheet Entry (Legacy)',
         readonly=True,
     )
 
     feedback = fields.Text(
-        string='完成回饋',
+        string='Completion Feedback',
     )
+
+    # ========== 工時計算方法 ==========
+
+    @api.depends('timesheet_ids', 'timesheet_ids.unit_amount')
+    def _compute_actual_hours(self):
+        """計算執行工時：所有登錄工時的總合"""
+        for activity in self:
+            activity.actual_hours = sum(
+                activity.timesheet_ids.mapped('unit_amount')
+            )
 
     # ===== 關聯顯示（計算欄位）=====
     partner_id = fields.Many2one(
         'res.partner',
-        string='客戶',
+        string='Customer',
         compute='_compute_related_records',
         store=True,
     )
 
     project_id = fields.Many2one(
         'project.project',
-        string='專案',
+        string='Project',
         compute='_compute_related_records',
         store=True,
     )
 
     crm_lead_id = fields.Many2one(
         'crm.lead',
-        string='CRM 商機',
+        string='CRM Lead',
         compute='_compute_related_records',
         store=True,
     )
 
     # ===== 警告相關 =====
     schedule_warning = fields.Char(
-        string='排程警告',
+        string='Schedule Warning',
         compute='_compute_schedule_warning',
     )
 
     needs_schedule_by = fields.Selection([
-        ('monday', '週一'),
-        ('tuesday', '週二'),
-        ('wednesday', '週三'),
-        ('thursday', '週四'),
-        ('friday', '週五'),
-        ('saturday', '週六'),
-        ('sunday', '週日'),
-    ], string='需於週X前安排', compute='_compute_schedule_warning')
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday'),
+    ], string='Needs Schedule By', compute='_compute_schedule_warning')
+
+    # ===== 相關待辦（同文件）=====
+    sequence = fields.Integer(
+        string='Sequence',
+        default=10,
+        help='For ordering activities on the same document',
+    )
+
+    related_activity_ids = fields.Many2many(
+        'mail.activity',
+        compute='_compute_related_activity_ids',
+        string='Related Activities',
+        help='All activities on the same document',
+    )
+
+    related_activity_count = fields.Integer(
+        string='Related Activity Count',
+        compute='_compute_related_activity_ids',
+    )
+
+    # ===== 來源訊息擴展 =====
+    source_message_type = fields.Selection([
+        ('document', 'Document Message'),
+        ('channel', 'Channel Message'),
+    ], string='Source Message Type', compute='_compute_source_message_context',
+       help='Distinguish if message comes from Document Chatter or Discuss Channel')
+
+    context_message_ids = fields.Many2many(
+        'mail.message',
+        compute='_compute_source_message_context',
+        string='Context Messages',
+        help='Source message and 2 messages before/after',
+    )
+
+    context_messages_html = fields.Html(
+        string='Message Context HTML',
+        compute='_compute_context_messages_html',
+        sanitize=False,  # 保留官方 CSS class
+    )
 
     # ========== Computed Methods ==========
 
     @api.depends('active', 'done_date', 'cancel_date')
-    def _compute_activity_state(self):
+    def _compute_activity_status(self):
         """計算待辦狀態"""
         for activity in self:
             if activity.cancel_date:
-                activity.activity_state = 'cancelled'
+                activity.activity_status = 'cancelled'
             elif activity.done_date:
-                activity.activity_state = 'done'
+                activity.activity_status = 'done'
             else:
-                activity.activity_state = 'active'
+                activity.activity_status = 'active'
 
     @api.depends('res_model', 'res_id')
     def _compute_res_name(self):
@@ -289,7 +358,7 @@ class MailActivity(models.Model):
                     if record.exists():
                         activity.res_name = record.display_name
                     else:
-                        activity.res_name = _('(記錄已刪除)')
+                        activity.res_name = _('(Record Deleted)')
                 except Exception as e:
                     _logger.debug(
                         'Failed to compute res_name for activity %s: %s',
@@ -314,7 +383,10 @@ class MailActivity(models.Model):
                 activity.target_ref = False
 
     def _inverse_target_ref(self):
-        """反向設定 res_model_id 和 res_id"""
+        """反向設定 res_model_id 和 res_id
+
+        當 target_ref 為空時，自動關聯到用戶的預設待辦筆記。
+        """
         for activity in self:
             if activity.target_ref:
                 model_name = activity.target_ref._name
@@ -322,12 +394,20 @@ class MailActivity(models.Model):
                 activity.res_model_id = self.env['ir.model']._get(model_name)
                 activity.res_id = activity.target_ref.id
             else:
-                activity.res_model_id = False
-                activity.res_id = False
+                # target_ref 為空時，自動關聯到用戶的預設筆記
+                # 因為官方 res_model_id 是 NOT NULL，不能設為 False
+                target_user = activity.user_id or self.env.user
+                default_note = target_user._get_or_create_default_activity_note()
+                activity.res_model_id = self.env['ir.model']._get('note.note')
+                activity.res_id = default_note.id
+                activity.note_id = default_note
 
     @api.onchange('target_ref')
     def _onchange_target_ref(self):
-        """當選擇目標文件時，立即更新 res_model_id 和 res_id"""
+        """當選擇目標文件時，立即更新 res_model_id 和 res_id
+
+        當清空 target_ref 時，自動關聯到用戶的預設待辦筆記。
+        """
         if self.target_ref:
             try:
                 target = self.target_ref
@@ -338,25 +418,32 @@ class MailActivity(models.Model):
                     self.res_id = target_id
             except Exception as e:
                 _logger.warning('Error in _onchange_target_ref: %s', str(e))
-                self.res_model_id = False
-                self.res_id = False
+                # 發生錯誤時，使用預設筆記
+                self._set_default_note()
         else:
-            self.res_model_id = False
-            self.res_id = False
+            # target_ref 為空時，使用預設筆記
+            self._set_default_note()
 
-    @api.constrains('res_model_id', 'res_id')
-    def _check_target_document(self):
-        """確保待辦有關聯的目標文件"""
-        for activity in self:
-            if not activity.res_model_id or not activity.res_id:
-                raise ValidationError(_('請選擇「目標文件」，待辦必須關聯到一個文件記錄。'))
+    def _set_default_note(self):
+        """設定預設筆記為關聯目標"""
+        target_user = self.user_id or self.env.user
+        default_note = target_user._get_or_create_default_activity_note()
+        self.res_model_id = self.env['ir.model']._get('note.note')
+        self.res_id = default_note.id
+        self.note_id = default_note
+
+    # 注意：已移除 _check_target_document 約束
+    # 改為在 create 時自動關聯到用戶的預設筆記（若未指定目標文件）
+    # 這允許建立「獨立待辦」，同時保持與 Odoo mail.activity 設計的相容性
 
     @api.model_create_multi
     def create(self, vals_list):
         """覆寫 create 方法
 
         1. 處理 target_ref 轉換為 res_model_id 和 res_id
-        2. 繞過 Odoo 18 base mail.activity create 中的 UnboundLocalError bug
+        2. 若未指定目標文件，自動關聯到用戶的預設待辦筆記
+        3. 繞過 Odoo 18 base mail.activity create 中的 UnboundLocalError bug
+        4. 停用 mail.thread 的自動訂閱和追蹤
         """
         for vals in vals_list:
             # 處理 target_ref 欄位（格式：'model.name,id'）
@@ -371,15 +458,39 @@ class MailActivity(models.Model):
                     except (ValueError, TypeError):
                         _logger.warning('Invalid target_ref format: %s', target_ref)
 
+            # 若未指定目標文件，自動關聯到用戶的預設待辦筆記
+            if not vals.get('res_model_id') and not vals.get('res_id'):
+                # 決定待辦的擁有者（優先使用 vals 中指定的 user_id）
+                target_user_id = vals.get('user_id') or self.env.uid
+                target_user = self.env['res.users'].browse(target_user_id)
+
+                # 取得或建立預設筆記
+                default_note = target_user._get_or_create_default_activity_note()
+                if default_note:
+                    vals['res_model_id'] = self.env['ir.model']._get('note.note').id
+                    vals['res_id'] = default_note.id
+                    vals['note_id'] = default_note.id  # 同時設定 note_id 關聯
+                    _logger.debug(
+                        'Activity auto-linked to default note %s for user %s',
+                        default_note.id, target_user.name
+                    )
+
             # 設定預設的 activity_type_id（如果未提供）
             if not vals.get('activity_type_id'):
                 activity_type = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
                 if activity_type:
                     vals['activity_type_id'] = activity_type.id
 
+        # 使用 context 停用 mail.thread 的自動訂閱和追蹤
+        self_with_context = self.with_context(
+            mail_create_nosubscribe=True,
+            mail_create_nolog=True,
+            tracking_disable=True,
+        )
+
         # 直接呼叫 models.Model.create 繞過 base mail.activity 的 buggy code
         # Odoo 18 的 mail/models/mail_activity.py 有 UnboundLocalError bug
-        activities = models.Model.create(self, vals_list)
+        activities = models.Model.create(self_with_context, vals_list)
 
         # 手動處理 bus 通知（原本在 base create 中，但有 bug）
         for activity in activities:
@@ -456,7 +567,7 @@ class MailActivity(models.Model):
                     if record.exists():
                         activity.transferred_from_name = record.display_name
                     else:
-                        activity.transferred_from_name = _('(記錄已刪除)')
+                        activity.transferred_from_name = _('(Record Deleted)')
                 except Exception as e:
                     _logger.debug(
                         'Failed to compute transferred_from_name for activity %s: %s',
@@ -478,6 +589,76 @@ class MailActivity(models.Model):
                 activity.source_message_preview = preview
             else:
                 activity.source_message_preview = False
+
+    @api.depends('res_model', 'res_id')
+    def _compute_related_activity_ids(self):
+        """計算同文件的所有待辦事項"""
+        for activity in self:
+            if activity.res_model and activity.res_id:
+                # 查詢同文件的所有待辦（含已封存）
+                activities = self.with_context(active_test=False).search([
+                    ('res_model', '=', activity.res_model),
+                    ('res_id', '=', activity.res_id),
+                ], order='sequence, id')
+                activity.related_activity_ids = activities
+                activity.related_activity_count = len(activities)
+            else:
+                activity.related_activity_ids = False
+                activity.related_activity_count = 0
+
+    @api.depends('source_message_id')
+    def _compute_source_message_context(self):
+        """計算來源訊息的類型和上下文訊息"""
+        for activity in self:
+            if activity.source_message_id:
+                msg = activity.source_message_id
+
+                # 判斷訊息來源類型
+                if msg.model == 'discuss.channel':
+                    activity.source_message_type = 'channel'
+                elif msg.model and msg.res_id:
+                    activity.source_message_type = 'document'
+                else:
+                    activity.source_message_type = False
+
+                # 查詢同文件的使用者評論訊息，取得前後各2則
+                messages = self.env['mail.message'].search([
+                    ('model', '=', msg.model),
+                    ('res_id', '=', msg.res_id),
+                    ('message_type', 'in', ['comment', 'email']),
+                ], order='date desc')
+
+                # 找出來源訊息的位置，取前後各2則
+                msg_ids = messages.ids
+                if msg.id in msg_ids:
+                    idx = msg_ids.index(msg.id)
+                    # 因為是 desc 排序，idx 前面是較新的，後面是較舊的
+                    # 取 idx-2 到 idx+3（包含來源訊息本身）
+                    start = max(0, idx - 2)
+                    end = min(len(msg_ids), idx + 3)
+                    context_ids = msg_ids[start:end]
+                    activity.context_message_ids = self.env['mail.message'].browse(context_ids)
+                else:
+                    # 來源訊息不在列表中（可能被刪除或類型不符），只顯示來源訊息
+                    activity.context_message_ids = msg
+            else:
+                activity.source_message_type = False
+                activity.context_message_ids = False
+
+    @api.depends('context_message_ids', 'source_message_id')
+    def _compute_context_messages_html(self):
+        """使用 QWeb 渲染訊息 HTML，採用官方樣式"""
+        for activity in self:
+            if activity.context_message_ids:
+                activity.context_messages_html = self.env['ir.qweb']._render(
+                    'dobtor_mail_activity.message_context_preview',
+                    {
+                        'messages': activity.context_message_ids,
+                        'source_message_id': activity.source_message_id.id if activity.source_message_id else False,
+                    }
+                )
+            else:
+                activity.context_messages_html = False
 
     @api.depends('postpone_history_ids')
     def _compute_postpone_count(self):
@@ -570,7 +751,11 @@ class MailActivity(models.Model):
             if needs_schedule_date <= week_end:
                 weekday = needs_schedule_date.weekday()
                 activity.needs_schedule_by = weekday_map.get(weekday)
-                activity.schedule_warning = _('需於%s前安排執行') % weekday_names.get(weekday, '')
+                weekday_names_en = {
+                    0: 'Monday', 1: 'Tuesday', 2: 'Wednesday',
+                    3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'
+                }
+                activity.schedule_warning = _('Needs to be scheduled by %s') % weekday_names_en.get(weekday, '')
 
     # ========== Override Methods ==========
 
@@ -590,8 +775,8 @@ class MailActivity(models.Model):
                         # 允許系統管理員操作
                         if not self.env.user.has_group('base.group_system'):
                             raise UserError(_(
-                                '排程操作僅限被指派人執行。\n'
-                                '待辦「%s」已指派給 %s，您無法修改其排程。',
+                                'Schedule operations are limited to the assignee.\n'
+                                'Activity "%s" is assigned to %s, you cannot modify its schedule.',
                                 activity.summary or activity.activity_type_id.name,
                                 activity.user_id.name
                             ))
@@ -604,8 +789,8 @@ class MailActivity(models.Model):
                 for activity in self:
                     if activity.planned_date:
                         raise UserError(_(
-                            '待辦「%s」已排程至 %s，無法手動移至等待排程。\n'
-                            '如需延期，請使用「延期」功能。',
+                            'Activity "%s" is scheduled for %s and cannot be manually moved to waiting.\n'
+                            'To postpone, please use the "Postpone" function.',
                             activity.summary or activity.activity_type_id.name,
                             activity.planned_date.strftime('%Y-%m-%d')
                         ))
@@ -709,16 +894,12 @@ class MailActivity(models.Model):
         if next_activities_values:
             next_activities = self.env['mail.activity'].create(next_activities_values)
 
-        # 關鍵改動：封存而非刪除
+        # 關鍵改動：封存而非刪除（工時表由精靈建立，這裡不處理）
         self.write({
             'active': False,
             'done_date': fields.Datetime.now(),
             'feedback': feedback,
         })
-
-        # 建立工時表記錄
-        for activity in self:
-            activity._create_timesheet_entry()
 
         # 發送 bus 通知（使用 Odoo 18 的 _bus_send）
         for activity in self:
@@ -794,15 +975,15 @@ class MailActivity(models.Model):
                 )
                 return False
 
-        # 關鍵：確保 analytic_account_id 存在（官方 hr_timesheet 必要條件）
-        if not project.analytic_account_id:
+        # 關鍵：確保 account_id 存在（Odoo 18: analytic_account_id 改為 account_id）
+        if not project.account_id:
             _logger.warning(
                 'Project %s has no analytic account, cannot create timesheet.',
                 project.name
             )
             return False
 
-        if not project.analytic_account_id.active:
+        if not project.account_id.active:
             _logger.warning(
                 'Project %s analytic account is inactive.',
                 project.name
@@ -812,14 +993,14 @@ class MailActivity(models.Model):
         # 準備工時表值
         vals = {
             'date': self.planned_date or fields.Date.today(),
-            'name': self.feedback or self.summary or _('待辦執行'),
+            'name': self.feedback or self.summary or _('Task Execution'),
             'unit_amount': self.actual_hours,
             'employee_id': employee.id,
             'user_id': self.user_id.id,
             'project_id': project.id,
             'task_id': task_id,
-            'account_id': project.analytic_account_id.id,
-            'company_id': project.analytic_account_id.company_id.id or project.company_id.id,
+            'account_id': project.account_id.id,
+            'company_id': project.account_id.company_id.id or project.company_id.id,
         }
 
         try:
@@ -872,30 +1053,45 @@ class MailActivity(models.Model):
         }
 
     def action_open_source_message(self):
-        """開啟來源訊息所在的文件"""
+        """開啟來源訊息所在的頁面
+
+        根據訊息來源類型，導航至不同位置：
+        - discuss.channel: 開啟 Discuss 介面的對應頻道
+        - 其他模型: 開啟文件表單（會自動捲動到 chatter）
+        """
         self.ensure_one()
         if not self.source_message_id:
-            raise UserError(_('此待辦沒有來源訊息。'))
+            raise UserError(_('This activity has no source message.'))
 
         msg = self.source_message_id
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
 
-        # 若訊息在 discuss 頻道，確保當前用戶已加入頻道
-        # 注意：Odoo 18 使用 discuss.channel 取代 mail.channel
+        # 處理 Discuss 頻道訊息
         if msg.model == 'discuss.channel' and msg.res_id:
             channel = self.env['discuss.channel'].browse(msg.res_id)
-            if channel.exists():
-                partner = self.env.user.partner_id
-                if partner:
-                    # Odoo 18 使用 channel_member_ids
-                    member_partners = channel.channel_member_ids.mapped('partner_id')
-                    if partner not in member_partners:
-                        try:
-                            channel.add_members(partner_ids=[partner.id])
-                        except AccessError:
-                            raise UserError(_('無法加入此頻道，您可能沒有存取權限。'))
+            if not channel.exists():
+                raise UserError(_('Source channel no longer exists.'))
 
-        if msg.model and msg.res_id:
-            # 開啟訊息所在的文件，並帶上 message_id 參數以便定位
+            # 確保當前用戶已加入頻道
+            partner = self.env.user.partner_id
+            if partner:
+                member_partners = channel.channel_member_ids.mapped('partner_id')
+                if partner not in member_partners:
+                    try:
+                        channel.add_members(partner_ids=[partner.id])
+                    except AccessError:
+                        raise UserError(_('Cannot join this channel, you may not have access rights.'))
+
+            # 使用正確的 Odoo 18 Discuss URL 格式
+            # /odoo/discuss?active_id=discuss.channel_{channel_id}
+            return {
+                'type': 'ir.actions.act_url',
+                'url': f'{base_url}/odoo/discuss?active_id=discuss.channel_{msg.res_id}',
+                'target': 'self',
+            }
+
+        # 處理文件 Chatter 訊息
+        elif msg.model and msg.res_id:
             return {
                 'type': 'ir.actions.act_window',
                 'res_model': msg.model,
@@ -903,23 +1099,19 @@ class MailActivity(models.Model):
                 'view_mode': 'form',
                 'target': 'current',
                 'context': {
-                    'message_id': msg.id,
+                    'message_id': msg.id,  # 可用於前端定位訊息
                 }
             }
+
         else:
-            # 訊息不在特定文件上（可能是 discuss 頻道訊息）
-            return {
-                'type': 'ir.actions.act_url',
-                'url': '/mail/channel?message_id=%s' % msg.id,
-                'target': 'self',
-            }
+            raise UserError(_('Cannot locate source message, message information is incomplete.'))
 
     def action_transfer_activity(self):
         """開啟轉移 wizard"""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('轉移待辦'),
+            'name': _('Transfer Activity'),
             'res_model': 'mail.activity.transfer.wizard',
             'view_mode': 'form',
             'target': 'new',
@@ -935,7 +1127,7 @@ class MailActivity(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('完成待辦'),
+            'name': _('Complete Activity'),
             'res_model': 'mail.activity.done.wizard',
             'view_mode': 'form',
             'target': 'new',
@@ -949,7 +1141,7 @@ class MailActivity(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('延至下週'),
+            'name': _('Postpone to Next Week'),
             'res_model': 'mail.activity.postpone.wizard',
             'view_mode': 'form',
             'target': 'new',
@@ -1074,7 +1266,7 @@ class MailActivity(models.Model):
 
             notes_data.append({
                 'id': note_id,
-                'name': note_name or _('未命名筆記'),
+                'name': note_name or _('Unnamed Note'),
                 'activities': activities_info,
                 'total_count': total_count,
                 'active_count': active_count,
@@ -1158,10 +1350,10 @@ class MailActivity(models.Model):
         """領取待辦（將 user_id 設為當前用戶）"""
         self.ensure_one()
         if self.user_id:
-            raise UserError(_('此待辦已被指派，無法領取。'))
+            raise UserError(_('This activity has already been assigned and cannot be claimed.'))
 
         now = fields.Datetime.now()
-        claim_note = _('\n\n--- %s 領取此待辦 ---') % now.strftime('%Y-%m-%d %H:%M')
+        claim_note = _('\n\n--- %s claimed this activity ---') % now.strftime('%Y-%m-%d %H:%M')
 
         self.write({
             'user_id': self.env.user.id,
@@ -1180,11 +1372,11 @@ class MailActivity(models.Model):
         """開啟變更指派 wizard"""
         self.ensure_one()
         if not self.user_id:
-            raise UserError(_('此待辦尚未指派，請使用領取功能。'))
+            raise UserError(_('This activity has not been assigned, please use the claim function.'))
 
         return {
             'type': 'ir.actions.act_window',
-            'name': _('變更指派'),
+            'name': _('Change Assignment'),
             'res_model': 'mail.activity.reassign.wizard',
             'view_mode': 'form',
             'target': 'new',
@@ -1314,3 +1506,33 @@ class MailActivity(models.Model):
             })
 
         return weeks
+
+    # ========== 相關待辦方法 ==========
+
+    def action_create_related_activity(self):
+        """建立同文件的新待辦"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('New Activity'),
+            'res_model': 'mail.activity',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_res_model_id': self.res_model_id.id,
+                'default_res_id': self.res_id,
+                # 預設排序為當前最大 sequence + 10
+                'default_sequence': max(
+                    self.related_activity_ids.mapped('sequence') or [0]
+                ) + 10,
+            },
+        }
+
+    def action_resequence_activities(self, activity_ids):
+        """重新排序同文件的待辦
+
+        Args:
+            activity_ids: 按新順序排列的待辦 ID 列表
+        """
+        for index, activity_id in enumerate(activity_ids):
+            self.browse(activity_id).write({'sequence': (index + 1) * 10})

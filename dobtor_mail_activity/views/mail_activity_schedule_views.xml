@@ -1,407 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- ============================================================ -->
+    <!-- NOTE: mail_activity_view_form_schedule is defined in         -->
+    <!-- mail_activity_views.xml with the 4-column layout             -->
+    <!-- ============================================================ -->
 
     <!-- ============================================================ -->
-    <!--              待辦事項 Form View (排程功能)                      -->
+    <!-- NOTE: mail_activity_view_kanban_schedule is defined in       -->
+    <!-- mail_activity_views.xml with updated layout                  -->
     <!-- ============================================================ -->
-    <record id="mail_activity_view_form_schedule" model="ir.ui.view">
-        <field name="name">mail.activity.view.form.schedule</field>
-        <field name="model">mail.activity</field>
-        <field name="priority">20</field>
-        <field name="arch" type="xml">
-            <form string="待辦事項">
-                <header>
-                    <field name="schedule_status" widget="statusbar" clickable="1"
-                           options="{'clickable': '1'}"/>
-                </header>
-                <sheet>
-                    <!-- 隱藏欄位供條件判斷使用 -->
-                    <field name="active" invisible="1"/>
-                    <field name="planned_date" invisible="1"/>
-                    <field name="feedback" invisible="1"/>
-                    <field name="is_transferred" invisible="1"/>
-                    <field name="assignment_history_ids" invisible="1"/>
-                    <field name="postpone_history_ids" invisible="1"/>
-                    <field name="schedule_warning" invisible="1"/>
-                    <field name="user_id" invisible="1"/>
-                    <field name="source_message_id" invisible="1"/>
-
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_open_document" type="object"
-                                class="oe_stat_button" icon="fa-external-link">
-                            <span>開啟文件</span>
-                        </button>
-                        <button name="action_transfer_activity" type="object"
-                                class="oe_stat_button" icon="fa-exchange">
-                            <span>轉移</span>
-                        </button>
-                        <button name="action_claim_activity" type="object"
-                                class="oe_stat_button" icon="fa-hand-paper-o"
-                                invisible="not active or user_id">
-                            <span>領取</span>
-                        </button>
-                        <button name="action_reassign_activity" type="object"
-                                class="oe_stat_button" icon="fa-user-plus"
-                                invisible="not active or not user_id">
-                            <span>變更指派</span>
-                        </button>
-                        <button name="action_done_wizard" type="object"
-                                class="oe_stat_button" icon="fa-check"
-                                invisible="not active">
-                            <span>完成</span>
-                        </button>
-                        <button name="action_postpone_wizard" type="object"
-                                class="oe_stat_button" icon="fa-clock-o"
-                                invisible="not active or not planned_date">
-                            <span>延至下週</span>
-                        </button>
-                    </div>
-
-                    <!-- 摘要 - 置頂明顯 -->
-                    <div class="oe_title">
-                        <h1>
-                            <field name="summary" placeholder="請輸入待辦摘要..."/>
-                        </h1>
-                    </div>
-
-                    <group>
-                        <!-- 左側 -->
-                        <group>
-                            <field name="activity_type_id" string="待辦類型" options="{'no_create': True}"/>
-                            <field name="date_deadline" string="截止日期"/>
-                            <field name="estimated_hours" string="預估工時" widget="float_time"/>
-                            <field name="actual_hours" string="執行工時" widget="float_time" readonly="1"/>
-                            <field name="state" string="狀態" widget="badge"
-                                   decoration-info="state == 'planned'"
-                                   decoration-warning="state == 'today'"
-                                   decoration-danger="state == 'overdue'"/>
-                        </group>
-
-                        <!-- 右側 -->
-                        <group>
-                            <field name="urgency" string="時間性" widget="radio" options="{'horizontal': true}"/>
-                            <field name="importance" string="重要性" widget="radio" options="{'horizontal': true}"/>
-                            <field name="user_id" string="指派給" options="{'no_create': True}"/>
-                            <field name="create_uid" string="建立者" readonly="1"/>
-                            <field name="create_date" string="建立時間" readonly="1"/>
-                        </group>
-                    </group>
-
-                    <group>
-                        <!-- 左側：關聯資訊 -->
-                        <group string="關聯資訊">
-                            <field name="id" invisible="1"/>
-                            <field name="target_ref" string="目標文件"
-                                   readonly="id"
-                                   required="not id"
-                                   options="{'no_create': True}"/>
-                            <field name="res_model_id" invisible="1"/>
-                            <field name="partner_id" readonly="1"
-                                   invisible="not partner_id"/>
-                            <field name="project_id" readonly="1"
-                                   invisible="not project_id"/>
-                            <field name="crm_lead_id" readonly="1"
-                                   invisible="not crm_lead_id"/>
-                            <field name="note_id" readonly="1"
-                                   invisible="not note_id"/>
-                        </group>
-
-                        <!-- 右側：排程資訊 -->
-                        <group string="排程資訊">
-                            <field name="planned_date"/>
-                            <field name="schedule_week" readonly="1"/>
-                            <field name="schedule_origin" readonly="1"/>
-                            <field name="schedule_warning" invisible="not schedule_warning"/>
-                        </group>
-                    </group>
-
-                    <notebook>
-                        <page string="備註" name="note">
-                            <field name="note" placeholder="添加備註..."/>
-                        </page>
-                        <page string="回饋" name="feedback" invisible="not feedback">
-                            <field name="feedback" readonly="1"/>
-                        </page>
-                        <page string="轉移資訊" name="transfer" invisible="not is_transferred">
-                            <group>
-                                <field name="transferred_from_name" readonly="1"/>
-                                <field name="transferred_from_model" readonly="1"/>
-                                <field name="transferred_from_id" readonly="1"/>
-                            </group>
-                        </page>
-                        <page string="指派歷史" name="assignment_history" invisible="not assignment_history_ids">
-                            <field name="assignment_history_ids" readonly="1">
-                                <list>
-                                    <field name="changed_date"/>
-                                    <field name="previous_user_id"/>
-                                    <field name="new_user_id"/>
-                                    <field name="changed_by"/>
-                                    <field name="reason"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="延期歷史" name="postpone_history" invisible="not postpone_history_ids">
-                            <field name="postpone_history_ids" readonly="1">
-                                <list>
-                                    <field name="postpone_date"/>
-                                    <field name="original_planned_date"/>
-                                    <field name="original_week"/>
-                                    <field name="postpone_by"/>
-                                    <field name="reason"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="訊息來源" name="source_message" invisible="not source_message_id">
-                            <group>
-                                <div class="alert alert-info" role="alert">
-                                    <strong>此待辦由訊息建立</strong>
-                                    <button name="action_open_source_message" type="object"
-                                            class="btn btn-sm btn-primary ms-3"
-                                            title="查看來源訊息">
-                                        <i class="fa fa-external-link" title="開啟"/> 查看原始訊息
-                                    </button>
-                                </div>
-                            </group>
-                            <group>
-                                <field name="source_message_preview" readonly="1" nolabel="1"
-                                       class="oe_read_only"
-                                       style="background: #f8f9fa; padding: 10px; border-radius: 4px;"/>
-                            </group>
-                        </page>
-                    </notebook>
-                </sheet>
-            </form>
-        </field>
-    </record>
 
     <!-- ============================================================ -->
-    <!--              待辦事項 Kanban View (週排程)                      -->
+    <!-- NOTE: mail_activity_view_list_schedule is defined in         -->
+    <!-- mail_activity_views.xml with updated layout                  -->
     <!-- ============================================================ -->
-    <record id="mail_activity_view_kanban_schedule" model="ir.ui.view">
-        <field name="name">mail.activity.view.kanban.schedule</field>
-        <field name="model">mail.activity</field>
-        <field name="arch" type="xml">
-            <kanban default_group_by="schedule_status" class="o_kanban_mobile o_activity_week_kanban" js_class="activity_kanban">
-                <field name="id"/>
-                <field name="activity_type_id"/>
-                <field name="res_model_id"/>
-                <field name="res_model"/>
-                <field name="res_id"/>
-                <field name="res_name"/>
-                <field name="summary"/>
-                <field name="date_deadline"/>
-                <field name="planned_date"/>
-                <field name="schedule_status"/>
-                <field name="user_id"/>
-                <field name="note"/>
-                <field name="state"/>
-                <field name="is_transferred"/>
-                <field name="urgency"/>
-                <field name="importance"/>
-                <field name="estimated_hours"/>
-                <field name="schedule_warning"/>
-                <field name="partner_id"/>
-                <field name="project_id"/>
-                <field name="crm_lead_id"/>
-                <field name="note_id"/>
-                <field name="postpone_count"/>
-                <field name="create_date"/>
-                <field name="create_uid"/>
-                <field name="schedule_week"/>
-                <field name="schedule_week_number"/>
-
-                <!-- 進度條：依預估工時顯示 -->
-                <progressbar field="urgency" colors='{"urgent": "danger", "standard": "warning", "flexible": "success"}'
-                             sum_field="estimated_hours"/>
-
-                <templates>
-                    <t t-name="card" class="flex-column">
-                        <!-- 卡片底色優先級：逾期(紅) > 緊急(橙) > 重要(藍) -->
-                        <div t-attf-class="p-2
-                            #{record.state.raw_value == 'overdue' ? 'border-start border-danger border-3 bg-danger-subtle' :
-                              record.urgency.raw_value == 'urgent' ? 'border-start border-warning border-3 bg-warning-subtle' :
-                              record.importance.raw_value == 'important' ? 'border-start border-primary border-3 bg-primary-subtle' : ''}">
-
-                            <!-- 第一列：摘要 -->
-                            <div class="o_kanban_record_top mb-1">
-                                <div class="o_kanban_record_headings" style="flex: 1;">
-                                    <strong t-attf-class="o_kanban_record_title #{record.state.raw_value == 'overdue' ? 'text-danger' : ''}"
-                                            style="white-space: normal; word-break: break-word;">
-                                        <field name="summary" placeholder="無摘要"/>
-                                    </strong>
-                                </div>
-                            </div>
-
-                            <!-- 第二列：截止日期(左) + [緊急][類型](右) -->
-                            <div class="d-flex justify-content-between align-items-center mb-1 small">
-                                <!-- 截止日期（僅顯示日期） -->
-                                <span t-attf-class="badge text-nowrap d-inline-flex align-items-center #{record.state.raw_value == 'overdue' ? 'text-bg-danger' : record.state.raw_value == 'today' ? 'text-bg-warning' : 'text-bg-secondary'}"
-                                      title="截止日期">
-                                    <i class="fa fa-calendar-o me-1"/><field name="date_deadline" widget="date"/>
-                                </span>
-                                <!-- 標籤區：緊急 + 類型 -->
-                                <div class="d-flex align-items-center flex-nowrap" style="gap: 4px;">
-                                    <!-- 緊急標籤 -->
-                                    <span t-if="record.urgency.raw_value == 'urgent'" class="badge rounded-pill text-bg-danger text-nowrap">
-                                        緊急
-                                    </span>
-                                    <!-- 待辦類型 -->
-                                    <span class="badge rounded-pill text-bg-light text-nowrap text-truncate" style="max-width: 100px;">
-                                        <field name="activity_type_id"/>
-                                    </span>
-                                </div>
-                            </div>
-
-                            <!-- 第三列：關聯資訊（CRM/專案/筆記/文件/客戶） -->
-                            <div class="text-muted mb-1 d-flex flex-wrap small" style="gap: 4px 8px;">
-                                <span t-if="record.crm_lead_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="CRM 商機">
-                                    <i class="fa fa-usd text-success me-1"/><field name="crm_lead_id"/>
-                                </span>
-                                <span t-if="record.project_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="專案">
-                                    <i class="fa fa-folder-open-o text-primary me-1"/><field name="project_id"/>
-                                </span>
-                                <span t-if="record.note_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="筆記">
-                                    <i class="fa fa-sticky-note-o text-warning me-1"/><field name="note_id"/>
-                                </span>
-                                <span t-if="!record.crm_lead_id.raw_value and !record.project_id.raw_value and !record.note_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 150px;">
-                                    <a type="object" name="action_open_document" class="d-inline-flex align-items-center" title="開啟文件">
-                                        <i class="fa fa-external-link me-1"/><field name="res_name"/>
-                                    </a>
-                                </span>
-                                <span t-if="record.partner_id.raw_value" class="text-nowrap text-truncate d-inline-flex align-items-center" style="max-width: 120px;" title="客戶">
-                                    <i class="fa fa-building-o text-info me-1"/><field name="partner_id"/>
-                                </span>
-                            </div>
-
-                            <!-- 第四列：建立日期+重要+轉移(左) + 建立者(右靠齊) -->
-                            <div class="d-flex justify-content-between align-items-center mb-1 small">
-                                <div class="d-flex align-items-center flex-nowrap" style="gap: 4px;">
-                                    <!-- 建立日期（僅顯示日期） -->
-                                    <span class="badge text-bg-secondary text-nowrap d-inline-flex align-items-center" title="建立日期">
-                                        <i class="fa fa-plus-circle me-1"/><t t-out="record.create_date.value.slice(0, 10)"/>
-                                    </span>
-                                    <!-- 重要標籤 -->
-                                    <span t-if="record.importance.raw_value == 'important'" class="badge rounded-pill border border-danger text-danger text-nowrap">
-                                        重要
-                                    </span>
-                                    <!-- 已轉移 -->
-                                    <span t-if="record.is_transferred.raw_value" class="badge text-bg-secondary text-nowrap d-inline-flex align-items-center" title="已轉移">
-                                        <i class="fa fa-exchange"/>
-                                    </span>
-                                </div>
-                                <div class="d-flex align-items-center text-end text-nowrap">
-                                    <span class="text-muted me-1">建立:</span>
-                                    <field name="create_uid" widget="many2one_avatar_user" readonly="1"/>
-                                </div>
-                            </div>
-
-                            <!-- 第五列：工時+按鈕群組(左) + 執行者(右靠齊) -->
-                            <div class="o_kanban_record_bottom d-flex justify-content-between mt-1 pt-1 border-top small">
-                                <div class="oe_kanban_bottom_left d-flex align-items-center flex-nowrap" style="gap: 4px;">
-                                    <!-- 預估工時 -->
-                                    <span t-if="record.estimated_hours.raw_value" class="badge text-bg-secondary text-nowrap d-inline-flex align-items-center" title="預估工時">
-                                        <i class="fa fa-clock-o me-1"/><field name="estimated_hours" widget="float_time"/>
-                                    </span>
-                                    <!-- 未指派時：只顯示領取按鈕 -->
-                                    <t t-if="!record.user_id.raw_value">
-                                        <button name="action_claim_activity" type="object" class="btn btn-sm btn-outline-primary py-0 d-inline-flex align-items-center" title="領取此待辦">
-                                            <i class="fa fa-hand-paper-o me-1"/><span>領取</span>
-                                        </button>
-                                    </t>
-                                    <!-- 已指派時：顯示延期和完成按鈕 -->
-                                    <t t-if="record.user_id.raw_value">
-                                        <button name="action_postpone_wizard" type="object" class="btn btn-sm btn-outline-warning py-0 d-inline-flex align-items-center" title="延期">
-                                            <i class="fa fa-arrow-right me-1"/><span>延期</span>
-                                        </button>
-                                        <button name="action_done_wizard" type="object" class="btn btn-sm btn-outline-success py-0 d-inline-flex align-items-center" title="完成待辦">
-                                            <i class="fa fa-check me-1"/><span>完成</span>
-                                        </button>
-                                    </t>
-                                </div>
-                                <div class="oe_kanban_bottom_right d-flex align-items-center text-end">
-                                    <t t-if="record.user_id.raw_value">
-                                        <span class="text-muted me-1">執行:</span>
-                                        <field name="user_id" widget="many2one_avatar_user"/>
-                                    </t>
-                                    <t t-else="">
-                                        <span class="badge text-bg-light text-muted d-inline-flex align-items-center">
-                                            <i class="fa fa-user-o me-1"/><span>未指派</span>
-                                        </span>
-                                    </t>
-                                </div>
-                            </div>
-                        </div>
-                    </t>
-
-                    <t t-name="menu">
-                        <a role="menuitem" type="edit" class="dropdown-item">
-                            <i class="fa fa-pencil fa-fw"/> 編輯
-                        </a>
-                        <a role="menuitem" type="object" name="action_transfer_activity" class="dropdown-item">
-                            <i class="fa fa-exchange fa-fw"/> 轉移
-                        </a>
-                        <a t-if="!record.user_id.raw_value" role="menuitem" type="object" name="action_claim_activity" class="dropdown-item">
-                            <i class="fa fa-hand-paper-o fa-fw"/> 領取
-                        </a>
-                        <a t-if="record.user_id.raw_value" role="menuitem" type="object" name="action_reassign_activity" class="dropdown-item">
-                            <i class="fa fa-user-plus fa-fw"/> 變更指派
-                        </a>
-                        <div class="dropdown-divider"/>
-                        <h6 class="dropdown-header"><i class="fa fa-calendar-plus-o"/> 排程至</h6>
-                        <a role="menuitem" type="object" name="action_schedule_to_week_prev" class="dropdown-item">上週</a>
-                        <a role="menuitem" type="object" name="action_schedule_to_week0" class="dropdown-item">本週</a>
-                        <a role="menuitem" type="object" name="action_schedule_to_week1" class="dropdown-item">下週</a>
-                        <a role="menuitem" type="object" name="action_schedule_to_week2" class="dropdown-item">第三週</a>
-                        <a role="menuitem" type="object" name="action_schedule_to_week3" class="dropdown-item">第四週</a>
-                        <div class="dropdown-divider"/>
-                        <a role="menuitem" type="object" name="action_cancel" class="dropdown-item text-danger">
-                            <i class="fa fa-times fa-fw"/> 取消
-                        </a>
-                    </t>
-                </templates>
-            </kanban>
-        </field>
-    </record>
-
-    <!-- ============================================================ -->
-    <!--              待辦事項 List View (排程功能)                      -->
-    <!-- ============================================================ -->
-    <record id="mail_activity_view_list_schedule" model="ir.ui.view">
-        <field name="name">mail.activity.view.list.schedule</field>
-        <field name="model">mail.activity</field>
-        <field name="arch" type="xml">
-            <list string="我的待辦事項"
-                  decoration-danger="date_deadline &lt; current_date"
-                  decoration-warning="date_deadline == current_date">
-                <field name="partner_id" optional="show"/>
-                <field name="project_id" optional="show"/>
-                <field name="crm_lead_id" optional="show"/>
-                <field name="summary"/>
-                <field name="note_id" optional="show"/>
-                <field name="urgency" widget="badge"
-                       decoration-danger="urgency == 'urgent'"
-                       decoration-warning="urgency == 'standard'"
-                       decoration-success="urgency == 'flexible'"/>
-                <field name="importance"/>
-                <field name="estimated_hours" widget="float_time" sum="總計"/>
-                <field name="planned_date"/>
-                <field name="date_deadline"/>
-                <field name="schedule_status"/>
-                <field name="state" widget="badge"
-                       decoration-info="state == 'planned'"
-                       decoration-warning="state == 'today'"
-                       decoration-danger="state == 'overdue'"/>
-                <field name="user_id" widget="many2one_avatar_user"/>
-                <field name="postpone_count" optional="hide"/>
-                <button name="action_done_wizard" type="object" string="完成"
-                        icon="fa-check" class="btn-success"/>
-                <button name="action_postpone_wizard" type="object"
-                        string="延期" icon="fa-clock-o"/>
-                <button name="action_transfer_activity" type="object"
-                        string="轉移" icon="fa-exchange"/>
-            </list>
-        </field>
-    </record>
 
     <!-- ============================================================ -->
     <!--              待辦事項 Search View 擴展                         -->
@@ -414,79 +26,79 @@
             <xpath expr="//search" position="inside">
                 <!-- 指派篩選 -->
                 <separator/>
-                <filter string="我指派的" name="assigned_by_me"
+                <filter string="Assigned by Me" name="assigned_by_me"
                         domain="[('create_uid', '=', uid)]"/>
-                <filter string="被委任的" name="assigned_to_me"
+                <filter string="Assigned to Me" name="assigned_to_me"
                         domain="[('user_id', '=', uid), ('create_uid', '!=', uid)]"/>
-                <filter string="所有的" name="all_activities"
+                <filter string="All" name="all_activities"
                         domain="[]"/>
                 <separator/>
                 <!-- 狀態篩選 -->
-                <filter string="進行中" name="active_activities"
+                <filter string="In Progress" name="active_activities"
                         domain="[('active', '=', True)]"/>
                 <separator/>
-                <filter string="已完成" name="completed"
-                        domain="[('activity_state', '=', 'done')]"/>
-                <filter string="已取消" name="cancelled"
-                        domain="[('activity_state', '=', 'cancelled')]"/>
+                <filter string="Completed" name="completed"
+                        domain="[('activity_status', '=', 'done')]"/>
+                <filter string="Cancelled" name="cancelled"
+                        domain="[('activity_status', '=', 'cancelled')]"/>
                 <separator/>
-                <filter string="已轉移" name="transferred"
+                <filter string="Transferred" name="transferred"
                         domain="[('is_transferred', '=', True)]"/>
                 <separator/>
                 <!-- 優先級篩選 -->
-                <filter string="緊急" name="urgent"
+                <filter string="Urgent" name="urgent"
                         domain="[('urgency', '=', 'urgent')]"/>
-                <filter string="重要" name="important"
+                <filter string="Important" name="important"
                         domain="[('importance', '=', 'important')]"/>
                 <separator/>
                 <!-- 時間篩選 -->
-                <filter string="今日到期" name="due_today"
+                <filter string="Due Today" name="due_today"
                         domain="[('date_deadline', '=', context_today().strftime('%Y-%m-%d'))]"/>
-                <filter string="已逾期" name="overdue"
+                <filter string="Overdue" name="overdue"
                         domain="[('date_deadline', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
-                <filter string="未來 7 天" name="due_next_week"
+                <filter string="Next 7 Days" name="due_next_week"
                         domain="[('date_deadline', '&gt;=', context_today().strftime('%Y-%m-%d')),
                                  ('date_deadline', '&lt;=', (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
                 <separator/>
                 <!-- 排程篩選 -->
-                <filter string="等待排程" name="waiting_schedule"
+                <filter string="Waiting Schedule" name="waiting_schedule"
                         domain="[('schedule_status', '=', 'waiting')]"/>
                 <separator/>
                 <!-- 週次篩選 -->
-                <filter string="上週" name="week_prev"
+                <filter string="Last Week" name="week_prev"
                         domain="[('schedule_week_number', '=', -1)]"/>
-                <filter string="本週" name="week0"
+                <filter string="This Week" name="week0"
                         domain="[('schedule_week_number', '=', 0)]"/>
-                <filter string="下週" name="week1"
+                <filter string="Next Week" name="week1"
                         domain="[('schedule_week_number', '=', 1)]"/>
-                <filter string="第三週" name="week2"
+                <filter string="Week 3" name="week2"
                         domain="[('schedule_week_number', '=', 2)]"/>
-                <filter string="第四週" name="week3"
+                <filter string="Week 4" name="week3"
                         domain="[('schedule_week_number', '=', 3)]"/>
                 <separator/>
                 <!-- 分組條件 -->
-                <group expand="0" string="分組">
-                    <filter string="依週次分組" name="group_by_schedule_week"
+                <group expand="0" string="Group By">
+                    <filter string="By Week" name="group_by_schedule_week"
                             context="{'group_by': 'schedule_week'}"/>
-                    <filter string="依待辦狀態分組" name="group_by_activity_state"
-                            context="{'group_by': 'activity_state'}"/>
-                    <filter string="依排程狀態分組" name="group_by_schedule_status"
+                    <filter string="By Task Status" name="group_by_activity_status"
+                            context="{'group_by': 'activity_status'}"/>
+                    <filter string="By Schedule Status" name="group_by_schedule_status"
                             context="{'group_by': 'schedule_status'}"/>
-                    <filter string="依優先級分組" name="group_by_urgency"
+                    <filter string="By Urgency" name="group_by_urgency"
                             context="{'group_by': 'urgency'}"/>
-                    <filter string="依重要性分組" name="group_by_importance"
+                    <filter string="By Importance" name="group_by_importance"
                             context="{'group_by': 'importance'}"/>
-                    <filter string="依專案分組" name="group_by_project"
+                    <filter string="By Project" name="group_by_project"
                             context="{'group_by': 'project_id'}"/>
-                    <filter string="依客戶分組" name="group_by_partner"
+                    <filter string="By Customer" name="group_by_partner"
                             context="{'group_by': 'partner_id'}"/>
-                    <filter string="依負責人分組" name="group_by_user"
+                    <filter string="By Assignee" name="group_by_user"
                             context="{'group_by': 'user_id'}"/>
                     <separator/>
                     <!-- 時間分組 -->
-                    <filter string="依計畫日期分組" name="group_by_planned_date"
+                    <filter string="By Planned Date" name="group_by_planned_date"
                             context="{'group_by': 'planned_date:day'}"/>
-                    <filter string="依到期日分組" name="group_by_deadline"
+                    <filter string="By Due Date" name="group_by_deadline"
                             context="{'group_by': 'date_deadline:day'}"/>
                 </group>
             </xpath>
@@ -494,52 +106,14 @@
     </record>
 
     <!-- ============================================================ -->
-    <!--              待辦事項 Calendar View                           -->
+    <!-- NOTE: mail_activity_view_calendar_schedule is defined in     -->
+    <!-- mail_activity_views.xml                                      -->
     <!-- ============================================================ -->
-    <record id="mail_activity_view_calendar_schedule" model="ir.ui.view">
-        <field name="name">mail.activity.view.calendar.schedule</field>
-        <field name="model">mail.activity</field>
-        <field name="arch" type="xml">
-            <calendar string="待辦行事曆"
-                      date_start="planned_date"
-                      date_stop="planned_date"
-                      color="user_id"
-                      mode="month"
-                      event_open_popup="true"
-                      quick_create="false">
-                <field name="summary"/>
-                <field name="user_id" widget="many2one_avatar_user"/>
-                <field name="activity_type_id"/>
-                <field name="urgency"/>
-                <field name="estimated_hours" widget="float_time"/>
-            </calendar>
-        </field>
-    </record>
 
     <!-- ============================================================ -->
-    <!--              歷史待辦 List View                                -->
+    <!-- NOTE: mail_activity_view_list_history is defined in          -->
+    <!-- mail_activity_views.xml                                      -->
     <!-- ============================================================ -->
-    <record id="mail_activity_view_list_history" model="ir.ui.view">
-        <field name="name">mail.activity.view.list.history</field>
-        <field name="model">mail.activity</field>
-        <field name="arch" type="xml">
-            <list string="歷史代辦" create="false" delete="false">
-                <field name="activity_state" widget="badge"
-                       decoration-success="activity_state == 'done'"
-                       decoration-danger="activity_state == 'cancelled'"/>
-                <field name="summary"/>
-                <field name="activity_type_id"/>
-                <field name="user_id" widget="many2one_avatar_user"/>
-                <field name="date_deadline"/>
-                <field name="done_date" string="完成時間"/>
-                <field name="cancel_date" string="取消時間"/>
-                <field name="actual_hours" widget="float_time" string="執行工時"/>
-                <field name="feedback" string="回饋"/>
-                <button name="action_restore" type="object" string="恢復"
-                        icon="fa-undo" class="btn-secondary"/>
-            </list>
-        </field>
-    </record>
 
     <!-- ============================================================ -->
     <!--              我建立的待辦 Form View (禁止排程操作)               -->
@@ -549,7 +123,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">25</field>
         <field name="arch" type="xml">
-            <form string="我建立的待辦">
+            <form string="My Created Tasks">
                 <sheet>
                     <!-- 隱藏欄位 -->
                     <field name="active" invisible="1"/>
@@ -562,45 +136,45 @@
                     <div class="oe_button_box" name="button_box">
                         <button name="action_open_document" type="object"
                                 class="oe_stat_button" icon="fa-external-link">
-                            <span>開啟文件</span>
+                            <span>Open Document</span>
                         </button>
                         <button name="action_reassign_activity" type="object"
                                 class="oe_stat_button" icon="fa-user-plus"
                                 invisible="not active">
-                            <span>變更指派</span>
+                            <span>Reassign</span>
                         </button>
                         <button name="action_transfer_activity" type="object"
                                 class="oe_stat_button" icon="fa-exchange"
                                 invisible="not active">
-                            <span>轉移</span>
+                            <span>Transfer</span>
                         </button>
                         <button name="action_cancel" type="object"
                                 class="oe_stat_button" icon="fa-times"
                                 invisible="not active">
-                            <span>取消</span>
+                            <span>Cancel</span>
                         </button>
                     </div>
 
                     <!-- 提示訊息 -->
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-info-circle"/>
-                        <span class="ms-1">您是此待辦的建立者。排程操作（計畫日期、排程狀態）僅限被指派人設定。</span>
+                        <span class="ms-1">You are the creator of this task. Schedule operations (planned date, schedule status) can only be set by the assignee.</span>
                     </div>
 
                     <!-- 摘要 -->
                     <div class="oe_title">
                         <h1>
-                            <field name="summary" placeholder="請輸入待辦摘要..."/>
+                            <field name="summary" placeholder="Enter task summary..."/>
                         </h1>
                     </div>
 
                     <group>
                         <!-- 左側 -->
                         <group>
-                            <field name="activity_type_id" string="待辦類型" options="{'no_create': True}"/>
-                            <field name="date_deadline" string="截止日期"/>
-                            <field name="estimated_hours" string="預估工時" widget="float_time"/>
-                            <field name="state" string="狀態" widget="badge"
+                            <field name="activity_type_id" string="Task Type" options="{'no_create': True}"/>
+                            <field name="date_deadline" string="Due Date"/>
+                            <field name="estimated_hours" string="Estimated Hours" widget="float_time"/>
+                            <field name="state" string="Status" widget="badge"
                                    decoration-info="state == 'planned'"
                                    decoration-warning="state == 'today'"
                                    decoration-danger="state == 'overdue'"/>
@@ -608,18 +182,18 @@
 
                         <!-- 右側 -->
                         <group>
-                            <field name="urgency" string="時間性" widget="radio" options="{'horizontal': true}"/>
-                            <field name="importance" string="重要性" widget="radio" options="{'horizontal': true}"/>
-                            <field name="user_id" string="指派給" options="{'no_create': True}"/>
-                            <field name="create_date" string="建立時間" readonly="1"/>
+                            <field name="urgency" string="Urgency" widget="radio" options="{'horizontal': true}"/>
+                            <field name="importance" string="Importance" widget="radio" options="{'horizontal': true}"/>
+                            <field name="user_id" string="Assign To" options="{'no_create': True}"/>
+                            <field name="create_date" string="Created Date" readonly="1"/>
                         </group>
                     </group>
 
                     <group>
                         <!-- 左側：關聯資訊 -->
-                        <group string="關聯資訊">
+                        <group string="Related Information">
                             <field name="id" invisible="1"/>
-                            <field name="target_ref" string="目標文件"
+                            <field name="target_ref" string="Target Document"
                                    readonly="id"
                                    options="{'no_create': True}"/>
                             <field name="res_model_id" invisible="1"/>
@@ -634,7 +208,7 @@
                         </group>
 
                         <!-- 右側：排程資訊（唯讀） -->
-                        <group string="排程資訊（僅被指派人可修改）">
+                        <group string="Schedule Info (Assignee Only)">
                             <field name="planned_date" readonly="1"/>
                             <field name="schedule_status" readonly="1"/>
                             <field name="schedule_week" readonly="1"/>
@@ -643,18 +217,18 @@
                     </group>
 
                     <notebook>
-                        <page string="備註" name="note">
-                            <field name="note" placeholder="添加備註..."/>
+                        <page string="Note" name="note">
+                            <field name="note" placeholder="Add note..."/>
                         </page>
-                        <page string="回饋" name="feedback" invisible="not feedback">
+                        <page string="Feedback" name="feedback" invisible="not feedback">
                             <field name="feedback" readonly="1"/>
                         </page>
-                        <page string="轉移資訊" name="transfer" invisible="not is_transferred">
+                        <page string="Transfer Info" name="transfer" invisible="not is_transferred">
                             <group>
                                 <field name="transferred_from_name" readonly="1"/>
                             </group>
                         </page>
-                        <page string="指派歷史" name="assignment_history" invisible="not assignment_history_ids">
+                        <page string="Assignment History" name="assignment_history" invisible="not assignment_history_ids">
                             <field name="assignment_history_ids" readonly="1">
                                 <list>
                                     <field name="changed_date"/>
@@ -665,13 +239,13 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="訊息來源" name="source_message" invisible="not source_message_id">
+                        <page string="Message Source" name="source_message" invisible="not source_message_id">
                             <group>
                                 <div class="alert alert-info" role="alert">
-                                    <strong>此待辦由訊息建立</strong>
+                                    <strong>This task was created from a message</strong>
                                     <button name="action_open_source_message" type="object"
                                             class="btn btn-sm btn-primary ms-3">
-                                        <i class="fa fa-external-link"/> 查看原始訊息
+                                        <i class="fa fa-external-link"/> View Original Message
                                     </button>
                                 </div>
                             </group>
@@ -692,13 +266,13 @@
         <field name="name">mail.activity.view.list.created</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <list string="我建立的待辦"
+            <list string="My Created Tasks"
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
                 <field name="active" column_invisible="1"/>
                 <field name="summary"/>
                 <field name="activity_type_id"/>
-                <field name="user_id" string="指派給" widget="many2one_avatar_user"/>
+                <field name="user_id" string="Assign To" widget="many2one_avatar_user"/>
                 <field name="urgency" widget="badge"
                        decoration-danger="urgency == 'urgent'"
                        decoration-warning="urgency == 'standard'"
@@ -706,22 +280,22 @@
                 <field name="importance"/>
                 <field name="estimated_hours" widget="float_time"/>
                 <field name="date_deadline"/>
-                <field name="planned_date" string="計畫日期（被指派人設定）"/>
-                <field name="schedule_status" string="排程狀態"/>
+                <field name="planned_date" string="Planned Date (Set by Assignee)"/>
+                <field name="schedule_status" string="Schedule Status"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'planned'"
                        decoration-warning="state == 'today'"
                        decoration-danger="state == 'overdue'"/>
-                <field name="activity_state" string="待辦狀態" widget="badge"
-                       decoration-success="activity_state == 'done'"
-                       decoration-danger="activity_state == 'cancelled'"/>
+                <field name="activity_status" string="Task Status" widget="badge"
+                       decoration-success="activity_status == 'done'"
+                       decoration-danger="activity_status == 'cancelled'"/>
                 <button name="action_reassign_activity" type="object"
-                        string="變更指派" icon="fa-user-plus"
+                        string="Reassign" icon="fa-user-plus"
                         invisible="not active"/>
                 <button name="action_transfer_activity" type="object"
-                        string="轉移" icon="fa-exchange"/>
+                        string="Transfer" icon="fa-exchange"/>
                 <button name="action_cancel" type="object"
-                        string="取消" icon="fa-times"
+                        string="Cancel" icon="fa-times"
                         invisible="not active"/>
             </list>
         </field>
@@ -748,7 +322,7 @@
                 <field name="importance"/>
                 <field name="estimated_hours"/>
                 <field name="active"/>
-                <field name="activity_state"/>
+                <field name="activity_status"/>
 
                 <templates>
                     <t t-name="card" class="flex-column">
@@ -762,7 +336,7 @@
                             <div class="o_kanban_record_top mb-1">
                                 <div class="o_kanban_record_headings" style="flex: 1;">
                                     <strong style="white-space: normal; word-break: break-word;">
-                                        <field name="summary" placeholder="無摘要"/>
+                                        <field name="summary" placeholder="No Summary"/>
                                     </strong>
                                 </div>
                             </div>
@@ -770,12 +344,12 @@
                             <!-- 第二列：截止日期 + 標籤 -->
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span t-attf-class="badge #{record.state.raw_value == 'overdue' ? 'text-bg-danger' : record.state.raw_value == 'today' ? 'text-bg-warning' : 'text-bg-secondary'}"
-                                      title="截止日期">
+                                      title="Due Date">
                                     <i class="fa fa-calendar-o"/> <field name="date_deadline"/>
                                 </span>
                                 <div class="d-flex align-items-center" style="gap: 4px;">
                                     <span t-if="record.urgency.raw_value == 'urgent'" class="badge text-bg-danger">
-                                        <i class="fa fa-exclamation-circle"/> 緊急
+                                        <i class="fa fa-exclamation-circle"/> Urgent
                                     </span>
                                     <span class="badge rounded-pill text-bg-light">
                                         <field name="activity_type_id"/>
@@ -785,44 +359,44 @@
 
                             <!-- 第三列：關聯文件 -->
                             <div class="text-muted small mb-1">
-                                <a type="object" name="action_open_document" title="開啟文件">
+                                <a type="object" name="action_open_document" title="Open Document">
                                     <i class="fa fa-external-link"/> <field name="res_name"/>
                                 </a>
                             </div>
 
                             <!-- 第四列：排程狀態（唯讀顯示） -->
                             <div class="small mb-1">
-                                <span class="text-muted">排程：</span>
-                                <span t-if="record.planned_date.raw_value" class="badge text-bg-info" title="計畫日期">
+                                <span class="text-muted">Schedule:</span>
+                                <span t-if="record.planned_date.raw_value" class="badge text-bg-info" title="Planned Date">
                                     <i class="fa fa-calendar-check-o"/> <field name="planned_date"/>
                                 </span>
-                                <span t-else="" class="badge text-bg-secondary" title="待排程">
-                                    <i class="fa fa-clock-o"/> 待被指派人排程
+                                <span t-else="" class="badge text-bg-secondary" title="Pending Schedule">
+                                    <i class="fa fa-clock-o"/> Pending Assignee Schedule
                                 </span>
                             </div>
 
                             <!-- 第五列：工時 + 待辦狀態 + 被指派人 -->
                             <div class="o_kanban_record_bottom mt-1 pt-1 border-top">
                                 <div class="oe_kanban_bottom_left d-flex align-items-center" style="gap: 4px;">
-                                    <span t-if="record.estimated_hours.raw_value" class="text-muted small" title="預估工時">
+                                    <span t-if="record.estimated_hours.raw_value" class="text-muted small" title="Estimated Hours">
                                         <i class="fa fa-hourglass-half"/> <field name="estimated_hours" widget="float_time"/>
                                     </span>
                                     <!-- 待辦狀態 -->
-                                    <span t-if="record.activity_state.raw_value == 'done'" class="badge text-bg-success">
-                                        <i class="fa fa-check"/> 已完成
+                                    <span t-if="record.activity_status.raw_value == 'done'" class="badge text-bg-success">
+                                        <i class="fa fa-check"/> Completed
                                     </span>
-                                    <span t-if="record.activity_state.raw_value == 'cancelled'" class="badge text-bg-danger">
-                                        <i class="fa fa-times"/> 已取消
+                                    <span t-if="record.activity_status.raw_value == 'cancelled'" class="badge text-bg-danger">
+                                        <i class="fa fa-times"/> Cancelled
                                     </span>
                                 </div>
                                 <div class="oe_kanban_bottom_right d-flex align-items-center">
                                     <t t-if="record.user_id.raw_value">
-                                        <span class="text-muted small me-1">指派給：</span>
+                                        <span class="text-muted small me-1">Assigned to:</span>
                                         <field name="user_id" widget="many2one_avatar_user"/>
                                     </t>
                                     <t t-else="">
                                         <span class="badge text-bg-light text-muted">
-                                            <i class="fa fa-user-o"/> 未指派
+                                            <i class="fa fa-user-o"/> Unassigned
                                         </span>
                                     </t>
                                 </div>
@@ -832,14 +406,14 @@
 
                     <t t-name="menu">
                         <a role="menuitem" type="edit" class="dropdown-item">
-                            <i class="fa fa-pencil fa-fw"/> 編輯
+                            <i class="fa fa-pencil fa-fw"/> Edit
                         </a>
                         <a role="menuitem" type="object" name="action_transfer_activity" class="dropdown-item">
-                            <i class="fa fa-exchange fa-fw"/> 轉移
+                            <i class="fa fa-exchange fa-fw"/> Transfer
                         </a>
                         <div class="dropdown-divider"/>
                         <a t-if="record.active.raw_value" role="menuitem" type="object" name="action_cancel" class="dropdown-item text-danger">
-                            <i class="fa fa-times fa-fw"/> 取消
+                            <i class="fa fa-times fa-fw"/> Cancel
                         </a>
                     </t>
                 </templates>
@@ -853,7 +427,7 @@
 
     <!-- Action - 我的待辦事項 -->
     <record id="action_mail_activity_my_schedule" model="ir.actions.act_window">
-        <field name="name">我的待辦事項</field>
+        <field name="name">My Tasks</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
@@ -865,8 +439,8 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">建立您的第一個待辦事項</p>
-            <p>使用 Kanban 視圖來規劃您的每週工作安排。</p>
+            <p class="o_view_nocontent_smiling_face">Create your first task</p>
+            <p>Use Kanban view to plan your weekly work schedule.</p>
         </field>
     </record>
 
@@ -880,7 +454,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <list string="尚未指派待辦"
+            <list string="Unassigned Tasks"
                   default_order="date_deadline asc, urgency desc"
                   multi_edit="1"
                   expand="1"
@@ -889,24 +463,24 @@
                 <field name="partner_id" optional="show"/>
                 <field name="project_id" optional="show"/>
                 <field name="crm_lead_id" optional="show"/>
-                <field name="summary" string="摘要"/>
+                <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
-                <field name="urgency" string="時間性" widget="badge"
+                <field name="urgency" string="Urgency" widget="badge"
                        decoration-danger="urgency == 'urgent'"
                        decoration-warning="urgency == 'standard'"
                        decoration-success="urgency == 'flexible'"/>
-                <field name="importance" string="重要性"/>
-                <field name="estimated_hours" string="預估工時" widget="float_time" sum="總計"/>
-                <field name="planned_date" string="計畫日期" optional="show"/>
-                <field name="date_deadline" string="截止日" widget="remaining_days"/>
-                <field name="schedule_status" string="排程"/>
-                <field name="schedule_week" string="週次" optional="hide"/>
-                <field name="state" string="狀態" widget="badge"
+                <field name="importance" string="Importance"/>
+                <field name="estimated_hours" string="Estimated Hours" widget="float_time" sum="Total"/>
+                <field name="planned_date" string="Planned Date" optional="show"/>
+                <field name="date_deadline" string="Due Date" widget="remaining_days"/>
+                <field name="schedule_status" string="Schedule"/>
+                <field name="schedule_week" string="Week" optional="hide"/>
+                <field name="state" string="Status" widget="badge"
                        decoration-info="state == 'planned'"
                        decoration-warning="state == 'today'"
                        decoration-danger="state == 'overdue'"/>
-                <field name="create_uid" string="建立者" widget="many2one_avatar_user"/>
-                <button name="action_claim_activity" type="object" string="領取"
+                <field name="create_uid" string="Created By" widget="many2one_avatar_user"/>
+                <button name="action_claim_activity" type="object" string="Claim"
                         icon="fa-hand-paper-o" class="btn-primary"/>
             </list>
         </field>
@@ -918,7 +492,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">20</field>
         <field name="arch" type="xml">
-            <form string="尚未指派待辦">
+            <form string="Unassigned Task">
                 <header>
                     <field name="schedule_status" widget="statusbar" clickable="1"
                            options="{'clickable': '1'}"/>
@@ -938,33 +512,33 @@
                     <div class="oe_button_box" name="button_box">
                         <button name="action_open_document" type="object"
                                 class="oe_stat_button" icon="fa-external-link">
-                            <span>開啟文件</span>
+                            <span>Open Document</span>
                         </button>
                         <button name="action_claim_activity" type="object"
                                 class="oe_stat_button" icon="fa-hand-paper-o"
                                 invisible="not active">
-                            <span>領取</span>
+                            <span>Claim</span>
                         </button>
                         <button name="action_transfer_activity" type="object"
                                 class="oe_stat_button" icon="fa-exchange">
-                            <span>轉移</span>
+                            <span>Transfer</span>
                         </button>
                     </div>
 
                     <!-- 摘要 - 置頂明顯 -->
                     <div class="oe_title">
                         <h1>
-                            <field name="summary" placeholder="請輸入待辦摘要..."/>
+                            <field name="summary" placeholder="Enter task summary..."/>
                         </h1>
                     </div>
 
                     <group>
                         <!-- 左側 -->
                         <group>
-                            <field name="activity_type_id" string="待辦類型" options="{'no_create': True}"/>
-                            <field name="date_deadline" string="截止日期"/>
-                            <field name="estimated_hours" string="預估工時" widget="float_time"/>
-                            <field name="state" string="狀態" widget="badge"
+                            <field name="activity_type_id" string="Task Type" options="{'no_create': True}"/>
+                            <field name="date_deadline" string="Due Date"/>
+                            <field name="estimated_hours" string="Estimated Hours" widget="float_time"/>
+                            <field name="state" string="Status" widget="badge"
                                    decoration-info="state == 'planned'"
                                    decoration-warning="state == 'today'"
                                    decoration-danger="state == 'overdue'"/>
@@ -972,18 +546,18 @@
 
                         <!-- 右側 -->
                         <group>
-                            <field name="urgency" string="時間性" widget="radio" options="{'horizontal': true}"/>
-                            <field name="importance" string="重要性" widget="radio" options="{'horizontal': true}"/>
-                            <field name="create_uid" string="建立者" readonly="1"/>
-                            <field name="create_date" string="建立時間" readonly="1"/>
+                            <field name="urgency" string="Urgency" widget="radio" options="{'horizontal': true}"/>
+                            <field name="importance" string="Importance" widget="radio" options="{'horizontal': true}"/>
+                            <field name="create_uid" string="Created By" readonly="1"/>
+                            <field name="create_date" string="Created Date" readonly="1"/>
                         </group>
                     </group>
 
                     <group>
                         <!-- 左側：關聯資訊 -->
-                        <group string="關聯資訊">
+                        <group string="Related Information">
                             <field name="id" invisible="1"/>
-                            <field name="target_ref" string="目標文件"
+                            <field name="target_ref" string="Target Document"
                                    readonly="id"
                                    required="not id"
                                    options="{'no_create': True}"/>
@@ -999,7 +573,7 @@
                         </group>
 
                         <!-- 右側：排程資訊 -->
-                        <group string="排程資訊">
+                        <group string="Schedule Info">
                             <field name="planned_date"/>
                             <field name="schedule_week" readonly="1"/>
                             <field name="schedule_origin" readonly="1"/>
@@ -1008,8 +582,8 @@
                     </group>
 
                     <notebook>
-                        <page string="備註" name="note">
-                            <field name="note" placeholder="添加備註..."/>
+                        <page string="Note" name="note">
+                            <field name="note" placeholder="Add note..."/>
                         </page>
                     </notebook>
                 </sheet>
@@ -1019,7 +593,7 @@
 
     <!-- Action - 尚未指派 -->
     <record id="action_mail_activity_unassigned" model="ir.actions.act_window">
-        <field name="name">尚未指派</field>
+        <field name="name">Unassigned</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('user_id', '=', False)]</field>
@@ -1033,7 +607,7 @@
 
     <!-- Action - 我的歷史代辦（我建立的 + 我被指派的） -->
     <record id="action_mail_activity_my_history" model="ir.actions.act_window">
-        <field name="name">我的歷史代辦</field>
+        <field name="name">My Task History</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="domain">['|', ('create_uid', '=', uid), ('user_id', '=', uid), ('active', '=', False)]</field>
@@ -1043,14 +617,14 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">沒有歷史代辦事項</p>
-            <p>您建立或被指派的已完成/已取消待辦會顯示在這裡。</p>
+            <p class="o_view_nocontent_smiling_face">No task history</p>
+            <p>Completed/cancelled tasks you created or were assigned to will appear here.</p>
         </field>
     </record>
 
     <!-- Action - 所有歷史代辦（管理者專用） -->
     <record id="action_mail_activity_archived" model="ir.actions.act_window">
-        <field name="name">所有歷史代辦</field>
+        <field name="name">All Task History</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('active', '=', False)]</field>
@@ -1060,14 +634,14 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">沒有歷史代辦事項</p>
-            <p>所有人的已完成或已取消待辦會顯示在這裡。</p>
+            <p class="o_view_nocontent_smiling_face">No task history</p>
+            <p>Completed or cancelled tasks from all users will appear here.</p>
         </field>
     </record>
 
     <!-- Action - 所有代辦事項（管理者專用） -->
     <record id="action_mail_activity_all" model="ir.actions.act_window">
-        <field name="name">所有代辦事項</field>
+        <field name="name">All Tasks</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[]</field>
@@ -1079,14 +653,14 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">目前沒有代辦事項</p>
-            <p>此視圖顯示所有人的代辦事項，僅限管理者檢視。</p>
+            <p class="o_view_nocontent_smiling_face">No tasks currently</p>
+            <p>This view shows all tasks from all users, accessible by managers only.</p>
         </field>
     </record>
 
     <!-- Action - 我建立的待辦 -->
     <record id="action_mail_activity_created_by_me" model="ir.actions.act_window">
-        <field name="name">我建立的待辦</field>
+        <field name="name">My Created Tasks</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('create_uid', '=', uid)]</field>
@@ -1097,8 +671,8 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_created')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">您尚未建立任何待辦</p>
-            <p>此處顯示您建立的所有待辦事項。</p>
+            <p class="o_view_nocontent_smiling_face">You haven't created any tasks yet</p>
+            <p>Tasks you create will appear here.</p>
         </field>
     </record>
 

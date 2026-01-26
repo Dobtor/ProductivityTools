@@ -7,57 +7,30 @@
     <!-- ============================================================ -->
 
     <!-- ============================================================ -->
-    <!-- 我建立的待辦（我指派給別人的）                                   -->
-    <!-- ============================================================ -->
-    <menuitem id="menu_mail_activity_created_by_me"
-              name="我建立的待辦"
-              parent="project_todo.menu_todo_todos"
-              action="action_mail_activity_created_by_me"
-              sequence="10"/>
-
-    <!-- ============================================================ -->
-    <!-- 我的歷史代辦（我建立的 + 我被指派的，已完成/已取消）               -->
-    <!-- ============================================================ -->
-    <menuitem id="menu_mail_activity_my_history"
-              name="我的歷史代辦"
-              parent="project_todo.menu_todo_todos"
-              action="action_mail_activity_my_history"
-              sequence="20"/>
-
-    <!-- ============================================================ -->
-    <!-- 尚未指派 - 所有人可見                                          -->
-    <!-- ============================================================ -->
-    <menuitem id="menu_mail_activity_unassigned"
-              name="尚未指派"
-              parent="project_todo.menu_todo_todos"
-              action="action_mail_activity_unassigned"
-              sequence="30"/>
-
-    <!-- ============================================================ -->
     <!-- 筆記本                                                        -->
     <!-- ============================================================ -->
     <menuitem id="menu_note_notes"
-              name="筆記本"
+              name="Notebook"
               parent="project_todo.menu_todo_todos"
               action="action_note_note"
-              sequence="40"/>
+              sequence="10"/>
 
     <!-- ============================================================ -->
     <!-- 週報告選單                                                     -->
     <!-- ============================================================ -->
     <menuitem id="menu_weekly_report_root"
-              name="週報告"
+              name="Weekly Report"
               parent="project_todo.menu_todo_todos"
-              sequence="50"/>
+              sequence="20"/>
 
     <menuitem id="menu_weekly_report_my"
-              name="我的報告"
+              name="My Reports"
               parent="menu_weekly_report_root"
               action="action_weekly_report"
               sequence="10"/>
 
     <menuitem id="menu_weekly_report_all"
-              name="所有週報告"
+              name="All Weekly Reports"
               parent="menu_weekly_report_root"
               action="action_weekly_report_all"
               sequence="20"
@@ -67,42 +40,69 @@
     <!-- 效率分析選單                                                   -->
     <!-- ============================================================ -->
     <menuitem id="menu_efficiency_root"
-              name="效率分析"
+              name="Efficiency Analysis"
               parent="project_todo.menu_todo_todos"
-              sequence="60"/>
+              sequence="30"/>
 
     <menuitem id="menu_efficiency_personal"
-              name="個人儀表板"
+              name="Personal Dashboard"
               parent="menu_efficiency_root"
               action="action_efficiency_personal"
               sequence="10"/>
 
     <menuitem id="menu_efficiency_team"
-              name="團隊分析"
+              name="Team Analysis"
               parent="menu_efficiency_root"
               action="action_efficiency_team"
               sequence="20"
               groups="dobtor_mail_activity.group_activity_manager"/>
 
     <menuitem id="menu_efficiency_trend"
-              name="趨勢報表"
+              name="Trend Report"
               parent="menu_efficiency_root"
               action="action_efficiency_trend"
               sequence="30"/>
 
     <menuitem id="menu_efficiency_all"
-              name="所有效率指標"
+              name="All Efficiency Metrics"
               parent="menu_efficiency_root"
               action="action_efficiency_all"
               sequence="40"
               groups="dobtor_mail_activity.group_activity_manager"/>
 
     <!-- ============================================================ -->
+    <!-- 我建立的待辦（我指派給別人的）                                   -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_mail_activity_created_by_me"
+              name="My Created Tasks"
+              parent="project_todo.menu_todo_todos"
+              action="action_mail_activity_created_by_me"
+              sequence="40"/>
+
+    <!-- ============================================================ -->
+    <!-- 我的歷史代辦（我建立的 + 我被指派的，已完成/已取消）               -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_mail_activity_my_history"
+              name="My Task History"
+              parent="project_todo.menu_todo_todos"
+              action="action_mail_activity_my_history"
+              sequence="50"/>
+
+    <!-- ============================================================ -->
+    <!-- 尚未指派 - 所有人可見                                          -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_mail_activity_unassigned"
+              name="Unassigned"
+              parent="project_todo.menu_todo_todos"
+              action="action_mail_activity_unassigned"
+              sequence="60"/>
+
+    <!-- ============================================================ -->
     <!-- 管理者專用選單                                                 -->
     <!-- ============================================================ -->
     <!-- 所有代辦事項（管理者專用） -->
     <menuitem id="menu_mail_activity_all"
-              name="所有代辦事項"
+              name="All Tasks"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_all"
               sequence="70"
@@ -110,7 +110,7 @@
 
     <!-- 所有歷史代辦（管理者專用） -->
     <menuitem id="menu_mail_activity_archived"
-              name="所有歷史代辦"
+              name="All Task History"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_archived"
               sequence="71"
@@ -120,35 +120,35 @@
     <!-- 設定選單                                                       -->
     <!-- ============================================================ -->
     <menuitem id="menu_configuration"
-              name="設定"
+              name="Settings"
               parent="project_todo.menu_todo_todos"
               sequence="100"
               groups="dobtor_mail_activity.group_activity_manager"/>
 
     <!-- 筆記階段 -->
     <menuitem id="menu_note_stage"
-              name="筆記階段"
+              name="Note Stages"
               parent="menu_configuration"
               action="action_note_stage"
               sequence="10"/>
 
     <!-- 筆記標籤 -->
     <menuitem id="menu_note_tag"
-              name="筆記標籤"
+              name="Note Tags"
               parent="menu_configuration"
               action="action_note_tag"
               sequence="20"/>
 
     <!-- 待辦轉移配置 -->
     <menuitem id="menu_mail_activity_transfer_config"
-              name="待辦轉移配置"
+              name="Task Transfer Config"
               parent="menu_configuration"
               action="action_mail_activity_transfer_config"
               sequence="30"/>
 
     <!-- 週報排程配置 -->
     <menuitem id="menu_weekly_schedule_config"
-              name="週報排程配置"
+              name="Weekly Schedule Config"
               parent="menu_configuration"
               action="action_weekly_schedule_config"
               sequence="40"/>

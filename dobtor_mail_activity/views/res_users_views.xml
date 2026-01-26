@@ -2,6 +2,31 @@
 <odoo>
 
     <!-- ============================================================ -->
+    <!--         用戶偏好設定擴展 - 預設待辦筆記設定                      -->
+    <!-- ============================================================ -->
+    <record id="res_users_preferences_view_form_inherit_productivity" model="ir.ui.view">
+        <field name="name">res.users.preferences.view.form.inherit.productivity</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <!-- Odoo 18: 在偏好設定頁面的 preference_contact group 後面新增 -->
+            <xpath expr="//page[@name='preferences_page']//group[@name='preference_contact']" position="after">
+                <group string="Task Settings" name="activity_preferences">
+                    <field name="default_activity_note_id"
+                           string="Default Task Note"
+                           domain="[('user_id', '=', id)]"
+                           context="{'default_user_id': id}"
+                           options="{'no_create_edit': True}"
+                           readonly="0"/>
+                    <span class="text-muted small">
+                        When creating a task without selecting a target document, it will be automatically linked to this note.
+                    </span>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
     <!--               用戶表單擴展 - 加入生產力設定                      -->
     <!-- ============================================================ -->
     <record id="res_users_view_form_inherit_productivity" model="ir.ui.view">
@@ -11,27 +36,37 @@
         <field name="arch" type="xml">
             <!-- 在用戶表單新增生產力設定頁籤 -->
             <xpath expr="//notebook" position="inside">
-                <page string="生產力工具" name="productivity">
-                    <group string="工作時數設定">
+                <page string="Productivity Tools" name="productivity">
+                    <group string="Task Settings">
+                        <field name="default_activity_note_id"
+                               domain="[('user_id', '=', id)]"
+                               context="{'default_user_id': id}"
+                               options="{'no_create_edit': True}"/>
+                        <div class="text-muted small" colspan="2">
+                            When creating a task without selecting a target document, it will be automatically linked to this note.
+                            If not set, the system will automatically create a "Task Inbox" note.
+                        </div>
+                    </group>
+                    <group string="Working Hours Settings">
                         <field name="weekly_committed_hours" widget="float_time"/>
                     </group>
-                    <group string="統計資訊">
+                    <group string="Statistics">
                         <field name="weekly_report_count" readonly="1"/>
                         <field name="latest_efficiency_index" readonly="1"/>
                     </group>
-                    <group string="快速操作" col="4">
+                    <group string="Quick Actions" col="4">
                         <button name="action_view_weekly_reports"
-                                string="查看週報告"
+                                string="View Weekly Reports"
                                 type="object"
                                 class="btn-secondary"
                                 icon="fa-calendar"/>
                         <button name="action_view_efficiency_metrics"
-                                string="查看效率指標"
+                                string="View Efficiency Metrics"
                                 type="object"
                                 class="btn-secondary"
                                 icon="fa-bar-chart"/>
                         <button name="action_open_weekly_schedule_config"
-                                string="週報排程設定"
+                                string="Weekly Schedule Settings"
                                 type="object"
                                 class="btn-secondary"
                                 icon="fa-cog"/>

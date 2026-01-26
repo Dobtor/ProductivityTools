@@ -14,7 +14,7 @@
                  aria-valuemin="0"
                  aria-valuemax="9"
                  t-att-aria-valuenow="props.aggregate.value"
-                 aria-label="工時進度">
+                 aria-label="Hours Progress">
             </div>
 
             <!-- 顯示原有的分類進度條（疊加在工時進度條上方） -->
@@ -50,7 +50,7 @@
                 currency="props.aggregate.currency"
                 animationClass="props.aggregate.value > 999 ? 'o_animated_grow' : 'o_animated_grow_huge'"
             />
-            <span class="ms-1 text-muted small">小時</span>
+            <span class="ms-1 text-muted small">hours</span>
         </div>
     </t>
 

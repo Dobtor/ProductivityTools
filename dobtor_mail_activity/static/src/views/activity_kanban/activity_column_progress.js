@@ -48,11 +48,11 @@ export class ActivityColumnProgress extends Component {
         const totalHours = this.props.aggregate.value || 0;
 
         if (totalHours < 8) {
-            return `${totalHours.toFixed(1)} 小時（未滿 8 小時）`;
+            return `${totalHours.toFixed(1)} hours (under 8 hours)`;
         } else if (totalHours <= 9) {
-            return `${totalHours.toFixed(1)} 小時（達成 8-9 小時目標）`;
+            return `${totalHours.toFixed(1)} hours (8-9 hours target achieved)`;
         } else {
-            return `${totalHours.toFixed(1)} 小時（超過 9 小時）`;
+            return `${totalHours.toFixed(1)} hours (over 9 hours)`;
         }
     }
 

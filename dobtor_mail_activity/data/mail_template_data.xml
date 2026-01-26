@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================================ -->
+        <!-- Meeting Minutes - Send for Signature Template                 -->
+        <!-- 會議記錄 - 寄出請求簽名郵件模板                                 -->
+        <!-- ============================================================ -->
+        <record id="mail_template_meeting_minutes" model="mail.template">
+            <field name="name">Meeting Minutes: Request for Signature</field>
+            <field name="model_id" ref="model_note_note"/>
+            <field name="subject">Meeting Minutes: {{ object.name }}</field>
+            <field name="email_from">{{ (object.user_id.email_formatted or user.email_formatted) }}</field>
+            <field name="partner_to"></field>
+            <field name="body_html" type="html">
+<div style="margin: 0px; padding: 0px;">
+    <p style="margin: 0px; padding: 0px; font-size: 13px;">
+        Dear {{ ctx.get('signer_name', 'Participant') }},
+        <br/><br/>
+        The meeting minutes for <strong>{{ object.name }}</strong> is ready for your review and signature.
+    </p>
+
+    <p style="margin: 16px 0px; padding: 0px; font-size: 13px;">
+        <strong>Meeting Details:</strong>
+    </p>
+
+    {% set first_event = object.calendar_event_ids[:1] %}
+    <table style="border-collapse: collapse; font-size: 13px;">
+        {% if first_event %}
+        <tr>
+            <td style="padding: 4px 16px 4px 0; vertical-align: top;"><strong>Date:</strong></td>
+            <td style="padding: 4px 0;">{{ first_event.start.strftime('%Y-%m-%d %H:%M') if first_event.start else '-' }}</td>
+        </tr>
+        {% endif %}
+        {% if first_event and first_event.location %}
+        <tr>
+            <td style="padding: 4px 16px 4px 0; vertical-align: top;"><strong>Location:</strong></td>
+            <td style="padding: 4px 0;">{{ first_event.location }}</td>
+        </tr>
+        {% endif %}
+        {% if object.available_signer_ids %}
+        <tr>
+            <td style="padding: 4px 16px 4px 0; vertical-align: top;"><strong>Participants:</strong></td>
+            <td style="padding: 4px 0;">{{ ', '.join(object.available_signer_ids.mapped('name')) }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td style="padding: 4px 16px 4px 0; vertical-align: top;"><strong>Prepared by:</strong></td>
+            <td style="padding: 4px 0;">{{ object.user_id.name }}</td>
+        </tr>
+    </table>
+
+    <p style="margin: 16px 0px; padding: 0px; font-size: 13px;">
+        Please click the button below to review the meeting minutes and provide your signature:
+    </p>
+
+    <p style="margin: 16px 0px; padding: 0px;">
+        <a href="{{ ctx.get('signer_portal_url', object.get_portal_url()) }}"
+           style="display: inline-block; padding: 10px 20px; background-color: #875A7B; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+            View &amp; Sign Meeting Minutes
+        </a>
+    </p>
+
+    <p style="margin: 16px 0px; padding: 0px; font-size: 13px;">
+        <strong>Note:</strong> If the button above doesn't work, you can copy and paste the following link into your browser:
+        <br/>
+        <a href="{{ ctx.get('signer_portal_url', object.get_portal_url()) }}">{{ ctx.get('signer_portal_url', object.get_portal_url()) }}</a>
+    </p>
+
+    <p style="margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;">
+        Thank you for your cooperation.
+        <br/><br/>
+        Best regards,<br/>
+        {{ object.user_id.name }}
+    </p>
+</div>
+            </field>
+            <field name="report_template_ids" eval="[(4, ref('action_report_meeting_minutes'))]"/>
+            <field name="auto_delete" eval="False"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- Meeting Minutes - Signature Complete Notification             -->
+        <!-- 會議記錄 - 簽名完成通知郵件模板                                 -->
+        <!-- ============================================================ -->
+        <record id="mail_template_meeting_signed" model="mail.template">
+            <field name="name">Meeting Minutes: All Signatures Complete</field>
+            <field name="model_id" ref="model_note_note"/>
+            <field name="subject">Meeting Minutes Signed: {{ object.name }}</field>
+            <field name="email_from">{{ (object.user_id.email_formatted or user.email_formatted) }}</field>
+            <field name="email_to">{{ object.user_id.email }}</field>
+            <field name="body_html" type="html">
+<div style="margin: 0px; padding: 0px;">
+    <p style="margin: 0px; padding: 0px; font-size: 13px;">
+        Dear {{ object.user_id.name }},
+        <br/><br/>
+        All required signers have signed the meeting minutes for <strong>{{ object.name }}</strong>.
+    </p>
+
+    <p style="margin: 16px 0px; padding: 0px; font-size: 13px;">
+        <strong>Signature Summary:</strong>
+    </p>
+
+    <table style="border-collapse: collapse; font-size: 13px; width: 100%; max-width: 500px;">
+        <thead>
+            <tr style="background-color: #f5f5f5;">
+                <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Signer</th>
+                <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Signed On</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sig in object.signature_ids.filtered('is_signed') %}
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;">{{ sig.partner_id.name }}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">{{ sig.signed_on.strftime('%Y-%m-%d %H:%M') if sig.signed_on else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p style="margin: 16px 0px; padding: 0px; font-size: 13px;">
+        You can view the complete signed meeting minutes by clicking the button below:
+    </p>
+
+    <p style="margin: 16px 0px; padding: 0px;">
+        <a href="{{ object.get_portal_url() }}"
+           style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+            View Signed Meeting Minutes
+        </a>
+    </p>
+
+    <p style="margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;">
+        Best regards,<br/>
+        {{ object.company_id.name or 'The System' }}
+    </p>
+</div>
+            </field>
+            <field name="auto_delete" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

@@ -5,6 +5,8 @@ access_mail_activity_transfer_wizard,mail.activity.transfer.wizard,model_mail_ac
 access_mail_activity_from_message_wizard,mail.activity.from.message.wizard,model_mail_activity_from_message_wizard,base.group_user,1,1,1,1
 access_mail_activity_reassign_wizard,mail.activity.reassign.wizard,model_mail_activity_reassign_wizard,base.group_user,1,1,1,1
 access_note_note,note.note,model_note_note,base.group_user,1,1,1,1
+access_note_signature_user,note.signature.user,model_note_signature,base.group_user,1,1,1,1
+access_note_signature_portal,note.signature.portal,model_note_signature,base.group_portal,1,0,0,0
 access_note_stage,note.stage,model_note_stage,base.group_user,1,1,1,1
 access_note_tag_user,note.tag.user,model_note_tag,base.group_user,1,1,1,0
 access_note_tag_admin,note.tag.admin,model_note_tag,base.group_system,1,1,1,1
@@ -23,3 +25,4 @@ access_activity_efficiency_metrics_timesheet_manager,activity.efficiency.metrics
 access_activity_efficiency_metrics_activity_manager,activity.efficiency.metrics.activity.manager,model_activity_efficiency_metrics,dobtor_mail_activity.group_activity_manager,1,1,1,1
 access_weekly_schedule_config_user,weekly.schedule.config.user,model_weekly_schedule_config,base.group_user,1,1,1,0
 access_weekly_schedule_config_admin,weekly.schedule.config.admin,model_weekly_schedule_config,base.group_system,1,1,1,1
+access_ir_model_user,ir.model.user,base.model_ir_model,base.group_user,1,0,0,0

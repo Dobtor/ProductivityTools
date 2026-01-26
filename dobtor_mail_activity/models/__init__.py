@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
+from . import account_analytic_line
+from . import calendar_event
+from . import calendar_recurrence
 from . import note_stage
 from . import note_tag
 from . import note_note
+from . import note_signature
 from . import mail_activity
 from . import mail_activity_type
 from . import mail_activity_assignment_history

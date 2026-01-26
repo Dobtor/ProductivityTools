@@ -4,8 +4,8 @@
 
         <!-- 週報排程待辦類型 -->
         <record id="mail_activity_type_weekly_report_schedule" model="mail.activity.type">
-            <field name="name">週報排程</field>
-            <field name="summary">安排本週工作計畫</field>
+            <field name="name">Weekly Schedule</field>
+            <field name="summary">Plan this week's work</field>
             <field name="category">default</field>
             <field name="delay_count">7</field>
             <field name="delay_unit">days</field>
@@ -13,12 +13,12 @@
             <field name="icon">fa-calendar-check-o</field>
             <field name="decoration_type">warning</field>
             <field name="default_description"><![CDATA[
-<p>請完成以下事項：</p>
+<p>Please complete the following:</p>
 <ol>
-    <li>回顧上週完成情況</li>
-    <li>確認本週優先事項</li>
-    <li>排程本週每日待辦</li>
-    <li>預排下週重要工作</li>
+    <li>Review last week's completion</li>
+    <li>Confirm this week's priorities</li>
+    <li>Schedule daily activities for this week</li>
+    <li>Pre-schedule important work for next week</li>
 </ol>
 ]]></field>
         </record>

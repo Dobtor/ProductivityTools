@@ -18,37 +18,37 @@ class MailActivityTransferWizard(models.TransientModel):
     - 標記待辦來源為「轉移」
     """
     _name = 'mail.activity.transfer.wizard'
-    _description = '待辦轉移精靈'
+    _description = 'Transfer Activity Wizard'
 
     # ===== 待辦資訊（唯讀）=====
     activity_id = fields.Many2one(
         'mail.activity',
-        string='待辦',
+        string='Activity',
         required=True,
         readonly=True,
         ondelete='cascade',
     )
     source_model = fields.Char(
-        string='來源模型',
+        string='Source Model',
         readonly=True,
     )
     source_id = fields.Integer(
-        string='來源記錄 ID',
+        string='Source Record ID',
         readonly=True,
     )
     source_display = fields.Char(
-        string='來源',
+        string='Source',
         compute='_compute_source_display',
     )
     activity_summary = fields.Char(
-        string='待辦摘要',
+        string='Activity Summary',
         related='activity_id.summary',
         readonly=True,
     )
 
     # ===== 目標選擇 =====
     target_ref = fields.Reference(
-        string='目標記錄',
+        string='Target Record',
         selection='_selection_target_model',
         required=True,
     )
@@ -93,7 +93,7 @@ class MailActivityTransferWizard(models.TransientModel):
                         model_name = self.env['ir.model']._get(wizard.source_model).name
                         wizard.source_display = f'{record.display_name} ({model_name})'
                     else:
-                        wizard.source_display = _('(記錄已刪除)')
+                        wizard.source_display = _('(Record deleted)')
                 except Exception as e:
                     _logger.debug('Failed to compute source_display: %s', str(e))
                     wizard.source_display = f'ID {wizard.source_id} ({wizard.source_model})'
@@ -105,24 +105,24 @@ class MailActivityTransferWizard(models.TransientModel):
         self.ensure_one()
 
         if not self.target_ref:
-            raise UserError(_('請選擇目標記錄。'))
+            raise UserError(_('Please select a target record.'))
 
         # 檢查目標記錄存在
         if not self.target_ref.exists():
-            raise UserError(_('目標記錄不存在。'))
+            raise UserError(_('Target record does not exist.'))
 
         # 檢查待辦存在且有效
         if not self.activity_id.exists():
-            raise UserError(_('待辦記錄不存在。'))
+            raise UserError(_('Activity record does not exist.'))
 
         if not self.activity_id.active:
-            raise UserError(_('此待辦已封存，無法轉移。'))
+            raise UserError(_('This activity is archived and cannot be transferred.'))
 
         # 檢查目標不是同一個記錄
         target_model = self.target_ref._name
         target_id = self.target_ref.id
         if target_model == self.source_model and target_id == self.source_id:
-            raise UserError(_('目標記錄與來源相同，無需轉移。'))
+            raise UserError(_('Target record is the same as source, no need to transfer.'))
 
     def _prepare_transfer_values(self):
         """準備轉移更新值"""

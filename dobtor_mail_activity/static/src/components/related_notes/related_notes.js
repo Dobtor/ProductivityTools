@@ -8,7 +8,7 @@ export class RelatedNotes extends Component {
     static template = "dobtor_mail_activity.RelatedNotes";
     static props = {
         resModel: { type: String },
-        resId: { type: Number },
+        resId: { type: [Number, { value: false }], optional: true },
     };
 
     setup() {
@@ -19,11 +19,13 @@ export class RelatedNotes extends Component {
             isExpanded: true,
             expandedNotes: {},
             notes: [],
-            isLoading: true,
+            isLoading: false,
         });
 
         onWillStart(async () => {
-            await this.loadNotes();
+            if (this.props.resId) {
+                await this.loadNotes();
+            }
         });
     }
 
@@ -31,6 +33,11 @@ export class RelatedNotes extends Component {
      * 載入關聯筆記
      */
     async loadNotes() {
+        if (!this.props.resModel || !this.props.resId) {
+            this.state.notes = [];
+            return;
+        }
+
         this.state.isLoading = true;
         try {
             const notes = await this.orm.call(
