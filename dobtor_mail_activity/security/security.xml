@@ -117,14 +117,12 @@
             <field name="perm_unlink" eval="True"/>
         </record>
 
-        <!-- Portal 用戶可存取其參與或需簽名的會議記錄 -->
+        <!-- Portal 用戶可存取其需簽名的會議記錄 -->
         <record id="note_note_rule_portal" model="ir.rule">
             <field name="name">Note: Portal Access Meeting Minutes</field>
             <field name="model_id" ref="model_note_note"/>
             <field name="domain_force">[
                 ('note_type', '=', 'meeting'),
-                '|',
-                ('participant_ids', 'in', [user.partner_id.id]),
                 ('signer_ids', 'in', [user.partner_id.id])
             ]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
