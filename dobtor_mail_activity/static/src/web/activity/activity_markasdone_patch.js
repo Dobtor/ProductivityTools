@@ -80,4 +80,76 @@ patch(ActivityMarkAsDone.prototype, {
 
         this.props.onActivityChanged(thread);
     },
+
+    /**
+     * 轉移：開啟轉移 wizard
+     */
+    async onClickTransfer() {
+        const { res_id, res_model } = this.props.activity;
+        const thread = this.env.services["mail.store"].Thread.insert({
+            model: res_model,
+            id: res_id,
+        });
+
+        if (this.props.close) {
+            this.props.close();
+        }
+
+        await new Promise((resolve) => {
+            this.env.services.action.doAction(
+                {
+                    type: "ir.actions.act_window",
+                    name: "Transfer",
+                    res_model: "mail.activity.transfer.wizard",
+                    view_mode: "form",
+                    views: [[false, "form"]],
+                    target: "new",
+                    context: {
+                        default_activity_id: this.props.activity.id,
+                    },
+                },
+                {
+                    onClose: resolve,
+                }
+            );
+        });
+
+        this.props.onActivityChanged(thread);
+    },
+
+    /**
+     * 變更指派：開啟重新指派 wizard
+     */
+    async onClickReassign() {
+        const { res_id, res_model } = this.props.activity;
+        const thread = this.env.services["mail.store"].Thread.insert({
+            model: res_model,
+            id: res_id,
+        });
+
+        if (this.props.close) {
+            this.props.close();
+        }
+
+        await new Promise((resolve) => {
+            this.env.services.action.doAction(
+                {
+                    type: "ir.actions.act_window",
+                    name: "Reassign",
+                    res_model: "mail.activity.reassign.wizard",
+                    view_mode: "form",
+                    views: [[false, "form"]],
+                    target: "new",
+                    context: {
+                        default_activity_id: this.props.activity.id,
+                    },
+                },
+                {
+                    onClose: resolve,
+                }
+            );
+        });
+
+        this.props.onActivityChanged(thread);
+    },
 });

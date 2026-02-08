@@ -26,7 +26,7 @@ msgid ""
 msgstr ""
 "\n"
 "\n"
-"--- %s 已重新指派 ---\n"
+"--- %s 已變更指派 ---\n"
 "從 %s 到 %s"
 
 #. module: dobtor_mail_activity
@@ -39,7 +39,7 @@ msgid ""
 msgstr ""
 "\n"
 "\n"
-"--- %s 已重新指派給 %s ---"
+"--- %s 已變更指派給 %s ---"
 
 #. module: dobtor_mail_activity
 #. odoo-python
@@ -401,7 +401,7 @@ msgstr "<span>延期至下週</span>"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_created
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
 msgid "<span>Reassign</span>"
-msgstr "<span>重新指派</span>"
+msgstr "<span>變更指派</span>"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_created
@@ -1755,7 +1755,7 @@ msgstr "說明變更原因（選填）..."
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_reassign_wizard__reason
 msgid "Explain the reason for reassignment"
-msgstr "說明重新指派的原因"
+msgstr "說明變更指派的原因"
 
 #. module: dobtor_mail_activity
 #. odoo-python
@@ -2178,11 +2178,15 @@ msgid "Loading week info..."
 msgstr "載入週次資訊中..."
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
 msgid "Log and Continue"
 msgstr "登記並繼續"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
 msgid "Log time only, do not complete activity"
 msgstr "僅登記時間，不完成待辦"
@@ -3052,7 +3056,9 @@ msgstr "延期原因"
 
 #. module: dobtor_mail_activity
 #. odoo-python
+#. odoo-javascript
 #: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_postpone_wizard
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
@@ -3190,26 +3196,28 @@ msgid "Reason for this assignment change"
 msgstr "此次指派變更的原因"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_created
 msgid "Reassign"
-msgstr "重新指派"
+msgstr "變更指派"
 
 #. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_reassign_wizard
 msgid "Reassign Activity Wizard"
-msgstr "重新指派待辦精靈"
+msgstr "變更指派待辦精靈"
 
 #. module: dobtor_mail_activity
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_reassign_wizard
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_reassign_wizard_view_form
 msgid "Reassign Activity"
-msgstr "重新指派待辦"
+msgstr "變更指派待辦"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/wizards/mail_activity_reassign_wizard.py:0
 msgid "Reassignment"
-msgstr "重新指派"
+msgstr "變更指派"
 
 #. module: dobtor_mail_activity
 #: code:addons/dobtor_mail_activity/static/src/components/week_selector/week_selector.xml:0
@@ -3829,7 +3837,7 @@ msgstr "此待辦已封存，無法延期。"
 #. odoo-python
 #: code:addons/dobtor_mail_activity/wizards/mail_activity_reassign_wizard.py:0
 msgid "This activity is archived and cannot be reassigned."
-msgstr "此待辦已封存，無法重新指派。"
+msgstr "此待辦已封存，無法變更指派。"
 
 #. module: dobtor_mail_activity
 #. odoo-python
@@ -3943,6 +3951,8 @@ msgid "Track how your efficiency metrics change over time."
 msgstr "追蹤您的效率指標隨時間的變化。"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_popup_inherit
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_created

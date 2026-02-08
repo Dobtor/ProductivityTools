@@ -124,5 +124,5 @@ Main Features:
     'auto_install': False,
     'application': True,
     'license': 'LGPL-3',
-    'post_init_hook': '_create_default_note_stages_for_existing_users',
+    'post_init_hook': '_post_init_hook',
 }

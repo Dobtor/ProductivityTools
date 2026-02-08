@@ -125,6 +125,7 @@
                         <field name="res_model_id" invisible="1"/>
                         <field name="res_id" invisible="1"/>
                         <field name="target_ref" string="Target Document"
+                               readonly="id"
                                options="{'no_create': True}"/>
                     </group>
 
