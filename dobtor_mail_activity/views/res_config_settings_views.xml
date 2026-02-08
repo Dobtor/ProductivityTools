@@ -14,7 +14,7 @@
                     <block title="Timesheet Settings" name="timesheet_settings">
                         <setting id="default_timesheet_project_setting"
                                  string="Default Timesheet Project"
-                                 help="When a task is completed without a linked project, use this default project to create timesheet entries.">
+                                 help="When an activity is completed without a linked project, use this default project to create timesheet entries.">
                             <field name="timesheet_project_id"
                                    domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
                         </setting>

@@ -49,8 +49,8 @@
                                 <div class="oe_kanban_bottom_right d-flex align-items-center">
                                     <span t-if="record.note_active_activity_count.raw_value > 0"
                                           class="badge text-bg-primary me-2"
-                                          title="Active Tasks">
-                                        <i class="fa fa-tasks" title="Tasks"/>
+                                          title="Active Activities">
+                                        <i class="fa fa-tasks" title="Activities"/>
                                         <field name="note_active_activity_count"/>
                                     </span>
                                     <field name="user_id" widget="many2one_avatar_user"/>
@@ -104,7 +104,7 @@
                 <field name="activity_ids" string="Next Activity" widget="list_activity"/>
                 <field name="signed_count" string="Signed" optional="hide"/>
                 <field name="signature_count" string="Total Signers" optional="hide"/>
-                <field name="note_active_activity_count" string="Active Tasks" optional="hide"/>
+                <field name="note_active_activity_count" string="Active Activities" optional="hide"/>
                 <field name="open" string="Open" optional="hide"/>
                 <field name="date_done" string="Completed Date" optional="hide"/>
                 <field name="active" column_invisible="1"/>
@@ -262,7 +262,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Related Tasks" name="activities" invisible="note_activity_count == 0">
+                        <page string="Related Activities" name="activities" invisible="note_activity_count == 0">
                             <field name="note_activity_ids" context="{'active_test': False}">
                                 <list>
                                     <field name="summary" string="Summary"/>
@@ -388,7 +388,7 @@
         <field name="search_view_id" ref="view_note_note_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first note</p>
-            <p>Use the notebook to record ideas, tasks, and important information.</p>
+            <p>Use the notebook to record ideas, activities, and important information.</p>
         </field>
     </record>
 

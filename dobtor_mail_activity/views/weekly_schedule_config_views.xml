@@ -50,10 +50,10 @@
                 </sheet>
                 <footer>
                     <button name="action_create_activity_now"
-                            string="Create Task Now"
+                            string="Create Activity Now"
                             type="object"
                             class="btn-primary"
-                            confirm="Are you sure you want to create the weekly schedule task now?"/>
+                            confirm="Are you sure you want to create the weekly schedule activity now?"/>
                 </footer>
             </form>
         </field>
@@ -121,7 +121,7 @@
                 Create Weekly Schedule Config
             </p>
             <p>
-                After configuration, the system will automatically create weekly schedule tasks on the specified day to remind users to arrange their weekly work.
+                After configuration, the system will automatically create weekly schedule activities on the specified day to remind users to arrange their weekly work.
             </p>
         </field>
     </record>

@@ -16,26 +16,18 @@ export class ActivityKanbanHeader extends KanbanHeader {
 
     /**
      * 取得當前週的日期資訊
-     * @returns {string|null} 日期字串，如果沒有則返回 null
+     * @returns {string|null} 日期字串 (YYYY-MM-DD)，如果沒有則返回 null
      */
     get columnDate() {
-        // 從 group 的 serverValue 取得欄位 key
         const groupKey = this.props.group.serverValue;
-
-        // 週天對應的 schedule_status 值
-        const keyToWeekday = {
-            'monday': 'Monday',
-            'tuesday': 'Tuesday',
-            'wednesday': 'Wednesday',
-            'thursday': 'Thursday',
-            'friday': 'Friday',
-            'saturday': 'Saturday',
-            'sunday': 'Sunday',
-            'waiting': 'Waiting Schedule'
-        };
-
-        // 這裡應該從控制器獲取日期資訊，但由於組件分離，
-        // 我們使用 DOM 操作在控制器的 _updateColumnHeaders 方法中處理
+        if (!groupKey || groupKey === 'waiting') {
+            return null;
+        }
+        // 從 env.activityWeekDates 取得日期（由 controller 透過 useSubEnv 提供的響應式狀態）
+        const weekDates = this.env.activityWeekDates?.dates;
+        if (weekDates && weekDates[groupKey]) {
+            return weekDates[groupKey];
+        }
         return null;
     }
 }

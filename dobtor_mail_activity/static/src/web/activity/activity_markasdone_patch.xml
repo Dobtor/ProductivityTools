@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 在 ActivityMarkAsDone 的按鈕區加入「登錄並繼續」和「延期至下週」 -->
+    <t t-name="mail.ActivityMarkAsDone" t-inherit="mail.ActivityMarkAsDone" t-inherit-mode="extension">
+        <!-- 在 Discard 按鈕前插入兩個按鈕 -->
+        <xpath expr="//button[t-on-click='props.close']" position="before">
+            <button type="button" class="btn btn-sm btn-secondary mx-1"
+                    aria-label="Log and Continue"
+                    title="Log time only, do not complete activity"
+                    t-on-click="onClickLogAndContinue">
+                Log and Continue
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary mx-1"
+                    aria-label="Postpone to Next Week"
+                    t-on-click="onClickPostpone">
+                Postpone to Next Week
+            </button>
+        </xpath>
+    </t>
+
+</templates>

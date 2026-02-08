@@ -80,7 +80,7 @@
                 <group expand="0" string="Group By">
                     <filter string="By Week" name="group_by_schedule_week"
                             context="{'group_by': 'schedule_week'}"/>
-                    <filter string="By Task Status" name="group_by_activity_status"
+                    <filter string="By Activity Status" name="group_by_activity_status"
                             context="{'group_by': 'activity_status'}"/>
                     <filter string="By Schedule Status" name="group_by_schedule_status"
                             context="{'group_by': 'schedule_status'}"/>
@@ -123,7 +123,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">25</field>
         <field name="arch" type="xml">
-            <form string="My Created Tasks">
+            <form string="My Created Activities">
                 <sheet>
                     <!-- 隱藏欄位 -->
                     <field name="active" invisible="1"/>
@@ -158,21 +158,22 @@
                     <!-- 提示訊息 -->
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-info-circle"/>
-                        <span class="ms-1">You are the creator of this task. Schedule operations (planned date, schedule status) can only be set by the assignee.</span>
+                        <span class="ms-1">You are the creator of this activity. Schedule operations (planned date, schedule status) can only be set by the assignee.</span>
                     </div>
 
                     <!-- 摘要 -->
                     <div class="oe_title">
                         <h1>
-                            <field name="summary" placeholder="Enter task summary..."/>
+                            <field name="summary" placeholder="Enter activity summary..."/>
                         </h1>
                     </div>
 
                     <group>
                         <!-- 左側 -->
                         <group>
-                            <field name="activity_type_id" string="Task Type" options="{'no_create': True}"/>
-                            <field name="date_deadline" string="Due Date"/>
+                            <field name="activity_type_id" string="Activity Type" options="{'no_create': True}"/>
+                            <field name="date_deadline" string="Due Date"
+                                   readonly="id and create_uid != uid"/>
                             <field name="estimated_hours" string="Estimated Hours" widget="float_time"/>
                             <field name="state" string="Status" widget="badge"
                                    decoration-info="state == 'planned'"
@@ -184,7 +185,8 @@
                         <group>
                             <field name="urgency" string="Urgency" widget="radio" options="{'horizontal': true}"/>
                             <field name="importance" string="Importance" widget="radio" options="{'horizontal': true}"/>
-                            <field name="user_id" string="Assign To" options="{'no_create': True}"/>
+                            <field name="user_id" string="Assign To" options="{'no_create': True}"
+                                   readonly="id"/>
                             <field name="create_date" string="Created Date" readonly="1"/>
                         </group>
                     </group>
@@ -242,7 +244,7 @@
                         <page string="Message Source" name="source_message" invisible="not source_message_id">
                             <group>
                                 <div class="alert alert-info" role="alert">
-                                    <strong>This task was created from a message</strong>
+                                    <strong>This activity was created from a message</strong>
                                     <button name="action_open_source_message" type="object"
                                             class="btn btn-sm btn-primary ms-3">
                                         <i class="fa fa-external-link"/> View Original Message
@@ -255,6 +257,7 @@
                         </page>
                     </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>
@@ -266,27 +269,31 @@
         <field name="name">mail.activity.view.list.created</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <list string="My Created Tasks"
+            <list string="My Created Activities"
+                  js_class="activity_list"
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
                 <field name="active" column_invisible="1"/>
                 <field name="summary"/>
                 <field name="activity_type_id"/>
-                <field name="user_id" string="Assign To" widget="many2one_avatar_user"/>
+                <field name="user_id" string="Assign To" widget="many2one_avatar_user"
+                       readonly="id"/>
                 <field name="urgency" widget="badge"
                        decoration-danger="urgency == 'urgent'"
                        decoration-warning="urgency == 'standard'"
                        decoration-success="urgency == 'flexible'"/>
                 <field name="importance"/>
                 <field name="estimated_hours" widget="float_time"/>
-                <field name="date_deadline"/>
-                <field name="planned_date" string="Planned Date (Set by Assignee)"/>
-                <field name="schedule_status" string="Schedule Status"/>
+                <field name="date_deadline"
+                       readonly="id and create_uid != uid"/>
+                <field name="planned_date" string="Planned Date (Set by Assignee)"
+                       readonly="1"/>
+                <field name="schedule_status" string="Schedule Status" widget="schedule_day"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'planned'"
                        decoration-warning="state == 'today'"
                        decoration-danger="state == 'overdue'"/>
-                <field name="activity_status" string="Task Status" widget="badge"
+                <field name="activity_status" string="Activity Status" widget="badge"
                        decoration-success="activity_status == 'done'"
                        decoration-danger="activity_status == 'cancelled'"/>
                 <button name="action_reassign_activity" type="object"
@@ -427,7 +434,7 @@
 
     <!-- Action - 我的待辦事項 -->
     <record id="action_mail_activity_my_schedule" model="ir.actions.act_window">
-        <field name="name">My Tasks</field>
+        <field name="name">My Activities</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
@@ -439,7 +446,7 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first task</p>
+            <p class="o_view_nocontent_smiling_face">Create your first activity</p>
             <p>Use Kanban view to plan your weekly work schedule.</p>
         </field>
     </record>
@@ -454,7 +461,8 @@
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <list string="Unassigned Tasks"
+            <list string="Unassigned Activities"
+                  js_class="activity_list"
                   default_order="date_deadline asc, urgency desc"
                   multi_edit="1"
                   expand="1"
@@ -471,9 +479,11 @@
                        decoration-success="urgency == 'flexible'"/>
                 <field name="importance" string="Importance"/>
                 <field name="estimated_hours" string="Estimated Hours" widget="float_time" sum="Total"/>
-                <field name="planned_date" string="Planned Date" optional="show"/>
-                <field name="date_deadline" string="Due Date" widget="remaining_days"/>
-                <field name="schedule_status" string="Schedule"/>
+                <field name="planned_date" string="Planned Date" optional="show"
+                       readonly="1"/>
+                <field name="date_deadline" string="Due Date" widget="remaining_days"
+                       readonly="id and create_uid != uid"/>
+                <field name="schedule_status" string="Schedule" widget="schedule_day"/>
                 <field name="schedule_week" string="Week" optional="hide"/>
                 <field name="state" string="Status" widget="badge"
                        decoration-info="state == 'planned'"
@@ -492,7 +502,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">20</field>
         <field name="arch" type="xml">
-            <form string="Unassigned Task">
+            <form string="Unassigned Activity">
                 <header>
                     <field name="schedule_status" widget="statusbar" clickable="1"
                            options="{'clickable': '1'}"/>
@@ -528,15 +538,16 @@
                     <!-- 摘要 - 置頂明顯 -->
                     <div class="oe_title">
                         <h1>
-                            <field name="summary" placeholder="Enter task summary..."/>
+                            <field name="summary" placeholder="Enter activity summary..."/>
                         </h1>
                     </div>
 
                     <group>
                         <!-- 左側 -->
                         <group>
-                            <field name="activity_type_id" string="Task Type" options="{'no_create': True}"/>
-                            <field name="date_deadline" string="Due Date"/>
+                            <field name="activity_type_id" string="Activity Type" options="{'no_create': True}"/>
+                            <field name="date_deadline" string="Due Date"
+                                   readonly="id and create_uid != uid"/>
                             <field name="estimated_hours" string="Estimated Hours" widget="float_time"/>
                             <field name="state" string="Status" widget="badge"
                                    decoration-info="state == 'planned'"
@@ -574,7 +585,7 @@
 
                         <!-- 右側：排程資訊 -->
                         <group string="Schedule Info">
-                            <field name="planned_date"/>
+                            <field name="planned_date" readonly="1"/>
                             <field name="schedule_week" readonly="1"/>
                             <field name="schedule_origin" readonly="1"/>
                             <field name="schedule_warning" invisible="not schedule_warning"/>
@@ -587,6 +598,7 @@
                         </page>
                     </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>
@@ -607,7 +619,7 @@
 
     <!-- Action - 我的歷史代辦（我建立的 + 我被指派的） -->
     <record id="action_mail_activity_my_history" model="ir.actions.act_window">
-        <field name="name">My Task History</field>
+        <field name="name">My Activity History</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="domain">['|', ('create_uid', '=', uid), ('user_id', '=', uid), ('active', '=', False)]</field>
@@ -617,14 +629,14 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">No task history</p>
-            <p>Completed/cancelled tasks you created or were assigned to will appear here.</p>
+            <p class="o_view_nocontent_smiling_face">No activity history</p>
+            <p>Completed/cancelled activities you created or were assigned to will appear here.</p>
         </field>
     </record>
 
     <!-- Action - 所有歷史代辦（管理者專用） -->
     <record id="action_mail_activity_archived" model="ir.actions.act_window">
-        <field name="name">All Task History</field>
+        <field name="name">All Activity History</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('active', '=', False)]</field>
@@ -634,14 +646,14 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">No task history</p>
-            <p>Completed or cancelled tasks from all users will appear here.</p>
+            <p class="o_view_nocontent_smiling_face">No activity history</p>
+            <p>Completed or cancelled activities from all users will appear here.</p>
         </field>
     </record>
 
     <!-- Action - 所有代辦事項（管理者專用） -->
     <record id="action_mail_activity_all" model="ir.actions.act_window">
-        <field name="name">All Tasks</field>
+        <field name="name">All Activities</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[]</field>
@@ -653,14 +665,14 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">No tasks currently</p>
-            <p>This view shows all tasks from all users, accessible by managers only.</p>
+            <p class="o_view_nocontent_smiling_face">No activities currently</p>
+            <p>This view shows all activities from all users, accessible by managers only.</p>
         </field>
     </record>
 
     <!-- Action - 我建立的待辦 -->
     <record id="action_mail_activity_created_by_me" model="ir.actions.act_window">
-        <field name="name">My Created Tasks</field>
+        <field name="name">My Created Activities</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('create_uid', '=', uid)]</field>
@@ -671,8 +683,8 @@
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_created')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">You haven't created any tasks yet</p>
-            <p>Tasks you create will appear here.</p>
+            <p class="o_view_nocontent_smiling_face">You haven't created any activities yet</p>
+            <p>Activities you create will appear here.</p>
         </field>
     </record>
 

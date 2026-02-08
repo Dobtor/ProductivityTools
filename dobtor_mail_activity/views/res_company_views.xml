@@ -19,7 +19,7 @@
                     </group>
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-info-circle me-1"/>
-                        When a task is completed without a linked project, the system will use this default project to create timesheet entries.
+                        When an activity is completed without a linked project, the system will use this default project to create timesheet entries.
                         Please ensure the selected project has timesheet feature enabled.
                     </div>
                 </page>

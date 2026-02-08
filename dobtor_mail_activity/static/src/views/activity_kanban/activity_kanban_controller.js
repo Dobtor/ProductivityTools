@@ -3,7 +3,7 @@
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { useState, onWillStart, onMounted, onPatched } from "@odoo/owl";
+import { useState, onWillStart, onMounted, useSubEnv } from "@odoo/owl";
 
 export class ActivityKanbanController extends KanbanController {
     static template = "dobtor_mail_activity.ActivityKanbanView";
@@ -21,6 +21,10 @@ export class ActivityKanbanController extends KanbanController {
             isLoading: true,
         });
 
+        // 週次日期狀態（透過 subEnv 傳遞給子元件，如 ActivityKanbanHeader）
+        this.weekDatesState = useState({ dates: {} });
+        useSubEnv({ activityWeekDates: this.weekDatesState });
+
         // 基礎 domain（排除週次篩選）
         this._baseDomain = null;
 
@@ -32,11 +36,7 @@ export class ActivityKanbanController extends KanbanController {
         });
 
         onMounted(() => {
-            this._updateColumnHeaders();
-        });
-
-        onPatched(() => {
-            this._updateColumnHeaders();
+            this._updateModelContext(this.weekState.currentWeek);
         });
     }
 
@@ -83,15 +83,61 @@ export class ActivityKanbanController extends KanbanController {
         // 建立包含週次篩選的 domain
         const weekDomain = this._buildWeekDomain(weekNumber);
 
-        // 重新載入資料
+        // 將目前週次寫入 model root config context，供 load() 傳播給新建的 groups/records
+        this._updateModelContext(weekNumber);
+
+        // 重新載入資料（groups/records 會從 root config context 繼承週次資訊）
         await this.model.root.load({ domain: weekDomain });
         this.model.notify();
 
+        // load() 後再次更新，確保所有新建的 groups/records 都有正確的 context
+        this._updateModelContext(weekNumber);
+
         // 重新載入週次資訊
         await this._loadWeekInfo();
+    }
 
-        // 更新欄位標題
-        this._updateColumnHeaders();
+    /**
+     * 更新 model context 以傳遞目前週次給後端
+     */
+    _updateModelContext(weekNumber) {
+        const currentWeekInfo = this.weekState.weeks.find(w => w.number === weekNumber);
+        const dates = currentWeekInfo ? currentWeekInfo.dates : {};
+
+        // 更新響應式狀態，讓 ActivityKanbanHeader 自動重新渲染
+        this.weekDatesState.dates = dates;
+
+        // 更新 root config context，使 load() 時自動傳播到新建的 groups/records
+        if (this.model.root.config) {
+            this.model.root.config.context = {
+                ...this.model.root.config.context,
+                schedule_current_week: weekNumber,
+                schedule_week_dates: dates,
+            };
+        }
+
+        // 同步更新已存在的 groups 和 records（供立即拖曳使用）
+        for (const group of this.model.root.groups || []) {
+            if (group.config && group.config.context) {
+                group.config.context = {
+                    ...group.config.context,
+                    schedule_current_week: weekNumber,
+                    schedule_week_dates: dates,
+                };
+            }
+            // 更新 group 下所有 record 的 context
+            if (group.list && group.list.records) {
+                for (const record of group.list.records) {
+                    if (record.config && record.config.context) {
+                        record.config.context = {
+                            ...record.config.context,
+                            schedule_current_week: weekNumber,
+                            schedule_week_dates: dates,
+                        };
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -161,65 +207,12 @@ export class ActivityKanbanController extends KanbanController {
     }
 
     /**
-     * 更新欄位標題加入日期
+     * 更新欄位標題加入日期（已改由 ActivityKanbanHeader 透過 group context 直接顯示）
+     * 此方法保留作為備用，不再做 DOM 操作
      */
     _updateColumnHeaders() {
-        if (!this.weekState.weeks.length) return;
-
-        const currentWeekInfo = this.weekState.weeks.find(w => w.number === this.weekState.currentWeek);
-        if (!currentWeekInfo) return;
-
-        const dates = currentWeekInfo.dates || {};
-
-        // 週天對應的 schedule_status 值
-        const titleToKey = {
-            'Monday': 'monday',
-            'Tuesday': 'tuesday',
-            'Wednesday': 'wednesday',
-            'Thursday': 'thursday',
-            'Friday': 'friday',
-            'Saturday': 'saturday',
-            'Sunday': 'sunday',
-            'Waiting Schedule': 'waiting'
-        };
-
-        // 延遲執行以確保 DOM 已更新
-        setTimeout(() => {
-            const groups = document.querySelectorAll('.o_kanban_group');
-            groups.forEach(col => {
-                const headerTitle = col.querySelector('.o_kanban_header_title');
-                const header = headerTitle?.querySelector('.o_column_title');
-
-                if (!header) return;
-
-                // 移除舊的日期標記
-                const oldDateInfo = header.querySelector('.week-date-info');
-                if (oldDateInfo) {
-                    oldDateInfo.remove();
-                }
-
-                // 取得 group key
-                let groupKey = '';
-                const dataId = col.dataset.id || '';
-                if (dataId) {
-                    groupKey = String(dataId).toLowerCase();
-                }
-                if (!groupKey || !dates[groupKey]) {
-                    const titleText = header.textContent.trim();
-                    groupKey = titleToKey[titleText] || '';
-                }
-
-                // 加入日期資訊（插入到標題元素內部）
-                if (groupKey && dates[groupKey]) {
-                    const dateSpan = document.createElement('span');
-                    dateSpan.className = 'week-date-info';
-                    // 顯示完整日期 YYYY-MM-DD
-                    const dateStr = dates[groupKey];
-                    dateSpan.textContent = ' ' + dateStr;
-                    header.appendChild(dateSpan);
-                }
-            });
-        }, 100);
+        // 日期顯示已移至 ActivityKanbanHeader 元件，
+        // 透過 group.context.schedule_week_dates 取得日期資訊
     }
 
     /**

@@ -11,15 +11,15 @@
         <field name="arch" type="xml">
             <!-- Odoo 18: 在偏好設定頁面的 preference_contact group 後面新增 -->
             <xpath expr="//page[@name='preferences_page']//group[@name='preference_contact']" position="after">
-                <group string="Task Settings" name="activity_preferences">
+                <group string="Activity Settings" name="activity_preferences">
                     <field name="default_activity_note_id"
-                           string="Default Task Note"
+                           string="Default Activity Note"
                            domain="[('user_id', '=', id)]"
                            context="{'default_user_id': id}"
                            options="{'no_create_edit': True}"
                            readonly="0"/>
                     <span class="text-muted small">
-                        When creating a task without selecting a target document, it will be automatically linked to this note.
+                        When creating an activity without selecting a target document, it will be automatically linked to this note.
                     </span>
                 </group>
             </xpath>
@@ -37,14 +37,14 @@
             <!-- 在用戶表單新增生產力設定頁籤 -->
             <xpath expr="//notebook" position="inside">
                 <page string="Productivity Tools" name="productivity">
-                    <group string="Task Settings">
+                    <group string="Activity Settings">
                         <field name="default_activity_note_id"
                                domain="[('user_id', '=', id)]"
                                context="{'default_user_id': id}"
                                options="{'no_create_edit': True}"/>
                         <div class="text-muted small" colspan="2">
-                            When creating a task without selecting a target document, it will be automatically linked to this note.
-                            If not set, the system will automatically create a "Task Inbox" note.
+                            When creating an activity without selecting a target document, it will be automatically linked to this note.
+                            If not set, the system will automatically create an "Activity Inbox" note.
                         </div>
                     </group>
                     <group string="Working Hours Settings">

@@ -103,7 +103,7 @@
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Task</th>
+                                        <th>Activity</th>
                                         <th>Assignee</th>
                                         <th>Due Date</th>
                                     </tr>

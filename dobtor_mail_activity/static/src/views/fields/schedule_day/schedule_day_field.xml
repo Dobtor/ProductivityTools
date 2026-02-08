@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_mail_activity.ScheduleDayField" t-inherit="web.SelectionField" t-inherit-mode="primary">
+        <xpath expr="//span[@t-esc='string']" position="attributes">
+            <attribute name="t-att-class">badgeClass</attribute>
+            <attribute name="class">badge</attribute>
+        </xpath>
+    </t>
+
+</templates>

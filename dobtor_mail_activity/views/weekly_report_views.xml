@@ -157,7 +157,7 @@
                 <field name="total_planned_hours" widget="float_time" string="This Week Plan"/>
                 <field name="total_review_actual_hours" widget="float_time" string="Last Week Actual"/>
                 <field name="completion_rate" widget="progressbar"/>
-                <field name="inserted_count" string="Inserted Tasks"/>
+                <field name="inserted_count" string="Inserted Activities"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'draft'"
                        decoration-success="state == 'confirmed'"/>

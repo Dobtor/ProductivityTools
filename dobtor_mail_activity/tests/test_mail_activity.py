@@ -185,8 +185,8 @@ class TestMailActivity(TransactionCase):
             'user_id': self.user.id,
         })
 
-        # 變更指派
-        activity.write({'user_id': user2.id})
+        # 變更指派（需要 allow_user_change context 繞過建立後唯讀限制）
+        activity.with_context(allow_user_change=True).write({'user_id': user2.id})
 
         # 檢查歷史記錄
         self.assertEqual(len(activity.assignment_history_ids), 1)

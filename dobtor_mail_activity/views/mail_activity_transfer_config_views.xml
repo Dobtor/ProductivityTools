@@ -43,7 +43,7 @@
     <!--                轉移配置 Action                                -->
     <!-- ============================================================ -->
     <record id="action_mail_activity_transfer_config" model="ir.actions.act_window">
-        <field name="name">Task Transfer Config</field>
+        <field name="name">Activity Transfer Config</field>
         <field name="res_model">mail.activity.transfer.config</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
@@ -51,7 +51,7 @@
                 Add allowed transfer target models
             </p>
             <p>
-                Configure which models can be used as task transfer targets.
+                Configure which models can be used as activity transfer targets.
                 If no models are configured, all models supporting mail thread will be allowed.
             </p>
         </field>

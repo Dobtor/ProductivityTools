@@ -406,7 +406,8 @@ class MailActivity(models.Model):
     def _onchange_target_ref(self):
         """當選擇目標文件時，立即更新 res_model_id 和 res_id
 
-        當清空 target_ref 時，自動關聯到用戶的預設待辦筆記。
+        當清空 target_ref 時，不自動關聯預設筆記，讓用戶自由選擇。
+        create() 會在儲存時處理空值情況。
         """
         if self.target_ref:
             try:
@@ -418,11 +419,8 @@ class MailActivity(models.Model):
                     self.res_id = target_id
             except Exception as e:
                 _logger.warning('Error in _onchange_target_ref: %s', str(e))
-                # 發生錯誤時，使用預設筆記
-                self._set_default_note()
-        else:
-            # target_ref 為空時，使用預設筆記
-            self._set_default_note()
+        # 不在 onchange 中自動設定預設筆記，避免選擇被強制覆蓋
+        # create() 和 _inverse_target_ref() 會在儲存時處理空值
 
     def _set_default_note(self):
         """設定預設筆記為關聯目標"""
@@ -697,6 +695,8 @@ class MailActivity(models.Model):
                     if model_name == 'crm.lead':
                         activity.crm_lead_id = record.id
                         activity.partner_id = record.partner_id.id if record.partner_id else False
+                        if hasattr(record, 'project_id') and record.project_id:
+                            activity.project_id = record.project_id.id
 
                     # Project Task
                     elif model_name == 'project.task':
@@ -761,6 +761,36 @@ class MailActivity(models.Model):
 
     def write(self, vals):
         """覆寫 write 方法以記錄指派變更"""
+        # 驗證：date_deadline 只有建立者或系統管理員可以修改
+        if 'date_deadline' in vals and not self.env.su:
+            for activity in self:
+                if activity.create_uid.id != self.env.uid:
+                    if not self.env.user.has_group('base.group_system'):
+                        raise UserError(_(
+                            'Only the creator can modify the due date.\n'
+                            'Activity "%(summary)s" was created by %(creator)s.',
+                            summary=activity.summary or activity.activity_type_id.name,
+                            creator=activity.create_uid.name,
+                        ))
+
+        # 驗證：planned_date 只能透過排程操作更新（拖曳/延期/週轉換）
+        if 'planned_date' in vals and 'schedule_status' not in vals:
+            if not self.env.context.get('skip_schedule_check', False) and not self.env.su:
+                raise UserError(_(
+                    'Planned date cannot be modified directly.\n'
+                    'Please use drag-and-drop on the Kanban board or the schedule bar to update it.'
+                ))
+
+        # 驗證：user_id 建立後只能透過領取或變更指派操作修改
+        if 'user_id' in vals and not self.env.su:
+            if not self.env.context.get('allow_user_change', False):
+                for activity in self:
+                    if activity.id:  # 已存在的記錄才限制
+                        raise UserError(_(
+                            'Assignee cannot be changed directly after creation.\n'
+                            'Please use "Claim" (for unassigned activities) or "Reassign" to change the assignee.'
+                        ))
+
         # 驗證：只有被指派人或系統管理員可以設定排程相關欄位
         schedule_fields = {'planned_date', 'schedule_status', 'scheduled_date'}
         changing_schedule = bool(schedule_fields & set(vals.keys()))
@@ -815,12 +845,22 @@ class MailActivity(models.Model):
             if target_weekday is not None:
                 # 自動設定計畫日期
                 if 'planned_date' not in vals:
-                    today = fields.Date.today()
-                    current_weekday = today.weekday()
-                    days_diff = target_weekday - current_weekday
-                    if days_diff < 0:
-                        days_diff += 7
-                    vals['planned_date'] = today + timedelta(days=days_diff)
+                    # 優先使用前端傳遞的週次日期對應表（拖曳時傳入）
+                    week_dates = self.env.context.get('schedule_week_dates')
+                    target_day_key = vals['schedule_status']
+                    if week_dates and target_day_key in week_dates:
+                        try:
+                            vals['planned_date'] = fields.Date.to_date(week_dates[target_day_key])
+                        except (ValueError, TypeError):
+                            week_dates = None  # 格式錯誤，回退到計算方式
+
+                    if 'planned_date' not in vals:
+                        # 回退：根據目前週次計算日期
+                        schedule_week_number = self.env.context.get('schedule_current_week', 0)
+                        today = fields.Date.today()
+                        current_week_start = today - timedelta(days=today.weekday())
+                        target_week_start = current_week_start + timedelta(days=7 * schedule_week_number)
+                        vals['planned_date'] = target_week_start + timedelta(days=target_weekday)
 
                 # 如果來源尚未設定，標記為臨時插入
                 if 'schedule_origin' not in vals:
@@ -993,7 +1033,7 @@ class MailActivity(models.Model):
         # 準備工時表值
         vals = {
             'date': self.planned_date or fields.Date.today(),
-            'name': self.feedback or self.summary or _('Task Execution'),
+            'name': self.feedback or self.summary or _('Activity Execution'),
             'unit_amount': self.actual_hours,
             'employee_id': employee.id,
             'user_id': self.user_id.id,
@@ -1355,7 +1395,7 @@ class MailActivity(models.Model):
         now = fields.Datetime.now()
         claim_note = _('\n\n--- %s claimed this activity ---') % now.strftime('%Y-%m-%d %H:%M')
 
-        self.write({
+        self.with_context(allow_user_change=True).write({
             'user_id': self.env.user.id,
             'note': (self.note or '') + claim_note,
         })

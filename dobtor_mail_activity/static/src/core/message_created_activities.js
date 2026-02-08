@@ -74,6 +74,30 @@ patch(Message.prototype, {
     },
 
     /**
+     * 轉移待辦事項至其他文件
+     */
+    async onTransferCreatedActivity(ev, activity) {
+        ev.stopPropagation();
+        try {
+            await this.actionService.doAction({
+                type: "ir.actions.act_window",
+                name: "Transfer Activity",
+                res_model: "mail.activity.transfer.wizard",
+                view_mode: "form",
+                views: [[false, "form"]],
+                target: "new",
+                context: {
+                    default_activity_id: activity.id,
+                    default_source_model: activity.res_model,
+                    default_source_id: activity.res_id,
+                },
+            });
+        } catch (e) {
+            console.error("Failed to open transfer wizard:", e);
+        }
+    },
+
+    /**
      * 重新載入待辦（建立新待辦後調用）
      */
     async reloadCreatedActivities() {

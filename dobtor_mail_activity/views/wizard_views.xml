@@ -9,9 +9,9 @@
         <field name="name">mail.activity.done.wizard.form</field>
         <field name="model">mail.activity.done.wizard</field>
         <field name="arch" type="xml">
-            <form string="Complete Task">
+            <form string="Complete Activity">
                 <group>
-                    <group string="Task Information">
+                    <group string="Activity Information">
                         <field name="activity_id" invisible="1"/>
                         <field name="summary" readonly="1"/>
                         <field name="activity_type_name" readonly="1"/>
@@ -30,7 +30,7 @@
                     <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
                 </group>
                 <field name="schedule_next" invisible="1"/>
-                <group string="Schedule Next Task" invisible="not schedule_next">
+                <group string="Schedule Next Activity" invisible="not schedule_next">
                     <field name="next_activity_type_id" invisible="not schedule_next"/>
                     <field name="next_date_deadline" invisible="not schedule_next"/>
                     <field name="next_summary" invisible="not schedule_next"/>
@@ -39,7 +39,7 @@
                 <footer>
                     <button string="Complete" name="action_done" type="object" class="btn-primary"/>
                     <button string="Log and Continue" name="action_log_and_continue" type="object"
-                            class="btn-secondary" title="Log time only, do not complete task"/>
+                            class="btn-secondary" title="Log time only, do not complete activity"/>
                     <button string="Complete and Schedule Next" name="action_done_and_schedule_next" type="object"
                             class="btn-secondary"
                             context="{'default_schedule_next': True}"/>
@@ -51,7 +51,7 @@
     </record>
 
     <record id="action_mail_activity_done_wizard" model="ir.actions.act_window">
-        <field name="name">Complete Task</field>
+        <field name="name">Complete Activity</field>
         <field name="res_model">mail.activity.done.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
@@ -67,7 +67,7 @@
         <field name="arch" type="xml">
             <form string="Postpone to Next Week">
                 <group>
-                    <group string="Task Information">
+                    <group string="Activity Information">
                         <field name="activity_id" invisible="1"/>
                         <field name="summary" readonly="1"/>
                         <field name="planned_date" readonly="1"/>
@@ -80,7 +80,7 @@
                 </group>
                 <div class="alert alert-info" role="alert" invisible="postpone_count == 0">
                     <i class="fa fa-info-circle"/>
-                    This task has been postponed <field name="postpone_count" readonly="1" nolabel="1" class="d-inline"/> times.
+                    This activity has been postponed <field name="postpone_count" readonly="1" nolabel="1" class="d-inline"/> times.
                 </div>
                 <footer>
                     <button string="Confirm Postpone" name="action_postpone" type="object" class="btn-primary"/>
@@ -105,9 +105,9 @@
         <field name="name">mail.activity.transfer.wizard.form</field>
         <field name="model">mail.activity.transfer.wizard</field>
         <field name="arch" type="xml">
-            <form string="Transfer Task">
+            <form string="Transfer Activity">
                 <group>
-                    <group string="Task Information">
+                    <group string="Activity Information">
                         <field name="activity_id" invisible="1"/>
                         <field name="activity_summary" readonly="1" string="Summary"/>
                     </group>
@@ -122,7 +122,7 @@
                 </group>
                 <div class="alert alert-info" role="alert">
                     <i class="fa fa-info-circle"/>
-                    After transfer, the task will be linked to the selected target record. The original source will be recorded for tracking.
+                    After transfer, the activity will be linked to the selected target record. The original source will be recorded for tracking.
                 </div>
                 <footer>
                     <button string="Transfer" name="action_transfer" type="object" class="btn-primary"/>
@@ -133,7 +133,7 @@
     </record>
 
     <record id="action_mail_activity_transfer_wizard" model="ir.actions.act_window">
-        <field name="name">Transfer Task</field>
+        <field name="name">Transfer Activity</field>
         <field name="res_model">mail.activity.transfer.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
@@ -147,7 +147,7 @@
         <field name="name">mail.activity.from.message.wizard.form</field>
         <field name="model">mail.activity.from.message.wizard</field>
         <field name="arch" type="xml">
-            <form string="Create Task from Message">
+            <form string="Create Activity from Message">
                 <field name="message_id" invisible="1"/>
 
                 <!-- 訊息來源 - 僅在有來源訊息時顯示 -->
@@ -168,7 +168,7 @@
 
                 <!-- 摘要 - 置頂明顯 -->
                 <group>
-                    <field name="summary" placeholder="Enter task summary..."
+                    <field name="summary" placeholder="Enter activity summary..."
                            nolabel="1" colspan="2"
                            style="font-size: 1.2em; font-weight: 500;"/>
                 </group>
@@ -208,12 +208,12 @@
 
                 <!-- 備註 -->
                 <group string="Note">
-                    <field name="note" placeholder="Task note (optional)..."
+                    <field name="note" placeholder="Activity note (optional)..."
                            nolabel="1" colspan="2"/>
                 </group>
 
                 <footer>
-                    <button string="Create Task" name="action_create_activity"
+                    <button string="Create Activity" name="action_create_activity"
                             type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
@@ -222,7 +222,7 @@
     </record>
 
     <record id="action_mail_activity_from_message_wizard" model="ir.actions.act_window">
-        <field name="name">Create Task from Message</field>
+        <field name="name">Create Activity from Message</field>
         <field name="res_model">mail.activity.from.message.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
@@ -236,9 +236,9 @@
         <field name="name">mail.activity.reassign.wizard.form</field>
         <field name="model">mail.activity.reassign.wizard</field>
         <field name="arch" type="xml">
-            <form string="Reassign Task">
+            <form string="Reassign Activity">
                 <group>
-                    <group string="Original Task Information">
+                    <group string="Original Activity Information">
                         <field name="activity_id" invisible="1"/>
                         <field name="activity_summary" readonly="1" string="Summary"/>
                         <field name="activity_type_name" readonly="1" string="Type"/>
@@ -256,7 +256,7 @@
                 </group>
                 <div class="alert alert-warning" role="alert">
                     <i class="fa fa-exclamation-triangle me-1"/>
-                    After confirmation, the original task will be cancelled and a new task will be created for the selected assignee.
+                    After confirmation, the original activity will be cancelled and a new activity will be created for the selected assignee.
                     All related history will be preserved.
                 </div>
                 <footer>
@@ -269,7 +269,7 @@
     </record>
 
     <record id="action_mail_activity_reassign_wizard" model="ir.actions.act_window">
-        <field name="name">Reassign Task</field>
+        <field name="name">Reassign Activity</field>
         <field name="res_model">mail.activity.reassign.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

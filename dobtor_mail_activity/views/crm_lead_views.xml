@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--         CRM 商機表單擴展 - 專案關聯 + Smart Button              -->
+    <!-- ============================================================ -->
+    <record id="crm_lead_view_form_inherit_productivity" model="ir.ui.view">
+        <field name="name">crm.lead.view.form.inherit.productivity</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Smart Button: 專案任務數量 -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_activities" type="object"
+                        class="oe_stat_button" icon="fa-tasks"
+                        invisible="not project_id">
+                    <field name="activity_count" widget="statinfo" string="Activities"/>
+                </button>
+            </xpath>
+
+            <!-- 在 lead_priority group 後方新增專案 group（僅商機顯示） -->
+            <xpath expr="//group[@name='lead_priority']" position="after">
+                <group name="opportunity_project" invisible="type == 'lead'">
+                    <field name="project_id" string="Project"
+                           options="{'no_create': True}"/>
+                </group>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

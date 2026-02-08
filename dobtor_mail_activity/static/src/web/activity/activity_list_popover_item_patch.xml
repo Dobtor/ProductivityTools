@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 在 ActivityListPopoverItem 的 Cancel 按鈕前插入 Transfer 按鈕 -->
+    <t t-name="mail.ActivityListPopoverItem" t-inherit="mail.ActivityListPopoverItem" t-inherit-mode="extension">
+        <xpath expr="//button[hasclass('o-mail-ActivityListPopoverItem-cancel')]" position="before">
+            <button t-if="hasTransferButton"
+                    class="o-mail-ActivityListPopoverItem-transfer btn btn-sm btn-success btn-link"
+                    title="Transfer" aria-label="Transfer"
+                    t-on-click="onClickTransfer">
+                <i class="fa fa-exchange"/>
+            </button>
+        </xpath>
+    </t>
+
+</templates>

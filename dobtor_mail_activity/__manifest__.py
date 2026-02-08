@@ -3,7 +3,7 @@
     'name': 'Advanced Activity Management',
     'version': '18.0.1.0.0',
     'category': 'Productivity',
-    'summary': 'Advanced activity management system integrating tasks, notes, weekly reports and efficiency analytics',
+    'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
     'description': """
 Advanced Activity Management (Productivity Tool)
 =================================================
@@ -62,6 +62,7 @@ Main Features:
         'project',
         'project_todo',
         'crm',
+        'sale_crm',
     ],
     'data': [
         # Security
@@ -95,6 +96,8 @@ Main Features:
         'views/res_company_views.xml',
         'views/res_config_settings_views.xml',
         'views/weekly_schedule_config_views.xml',
+        'views/crm_lead_views.xml',
+        'views/project_project_views.xml',
         'views/project_todo_override.xml',
         'views/menu_views.xml',
         # Portal

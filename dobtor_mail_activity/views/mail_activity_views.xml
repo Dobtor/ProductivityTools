@@ -19,7 +19,7 @@
 
                 <!-- 摘要 - 置頂明顯 -->
                 <group>
-                    <field name="summary" placeholder="Enter task summary..."
+                    <field name="summary" placeholder="Enter activity summary..."
                            nolabel="1" colspan="2"
                            style="font-size: 1.2em; font-weight: 500;"/>
                 </group>
@@ -31,7 +31,7 @@
                         <field name="activity_type_id" string="Type" required="1"
                                options="{'no_create': True, 'no_open': True}"/>
                         <field name="target_ref" string="Target Document"
-                               invisible="res_model_id and res_id"
+                               invisible="id and res_model_id and res_id"
                                options="{'no_create': True}"
                                placeholder="Leave empty to use default note"/>
                         <field name="res_name" string="Related Document" readonly="1"
@@ -52,13 +52,16 @@
                     <group string="Assignment">
                         <field name="user_id" string="Assign To"
                                widget="many2one_avatar_user"
-                               options="{'no_create': True}"/>
+                               options="{'no_create': True}"
+                               readonly="id"/>
                     </group>
 
                     <!-- 時程 -->
                     <group string="Schedule">
-                        <field name="date_deadline" string="Due Date"/>
-                        <field name="planned_date" string="Planned Date"/>
+                        <field name="date_deadline" string="Due Date"
+                               readonly="id and create_uid != uid"/>
+                        <field name="planned_date" string="Planned Date"
+                               readonly="1"/>
                     </group>
                 </group>
             </xpath>
@@ -69,7 +72,7 @@
                 <div invisible="not source_message_id"
                      class="alert alert-info py-2 mb-2" role="alert">
                     <i class="fa fa-commenting-o" title="Message Source"/>
-                    <span class="ms-1">This task was created from a message</span>
+                    <span class="ms-1">This activity was created from a message</span>
                     <button name="action_open_source_message" type="object"
                             class="btn btn-sm btn-link p-0 ms-2">
                         View Original Message <i class="fa fa-external-link" title="Open"/>
@@ -79,7 +82,7 @@
 
             <!-- 更新備註欄位的 placeholder -->
             <xpath expr="//field[@name='note']" position="attributes">
-                <attribute name="placeholder">Task note (optional)...</attribute>
+                <attribute name="placeholder">Activity note (optional)...</attribute>
             </xpath>
 
             <!-- 在 footer 新增轉移和取消按鈕 -->
@@ -89,7 +92,7 @@
                         type="object"
                         class="btn-secondary"
                         invisible="not id"/>
-                <button string="Cancel Task"
+                <button string="Cancel Activity"
                         name="action_cancel"
                         type="object"
                         class="btn-secondary"
@@ -108,11 +111,11 @@
         <field name="model">mail.activity</field>
         <field name="priority">5</field>
         <field name="arch" type="xml">
-            <form string="New Task">
+            <form string="New Activity">
                 <sheet>
                     <!-- 摘要 - 置頂明顯 -->
                     <group>
-                        <field name="summary" placeholder="Enter task summary..."
+                        <field name="summary" placeholder="Enter activity summary..."
                                nolabel="1" colspan="2"
                                style="font-size: 1.2em; font-weight: 500;"/>
                     </group>
@@ -128,9 +131,10 @@
                     <group>
                         <!-- 左側：基本資訊 -->
                         <group>
-                            <field name="activity_type_id" string="Task Type"
+                            <field name="activity_type_id" string="Activity Type"
                                    required="1" options="{'no_create': True, 'no_open': True}"/>
-                            <field name="date_deadline" string="Due Date"/>
+                            <field name="date_deadline" string="Due Date"
+                                   readonly="id and create_uid != uid"/>
                             <field name="estimated_hours" string="Estimated Hours" widget="float_time"/>
                         </group>
 
@@ -138,13 +142,14 @@
                         <group>
                             <field name="urgency" string="Urgency" widget="radio" options="{'horizontal': true}"/>
                             <field name="importance" string="Importance" widget="radio" options="{'horizontal': true}"/>
-                            <field name="user_id" string="Assign To" widget="many2one_avatar_user"/>
+                            <field name="user_id" string="Assign To" widget="many2one_avatar_user"
+                                   readonly="id"/>
                         </group>
                     </group>
 
                     <!-- 備註 -->
                     <group>
-                        <field name="note" placeholder="Task note (optional)..." nolabel="1" colspan="2"/>
+                        <field name="note" placeholder="Activity note (optional)..." nolabel="1" colspan="2"/>
                     </group>
                 </sheet>
                 <footer>
@@ -164,7 +169,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">20</field>
         <field name="arch" type="xml">
-            <form string="Task" js_class="activity_form" class="o_activity_form_view">
+            <form string="Activity" js_class="activity_form" class="o_activity_form_view">
                 <header>
                     <field name="schedule_status" widget="statusbar" clickable="1"
                            options="{'clickable': '1'}"/>
@@ -219,7 +224,7 @@
                     <!-- 摘要 - 置頂明顯 -->
                     <div class="oe_title">
                         <h1>
-                            <field name="summary" placeholder="Enter task summary..."/>
+                            <field name="summary" placeholder="Enter activity summary..."/>
                         </h1>
                     </div>
 
@@ -261,7 +266,8 @@
                         <group string="Assignment">
                             <field name="user_id" string="Assign To"
                                    widget="many2one_avatar_user"
-                                   options="{'no_create': True}"/>
+                                   options="{'no_create': True}"
+                                   readonly="id"/>
                             <field name="create_uid" string="Created By"
                                    widget="many2one_avatar_user" readonly="1"/>
                             <field name="create_date" string="Created Date" readonly="1"/>
@@ -270,8 +276,10 @@
 
                         <!-- 時程 -->
                         <group string="Schedule">
-                            <field name="date_deadline" string="Due Date"/>
-                            <field name="planned_date" string="Planned Date"/>
+                            <field name="date_deadline" string="Due Date"
+                                   readonly="id and create_uid != uid"/>
+                            <field name="planned_date" string="Planned Date"
+                                   readonly="1"/>
                             <field name="schedule_week" string="Schedule Week" readonly="1"/>
                             <field name="schedule_origin" string="Schedule Origin" readonly="1"/>
                             <field name="schedule_warning" string="Warning"
@@ -330,12 +338,12 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Related Tasks" name="related_activities"
+                        <page string="Related Activities" name="related_activities"
                               badge="related_activity_count">
                             <field name="related_activity_count" invisible="1"/>
                             <group>
                                 <button name="action_create_related_activity" type="object"
-                                        string="Add Task" class="btn-primary" icon="fa-plus"/>
+                                        string="Add Activity" class="btn-primary" icon="fa-plus"/>
                             </group>
                             <field name="related_activity_ids" readonly="1">
                                 <list default_order="sequence, id"
@@ -478,7 +486,7 @@
                                     </span>
                                     <!-- 待辦類型 -->
                                     <span class="badge rounded-pill text-bg-light">
-                                        <i class="fa fa-tag" title="Task Type"/> <field name="activity_type_id"/>
+                                        <i class="fa fa-tag" title="Activity Type"/> <field name="activity_type_id"/>
                                     </span>
                                 </div>
                             </div>
@@ -535,7 +543,7 @@
                                     </span>
                                     <!-- 領取按鈕（未指派時） -->
                                     <t t-if="!record.user_id.raw_value">
-                                        <button name="action_claim_activity" type="object" class="btn btn-sm btn-outline-primary" title="Claim this task">
+                                        <button name="action_claim_activity" type="object" class="btn btn-sm btn-outline-primary" title="Claim this activity">
                                             <i class="fa fa-hand-paper-o me-1"/>Claim
                                         </button>
                                     </t>
@@ -546,7 +554,7 @@
                                         </button>
                                     </t>
                                     <!-- 完成按鈕 -->
-                                    <button name="action_done_wizard" type="object" class="btn btn-sm btn-success" title="Complete Task">
+                                    <button name="action_done_wizard" type="object" class="btn btn-sm btn-success" title="Complete Activity">
                                         <i class="fa fa-check me-1"/>Complete
                                     </button>
                                 </div>
@@ -584,7 +592,8 @@
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <list string="Tasks"
+            <list string="Activities"
+                  js_class="activity_list"
                   default_order="date_deadline asc, urgency desc"
                   multi_edit="1"
                   expand="1"
@@ -602,15 +611,18 @@
                 <field name="importance" string="Importance"/>
                 <field name="estimated_hours" string="Estimated Hours" widget="float_time" sum="Total"/>
                 <field name="actual_hours" string="Actual Hours" widget="float_time" sum="Total" optional="show"/>
-                <field name="planned_date" string="Planned Date" optional="show"/>
-                <field name="date_deadline" string="Due Date" widget="remaining_days"/>
-                <field name="schedule_status" string="Schedule"/>
+                <field name="planned_date" string="Planned Date" optional="show"
+                       readonly="1"/>
+                <field name="date_deadline" string="Due Date" widget="remaining_days"
+                       readonly="id and create_uid != uid"/>
+                <field name="schedule_status" string="Schedule" widget="schedule_day"/>
                 <field name="schedule_week" string="Week" optional="hide"/>
                 <field name="state" string="Status" widget="badge"
                        decoration-info="state == 'planned'"
                        decoration-warning="state == 'today'"
                        decoration-danger="state == 'overdue'"/>
-                <field name="user_id" string="Assignee" widget="many2one_avatar_user"/>
+                <field name="user_id" string="Assignee" widget="many2one_avatar_user"
+                       readonly="id"/>
                 <field name="postpone_count" string="Postpone Count" optional="hide"/>
                 <button name="action_done_wizard" type="object" string="Complete"
                         icon="fa-check" class="btn-success"/>
@@ -631,7 +643,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <search string="Search Tasks">
+            <search string="Search Activities">
                 <field name="summary" string="Summary"/>
                 <field name="user_id" string="Assignee"/>
                 <field name="activity_type_id" string="Type"/>
@@ -640,7 +652,7 @@
                 <field name="project_id" string="Project"/>
 
                 <separator/>
-                <filter string="My Tasks" name="my_activities"
+                <filter string="My Activities" name="my_activities"
                         domain="[('user_id', '=', uid)]"/>
                 <filter string="My Created" name="created_by_me"
                         domain="[('create_uid', '=', uid)]"/>
@@ -711,7 +723,7 @@
         <field name="name">mail.activity.view.calendar.schedule</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <calendar string="Task Calendar"
+            <calendar string="Activity Calendar"
                       date_start="planned_date"
                       date_stop="planned_date"
                       color="user_id"
@@ -735,7 +747,7 @@
         <field name="name">mail.activity.list.history</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <list string="Task History" create="false" delete="false">
+            <list string="Activity History" create="false" delete="false">
                 <field name="activity_status" string="Status" widget="badge"
                        decoration-success="activity_status == 'done'"
                        decoration-danger="activity_status == 'cancelled'"/>

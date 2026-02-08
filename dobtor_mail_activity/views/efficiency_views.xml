@@ -32,7 +32,7 @@
                         </group>
                     </group>
                     <group>
-                        <group string="Task Statistics">
+                        <group string="Activity Statistics">
                             <field name="total_activities"/>
                             <field name="completed_activities"/>
                             <field name="on_time_activities"/>

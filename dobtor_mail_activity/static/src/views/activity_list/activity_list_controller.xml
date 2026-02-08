@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Activity List View with Week Selector -->
+    <t t-name="dobtor_mail_activity.ActivityListView" t-inherit="web.ListView" t-inherit-mode="primary">
+        <xpath expr="//t[@t-set-slot='control-panel-additional-actions']" position="inside">
+            <!-- Week Selector -->
+            <div class="o_activity_week_selector ms-2 d-flex align-items-center">
+                <select class="form-select form-select-sm"
+                        t-on-change="onWeekSelectChange"
+                        t-att-disabled="weekState.isLoading">
+                    <t t-foreach="weekState.weeks" t-as="week" t-key="week.key">
+                        <option t-att-value="week.number"
+                                t-att-selected="week.number === weekState.currentWeek">
+                            <t t-esc="week.name"/> (<t t-esc="week.count"/><t t-if="week.total_hours"> / <t t-esc="formatHours(week.total_hours)"/></t>)
+                        </option>
+                    </t>
+                </select>
+            </div>
+        </xpath>
+    </t>
+
+</templates>

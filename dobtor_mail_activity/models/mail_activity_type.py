@@ -15,7 +15,7 @@ class MailActivityType(models.Model):
 
     # ===== 預設說明 =====
     default_description = fields.Html(
-        string='Default Task Note',
+        string='Default Activity Note',
         help='Default note content when creating activities of this type.',
         translate=True,
     )

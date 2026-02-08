@@ -74,7 +74,7 @@
     <!-- 我建立的待辦（我指派給別人的）                                   -->
     <!-- ============================================================ -->
     <menuitem id="menu_mail_activity_created_by_me"
-              name="My Created Tasks"
+              name="My Created Activities"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_created_by_me"
               sequence="40"/>
@@ -83,7 +83,7 @@
     <!-- 我的歷史代辦（我建立的 + 我被指派的，已完成/已取消）               -->
     <!-- ============================================================ -->
     <menuitem id="menu_mail_activity_my_history"
-              name="My Task History"
+              name="My Activity History"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_my_history"
               sequence="50"/>
@@ -102,7 +102,7 @@
     <!-- ============================================================ -->
     <!-- 所有代辦事項（管理者專用） -->
     <menuitem id="menu_mail_activity_all"
-              name="All Tasks"
+              name="All Activities"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_all"
               sequence="70"
@@ -110,7 +110,7 @@
 
     <!-- 所有歷史代辦（管理者專用） -->
     <menuitem id="menu_mail_activity_archived"
-              name="All Task History"
+              name="All Activity History"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_archived"
               sequence="71"
@@ -141,7 +141,7 @@
 
     <!-- 待辦轉移配置 -->
     <menuitem id="menu_mail_activity_transfer_config"
-              name="Task Transfer Config"
+              name="Activity Transfer Config"
               parent="menu_configuration"
               action="action_mail_activity_transfer_config"
               sequence="30"/>

@@ -179,7 +179,7 @@ class MailActivityDoneWizard(models.TransientModel):
         if not project:
             raise UserError(_(
                 'Cannot find a project to log time.\n'
-                'Please ensure the activity is linked to a task/lead with a project, or the company has a default timesheet project configured.'
+                'Please ensure the activity is linked to a project task/lead, or the company has a default timesheet project configured.'
             ))
 
         if not project.allow_timesheets:
