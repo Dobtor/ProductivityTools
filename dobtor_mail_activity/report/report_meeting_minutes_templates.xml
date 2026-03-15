@@ -12,100 +12,97 @@
                     <div class="page">
                         <!-- 標題 -->
                         <div class="text-center mb-4">
-                            <h2>Meeting Minutes</h2>
+                            <h2>會議記錄</h2>
                             <h3 t-field="doc.name"/>
                         </div>
 
-                        <!-- 會議資訊（從行事曆事件取得） -->
-                        <t t-set="first_event" t-value="doc.calendar_event_ids[:1]"/>
-                        <div class="row mb-4">
-                            <div class="col-6">
-                                <table class="table table-sm table-borderless">
-                                    <tbody>
-                                        <tr t-if="first_event">
-                                            <th class="text-start" style="width: 35%;">Meeting Date:</th>
-                                            <td><span t-field="first_event.start" t-options='{"format": "yyyy-MM-dd HH:mm"}'/></td>
-                                        </tr>
-                                        <tr t-if="first_event and first_event.location">
-                                            <th class="text-start">Location:</th>
-                                            <td><t t-esc="first_event.location"/></td>
-                                        </tr>
-                                        <tr>
-                                            <th class="text-start">Prepared By:</th>
-                                            <td><t t-esc="doc.user_id.name"/></td>
-                                        </tr>
-                                        <tr>
-                                            <th class="text-start">Status:</th>
-                                            <td>
-                                                <span t-if="doc.state == 'draft'" class="badge text-bg-secondary">Draft</span>
-                                                <span t-if="doc.state == 'sent'" class="badge text-bg-info">Sent</span>
-                                                <span t-if="doc.state == 'partial'" class="badge text-bg-warning">Partially Signed</span>
-                                                <span t-if="doc.state == 'signed'" class="badge text-bg-success">Fully Signed</span>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <!-- 會議資訊 -->
+                        <div t-if="doc.calendar_event_ids" class="mb-4">
+                            <h5>會議資訊</h5>
+                            <t t-foreach="doc.calendar_event_ids" t-as="event">
+                                <div t-attf-class="#{'mb-3 pb-2 border-bottom' if not event_last else ''}">
+                                    <div t-if="len(doc.calendar_event_ids) &gt; 1"
+                                         class="fw-bold mb-1">
+                                        <t t-esc="event.name"/>
+                                    </div>
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tbody>
+                                            <tr>
+                                                <th class="ps-0 pb-1" style="width: 5em;">開始</th>
+                                                <td class="pb-1">
+                                                    <span t-field="event.start"
+                                                          t-options='{"format": "yyyy-MM-dd HH:mm"}'/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th class="ps-0 pb-1">結束</th>
+                                                <td class="pb-1">
+                                                    <span t-field="event.stop"
+                                                          t-options='{"format": "yyyy-MM-dd HH:mm"}'/>
+                                                </td>
+                                            </tr>
+                                            <tr t-if="event.location">
+                                                <th class="ps-0 pb-1">地點</th>
+                                                <td class="pb-1"><t t-esc="event.location"/></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </t>
                         </div>
 
-                        <!-- 參與者（從行事曆事件取得） -->
-                        <div t-if="doc.available_signer_ids" class="mb-4">
-                            <h5>Participants</h5>
-                            <ul class="list-unstyled">
-                                <t t-foreach="doc.available_signer_ids" t-as="participant">
+                        <!-- 與會者 + 記錄資訊 -->
+                        <div class="row mb-4">
+                            <div t-if="doc.available_signer_ids" class="col-6">
+                                <h5>與會者</h5>
+                                <ul class="list-unstyled">
+                                    <t t-foreach="doc.available_signer_ids" t-as="participant">
+                                        <li>
+                                            <i class="fa fa-user fa-fw"/>
+                                            <span t-esc="participant.name"/>
+                                            <span t-if="participant.email" class="text-muted">
+                                                (<t t-esc="participant.email"/>)
+                                            </span>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </div>
+                            <div class="col-6">
+                                <h5>記錄資訊</h5>
+                                <ul class="list-unstyled">
                                     <li>
-                                        <i class="fa fa-user fa-fw" title="Participant"/>
-                                        <span t-esc="participant.name"/>
-                                        <span t-if="participant.email" class="text-muted">
-                                            (<t t-esc="participant.email"/>)
-                                        </span>
+                                        <i class="fa fa-pencil fa-fw"/>
+                                        記錄者：<t t-esc="doc.user_id.name"/>
                                     </li>
-                                </t>
-                            </ul>
+                                    <li>
+                                        <i class="fa fa-info-circle fa-fw"/>
+                                        狀態：
+                                        <span t-if="doc.state == 'draft'" class="badge text-bg-secondary">草稿</span>
+                                        <span t-if="doc.state == 'sent'" class="badge text-bg-info">已寄送</span>
+                                        <span t-if="doc.state == 'partial'" class="badge text-bg-warning">部分簽名</span>
+                                        <span t-if="doc.state == 'signed'" class="badge text-bg-success">完全簽名</span>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
 
                         <!-- 會議內容 -->
                         <div class="mb-4">
-                            <h5>Meeting Content</h5>
+                            <h5>會議內容</h5>
                             <hr class="mt-1 mb-2"/>
                             <div t-field="doc.memo" class="o_report_memo"/>
                         </div>
 
-                        <!-- 關聯日曆事件 -->
-                        <div t-if="doc.calendar_event_ids" class="mb-4">
-                            <h5>Related Calendar Events</h5>
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Event</th>
-                                        <th>Start</th>
-                                        <th>End</th>
-                                        <th>Location</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <t t-foreach="doc.calendar_event_ids" t-as="event">
-                                        <tr>
-                                            <td><t t-esc="event.name"/></td>
-                                            <td><span t-field="event.start" t-options='{"format": "yyyy-MM-dd HH:mm"}'/></td>
-                                            <td><span t-field="event.stop" t-options='{"format": "yyyy-MM-dd HH:mm"}'/></td>
-                                            <td><t t-esc="event.location"/></td>
-                                        </tr>
-                                    </t>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- 關聯待辦事項 -->
+                        <!-- 待辦事項 -->
                         <t t-set="active_activities" t-value="doc.note_activity_ids.filtered(lambda a: a.active)"/>
                         <div t-if="active_activities" class="mb-4">
-                            <h5>Action Items</h5>
+                            <h5>待辦事項</h5>
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Activity</th>
-                                        <th>Assignee</th>
-                                        <th>Due Date</th>
+                                        <th>活動</th>
+                                        <th>負責人</th>
+                                        <th>截止日期</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -120,9 +117,9 @@
                             </table>
                         </div>
 
-                        <!-- 簽名區塊 -->
+                        <!-- 簽名 -->
                         <div t-if="doc.signer_ids" class="mt-5" style="page-break-inside: avoid;">
-                            <h5>Signatures</h5>
+                            <h5>簽名</h5>
                             <hr class="mt-1 mb-3"/>
                             <div class="row">
                                 <t t-foreach="doc.signature_ids" t-as="sig">
@@ -143,7 +140,7 @@
                                         </div>
                                         <div t-else="" class="border p-2" style="min-height: 140px;">
                                             <div style="height: 80px; display: flex; align-items: center; justify-content: center;">
-                                                <span class="text-muted">Pending Signature</span>
+                                                <span class="text-muted">待簽名</span>
                                             </div>
                                             <hr class="my-2"/>
                                             <div class="small">
@@ -166,44 +163,55 @@
     <!-- Portal 會議記錄報告內容（用於 HTML 顯示）                        -->
     <!-- ============================================================ -->
     <template id="report_meeting_minutes_content">
-        <!-- 會議資訊（從行事曆事件取得） -->
-        <t t-set="first_event" t-value="note.calendar_event_ids[:1]"/>
         <div class="row mb-4">
-            <div class="col-12 col-md-6">
-                <h5 class="mb-1">Meeting Information</h5>
+            <!-- 會議資訊：垂直 key-value 排版，避免橫向表格在半寬區塊跑版 -->
+            <div class="col-12 col-md-5">
+                <h5 class="mb-1">會議資訊</h5>
                 <hr class="mt-1 mb-2"/>
-                <table class="table table-borderless table-sm">
-                    <tbody style="white-space:nowrap">
-                        <tr t-if="first_event">
-                            <th class="ps-0 pb-0">Meeting Date:</th>
-                            <td class="w-100 pb-0 text-wrap">
-                                <span t-field="first_event.start" t-options='{"format": "yyyy-MM-dd HH:mm"}'/>
-                            </td>
-                        </tr>
-                        <tr t-if="first_event and first_event.location">
-                            <th class="ps-0 pb-0">Location:</th>
-                            <td class="w-100 pb-0 text-wrap"><t t-esc="first_event.location"/></td>
-                        </tr>
-                        <tr>
-                            <th class="ps-0 pb-0">Prepared By:</th>
-                            <td class="w-100 pb-0 text-wrap"><t t-esc="note.user_id.name"/></td>
-                        </tr>
-                        <tr>
-                            <th class="ps-0 pb-0">Created On:</th>
-                            <td class="w-100 pb-0 text-wrap">
-                                <span t-field="note.create_date" t-options='{"format": "yyyy-MM-dd"}'/>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <t t-if="note.calendar_event_ids">
+                    <t t-foreach="note.calendar_event_ids" t-as="event">
+                        <div t-attf-class="#{'mb-3 pb-2 border-bottom' if not event_last else ''}">
+                            <!-- 多筆事件時才顯示事件名稱；單筆時側欄標題已有，不重複 -->
+                            <div t-if="len(note.calendar_event_ids) &gt; 1"
+                                 class="fw-bold mb-1">
+                                <t t-esc="event.name"/>
+                            </div>
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <th class="ps-0 pb-1 text-muted" style="width:4em">開始</th>
+                                        <td class="pb-1">
+                                            <span t-field="event.start"
+                                                  t-options='{"format": "yyyy-MM-dd HH:mm"}'/>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th class="ps-0 pb-1 text-muted">結束</th>
+                                        <td class="pb-1">
+                                            <span t-field="event.stop"
+                                                  t-options='{"format": "yyyy-MM-dd HH:mm"}'/>
+                                        </td>
+                                    </tr>
+                                    <tr t-if="event.location">
+                                        <th class="ps-0 pb-1 text-muted">地點</th>
+                                        <td class="pb-1"><t t-esc="event.location"/></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </t>
+                </t>
+                <p t-else="" class="text-muted">無關聯行事曆</p>
             </div>
-            <div t-if="note.available_signer_ids" class="col-12 col-md-6">
-                <h5 class="mb-1">Participants</h5>
+
+            <!-- 與會者 -->
+            <div t-if="note.available_signer_ids" class="col-12 col-md-7">
+                <h5 class="mb-1">與會者</h5>
                 <hr class="mt-1 mb-2"/>
                 <div class="d-flex flex-wrap gap-2">
                     <t t-foreach="note.available_signer_ids" t-as="participant">
                         <span class="badge rounded-pill text-bg-light border">
-                            <i class="fa fa-user me-1" title="Participant"/>
+                            <i class="fa fa-user me-1"/>
                             <t t-esc="participant.name"/>
                         </span>
                     </t>
@@ -213,37 +221,9 @@
 
         <!-- 會議內容 -->
         <section id="meeting_content" class="mb-4">
-            <h5 class="mb-1">Meeting Content</h5>
+            <h5 class="mb-1">會議內容</h5>
             <hr class="mt-1 mb-2"/>
             <div t-field="note.memo" class="o_portal_meeting_memo"/>
-        </section>
-
-        <!-- 關聯日曆事件 -->
-        <section t-if="note.calendar_event_ids" id="meeting_events" class="mb-4">
-            <h5 class="mb-1">Related Calendar Events</h5>
-            <hr class="mt-1 mb-2"/>
-            <div class="table-responsive">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Event</th>
-                            <th>Start</th>
-                            <th>End</th>
-                            <th>Location</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <t t-foreach="note.calendar_event_ids" t-as="event">
-                            <tr>
-                                <td><t t-esc="event.name"/></td>
-                                <td><span t-field="event.start" t-options='{"format": "yyyy-MM-dd HH:mm"}'/></td>
-                                <td><span t-field="event.stop" t-options='{"format": "yyyy-MM-dd HH:mm"}'/></td>
-                                <td><t t-esc="event.location"/></td>
-                            </tr>
-                        </t>
-                    </tbody>
-                </table>
-            </div>
         </section>
     </template>
 

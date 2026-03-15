@@ -111,7 +111,6 @@ class MailActivityReassignWizard(models.TransientModel):
             'note': (activity.note or '') + reassign_note,
             'date_deadline': activity.date_deadline,
             'user_id': self.new_user_id.id,
-            'res_model': activity.res_model,
             'res_model_id': activity.res_model_id.id,
             'res_id': activity.res_id,
             # 保留優先級欄位

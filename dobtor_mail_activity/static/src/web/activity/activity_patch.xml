@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Fix: handle unassigned activities where persona is undefined -->
+    <t t-name="mail.Activity" t-inherit="mail.Activity" t-inherit-mode="extension">
+
+        <!-- Avatar: fallback to default when persona is missing -->
+        <xpath expr="//a[@t-on-click='onClickAvatar']/img" position="replace">
+            <img t-if="props.activity.persona"
+                 class="w-100 h-100 rounded o_object_fit_cover"
+                 t-att-src="props.activity.persona.avatarUrl"/>
+            <img t-else=""
+                 class="w-100 h-100 rounded o_object_fit_cover"
+                 src="/mail/static/src/img/smiley/avatar.jpg"/>
+        </xpath>
+
+        <!-- User name: show "Unassigned" when persona is missing -->
+        <xpath expr="//span[hasclass('o-mail-Activity-user')]" position="replace">
+            <span t-if="props.activity.persona" class="o-mail-Activity-user px-1">
+                for <t t-esc="props.activity.persona.name"/>
+            </span>
+            <span t-else="" class="o-mail-Activity-user px-1 text-muted">
+                Unassigned
+            </span>
+        </xpath>
+
+        <!-- Assigned to detail row: fallback when persona is missing -->
+        <xpath expr="//t[@t-esc='props.activity.persona.name']" position="replace">
+            <t t-if="props.activity.persona" t-esc="props.activity.persona.name"/>
+            <span t-else="" class="text-muted">Unassigned</span>
+        </xpath>
+
+    </t>
+
+</templates>

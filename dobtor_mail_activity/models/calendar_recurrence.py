@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import logging
+
 from odoo import api, models, _
 from odoo.exceptions import UserError
+from odoo.release import version_info
 from dateutil import rrule
+
+_logger = logging.getLogger(__name__)
 
 
 # 從 calendar 模組複製的常量
@@ -16,6 +21,11 @@ RRULE_WEEKDAYS = {
     'sun': 'SU',
 }
 
+# 此 patch 修正 Odoo 18.0 中 FREQ=WEEKLY 缺少 BYDAY 的 bug。
+# 若 Odoo 官方在未來版本修正此問題，可移除此檔案。
+# 最後驗證版本：18.0
+_PATCH_APPLICABLE = version_info[0] <= 18
+
 
 class CalendarRecurrence(models.Model):
     """修補 Google Calendar 同步的 rrule 解析 bug
@@ -27,6 +37,8 @@ class CalendarRecurrence(models.Model):
     解決方案：
     1. 覆寫 _rrule_parse 方法，在 FREQ=WEEKLY 沒有 BYDAY 時自動設置默認星期幾
     2. 覆寫 _get_rrule 方法，在沒有設置星期幾時自動使用 dtstart 的星期幾
+
+    適用版本：Odoo <= 18.0。更高版本可能已修正此問題。
     """
     _inherit = 'calendar.recurrence'
 
@@ -34,6 +46,9 @@ class CalendarRecurrence(models.Model):
     def _rrule_parse(self, rule_str, date_start):
         """覆寫 rrule 解析方法，修補 FREQ=WEEKLY 沒有 BYDAY 的情況"""
         data = super()._rrule_parse(rule_str, date_start)
+
+        if not _PATCH_APPLICABLE:
+            return data
 
         day_list = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
@@ -51,6 +66,9 @@ class CalendarRecurrence(models.Model):
 
     def _get_week_days(self):
         """覆寫以處理沒有設置星期幾的情況"""
+        if not _PATCH_APPLICABLE:
+            return super()._get_week_days()
+
         day_fields = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
         # 檢查是否有設置任何星期幾
@@ -80,6 +98,9 @@ class CalendarRecurrence(models.Model):
 
     def _get_rrule(self, dtstart=None):
         """覆寫 _get_rrule 方法，在沒有設置星期幾時不拋出錯誤"""
+        if not _PATCH_APPLICABLE:
+            return super()._get_rrule(dtstart=dtstart)
+
         from odoo.addons.calendar.models.calendar_recurrence import (
             freq_to_rrule, MAX_RECURRENT_EVENT
         )

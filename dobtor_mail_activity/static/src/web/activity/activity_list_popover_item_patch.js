@@ -14,6 +14,7 @@ patch(ActivityListPopoverItem.prototype, {
     setup() {
         super.setup(...arguments);
         this.actionService = useService("action");
+        this.ormService = useService("orm");
     },
 
     get hasTransferButton() {
@@ -23,7 +24,7 @@ patch(ActivityListPopoverItem.prototype, {
 
     async onClickTransfer() {
         const activity = this.props.activity;
-        const action = await this.env.services.orm.call(
+        const action = await this.ormService.call(
             "mail.activity",
             "action_transfer_activity",
             [[activity.id]]

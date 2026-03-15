@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-import re
-
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+from odoo.tools import html2plaintext
 
 
 class MailActivityFromMessageWizard(models.TransientModel):
@@ -123,22 +122,14 @@ class MailActivityFromMessageWizard(models.TransientModel):
         """從訊息內容預填待辦摘要"""
         if self.message_id:
             body = self.message_id.body or ''
-            plain_text = self._strip_html_tags(body, max_length=100)
+            plain_text = html2plaintext(body).strip()
+            if len(plain_text) > 100:
+                plain_text = plain_text[:100] + '...'
             self.summary = plain_text or _('From Message')
 
             # 預填備註為完整訊息內容
             if not self.note:
                 self.note = self.message_id.body
-
-    def _strip_html_tags(self, html_content, max_length=None):
-        """清理 HTML 標籤，提取純文字"""
-        if not html_content:
-            return ''
-        plain_text = re.sub(r'<[^>]+>', '', html_content)
-        plain_text = plain_text.strip()
-        if max_length and len(plain_text) > max_length:
-            return plain_text[:max_length] + '...'
-        return plain_text
 
     def _validate_create(self):
         """驗證建立操作"""

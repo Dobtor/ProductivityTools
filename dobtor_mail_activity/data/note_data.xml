@@ -7,36 +7,25 @@
              Default stages for admin user
              ===================================================== -->
 
-        <!-- Notes - General notes -->
-        <record id="note_stage_notes" model="note.stage">
-            <field name="name">Notes</field>
+        <record id="note_stage_draft" model="note.stage">
+            <field name="name">暫記</field>
             <field name="sequence">1</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <!-- Meeting Minutes - Meeting records -->
-        <record id="note_stage_meeting" model="note.stage">
-            <field name="name">Meeting Minutes</field>
+        <record id="note_stage_planning" model="note.stage">
+            <field name="name">規劃中</field>
             <field name="sequence">5</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <!-- Manuals - Documentation and guides -->
-        <record id="note_stage_manuals" model="note.stage">
-            <field name="name">Manuals</field>
+        <record id="note_stage_published" model="note.stage">
+            <field name="name">定稿發佈</field>
             <field name="sequence">10</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
-        </record>
-
-        <!-- References - Reference materials -->
-        <record id="note_stage_references" model="note.stage">
-            <field name="name">References</field>
-            <field name="sequence">50</field>
-            <field name="user_id" ref="base.user_admin"/>
-            <field name="fold">True</field>
         </record>
 
     </data>

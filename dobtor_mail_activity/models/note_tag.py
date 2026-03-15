@@ -13,7 +13,7 @@ class NoteTag(models.Model):
     _name = 'note.tag'
     _description = 'Note Tag'
     _parent_store = True
-    _order = 'parent_path, name'
+    _order = 'name'
 
     # ===== 基本欄位 =====
     name = fields.Char(
@@ -43,10 +43,7 @@ class NoteTag(models.Model):
         'parent_id',
         string='Child Tags',
     )
-    parent_path = fields.Char(
-        index=True,
-        unaccent=False,
-    )
+    parent_path = fields.Char(index=True)
 
     # ===== SQL 約束 =====
     _sql_constraints = [

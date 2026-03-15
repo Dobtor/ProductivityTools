@@ -38,21 +38,12 @@ class ProjectProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': _("%(name)s's Leads", name=self.name),
             'res_model': 'crm.lead',
-            'domain': [('project_id', '=', self.id)],
             'context': {'default_project_id': self.id},
+            'domain': [('project_id', '=', self.id)],
         }
         if self.lead_count == 1:
-            action.update({
-                'view_mode': 'form',
-                'res_id': self.lead_ids.id,
-                'views': [(self.env.ref('crm.crm_lead_view_form').id, 'form')],
-            })
+            action['view_mode'] = 'form'
+            action['res_id'] = self.lead_ids.id
         else:
-            action.update({
-                'view_mode': 'list,form',
-                'views': [
-                    (self.env.ref('crm.crm_case_tree_view_oppor').id, 'list'),
-                    (self.env.ref('crm.crm_lead_view_form').id, 'form'),
-                ],
-            })
+            action['view_mode'] = 'list,form'
         return action

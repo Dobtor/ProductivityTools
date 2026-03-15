@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
 import math
-import re
 import logging
 from collections import defaultdict
 from datetime import timedelta
 
 from odoo import api, fields, models, Command, _
-from odoo.exceptions import UserError, ValidationError, AccessError
-from odoo.tools import is_html_empty
+from odoo.exceptions import UserError, AccessError
+from odoo.release import version_info
+from odoo.tools import html2plaintext
+
+# 此 bypass 修正 Odoo 18.0 中 mail.activity create 的 UnboundLocalError bug。
+# 若 Odoo 官方在未來版本修正此問題，可移除 bypass。
+# 最後驗證版本：18.0
+_CREATE_BYPASS_APPLICABLE = version_info[0] <= 18
 
 _logger = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ class MailActivity(models.Model):
         default=True,
     )
     done_date = fields.Datetime(
-        string='Done Date',
+        string='Done Datetime',
         readonly=True,
     )
     cancel_date = fields.Datetime(
@@ -237,13 +242,6 @@ class MailActivity(models.Model):
         help='Total of all logged hours',
     )
 
-    # 保留原有欄位作為相容（之後可移除）
-    timesheet_id = fields.Many2one(
-        'account.analytic.line',
-        string='Timesheet Entry (Legacy)',
-        readonly=True,
-    )
-
     feedback = fields.Text(
         string='Completion Feedback',
     )
@@ -376,8 +374,9 @@ class MailActivity(models.Model):
     @api.depends('res_model', 'res_id')
     def _compute_target_ref(self):
         """計算 target_ref Reference 欄位"""
+        allowed_models = {m for m, _n in self._selection_target_model()}
         for activity in self:
-            if activity.res_model and activity.res_id:
+            if activity.res_model and activity.res_id and activity.res_model in allowed_models:
                 activity.target_ref = '%s,%s' % (activity.res_model, activity.res_id)
             else:
                 activity.target_ref = False
@@ -486,20 +485,56 @@ class MailActivity(models.Model):
             tracking_disable=True,
         )
 
-        # 直接呼叫 models.Model.create 繞過 base mail.activity 的 buggy code
-        # Odoo 18 的 mail/models/mail_activity.py 有 UnboundLocalError bug
-        activities = models.Model.create(self_with_context, vals_list)
+        if _CREATE_BYPASS_APPLICABLE:
+            # 直接呼叫 models.Model.create 繞過 base mail.activity 的 buggy code
+            # Odoo 18 的 mail/models/mail_activity.py 有 UnboundLocalError bug
+            activities = models.Model.create(self_with_context, vals_list)
 
-        # 手動處理 bus 通知（原本在 base create 中，但有 bug）
-        for activity in activities:
-            if activity.user_id:
-                try:
-                    activity.user_id._bus_send(
-                        'mail.activity/updated',
-                        {'activity_created': True}
-                    )
-                except Exception as e:
-                    _logger.debug('Bus notification failed: %s', str(e))
+            # 手動處理 bus 通知（原本在 base create 中，但有 bug）
+            for activity in activities:
+                if activity.user_id:
+                    try:
+                        activity.user_id._bus_send(
+                            'mail.activity/updated',
+                            {'activity_created': True}
+                        )
+                    except Exception as e:
+                        _logger.debug('Bus notification failed: %s', str(e))
+
+            # 通知被指派人（僅指派給他人時，與原生邏輯一致）
+            activities_to_notify = activities.filtered(
+                lambda act: act.user_id and act.user_id != self.env.user
+            )
+            if activities_to_notify:
+                user_partners = activities_to_notify.user_id.partner_id
+                readable_user_partners = user_partners._filtered_access('read')
+                to_sudo = activities_to_notify.filtered(
+                    lambda act: act.user_id.partner_id not in readable_user_partners
+                )
+                other = activities_to_notify - to_sudo
+                to_sudo.sudo().action_notify()
+                other.action_notify()
+
+            # 手動訂閱被分派人為關聯文件的關注者
+            # （bypass 繞過了 core create 中的 message_subscribe 邏輯）
+            for activity in activities:
+                if activity.user_id and activity.res_model and activity.res_id:
+                    try:
+                        Model = self.env[activity.res_model]
+                        if hasattr(Model, 'message_subscribe'):
+                            record = Model.browse(activity.res_id).exists()
+                            if record:
+                                record.message_subscribe(
+                                    partner_ids=activity.user_id.sudo().partner_id.ids
+                                )
+                    except Exception:
+                        _logger.debug(
+                            'Failed to subscribe user %s to %s,%s',
+                            activity.user_id.name, activity.res_model, activity.res_id,
+                            exc_info=True,
+                        )
+        else:
+            activities = super().create(vals_list)
 
         return activities
 
@@ -583,23 +618,45 @@ class MailActivity(models.Model):
                 msg = activity.source_message_id
                 body = msg.body or ''
                 # 截取前 200 字元作為預覽
-                preview = self._strip_html_tags(body, max_length=200)
+                preview = self._html_to_text(body, max_length=200)
                 activity.source_message_preview = preview
             else:
                 activity.source_message_preview = False
 
     @api.depends('res_model', 'res_id')
     def _compute_related_activity_ids(self):
-        """計算同文件的所有待辦事項"""
+        """計算同文件的所有待辦事項（批次優化）"""
+        # 收集所有 (res_model, res_id) 組合
+        doc_keys = set()
         for activity in self:
             if activity.res_model and activity.res_id:
-                # 查詢同文件的所有待辦（含已封存）
-                activities = self.with_context(active_test=False).search([
-                    ('res_model', '=', activity.res_model),
-                    ('res_id', '=', activity.res_id),
-                ], order='sequence, id')
-                activity.related_activity_ids = activities
-                activity.related_activity_count = len(activities)
+                doc_keys.add((activity.res_model, activity.res_id))
+
+        # 一次查詢所有相關待辦
+
+        doc_activities = defaultdict(lambda: self.env['mail.activity'])
+
+        if doc_keys:
+            domain = ['|'] * (len(doc_keys) - 1)
+            for model, res_id in doc_keys:
+                domain += [
+                    '&',
+                    ('res_model', '=', model),
+                    ('res_id', '=', res_id),
+                ]
+                
+            all_related = self.with_context(active_test=False).search(
+                domain, order='sequence, id'
+            )
+
+            for act in all_related:
+                doc_activities[(act.res_model, act.res_id)] |= act
+
+        for activity in self:
+            if activity.res_model and activity.res_id:
+                related = doc_activities[(activity.res_model, activity.res_id)]
+                activity.related_activity_ids = related
+                activity.related_activity_count = len(related)
             else:
                 activity.related_activity_ids = False
                 activity.related_activity_count = 0
@@ -619,25 +676,26 @@ class MailActivity(models.Model):
                 else:
                     activity.source_message_type = False
 
-                # 查詢同文件的使用者評論訊息，取得前後各2則
-                messages = self.env['mail.message'].search([
+                # 用兩次有限查詢取代無限全表搜尋：
+                # 查詢來源訊息之後（含）的較舊訊息（desc → id <= msg.id）
+                Message = self.env['mail.message']
+                base_domain = [
                     ('model', '=', msg.model),
                     ('res_id', '=', msg.res_id),
                     ('message_type', 'in', ['comment', 'email']),
-                ], order='date desc')
-
-                # 找出來源訊息的位置，取前後各2則
-                msg_ids = messages.ids
-                if msg.id in msg_ids:
-                    idx = msg_ids.index(msg.id)
-                    # 因為是 desc 排序，idx 前面是較新的，後面是較舊的
-                    # 取 idx-2 到 idx+3（包含來源訊息本身）
-                    start = max(0, idx - 2)
-                    end = min(len(msg_ids), idx + 3)
-                    context_ids = msg_ids[start:end]
-                    activity.context_message_ids = self.env['mail.message'].browse(context_ids)
+                ]
+                older = Message.search(
+                    base_domain + [('id', '<=', msg.id)],
+                    order='date desc, id desc', limit=3,
+                )
+                newer = Message.search(
+                    base_domain + [('id', '>', msg.id)],
+                    order='date asc, id asc', limit=2,
+                )
+                context_msgs = newer | older
+                if context_msgs:
+                    activity.context_message_ids = context_msgs
                 else:
-                    # 來源訊息不在列表中（可能被刪除或類型不符），只顯示來源訊息
                     activity.context_message_ids = msg
             else:
                 activity.source_message_type = False
@@ -682,8 +740,8 @@ class MailActivity(models.Model):
         # 批次處理每個模型
         for model_name, activities in model_groups.items():
             try:
-                res_ids = [a.res_id for a in activities]
-                records = self.env[model_name].browse(res_ids).exists()
+                res_ids = list(set(a.res_id for a in activities))
+                records = self.env[model_name].browse(res_ids)
                 record_map = {r.id: r for r in records}
 
                 for activity in activities:
@@ -695,8 +753,7 @@ class MailActivity(models.Model):
                     if model_name == 'crm.lead':
                         activity.crm_lead_id = record.id
                         activity.partner_id = record.partner_id.id if record.partner_id else False
-                        if hasattr(record, 'project_id') and record.project_id:
-                            activity.project_id = record.project_id.id
+                        activity.project_id = record.project_id.id if record.project_id else False
 
                     # Project Task
                     elif model_name == 'project.task':
@@ -726,8 +783,8 @@ class MailActivity(models.Model):
             3: 'thursday', 4: 'friday', 5: 'saturday', 6: 'sunday'
         }
         weekday_names = {
-            0: '週一', 1: '週二', 2: '週三',
-            3: '週四', 4: '週五', 5: '週六', 6: '週日'
+            0: 'Monday', 1: 'Tuesday', 2: 'Wednesday',
+            3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'
         }
 
         today = fields.Date.today()
@@ -751,11 +808,7 @@ class MailActivity(models.Model):
             if needs_schedule_date <= week_end:
                 weekday = needs_schedule_date.weekday()
                 activity.needs_schedule_by = weekday_map.get(weekday)
-                weekday_names_en = {
-                    0: 'Monday', 1: 'Tuesday', 2: 'Wednesday',
-                    3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'
-                }
-                activity.schedule_warning = _('Needs to be scheduled by %s') % weekday_names_en.get(weekday, '')
+                activity.schedule_warning = _('Needs to be scheduled by %s') % weekday_names.get(weekday, '')
 
     # ========== Override Methods ==========
 
@@ -782,8 +835,11 @@ class MailActivity(models.Model):
                 ))
 
         # 驗證：user_id 建立後只能透過領取或變更指派操作修改
+        # 豁免：calendar.event._sync_activities() 同步日曆事件時會連帶寫入 user_id
         if 'user_id' in vals and not self.env.su:
-            if not self.env.context.get('allow_user_change', False):
+            if not self.env.context.get('allow_user_change', False) \
+                    and not self.env.context.get('calendar_event_save', False) \
+                    and not any(a.calendar_event_id for a in self):
                 for activity in self:
                     if activity.id:  # 已存在的記錄才限制
                         raise UserError(_(
@@ -862,12 +918,10 @@ class MailActivity(models.Model):
                         target_week_start = current_week_start + timedelta(days=7 * schedule_week_number)
                         vals['planned_date'] = target_week_start + timedelta(days=target_weekday)
 
-                # 如果來源尚未設定，標記為臨時插入
+                # 如果來源尚未設定，標記為臨時插入（僅當所有記錄均無 origin 時）
                 if 'schedule_origin' not in vals:
-                    for activity in self:
-                        if not activity.schedule_origin:
-                            vals['schedule_origin'] = 'inserted'
-                            break
+                    if all(not act.schedule_origin for act in self):
+                        vals['schedule_origin'] = 'inserted'
 
         return super().write(vals)
 
@@ -950,106 +1004,6 @@ class MailActivity(models.Model):
                 )
 
         return messages, next_activities
-
-    def _create_timesheet_entry(self):
-        """完成待辦時建立工時表記錄 - 遵循 hr_timesheet 官方模式"""
-        self.ensure_one()
-
-        # 檢查是否有執行工時
-        if not self.actual_hours or self.actual_hours <= 0:
-            return False
-
-        # 確認用戶有員工記錄
-        employee = self.user_id.employee_id if self.user_id else False
-        if not employee:
-            _logger.warning(
-                'User %s has no employee record, skipping timesheet for activity %s.',
-                self.user_id.name if self.user_id else 'Unknown', self.id
-            )
-            return False
-
-        if not employee.active:
-            _logger.warning(
-                'Employee %s is inactive, skipping timesheet for activity %s.',
-                employee.name, self.id
-            )
-            return False
-
-        project = False
-        task_id = False
-
-        # 情況 1：關聯 project.task
-        if self.res_model == 'project.task':
-            task = self.env['project.task'].browse(self.res_id)
-            if task.exists() and task.project_id:
-                # 確認專案允許工時表
-                if hasattr(task.project_id, 'allow_timesheets') and task.project_id.allow_timesheets:
-                    project = task.project_id
-                    task_id = task.id
-
-        # 情況 2：關聯 crm.lead（如果有專案關聯）
-        elif self.res_model == 'crm.lead':
-            lead = self.env['crm.lead'].browse(self.res_id)
-            if hasattr(lead, 'project_id') and lead.project_id:
-                if hasattr(lead.project_id, 'allow_timesheets') and lead.project_id.allow_timesheets:
-                    project = lead.project_id
-
-        # 情況 3：無專案，使用預設
-        if not project:
-            default_project = self.env.company.default_timesheet_project_id
-            if default_project:
-                # 確認預設專案允許工時表
-                if hasattr(default_project, 'allow_timesheets') and default_project.allow_timesheets:
-                    project = default_project
-                else:
-                    _logger.warning(
-                        'Default project %s does not allow timesheets.',
-                        default_project.name
-                    )
-                    return False
-            else:
-                _logger.warning(
-                    'Activity %s completed but no project for timesheet. '
-                    'Model: %s, ID: %s',
-                    self.id, self.res_model, self.res_id
-                )
-                return False
-
-        # 關鍵：確保 account_id 存在（Odoo 18: analytic_account_id 改為 account_id）
-        if not project.account_id:
-            _logger.warning(
-                'Project %s has no analytic account, cannot create timesheet.',
-                project.name
-            )
-            return False
-
-        if not project.account_id.active:
-            _logger.warning(
-                'Project %s analytic account is inactive.',
-                project.name
-            )
-            return False
-
-        # 準備工時表值
-        vals = {
-            'date': self.planned_date or fields.Date.today(),
-            'name': self.feedback or self.summary or _('Activity Execution'),
-            'unit_amount': self.actual_hours,
-            'employee_id': employee.id,
-            'user_id': self.user_id.id,
-            'project_id': project.id,
-            'task_id': task_id,
-            'account_id': project.account_id.id,
-            'company_id': project.account_id.company_id.id or project.company_id.id,
-        }
-
-        try:
-            timesheet = self.env['account.analytic.line'].sudo().create(vals)
-            self.timesheet_id = timesheet.id
-            return timesheet
-        except Exception as e:
-            _logger.error('Failed to create timesheet for activity %s: %s', self.id, str(e))
-            return False
 
     def action_cancel(self):
         """取消待辦（封存）"""
@@ -1222,6 +1176,8 @@ class MailActivity(models.Model):
 
         # 處理自定義模板通知
         for activity in custom_notify_activities:
+            if not activity.user_id:
+                continue
             template = activity.activity_type_id.notify_template_id
             # 使用被指派者的語言
             if activity.user_id.lang:
@@ -1248,12 +1204,11 @@ class MailActivity(models.Model):
     # ========== 工具方法 ==========
 
     @api.model
-    def _strip_html_tags(self, html_content, max_length=None):
-        """清理 HTML 標籤，提取純文字"""
+    def _html_to_text(self, html_content, max_length=None):
+        """將 HTML 轉為純文字（使用 odoo.tools.html2plaintext）"""
         if not html_content:
             return ''
-        plain_text = re.sub(r'<[^>]+>', '', html_content)
-        plain_text = plain_text.strip()
+        plain_text = html2plaintext(html_content).strip()
         if max_length and len(plain_text) > max_length:
             return plain_text[:max_length] + '...'
         return plain_text
@@ -1292,7 +1247,7 @@ class MailActivity(models.Model):
             note = activity_list[0]['note']
             note_name = note.name
             if not note_name and note.memo:
-                note_name = self._strip_html_tags(note.memo, max_length=50)
+                note_name = self._html_to_text(note.memo, max_length=50)
 
             active_count = sum(1 for a in activity_list if a['state'] == 'active')
             done_count = sum(1 for a in activity_list if a['state'] in ('done', 'cancelled'))
@@ -1332,18 +1287,29 @@ class MailActivity(models.Model):
             ('active', '=', True),
         ])
 
+        # 依星期幾分組，批次 write
+        weekday_map = {
+            0: 'monday', 1: 'tuesday', 2: 'wednesday',
+            3: 'thursday', 4: 'friday', 5: 'saturday', 6: 'sunday'
+        }
+        groups = defaultdict(lambda: self.env['mail.activity'])
         for activity in activities:
             weekday = activity.scheduled_date.weekday()
-            weekday_map = {
-                0: 'monday', 1: 'tuesday', 2: 'wednesday',
-                3: 'thursday', 4: 'friday', 5: 'saturday', 6: 'sunday'
-            }
-            # 使用 context 標記跳過權限檢查（系統定時任務）
-            activity.with_context(skip_schedule_check=True).write({
-                'planned_date': activity.scheduled_date,
-                'schedule_status': weekday_map.get(weekday, 'waiting'),
-                'scheduled_date': False,
-            })
+            groups[weekday] |= activity
+
+        ctx = {'skip_schedule_check': True}
+        for weekday, group_activities in groups.items():
+            # 同星期的待辦 planned_date 各不同，需逐日處理
+            date_groups = defaultdict(lambda: self.env['mail.activity'])
+            for act in group_activities:
+                date_groups[act.scheduled_date] |= act
+
+            for scheduled_date, acts in date_groups.items():
+                acts.with_context(**ctx).write({
+                    'planned_date': scheduled_date,
+                    'schedule_status': weekday_map.get(weekday, 'waiting'),
+                    'scheduled_date': False,
+                })
 
         _logger.info('Weekly transition completed. Processed %d activities.', len(activities))
 
@@ -1392,13 +1358,15 @@ class MailActivity(models.Model):
         if self.user_id:
             raise UserError(_('This activity has already been assigned and cannot be claimed.'))
 
-        now = fields.Datetime.now()
-        claim_note = _('\n\n--- %s claimed this activity ---') % now.strftime('%Y-%m-%d %H:%M')
-
         self.with_context(allow_user_change=True).write({
             'user_id': self.env.user.id,
-            'note': (self.note or '') + claim_note,
         })
+
+        # 使用 message_post 記錄領取事件（避免直接串接 Html 欄位）
+        self.message_post(
+            body=_('%(user)s claimed this activity.', user=self.env.user.name),
+            message_type='notification',
+        )
 
         # 將領取者加入來源訊息所在的頻道
         self._add_user_to_source_channel(self.env.user)
@@ -1439,6 +1407,11 @@ class MailActivity(models.Model):
         current_week_start = today - timedelta(days=today.weekday())
         target_week_start = current_week_start + timedelta(days=7 * week_number)
 
+        weekday_map = {
+            0: 'monday', 1: 'tuesday', 2: 'wednesday',
+            3: 'thursday', 4: 'friday', 5: 'saturday', 6: 'sunday',
+        }
+
         for activity in self:
             # 保持原有的星期幾，或預設為週一
             if activity.planned_date:
@@ -1452,14 +1425,15 @@ class MailActivity(models.Model):
 
             # 根據週次設定不同欄位
             if week_number <= 0:
-                # 上週或本週：設定 planned_date
-                activity.write({
+                # 上週或本週：設定 planned_date + schedule_status
+                activity.with_context(skip_schedule_check=True).write({
                     'planned_date': target_date,
+                    'schedule_status': weekday_map.get(original_weekday, 'monday'),
                     'scheduled_date': False,
                 })
             else:
                 # 未來週次：設定 scheduled_date
-                activity.write({
+                activity.with_context(skip_schedule_check=True).write({
                     'scheduled_date': target_date,
                     'planned_date': False,
                 })
@@ -1491,57 +1465,72 @@ class MailActivity(models.Model):
 
     @api.model
     def get_week_info(self):
-        """取得五週的日期資訊（供前端使用）：上週、本週、下週、第三週、第四週"""
+        """取得五週的日期資訊（供前端使用）：上週、本週、下週、第三週、第四週
+
+        使用單次 read_group 查詢所有 5 週的統計資料，取代原本 5 次獨立查詢。
+        """
         today = fields.Date.today()
         current_week_start = today - timedelta(days=today.weekday())
 
-        # 週天對應的 schedule_status 值
         weekday_keys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
-        # 週次設定：從 -1 (上週) 到 3 (第四週)
         week_configs = [
-            (-1, '上週', 'week_prev'),
-            (0, '本週', 'week0'),
-            (1, '下週', 'week1'),
-            (2, '第三週', 'week2'),
-            (3, '第四週', 'week3'),
+            (-1, _('Last Week'), 'week_prev'),
+            (0, _('This Week'), 'week0'),
+            (1, _('Next Week'), 'week1'),
+            (2, _('Week 3'), 'week2'),
+            (3, _('Week 4'), 'week3'),
         ]
+
+        # 單次查詢：以 schedule_week_number 分組統計所有 5 週的待辦數量和工時
+        all_week_numbers = [wc[0] for wc in week_configs]
+        activities_data = self.read_group(
+            domain=[
+                ('active', '=', True),
+                ('user_id', '=', self.env.uid),
+                ('schedule_week_number', 'in', all_week_numbers),
+                ('schedule_status', '!=', 'waiting'),
+            ],
+            fields=['estimated_hours:sum'],
+            groupby=['schedule_week_number'],
+        )
+
+        # 建立 week_number → {count, hours} 查找表
+        week_stats = {}
+        for group in activities_data:
+            wn = group['schedule_week_number']
+            week_stats[wn] = {
+                'count': group['schedule_week_number_count'],
+                'total_hours': group['estimated_hours'] or 0,
+            }
 
         weeks = []
         for week_number, week_name, week_key in week_configs:
             week_start = current_week_start + timedelta(days=7 * week_number)
             week_end = week_start + timedelta(days=6)
 
-            # 計算該週的待辦數量（不含等待排程）
-            domain = [
-                ('active', '=', True),
-                ('user_id', '=', self.env.uid),
-                ('schedule_week_number', '=', week_number),
-                ('schedule_status', '!=', 'waiting'),
-            ]
-            # 使用 read_group 一次取得數量和總工時
-            result = self.read_group(
-                domain=domain,
-                fields=['estimated_hours:sum'],
-                groupby=[],
-            )
-            count = result[0].get('__count', 0) if result else 0
-            total_hours = result[0].get('estimated_hours', 0) if result else 0
+            stats = week_stats.get(week_number, {'count': 0, 'total_hours': 0})
 
-            # 建立每天的日期對應表
             dates = {}
             for day_index, day_key in enumerate(weekday_keys):
                 day_date = week_start + timedelta(days=day_index)
                 dates[day_key] = day_date.strftime('%Y-%m-%d')
 
+            start_fmt = week_start.strftime('%Y/%m/%d')
+            end_fmt = week_end.strftime('%Y/%m/%d')
+            display_name = '%s[%d]%s-%s' % (
+                week_name, stats['count'], start_fmt, end_fmt,
+            )
+
             weeks.append({
                 'number': week_number,
                 'name': week_name,
+                'display_name': display_name,
                 'key': week_key,
                 'start_date': week_start.strftime('%Y-%m-%d'),
                 'end_date': week_end.strftime('%Y-%m-%d'),
-                'count': count,
-                'total_hours': total_hours,
+                'count': stats['count'],
+                'total_hours': stats['total_hours'],
                 'dates': dates,
             })
 

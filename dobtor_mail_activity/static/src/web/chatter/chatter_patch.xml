@@ -5,9 +5,13 @@
     <t t-name="mail.Chatter" t-inherit="mail.Chatter" t-inherit-mode="extension">
         <!-- 在 ActivityList 之前添加 RelatedNotes（最上方） -->
         <xpath expr="//t[@t-call='mail.ActivityList']/.." position="before">
-            <t t-if="props.threadId and !messageSearch.searching and !messageSearch.searched">
+            <t t-if="props.threadId and (!messageSearch or (!messageSearch.searching and !messageSearch.searched))">
                 <RelatedNotes resModel="props.threadModel" resId="props.threadId"/>
             </t>
+        </xpath>
+        <!-- 將 "Activities" 按鈕改為 "待辦" -->
+        <xpath expr="//button[hasclass('o-mail-Chatter-activity')]/span" position="replace">
+            <span>Activities</span>
         </xpath>
     </t>
 

@@ -80,6 +80,57 @@ class MailMessage(models.Model):
 
         return result
 
+    @api.model
+    def get_created_activities_batch(self, message_ids, include_archived=False):
+        """批次取得多個訊息建立的待辦
+
+        Args:
+            message_ids: 訊息 ID 列表
+            include_archived: 是否包含已封存的待辦
+
+        Returns:
+            dict: {message_id: [activity_info, ...], ...}
+        """
+        if not message_ids:
+            return {}
+
+        Activity = self.env['mail.activity']
+        if include_archived:
+            Activity = Activity.with_context(active_test=False)
+
+        activities = Activity.search([
+            ('source_message_id', 'in', message_ids),
+        ])
+
+        result = {}
+        for activity in activities:
+            msg_id = activity.source_message_id.id
+            if activity.active:
+                state, state_label = 'active', _('In Progress')
+            elif activity.done_date:
+                state, state_label = 'done', _('Completed')
+            elif activity.cancel_date:
+                state, state_label = 'cancelled', _('Cancelled')
+            else:
+                state, state_label = 'archived', _('Archived')
+
+            result.setdefault(msg_id, []).append({
+                'id': activity.id,
+                'summary': activity.summary or activity.activity_type_id.name or '',
+                'state': state,
+                'state_label': state_label,
+                'user_id': activity.user_id.id if activity.user_id else False,
+                'user_name': activity.user_id.name if activity.user_id else _('Unassigned'),
+                'date_deadline': activity.date_deadline.strftime('%Y-%m-%d') if activity.date_deadline else False,
+                'activity_type_id': activity.activity_type_id.id,
+                'activity_type_name': activity.activity_type_id.name,
+                'res_model': activity.res_model,
+                'res_id': activity.res_id,
+                'res_name': activity.res_name,
+            })
+
+        return result
+
     def action_view_created_activities(self):
         """查看從此訊息建立的待辦"""
         self.ensure_one()

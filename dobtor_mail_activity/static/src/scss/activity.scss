@@ -58,72 +58,6 @@
         }
     }
 
-    .o_activity_card {
-        // Urgent activities (overdue)
-        &.border-danger {
-            border-left: 4px solid $danger !important;
-        }
-
-        // Important activities
-        &.fw-bold {
-            background-color: rgba($danger, 0.1);
-        }
-
-        // Done activities
-        &.o_activity_done {
-            opacity: 0.5;
-
-            .o_activity_summary {
-                text-decoration: line-through;
-            }
-        }
-    }
-}
-
-// ============================================
-// Activity State Colors
-// ============================================
-$activity-urgent-color: $danger;
-$activity-standard-color: $warning;
-$activity-flexible-color: $success;
-
-.o_activity_deadline {
-    &.o_activity_overdue {
-        color: $activity-urgent-color;
-    }
-
-    &.o_activity_today {
-        color: $activity-standard-color;
-    }
-
-    &.o_activity_planned {
-        color: $activity-flexible-color;
-    }
-}
-
-// ============================================
-// Activity Priority Badge
-// ============================================
-.o_activity_priority {
-    &.o_priority_urgent {
-        background-color: $activity-urgent-color;
-        color: white;
-    }
-
-    &.o_priority_high {
-        background-color: $activity-standard-color;
-        color: $dark;
-    }
-
-    &.o_priority_normal {
-        background-color: $secondary;
-        color: white;
-    }
-
-    &.o_priority_low {
-        background-color: $light;
-        color: $dark;
-    }
 }
 
 // ============================================
@@ -138,26 +72,6 @@ $activity-flexible-color: $success;
 
         &:focus {
             box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
-        }
-    }
-}
-
-// Week Selector (Standalone Component)
-.o_week_selector {
-    .o_week_item {
-        min-width: 100px;
-        transition: all 0.2s ease;
-        border: 1px solid transparent;
-        cursor: pointer;
-
-        &:hover {
-            border-color: $primary;
-            transform: translateY(-2px);
-        }
-
-        &.active,
-        &.bg-primary {
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
     }
 }
@@ -219,7 +133,7 @@ $activity-flexible-color: $success;
         cursor: pointer;
 
         &:hover {
-            background-color: darken($light, 5%) !important;
+            background-color: color-mix(in srgb, $light, black 5%) !important;
         }
     }
 
@@ -245,14 +159,8 @@ $activity-flexible-color: $success;
         color: white;
 
         &:hover {
-            background-color: darken($primary, 10%);
+            background-color: color-mix(in srgb, $primary, black 10%);
         }
     }
 }
 
-// ============================================
-// Hide avatar in certain contexts
-// ============================================
-.o_activity_hide_avatar .o_avatar {
-    display: none;
-}

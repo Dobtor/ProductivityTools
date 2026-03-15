@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from collections import defaultdict
 from datetime import timedelta
 
 from odoo import api, fields, models, _
@@ -155,7 +156,8 @@ class ActivityEfficiencyMetrics(models.Model):
                 continue
 
             if record.period_type == 'week':
-                record.period_name = record.period_start.strftime('%Y-W%W')
+                iso_year, iso_week, _ = record.period_start.isocalendar()
+                record.period_name = '%d-W%02d' % (iso_year, iso_week)
             elif record.period_type == 'month':
                 record.period_name = record.period_start.strftime('%Y-%m')
             elif record.period_type == 'quarter':
@@ -253,92 +255,97 @@ class ActivityEfficiencyMetrics(models.Model):
             self._compute_period_metrics(quarter_start, quarter_end, 'quarter')
 
     def _compute_period_metrics(self, period_start, period_end, period_type):
-        """計算特定期間的效率指標
+        """計算特定期間的效率指標（批次優化）
 
         Args:
             period_start: 期間起始日期
             period_end: 期間結束日期
             period_type: 期間類型（week/month/quarter）
         """
-        # 取得所有內部用戶
-        users = self.env['res.users'].search([
-            ('share', '=', False),
-            ('active', '=', True),
-        ])
-
-        created_count = 0
-        for user in users:
-            # 檢查是否已有記錄
-            existing = self.search([
-                ('user_id', '=', user.id),
+        # 批次取得已存在記錄（用於 upsert）
+        existing_records = {
+            r.user_id.id: r for r in self.search([
                 ('period_start', '=', period_start),
                 ('period_end', '=', period_end),
                 ('period_type', '=', period_type),
             ])
-            if existing:
-                continue
+        }
 
-            # 取得期間內的待辦（包含已封存）
-            activities = self.env['mail.activity'].with_context(
-                active_test=False
-            ).search([
-                ('user_id', '=', user.id),
-                ('planned_date', '>=', period_start),
-                ('planned_date', '<=', period_end),
-            ])
+        # 一次查詢所有內部用戶在期間內的待辦（取代 N 次 search）
+        all_activities = self.env['mail.activity'].with_context(
+            active_test=False
+        ).search_read([
+            ('user_id', '!=', False),
+            ('user_id.share', '=', False),
+            ('planned_date', '>=', period_start),
+            ('planned_date', '<=', period_end),
+        ], [
+            'user_id', 'estimated_hours', 'actual_hours',
+            'done_date', 'date_deadline', 'cancel_date',
+            'postpone_count', 'schedule_origin',
+        ])
 
-            if not activities:
-                continue
+        # 依 user_id 分組
+        user_activities = defaultdict(list)
+        for act in all_activities:
+            uid = act['user_id'][0]
+            user_activities[uid].append(act)
 
-            # 單次迭代計算所有統計值（優化效能）
+        if not user_activities:
+            _logger.info(
+                'Efficiency metrics: no new data for period %s to %s (%s).',
+                period_start, period_end, period_type
+            )
+            return
+
+        # 批次取得部門資訊（一次查詢）
+        user_ids = list(user_activities.keys())
+        employees = self.env['hr.employee'].search_read([
+            ('user_id', 'in', user_ids),
+            ('active', '=', True),
+        ], ['user_id', 'department_id'])
+        user_department_map = {
+            emp['user_id'][0]: emp['department_id'][0] if emp['department_id'] else False
+            for emp in employees
+        }
+
+        # 批次建立或更新效率指標記錄（upsert 模式）
+        create_list = []
+        update_count = 0
+        for uid, activities in user_activities.items():
             total = len(activities)
             completed = 0
             on_time = 0
             postponed = 0
             cancelled = 0
-            total_estimated = 0
-            total_actual = 0
+            total_estimated = 0.0
+            total_actual = 0.0
             planned_count = 0
             inserted_count = 0
 
-            for activity in activities:
-                total_estimated += activity.estimated_hours or 0
-                total_actual += activity.actual_hours or 0
+            for act in activities:
+                total_estimated += act['estimated_hours'] or 0
+                total_actual += act['actual_hours'] or 0
 
-                # 完成狀態判斷
-                if activity.done_date:
+                if act['done_date']:
                     completed += 1
-                    # 準時判斷：完成日期 <= 截止日期
-                    if activity.date_deadline and activity.done_date.date() <= activity.date_deadline:
+                    if act['date_deadline'] and act['done_date'].date() <= act['date_deadline']:
                         on_time += 1
 
-                # 延期判斷：有延期歷史
-                if activity.postpone_count > 0:
+                if (act['postpone_count'] or 0) > 0:
                     postponed += 1
 
-                # 取消判斷
-                if activity.cancel_date:
+                if act['cancel_date']:
                     cancelled += 1
 
-                # 來源統計
-                if activity.schedule_origin == 'planned':
+                origin = act['schedule_origin']
+                if origin == 'planned':
                     planned_count += 1
-                elif activity.schedule_origin == 'inserted':
+                elif origin == 'inserted':
                     inserted_count += 1
 
-            # 取得部門
-            department_id = False
-            if hasattr(user, 'employee_id') and user.employee_id:
-                if user.employee_id.department_id:
-                    department_id = user.employee_id.department_id.id
-
-            # 建立效率指標記錄
-            self.create({
-                'user_id': user.id,
-                'department_id': department_id,
-                'period_type': period_type,
-                'period_start': period_start,
-                'period_end': period_end,
+            metric_vals = {
+                'department_id': user_department_map.get(uid, False),
                 'total_activities': total,
                 'completed_activities': completed,
                 'on_time_activities': on_time,
@@ -348,12 +355,27 @@ class ActivityEfficiencyMetrics(models.Model):
                 'total_actual_hours': total_actual,
                 'planned_source_count': planned_count,
                 'inserted_source_count': inserted_count,
-            })
-            created_count += 1
+            }
+
+            existing = existing_records.get(uid)
+            if existing:
+                existing.write(metric_vals)
+                update_count += 1
+            else:
+                metric_vals.update({
+                    'user_id': uid,
+                    'period_type': period_type,
+                    'period_start': period_start,
+                    'period_end': period_end,
+                })
+                create_list.append(metric_vals)
+
+        if create_list:
+            self.create(create_list)
 
         _logger.info(
-            'Efficiency metrics computed for period %s to %s (%s). Created %d records.',
-            period_start, period_end, period_type, created_count
+            'Efficiency metrics computed for period %s to %s (%s). Created %d, updated %d records.',
+            period_start, period_end, period_type, len(create_list), update_count
         )
 
     @api.model

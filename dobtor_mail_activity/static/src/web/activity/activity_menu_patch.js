@@ -4,6 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 import { ActivityMenu } from "@mail/core/web/activity_menu";
 import { useCommand } from "@web/core/commands/command_hook";
 import { useService } from "@web/core/utils/hooks";
+import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 import { registry } from "@web/core/registry";
 
@@ -64,7 +65,7 @@ patch(ActivityMenu.prototype, {
             views: [[false, "form"]],
             target: "new",
             context: {
-                default_user_id: this.store.self?.userId,
+                default_user_id: user.userId,
                 // Use module's custom form view if available
                 form_view_ref: "dobtor_mail_activity.mail_activity_view_form_quick",
             },

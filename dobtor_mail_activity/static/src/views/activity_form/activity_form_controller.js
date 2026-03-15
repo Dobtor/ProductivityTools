@@ -33,7 +33,7 @@ export class ActivityFormController extends FormController {
             filteredActions.push({
                 description: _t("Postpone"),
                 callback: async () => {
-                    await this.model.action.doAction({
+                    await this.actionService.doAction({
                         type: "ir.actions.act_window",
                         name: _t("Postpone Activity"),
                         res_model: "mail.activity.postpone.wizard",
@@ -50,7 +50,7 @@ export class ActivityFormController extends FormController {
             filteredActions.push({
                 description: _t("Transfer"),
                 callback: async () => {
-                    await this.model.action.doAction({
+                    await this.actionService.doAction({
                         type: "ir.actions.act_window",
                         name: _t("Transfer Activity"),
                         res_model: "mail.activity.transfer.wizard",

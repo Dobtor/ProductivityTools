@@ -30,9 +30,9 @@ def _create_default_note_stages_for_existing_users(env):
     """Post-init hook: Create default note stages for existing users
 
     This ensures all existing users get default note stages when the module
-    is installed or upgraded.
+    is installed or upgraded. Uses batch creation for efficiency.
     """
-    # Get all internal users who don't have any note stages
+    # Get all internal users
     users = env['res.users'].search([
         ('share', '=', False),  # Only internal users
     ])
@@ -45,18 +45,26 @@ def _create_default_note_stages_for_existing_users(env):
         {'name': 'References', 'sequence': 50, 'fold': True},
     ]
 
-    for user in users:
-        # Check if user already has stages
-        existing_stages = NoteStage.search_count([('user_id', '=', user.id)])
-        if existing_stages > 0:
-            continue
+    # Batch query users who already have stages
+    env.cr.execute(
+        "SELECT DISTINCT user_id FROM note_stage WHERE user_id IN %s",
+        [tuple(users.ids)] if users.ids else [(0,)]
+    )
+    users_with_stages = {row[0] for row in env.cr.fetchall()}
 
-        # Create default stages for user
+    # Batch collect all vals
+    vals_list = []
+    for user in users:
+        if user.id in users_with_stages:
+            continue
         for stage_vals in default_stages:
-            NoteStage.create({
+            vals_list.append({
                 **stage_vals,
                 'user_id': user.id,
             })
+
+    if vals_list:
+        NoteStage.create(vals_list)
 
 
 def _post_init_hook(env):

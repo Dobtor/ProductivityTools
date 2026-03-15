@@ -29,26 +29,14 @@ class MeetingPortal(CustomerPortal):
     def _prepare_meetings_domain(self, partner):
         """準備會議記錄的搜尋條件
 
-        由於 available_signer_ids 是計算欄位，無法直接搜尋。
-        改為搜尋：
-        1. 指定簽名者包含此用戶
-        2. 或相關行事曆事件的參與者包含此用戶
+        單次查詢：直接在 domain 中使用 calendar_event_ids.partner_ids
+        取代原本的兩次 search。
         """
-        # 找出用戶參與的行事曆事件
-        calendar_events = request.env['calendar.event'].search([
-            ('partner_ids', 'in', [partner.id])
-        ])
-        # 找出這些事件關聯的會議記錄
-        notes_from_events = request.env['note.note'].search([
-            ('note_type', '=', 'meeting'),
-            ('calendar_event_ids', 'in', calendar_events.ids)
-        ]) if calendar_events else request.env['note.note']
-
         return [
             ('note_type', '=', 'meeting'),
             '|',
-            ('id', 'in', notes_from_events.ids),
             ('signer_ids', 'in', [partner.id]),
+            ('calendar_event_ids.partner_ids', 'in', [partner.id]),
         ]
 
     def _get_meeting_searchbar_sortings(self):
@@ -139,6 +127,7 @@ class MeetingPortal(CustomerPortal):
                             report_type=None, download=False, message=False, **kwargs):
         """單一會議記錄檢視頁面"""
         try:
+            # active_test=False: 已封存的會議記錄仍可透過 Portal 檢視/簽名
             note_sudo = self._document_check_access(
                 'note.note', note_id, access_token=access_token
             )
@@ -164,9 +153,11 @@ class MeetingPortal(CustomerPortal):
             session_key = f'view_meeting_{note_sudo.id}'
             if request.session.get(session_key) != today:
                 request.session[session_key] = today
-                author = (note_sudo.signer_ids[:1] or note_sudo.available_signer_ids[:1]
-                          if request.env.user._is_public()
-                          else request.env.user.partner_id)
+                author = (
+                    (note_sudo.signer_ids[:1] or note_sudo.available_signer_ids[:1])
+                    if request.env.user._is_public()
+                    else request.env.user.partner_id
+                )
                 if author:
                     note_sudo.message_post(
                         author_id=author.id,
@@ -181,15 +172,20 @@ class MeetingPortal(CustomerPortal):
 
         if signature_id and signature_token:
             # 通過 signature_token 驗證
-            signature = request.env['note.signature'].sudo().search([
-                ('id', '=', int(signature_id)),
-                ('access_token', '=', signature_token),
-                ('note_id', '=', note_sudo.id),
-            ], limit=1)
-            if signature:
-                current_signature = signature
-                partner = signature.partner_id
-                needs_signature = note_sudo._has_to_be_signed_by(partner)
+            try:
+                sig_id = int(signature_id)
+            except (ValueError, TypeError):
+                sig_id = False
+            if sig_id:
+                signature = request.env['note.signature'].sudo().search([
+                    ('id', '=', sig_id),
+                    ('access_token', '=', signature_token),
+                    ('note_id', '=', note_sudo.id),
+                ], limit=1)
+                if signature:
+                    current_signature = signature
+                    partner = signature.partner_id
+                    needs_signature = note_sudo._has_to_be_signed_by(partner)
         elif not request.env.user._is_public():
             # 登入用戶
             partner = request.env.user.partner_id
@@ -233,8 +229,11 @@ class MeetingPortal(CustomerPortal):
                             signature_id=None, signature_token=None,
                             name=None, signature=None):
         """簽名確認"""
-        # 驗證文件存取權
-        access_token = access_token or request.httprequest.args.get('access_token')
+        # 驗證文件存取權（JSON route 需從 query string 讀取 token）
+        args = request.httprequest.args
+        access_token = access_token or args.get('access_token')
+        signature_id = signature_id or args.get('signature_id')
+        signature_token = signature_token or args.get('signature_token')
         try:
             note_sudo = self._document_check_access(
                 'note.note', note_id, access_token=access_token
@@ -250,11 +249,16 @@ class MeetingPortal(CustomerPortal):
         signature_record = None
         if signature_id and signature_token:
             # 通過 signature_token 驗證（Email 連結）
-            signature_record = request.env['note.signature'].sudo().search([
-                ('id', '=', int(signature_id)),
-                ('access_token', '=', signature_token),
-                ('note_id', '=', note_sudo.id),
-            ], limit=1)
+            try:
+                sig_id = int(signature_id)
+            except (ValueError, TypeError):
+                sig_id = False
+            if sig_id:
+                signature_record = request.env['note.signature'].sudo().search([
+                    ('id', '=', sig_id),
+                    ('access_token', '=', signature_token),
+                    ('note_id', '=', note_sudo.id),
+                ], limit=1)
         elif not request.env.user._is_public():
             # 登入用戶：查找其對應的簽名記錄
             partner = request.env.user.partner_id
@@ -262,9 +266,6 @@ class MeetingPortal(CustomerPortal):
 
         if not signature_record:
             return {'error': _('Invalid signature request.')}
-
-        if not signature_record:
-            return {'error': _('Invalid signature record.')}
 
         if signature_record.is_signed:
             return {'error': _('This has already been signed.')}

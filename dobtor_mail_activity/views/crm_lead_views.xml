@@ -12,10 +12,10 @@
 
             <!-- Smart Button: 專案任務數量 -->
             <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_view_activities" type="object"
+                <button name="action_view_tasks" type="object"
                         class="oe_stat_button" icon="fa-tasks"
                         invisible="not project_id">
-                    <field name="activity_count" widget="statinfo" string="Activities"/>
+                    <field name="task_count" widget="statinfo" string="Tasks"/>
                 </button>
             </xpath>
 

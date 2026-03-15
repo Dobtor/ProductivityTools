@@ -80,32 +80,13 @@ class CalendarEvent(models.Model):
     def _prepare_meeting_note_template(self):
         """準備會議記錄模板
 
+        第一行嵌入會議名稱（作為標題），其餘為章節結構。
+        Portal 和 PDF 報表已從關聯的行事曆事件自動顯示時間/地點/與會者。
+
         Returns:
             str: HTML 格式的會議記錄模板
         """
-        self.ensure_one()
-        # 格式化與會者
-        attendees = ', '.join(self.partner_ids.mapped('name')) if self.partner_ids else _('None')
-        # 格式化時間
-        start_time = fields.Datetime.context_timestamp(self, self.start).strftime('%Y-%m-%d %H:%M') if self.start else ''
-        stop_time = fields.Datetime.context_timestamp(self, self.stop).strftime('%Y-%m-%d %H:%M') if self.stop else ''
-
-        template = f"""<h2>{self.name or _('Meeting Minutes')}</h2>
-<p><strong>{_('Date')}:</strong> {start_time} - {stop_time}</p>
-<p><strong>{_('Location')}:</strong> {self.location or '-'}</p>
-<p><strong>{_('Attendees')}:</strong> {attendees}</p>
-<hr/>
-<h3>{_('Agenda')}</h3>
-<ul>
-<li></li>
-</ul>
-<h3>{_('Discussion')}</h3>
-<p></p>
-<h3>{_('Action Items')}</h3>
-<ul>
-<li></li>
-</ul>
-<h3>{_('Next Steps')}</h3>
-<p></p>
-"""
-        return template
+        from markupsafe import Markup, escape
+        title = escape(self.name or '')
+        base_template = self.env['note.note']._default_meeting_memo_template()
+        return Markup('<p>%s</p>') % title + Markup(base_template)

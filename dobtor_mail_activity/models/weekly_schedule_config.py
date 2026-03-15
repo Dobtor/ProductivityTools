@@ -185,7 +185,8 @@ class WeeklyScheduleConfig(models.Model):
             elif self.auto_create_note:
                 # 自動建立筆記本
                 today = fields.Date.today()
-                week_str = today.strftime('%Y-W%W')
+                iso_year, iso_week, _ = today.isocalendar()
+                week_str = '%d-W%02d' % (iso_year, iso_week)
                 note = self.env['note.note'].create({
                     'user_id': self.user_id.id,
                     'memo': _('<p>Weekly Schedule - %s</p><p>This week work plan</p>') % week_str,
@@ -220,7 +221,8 @@ class WeeklyScheduleConfig(models.Model):
         """取得待辦摘要（支援變數替換）"""
         self.ensure_one()
         today = fields.Date.today()
-        week_str = today.strftime('%Y-W%W')
+        iso_year, iso_week, _ = today.isocalendar()
+        week_str = '%d-W%02d' % (iso_year, iso_week)
 
         summary = self.summary_template or _('Weekly Schedule')
         summary = summary.replace('{week}', week_str)
@@ -315,6 +317,8 @@ class WeeklyScheduleConfig(models.Model):
         - 配置是否啟用
         - 今天是否已建立過
         - 上次建立的待辦是否仍在進行中
+
+        批次建立所有待辦以減少資料庫交互。
         """
         today = fields.Date.today()
         today_weekday = str(today.weekday())
@@ -325,9 +329,10 @@ class WeeklyScheduleConfig(models.Model):
             ('schedule_day', '=', today_weekday),
         ])
 
-        created_count = 0
+        # 第一階段：過濾 + 準備 vals（_get_target_record 可能有副作用）
+        vals_list = []
+        config_list = []
         for config in configs:
-            # 檢查今天是否已經建立過
             if config.last_created_date == today:
                 _logger.debug(
                     'Weekly schedule for user %s already created today.',
@@ -335,7 +340,6 @@ class WeeklyScheduleConfig(models.Model):
                 )
                 continue
 
-            # 檢查上次建立的待辦是否還在進行中
             if config.last_activity_id and config.last_activity_id.active:
                 _logger.info(
                     'Skipping weekly schedule for user %s: previous activity still active.',
@@ -343,19 +347,57 @@ class WeeklyScheduleConfig(models.Model):
                 )
                 continue
 
-            try:
-                activity = config._create_weekly_activity()
-                if activity:
-                    created_count += 1
-            except Exception as e:
-                _logger.error(
-                    'Failed to create weekly schedule activity for user %s: %s',
-                    config.user_id.name, str(e)
+            if not config.activity_type_id:
+                _logger.warning(
+                    'Weekly schedule config %s has no activity type.', config.id
                 )
+                continue
+
+            target_model, target_id = config._get_target_record()
+            if not target_model or not target_id:
+                _logger.warning(
+                    'Weekly schedule config %s has no valid target.', config.id
+                )
+                continue
+
+            target_model_rec = self.env['ir.model']._get(target_model)
+            deadline = today + timedelta(days=config.deadline_offset)
+
+            activity_vals = {
+                'activity_type_id': config.activity_type_id.id,
+                'summary': config._get_summary(),
+                'date_deadline': deadline,
+                'user_id': config.user_id.id,
+                'res_model_id': target_model_rec.id,
+                'res_id': target_id,
+            }
+            if config.include_note and config.activity_type_id.default_description:
+                activity_vals['note'] = config.activity_type_id.default_description
+
+            vals_list.append(activity_vals)
+            config_list.append(config)
+
+        if not vals_list:
+            _logger.info('Weekly schedule cron completed. No activities to create.')
+            return True
+
+        # 第二階段：批次建立待辦
+        try:
+            activities = self.env['mail.activity'].sudo().create(vals_list)
+        except Exception as e:
+            _logger.error('Failed to batch create weekly schedule activities: %s', str(e))
+            return True
+
+        # 第三階段：批次更新配置記錄
+        for config, activity in zip(config_list, activities):
+            config.write({
+                'last_created_date': today,
+                'last_activity_id': activity.id,
+            })
 
         _logger.info(
             'Weekly schedule cron completed. Created %d activities.',
-            created_count
+            len(activities)
         )
 
         return True

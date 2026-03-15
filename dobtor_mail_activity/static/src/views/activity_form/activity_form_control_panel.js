@@ -19,6 +19,7 @@ export class ActivityFormControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.state.displayChatter = false;
 
         // React to screen size changes
         useEffect(
@@ -42,7 +43,7 @@ export class ActivityFormControlPanel extends ControlPanel {
                 !this.state.displayChatter &&
                 (isFromActivityView ||
                     JSON.parse(
-                        browser.localStorage.getItem("isActivityChatterOpened")
+                        browser.localStorage.getItem("dobtor_mail_activity.isActivityChatterOpened")
                     ))
             ) {
                 this.toggleChatter();
@@ -59,7 +60,7 @@ export class ActivityFormControlPanel extends ControlPanel {
         if (ev) {
             // Only persist when user explicitly toggles
             browser.localStorage.setItem(
-                "isActivityChatterOpened",
+                "dobtor_mail_activity.isActivityChatterOpened",
                 this.state.displayChatter
             );
         }

@@ -8,4 +8,4 @@ class CalendarAttendee(models.Model):
 
     # Defensive alias: zh_TW translation of calendar email templates
     # incorrectly references 'daymail_tz' instead of 'mail_tz'.
-    daymail_tz = fields.Selection(related='mail_tz', store=False)
+    daymail_tz = fields.Selection(related='mail_tz', string='Day Mail Tz', store=False)

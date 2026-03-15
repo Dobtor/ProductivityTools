@@ -13,9 +13,9 @@
         <div id="portal_client_category" position="inside">
             <t t-call="portal.portal_docs_entry">
                 <t t-set="icon" t-value="'/dobtor_mail_activity/static/src/img/meeting.svg'"/>
-                <t t-set="title">Meeting Minutes</t>
+                <t t-set="title">會議記錄</t>
                 <t t-set="url" t-value="'/my/meetings'"/>
-                <t t-set="text">View and sign meeting minutes</t>
+                <t t-set="text">查看及簽署會議記錄</t>
                 <t t-set="placeholder_count" t-value="'meeting_count'"/>
             </t>
         </div>
@@ -30,8 +30,8 @@
         <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
             <li t-if="page_name == 'meeting' or note"
                 t-attf-class="breadcrumb-item #{'active ' if not note else ''}">
-                <a t-if="note" t-attf-href="/my/meetings?{{ keep_query() }}">Meeting Minutes</a>
-                <t t-else="">Meeting Minutes</t>
+                <a t-if="note" t-attf-href="/my/meetings?{{ keep_query() }}">會議記錄</a>
+                <t t-else="">會議記錄</t>
             </li>
             <li t-if="note" class="breadcrumb-item active">
                 <span t-field="note.name"/>
@@ -48,27 +48,27 @@
             <t t-set="breadcrumbs_searchbar" t-value="True"/>
 
             <t t-call="portal.portal_searchbar">
-                <t t-set="title">Meeting Minutes</t>
+                <t t-set="title">會議記錄</t>
             </t>
 
             <div t-if="not meetings" class="alert alert-warning" role="alert">
-                There are currently no meeting minutes for your account.
+                目前沒有會議記錄。
             </div>
 
             <t t-if="meetings" t-call="portal.portal_table">
                 <thead>
                     <tr class="active">
-                        <th>Title</th>
-                        <th class="text-end">Created</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-center">Signatures</th>
+                        <th>標題</th>
+                        <th class="text-end">建立日期</th>
+                        <th class="text-center">狀態</th>
+                        <th class="text-center">簽名</th>
                     </tr>
                 </thead>
                 <t t-foreach="meetings" t-as="meeting">
                     <tr>
                         <td>
                             <a t-att-href="meeting.get_portal_url()">
-                                <t t-esc="meeting.name or 'Untitled'"/>
+                                <t t-esc="meeting.name or '未命名'"/>
                             </a>
                         </td>
                         <td class="text-end">
@@ -77,16 +77,16 @@
                         </td>
                         <td class="text-center">
                             <span t-if="meeting.state == 'draft'" class="badge rounded-pill text-bg-secondary">
-                                Draft
+                                草稿
                             </span>
                             <span t-if="meeting.state == 'sent'" class="badge rounded-pill text-bg-info">
-                                Sent
+                                已寄送
                             </span>
                             <span t-if="meeting.state == 'partial'" class="badge rounded-pill text-bg-warning">
-                                Partially Signed
+                                部分簽名
                             </span>
                             <span t-if="meeting.state == 'signed'" class="badge rounded-pill text-bg-success">
-                                <i class="fa fa-fw fa-check"/> Fully Signed
+                                <i class="fa fa-fw fa-check"/> 完全簽名
                             </span>
                         </td>
                         <td class="text-center">
@@ -111,7 +111,8 @@
                     <t t-set="classes" t-value="'col-lg-4 col-xxl-3 d-print-none'"/>
 
                     <t t-set="title">
-                        <h4 class="mb-0 text-break" t-field="note.name"/>
+                        <h4 class="mb-0 text-break"
+                            t-esc="note.calendar_event_ids[:1].name or note.name or '未命名'"/>
                     </t>
 
                     <t t-set="entries">
@@ -122,37 +123,37 @@
                                 <a t-if="needs_signature" role="button"
                                    class="btn btn-primary" data-bs-toggle="modal"
                                    data-bs-target="#modalSign" href="#">
-                                    <i class="fa fa-pencil me-1"/> Accept &amp; Sign
+                                    <i class="fa fa-pencil me-1"/> 確認並簽名
                                 </a>
 
                                 <div class="o_download_pdf d-flex gap-2 flex-lg-column flex-xl-row flex-wrap">
                                     <a class="btn btn-light o_print_btn flex-grow-1"
                                        t-att-href="note.get_portal_url(report_type='pdf')"
-                                       title="Download PDF" role="button" target="_blank">
-                                        <i class="fa fa-download me-1"/> Download PDF
+                                       title="下載 PDF" role="button" target="_blank">
+                                        <i class="fa fa-download me-1"/> 下載 PDF
                                     </a>
                                 </div>
                             </div>
 
                             <!-- 狀態摘要 -->
                             <div class="list-group-item flex-grow-1">
-                                <small><b class="text-muted">Status</b></small>
+                                <small><b class="text-muted">狀態</b></small>
                                 <div class="mt-1">
-                                    <span t-if="note.state == 'draft'" class="badge text-bg-secondary">Draft</span>
-                                    <span t-if="note.state == 'sent'" class="badge text-bg-info">Sent</span>
-                                    <span t-if="note.state == 'partial'" class="badge text-bg-warning">Partially Signed</span>
+                                    <span t-if="note.state == 'draft'" class="badge text-bg-secondary">草稿</span>
+                                    <span t-if="note.state == 'sent'" class="badge text-bg-info">已寄送</span>
+                                    <span t-if="note.state == 'partial'" class="badge text-bg-warning">部分簽名</span>
                                     <span t-if="note.state == 'signed'" class="badge text-bg-success">
-                                        <i class="fa fa-check"/> Fully Signed
+                                        <i class="fa fa-check"/> 完全簽名
                                     </span>
                                 </div>
                             </div>
 
                             <!-- 簽名進度 -->
                             <div t-if="note.signature_ids" class="list-group-item flex-grow-1">
-                                <small><b class="text-muted">Signature Progress</b></small>
+                                <small><b class="text-muted">簽名進度</b></small>
                                 <div class="mt-1">
                                     <span class="h5" t-esc="note.signed_count"/>
-                                    <span class="text-muted">/ <t t-esc="note.signature_count"/> signed</span>
+                                    <span class="text-muted">/ <t t-esc="note.signature_count"/> 已簽名</span>
                                 </div>
                                 <div class="progress mt-2" style="height: 6px;">
                                     <div class="progress-bar bg-success" role="progressbar"
@@ -162,7 +163,7 @@
 
                             <!-- 準備者 -->
                             <div t-if="note.user_id">
-                                <h6><small class="text-muted">Prepared by</small></h6>
+                                <h6><small class="text-muted">會議記錄由</small></h6>
                                 <t t-call="portal.portal_my_contact">
                                     <t t-set="_contactAvatar" t-value="image_data_uri(note.user_id.avatar_128)"/>
                                     <t t-set="_contactName" t-value="note.user_id.name"/>
@@ -188,12 +189,12 @@
                                   class="modal-content js_website_submit_form">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <header class="modal-header">
-                                    <h4 class="modal-title">Sign Meeting Minutes</h4>
+                                    <h4 class="modal-title">簽署會議記錄</h4>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"/>
                                 </header>
                                 <main class="modal-body" id="sign-dialog">
                                     <p>
-                                        By signing, you confirm that you have reviewed and agree to the content of this meeting minutes.
+                                        簽名後，表示您已審閱並同意此會議記錄的內容。
                                     </p>
                                     <t t-set="sign_url" t-value="'/my/meeting/%s/sign?access_token=%s' % (note.id, note.access_token)"/>
                                     <t t-if="signature_id and signature_token">
@@ -202,7 +203,7 @@
                                     <t t-call="portal.signature_form">
                                         <t t-set="call_url" t-value="sign_url"/>
                                         <t t-set="default_name" t-value="partner.name if partner else ''"/>
-                                        <t t-set="submit_label">Sign Meeting Minutes</t>
+                                        <t t-set="submit_label">簽署會議記錄</t>
                                     </t>
                                 </main>
                             </form>
@@ -212,12 +213,12 @@
                     <!-- 狀態訊息 -->
                     <div t-if="message == 'sign_ok'" class="alert alert-success alert-dismissible d-print-none" role="status">
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"/>
-                        <strong>Thank You!</strong><br/>
+                        <strong>感謝您！</strong><br/>
                         <t t-if="note.all_signed">
-                            All signers have signed. The meeting minutes is now complete.
+                            所有簽名者已完成簽署。會議記錄已完成。
                         </t>
                         <t t-else="">
-                            Your signature has been recorded.
+                            您的簽名已記錄。
                         </t>
                     </div>
 
@@ -228,7 +229,7 @@
 
                     <!-- 附件區塊 -->
                     <section t-if="attachments" id="meeting_attachments" class="mb-4">
-                        <h5 class="mb-1">Attachments</h5>
+                        <h5 class="mb-1">附件</h5>
                         <hr class="mt-1 mb-2"/>
                         <div class="d-flex flex-wrap gap-2">
                             <t t-foreach="attachments" t-as="attachment">
@@ -243,16 +244,16 @@
 
                     <!-- 簽名狀態區塊 -->
                     <section t-if="note.signature_ids" id="signature_status" class="mb-4">
-                        <h5 class="mb-1">Signature Status</h5>
+                        <h5 class="mb-1">簽名狀態</h5>
                         <hr class="mt-1 mb-2"/>
                         <div class="table-responsive">
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Signer</th>
-                                        <th class="text-center">Status</th>
-                                        <th>Signed On</th>
-                                        <th>Signature</th>
+                                        <th>簽署人</th>
+                                        <th class="text-center">狀態</th>
+                                        <th>簽署時間</th>
+                                        <th>簽名</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -261,10 +262,10 @@
                                             <td><t t-esc="sig.partner_id.name"/></td>
                                             <td class="text-center">
                                                 <span t-if="sig.is_signed" class="badge text-bg-success">
-                                                    <i class="fa fa-check"/> Signed
+                                                    <i class="fa fa-check"/> 已簽名
                                                 </span>
                                                 <span t-else="" class="badge text-bg-warning">
-                                                    <i class="fa fa-clock-o"/> Pending
+                                                    <i class="fa fa-clock-o"/> 待簽名
                                                 </span>
                                             </td>
                                             <td>
@@ -290,36 +291,16 @@
                         <div class="col-sm-auto mt8">
                             <a role="button" class="btn btn-primary" data-bs-toggle="modal"
                                data-bs-target="#modalSign" href="#">
-                                <i class="fa fa-pencil me-1"/> Accept &amp; Sign
-                            </a>
-                        </div>
-                        <div class="col-sm-auto mt8">
-                            <a role="button" class="btn btn-light" href="#discussion">
-                                <i class="fa fa-comment me-1"/> Add Comment
+                                <i class="fa fa-pencil me-1"/> 確認並簽名
                             </a>
                         </div>
                     </div>
 
-                    <!-- 討論區 -->
+                    <!-- 討論區（使用 Odoo 原生 Portal chatter） -->
                     <hr/>
                     <div id="meeting_discussion">
-                        <h5>Comments</h5>
+                        <h5>留言討論</h5>
                         <t t-call="portal.message_thread"/>
-
-                        <!-- 新增留言表單 -->
-                        <div class="mt-3" id="discussion">
-                            <form t-attf-action="/my/meeting/{{ note.id }}/message?access_token={{ note.access_token }}"
-                                  method="post" class="o_portal_chatter_composer">
-                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                                <div class="mb-3">
-                                    <textarea name="message" class="form-control" rows="3"
-                                              placeholder="Add a comment..."/>
-                                </div>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fa fa-paper-plane me-1"/> Post Comment
-                                </button>
-                            </form>
-                        </div>
                     </div>
 
                 </div><!-- // #meeting_content -->

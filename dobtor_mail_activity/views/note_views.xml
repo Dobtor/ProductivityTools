@@ -91,12 +91,14 @@
         <field name="arch" type="xml">
             <list string="Notes" expand="1">
                 <field name="name" string="Title"/>
-                <field name="note_type" string="Type" optional="show"/>
-                <field name="stage_id" string="Stage" optional="show"/>
+                <field name="stage_id" string="Stage"
+                       column_invisible="context.get('hide_stage')"
+                       optional="show"/>
                 <field name="state" string="Status" widget="badge"
                        decoration-info="state == 'draft'"
                        decoration-warning="state in ('sent', 'partial')"
                        decoration-success="state == 'signed'"
+                       column_invisible="context.get('hide_state')"
                        optional="show"/>
                 <field name="tag_ids" string="Tags" widget="many2many_tags"
                        options="{'color_field': 'color'}"/>
@@ -105,6 +107,8 @@
                 <field name="signed_count" string="Signed" optional="hide"/>
                 <field name="signature_count" string="Total Signers" optional="hide"/>
                 <field name="note_active_activity_count" string="Active Activities" optional="hide"/>
+                <field name="create_date" string="Created" widget="date" optional="show"/>
+                <field name="write_date" string="Updated" widget="date" optional="show"/>
                 <field name="open" string="Open" optional="hide"/>
                 <field name="date_done" string="Completed Date" optional="hide"/>
                 <field name="active" column_invisible="1"/>
@@ -137,11 +141,11 @@
                             invisible="note_type != 'meeting' or state == 'draft'"
                             confirm="This will reset the meeting minutes to draft and clear all signatures. Continue?"/>
 
-                    <!-- 筆記按鈕 -->
+                    <!-- 筆記按鈕（僅會議記錄顯示排程會議） -->
                     <button name="action_add_calendar_event" type="object"
                             string="Schedule Meeting" class="btn-secondary"
                             icon="fa-calendar-plus-o"
-                            invisible="note_type == 'meeting'"/>
+                            invisible="note_type != 'meeting'"/>
 
                     <!-- 狀態列 -->
                     <field name="state" widget="statusbar"
@@ -149,6 +153,7 @@
                            invisible="note_type != 'meeting' or calendar_event_count == 0"/>
                     <field name="stage_id" widget="statusbar"
                            options="{'clickable': '1', 'fold_field': 'fold'}"
+                           domain="[('user_id', '=', uid)]"
                            invisible="note_type == 'meeting'"/>
                 </header>
                 <sheet>
@@ -279,7 +284,8 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Calendar Events" name="calendar_events">
+                        <page string="Calendar Events" name="calendar_events"
+                              invisible="note_type != 'meeting'">
                             <group>
                                 <group>
                                     <button name="action_add_calendar_event" type="object"
@@ -368,7 +374,7 @@
                            icon="fa-tag"
                            string="Tags"
                            enable_counters="1"
-                           expand="1"/>
+                           expand="0"/>
                 </searchpanel>
             </search>
         </field>
@@ -378,13 +384,13 @@
     <!-- Actions                                                       -->
     <!-- ============================================================ -->
 
-    <!-- Action - 筆記本 -->
+    <!-- Action - 所有筆記（僅一般筆記） -->
     <record id="action_note_note" model="ir.actions.act_window">
-        <field name="name">Notebook</field>
+        <field name="name">All Notes</field>
         <field name="res_model">note.note</field>
         <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[]</field>
-        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1}</field>
+        <field name="domain">[('note_type', '=', 'note')]</field>
+        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1, 'default_note_type': 'note', 'hide_state': True}</field>
         <field name="search_view_id" ref="view_note_note_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first note</p>
@@ -411,6 +417,76 @@
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_note_note_form"/>
         <field name="act_window_id" ref="action_note_note"/>
+    </record>
+
+    <!-- Action - 個人筆記（當前使用者的一般筆記） -->
+    <record id="action_note_only" model="ir.actions.act_window">
+        <field name="name">My Notes</field>
+        <field name="res_model">note.note</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('note_type', '=', 'note'), ('user_id', '=', uid)]</field>
+        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1, 'default_note_type': 'note', 'hide_state': True}</field>
+        <field name="search_view_id" ref="view_note_note_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first note</p>
+            <p>Use the notebook to record ideas, activities, and important information.</p>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_only_list">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_note_note_list"/>
+        <field name="act_window_id" ref="action_note_only"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_only_kanban">
+        <field name="sequence">2</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_note_note_kanban"/>
+        <field name="act_window_id" ref="action_note_only"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_note_only_form">
+        <field name="sequence">3</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_note_note_form"/>
+        <field name="act_window_id" ref="action_note_only"/>
+    </record>
+
+    <!-- Action - 會議記錄 -->
+    <record id="action_meeting_minutes" model="ir.actions.act_window">
+        <field name="name">Meeting Minutes</field>
+        <field name="res_model">note.note</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('note_type', '=', 'meeting')]</field>
+        <field name="context">{'search_default_open_true': 1, 'default_note_type': 'meeting', 'hide_stage': True}</field>
+        <field name="search_view_id" ref="view_note_note_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first meeting minutes</p>
+            <p>Record meeting discussions, decisions, and action items.</p>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_meeting_minutes_list">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_note_note_list"/>
+        <field name="act_window_id" ref="action_meeting_minutes"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_meeting_minutes_kanban">
+        <field name="sequence">2</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_id" ref="view_note_note_kanban"/>
+        <field name="act_window_id" ref="action_meeting_minutes"/>
+    </record>
+
+    <record model="ir.actions.act_window.view" id="action_meeting_minutes_form">
+        <field name="sequence">3</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_note_note_form"/>
+        <field name="act_window_id" ref="action_meeting_minutes"/>
     </record>
 
 </odoo>

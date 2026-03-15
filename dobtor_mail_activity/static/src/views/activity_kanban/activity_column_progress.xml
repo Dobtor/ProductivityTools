@@ -8,8 +8,7 @@
              data-tooltip-delay="0">
             <!-- 工時進度條：根據總工時變色 -->
             <div role="progressbar"
-                 class="progress-bar"
-                 t-attf-class="bg-{{ progressBarColor }}"
+                 t-attf-class="progress-bar bg-{{ progressBarColor }}"
                  t-attf-style="width: {{ progressPercentage }}%;"
                  aria-valuemin="0"
                  aria-valuemax="9"
@@ -26,8 +25,7 @@
                         role="progressbar"
                         class="progress-bar o_bar_has_records cursor-pointer position-absolute"
                         style="opacity: 0.3; top: 0; height: 100%;"
-                        t-att-class="{ 'progress-bar-animated progress-bar-striped': props.progressBar.activeBar === bar.value }"
-                        t-attf-class="bg-{{ bar.color }}"
+                        t-att-class="{ 'progress-bar-animated progress-bar-striped': props.progressBar.activeBar === bar.value, ['bg-' + bar.color]: true }"
                         t-attf-style="width: {{ Math.min(progressWidth, maxWidth) }}%;"
                         aria-valuemin="0"
                         t-att-aria-valuemax="props.group.count"

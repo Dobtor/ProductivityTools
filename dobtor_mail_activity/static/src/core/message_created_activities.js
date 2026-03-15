@@ -5,6 +5,52 @@ import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { useState, onMounted } from "@odoo/owl";
 
+// ===== Module-level batch loader =====
+// Collects message IDs from all mounted Message components and fires a single RPC.
+const _pending = new Map(); // messageId -> [resolve, ...]
+let _batchTimer = null;
+let _batchOrm = null;
+
+function _flushBatch() {
+    const pending = new Map(_pending);
+    _pending.clear();
+    _batchTimer = null;
+
+    const messageIds = [...pending.keys()];
+    if (!messageIds.length || !_batchOrm) return;
+
+    _batchOrm
+        .call("mail.message", "get_created_activities_batch", [messageIds, true])
+        .then((result) => {
+            for (const [msgId, resolvers] of pending) {
+                const activities = result[msgId] || [];
+                for (const resolve of resolvers) {
+                    resolve(activities);
+                }
+            }
+        })
+        .catch(() => {
+            for (const resolvers of pending.values()) {
+                for (const resolve of resolvers) {
+                    resolve([]);
+                }
+            }
+        });
+}
+
+function requestActivities(orm, messageId) {
+    _batchOrm = orm;
+    return new Promise((resolve) => {
+        if (!_pending.has(messageId)) {
+            _pending.set(messageId, []);
+        }
+        _pending.get(messageId).push(resolve);
+        if (!_batchTimer) {
+            _batchTimer = setTimeout(_flushBatch, 50);
+        }
+    });
+}
+
 /**
  * 擴展 Message 組件，在訊息標題後顯示已建立的待辦事項
  */
@@ -28,7 +74,7 @@ patch(Message.prototype, {
     },
 
     /**
-     * 載入此訊息建立的待辦事項
+     * 載入此訊息建立的待辦事項（透過批次載入器）
      */
     async loadCreatedActivities() {
         const message = this.props.message;
@@ -39,12 +85,8 @@ patch(Message.prototype, {
         this.createdActivitiesState.loading = true;
 
         try {
-            const activities = await this.orm.call(
-                "mail.message",
-                "get_created_activities",
-                [[message.id], true]  // include_archived = true
-            );
-            this.createdActivitiesState.activities = activities || [];
+            const activities = await requestActivities(this.orm, message.id);
+            this.createdActivitiesState.activities = activities;
             this.createdActivitiesState.loaded = true;
         } catch (e) {
             console.warn("Failed to load created activities:", e);

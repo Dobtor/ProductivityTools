@@ -106,36 +106,65 @@ class ResUsers(models.Model):
             {'name': 'References', 'sequence': 50, 'fold': True},
         ]
 
-        for user in self:
-            # Check if user already has stages
-            existing_stages = NoteStage.search_count([('user_id', '=', user.id)])
-            if existing_stages > 0:
-                continue
+        # 批次查詢已有 stage 的用戶
+        existing_data = NoteStage._read_group(
+            [('user_id', 'in', self.ids)],
+            ['user_id'],
+            ['__count'],
+        )
+        users_with_stages = {user.id for user, _count in existing_data}
 
-            # Create default stages for user
+        # 批次建立所有缺少 stage 的用戶的預設 stages
+        vals_list = []
+        for user in self:
+            if user.id in users_with_stages:
+                continue
             for stage_vals in default_stages:
-                NoteStage.create({
+                vals_list.append({
                     **stage_vals,
                     'user_id': user.id,
                 })
+
+        if vals_list:
+            NoteStage.create(vals_list)
 
     # ========== Computed Methods ==========
 
     @api.depends('weekly_report_ids')
     def _compute_weekly_report_count(self):
+        if not self.ids:
+            for user in self:
+                user.weekly_report_count = 0
+            return
+        report_data = self.env['weekly.report']._read_group(
+            [('user_id', 'in', self.ids)],
+            ['user_id'],
+            ['__count'],
+        )
+        count_map = {user.id: count for user, count in report_data}
         for user in self:
-            user.weekly_report_count = len(user.weekly_report_ids)
+            user.weekly_report_count = count_map.get(user.id, 0)
 
     @api.depends('efficiency_metrics_ids', 'efficiency_metrics_ids.efficiency_index')
     def _compute_latest_efficiency(self):
+        if not self.ids:
+            for user in self:
+                user.latest_efficiency_index = 0
+            return
+        # 批次查詢：每用戶最新一筆 week 類型記錄
+        # 先取得每用戶最大 period_end，再查對應的 efficiency_index
+        Metrics = self.env['activity.efficiency.metrics']
+        latest_records = Metrics.search([
+            ('user_id', 'in', self.ids),
+            ('period_type', '=', 'week'),
+        ], order='period_end desc')
+        # 取每用戶第一筆（最新）
+        user_metric_map = {}
+        for rec in latest_records:
+            if rec.user_id.id not in user_metric_map:
+                user_metric_map[rec.user_id.id] = rec.efficiency_index
         for user in self:
-            latest_metric = self.env['activity.efficiency.metrics'].search([
-                ('user_id', '=', user.id),
-                ('period_type', '=', 'week'),
-            ], order='period_end desc', limit=1)
-            user.latest_efficiency_index = (
-                latest_metric.efficiency_index if latest_metric else 0
-            )
+            user.latest_efficiency_index = user_metric_map.get(user.id, 0)
 
     # ========== Action Methods ==========
 

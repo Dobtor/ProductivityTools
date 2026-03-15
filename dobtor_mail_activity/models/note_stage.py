@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class NoteStage(models.Model):
@@ -36,3 +36,22 @@ class NoteStage(models.Model):
         default=False,
         help="When checked, this stage will be folded by default in kanban view.",
     )
+
+    # ===== 預設階段定義 =====
+    DEFAULT_STAGES = [
+        {'name': '暫記', 'sequence': 1, 'fold': False},
+        {'name': '規劃中', 'sequence': 5, 'fold': False},
+        {'name': '定稿發佈', 'sequence': 10, 'fold': False},
+    ]
+
+    @api.model
+    def _ensure_user_stages(self, user_id=None):
+        """確保使用者有預設階段，若無則自動建立"""
+        uid = user_id or self.env.uid
+        existing = self.search([('user_id', '=', uid)], limit=1)
+        if existing:
+            return
+        self.sudo().create([
+            {**stage, 'user_id': uid}
+            for stage in self.DEFAULT_STAGES
+        ])

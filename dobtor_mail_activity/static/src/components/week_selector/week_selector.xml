@@ -15,9 +15,9 @@
                          t-on-click="() => this.selectWeek(week.number)"
                          t-att-title="week.start_date + ' ~ ' + week.end_date"
                          style="min-width: 90px;">
-                        <!-- 週次名稱 -->
+                        <!-- 週次名稱 + 日期範圍 -->
                         <div class="small fw-bold mb-1">
-                            <t t-esc="week.name"/>
+                            <t t-esc="week.display_name || week.name"/>
                             <span t-if="week.number === 0" class="ms-1">
                                 <i class="fa fa-star text-warning" title="This Week"/>
                             </span>
@@ -25,21 +25,11 @@
 
                         <!-- 統計資訊 -->
                         <div t-if="props.showStats" class="d-flex justify-content-center gap-2 small">
-                            <span t-att-class="'badge ' + getBadgeClass(week)"
-                                  t-att-title="'Activities: ' + week.count">
-                                <i class="fa fa-tasks me-1"/>
-                                <t t-esc="week.count"/>
-                            </span>
                             <span class="badge bg-info"
                                   t-att-title="'Est. Hours: ' + week.total_hours + ' hours'">
                                 <i class="fa fa-clock-o me-1"/>
                                 <t t-esc="week.total_hours"/>h
                             </span>
-                        </div>
-
-                        <!-- 日期範圍（小字） -->
-                        <div class="small text-muted mt-1" style="font-size: 0.7rem;">
-                            <t t-esc="week.start_date.substring(5)"/>
                         </div>
                     </div>
                 </t>

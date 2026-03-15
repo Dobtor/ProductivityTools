@@ -26,18 +26,30 @@ export class ActivityColumnProgress extends Component {
     };
 
     /**
+     * 從 env 取得每日工時門檻
+     */
+    get _thresholds() {
+        const hours = this.env.activityUserHours;
+        return {
+            target: hours?.dailyTarget ?? 8,
+            max: hours?.dailyMax ?? 9,
+        };
+    }
+
+    /**
      * 根據總工時計算進度條顏色
      * @returns {string} Bootstrap 顏色類名 (danger, success, warning)
      */
     get progressBarColor() {
         const totalHours = this.props.aggregate.value || 0;
+        const { target, max } = this._thresholds;
 
-        if (totalHours < 8) {
-            return 'danger';   // 紅色：未滿8小時
-        } else if (totalHours <= 9) {
-            return 'success';  // 綠色：8～9小時
+        if (totalHours < target) {
+            return 'danger';
+        } else if (totalHours <= max) {
+            return 'success';
         } else {
-            return 'warning';  // 黃色：超過9小時
+            return 'warning';
         }
     }
 
@@ -46,22 +58,24 @@ export class ActivityColumnProgress extends Component {
      */
     get progressTooltip() {
         const totalHours = this.props.aggregate.value || 0;
+        const { target, max } = this._thresholds;
 
-        if (totalHours < 8) {
-            return `${totalHours.toFixed(1)} hours (under 8 hours)`;
-        } else if (totalHours <= 9) {
-            return `${totalHours.toFixed(1)} hours (8-9 hours target achieved)`;
+        if (totalHours < target) {
+            return `${totalHours.toFixed(1)} hours (under ${target.toFixed(1)} hours)`;
+        } else if (totalHours <= max) {
+            return `${totalHours.toFixed(1)} hours (${target.toFixed(1)}-${max.toFixed(1)} hours target achieved)`;
         } else {
-            return `${totalHours.toFixed(1)} hours (over 9 hours)`;
+            return `${totalHours.toFixed(1)} hours (over ${max.toFixed(1)} hours)`;
         }
     }
 
     /**
-     * 計算進度百分比（以9小時為100%）
+     * 計算進度百分比（以 max 小時為100%）
      */
     get progressPercentage() {
         const totalHours = this.props.aggregate.value || 0;
-        const percentage = (totalHours / 9) * 100;
+        const { max } = this._thresholds;
+        const percentage = (totalHours / max) * 100;
         return Math.min(percentage, 100);
     }
 

@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import logging
 import uuid
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
 from odoo.tools import html2plaintext
+
+_logger = logging.getLogger(__name__)
 
 
 class NoteNote(models.Model):
@@ -184,6 +187,27 @@ class NoteNote(models.Model):
         compute='_compute_note_activity_count',
     )
 
+    # ===== 預設範本 =====
+    @api.model
+    def _default_meeting_memo_template(self):
+        """會議記錄預設章節範本"""
+        return (
+            '<h3>議程</h3>'
+            '<ul><li><br/></li></ul>'
+            '<h3>討論事項</h3>'
+            '<p><br/></p>'
+            '<h3>決議事項</h3>'
+            '<ul><li><br/></li></ul>'
+            '<h3>待辦追蹤</h3>'
+            '<ul><li><br/></li></ul>'
+        )
+
+    @api.onchange('note_type')
+    def _onchange_note_type_memo(self):
+        """切換為會議記錄時，若 memo 為空則自動帶入章節範本"""
+        if self.note_type == 'meeting' and not self.memo:
+            self.memo = self._default_meeting_memo_template()
+
     # ===== 計算方法 =====
     @api.depends('memo')
     def _compute_name(self):
@@ -215,13 +239,33 @@ class NoteNote(models.Model):
 
     @api.depends('note_activity_ids', 'note_activity_ids.active')
     def _compute_note_activity_count(self):
-        """計算筆記關聯待辦數量（透過 note_id 關聯）"""
+        """計算筆記關聯待辦數量（透過 note_id 關聯，批次優化）"""
+        if not self.ids:
+            for note in self:
+                note.note_activity_count = 0
+                note.note_active_activity_count = 0
+            return
+
+        Activity = self.env['mail.activity'].with_context(active_test=False)
+        # 一次查詢所有 note 的待辦總數
+        total_data = Activity.read_group(
+            domain=[('note_id', 'in', self.ids)],
+            fields=['note_id'],
+            groupby=['note_id'],
+        )
+        total_map = {d['note_id'][0]: d['note_id_count'] for d in total_data}
+
+        # 一次查詢所有 note 的 active 待辦數
+        active_data = Activity.read_group(
+            domain=[('note_id', 'in', self.ids), ('active', '=', True)],
+            fields=['note_id'],
+            groupby=['note_id'],
+        )
+        active_map = {d['note_id'][0]: d['note_id_count'] for d in active_data}
+
         for note in self:
-            activities = self.env['mail.activity'].with_context(active_test=False).search([
-                ('note_id', '=', note.id)
-            ])
-            note.note_activity_count = len(activities)
-            note.note_active_activity_count = len(activities.filtered('active'))
+            note.note_activity_count = total_map.get(note.id, 0)
+            note.note_active_activity_count = active_map.get(note.id, 0)
 
     @api.depends('signature_ids', 'signature_ids.is_signed')
     def _compute_signature_count(self):
@@ -275,7 +319,8 @@ class NoteNote(models.Model):
 
     # ===== 預設值方法 =====
     def _get_default_stage_id(self):
-        """取得當前用戶的預設階段"""
+        """取得當前用戶的預設階段（若無則自動建立）"""
+        self.env['note.stage']._ensure_user_stages()
         return self.env['note.stage'].search(
             [('user_id', '=', self.env.uid)],
             limit=1,
@@ -283,7 +328,8 @@ class NoteNote(models.Model):
 
     @api.model
     def _read_group_stage_ids(self, stages, domain, order=None):
-        """看板視圖階段展開 - 顯示當前用戶的所有階段"""
+        """看板視圖階段展開 - 顯示當前用戶的所有階段（若無則自動建立）"""
+        self.env['note.stage']._ensure_user_stages()
         return self.env['note.stage'].search([('user_id', '=', self.env.uid)])
 
     # ===== CRUD 方法 =====
@@ -363,8 +409,8 @@ class NoteNote(models.Model):
             'type': 'ir.actions.act_window',
             'name': _('Related Activities'),
             'res_model': 'mail.activity',
-            'view_mode': 'tree,form',
-            'views': [(False, 'tree'), (False, 'form')],
+            'view_mode': 'list,form',
+            'views': [(False, 'list'), (False, 'form')],
             'domain': [('note_id', '=', self.id)],
             'context': {'active_test': False},
         }
@@ -567,14 +613,14 @@ class NoteNote(models.Model):
         if not self.access_token:
             self.access_token = str(uuid.uuid4())
 
-        # 為每位簽名者建立簽名記錄（如果不存在）
+        # 為每位簽名者建立簽名記錄（如果不存在），批次建立
         existing_signers = self.signature_ids.mapped('partner_id')
-        for signer in self.signer_ids:
-            if signer not in existing_signers:
-                self.env['note.signature'].create({
-                    'note_id': self.id,
-                    'partner_id': signer.id,
-                })
+        new_signers = self.signer_ids - existing_signers
+        if new_signers:
+            self.env['note.signature'].create([{
+                'note_id': self.id,
+                'partner_id': signer.id,
+            } for signer in new_signers])
 
         # 更新狀態
         self.write({'state': 'sent'})
@@ -586,27 +632,38 @@ class NoteNote(models.Model):
         )
 
         if template:
+            failed_signers = []
             for signature in self.signature_ids.filtered(lambda s: not s.is_signed):
-                # 取得該簽名者的專屬連結
                 signer_portal_url = signature._get_portal_url()
-                # 發送郵件給該簽名者
-                template.with_context(
-                    signer_portal_url=signer_portal_url,
-                    signer_name=signature.partner_id.name,
-                ).send_mail(
-                    self.id,
-                    force_send=False,
-                    email_values={
-                        'recipient_ids': [(4, signature.partner_id.id)],
-                        'email_to': signature.partner_id.email,
-                    },
-                )
+                try:
+                    template.with_context(
+                        signer_portal_url=signer_portal_url,
+                        signer_name=signature.partner_id.name,
+                    ).send_mail(
+                        self.id,
+                        force_send=False,
+                        email_values={
+                            'recipient_ids': [(4, signature.partner_id.id)],
+                            'email_to': signature.partner_id.email,
+                        },
+                    )
+                except Exception as e:
+                    _logger.warning(
+                        'Failed to send meeting minutes email to %s: %s',
+                        signature.partner_id.name, str(e)
+                    )
+                    failed_signers.append(signature.partner_id.name)
 
-            # 記錄寄送訊息
-            self.message_post(
-                body=_('Meeting minutes sent for signature to: %s') % ', '.join(self.signer_ids.mapped('name')),
-                message_type='notification',
-            )
+            if failed_signers:
+                self.message_post(
+                    body=_('Meeting minutes sent for signature. Failed to notify: %s') % ', '.join(failed_signers),
+                    message_type='notification',
+                )
+            else:
+                self.message_post(
+                    body=_('Meeting minutes sent for signature to: %s') % ', '.join(self.signer_ids.mapped('name')),
+                    message_type='notification',
+                )
 
         return {
             'type': 'ir.actions.client',

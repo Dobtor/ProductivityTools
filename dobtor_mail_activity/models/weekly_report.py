@@ -161,7 +161,8 @@ class WeeklyReport(models.Model):
     def _compute_name(self):
         for report in self:
             if report.week_start:
-                week_str = report.week_start.strftime('%Y-W%W')
+                iso_year, iso_week, _ = report.week_start.isocalendar()
+                week_str = '%d-W%02d' % (iso_year, iso_week)
                 user_name = report.user_id.name if report.user_id else ''
                 report.name = _('%s Weekly Report (%s)') % (user_name, week_str)
             else:
@@ -179,7 +180,8 @@ class WeeklyReport(models.Model):
     def _compute_week_number(self):
         for report in self:
             if report.week_start:
-                report.week_number = report.week_start.strftime('%Y-W%W')
+                iso_year, iso_week, _ = report.week_start.isocalendar()
+                report.week_number = '%d-W%02d' % (iso_year, iso_week)
             else:
                 report.week_number = False
 
@@ -329,21 +331,40 @@ class WeeklyReport(models.Model):
         review_lines = []
         pending_activities = []
 
+        # 預先查詢上週有延期記錄的待辦 ID（用於精確判斷 postponed 狀態）
+        all_activity_ids = actual_activities.ids + [
+            sl.activity_id.id for sl in planned_snapshot
+            if sl.activity_id and sl.activity_id.id not in set(a.id for a in actual_activities)
+        ]
+        postponed_activity_ids = set()
+        if all_activity_ids:
+            postpone_records = self.env['mail.activity.postpone.history'].search([
+                ('activity_id', 'in', all_activity_ids),
+                ('original_planned_date', '>=', prev_week_start),
+                ('original_planned_date', '<=', prev_week_end),
+            ])
+            postponed_activity_ids = set(postpone_records.mapped('activity_id').ids)
+
         # 處理實際執行的待辦
         for activity in actual_activities:
             is_planned = activity.id in planned_activity_ids
             snapshot_line = snapshot_map.get(activity.id)
 
-            # 判斷狀態
+            # 判斷狀態：優先用延期歷史記錄，而非猜測
             if activity.active and not activity.done_date:
-                status = 'pending'
-                pending_activities.append(activity)
+                if activity.id in postponed_activity_ids:
+                    status = 'postponed'
+                else:
+                    status = 'pending'
+                    pending_activities.append(activity)
             elif activity.done_date:
                 status = 'completed'
             elif activity.cancel_date:
                 status = 'cancelled'
-            else:
+            elif activity.id in postponed_activity_ids:
                 status = 'postponed'
+            else:
+                status = 'cancelled'
 
             review_lines.append({
                 'report_id': self.id,
@@ -368,14 +389,18 @@ class WeeklyReport(models.Model):
 
             activity = snapshot_line.activity_id
             if activity.exists():
-                if activity.active and not activity.done_date:
-                    status = 'pending'
-                    pending_activities.append(activity)
-                elif not activity.active:
+                if activity.id in postponed_activity_ids:
                     status = 'postponed'
-                else:
+                elif activity.active and not activity.done_date:
                     status = 'pending'
                     pending_activities.append(activity)
+                elif activity.done_date:
+                    status = 'completed'
+                elif activity.cancel_date:
+                    status = 'cancelled'
+                else:
+                    # 封存但無 done/cancel/postpone → 視為取消
+                    status = 'cancelled'
             else:
                 status = 'cancelled'
 

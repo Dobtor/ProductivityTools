@@ -3,6 +3,14 @@
 
     <!-- 在 ActivityMarkAsDone 的按鈕區加入「登錄並繼續」和「延期至下週」 -->
     <t t-name="mail.ActivityMarkAsDone" t-inherit="mail.ActivityMarkAsDone" t-inherit-mode="extension">
+        <!-- 將 "Done & Schedule Next" 改為 "完成，排程下一待辦" -->
+        <xpath expr="//button[@t-on-click='onClickDoneAndScheduleNext']" position="replace">
+            <button type="button" class="btn btn-sm btn-primary"
+                    aria-label="Done &amp; Schedule Next"
+                    t-on-click="onClickDoneAndScheduleNext">
+                Done &amp; Schedule Next
+            </button>
+        </xpath>
         <!-- 在 Discard 按鈕前插入兩個按鈕 -->
         <xpath expr="//button[@t-on-click='props.close']" position="before">
             <button type="button" class="btn btn-sm btn-secondary mx-1"

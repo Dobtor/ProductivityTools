@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 將 "Planned Activities" 改為 "待辦事項" -->
+    <t t-name="mail.ActivityList" t-inherit="mail.ActivityList" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o-mail-ActivityList')]/div/div" position="replace">
+            <div class="d-flex align-items-center px-3">
+                <i class="fa fa-fw" t-att-class="state.showActivities ? 'fa-caret-down' : 'fa-caret-right'"/>
+                Planned Activities
+                <span t-if="!state.showActivities" class="badge rounded-pill ms-2 text-bg-success">
+                    <t t-esc="activities.length"/>
+                </span>
+            </div>
+        </xpath>
+    </t>
+
+</templates>

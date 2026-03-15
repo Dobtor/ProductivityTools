@@ -51,33 +51,23 @@
             <!-- 在 notebook 增加會議記錄頁籤 -->
             <xpath expr="//notebook" position="inside">
                 <page string="Meeting Minutes" name="meeting_notes">
-                    <group>
-                        <group>
-                            <button name="action_create_note"
-                                    type="object"
-                                    string="Create Meeting Minutes"
-                                    class="btn-secondary"
-                                    icon="fa-plus"
-                                    colspan="2"/>
-                        </group>
-                    </group>
-                    <field name="note_ids" mode="kanban">
-                        <kanban class="o_kanban_mobile">
+                    <field name="note_ids" mode="kanban" nolabel="1">
+                        <kanban create="0" class="o_kanban_mobile w-100">
                             <field name="name"/>
                             <field name="memo"/>
                             <field name="stage_id"/>
                             <field name="user_id"/>
                             <field name="color"/>
                             <templates>
-                                <t t-name="card" class="flex-row">
+                                <t t-name="card" class="flex-row w-100">
                                     <aside>
                                         <field name="color" widget="color_picker"/>
                                     </aside>
-                                    <main class="ms-2 w-100">
+                                    <main class="ms-2 w-100 overflow-hidden">
                                         <div class="o_kanban_record_title mb-1">
                                             <field name="name" placeholder="(No Title)"/>
                                         </div>
-                                        <div class="o_kanban_record_body text-muted small">
+                                        <div class="o_kanban_record_body text-muted small text-truncate">
                                             <field name="memo" class="text-truncate"/>
                                         </div>
                                         <footer class="pt-2">
