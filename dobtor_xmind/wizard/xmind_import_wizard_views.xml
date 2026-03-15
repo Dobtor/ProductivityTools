@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_xmind_import_wizard_form" model="ir.ui.view">
+        <field name="name">xmind.import.wizard.form</field>
+        <field name="model">xmind.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Mind Maps">
+                <group>
+                    <p class="text-muted">
+                        Upload one or more .xmind, .mm (FreeMind), or .mmap (MindManager) files.
+                        Each file will be created as a separate Mind Map workbook.
+                        The title is automatically extracted from the file's root topic.
+                    </p>
+                </group>
+                <field name="line_ids">
+                    <list editable="bottom">
+                        <field name="file" filename="filename" widget="binary"/>
+                        <field name="filename" readonly="1"/>
+                        <field name="status" readonly="1"
+                               decoration-success="status == 'success'"
+                               decoration-danger="status == 'error'"
+                               widget="badge"/>
+                        <field name="message" readonly="1"/>
+                        <field name="workbook_id" readonly="1"/>
+                    </list>
+                </field>
+                <group>
+                    <div class="d-flex gap-2">
+                        <field name="import_count" string="Imported" widget="statinfo"/>
+                        <field name="error_count" string="Errors" widget="statinfo"/>
+                    </div>
+                </group>
+                <footer>
+                    <button name="action_import_all" string="Import All" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_xmind_import_wizard" model="ir.actions.act_window">
+        <field name="name">Import Mind Maps</field>
+        <field name="res_model">xmind.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

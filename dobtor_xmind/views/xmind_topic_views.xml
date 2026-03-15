@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Topic List View -->
+    <record id="view_xmind_topic_list" model="ir.ui.view">
+        <field name="name">xmind.topic.list</field>
+        <field name="model">xmind.topic</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="title"/>
+                <field name="level"/>
+                <field name="parent_id"/>
+                <field name="has_children"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Topic Form View -->
+    <record id="view_xmind_topic_form" model="ir.ui.view">
+        <field name="name">xmind.topic.form</field>
+        <field name="model">xmind.topic</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="title"/>
+                            <field name="parent_id"/>
+                            <field name="sequence"/>
+                            <field name="expanded"/>
+                        </group>
+                        <group>
+                            <field name="sheet_id"/>
+                            <field name="component_id"/>
+                            <field name="level"/>
+                            <field name="hyperlink"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Content">
+                            <group>
+                                <field name="note"/>
+                                <field name="labels"/>
+                            </group>
+                        </page>
+                        <page string="Styling">
+                            <group>
+                                <group>
+                                    <field name="background_color" widget="color"/>
+                                    <field name="text_color" widget="color"/>
+                                    <field name="font_size"/>
+                                    <field name="font_weight"/>
+                                </group>
+                                <group>
+                                    <field name="border_color" widget="color"/>
+                                    <field name="border_width"/>
+                                    <field name="shape"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Markers">
+                            <field name="marker_ids">
+                                <list editable="bottom">
+                                    <field name="marker_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Children">
+                            <field name="child_ids">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="title"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Topic Action -->
+    <record id="action_xmind_topic" model="ir.actions.act_window">
+        <field name="name">Topics</field>
+        <field name="res_model">xmind.topic</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Sheet List View -->
+    <record id="view_xmind_sheet_list" model="ir.ui.view">
+        <field name="name">xmind.sheet.list</field>
+        <field name="model">xmind.sheet</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="workbook_id"/>
+                <field name="layout_type"/>
+                <field name="theme"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Sheet Form View -->
+    <record id="view_xmind_sheet_form" model="ir.ui.view">
+        <field name="name">xmind.sheet.form</field>
+        <field name="model">xmind.sheet</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="workbook_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="layout_type"/>
+                            <field name="theme"/>
+                            <field name="component_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Topics">
+                            <field name="topic_ids">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="title"/>
+                                    <field name="parent_id"/>
+                                    <field name="level"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Relationships">
+                            <field name="relationship_ids">
+                                <list>
+                                    <field name="source_topic_id"/>
+                                    <field name="target_topic_id"/>
+                                    <field name="title"/>
+                                    <field name="line_type"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Sheet Action -->
+    <record id="action_xmind_sheet" model="ir.actions.act_window">
+        <field name="name">Sheets</field>
+        <field name="res_model">xmind.sheet</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

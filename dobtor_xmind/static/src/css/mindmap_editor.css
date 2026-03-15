@@ -1,0 +1,984 @@
+/**
+ * XMind 2 Style Mind Map Editor CSS
+ */
+
+.o_mindmap_editor_container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 46px);
+    background: #f5f5f5;
+    position: relative;
+}
+
+/* Toolbar */
+.o_mindmap_toolbar {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #dee2e6;
+    flex-wrap: wrap;
+    gap: 12px;
+    z-index: 100;
+}
+
+.o_mindmap_toolbar .btn-group {
+    display: flex;
+    gap: 0;
+    margin: 0;
+}
+
+.o_mindmap_toolbar .btn {
+    min-width: auto;
+    padding: 6px 12px;
+    font-size: 14px;
+    border: 1px solid #ced4da;
+    background: #fff;
+    color: #495057;
+}
+
+.o_mindmap_toolbar .btn:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+
+.o_mindmap_toolbar .btn-outline-primary {
+    color: #007bff;
+    border-color: #007bff;
+}
+
+.o_mindmap_toolbar .btn-outline-primary:hover {
+    background: #007bff;
+    color: #fff;
+}
+
+.o_mindmap_toolbar .btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+}
+
+.o_mindmap_toolbar .btn-outline-secondary:hover {
+    background: #6c757d;
+    color: #fff;
+}
+
+.o_mindmap_toolbar .btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.o_mindmap_toolbar .btn-outline-danger:hover {
+    background: #dc3545;
+    color: #fff;
+}
+
+.o_mindmap_toolbar .btn-outline-warning {
+    color: #ffc107;
+    border-color: #ffc107;
+}
+
+.o_mindmap_toolbar .btn-outline-warning:hover {
+    background: #ffc107;
+    color: #212529;
+}
+
+.o_mindmap_toolbar .btn-outline-info {
+    color: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.o_mindmap_toolbar .btn-outline-info:hover {
+    background: #17a2b8;
+    color: #fff;
+}
+
+.o_mindmap_toolbar .btn-outline-success {
+    color: #28a745;
+    border-color: #28a745;
+}
+
+.o_mindmap_toolbar .btn-outline-success:hover {
+    background: #28a745;
+    color: #fff;
+}
+
+.o_mindmap_toolbar select.form-control {
+    width: auto;
+    min-width: 120px;
+    padding: 6px 12px;
+    font-size: 14px;
+    border: 1px solid #ced4da;
+}
+
+.o_mindmap_command_count {
+    font-size: 0.85em;
+}
+
+/* Drag and Drop Styles */
+.jmnode.dragging {
+    opacity: 0.5 !important;
+}
+
+.jmnode.attachment-target {
+    box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.5) !important;
+    border-color: #17a2b8 !important;
+}
+
+.drag-ghost {
+    pointer-events: none;
+    z-index: 10000;
+}
+
+/* Sidebar */
+.o_mindmap_sidebar {
+    position: absolute;
+    right: -320px;
+    top: 52px;
+    bottom: 30px;
+    width: 320px;
+    background: #ffffff;
+    border-left: 1px solid #dee2e6;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+    transition: right 0.3s ease;
+    z-index: 200;
+    overflow-y: auto;
+}
+
+.o_mindmap_sidebar.open {
+    right: 0;
+}
+
+.o_mindmap_sidebar_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #dee2e6;
+    background: #f8f9fa;
+}
+
+.o_mindmap_sidebar_header h5 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.o_mindmap_sidebar_close {
+    color: #6c757d;
+}
+
+.o_mindmap_sidebar_content {
+    padding: 16px;
+}
+
+.o_mindmap_sidebar_content .form-group {
+    margin-bottom: 12px;
+}
+
+.o_mindmap_sidebar_content label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.o_topic_markers {
+    min-height: 30px;
+}
+
+.o_topic_markers .badge {
+    margin-bottom: 4px;
+}
+
+/* Canvas */
+.o_mindmap_canvas {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #e8ecef;
+}
+
+#jsmind_container {
+    width: 100%;
+    height: 100%;
+}
+
+/* Status Bar */
+.o_mindmap_statusbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 16px;
+    background: #343a40;
+    color: #ffffff;
+    font-size: 0.85rem;
+}
+
+.o_mindmap_autosave_indicator {
+    color: #28a745;
+}
+
+/* Marker Selector Dialog */
+.o_marker_selector {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.o_marker_category {
+    margin-bottom: 16px;
+}
+
+.o_marker_category h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.o_marker_list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.o_marker_item {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.o_marker_item:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+    transform: scale(1.1);
+}
+
+/* jsMind Customizations */
+.jmnodes {
+    background: transparent !important;
+}
+
+.jmnode {
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    transition: all 0.2s ease !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+.jmnode:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.jmnode.selected {
+    box-shadow: 0 0 0 3px rgba(66, 139, 202, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.jmnode.root {
+    font-size: 18px !important;
+    font-weight: bold !important;
+    padding: 12px 24px !important;
+}
+
+.jmexpander {
+    border-radius: 50% !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Theme Colors */
+.theme-primary .jmnode {
+    background-color: #428bca;
+    color: #ffffff;
+}
+
+.theme-warning .jmnode {
+    background-color: #f0ad4e;
+    color: #ffffff;
+}
+
+.theme-danger .jmnode {
+    background-color: #d9534f;
+    color: #ffffff;
+}
+
+.theme-success .jmnode {
+    background-color: #5cb85c;
+    color: #ffffff;
+}
+
+.theme-info .jmnode {
+    background-color: #5bc0de;
+    color: #ffffff;
+}
+
+.theme-greensea .jmnode {
+    background-color: #16a085;
+    color: #ffffff;
+}
+
+.theme-nephrite .jmnode {
+    background-color: #27ae60;
+    color: #ffffff;
+}
+
+.theme-belizehole .jmnode {
+    background-color: #2980b9;
+    color: #ffffff;
+}
+
+.theme-wisteria .jmnode {
+    background-color: #8e44ad;
+    color: #ffffff;
+}
+
+.theme-asphalt .jmnode {
+    background-color: #34495e;
+    color: #ffffff;
+}
+
+.theme-orange .jmnode {
+    background-color: #f39c12;
+    color: #ffffff;
+}
+
+.theme-pumpkin .jmnode {
+    background-color: #d35400;
+    color: #ffffff;
+}
+
+.theme-pomegranate .jmnode {
+    background-color: #c0392b;
+    color: #ffffff;
+}
+
+.theme-clouds .jmnode {
+    background-color: #ecf0f1;
+    color: #2c3e50;
+}
+
+.theme-asbestos .jmnode {
+    background-color: #7f8c8d;
+    color: #ffffff;
+}
+
+.theme-default .jmnode {
+    background-color: #ffffff;
+    color: #333333;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .o_mindmap_toolbar {
+        padding: 6px 12px;
+    }
+
+    .o_mindmap_toolbar .btn {
+        padding: 4px 8px;
+        font-size: 0.85rem;
+    }
+
+    .o_mindmap_sidebar {
+        width: 280px;
+        right: -280px;
+    }
+
+    .btn-group .btn span {
+        display: none;
+    }
+}
+
+/* Animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.o_mindmap_autosave_indicator {
+    animation: pulse 2s infinite;
+}
+
+/* Canvas Grid Background */
+.o_mindmap_canvas::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        linear-gradient(to right, #d0d0d0 1px, transparent 1px),
+        linear-gradient(to bottom, #d0d0d0 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+/* Node Markers Display */
+.jmnode .node-markers {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    display: flex;
+    gap: 2px;
+}
+
+.jmnode .node-marker {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Labels Display */
+.jmnode .node-labels {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+}
+
+.jmnode .node-label {
+    background: #ffc107;
+    color: #000;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+/* Note Indicator */
+.jmnode.has-note::after {
+    content: '\f249';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 400;
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    background: #17a2b8;
+    color: #fff;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+}
+
+/* Relationship Lines */
+.relationship-line {
+    stroke: #999;
+    stroke-width: 2;
+    stroke-dasharray: 5, 5;
+    fill: none;
+}
+
+.relationship-label {
+    fill: #666;
+    font-size: 12px;
+}
+
+/* Drag and Drop Styles */
+.jmnode.dragging {
+    cursor: grabbing !important;
+    opacity: 0.5 !important;
+}
+
+.jmnode.drop-target {
+    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.5), 0 0 20px rgba(40, 167, 69, 0.3) !important;
+    transform: scale(1.05);
+    transition: all 0.2s ease;
+}
+
+.drag-ghost {
+    cursor: grabbing !important;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+.xmind-drop-indicator {
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Floating Topic Option Dialog */
+.floating-topic-option {
+    position: absolute;
+    background: white;
+    border: 2px solid #6c757d;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 2000;
+}
+
+.floating-topic-option h6 {
+    margin-bottom: 10px;
+    color: #495057;
+}
+
+.floating-topic-option .btn {
+    margin: 3px;
+}
+
+/* Drop Zone Visual Feedback */
+.o_mindmap_canvas.drop-zone-active::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 3px dashed #28a745;
+    background: rgba(40, 167, 69, 0.05);
+    pointer-events: none;
+    animation: borderPulse 2s infinite;
+}
+
+@keyframes borderPulse {
+    0%, 100% { border-color: rgba(40, 167, 69, 0.3); }
+    50% { border-color: rgba(40, 167, 69, 0.8); }
+}
+
+/* Connection Preview Line */
+.connection-preview {
+    stroke: #28a745;
+    stroke-width: 3;
+    stroke-dasharray: 8, 4;
+    fill: none;
+    animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -24;
+    }
+}
+
+/* Format Menu Styles */
+.o_format_menu {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.o_format_menu .dropdown-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
+    padding: 8px 12px 4px;
+}
+
+.o_format_menu .btn-group-sm .btn {
+    padding: 4px 8px;
+}
+
+.o_format_menu .btn-group-sm .btn.active {
+    background-color: #007bff;
+    color: #fff;
+    border-color: #007bff;
+}
+
+.o_format_menu .form-control-sm {
+    height: calc(1.5em + 0.5rem + 2px);
+    font-size: 0.8rem;
+}
+
+.o_format_menu .form-control-range {
+    padding: 0;
+}
+
+.o_format_menu label.small {
+    font-weight: 500;
+    color: #495057;
+}
+
+.o_format_menu input[type="color"] {
+    padding: 2px;
+    height: 28px;
+}
+
+/* Keep dropdown open when clicking inside */
+.o_format_menu {
+    padding-bottom: 10px;
+}
+
+.o_format_menu .dropdown-divider {
+    margin: 8px 0;
+}
+
+/* Shape Styles */
+.jmnode.shape-rectangle {
+    border-radius: 0 !important;
+}
+
+.jmnode.shape-rounded {
+    border-radius: 8px !important;
+}
+
+.jmnode.shape-ellipse {
+    border-radius: 50% !important;
+    padding: 12px 20px !important;
+}
+
+.jmnode.shape-diamond {
+    padding: 16px 24px !important;
+}
+
+.jmnode.shape-parallelogram {
+    padding: 10px 20px !important;
+}
+
+.jmnode.shape-hexagon {
+    padding: 12px 24px !important;
+}
+
+.jmnode.shape-cloud {
+    padding: 12px 20px !important;
+}
+
+.jmnode.shape-underline {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 6px 12px !important;
+}
+
+/* Multi-selection styles */
+.jmnode.multi-selected {
+    outline: 3px solid #007bff !important;
+    outline-offset: 2px !important;
+}
+
+.selection-rectangle {
+    position: absolute;
+    border: 2px dashed #007bff;
+    background: rgba(0, 123, 255, 0.1);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Multi-select button active state */
+.o_mindmap_btn_multiselect.active {
+    background-color: #007bff !important;
+    color: #fff !important;
+    border-color: #007bff !important;
+}
+
+/* Selection count badge */
+.o_mindmap_selection_count {
+    animation: pulse 2s infinite;
+}
+
+/* Relationship Styles */
+.relationship-path {
+    cursor: pointer;
+    transition: stroke-width 0.2s ease;
+}
+
+.relationship-path:hover {
+    stroke-width: 4px !important;
+}
+
+.draggable-control {
+    cursor: grab !important;
+    transition: transform 0.1s ease;
+}
+
+.draggable-control:hover {
+    transform: scale(1.2);
+}
+
+.draggable-control:active {
+    cursor: grabbing !important;
+}
+
+.control-line {
+    pointer-events: none;
+}
+
+/* Relationship Properties Dialog */
+.o_relationship_properties {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.o_relationship_properties .form-group {
+    margin-bottom: 10px;
+}
+
+.o_relationship_properties label.small {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.o_relationship_properties h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.o_relationship_properties hr {
+    margin: 12px 0;
+}
+
+.o_relationship_properties .btn-group-sm .btn.active {
+    background-color: #007bff;
+    color: #fff;
+    border-color: #007bff;
+}
+
+/* Relationship selection highlight */
+.relationship-selected .relationship-path {
+    stroke-opacity: 0.8;
+    filter: drop-shadow(0 0 4px rgba(0, 123, 255, 0.5));
+}
+
+/* Boundary Properties Dialog */
+.o_boundary_properties {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.o_boundary_properties .form-group {
+    margin-bottom: 10px;
+}
+
+.o_boundary_properties label.small {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.o_boundary_properties h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.o_boundary_properties hr {
+    margin: 12px 0;
+}
+
+.o_boundary_properties .btn-group-sm .btn.active {
+    background-color: #007bff;
+    color: #fff;
+    border-color: #007bff;
+}
+
+.o_boundary_properties input[type="range"] {
+    vertical-align: middle;
+}
+
+/* Boundary group styles */
+.boundary-group {
+    transition: opacity 0.2s ease;
+}
+
+.boundary-group:hover {
+    opacity: 0.9;
+}
+
+/* Summary Properties Dialog */
+.o_summary_properties {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.o_summary_properties .form-group {
+    margin-bottom: 10px;
+}
+
+.o_summary_properties label.small {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+.o_summary_properties h6 {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.o_summary_properties hr {
+    margin: 12px 0;
+}
+
+.o_summary_properties .btn-group-sm .btn.active {
+    background-color: #007bff;
+    color: #fff;
+    border-color: #007bff;
+}
+
+.o_summary_topic_selection {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.o_summary_topic_selection select {
+    font-size: 0.85rem;
+}
+
+/* Summary Topic Node Styles */
+.jmnode.summary-topic {
+    position: relative;
+}
+
+.jmnode.summary-topic::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+/* Summary Branch Overlay */
+.summary-branch-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.summary-branch-overlay path {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Summary Group Styles */
+.summary-group {
+    cursor: pointer;
+}
+
+.summary-group:hover .summary-path,
+.summary-group:hover .summary-connection {
+    stroke-width: 3px !important;
+    filter: brightness(1.1);
+}
+
+.summary-group .summary-path.selected,
+.summary-group .summary-connection.selected {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 0 3px rgba(0, 123, 255, 0.5));
+}
+
+.summary-group.selected .summary-path,
+.summary-group.selected .summary-connection {
+    stroke-width: 4px !important;
+    filter: drop-shadow(0 0 3px rgba(0, 123, 255, 0.5));
+}
+
+/* Summary Context Menu */
+.o_summary_context_menu {
+    min-width: 160px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 6px;
+}
+
+.o_summary_context_menu .dropdown-item {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+}
+
+.o_summary_context_menu .dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+.o_summary_context_menu .dropdown-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+/* Global Context Menu */
+.o_xmind_context_menu {
+    min-width: 200px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 4px 0;
+}
+
+.o_xmind_context_menu .dropdown-item {
+    padding: 6px 16px;
+    font-size: 0.875rem;
+}
+
+.o_xmind_context_menu .dropdown-item:hover {
+    background-color: #f0f4ff;
+}
+
+.o_xmind_context_menu .dropdown-item.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.o_xmind_context_menu .dropdown-divider {
+    margin: 4px 0;
+}
+
+/* noBorder shape */
+.jmnode.shape-noBorder {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Overview Panel */
+.o_mindmap_overview {
+    transition: opacity 0.2s;
+}
+.o_mindmap_overview:hover {
+    opacity: 0.95;
+}
+
+/* Outline Panel */
+.o_mindmap_outline {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    transition: transform 0.3s ease;
+}
+
+/* Zoom Level Display */
+.o_mindmap_zoom_level {
+    font-size: 0.8rem !important;
+    min-width: 48px;
+    text-align: center;
+    cursor: default !important;
+}
