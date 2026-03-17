@@ -7,8 +7,12 @@ class XMindMarker(models.Model):
     _description = 'XMind Marker'
     _order = 'category, sequence'
 
+    _sql_constraints = [
+        ('code_unique', 'UNIQUE(code)', 'Marker code must be unique.'),
+    ]
+
     name = fields.Char('Name', required=True)
-    code = fields.Char('Code', required=True)
+    code = fields.Char('Code', required=True, index=True)
     category = fields.Selection([
         ('priority', 'Priority'),
         ('smiley', 'Smiley'),
@@ -26,3 +30,5 @@ class XMindMarker(models.Model):
     sequence = fields.Integer('Sequence', default=10)
     icon = fields.Char('Icon Class', help='FontAwesome or custom icon class')
     color = fields.Char('Color', default='#333333')
+    hidden = fields.Boolean('Hidden', default=False,
+                            help='Hidden markers are not shown in the picker but can be applied via import')

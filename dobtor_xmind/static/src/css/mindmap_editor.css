@@ -1,5 +1,6 @@
 /**
- * XMind 2 Style Mind Map Editor CSS
+ * XMind 2 Professional Theme — Mind Map Editor CSS
+ * All rules scoped under .o_mindmap_editor_container to avoid polluting other Odoo views
  */
 
 .o_mindmap_editor_container {
@@ -115,11 +116,11 @@
 }
 
 /* Drag and Drop Styles */
-.jmnode.dragging {
+.xmind-node.dragging {
     opacity: 0.5 !important;
 }
 
-.jmnode.attachment-target {
+.xmind-node.attachment-target {
     box-shadow: 0 0 0 3px rgba(23, 162, 184, 0.5) !important;
     border-color: #17a2b8 !important;
 }
@@ -189,13 +190,12 @@
     margin-bottom: 4px;
 }
 
-/* Canvas */
+/* Canvas — XMind 2 Professional theme: white background */
 .o_mindmap_canvas {
     flex: 1;
     overflow: hidden;
     position: relative;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    background: #e8ecef;
+    background: #FFFFFF;
 }
 
 #jsmind_container {
@@ -263,118 +263,59 @@
     transform: scale(1.1);
 }
 
-/* jsMind Customizations */
-.jmnodes {
-    background: transparent !important;
+/* ================================================================
+   XMind 2 Default Styles — Custom renderer
+   ================================================================ */
+
+/* Selection */
+.xmind-node.xmind-selected {
+    box-shadow: 0 0 0 2px #428bca, 0 2px 8px rgba(0, 0, 0, 0.18) !important;
 }
 
-.jmnode {
-    padding: 8px 16px !important;
-    border-radius: 6px !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
-    transition: all 0.2s ease !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+/* Relationship drag-to-connect target highlight */
+.xmind-node.rel-drop-target {
+    box-shadow: 0 0 0 3px #0068cf, 0 0 12px rgba(0, 104, 207, 0.4) !important;
 }
 
-.jmnode:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+/* Prevent hover flicker on control points */
+.draggable-control {
+    cursor: grab !important;
+    pointer-events: all !important;
+}
+.draggable-control:hover {
+    r: 10;
+    filter: brightness(1.2);
+}
+.draggable-control:active {
+    cursor: grabbing !important;
 }
 
-.jmnode.selected {
-    box-shadow: 0 0 0 3px rgba(66, 139, 202, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+/* Hover */
+.xmind-node.xmind-level-1:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.xmind-node.xmind-root:hover {
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
 }
 
-.jmnode.root {
-    font-size: 18px !important;
-    font-weight: bold !important;
-    padding: 12px 24px !important;
+/* Edit input */
+.xmind-edit-input {
+    font-family: inherit;
 }
 
-.jmexpander {
-    border-radius: 50% !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+/* Expander — XMind 2 PlusMinusFigure */
+.xmind-expander {
+    transition: background 0.15s, border-color 0.15s;
+}
+.xmind-expander:hover {
+    background: rgb(160,196,234) !important;
+    border-color: rgb(120,136,162) !important;
+    color: rgb(48,64,96) !important;
+    color: #333 !important;
 }
 
-/* Theme Colors */
-.theme-primary .jmnode {
-    background-color: #428bca;
-    color: #ffffff;
-}
-
-.theme-warning .jmnode {
-    background-color: #f0ad4e;
-    color: #ffffff;
-}
-
-.theme-danger .jmnode {
-    background-color: #d9534f;
-    color: #ffffff;
-}
-
-.theme-success .jmnode {
-    background-color: #5cb85c;
-    color: #ffffff;
-}
-
-.theme-info .jmnode {
-    background-color: #5bc0de;
-    color: #ffffff;
-}
-
-.theme-greensea .jmnode {
-    background-color: #16a085;
-    color: #ffffff;
-}
-
-.theme-nephrite .jmnode {
-    background-color: #27ae60;
-    color: #ffffff;
-}
-
-.theme-belizehole .jmnode {
-    background-color: #2980b9;
-    color: #ffffff;
-}
-
-.theme-wisteria .jmnode {
-    background-color: #8e44ad;
-    color: #ffffff;
-}
-
-.theme-asphalt .jmnode {
-    background-color: #34495e;
-    color: #ffffff;
-}
-
-.theme-orange .jmnode {
-    background-color: #f39c12;
-    color: #ffffff;
-}
-
-.theme-pumpkin .jmnode {
-    background-color: #d35400;
-    color: #ffffff;
-}
-
-.theme-pomegranate .jmnode {
-    background-color: #c0392b;
-    color: #ffffff;
-}
-
-.theme-clouds .jmnode {
-    background-color: #ecf0f1;
-    color: #2c3e50;
-}
-
-.theme-asbestos .jmnode {
-    background-color: #7f8c8d;
-    color: #ffffff;
-}
-
-.theme-default .jmnode {
-    background-color: #ffffff;
-    color: #333333;
-}
+/* Theme Colors — applied via JS inline styles on root node, CSS not needed */
+/* Themes: root node color is set inline by the renderer */
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -398,55 +339,40 @@
 }
 
 /* Animation */
-@keyframes pulse {
+@keyframes o-xmind-pulse {
     0% { opacity: 1; }
     50% { opacity: 0.5; }
     100% { opacity: 1; }
 }
 
 .o_mindmap_autosave_indicator {
-    animation: pulse 2s infinite;
+    animation: o-xmind-pulse 2s infinite;
 }
 
-/* Canvas Grid Background */
-.o_mindmap_canvas::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-image:
-        linear-gradient(to right, #d0d0d0 1px, transparent 1px),
-        linear-gradient(to bottom, #d0d0d0 1px, transparent 1px);
-    background-size: 20px 20px;
-    opacity: 0.3;
-    pointer-events: none;
+/* Canvas Grid Background — removed for XMind 2 Professional clean look */
+
+/* Node Markers Display (inline before text) */
+.xmind-node .xmind-markers {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 5px;
+    vertical-align: middle;
 }
 
-/* Node Markers Display */
-.jmnode .node-markers {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    display: flex;
-    gap: 2px;
-}
-
-.jmnode .node-marker {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #fff;
-    display: flex;
+.xmind-node .xmind-marker-badge {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    width: 16px;
+    height: 16px;
+    font-size: 12px;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 /* Labels Display */
-.jmnode .node-labels {
+.xmind-node .node-labels {
     position: absolute;
     bottom: -20px;
     left: 50%;
@@ -455,7 +381,7 @@
     gap: 4px;
 }
 
-.jmnode .node-label {
+.xmind-node .node-label {
     background: #ffc107;
     color: #000;
     padding: 1px 6px;
@@ -465,7 +391,7 @@
 }
 
 /* Note Indicator */
-.jmnode.has-note::after {
+.xmind-node.has-note::after {
     content: '\f249';
     font-family: 'Font Awesome 5 Free';
     font-weight: 400;
@@ -497,12 +423,12 @@
 }
 
 /* Drag and Drop Styles */
-.jmnode.dragging {
+.xmind-node.dragging {
     cursor: grabbing !important;
     opacity: 0.5 !important;
 }
 
-.jmnode.drop-target {
+.xmind-node.drop-target {
     box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.5), 0 0 20px rgba(40, 167, 69, 0.3) !important;
     transform: scale(1.05);
     transition: all 0.2s ease;
@@ -512,7 +438,7 @@
     cursor: grabbing !important;
 }
 
-@keyframes pulse {
+@keyframes o-xmind-pulse-glow {
     0% {
         box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
     }
@@ -525,10 +451,10 @@
 }
 
 .xmind-drop-indicator {
-    animation: fadeIn 0.2s ease;
+    animation: o-xmind-fadeIn 0.2s ease;
 }
 
-@keyframes fadeIn {
+@keyframes o-xmind-fadeIn {
     from { opacity: 0; transform: scale(0.9); }
     to { opacity: 1; transform: scale(1); }
 }
@@ -564,10 +490,10 @@
     border: 3px dashed #28a745;
     background: rgba(40, 167, 69, 0.05);
     pointer-events: none;
-    animation: borderPulse 2s infinite;
+    animation: o-xmind-borderPulse 2s infinite;
 }
 
-@keyframes borderPulse {
+@keyframes o-xmind-borderPulse {
     0%, 100% { border-color: rgba(40, 167, 69, 0.3); }
     50% { border-color: rgba(40, 167, 69, 0.8); }
 }
@@ -578,10 +504,10 @@
     stroke-width: 3;
     stroke-dasharray: 8, 4;
     fill: none;
-    animation: dash 1s linear infinite;
+    animation: o-xmind-dash 1s linear infinite;
 }
 
-@keyframes dash {
+@keyframes o-xmind-dash {
     to {
         stroke-dashoffset: -24;
     }
@@ -639,43 +565,74 @@
 }
 
 /* Shape Styles */
-.jmnode.shape-rectangle {
+.xmind-node.shape-rectangle {
     border-radius: 0 !important;
 }
 
-.jmnode.shape-rounded {
+.xmind-node.shape-rounded {
     border-radius: 8px !important;
 }
 
-.jmnode.shape-ellipse {
+.xmind-node.shape-ellipse {
     border-radius: 50% !important;
     padding: 12px 20px !important;
 }
 
-.jmnode.shape-diamond {
+/* Circle: perfect 1:1 aspect ratio circle */
+.xmind-node.shape-circle {
+    border-radius: 50% !important;
+    aspect-ratio: 1;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 16px !important;
+}
+
+/* Floating Topic — independent layer, absolute positioned */
+.xmind-floating-topic {
+    transition: box-shadow 0.15s;
+}
+.xmind-floating-topic:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
+}
+.xmind-floating-topic:active {
+    cursor: grabbing !important;
+}
+
+/* Stroke Circle: double-ring central topic decoration */
+.xmind-node.shape-stroke {
+    border-radius: 50% !important;
+    aspect-ratio: 1;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 16px !important;
+}
+
+.xmind-node.shape-diamond {
     padding: 16px 24px !important;
 }
 
-.jmnode.shape-parallelogram {
+.xmind-node.shape-parallelogram {
     padding: 10px 20px !important;
 }
 
-.jmnode.shape-hexagon {
+.xmind-node.shape-hexagon {
     padding: 12px 24px !important;
 }
 
-.jmnode.shape-cloud {
+.xmind-node.shape-cloud {
     padding: 12px 20px !important;
 }
 
-.jmnode.shape-underline {
+.xmind-node.shape-underline {
     background: transparent !important;
     box-shadow: none !important;
     padding: 6px 12px !important;
 }
 
 /* Multi-selection styles */
-.jmnode.multi-selected {
+.xmind-node.multi-selected {
     outline: 3px solid #007bff !important;
     outline-offset: 2px !important;
 }
@@ -697,7 +654,7 @@
 
 /* Selection count badge */
 .o_mindmap_selection_count {
-    animation: pulse 2s infinite;
+    animation: o-xmind-pulse 2s infinite;
 }
 
 /* Relationship Styles */
@@ -850,11 +807,11 @@
 }
 
 /* Summary Topic Node Styles */
-.jmnode.summary-topic {
+.xmind-node.summary-topic {
     position: relative;
 }
 
-.jmnode.summary-topic::before {
+.xmind-node.summary-topic::before {
     content: '';
     position: absolute;
     top: -2px;
@@ -955,7 +912,7 @@
 }
 
 /* noBorder shape */
-.jmnode.shape-noBorder {
+.xmind-node.shape-noBorder {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;

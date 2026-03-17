@@ -17,7 +17,9 @@ class XMindBoundary(models.Model):
     title = fields.Char('Title')
 
     # Topics enclosed by this boundary
-    topic_ids = fields.Many2many('xmind.topic', string='Enclosed Topics')
+    topic_ids = fields.Many2many(
+        'xmind.topic', 'xmind_boundary_topic_rel',
+        'boundary_id', 'topic_id', string='Enclosed Topics')
 
     # Styling
     fill_color = fields.Char('Fill Color', default='rgba(255, 255, 0, 0.2)')
@@ -48,7 +50,9 @@ class XMindSummary(models.Model):
     component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
 
     # Topics being summarized (must be siblings)
-    topic_ids = fields.Many2many('xmind.topic', string='Summarized Topics')
+    topic_ids = fields.Many2many(
+        'xmind.topic', 'xmind_summary_topic_rel',
+        'summary_id', 'topic_id', string='Summarized Topics')
 
     # The summary topic (conclusion)
     summary_topic_id = fields.Many2one('xmind.topic', string='Summary Topic', ondelete='cascade')

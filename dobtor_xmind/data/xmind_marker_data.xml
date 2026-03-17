@@ -9,7 +9,7 @@
             <field name="name">Priority 1</field>
             <field name="code">priority-1</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-exclamation-circle</field>
+            <field name="icon">fa fa-exclamation-circle</field>
             <field name="color">#ff0000</field>
             <field name="sequence">1</field>
         </record>
@@ -17,7 +17,7 @@
             <field name="name">Priority 2</field>
             <field name="code">priority-2</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-exclamation-triangle</field>
+            <field name="icon">fa fa-exclamation-triangle</field>
             <field name="color">#ff6600</field>
             <field name="sequence">2</field>
         </record>
@@ -25,7 +25,7 @@
             <field name="name">Priority 3</field>
             <field name="code">priority-3</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-info-circle</field>
+            <field name="icon">fa fa-info-circle</field>
             <field name="color">#ffcc00</field>
             <field name="sequence">3</field>
         </record>
@@ -33,7 +33,7 @@
             <field name="name">Priority 4</field>
             <field name="code">priority-4</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-arrow-down</field>
+            <field name="icon">fa fa-arrow-down</field>
             <field name="color">#66cc00</field>
             <field name="sequence">4</field>
         </record>
@@ -41,7 +41,7 @@
             <field name="name">Priority 5</field>
             <field name="code">priority-5</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-arrow-down</field>
+            <field name="icon">fa fa-arrow-down</field>
             <field name="color">#0099cc</field>
             <field name="sequence">5</field>
         </record>
@@ -49,7 +49,7 @@
             <field name="name">Priority 6</field>
             <field name="code">priority-6</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-arrow-down</field>
+            <field name="icon">fa fa-arrow-down</field>
             <field name="color">#9933ff</field>
             <field name="sequence">6</field>
         </record>
@@ -57,7 +57,7 @@
             <field name="name">Priority 7</field>
             <field name="code">priority-7</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-circle</field>
+            <field name="icon">fa fa-circle</field>
             <field name="color">#999999</field>
             <field name="sequence">7</field>
         </record>
@@ -65,7 +65,7 @@
             <field name="name">Priority 8</field>
             <field name="code">priority-8</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-circle</field>
+            <field name="icon">fa fa-circle</field>
             <field name="color">#666666</field>
             <field name="sequence">8</field>
         </record>
@@ -73,7 +73,7 @@
             <field name="name">Priority 9</field>
             <field name="code">priority-9</field>
             <field name="category">priority</field>
-            <field name="icon">fas fa-circle</field>
+            <field name="icon">fa fa-circle</field>
             <field name="color">#333333</field>
             <field name="sequence">9</field>
         </record>
@@ -86,7 +86,7 @@
             <field name="name">Task Start</field>
             <field name="code">task-start</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-play</field>
+            <field name="icon">fa fa-play</field>
             <field name="color">#28a745</field>
             <field name="sequence">10</field>
         </record>
@@ -94,7 +94,7 @@
             <field name="name">Task 12.5%</field>
             <field name="code">task-1eighth</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-circle-notch</field>
+            <field name="icon">fa fa-circle-o</field>
             <field name="color">#e9ecef</field>
             <field name="sequence">11</field>
         </record>
@@ -102,7 +102,7 @@
             <field name="name">Task 25%</field>
             <field name="code">task-quarter</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-battery-quarter</field>
+            <field name="icon">fa fa-battery-1</field>
             <field name="color">#ffc107</field>
             <field name="sequence">12</field>
         </record>
@@ -110,7 +110,7 @@
             <field name="name">Task 37.5%</field>
             <field name="code">task-3eighth</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-spinner</field>
+            <field name="icon">fa fa-spinner</field>
             <field name="color">#ffc107</field>
             <field name="sequence">13</field>
         </record>
@@ -118,7 +118,7 @@
             <field name="name">Task 50%</field>
             <field name="code">task-half</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-battery-half</field>
+            <field name="icon">fa fa-battery-2</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">14</field>
         </record>
@@ -126,7 +126,7 @@
             <field name="name">Task 62.5%</field>
             <field name="code">task-5eighth</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-hourglass-half</field>
+            <field name="icon">fa fa-hourglass-2</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">15</field>
         </record>
@@ -134,7 +134,7 @@
             <field name="name">Task 75%</field>
             <field name="code">task-3quarter</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-battery-three-quarters</field>
+            <field name="icon">fa fa-battery-3</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">16</field>
         </record>
@@ -142,7 +142,7 @@
             <field name="name">Task 87.5%</field>
             <field name="code">task-7eighth</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-battery-full</field>
+            <field name="icon">fa fa-battery-4</field>
             <field name="color">#28a745</field>
             <field name="sequence">17</field>
         </record>
@@ -150,7 +150,7 @@
             <field name="name">Task Done</field>
             <field name="code">task-done</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-check-circle</field>
+            <field name="icon">fa fa-check-circle</field>
             <field name="color">#28a745</field>
             <field name="sequence">18</field>
         </record>
@@ -158,7 +158,7 @@
             <field name="name">Task Pause</field>
             <field name="code">task-pause</field>
             <field name="category">task</field>
-            <field name="icon">fas fa-pause-circle</field>
+            <field name="icon">fa fa-pause-circle</field>
             <field name="color">#6c757d</field>
             <field name="sequence">19</field>
         </record>
@@ -170,7 +170,7 @@
             <field name="name">Happy</field>
             <field name="code">smiley-happy</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-smile</field>
+            <field name="icon">fa fa-smile</field>
             <field name="color">#28a745</field>
             <field name="sequence">20</field>
         </record>
@@ -178,7 +178,7 @@
             <field name="name">Sad</field>
             <field name="code">smiley-sad</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-frown</field>
+            <field name="icon">fa fa-frown</field>
             <field name="color">#dc3545</field>
             <field name="sequence">21</field>
         </record>
@@ -186,7 +186,7 @@
             <field name="name">Neutral</field>
             <field name="code">smiley-neutral</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-meh</field>
+            <field name="icon">fa fa-meh</field>
             <field name="color">#ffc107</field>
             <field name="sequence">22</field>
         </record>
@@ -194,7 +194,7 @@
             <field name="name">Laugh</field>
             <field name="code">smiley-laugh</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-laugh</field>
+            <field name="icon">fa fa-smile-o</field>
             <field name="color">#28a745</field>
             <field name="sequence">23</field>
         </record>
@@ -202,7 +202,7 @@
             <field name="name">Angry</field>
             <field name="code">smiley-angry</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-angry</field>
+            <field name="icon">fa fa-frown-o</field>
             <field name="color">#dc3545</field>
             <field name="sequence">24</field>
         </record>
@@ -210,7 +210,7 @@
             <field name="name">Surprise</field>
             <field name="code">smiley-surprise</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-surprise</field>
+            <field name="icon">fa fa-meh-o</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">25</field>
         </record>
@@ -218,7 +218,7 @@
             <field name="name">Boring</field>
             <field name="code">smiley-boring</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-tired</field>
+            <field name="icon">fa fa-meh-o</field>
             <field name="color">#6c757d</field>
             <field name="sequence">26</field>
         </record>
@@ -230,7 +230,7 @@
             <field name="name">Red Flag</field>
             <field name="code">flag-red</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#dc3545</field>
             <field name="sequence">30</field>
         </record>
@@ -238,7 +238,7 @@
             <field name="name">Green Flag</field>
             <field name="code">flag-green</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#28a745</field>
             <field name="sequence">31</field>
         </record>
@@ -246,7 +246,7 @@
             <field name="name">Blue Flag</field>
             <field name="code">flag-blue</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#007bff</field>
             <field name="sequence">32</field>
         </record>
@@ -254,7 +254,7 @@
             <field name="name">Orange Flag</field>
             <field name="code">flag-orange</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">33</field>
         </record>
@@ -262,7 +262,7 @@
             <field name="name">Yellow Flag</field>
             <field name="code">flag-yellow</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#ffc107</field>
             <field name="sequence">34</field>
         </record>
@@ -270,7 +270,7 @@
             <field name="name">Purple Flag</field>
             <field name="code">flag-purple</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">35</field>
         </record>
@@ -278,7 +278,7 @@
             <field name="name">Gray Flag</field>
             <field name="code">flag-gray</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#6c757d</field>
             <field name="sequence">36</field>
         </record>
@@ -286,7 +286,7 @@
             <field name="name">Dark Green Flag</field>
             <field name="code">flag-dark-green</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#155724</field>
             <field name="sequence">37</field>
         </record>
@@ -294,7 +294,7 @@
             <field name="name">Dark Gray Flag</field>
             <field name="code">flag-dark-gray</field>
             <field name="category">flag</field>
-            <field name="icon">fas fa-flag</field>
+            <field name="icon">fa fa-flag</field>
             <field name="color">#343a40</field>
             <field name="sequence">38</field>
         </record>
@@ -306,7 +306,7 @@
             <field name="name">Red Star</field>
             <field name="code">star-red</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#dc3545</field>
             <field name="sequence">40</field>
         </record>
@@ -314,7 +314,7 @@
             <field name="name">Orange Star</field>
             <field name="code">star-orange</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">41</field>
         </record>
@@ -322,7 +322,7 @@
             <field name="name">Yellow Star</field>
             <field name="code">star-yellow</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#ffc107</field>
             <field name="sequence">42</field>
         </record>
@@ -330,7 +330,7 @@
             <field name="name">Green Star</field>
             <field name="code">star-green</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#28a745</field>
             <field name="sequence">43</field>
         </record>
@@ -338,7 +338,7 @@
             <field name="name">Blue Star</field>
             <field name="code">star-blue</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#007bff</field>
             <field name="sequence">44</field>
         </record>
@@ -346,7 +346,7 @@
             <field name="name">Purple Star</field>
             <field name="code">star-purple</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">45</field>
         </record>
@@ -354,7 +354,7 @@
             <field name="name">Gray Star</field>
             <field name="code">star-gray</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#6c757d</field>
             <field name="sequence">46</field>
         </record>
@@ -362,7 +362,7 @@
             <field name="name">Dark Green Star</field>
             <field name="code">star-dark-green</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#155724</field>
             <field name="sequence">47</field>
         </record>
@@ -370,7 +370,7 @@
             <field name="name">Dark Gray Star</field>
             <field name="code">star-dark-gray</field>
             <field name="category">star</field>
-            <field name="icon">fas fa-star</field>
+            <field name="icon">fa fa-star</field>
             <field name="color">#343a40</field>
             <field name="sequence">48</field>
         </record>
@@ -382,7 +382,7 @@
             <field name="name">Question</field>
             <field name="code">symbol-question</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-question-circle</field>
+            <field name="icon">fa fa-question-circle</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">50</field>
         </record>
@@ -390,7 +390,7 @@
             <field name="name">Warning</field>
             <field name="code">symbol-warning</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-exclamation-triangle</field>
+            <field name="icon">fa fa-exclamation-triangle</field>
             <field name="color">#ffc107</field>
             <field name="sequence">51</field>
         </record>
@@ -398,7 +398,7 @@
             <field name="name">Info</field>
             <field name="code">symbol-info</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-info-circle</field>
+            <field name="icon">fa fa-info-circle</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">52</field>
         </record>
@@ -406,7 +406,7 @@
             <field name="name">Plus</field>
             <field name="code">symbol-plus</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-plus-circle</field>
+            <field name="icon">fa fa-plus-circle</field>
             <field name="color">#28a745</field>
             <field name="sequence">53</field>
         </record>
@@ -414,7 +414,7 @@
             <field name="name">Minus</field>
             <field name="code">symbol-minus</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-minus-circle</field>
+            <field name="icon">fa fa-minus-circle</field>
             <field name="color">#dc3545</field>
             <field name="sequence">54</field>
         </record>
@@ -422,7 +422,7 @@
             <field name="name">Right</field>
             <field name="code">symbol-right</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-check-circle</field>
+            <field name="icon">fa fa-check-circle</field>
             <field name="color">#28a745</field>
             <field name="sequence">55</field>
         </record>
@@ -430,7 +430,7 @@
             <field name="name">Wrong</field>
             <field name="code">symbol-wrong</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-times-circle</field>
+            <field name="icon">fa fa-times-circle</field>
             <field name="color">#dc3545</field>
             <field name="sequence">56</field>
         </record>
@@ -438,7 +438,7 @@
             <field name="name">Pause</field>
             <field name="code">symbol-pause</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-pause-circle</field>
+            <field name="icon">fa fa-pause-circle</field>
             <field name="color">#ffc107</field>
             <field name="sequence">57</field>
         </record>
@@ -446,7 +446,7 @@
             <field name="name">Heart</field>
             <field name="code">symbol-heart</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-heart</field>
+            <field name="icon">fa fa-heart</field>
             <field name="color">#dc3545</field>
             <field name="sequence">58</field>
         </record>
@@ -454,7 +454,7 @@
             <field name="name">Like</field>
             <field name="code">symbol-like</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-thumbs-up</field>
+            <field name="icon">fa fa-thumbs-up</field>
             <field name="color">#28a745</field>
             <field name="sequence">59</field>
         </record>
@@ -462,7 +462,7 @@
             <field name="name">Dislike</field>
             <field name="code">symbol-dislike</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-thumbs-down</field>
+            <field name="icon">fa fa-thumbs-down</field>
             <field name="color">#dc3545</field>
             <field name="sequence">60</field>
         </record>
@@ -470,7 +470,7 @@
             <field name="name">Phone</field>
             <field name="code">symbol-phone</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-phone</field>
+            <field name="icon">fa fa-phone</field>
             <field name="color">#007bff</field>
             <field name="sequence">61</field>
         </record>
@@ -478,7 +478,7 @@
             <field name="name">Email</field>
             <field name="code">symbol-email</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-envelope</field>
+            <field name="icon">fa fa-envelope</field>
             <field name="color">#007bff</field>
             <field name="sequence">62</field>
         </record>
@@ -486,7 +486,7 @@
             <field name="name">Money</field>
             <field name="code">symbol-money</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-dollar-sign</field>
+            <field name="icon">fa fa-usd</field>
             <field name="color">#28a745</field>
             <field name="sequence">63</field>
         </record>
@@ -494,7 +494,7 @@
             <field name="name">Music</field>
             <field name="code">symbol-music</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-music</field>
+            <field name="icon">fa fa-music</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">64</field>
         </record>
@@ -502,7 +502,7 @@
             <field name="name">Trophy</field>
             <field name="code">symbol-trophy</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-trophy</field>
+            <field name="icon">fa fa-trophy</field>
             <field name="color">#ffc107</field>
             <field name="sequence">65</field>
         </record>
@@ -510,7 +510,7 @@
             <field name="name">Idea</field>
             <field name="code">symbol-lightbulb</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-lightbulb</field>
+            <field name="icon">fa fa-lightbulb</field>
             <field name="color">#ffc107</field>
             <field name="sequence">66</field>
         </record>
@@ -518,7 +518,7 @@
             <field name="name">Clock</field>
             <field name="code">symbol-clock</field>
             <field name="category">symbol</field>
-            <field name="icon">fas fa-clock</field>
+            <field name="icon">fa fa-clock</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">67</field>
         </record>
@@ -530,7 +530,7 @@
             <field name="name">Red People</field>
             <field name="code">people-red</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#dc3545</field>
             <field name="sequence">130</field>
         </record>
@@ -538,7 +538,7 @@
             <field name="name">Orange People</field>
             <field name="code">people-orange</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">131</field>
         </record>
@@ -546,7 +546,7 @@
             <field name="name">Yellow People</field>
             <field name="code">people-yellow</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#ffc107</field>
             <field name="sequence">132</field>
         </record>
@@ -554,7 +554,7 @@
             <field name="name">Green People</field>
             <field name="code">people-green</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#28a745</field>
             <field name="sequence">133</field>
         </record>
@@ -562,7 +562,7 @@
             <field name="name">Blue People</field>
             <field name="code">people-blue</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#007bff</field>
             <field name="sequence">134</field>
         </record>
@@ -570,7 +570,7 @@
             <field name="name">Purple People</field>
             <field name="code">people-purple</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">135</field>
         </record>
@@ -578,7 +578,7 @@
             <field name="name">Gray People</field>
             <field name="code">people-gray</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#6c757d</field>
             <field name="sequence">136</field>
         </record>
@@ -586,7 +586,7 @@
             <field name="name">Dark Green People</field>
             <field name="code">people-dark-green</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#155724</field>
             <field name="sequence">137</field>
         </record>
@@ -594,7 +594,7 @@
             <field name="name">Dark Gray People</field>
             <field name="code">people-dark-gray</field>
             <field name="category">people</field>
-            <field name="icon">fas fa-user</field>
+            <field name="icon">fa fa-user</field>
             <field name="color">#343a40</field>
             <field name="sequence">138</field>
         </record>
@@ -606,7 +606,7 @@
             <field name="name">Arrow Up</field>
             <field name="code">arrow-up</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-up</field>
+            <field name="icon">fa fa-arrow-up</field>
             <field name="color">#333333</field>
             <field name="sequence">140</field>
         </record>
@@ -614,7 +614,7 @@
             <field name="name">Arrow Up Right</field>
             <field name="code">arrow-up-right</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-up</field>
+            <field name="icon">fa fa-arrow-up</field>
             <field name="color">#333333</field>
             <field name="sequence">141</field>
         </record>
@@ -622,7 +622,7 @@
             <field name="name">Arrow Right</field>
             <field name="code">arrow-right</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-right</field>
+            <field name="icon">fa fa-arrow-right</field>
             <field name="color">#333333</field>
             <field name="sequence">142</field>
         </record>
@@ -630,7 +630,7 @@
             <field name="name">Arrow Down Right</field>
             <field name="code">arrow-down-right</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-down</field>
+            <field name="icon">fa fa-arrow-down</field>
             <field name="color">#333333</field>
             <field name="sequence">143</field>
         </record>
@@ -638,7 +638,7 @@
             <field name="name">Arrow Down</field>
             <field name="code">arrow-down</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-down</field>
+            <field name="icon">fa fa-arrow-down</field>
             <field name="color">#333333</field>
             <field name="sequence">144</field>
         </record>
@@ -646,7 +646,7 @@
             <field name="name">Arrow Down Left</field>
             <field name="code">arrow-down-left</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-down</field>
+            <field name="icon">fa fa-arrow-down</field>
             <field name="color">#333333</field>
             <field name="sequence">145</field>
         </record>
@@ -654,7 +654,7 @@
             <field name="name">Arrow Left</field>
             <field name="code">arrow-left</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-left</field>
+            <field name="icon">fa fa-arrow-left</field>
             <field name="color">#333333</field>
             <field name="sequence">146</field>
         </record>
@@ -662,7 +662,7 @@
             <field name="name">Arrow Up Left</field>
             <field name="code">arrow-up-left</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-arrow-up</field>
+            <field name="icon">fa fa-arrow-up</field>
             <field name="color">#333333</field>
             <field name="sequence">147</field>
         </record>
@@ -670,7 +670,7 @@
             <field name="name">Arrow Refresh</field>
             <field name="code">arrow-refresh</field>
             <field name="category">arrow</field>
-            <field name="icon">fas fa-sync-alt</field>
+            <field name="icon">fa fa-refresh</field>
             <field name="color">#333333</field>
             <field name="sequence">148</field>
         </record>
@@ -682,7 +682,7 @@
             <field name="name">January</field>
             <field name="code">month-jan</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#007bff</field>
             <field name="sequence">200</field>
         </record>
@@ -690,7 +690,7 @@
             <field name="name">February</field>
             <field name="code">month-feb</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">201</field>
         </record>
@@ -698,7 +698,7 @@
             <field name="name">March</field>
             <field name="code">month-mar</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#28a745</field>
             <field name="sequence">202</field>
         </record>
@@ -706,7 +706,7 @@
             <field name="name">April</field>
             <field name="code">month-apr</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#e83e8c</field>
             <field name="sequence">203</field>
         </record>
@@ -714,7 +714,7 @@
             <field name="name">May</field>
             <field name="code">month-may</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">204</field>
         </record>
@@ -722,7 +722,7 @@
             <field name="name">June</field>
             <field name="code">month-jun</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#20c997</field>
             <field name="sequence">205</field>
         </record>
@@ -730,7 +730,7 @@
             <field name="name">July</field>
             <field name="code">month-jul</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#dc3545</field>
             <field name="sequence">206</field>
         </record>
@@ -738,7 +738,7 @@
             <field name="name">August</field>
             <field name="code">month-aug</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#ffc107</field>
             <field name="sequence">207</field>
         </record>
@@ -746,7 +746,7 @@
             <field name="name">September</field>
             <field name="code">month-sep</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">208</field>
         </record>
@@ -754,7 +754,7 @@
             <field name="name">October</field>
             <field name="code">month-oct</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#6c757d</field>
             <field name="sequence">209</field>
         </record>
@@ -762,7 +762,7 @@
             <field name="name">November</field>
             <field name="code">month-nov</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#343a40</field>
             <field name="sequence">210</field>
         </record>
@@ -770,7 +770,7 @@
             <field name="name">December</field>
             <field name="code">month-dec</field>
             <field name="category">month</field>
-            <field name="icon">fas fa-calendar</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#155724</field>
             <field name="sequence">211</field>
         </record>
@@ -782,7 +782,7 @@
             <field name="name">Sunday</field>
             <field name="code">week-sun</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#dc3545</field>
             <field name="sequence">220</field>
         </record>
@@ -790,7 +790,7 @@
             <field name="name">Monday</field>
             <field name="code">week-mon</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">221</field>
         </record>
@@ -798,7 +798,7 @@
             <field name="name">Tuesday</field>
             <field name="code">week-tue</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#ffc107</field>
             <field name="sequence">222</field>
         </record>
@@ -806,7 +806,7 @@
             <field name="name">Wednesday</field>
             <field name="code">week-wed</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#28a745</field>
             <field name="sequence">223</field>
         </record>
@@ -814,7 +814,7 @@
             <field name="name">Thursday</field>
             <field name="code">week-thu</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">224</field>
         </record>
@@ -822,7 +822,7 @@
             <field name="name">Friday</field>
             <field name="code">week-fri</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#007bff</field>
             <field name="sequence">225</field>
         </record>
@@ -830,7 +830,7 @@
             <field name="name">Saturday</field>
             <field name="code">week-sat</field>
             <field name="category">weekday</field>
-            <field name="icon">fas fa-calendar-day</field>
+            <field name="icon">fa fa-calendar</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">226</field>
         </record>
@@ -842,7 +842,7 @@
             <field name="name">Half Red Star</field>
             <field name="code">half-star-red</field>
             <field name="category">half</field>
-            <field name="icon">fas fa-star-half-alt</field>
+            <field name="icon">fa fa-star-half-o</field>
             <field name="color">#dc3545</field>
             <field name="sequence">150</field>
         </record>
@@ -850,7 +850,7 @@
             <field name="name">Half Orange Star</field>
             <field name="code">half-star-orange</field>
             <field name="category">half</field>
-            <field name="icon">fas fa-star-half-alt</field>
+            <field name="icon">fa fa-star-half-o</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">151</field>
         </record>
@@ -858,7 +858,7 @@
             <field name="name">Half Yellow Star</field>
             <field name="code">half-star-yellow</field>
             <field name="category">half</field>
-            <field name="icon">fas fa-star-half-alt</field>
+            <field name="icon">fa fa-star-half-o</field>
             <field name="color">#ffc107</field>
             <field name="sequence">152</field>
         </record>
@@ -866,7 +866,7 @@
             <field name="name">Half Green Star</field>
             <field name="code">half-star-green</field>
             <field name="category">half</field>
-            <field name="icon">fas fa-star-half-alt</field>
+            <field name="icon">fa fa-star-half-o</field>
             <field name="color">#28a745</field>
             <field name="sequence">153</field>
         </record>
@@ -874,7 +874,7 @@
             <field name="name">Half Blue Star</field>
             <field name="code">half-star-blue</field>
             <field name="category">half</field>
-            <field name="icon">fas fa-star-half-alt</field>
+            <field name="icon">fa fa-star-half-o</field>
             <field name="color">#007bff</field>
             <field name="sequence">154</field>
         </record>
@@ -882,9 +882,17 @@
             <field name="name">Half Purple Star</field>
             <field name="code">half-star-purple</field>
             <field name="category">half</field>
-            <field name="icon">fas fa-star-half-alt</field>
+            <field name="icon">fa fa-star-half-o</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">155</field>
+        </record>
+        <record id="marker_half_star_gray" model="xmind.marker">
+            <field name="name">Half Gray Star</field>
+            <field name="code">half-star-gray</field>
+            <field name="category">half</field>
+            <field name="icon">fa fa-star-half-o</field>
+            <field name="color">#6c757d</field>
+            <field name="sequence">156</field>
         </record>
 
         <!-- Missing Smiley Markers -->
@@ -892,7 +900,7 @@
             <field name="name">Cry</field>
             <field name="code">smiley-cry</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-sad-tear</field>
+            <field name="icon">fa fa-frown-o</field>
             <field name="color">#007bff</field>
             <field name="sequence">27</field>
         </record>
@@ -900,7 +908,7 @@
             <field name="name">Embarrass</field>
             <field name="code">smiley-embarrass</field>
             <field name="category">smiley</field>
-            <field name="icon">fas fa-flushed</field>
+            <field name="icon">fa fa-meh-o</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">28</field>
         </record>
@@ -908,171 +916,171 @@
         <!-- Missing Symbol Markers -->
         <record id="marker_symbol_bar_chart" model="xmind.marker">
             <field name="name">Bar Chart</field><field name="code">symbol-bar-chart</field>
-            <field name="category">symbol</field><field name="icon">fas fa-chart-bar</field>
+            <field name="category">symbol</field><field name="icon">fa fa-bar-chart</field>
             <field name="color">#007bff</field><field name="sequence">68</field>
         </record>
         <record id="marker_symbol_contact" model="xmind.marker">
             <field name="name">Contact</field><field name="code">symbol-contact</field>
-            <field name="category">symbol</field><field name="icon">fas fa-address-card</field>
+            <field name="category">symbol</field><field name="icon">fa fa-vcard</field>
             <field name="color">#6c757d</field><field name="sequence">69</field>
         </record>
         <record id="marker_symbol_drink" model="xmind.marker">
             <field name="name">Drink</field><field name="code">symbol-drink</field>
-            <field name="category">symbol</field><field name="icon">fas fa-coffee</field>
+            <field name="category">symbol</field><field name="icon">fa fa-coffee</field>
             <field name="color">#795548</field><field name="sequence">70</field>
         </record>
         <record id="marker_symbol_exercise" model="xmind.marker">
             <field name="name">Exercise</field><field name="code">symbol-exercise</field>
-            <field name="category">symbol</field><field name="icon">fas fa-running</field>
+            <field name="category">symbol</field><field name="icon">fa fa-child</field>
             <field name="color">#28a745</field><field name="sequence">71</field>
         </record>
         <record id="marker_symbol_flight" model="xmind.marker">
             <field name="name">Flight</field><field name="code">symbol-flight</field>
-            <field name="category">symbol</field><field name="icon">fas fa-plane</field>
+            <field name="category">symbol</field><field name="icon">fa fa-plane</field>
             <field name="color">#17a2b8</field><field name="sequence">72</field>
         </record>
         <record id="marker_symbol_line_graph" model="xmind.marker">
             <field name="name">Line Graph</field><field name="code">symbol-line-graph</field>
-            <field name="category">symbol</field><field name="icon">fas fa-chart-line</field>
+            <field name="category">symbol</field><field name="icon">fa fa-line-chart</field>
             <field name="color">#007bff</field><field name="sequence">73</field>
         </record>
         <record id="marker_symbol_medals" model="xmind.marker">
             <field name="name">Medals</field><field name="code">symbol-medals</field>
-            <field name="category">symbol</field><field name="icon">fas fa-medal</field>
+            <field name="category">symbol</field><field name="icon">fa fa-trophy</field>
             <field name="color">#ffc107</field><field name="sequence">74</field>
         </record>
         <record id="marker_symbol_pen" model="xmind.marker">
             <field name="name">Pen</field><field name="code">symbol-pen</field>
-            <field name="category">symbol</field><field name="icon">fas fa-pen</field>
+            <field name="category">symbol</field><field name="icon">fa fa-pencil</field>
             <field name="color">#333333</field><field name="sequence">75</field>
         </record>
         <record id="marker_symbol_pie_chart" model="xmind.marker">
             <field name="name">Pie Chart</field><field name="code">symbol-pie-chart</field>
-            <field name="category">symbol</field><field name="icon">fas fa-chart-pie</field>
+            <field name="category">symbol</field><field name="icon">fa fa-pie-chart</field>
             <field name="color">#6f42c1</field><field name="sequence">76</field>
         </record>
         <record id="marker_symbol_shopping_cart" model="xmind.marker">
             <field name="name">Shopping Cart</field><field name="code">symbol-shopping-cart</field>
-            <field name="category">symbol</field><field name="icon">fas fa-shopping-cart</field>
+            <field name="category">symbol</field><field name="icon">fa fa-shopping-cart</field>
             <field name="color">#28a745</field><field name="sequence">77</field>
         </record>
         <record id="marker_symbol_thermometer" model="xmind.marker">
             <field name="name">Thermometer</field><field name="code">symbol-thermometer</field>
-            <field name="category">symbol</field><field name="icon">fas fa-thermometer-half</field>
+            <field name="category">symbol</field><field name="icon">fa fa-thermometer-half</field>
             <field name="color">#dc3545</field><field name="sequence">78</field>
         </record>
 
         <!-- Other/Hidden Markers (XMind 2 compatibility) -->
         <record id="marker_other_calendar" model="xmind.marker">
             <field name="name">Calendar</field><field name="code">other-calendar</field>
-            <field name="category">other</field><field name="icon">fas fa-calendar-alt</field>
+            <field name="category">other</field><field name="icon">fa fa-calendar</field>
             <field name="color">#007bff</field><field name="sequence">300</field>
         </record>
         <record id="marker_other_email" model="xmind.marker">
             <field name="name">Email</field><field name="code">other-email</field>
-            <field name="category">other</field><field name="icon">fas fa-envelope</field>
+            <field name="category">other</field><field name="icon">fa fa-envelope</field>
             <field name="color">#6c757d</field><field name="sequence">301</field>
         </record>
         <record id="marker_other_phone" model="xmind.marker">
             <field name="name">Phone</field><field name="code">other-phone</field>
-            <field name="category">other</field><field name="icon">fas fa-phone</field>
+            <field name="category">other</field><field name="icon">fa fa-phone</field>
             <field name="color">#28a745</field><field name="sequence">302</field>
         </record>
         <record id="marker_other_fax" model="xmind.marker">
             <field name="name">Fax</field><field name="code">other-fax</field>
-            <field name="category">other</field><field name="icon">fas fa-fax</field>
+            <field name="category">other</field><field name="icon">fa fa-fax</field>
             <field name="color">#6c757d</field><field name="sequence">303</field>
         </record>
         <record id="marker_other_clock2" model="xmind.marker">
             <field name="name">Clock</field><field name="code">other-clock</field>
-            <field name="category">other</field><field name="icon">fas fa-clock</field>
+            <field name="category">other</field><field name="icon">fa fa-clock</field>
             <field name="color">#17a2b8</field><field name="sequence">304</field>
         </record>
         <record id="marker_other_coffee" model="xmind.marker">
             <field name="name">Coffee Cup</field><field name="code">other-coffee-cup</field>
-            <field name="category">other</field><field name="icon">fas fa-mug-hot</field>
+            <field name="category">other</field><field name="icon">fa fa-coffee</field>
             <field name="color">#795548</field><field name="sequence">305</field>
         </record>
         <record id="marker_other_lightbulb2" model="xmind.marker">
             <field name="name">Light Bulb</field><field name="code">other-lightbulb</field>
-            <field name="category">other</field><field name="icon">fas fa-lightbulb</field>
+            <field name="category">other</field><field name="icon">fa fa-lightbulb</field>
             <field name="color">#ffc107</field><field name="sequence">306</field>
         </record>
         <record id="marker_other_businesscard" model="xmind.marker">
             <field name="name">Business Card</field><field name="code">other-businesscard</field>
-            <field name="category">other</field><field name="icon">fas fa-id-card</field>
+            <field name="category">other</field><field name="icon">fa fa-id-card</field>
             <field name="color">#6c757d</field><field name="sequence">307</field>
         </record>
         <record id="marker_other_chat" model="xmind.marker">
             <field name="name">Chat</field><field name="code">other-chat</field>
-            <field name="category">other</field><field name="icon">fas fa-comments</field>
+            <field name="category">other</field><field name="icon">fa fa-comments</field>
             <field name="color">#007bff</field><field name="sequence">308</field>
         </record>
         <record id="marker_other_note" model="xmind.marker">
             <field name="name">Note</field><field name="code">other-note</field>
-            <field name="category">other</field><field name="icon">fas fa-sticky-note</field>
+            <field name="category">other</field><field name="icon">fa fa-sticky-note</field>
             <field name="color">#ffc107</field><field name="sequence">309</field>
         </record>
         <record id="marker_other_lock" model="xmind.marker">
             <field name="name">Lock</field><field name="code">other-lock</field>
-            <field name="category">other</field><field name="icon">fas fa-lock</field>
+            <field name="category">other</field><field name="icon">fa fa-lock</field>
             <field name="color">#dc3545</field><field name="sequence">310</field>
         </record>
         <record id="marker_other_unlock" model="xmind.marker">
             <field name="name">Unlock</field><field name="code">other-unlock</field>
-            <field name="category">other</field><field name="icon">fas fa-unlock</field>
+            <field name="category">other</field><field name="icon">fa fa-unlock</field>
             <field name="color">#28a745</field><field name="sequence">311</field>
         </record>
         <record id="marker_other_yes" model="xmind.marker">
             <field name="name">Yes</field><field name="code">other-yes</field>
-            <field name="category">other</field><field name="icon">fas fa-check</field>
+            <field name="category">other</field><field name="icon">fa fa-check</field>
             <field name="color">#28a745</field><field name="sequence">312</field>
         </record>
         <record id="marker_other_no" model="xmind.marker">
             <field name="name">No</field><field name="code">other-no</field>
-            <field name="category">other</field><field name="icon">fas fa-times</field>
+            <field name="category">other</field><field name="icon">fa fa-times</field>
             <field name="color">#dc3545</field><field name="sequence">313</field>
         </record>
         <record id="marker_other_bomb" model="xmind.marker">
             <field name="name">Bomb</field><field name="code">other-bomb</field>
-            <field name="category">other</field><field name="icon">fas fa-bomb</field>
+            <field name="category">other</field><field name="icon">fa fa-bomb</field>
             <field name="color">#333333</field><field name="sequence">314</field>
         </record>
 
         <!-- Remaining Other/Hidden Markers -->
         <record id="marker_other_phone2" model="xmind.marker">
             <field name="name">Phone 2</field><field name="code">other-phone2</field>
-            <field name="category">other</field><field name="icon">fas fa-mobile-alt</field>
+            <field name="category">other</field><field name="icon">fa fa-mobile</field>
             <field name="color">#333333</field><field name="sequence">315</field>
         </record>
         <record id="marker_other_people" model="xmind.marker">
             <field name="name">People</field><field name="code">other-people</field>
-            <field name="category">other</field><field name="icon">fas fa-users</field>
+            <field name="category">other</field><field name="icon">fa fa-users</field>
             <field name="color">#007bff</field><field name="sequence">316</field>
         </record>
         <record id="marker_other_people2" model="xmind.marker">
             <field name="name">People 2</field><field name="code">other-people2</field>
-            <field name="category">other</field><field name="icon">fas fa-user-friends</field>
+            <field name="category">other</field><field name="icon">fa fa-users</field>
             <field name="color">#6c757d</field><field name="sequence">317</field>
         </record>
         <record id="marker_other_social" model="xmind.marker">
             <field name="name">Social</field><field name="code">other-social</field>
-            <field name="category">other</field><field name="icon">fas fa-share-alt</field>
+            <field name="category">other</field><field name="icon">fa fa-share</field>
             <field name="color">#17a2b8</field><field name="sequence">318</field>
         </record>
         <record id="marker_other_exclamation" model="xmind.marker">
             <field name="name">Exclamation</field><field name="code">other-exclamation</field>
-            <field name="category">other</field><field name="icon">fas fa-exclamation</field>
+            <field name="category">other</field><field name="icon">fa fa-exclamation</field>
             <field name="color">#dc3545</field><field name="sequence">319</field>
         </record>
         <record id="marker_other_question" model="xmind.marker">
             <field name="name">Question</field><field name="code">other-question</field>
-            <field name="category">other</field><field name="icon">fas fa-question</field>
+            <field name="category">other</field><field name="icon">fa fa-question</field>
             <field name="color">#ffc107</field><field name="sequence">320</field>
         </record>
         <record id="marker_other_cross" model="xmind.marker">
             <field name="name">Cross</field><field name="code">other-cross</field>
-            <field name="category">other</field><field name="icon">fas fa-times-circle</field>
+            <field name="category">other</field><field name="icon">fa fa-times-circle</field>
             <field name="color">#dc3545</field><field name="sequence">321</field>
         </record>
 

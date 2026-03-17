@@ -10,12 +10,12 @@ class XMindTopic(models.Model):
     _parent_store = True
     _order = 'parent_path, sequence'
 
-    name = fields.Char('Name', compute='_compute_name', store=True)
+    name = fields.Char('Name', related='title', store=True)
     title = fields.Char('Title', required=True)
     sequence = fields.Integer('Sequence', default=10)
 
     sheet_id = fields.Many2one('xmind.sheet', string='Sheet', ondelete='cascade', required=True)
-    component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
+    component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()), index=True)
 
     # Hierarchy
     parent_id = fields.Many2one('xmind.topic', string='Parent Topic', ondelete='cascade', index=True)
@@ -66,6 +66,7 @@ class XMindTopic(models.Model):
         ('rect', 'Rectangle'),
         ('rounded', 'Rounded Rectangle'),
         ('ellipse', 'Ellipse'),
+        ('circle', 'Circle'),
         ('underline', 'Underline'),
         ('diamond', 'Diamond'),
         ('parallelogram', 'Parallelogram'),
@@ -74,6 +75,7 @@ class XMindTopic(models.Model):
         ('noBorder', 'No Border'),
         ('fishhead_left', 'Fishhead Left'),
         ('fishhead_right', 'Fishhead Right'),
+        ('stroke', 'Stroke Circle'),
     ], string='Shape', default='rounded')
     font_family = fields.Char('Font Family')
     font_style = fields.Selection([
@@ -96,11 +98,6 @@ class XMindTopic(models.Model):
     # Computed fields
     level = fields.Integer('Level', compute='_compute_level', store=True)
     has_children = fields.Boolean('Has Children', compute='_compute_has_children', store=True)
-
-    @api.depends('title')
-    def _compute_name(self):
-        for record in self:
-            record.name = record.title
 
     @api.depends('parent_path')
     def _compute_level(self):

@@ -4,7 +4,7 @@
         <field name="name">xmind.import.wizard.form</field>
         <field name="model">xmind.import.wizard</field>
         <field name="arch" type="xml">
-            <form string="Import Mind Maps">
+            <form>
                 <group>
                     <p class="text-muted">
                         Upload one or more .xmind, .mm (FreeMind), or .mmap (MindManager) files.
@@ -14,8 +14,8 @@
                 </group>
                 <field name="line_ids">
                     <list editable="bottom">
-                        <field name="file" filename="filename" widget="binary"/>
-                        <field name="filename" readonly="1"/>
+                        <field name="file" filename="filename"/>
+                        <field name="filename" column_invisible="1"/>
                         <field name="status" readonly="1"
                                decoration-success="status == 'success'"
                                decoration-danger="status == 'error'"

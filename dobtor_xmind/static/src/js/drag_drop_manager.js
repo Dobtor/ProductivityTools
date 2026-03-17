@@ -28,7 +28,7 @@ export class DragDropManager {
         this.shiftPressed = false; // Track Shift key
         this.draggedChildren = []; // Store child nodes being dragged with parent
         this.childrenOffsets = []; // Store relative offsets of children
-        this.attachmentDistance = 50; // Distance to trigger attachment (pixels)
+        this.attachmentDistance = 80; // Distance to trigger attachment (pixels)
 
         this._boundMouseDown = this._onMouseDown.bind(this);
         this._boundMouseMove = this._onMouseMove.bind(this);
@@ -152,10 +152,10 @@ export class DragDropManager {
 
     _onMouseDown(e) {
         // Check if clicking on a jmnode (now using class selector)
-        const nodeElement = e.target.closest('.jmnode');
+        const nodeElement = e.target.closest('.xmind-node');
         if (!nodeElement) return;
 
-        const nodeId = nodeElement.getAttribute('nodeid');
+        const nodeId = nodeElement.getAttribute('data-nodeid');
         const node = this.jm.get_node(nodeId);
 
         // Don't allow dragging root node
@@ -232,7 +232,7 @@ export class DragDropManager {
             if (!node.children || node.children.length === 0) return;
 
             for (let child of node.children) {
-                const childElement = document.querySelector(`.jmnode[nodeid="${child.id}"]`);
+                const childElement = document.querySelector(`.xmind-node[data-nodeid="${child.id}"]`);
                 if (childElement) {
                     const childRect = childElement.getBoundingClientRect();
 
@@ -294,7 +294,7 @@ export class DragDropManager {
         let hasOverlap = false;
 
         // Check all other nodes
-        const allNodes = document.querySelectorAll('.jmnode');
+        const allNodes = document.querySelectorAll('.xmind-node');
         allNodes.forEach(node => {
             if (node === this.draggedElement) return;
             if (this.draggedChildren.some(c => c.element === node)) return;
@@ -327,38 +327,91 @@ export class DragDropManager {
         const mouseY = e.clientY - containerRect.top;
 
         let closestNode = null;
-        let closestDistance = this.attachmentDistance; // Smaller distance for attachment
+        let closestDistance = this.attachmentDistance;
+        // Fix #3: Also track closest sibling insertion point
+        let closestSibling = null;
+        let closestSiblingDist = 30; // px threshold for sibling insertion zone
 
-        // Check all nodes for proximity
         const nodes = this.jm.mind.nodes;
         for (let id in nodes) {
             const node = nodes[id];
-
-            // Skip self and descendants
             if (this._isDescendant(this.draggedNode, node)) continue;
 
-            const element = document.querySelector(`.jmnode[nodeid="${id}"]`);
+            const element = document.querySelector(`.xmind-node[data-nodeid="${id}"]`);
             if (!element) continue;
 
             const rect = element.getBoundingClientRect();
             const nodeX = rect.left - containerRect.left + rect.width / 2;
             const nodeY = rect.top - containerRect.top + rect.height / 2;
-
             const distance = Math.sqrt(Math.pow(mouseX - nodeX, 2) + Math.pow(mouseY - nodeY, 2));
 
             if (distance < closestDistance) {
                 closestDistance = distance;
                 closestNode = { node: node, element: element, distance: distance };
             }
+
+            // Fix #3: Check sibling insertion — mouse between two siblings
+            if (node.parent && node.parent.id !== this.draggedNode.id &&
+                node.id !== this.draggedNode.id) {
+                const top = rect.top - containerRect.top;
+                const bottom = top + rect.height;
+                // Check if mouse is just above or below this node (within threshold)
+                const aboveDist = Math.abs(mouseY - top);
+                const belowDist = Math.abs(mouseY - bottom);
+                const horizontalDist = Math.abs(mouseX - nodeX);
+
+                if (horizontalDist < rect.width && aboveDist < closestSiblingDist) {
+                    closestSiblingDist = aboveDist;
+                    closestSibling = { node: node, position: 'before', element: element };
+                }
+                if (horizontalDist < rect.width && belowDist < closestSiblingDist) {
+                    closestSiblingDist = belowDist;
+                    closestSibling = { node: node, position: 'after', element: element };
+                }
+            }
         }
 
-        // Update visual feedback
-        if (closestNode) {
+        // Prefer sibling insertion if closer than attachment
+        if (closestSibling && closestSiblingDist < 20 &&
+            closestSibling.node.parent &&
+            closestSibling.node.parent.id === this.draggedNode.parent?.id) {
+            this._showSiblingInsertIndicator(closestSibling);
+            this.potentialTarget = closestSibling.node;
+            this._siblingInsertPosition = closestSibling.position;
+        } else if (closestNode) {
+            this._siblingInsertPosition = null;
             this._showAttachmentIndicator(closestNode);
             this.potentialTarget = closestNode.node;
         } else {
+            this._siblingInsertPosition = null;
             this._hideDropIndicator();
             this.potentialTarget = null;
+        }
+    }
+
+    _showSiblingInsertIndicator(siblingInfo) {
+        const element = siblingInfo.element;
+        const rect = element.getBoundingClientRect();
+
+        const box = this.dropIndicator.querySelector('.drop-target-box');
+        box.style.width = (rect.width + 10) + 'px';
+        box.style.height = '3px';
+        box.style.borderColor = '#28a745';
+        box.style.background = '#28a745';
+
+        const yOffset = siblingInfo.position === 'before' ? -5 : rect.height + 2;
+        this.dropIndicator.style.left = (rect.left - 5) + 'px';
+        this.dropIndicator.style.top = (rect.top + yOffset) + 'px';
+        this.dropIndicator.style.display = 'block';
+
+        const arrow = this.dropIndicator.querySelector('.drop-arrow');
+        if (arrow) arrow.style.display = 'none';
+        const label = this.dropIndicator.querySelector('.drop-label');
+        if (label) {
+            label.textContent = siblingInfo.position === 'before'
+                ? _t('Insert before: ') + siblingInfo.node.topic
+                : _t('Insert after: ') + siblingInfo.node.topic;
+            label.style.background = '#28a745';
         }
     }
 
@@ -393,10 +446,12 @@ export class DragDropManager {
         arrow.style.top = '-20px';
         arrow.style.borderTopColor = '#17a2b8'; // Blue arrow
 
-        // Update label
+        // Update label with child count hint
         const label = this.dropIndicator.querySelector('.drop-label');
-        label.textContent = _t('Attach to: ') + targetInfo.node.topic;
-        label.style.background = '#17a2b8'; // Blue label
+        const childCount = this.draggedNode.children ? this.draggedNode.children.length : 0;
+        const hint = childCount > 0 ? ` (+${childCount} ${_t('children')})` : '';
+        label.textContent = _t('Attach to: ') + targetInfo.node.topic + hint;
+        label.style.background = '#17a2b8';
 
         // Highlight target element with blue glow
         element.classList.add('attachment-target');
@@ -434,12 +489,10 @@ export class DragDropManager {
         if (this.shiftPressed) {
             this._createFloatingTopic(e);
         } else if (this.potentialTarget && this.draggedNode) {
-            // Attach to target node
+            // Attach to target node (reparent)
             this._performAttachment(this.draggedNode, this.potentialTarget);
-        } else {
-            // No target nearby, create floating topic with auto-avoid
-            this._createFloatingTopicWithAvoid(e);
         }
+        // If no target and no shift: simply cancel the drag (node stays where it was)
 
         this.potentialTarget = null;
         this.draggedChildren = [];
@@ -447,18 +500,58 @@ export class DragDropManager {
     }
 
     _performAttachment(sourceNode, targetNode) {
-        // Attach source node as child of target node
+        // Fix #3: If sibling insertion detected, insert as sibling at specific position
+        if (this._siblingInsertPosition && targetNode.parent) {
+            this._performSiblingInsert(sourceNode, targetNode, this._siblingInsertPosition);
+            this._siblingInsertPosition = null;
+            return;
+        }
+        // Default: attach as child of target
         this._performMove(sourceNode, targetNode);
         this.editor._updateStatus(_t('Attached to: ') + targetNode.topic);
     }
 
-    _createFloatingTopic(e) {
-        const containerRect = this.jm.view.e_panel.getBoundingClientRect();
-        const finalX = e.clientX - containerRect.left - this.offsetX;
-        const finalY = e.clientY - containerRect.top - this.offsetY;
+    _performSiblingInsert(sourceNode, refNode, position) {
+        if (!sourceNode.parent || !refNode.parent) return;
+        if (sourceNode.id === refNode.id) return;
 
-        this._convertToFloating(finalX, finalY);
-        this.editor._updateStatus(_t('Created floating topic'));
+        const oldParent = sourceNode.parent;
+        const newParent = refNode.parent;
+
+        // Remove from old parent
+        const oldIdx = oldParent.children.indexOf(sourceNode);
+        if (oldIdx > -1) oldParent.children.splice(oldIdx, 1);
+
+        // Find position in new parent
+        let insertIdx = newParent.children.indexOf(refNode);
+        if (insertIdx < 0) insertIdx = newParent.children.length;
+        if (position === 'after') insertIdx++;
+
+        // Insert at position
+        sourceNode.parent = newParent;
+        sourceNode.direction = refNode.direction || 1;
+        newParent.children.splice(insertIdx, 0, sourceNode);
+
+        // Refresh
+        this.jm.view.refresh();
+        setTimeout(() => this.editor._renderAllXMindFeatures(), 100);
+        this.editor.commandStack.isDirty = true;
+        this.editor.commandStack._notifyListeners();
+        this.editor._updateStatus(_t('Moved ') + position + ': ' + refNode.topic);
+    }
+
+    _createFloatingTopic(e) {
+        // Convert dragged tree node to a proper floating topic
+        const world = this.jm.view.world;
+        if (!world) return;
+        const worldRect = world.getBoundingClientRect();
+        const zoom = this.editor._zoomLevel || 1;
+        const x = (e.clientX - worldRect.left) / zoom;
+        const y = (e.clientY - worldRect.top) / zoom;
+        const topic = this.draggedNode.topic || _t('Floating Topic');
+        const note = (this.draggedNode.data && this.draggedNode.data.note) || '';
+        this.editor._createFloatingTopicAt(topic, note, x, y);
+        this.editor._updateStatus(_t('Created floating topic: ') + topic);
     }
 
     _createFloatingTopicWithAvoid(e) {
@@ -544,7 +637,7 @@ export class DragDropManager {
     _calculateOverlapArea(x, y, width, height) {
         let totalOverlap = 0;
 
-        const allNodes = document.querySelectorAll('.jmnode');
+        const allNodes = document.querySelectorAll('.xmind-node');
         allNodes.forEach(node => {
             if (node === this.draggedElement) return;
             if (this.draggedChildren.some(c => c.element === node)) return;
@@ -568,93 +661,79 @@ export class DragDropManager {
     }
 
     _performMove(sourceNode, targetNode) {
-        // Save original parent info for undo
+        // Guard: root or detached nodes have no parent
+        if (!sourceNode.parent) return;
+        if (sourceNode.id === targetNode.id) return;
+        // Don't allow dropping onto own descendant
+        if (this._isDescendant(sourceNode, targetNode)) return;
+
         const oldParent = sourceNode.parent;
         const oldParentId = oldParent.id;
-        const oldIndex = oldParent.children.indexOf(sourceNode);
 
-        // Save all node data (including children)
-        const nodeData = this._saveNodeData(sourceNode);
+        // Direct tree manipulation (no DOM rebuild — just reparent in data model)
+        // 1. Remove from old parent's children array
+        const idx = oldParent.children.indexOf(sourceNode);
+        if (idx > -1) oldParent.children.splice(idx, 1);
 
-        // Perform the move in the model
-        this._moveNode(sourceNode, targetNode);
+        // 2. Add to new parent's children array
+        sourceNode.parent = targetNode;
+        targetNode.children.push(sourceNode);
 
-        // Refresh the view
+        // 3. Inherit new direction and branch color
+        sourceNode.direction = targetNode.direction || 1;
+        sourceNode._branchColor = targetNode._branchColor;
+
+        // 4. Recalculate depths for entire moved subtree
+        this.jm._recalcDepths(sourceNode);
+
+        // 5. Propagate branch color to descendants
+        const propagate = (node) => {
+            for (const c of node.children) {
+                c._branchColor = node._branchColor;
+                c.direction = node.direction;
+                propagate(c);
+            }
+        };
+        propagate(sourceNode);
+
+        // 6. Ensure new parent has expander if needed
+        if (!targetNode._expander && targetNode.children.length > 0 && !targetNode.isroot) {
+            this.jm.view._createExpander(targetNode);
+        }
+
+        // 7. Remove old parent's expander if it has no more children
+        if (oldParent.children.length === 0 && oldParent._expander) {
+            oldParent._expander.remove();
+            oldParent._expander = null;
+        }
+
+        // 8. Single refresh — re-layout and redraw everything once
         this.jm.view.refresh();
 
-        // Re-render XMind features on moved nodes
-        this._reapplyFeatures(sourceNode);
-
-        // Create command for undo/redo
+        // Command for undo
         const command = {
             label: 'Move Node',
-            execute: () => {
-                this._moveNode(sourceNode, targetNode);
-                this.jm.view.refresh();
-            },
+            execute: () => {},
             undo: () => {
-                this._moveNode(sourceNode, oldParent);
+                // Reverse: remove from targetNode, add back to oldParent
+                const i = targetNode.children.indexOf(sourceNode);
+                if (i > -1) targetNode.children.splice(i, 1);
+                sourceNode.parent = oldParent;
+                oldParent.children.push(sourceNode);
+                this.jm._recalcDepths(sourceNode);
                 this.jm.view.refresh();
             },
             redo: function () { this.execute(); },
             getLabel: function () { return this.label; },
-            canUndo: true
+            canUndo: true,
         };
 
-        // Add to command stack
         this.editor.commandStack.undoStack.push(command);
         this.editor.commandStack.redoStack = [];
         this.editor.commandStack.isDirty = true;
         this.editor.commandStack._notifyListeners();
 
         this.editor._updateStatus(_t('Moved "') + sourceNode.topic + _t('" to "') + targetNode.topic + '"');
-    }
-
-    _moveNode(node, newParent) {
-        // Remove from old parent
-        const oldParent = node.parent;
-        const oldIndex = oldParent.children.indexOf(node);
-        if (oldIndex > -1) {
-            oldParent.children.splice(oldIndex, 1);
-        }
-
-        // Update node's parent reference
-        node.parent = newParent;
-
-        // Update direction based on layout mode
-        const layoutMode = this.jm.layout.mode || 'map';
-
-        if (newParent.isroot) {
-            if (layoutMode === 'map') {
-                // Mind Map: alternate left/right
-                node.direction = (newParent.children.length % 2 === 0) ? -1 : 1;
-            } else if (layoutMode === 'tree_right' || layoutMode === 'logic_right') {
-                // Tree/Logic Right: all to the right
-                node.direction = 1;
-            } else if (layoutMode === 'tree_left') {
-                // Tree Left: all to the left
-                node.direction = -1;
-            } else if (layoutMode === 'org_chart_down') {
-                // Org Chart: all downward
-                node.direction = 2;
-            }
-        } else {
-            // Non-root: inherit parent's direction
-            node.direction = newParent.direction;
-        }
-
-        // Add to new parent
-        newParent.children.push(node);
-
-        // Recursively update children's direction
-        this._updateChildrenDirection(node);
-    }
-
-    _updateChildrenDirection(node) {
-        for (let child of node.children) {
-            child.direction = node.direction;
-            this._updateChildrenDirection(child);
-        }
     }
 
     _saveNodeData(node) {

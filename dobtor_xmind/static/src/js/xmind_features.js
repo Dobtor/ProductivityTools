@@ -56,14 +56,11 @@ export class RelationshipRenderer {
     addRelationship(sourceElement, targetElement, options = {}) {
         if (!sourceElement || !targetElement) return;
 
-        const sourceRect = sourceElement.getBoundingClientRect();
-        const targetRect = targetElement.getBoundingClientRect();
-        const containerRect = this.container.getBoundingClientRect();
-
-        const sx = sourceRect.left - containerRect.left + sourceRect.width / 2;
-        const sy = sourceRect.top - containerRect.top + sourceRect.height / 2;
-        const tx = targetRect.left - containerRect.left + targetRect.width / 2;
-        const ty = targetRect.top - containerRect.top + targetRect.height / 2;
+        // Use local coords for world-space SVG
+        const sx = sourceElement.offsetLeft + sourceElement.offsetWidth / 2;
+        const sy = sourceElement.offsetTop + sourceElement.offsetHeight / 2;
+        const tx = targetElement.offsetLeft + targetElement.offsetWidth / 2;
+        const ty = targetElement.offsetTop + targetElement.offsetHeight / 2;
 
         // Create path group
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -84,9 +81,9 @@ export class RelationshipRenderer {
         }
 
         path.setAttribute('d', d);
-        path.setAttribute('stroke', options.lineColor || '#999999');
-        path.setAttribute('stroke-width', options.lineWidth || 2);
-        path.setAttribute('stroke-dasharray', '5,5');
+        path.setAttribute('stroke', options.lineColor || '#0068cf');
+        path.setAttribute('stroke-width', options.lineWidth || 3);
+        path.setAttribute('stroke-dasharray', '2,3');
         path.setAttribute('fill', 'none');
         path.setAttribute('marker-end', 'url(#arrowhead)');
         group.appendChild(path);
@@ -97,7 +94,7 @@ export class RelationshipRenderer {
             text.setAttribute('x', midX);
             text.setAttribute('y', midY - 10);
             text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('fill', '#666');
+            text.setAttribute('fill', '#707070');
             text.setAttribute('font-size', '12');
             text.textContent = options.title;
             group.appendChild(text);
@@ -143,19 +140,16 @@ export class BoundaryRenderer {
     addBoundary(topicElements, options = {}) {
         if (!topicElements || topicElements.length === 0) return;
 
-        const containerRect = this.container.getBoundingClientRect();
-
-        // Calculate bounding box
+        // Use local coords for world-space SVG
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
         for (let element of topicElements) {
-            const rect = element.getBoundingClientRect();
-            const x = rect.left - containerRect.left;
-            const y = rect.top - containerRect.top;
+            const x = element.offsetLeft;
+            const y = element.offsetTop;
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x + rect.width);
-            maxY = Math.max(maxY, y + rect.height);
+            maxX = Math.max(maxX, x + element.offsetWidth);
+            maxY = Math.max(maxY, y + element.offsetHeight);
         }
 
         // Add padding
@@ -485,31 +479,54 @@ export class SummaryRenderer {
         }
     }
 
+    // Shared bracket path generator — single source of truth for all 7 bracket types
+    _generateBracketPath(lineType, bracketX, minY, maxY, midY) {
+        switch (lineType) {
+            case 'bracket':
+                return `M ${bracketX - 10} ${minY} L ${bracketX} ${minY} L ${bracketX} ${midY - 5} L ${bracketX + 10} ${midY} L ${bracketX} ${midY + 5} L ${bracketX} ${maxY} L ${bracketX - 10} ${maxY}`;
+            case 'brace':
+                return `M ${bracketX - 10} ${minY} Q ${bracketX} ${minY}, ${bracketX} ${minY + 10} L ${bracketX} ${midY - 15} Q ${bracketX} ${midY - 5}, ${bracketX + 10} ${midY} Q ${bracketX} ${midY + 5}, ${bracketX} ${midY + 15} L ${bracketX} ${maxY - 10} Q ${bracketX} ${maxY}, ${bracketX - 10} ${maxY}`;
+            case 'straight':
+                return `M ${bracketX} ${minY} L ${bracketX} ${maxY} M ${bracketX} ${midY} L ${bracketX + 10} ${midY}`;
+            case 'curved':
+                return `M ${bracketX - 10} ${minY} C ${bracketX + 5} ${minY}, ${bracketX + 5} ${midY - 20}, ${bracketX + 10} ${midY} C ${bracketX + 5} ${midY + 20}, ${bracketX + 5} ${maxY}, ${bracketX - 10} ${maxY}`;
+            case 'square':
+                return `M ${bracketX} ${minY} L ${bracketX - 10} ${minY} L ${bracketX - 10} ${maxY} L ${bracketX} ${maxY} M ${bracketX - 10} ${midY} L ${bracketX + 10} ${midY}`;
+            case 'angle':
+                return `M ${bracketX - 5} ${minY} L ${bracketX + 10} ${midY} L ${bracketX - 5} ${maxY}`;
+            case 'round': {
+                const radius = (maxY - minY) / 2;
+                return `M ${bracketX - 5} ${minY} A ${radius * 0.6} ${radius} 0 0 1 ${bracketX - 5} ${maxY} M ${bracketX - 5 + radius * 0.3} ${midY} L ${bracketX + 10} ${midY}`;
+            }
+            default:
+                return `M ${bracketX - 10} ${minY} L ${bracketX} ${minY} L ${bracketX} ${midY - 5} L ${bracketX + 10} ${midY} L ${bracketX} ${midY + 5} L ${bracketX} ${maxY} L ${bracketX - 10} ${maxY}`;
+        }
+    }
+
+    // Compute bracket geometry from topic elements
+    _computeBracketGeometry(topicElements) {
+        let minY = Infinity, maxY = -Infinity, rightX = -Infinity;
+        for (const element of topicElements) {
+            const x = element.offsetLeft + element.offsetWidth;
+            const y = element.offsetTop;
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y + element.offsetHeight);
+            rightX = Math.max(rightX, x);
+        }
+        const bracketX = rightX + 20;
+        const midY = minY + (maxY - minY) / 2;
+        return { bracketX, minY, maxY, midY };
+    }
+
     addSummary(topicElements, summaryElement, options = {}) {
         if (!topicElements || topicElements.length === 0) return null;
 
         const summaryId = options.id || 'summary_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        const containerRect = this.container.getBoundingClientRect();
         const lineType = options.lineType || 'bracket';
         const lineColor = options.lineColor || '#666666';
         const lineWidth = options.lineWidth || 2;
 
-        // Calculate the vertical span of topics
-        let minY = Infinity, maxY = -Infinity;
-        let rightX = -Infinity;
-
-        for (let element of topicElements) {
-            const rect = element.getBoundingClientRect();
-            const x = rect.left - containerRect.left + rect.width;
-            const y = rect.top - containerRect.top;
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y + rect.height);
-            rightX = Math.max(rightX, x);
-        }
-
-        const bracketX = rightX + 20;
-        const bracketHeight = maxY - minY;
-        const midY = minY + bracketHeight / 2;
+        const geo = this._computeBracketGeometry(topicElements);
 
         // Create a group for all summary elements
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -520,72 +537,7 @@ export class SummaryRenderer {
 
         // Draw summary line based on type
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        let d = '';
-
-        switch (lineType) {
-            case 'bracket':
-                d = `M ${bracketX - 10} ${minY}
-                     L ${bracketX} ${minY}
-                     L ${bracketX} ${midY - 5}
-                     L ${bracketX + 10} ${midY}
-                     L ${bracketX} ${midY + 5}
-                     L ${bracketX} ${maxY}
-                     L ${bracketX - 10} ${maxY}`;
-                break;
-
-            case 'brace':
-                // Curly brace shape
-                d = `M ${bracketX - 10} ${minY}
-                     Q ${bracketX} ${minY}, ${bracketX} ${minY + 10}
-                     L ${bracketX} ${midY - 15}
-                     Q ${bracketX} ${midY - 5}, ${bracketX + 10} ${midY}
-                     Q ${bracketX} ${midY + 5}, ${bracketX} ${midY + 15}
-                     L ${bracketX} ${maxY - 10}
-                     Q ${bracketX} ${maxY}, ${bracketX - 10} ${maxY}`;
-                break;
-
-            case 'straight':
-                // Simple straight vertical line
-                d = `M ${bracketX} ${minY}
-                     L ${bracketX} ${maxY}
-                     M ${bracketX} ${midY}
-                     L ${bracketX + 10} ${midY}`;
-                break;
-
-            case 'curved':
-                // Smooth curved bracket
-                d = `M ${bracketX - 10} ${minY}
-                     C ${bracketX + 5} ${minY}, ${bracketX + 5} ${midY - 20}, ${bracketX + 10} ${midY}
-                     C ${bracketX + 5} ${midY + 20}, ${bracketX + 5} ${maxY}, ${bracketX - 10} ${maxY}`;
-                break;
-
-            case 'square':
-                // Square bracket [ shape
-                d = `M ${bracketX} ${minY} L ${bracketX - 10} ${minY} L ${bracketX - 10} ${maxY} L ${bracketX} ${maxY}
-                     M ${bracketX - 10} ${midY} L ${bracketX + 10} ${midY}`;
-                break;
-
-            case 'angle':
-                // Angle bracket < shape
-                d = `M ${bracketX - 5} ${minY} L ${bracketX + 10} ${midY} L ${bracketX - 5} ${maxY}`;
-                break;
-
-            case 'round':
-                // Round arc bracket
-                const radius = (maxY - minY) / 2;
-                d = `M ${bracketX - 5} ${minY} A ${radius * 0.6} ${radius} 0 0 1 ${bracketX - 5} ${maxY}
-                     M ${bracketX - 5 + radius * 0.3} ${midY} L ${bracketX + 10} ${midY}`;
-                break;
-
-            default:
-                d = `M ${bracketX - 10} ${minY}
-                     L ${bracketX} ${minY}
-                     L ${bracketX} ${midY - 5}
-                     L ${bracketX + 10} ${midY}
-                     L ${bracketX} ${midY + 5}
-                     L ${bracketX} ${maxY}
-                     L ${bracketX - 10} ${maxY}`;
-        }
+        const d = this._generateBracketPath(lineType, geo.bracketX, geo.minY, geo.maxY, geo.midY);
 
         path.setAttribute('d', d);
         path.setAttribute('stroke', lineColor);
@@ -600,9 +552,8 @@ export class SummaryRenderer {
         // Draw line to summary topic
         let connectionLine = null;
         if (summaryElement) {
-            const summaryRect = summaryElement.getBoundingClientRect();
-            const sx = summaryRect.left - containerRect.left;
-            const sy = summaryRect.top - containerRect.top + summaryRect.height / 2;
+            const sx = summaryElement.offsetLeft;
+            const sy = summaryElement.offsetTop + summaryElement.offsetHeight / 2;
 
             connectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             connectionLine.setAttribute('x1', bracketX + 10);
@@ -655,83 +606,22 @@ export class SummaryRenderer {
     updatePositions() {
         if (!this.summaries || this.summaries.length === 0) return;
 
-        const containerRect = this.container.getBoundingClientRect();
-
-        for (let summary of this.summaries) {
+        for (const summary of this.summaries) {
             if (!summary.topicElements || summary.topicElements.length === 0) continue;
 
-            let minY = Infinity, maxY = -Infinity;
-            let rightX = -Infinity;
-
-            for (let element of summary.topicElements) {
-                const rect = element.getBoundingClientRect();
-                const x = rect.left - containerRect.left + rect.width;
-                const y = rect.top - containerRect.top;
-                minY = Math.min(minY, y);
-                maxY = Math.max(maxY, y + rect.height);
-                rightX = Math.max(rightX, x);
-            }
-
-            const bracketX = rightX + 20;
-            const midY = minY + (maxY - minY) / 2;
+            const geo = this._computeBracketGeometry(summary.topicElements);
             const lineType = summary.options.lineType || 'bracket';
-
-            let d = '';
-            switch (lineType) {
-                case 'bracket':
-                    d = `M ${bracketX - 10} ${minY}
-                         L ${bracketX} ${minY}
-                         L ${bracketX} ${midY - 5}
-                         L ${bracketX + 10} ${midY}
-                         L ${bracketX} ${midY + 5}
-                         L ${bracketX} ${maxY}
-                         L ${bracketX - 10} ${maxY}`;
-                    break;
-                case 'brace':
-                    d = `M ${bracketX - 10} ${minY}
-                         Q ${bracketX} ${minY}, ${bracketX} ${minY + 10}
-                         L ${bracketX} ${midY - 15}
-                         Q ${bracketX} ${midY - 5}, ${bracketX + 10} ${midY}
-                         Q ${bracketX} ${midY + 5}, ${bracketX} ${midY + 15}
-                         L ${bracketX} ${maxY - 10}
-                         Q ${bracketX} ${maxY}, ${bracketX - 10} ${maxY}`;
-                    break;
-                case 'straight':
-                    d = `M ${bracketX} ${minY}
-                         L ${bracketX} ${maxY}
-                         M ${bracketX} ${midY}
-                         L ${bracketX + 10} ${midY}`;
-                    break;
-                case 'curved':
-                    d = `M ${bracketX - 10} ${minY}
-                         C ${bracketX + 5} ${minY}, ${bracketX + 5} ${midY - 20}, ${bracketX + 10} ${midY}
-                         C ${bracketX + 5} ${midY + 20}, ${bracketX + 5} ${maxY}, ${bracketX - 10} ${maxY}`;
-                    break;
-                case 'square':
-                    d = `M ${bracketX} ${minY} L ${bracketX - 10} ${minY} L ${bracketX - 10} ${maxY} L ${bracketX} ${maxY}
-                         M ${bracketX - 10} ${midY} L ${bracketX + 10} ${midY}`;
-                    break;
-                case 'angle':
-                    d = `M ${bracketX - 5} ${minY} L ${bracketX + 10} ${midY} L ${bracketX - 5} ${maxY}`;
-                    break;
-                case 'round': {
-                    const radius = (maxY - minY) / 2;
-                    d = `M ${bracketX - 5} ${minY} A ${radius * 0.6} ${radius} 0 0 1 ${bracketX - 5} ${maxY}
-                         M ${bracketX - 5 + radius * 0.3} ${midY} L ${bracketX + 10} ${midY}`;
-                    break;
-                }
-            }
+            const d = this._generateBracketPath(lineType, geo.bracketX, geo.minY, geo.maxY, geo.midY);
 
             summary.path.setAttribute('d', d);
 
             // Update connection line if exists
             if (summary.connectionLine && summary.summaryElement) {
-                const summaryRect = summary.summaryElement.getBoundingClientRect();
-                const sx = summaryRect.left - containerRect.left;
-                const sy = summaryRect.top - containerRect.top + summaryRect.height / 2;
+                const sx = summary.summaryElement.offsetLeft;
+                const sy = summary.summaryElement.offsetTop + summary.summaryElement.offsetHeight / 2;
 
-                summary.connectionLine.setAttribute('x1', bracketX + 10);
-                summary.connectionLine.setAttribute('y1', midY);
+                summary.connectionLine.setAttribute('x1', geo.bracketX + 10);
+                summary.connectionLine.setAttribute('y1', geo.midY);
                 summary.connectionLine.setAttribute('x2', sx);
                 summary.connectionLine.setAttribute('y2', sy);
             }
@@ -786,36 +676,42 @@ export class MarkerBadgeRenderer {
 
         if (!markerCodes || markerCodes.length === 0) return;
 
-        const badgeContainer = document.createElement('div');
+        const badgeContainer = document.createElement('span');
         badgeContainer.className = 'xmind-markers';
-        badgeContainer.style.position = 'absolute';
-        badgeContainer.style.top = '-10px';
-        badgeContainer.style.right = '-10px';
-        badgeContainer.style.display = 'flex';
-        badgeContainer.style.gap = '2px';
+        badgeContainer.style.display = 'inline-flex';
+        badgeContainer.style.alignItems = 'center';
+        badgeContainer.style.gap = '3px';
+        badgeContainer.style.marginRight = '5px';
+        badgeContainer.style.verticalAlign = 'middle';
 
         for (let code of markerCodes) {
             const marker = availableMarkers.find(m => m.code === code);
             if (marker) {
                 const badge = document.createElement('span');
                 badge.className = 'xmind-marker-badge';
-                badge.style.width = '18px';
-                badge.style.height = '18px';
-                badge.style.borderRadius = '50%';
-                badge.style.background = '#fff';
-                badge.style.display = 'flex';
+                badge.style.display = 'inline-flex';
                 badge.style.alignItems = 'center';
                 badge.style.justifyContent = 'center';
-                badge.style.fontSize = '10px';
-                badge.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
+                badge.style.width = '16px';
+                badge.style.height = '16px';
+                badge.style.fontSize = '12px';
+                badge.style.lineHeight = '1';
+                badge.style.flexShrink = '0';
                 badge.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i>`;
                 badge.title = marker.name;
+                badge.style.cursor = 'pointer';
+                badge.dataset.markerCode = code;
                 badgeContainer.appendChild(badge);
             }
         }
 
-        nodeElement.style.position = 'relative';
-        nodeElement.appendChild(badgeContainer);
+        // Insert before text span so node naturally expands
+        const textSpan = nodeElement.querySelector('.xmind-topic-text');
+        if (textSpan) {
+            nodeElement.insertBefore(badgeContainer, textSpan);
+        } else {
+            nodeElement.appendChild(badgeContainer);
+        }
     }
 }
 
@@ -912,14 +808,14 @@ export class CalloutRenderer {
     }
 
     addCallout(parentElement, options = {}) {
-        const containerRect = this.container.getBoundingClientRect();
-        const parentRect = parentElement.getBoundingClientRect();
+        // Use local coords
+        const _ = 0; // placeholder
 
         const calloutDiv = document.createElement('div');
         calloutDiv.className = 'xmind-callout';
         calloutDiv.style.position = 'absolute';
-        calloutDiv.style.left = (parentRect.left - containerRect.left + (options.offsetX || 50)) + 'px';
-        calloutDiv.style.top = (parentRect.top - containerRect.top + (options.offsetY || -30)) + 'px';
+        calloutDiv.style.left = (parentElement.offsetLeft + parentElement.offsetWidth + (options.offsetX || 10)) + 'px';
+        calloutDiv.style.top = (parentElement.offsetTop + (options.offsetY || -30)) + 'px';
         calloutDiv.style.background = options.backgroundColor || '#fffacd';
         calloutDiv.style.color = options.textColor || '#333';
         calloutDiv.style.border = `2px solid ${options.borderColor || '#ffd700'}`;

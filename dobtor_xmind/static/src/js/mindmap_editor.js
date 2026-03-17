@@ -4,6 +4,7 @@ import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
+import { rpc } from "@web/core/network/rpc";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import {
     CommandStack,
@@ -33,10 +34,10 @@ import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
  */
 export class MindmapEditor extends Component {
     static template = "dobtor_xmind.MindmapEditor";
-    static props = { action: { type: Object, optional: true }, "*": true };
+    static props = ["*"];
 
     setup() {
-        this.rpc = useService("rpc");
+        // rpc is imported directly from @web/core/network/rpc (not a service in Odoo 18)
         this.dialog = useService("dialog");
         this.notification = useService("notification");
 
@@ -89,7 +90,7 @@ export class MindmapEditor extends Component {
         // Branch/line style settings
         this.branchStyleSettings = {
             lineType: 'curved',
-            lineWidth: 2,
+            lineWidth: 1,
             lineColor: '#558ED5',
             lineStyle: 'solid'
         };
@@ -107,6 +108,13 @@ export class MindmapEditor extends Component {
         this._boundKeydownHandler = this._setupKeyboardShortcuts.bind(this);
 
         onMounted(async () => {
+            // Load Open Sans font on-demand (not globally via @import)
+            if (!document.querySelector('link[href*="Open+Sans"]')) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap';
+                document.head.appendChild(link);
+            }
             await this._loadData();
             const jmInitSuccess = this._initJsMind();
             if (!jmInitSuccess) {
@@ -120,8 +128,12 @@ export class MindmapEditor extends Component {
             this._setupAutoSave();
             this._initFormatMenu();
             this._initRectangleSelector();
+            this._initWheelZoom();       // Fix #9: Ctrl+scroll zoom
+            this._initSpacePan();        // Fix #10: Space+drag pan
             this._zoomLevel = 1;
             this._copiedStyle = null;
+            this._numberingEnabled = false;
+            this._loadSheets(); // Feature 4: Multi-Sheet tabs
             this._updateStatus(_t('Ready'));
         });
 
@@ -168,13 +180,65 @@ export class MindmapEditor extends Component {
         }
 
         try {
-            const result = await this.rpc('/xmind/workbook/' + this.workbookId + '/data', {});
+            const result = await rpc('/xmind/workbook/' + this.workbookId + '/data', {});
             if (result.error) {
                 this._showError(result.error);
                 this.mindmapData = this._getDefaultData();
             } else {
                 this.mindmapData = result.mindmap_data;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
+
+                // Load relationships
+                if (result.relationships && result.relationships.length > 0) {
+                    this.relationships = result.relationships.map(r => ({
+                        id: 'rel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                        sourceId: r.sourceId,
+                        targetId: r.targetId,
+                        options: r.options || {},
+                        controlPoints: r.controlPoints || [],
+                    }));
+                    this._hadRelationshipsOnLoad = true;
+                }
+
+                // Load summaries
+                if (result.summaries && result.summaries.length > 0) {
+                    this.summaries = result.summaries.map(s => ({
+                        id: 'sum_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                        topicIds: s.topicIds || [],
+                        summaryNodeId: s.summaryNodeId || '',
+                        options: s.options || {},
+                    }));
+                }
+
+                // Load boundaries
+                if (result.boundaries && result.boundaries.length > 0) {
+                    this.boundaries = result.boundaries.map(b => ({
+                        id: 'bnd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                        topicIds: b.topicIds || [],
+                        options: b.options || {},
+                    }));
+                }
+
+                // Load callouts
+                if (result.callouts && result.callouts.length > 0) {
+                    this.callouts = result.callouts.map(c => ({
+                        parentNodeId: c.parentNodeId,
+                        options: c.options || {},
+                    }));
+                }
+
+                // Load floating topics
+                if (result.floating_topics && result.floating_topics.length > 0) {
+                    this.floatingTopics = result.floating_topics.map(ft => ({
+                        id: ft.component_id || ('ft_' + ft.id),
+                        component_id: ft.component_id,
+                        title: ft.title,
+                        note: ft.note || '',
+                        x: ft.x,
+                        y: ft.y,
+                        style: ft.style || {},
+                    }));
+                }
             }
         } catch (e) {
             this.mindmapData = this._getDefaultData();
@@ -183,7 +247,7 @@ export class MindmapEditor extends Component {
 
     async _loadMarkers() {
         try {
-            this.markers = await this.rpc('/xmind/markers', {});
+            this.markers = await rpc('/xmind/markers', {});
         } catch (e) {
             this.markers = [];
         }
@@ -249,7 +313,7 @@ export class MindmapEditor extends Component {
             },
             layout: {
                 hspace: this.sheetSettings.spacing_major || 30,
-                vspace: this.sheetSettings.spacing_minor || 20,
+                vspace: this.sheetSettings.spacing_minor || 8,
                 pspace: 13,
             },
             shortcut: {
@@ -291,23 +355,28 @@ export class MindmapEditor extends Component {
     _applyLayoutSettings(options) {
         const layout = this.sheetSettings.layout || 'map';
 
+        // XMind 2 spacing: tight layout, offset_x already accounts for node width
         switch (layout) {
             case 'tree_right':
             case 'tree_left':
-                options.layout.hspace = 50;
-                options.layout.vspace = 10;
+                options.layout.hspace = 20;
+                options.layout.vspace = 4;
                 break;
             case 'logic_right':
-                options.layout.hspace = 60;
-                options.layout.vspace = 15;
+                options.layout.hspace = 25;
+                options.layout.vspace = 4;
                 break;
             case 'org_chart_down':
-                options.layout.hspace = 20;
-                options.layout.vspace = 40;
-                break;
-            default:
-                options.layout.hspace = 30;
+                options.layout.hspace = 15;
                 options.layout.vspace = 20;
+                break;
+            case 'fishbone_left':
+                options.layout.hspace = 20;
+                options.layout.vspace = 10;
+                break;
+            default: // map
+                options.layout.hspace = 30;
+                options.layout.vspace = 8;
         }
     }
 
@@ -344,6 +413,15 @@ export class MindmapEditor extends Component {
     _setupKeyboardShortcuts(e) {
         if (this._isInputFocused()) return;
 
+        // --- Fix #5: Escape cancels relationship mode ---
+        if (e.key === 'Escape') {
+            if (this.relationshipMode) {
+                this._exitRelationshipMode();
+                e.preventDefault();
+                return;
+            }
+        }
+
         if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
             e.preventDefault();
             this.onUndo();
@@ -353,7 +431,7 @@ export class MindmapEditor extends Component {
         } else if (e.key === 'Tab' && !e.shiftKey) {
             e.preventDefault();
             this.onAddChild();
-        } else if (e.key === 'Enter' && !e.ctrlKey) {
+        } else if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
             e.preventDefault();
             this.onAddSibling();
         } else if (e.key === 'Delete') {
@@ -365,7 +443,7 @@ export class MindmapEditor extends Component {
         } else if (e.key === 'F2') {
             e.preventDefault();
             this._editSelectedNode();
-        } else if (e.key.startsWith('Arrow')) {
+        } else if (e.key.startsWith('Arrow') && !e.altKey && !e.ctrlKey) {
             this._handleArrowNavigation(e);
         } else if (e.key === ' ') {
             e.preventDefault();
@@ -382,12 +460,18 @@ export class MindmapEditor extends Component {
         } else if (e.altKey && e.key === 'ArrowDown') {
             e.preventDefault();
             this.onMoveDown();
+        } else if (e.ctrlKey && e.key === 'x' && this.selectedNode) {
+            e.preventDefault();
+            this.onCutTopic();
         } else if (e.ctrlKey && e.key === 'c' && this.selectedNode) {
             e.preventDefault();
             this.onCopyTopic();
         } else if (e.ctrlKey && e.key === 'v' && this._clipboardTopic) {
             e.preventDefault();
             this.onPasteTopic();
+        } else if (e.ctrlKey && e.key === 'd' && this.selectedNode) {
+            e.preventDefault();
+            this.onDuplicateTopic();
         } else if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
             e.preventDefault();
             this.onZoomIn();
@@ -397,16 +481,42 @@ export class MindmapEditor extends Component {
         } else if (e.ctrlKey && e.key === '0') {
             e.preventDefault();
             this.onZoomReset();
+        } else if (e.ctrlKey && e.key === 'f') {
+            e.preventDefault();
+            this.onFindReplace();
+        // --- Fix #4: Ctrl+Alt+Arrow scrolls canvas ---
+        } else if (e.ctrlKey && e.altKey && e.key.startsWith('Arrow')) {
+            e.preventDefault();
+            const canvas = this.canvasRef.el;
+            if (canvas) {
+                const step = 60;
+                if (e.key === 'ArrowUp') canvas.scrollTop -= step;
+                else if (e.key === 'ArrowDown') canvas.scrollTop += step;
+                else if (e.key === 'ArrowLeft') canvas.scrollLeft -= step;
+                else if (e.key === 'ArrowRight') canvas.scrollLeft += step;
+            }
+        // --- Fix #1: Direct typing starts edit (printable char) ---
+        } else if (this.selectedNode && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            // Single printable character → start edit and replace text
+            this._editSelectedNode(e.key);
         }
     }
 
     _isInputFocused() {
         const activeElement = document.activeElement;
-        return activeElement && (
-            activeElement.tagName === 'INPUT' ||
+        if (!activeElement) return false;
+        // Block shortcuts when any input, textarea, or jsMind edit input is active
+        if (activeElement.tagName === 'INPUT' ||
             activeElement.tagName === 'TEXTAREA' ||
-            activeElement.contentEditable === 'true'
-        );
+            activeElement.contentEditable === 'true' ||
+            activeElement.classList.contains('xmind-edit-input')) {
+            return true;
+        }
+        // Also check if jsMind is in editing mode
+        if (this.jm && this.jm.view && this.jm.view.editing_node) {
+            return true;
+        }
+        return false;
     }
 
     _handleArrowNavigation(e) {
@@ -477,9 +587,7 @@ export class MindmapEditor extends Component {
 
             if (this.relationshipMode && this.relationshipSource) {
                 this._createRelationship(this.relationshipSource, data.node);
-                this.relationshipMode = false;
-                this.relationshipSource = null;
-                this._updateStatus(_t('Ready'));
+                this._exitRelationshipMode();
             }
         } else if (type === 2) { // update
             this._updateFeaturePositions();
@@ -509,10 +617,13 @@ export class MindmapEditor extends Component {
         const canvas = this.canvasRef.el;
         if (!canvas) return;
 
-        this.advancedRelationshipManager = new RelationshipManager(canvas);
-        this.boundaryRenderer = new BoundaryRenderer(canvas);
-        this.summaryRenderer = new SummaryRenderer(canvas);
-        this.calloutRenderer = new CalloutRenderer(canvas);
+        // Use renderer's world div so features follow pan/zoom transform
+        const world = this.jm.view.world || canvas;
+
+        this.advancedRelationshipManager = new RelationshipManager(world);
+        this.boundaryRenderer = new BoundaryRenderer(world);
+        this.summaryRenderer = new SummaryRenderer(world);
+        this.calloutRenderer = new CalloutRenderer(world);
 
         this.summaryRenderer.setContextMenuCallback((summaryId, event) => {
             this._showSummaryContextMenu(summaryId, event);
@@ -525,8 +636,25 @@ export class MindmapEditor extends Component {
         this.dragDropManager = new DragDropManager(this.jm, this);
         this.dragDropManager.init();
 
+        // Fix #1: Intercept dblclick on nodes to go through _editSelectedNode (undo support)
+        world.addEventListener('dblclick', (e) => {
+            const nodeEl = e.target.closest('.xmind-node');
+            if (nodeEl) {
+                e.stopPropagation();
+                e.preventDefault();
+                const nodeId = nodeEl.getAttribute('data-nodeid');
+                if (nodeId) {
+                    this.selectedNode = nodeId;
+                    this._editSelectedNode();
+                }
+            }
+        }, true); // capture phase to run before jsMind's own dblclick
+
         // Hook relationship click → show control points; double-click → edit dialog
         this._setupRelationshipInteraction();
+
+        // Drag-to-connect: Alt+drag from topic to topic creates relationship
+        this._setupDragToConnect();
     }
 
     _setupRelationshipInteraction() {
@@ -574,6 +702,108 @@ export class MindmapEditor extends Component {
         }
     }
 
+    _setupDragToConnect() {
+        // Alt+drag from a topic draws a preview line; release on another topic creates relationship
+        const world = this.jm.view.world;
+        if (!world) return;
+
+        let isDragging = false;
+        let sourceNode = null;
+        let previewLine = null;
+
+        // Create persistent SVG for preview line
+        const previewSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        previewSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:20;';
+        world.appendChild(previewSvg);
+
+        world.addEventListener('mousedown', (e) => {
+            // Ctrl+drag (Windows) or Cmd+drag (Mac) on a node starts drag-to-connect
+            if (!(e.ctrlKey || e.metaKey)) return;
+            const nodeEl = e.target.closest('.xmind-node');
+            if (!nodeEl) return;
+
+            const nodeId = nodeEl.getAttribute('data-nodeid');
+            sourceNode = this.jm.get_node(nodeId);
+            if (!sourceNode) return;
+
+            isDragging = true;
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Create preview line
+            previewLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            previewLine.setAttribute('stroke', '#0068cf');
+            previewLine.setAttribute('stroke-width', '3');
+            previewLine.setAttribute('stroke-dasharray', '6,4');
+            previewLine.setAttribute('fill', 'none');
+            previewLine.setAttribute('stroke-linecap', 'round');
+            previewSvg.appendChild(previewLine);
+
+            this._updateStatus(_t('Drag to target topic to create relationship...'));
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging || !sourceNode || !previewLine) return;
+
+            const srcEl = sourceNode._el;
+            if (!srcEl) return;
+
+            // Source center (local coords)
+            const sx = srcEl.offsetLeft + srcEl.offsetWidth / 2;
+            const sy = srcEl.offsetTop + srcEl.offsetHeight / 2;
+
+            // Mouse in world coords
+            const worldRect = world.getBoundingClientRect();
+            const zoom = this.jm.view.getZoom ? this.jm.view.getZoom() : 1;
+            const mx = (e.clientX - worldRect.left) / zoom;
+            const my = (e.clientY - worldRect.top) / zoom;
+
+            // Bezier preview
+            const ctrl = Math.abs(mx - sx) * 0.4;
+            previewLine.setAttribute('d', `M${sx},${sy} C${sx + ctrl},${sy} ${mx - ctrl},${my} ${mx},${my}`);
+
+            // Highlight nearest target node
+            const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+            const targetNodeEl = targetEl ? targetEl.closest('.xmind-node') : null;
+
+            // Remove previous highlights
+            world.querySelectorAll('.xmind-node.rel-drop-target').forEach(el => el.classList.remove('rel-drop-target'));
+
+            if (targetNodeEl && targetNodeEl !== srcEl) {
+                targetNodeEl.classList.add('rel-drop-target');
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            // Remove preview
+            if (previewLine && previewLine.parentNode) {
+                previewLine.parentNode.removeChild(previewLine);
+                previewLine = null;
+            }
+
+            // Remove highlights
+            world.querySelectorAll('.xmind-node.rel-drop-target').forEach(el => el.classList.remove('rel-drop-target'));
+
+            // Find target
+            const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+            const targetNodeEl = targetEl ? targetEl.closest('.xmind-node') : null;
+
+            if (targetNodeEl && sourceNode) {
+                const targetId = targetNodeEl.getAttribute('data-nodeid');
+                if (targetId && targetId !== sourceNode.id) {
+                    // Create relationship via properties dialog
+                    this._showRelationshipPropertiesDialog(sourceNode.id, targetId, null);
+                }
+            }
+
+            sourceNode = null;
+            this._updateStatus(_t('Ready'));
+        });
+    }
+
     _initFormatMenu() {
         const formatMenu = this._el('.o_format_menu');
         if (formatMenu) {
@@ -600,19 +830,22 @@ export class MindmapEditor extends Component {
         let startX, startY;
 
         canvas.addEventListener('mousedown', (e) => {
-            if (e.target === canvas || (e.target.closest('.o_mindmap_canvas') === canvas && !e.target.closest('jmnode'))) {
-                if (e.shiftKey || this.multiSelectMode) {
-                    isSelecting = true;
-                    const rect = canvas.getBoundingClientRect();
-                    startX = e.clientX - rect.left;
-                    startY = e.clientY - rect.top;
-                    this.selectionRect.style.left = startX + 'px';
-                    this.selectionRect.style.top = startY + 'px';
-                    this.selectionRect.style.width = '0px';
-                    this.selectionRect.style.height = '0px';
-                    this.selectionRect.style.display = 'block';
-                    e.preventDefault();
-                }
+            // Fix #2: Start rectangle selection on empty canvas (no Shift required, like XMind 2)
+            const clickedNode = e.target.closest('.xmind-node');
+            const clickedExpander = e.target.closest('.xmind-expander');
+            if (!clickedNode && !clickedExpander && e.button === 0) {
+                // Left-click on empty area starts rectangle select
+                isSelecting = true;
+                e.stopPropagation(); // Prevent jsMind panel drag
+                const rect = canvas.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                this.selectionRect.style.left = startX + 'px';
+                this.selectionRect.style.top = startY + 'px';
+                this.selectionRect.style.width = '0px';
+                this.selectionRect.style.height = '0px';
+                this.selectionRect.style.display = 'block';
+                e.preventDefault();
             }
         });
 
@@ -636,17 +869,93 @@ export class MindmapEditor extends Component {
         });
 
         canvas.addEventListener('click', (e) => {
-            const nodeElement = e.target.closest('jmnode');
+            const nodeElement = e.target.closest('.xmind-node');
             if (nodeElement) {
-                const nodeId = nodeElement.getAttribute('nodeid');
+                const nodeId = nodeElement.getAttribute('data-nodeid');
                 const node = this.jm.get_node(nodeId);
-                if (e.shiftKey || this.multiSelectMode) {
+                if (e.ctrlKey || e.metaKey || this.multiSelectMode) {
+                    // Fix #2: Ctrl+Click toggles individual node in multi-selection
                     this._toggleNodeSelection(node);
+                } else if (e.shiftKey && this.selectedNode) {
+                    // Fix #2: Shift+Click selects range of siblings
+                    this._selectSiblingRange(this.selectedNode, nodeId);
                 } else {
                     this._clearMultiSelection();
                     this._addNodeToSelection(node);
                 }
             }
+        });
+    }
+
+    // ===== Ctrl+Scroll / Pinch Zoom — sync zoom level display =====
+    _initWheelZoom() {
+        const canvas = this.canvasRef.el;
+        if (!canvas) return;
+
+        // Sync the zoom level display when jsmind handles zoom internally
+        canvas.addEventListener('wheel', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                // jsmind._onWheel handles the actual zoom; we just sync the display
+                setTimeout(() => {
+                    if (this.jm && this.jm.view) {
+                        this._zoomLevel = this.jm.view.getZoom();
+                        const zoomEl = this._el('.o_mindmap_zoom_level');
+                        if (zoomEl) zoomEl.textContent = Math.round(this._zoomLevel * 100) + '%';
+                    }
+                }, 10);
+            }
+        }, { passive: true });
+    }
+
+    // ===== Space+Drag Pan =====
+    _initSpacePan() {
+        const canvas = this.canvasRef.el;
+        if (!canvas) return;
+
+        let isPanning = false;
+        let panStartX = 0, panStartY = 0;
+        let savedPanX = 0, savedPanY = 0;
+        let spaceDown = false;
+
+        // Track Space key state — only activate pan cursor if no node is selected
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' && !this._isInputFocused() && !this.selectedNode) {
+                spaceDown = true;
+                canvas.style.cursor = 'grab';
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === ' ') {
+                spaceDown = false;
+                if (!isPanning) canvas.style.cursor = '';
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            // Space+Left-click starts panning (via jsmind's transform system)
+            if (spaceDown && e.button === 0) {
+                isPanning = true;
+                panStartX = e.clientX;
+                panStartY = e.clientY;
+                savedPanX = this.jm.view._panX;
+                savedPanY = this.jm.view._panY;
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            this.jm.view._panX = savedPanX + (e.clientX - panStartX);
+            this.jm.view._panY = savedPanY + (e.clientY - panStartY);
+            this.jm.view._applyTransform();
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (!isPanning) return;
+            isPanning = false;
+            canvas.style.cursor = spaceDown ? 'grab' : '';
         });
     }
 
@@ -800,7 +1109,6 @@ export class MindmapEditor extends Component {
         }
 
         this.jm.select_node(nodeId);
-        this._editSelectedNode();
         this._updateStatus(_t('Added child node'));
     }
 
@@ -833,7 +1141,6 @@ export class MindmapEditor extends Component {
         }
 
         this.jm.select_node(nodeId);
-        this._editSelectedNode();
         this._updateStatus(_t('Added sibling node'));
     }
 
@@ -890,7 +1197,6 @@ export class MindmapEditor extends Component {
         } catch (e) { /* jsMind may not support beforeId in all layouts */ }
 
         this.jm.select_node(nodeId);
-        this._editSelectedNode();
         this._updateStatus(_t('Added topic before'));
     }
 
@@ -915,7 +1221,6 @@ export class MindmapEditor extends Component {
         } catch (e) { /* fallback: just created a sibling */ }
 
         this.jm.select_node(newParentId);
-        this._editSelectedNode();
         this._updateStatus(_t('Added parent topic'));
     }
 
@@ -990,6 +1295,84 @@ export class MindmapEditor extends Component {
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
         this._updateStatus(_t('Topic pasted'));
+    }
+
+    onCutTopic() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node || !node.parent) {
+            this._showWarning(_t('Cannot cut root node'));
+            return;
+        }
+        this._clipboardTopic = this._serializeNode(node);
+        const cmd = new RemoveNodeCommand(this.jm, this.selectedNode);
+        this.commandStack.execute(cmd);
+        this.selectedNode = null;
+        this._closeSidebar();
+        this._updateStatus(_t('Topic cut'));
+    }
+
+    onDuplicateTopic() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node || !node.parent) return;
+        const serialized = this._serializeNode(node);
+        this._deserializeNode(serialized, node.parent.id);
+        this.jm.view.refresh();
+        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Topic duplicated'));
+    }
+
+    onResetStyle() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node) return;
+        // Clear all custom styles
+        if (node.data) {
+            delete node.data.style;
+            delete node.data.shape;
+            delete node.data.branchStyle;
+        }
+        // Re-render with defaults
+        const element = this.jm.view.get_node_element(this.selectedNode);
+        if (element) {
+            element.style.cssText = '';
+            element.className = `xmind-node xmind-level-${Math.min(node._depth, 3)}`;
+            if (node.isroot) element.classList.add('xmind-root');
+        }
+        this.jm.view.refresh();
+        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Style reset to default'));
+    }
+
+    onExpandAllFromNode() {
+        if (!this.selectedNode) return;
+        const expandAll = (node) => {
+            if (!node) return;
+            node.expanded = true;
+            for (const c of node.children) expandAll(c);
+        };
+        expandAll(this.jm.get_node(this.selectedNode));
+        this.jm.view.refresh();
+        this._updateStatus(_t('Expanded all from selected'));
+    }
+
+    onCollapseAllFromNode() {
+        if (!this.selectedNode) return;
+        const collapseAll = (node) => {
+            if (!node) return;
+            for (const c of node.children) {
+                c.expanded = false;
+                collapseAll(c);
+            }
+        };
+        collapseAll(this.jm.get_node(this.selectedNode));
+        this.jm.view.refresh();
+        this._updateStatus(_t('Collapsed all from selected'));
     }
 
     _serializeNode(node) {
@@ -1376,7 +1759,7 @@ export class MindmapEditor extends Component {
         list.innerHTML = `<div class="text-center text-muted py-3"><i class="fa fa-spinner fa-spin"></i></div>`;
 
         try {
-            const revisions = await this.rpc('/xmind/workbook/' + this.workbookId + '/revisions', {});
+            const revisions = await rpc('/xmind/workbook/' + this.workbookId + '/revisions', {});
             if (!revisions || revisions.error) {
                 list.innerHTML = `<div class="text-muted">${_t('No revisions yet')}</div>`;
                 return;
@@ -1407,7 +1790,7 @@ export class MindmapEditor extends Component {
                     this.dialog.add(ConfirmationDialog, {
                         body: _t('Restore this revision? Current changes will be lost.'),
                         confirm: async () => {
-                            await this.rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
+                            await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
                             // Reload mindmap
                             await this._loadWorkbookData();
                             this.jm.show(this.mindmapData);
@@ -1419,7 +1802,7 @@ export class MindmapEditor extends Component {
 
                 item.querySelector('[data-action="preview"]').addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    const result = await this.rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/preview', {});
+                    const result = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/preview', {});
                     if (result && result.data) {
                         // Temporarily show the revision data
                         this.jm.show(result.data);
@@ -1460,7 +1843,18 @@ export class MindmapEditor extends Component {
         }
         this.relationshipMode = true;
         this.relationshipSource = this.selectedNode;
-        this._updateStatus(_t('Click on target topic to create relationship...'));
+        // Fix #5: cursor feedback
+        const canvas = this.canvasRef.el;
+        if (canvas) canvas.style.cursor = 'crosshair';
+        this._updateStatus(_t('Click on target topic to create relationship... (Esc/Right-click to cancel)'));
+    }
+
+    _exitRelationshipMode() {
+        this.relationshipMode = false;
+        this.relationshipSource = null;
+        const canvas = this.canvasRef.el;
+        if (canvas) canvas.style.cursor = '';
+        this._updateStatus(_t('Ready'));
     }
 
     onSave() {
@@ -1477,6 +1871,802 @@ export class MindmapEditor extends Component {
         if (!this.workbookId) return;
         window.location.href = '/web/content?model=xmind.workbook&id=' + this.workbookId +
             '&field=xmind_file&filename_field=xmind_filename&download=true';
+    }
+
+    // ===== Feature 5: Export as Image =====
+    onExportImage() {
+        if (!this.jm || !this.jm.view) return;
+        const panel = this.jm.view.e_panel;
+        if (!panel) return;
+
+        // Save current zoom and temporarily reset to 1:1
+        const savedZoom = this._zoomLevel || 1;
+        this._zoomLevel = 1;
+        this._applyZoom();
+
+        setTimeout(() => {
+            // Get bounding box of all nodes
+            const nodes = panel.querySelectorAll('.xmind-node');
+            if (nodes.length === 0) return;
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            nodes.forEach(n => {
+                const l = parseInt(n.style.left) || 0;
+                const t = parseInt(n.style.top) || 0;
+                minX = Math.min(minX, l);
+                minY = Math.min(minY, t);
+                maxX = Math.max(maxX, l + n.offsetWidth);
+                maxY = Math.max(maxY, t + n.offsetHeight);
+            });
+
+            const padding = 40;
+            const w = maxX - minX + padding * 2;
+            const h = maxY - minY + padding * 2;
+
+            // Create off-screen canvas
+            const canvas = document.createElement('canvas');
+            const scale = 2; // retina
+            canvas.width = w * scale;
+            canvas.height = h * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(scale, scale);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw SVG lines
+            const svgEl = this.jm.view.e_lines;
+            if (svgEl) {
+                const svgData = new XMLSerializer().serializeToString(svgEl);
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, -minX + padding, -minY + padding, panel.scrollWidth, panel.scrollHeight);
+                    URL.revokeObjectURL(url);
+                    this._drawNodesOnCanvas(ctx, nodes, minX, minY, padding, () => {
+                        canvas.toBlob(blob => {
+                            const a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = (this.workbookName || 'mindmap') + '.png';
+                            a.click();
+                            URL.revokeObjectURL(a.href);
+                            // Restore zoom
+                            this._zoomLevel = savedZoom;
+                            this._applyZoom();
+                            this._updateStatus(_t('Image exported'));
+                        }, 'image/png');
+                    });
+                };
+                img.onerror = () => {
+                    // Fallback: draw nodes without SVG
+                    this._drawNodesOnCanvas(ctx, nodes, minX, minY, padding, () => {
+                        canvas.toBlob(blob => {
+                            const a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = (this.workbookName || 'mindmap') + '.png';
+                            a.click();
+                            this._zoomLevel = savedZoom;
+                            this._applyZoom();
+                        }, 'image/png');
+                    });
+                };
+                img.src = url;
+            }
+        }, 100);
+    }
+
+    _drawNodesOnCanvas(ctx, nodes, minX, minY, padding, callback) {
+        // Simple text rendering of nodes onto canvas
+        nodes.forEach(n => {
+            const l = (parseInt(n.style.left) || 0) - minX + padding;
+            const t = (parseInt(n.style.top) || 0) - minY + padding;
+            const w = n.offsetWidth;
+            const h = n.offsetHeight;
+            const bg = n.style.backgroundColor || '#DCE6F2';
+            const color = n.style.color || '#17375E';
+            const fontSize = parseInt(n.style.fontSize) || 13;
+            const borderRadius = parseInt(n.style.borderRadius) || 5;
+            const border = n.style.border || '';
+
+            // Draw background
+            ctx.fillStyle = bg;
+            ctx.beginPath();
+            ctx.roundRect(l, t, w, h, borderRadius);
+            ctx.fill();
+
+            // Draw border
+            if (border && border !== 'none') {
+                const parts = border.split(' ');
+                ctx.strokeStyle = parts[2] || '#558ED5';
+                ctx.lineWidth = parseInt(parts[0]) || 1;
+                ctx.stroke();
+            }
+
+            // Draw text
+            const textSpan = n.querySelector('.xmind-topic-text');
+            if (textSpan) {
+                ctx.fillStyle = color;
+                ctx.font = `${n.style.fontWeight || 'normal'} ${fontSize}px ${n.style.fontFamily || "'Open Sans', sans-serif"}`;
+                ctx.textBaseline = 'middle';
+                ctx.fillText(textSpan.textContent, l + 8, t + h / 2);
+            }
+        });
+        if (callback) callback();
+    }
+
+    // ===== Feature 8: Export SVG =====
+    onExportSVG() {
+        if (!this.jm || !this.jm.view) return;
+        const panel = this.jm.view.e_panel;
+        const world = this.jm.view.world;
+        if (!panel || !world) return;
+
+        // Collect all nodes' bounding box
+        const nodes = panel.querySelectorAll('.xmind-node');
+        if (nodes.length === 0) return;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(n => {
+            const l = parseInt(n.style.left) || 0;
+            const t = parseInt(n.style.top) || 0;
+            minX = Math.min(minX, l);
+            minY = Math.min(minY, t);
+            maxX = Math.max(maxX, l + n.offsetWidth);
+            maxY = Math.max(maxY, t + n.offsetHeight);
+        });
+
+        const pad = 40;
+        const w = maxX - minX + pad * 2;
+        const h = maxY - minY + pad * 2;
+        const offsetX = -minX + pad;
+        const offsetY = -minY + pad;
+
+        // Build SVG document
+        let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+        svg += `<rect width="${w}" height="${h}" fill="#FFFFFF"/>`;
+        svg += `<g transform="translate(${offsetX},${offsetY})">`;
+
+        // Copy branch lines from the SVG layer
+        const lineSvg = this.jm.view.e_lines;
+        if (lineSvg) {
+            svg += lineSvg.innerHTML;
+        }
+
+        // Render nodes as SVG rectangles + text
+        nodes.forEach(n => {
+            const x = parseInt(n.style.left) || 0;
+            const y = parseInt(n.style.top) || 0;
+            const nw = n.offsetWidth;
+            const nh = n.offsetHeight;
+            const bg = n.style.backgroundColor || '#DCE6F2';
+            const color = n.style.color || '#17375E';
+            const fs = parseInt(n.style.fontSize) || 13;
+            const br = parseInt(n.style.borderRadius) || 5;
+            const border = n.style.border || '';
+            const bParts = border.split(' ');
+            const bWidth = parseInt(bParts[0]) || 1;
+            const bColor = bParts[2] || '#558ED5';
+
+            svg += `<rect x="${x}" y="${y}" width="${nw}" height="${nh}" rx="${br}" fill="${bg}" stroke="${bColor}" stroke-width="${bWidth}"/>`;
+            const textSpan = n.querySelector('.xmind-topic-text');
+            if (textSpan) {
+                svg += `<text x="${x + 8}" y="${y + nh / 2 + fs * 0.35}" font-size="${fs}" fill="${color}" font-family="'Open Sans',sans-serif">${this._escapeXml(textSpan.textContent)}</text>`;
+            }
+        });
+
+        svg += '</g></svg>';
+
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = (this.workbookName || 'mindmap') + '.svg';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        this._updateStatus(_t('SVG exported'));
+    }
+
+    _escapeXml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ===== Feature 8: Export PDF (via SVG → Canvas → PDF) =====
+    onExportPDF() {
+        if (!this.jm || !this.jm.view) return;
+
+        // Use the SVG export as intermediate, then convert to a printable page
+        const panel = this.jm.view.e_panel;
+        if (!panel) return;
+
+        const nodes = panel.querySelectorAll('.xmind-node');
+        if (nodes.length === 0) return;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(n => {
+            const l = parseInt(n.style.left) || 0;
+            const t = parseInt(n.style.top) || 0;
+            minX = Math.min(minX, l);
+            minY = Math.min(minY, t);
+            maxX = Math.max(maxX, l + n.offsetWidth);
+            maxY = Math.max(maxY, t + n.offsetHeight);
+        });
+
+        const pad = 40;
+        const w = maxX - minX + pad * 2;
+        const h = maxY - minY + pad * 2;
+
+        // Open print window with canvas rendering
+        const printWin = window.open('', '_blank', `width=${Math.min(w, 1200)},height=${Math.min(h, 900)}`);
+        if (!printWin) {
+            this._showWarning(_t('Please allow popups to export PDF'));
+            return;
+        }
+        printWin.document.write(`<!DOCTYPE html><html><head><title>${this.workbookName || 'MindMap'}</title>
+            <style>@media print { body { margin: 0; } } body { margin: 20px; font-family: 'Open Sans', sans-serif; }</style>
+        </head><body>`);
+
+        // Render a simplified HTML version of the mindmap
+        printWin.document.write(`<h3 style="text-align:center;color:#376092;">${this.workbookName || 'Mind Map'}</h3>`);
+
+        // Render as outline tree for clean PDF output
+        const root = this.jm.get_root();
+        if (root) {
+            printWin.document.write('<div style="padding:20px;">');
+            this._renderPdfNode(printWin.document, root, 0);
+            printWin.document.write('</div>');
+        }
+
+        printWin.document.write('</body></html>');
+        printWin.document.close();
+        setTimeout(() => {
+            printWin.print();
+            this._updateStatus(_t('PDF export ready'));
+        }, 500);
+    }
+
+    _renderPdfNode(doc, node, depth) {
+        const indent = depth * 24;
+        const fs = Math.max(18 - depth * 2, 10);
+        const fw = depth === 0 ? 'bold' : 'normal';
+        const color = depth === 0 ? '#376092' : (depth === 1 ? '#17375E' : '#333');
+        const markers = (node.data && node.data.markers) || [];
+        const markerStr = markers.length > 0 ? markers.map(m => {
+            const mk = this.markers.find(x => x.code === m);
+            return mk ? `<span style="font-size:10px;color:${mk.color};">●</span>` : '';
+        }).join(' ') + ' ' : '';
+
+        doc.write(`<div style="margin-left:${indent}px;margin-bottom:4px;font-size:${fs}px;font-weight:${fw};color:${color};">`);
+        if (depth > 0) doc.write(`<span style="color:#999;margin-right:6px;">•</span>`);
+        doc.write(`${markerStr}${this._escapeXml(node.topic)}</div>`);
+
+        if (node.expanded && node.children) {
+            for (const c of node.children) {
+                this._renderPdfNode(doc, c, depth + 1);
+            }
+        }
+    }
+
+    // ===== Feature 9: Toggle Line Tapering =====
+    onToggleTapering() {
+        if (!this.jm || !this.jm.view) return;
+        this.jm.view._tapered = !this.jm.view._tapered;
+        this.jm.view.draw_lines();
+        this._updateStatus(this.jm.view._tapered ? _t('Tapered lines ON') : _t('Tapered lines OFF'));
+    }
+
+    // ===== Feature 12: Resource Manager =====
+    onShowResourceManager() {
+        document.querySelectorAll('.o_xmind_resource_manager').forEach(el => el.remove());
+
+        const overlay = document.createElement('div');
+        overlay.className = 'o_xmind_resource_manager';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:white;border-radius:12px;padding:0;width:700px;max-width:90vw;max-height:85vh;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.3);display:flex;flex-direction:column;';
+
+        // Header
+        dialog.innerHTML = `<div style="padding:16px 20px;border-bottom:1px solid #dee2e6;display:flex;justify-content:space-between;align-items:center;">
+            <h5 style="margin:0;"><i class="fa fa-th-large"></i> ${_t('Resource Manager')}</h5>
+            <button class="btn btn-sm btn-link o_rm_close" style="padding:0;"><i class="fa fa-times"></i></button>
+        </div>`;
+
+        // Tab bar + content
+        const body = document.createElement('div');
+        body.style.cssText = 'display:flex;flex:1;overflow:hidden;';
+
+        const tabs = [
+            { id: 'themes', icon: 'fa-paint-brush', label: _t('Themes') },
+            { id: 'markers', icon: 'fa-flag', label: _t('Markers') },
+            { id: 'styles', icon: 'fa-magic', label: _t('Styles') },
+            { id: 'templates', icon: 'fa-file-text-o', label: _t('Templates') },
+        ];
+
+        const tabBar = document.createElement('div');
+        tabBar.style.cssText = 'width:140px;background:#f8f9fa;border-right:1px solid #dee2e6;padding:10px 0;flex-shrink:0;';
+
+        const content = document.createElement('div');
+        content.style.cssText = 'flex:1;overflow-y:auto;padding:16px;';
+
+        for (const tab of tabs) {
+            const btn = document.createElement('div');
+            btn.className = 'o_rm_tab';
+            btn.dataset.tab = tab.id;
+            btn.style.cssText = 'padding:8px 16px;cursor:pointer;font-size:13px;';
+            btn.innerHTML = `<i class="fa ${tab.icon} me-2"></i>${tab.label}`;
+            btn.addEventListener('click', () => {
+                tabBar.querySelectorAll('.o_rm_tab').forEach(t => t.style.background = '');
+                btn.style.background = '#e9ecef';
+                this._renderResourceTab(tab.id, content);
+            });
+            tabBar.appendChild(btn);
+        }
+
+        body.appendChild(tabBar);
+        body.appendChild(content);
+        dialog.appendChild(body);
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        // Activate first tab
+        tabBar.querySelector('.o_rm_tab').click();
+
+        dialog.querySelector('.o_rm_close').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    }
+
+    _renderResourceTab(tabId, container) {
+        container.innerHTML = '';
+
+        if (tabId === 'themes') {
+            const themes = [
+                { id: 'primary', name: 'Primary', color: '#428bca' },
+                { id: 'success', name: 'Success', color: '#5cb85c' },
+                { id: 'danger', name: 'Danger', color: '#d9534f' },
+                { id: 'warning', name: 'Warning', color: '#f0ad4e' },
+                { id: 'info', name: 'Info', color: '#5bc0de' },
+                { id: 'greensea', name: 'Green Sea', color: '#16a085' },
+                { id: 'nephrite', name: 'Nephrite', color: '#27ae60' },
+                { id: 'belizehole', name: 'Belize Hole', color: '#2980b9' },
+                { id: 'wisteria', name: 'Wisteria', color: '#8e44ad' },
+                { id: 'asphalt', name: 'Asphalt', color: '#34495e' },
+                { id: 'orange', name: 'Orange', color: '#f39c12' },
+                { id: 'pumpkin', name: 'Pumpkin', color: '#d35400' },
+                { id: 'pomegranate', name: 'Pomegranate', color: '#c0392b' },
+            ];
+            const grid = document.createElement('div');
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;';
+            const current = this.sheetSettings.theme || 'primary';
+            for (const t of themes) {
+                const card = document.createElement('div');
+                const active = t.id === current;
+                card.style.cssText = `text-align:center;padding:10px;border:2px solid ${active ? '#007bff' : '#dee2e6'};border-radius:8px;cursor:pointer;`;
+                card.innerHTML = `<div style="width:36px;height:36px;border-radius:50%;background:${t.color};margin:0 auto 4px;"></div><small>${t.name}</small>${active ? '<br><small style="color:#007bff;">✓</small>' : ''}`;
+                card.addEventListener('click', () => {
+                    this.sheetSettings.theme = t.id;
+                    this.jm.set_theme(t.id);
+                    this._saveSettings();
+                    this._renderResourceTab('themes', container);
+                });
+                grid.appendChild(card);
+            }
+            container.appendChild(grid);
+        } else if (tabId === 'markers') {
+            // Group markers by category
+            const categories = {};
+            for (const m of this.markers) {
+                if (!categories[m.category]) categories[m.category] = [];
+                categories[m.category].push(m);
+            }
+            for (const [cat, items] of Object.entries(categories)) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h6 class="text-muted text-uppercase" style="font-size:10px;margin:12px 0 6px;">${cat}</h6>`;
+                const grid = document.createElement('div');
+                grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+                for (const m of items) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = `width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dee2e6;border-radius:4px;cursor:default;`;
+                    badge.innerHTML = `<i class="${m.icon}" style="color:${m.color};" title="${m.name}"></i>`;
+                    badge.title = m.name + ' (' + m.code + ')';
+                    grid.appendChild(badge);
+                }
+                section.appendChild(grid);
+                container.appendChild(section);
+            }
+        } else if (tabId === 'styles') {
+            container.innerHTML = `<div class="text-center text-muted" style="padding:40px;">
+                <i class="fa fa-magic fa-3x" style="color:#ddd;"></i>
+                <p class="mt-3">${_t('Custom style presets')}</p>
+                <p class="small">${_t('Use Format menu to customize styles per topic. Copy Style / Paste Style to reuse.')}</p>
+            </div>`;
+        } else if (tabId === 'templates') {
+            this._getTemplates().then(templates => {
+                const grid = document.createElement('div');
+                grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;';
+                for (const t of templates) {
+                    const card = document.createElement('div');
+                    card.style.cssText = 'border:1px solid #dee2e6;border-radius:8px;padding:12px;cursor:pointer;text-align:center;';
+                    card.innerHTML = `<i class="fa fa-sitemap" style="font-size:24px;color:#558ED5;"></i><div style="font-size:12px;margin-top:6px;">${t.name}</div><small class="text-muted">${t.category || ''}</small>`;
+                    card.addEventListener('click', () => {
+                        this._applyTemplate(t);
+                        document.querySelector('.o_xmind_resource_manager')?.remove();
+                    });
+                    grid.appendChild(card);
+                }
+                container.appendChild(grid);
+            });
+        }
+    }
+
+    // ===== Feature 1: Find & Replace =====
+    onFindReplace() {
+        // Remove existing dialog
+        document.querySelectorAll('.o_xmind_find_dialog').forEach(el => el.remove());
+
+        const overlay = document.createElement('div');
+        overlay.className = 'o_xmind_find_dialog';
+        overlay.style.cssText = 'position:fixed;top:60px;right:20px;z-index:10001;background:#fff;border:1px solid #dee2e6;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:16px;width:320px;';
+        overlay.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h6 style="margin:0;"><i class="fa fa-search"></i> ${_t('Find & Replace')}</h6>
+                <button class="btn btn-sm btn-link o_find_close" style="padding:0;"><i class="fa fa-times"></i></button>
+            </div>
+            <div class="mb-2">
+                <input type="text" class="form-control form-control-sm o_find_input" placeholder="${_t('Find...')}" autofocus/>
+            </div>
+            <div class="mb-2">
+                <input type="text" class="form-control form-control-sm o_replace_input" placeholder="${_t('Replace with...')}"/>
+            </div>
+            <div class="d-flex gap-1 mb-2">
+                <button class="btn btn-sm btn-outline-primary o_find_prev flex-fill"><i class="fa fa-arrow-up"></i> ${_t('Prev')}</button>
+                <button class="btn btn-sm btn-outline-primary o_find_next flex-fill"><i class="fa fa-arrow-down"></i> ${_t('Next')}</button>
+                <button class="btn btn-sm btn-outline-success o_replace_one flex-fill">${_t('Replace')}</button>
+                <button class="btn btn-sm btn-success o_replace_all flex-fill">${_t('All')}</button>
+            </div>
+            <small class="text-muted o_find_status"></small>
+        `;
+        document.body.appendChild(overlay);
+
+        const findInput = overlay.querySelector('.o_find_input');
+        const replaceInput = overlay.querySelector('.o_replace_input');
+        const statusEl = overlay.querySelector('.o_find_status');
+        let matches = [];
+        let currentIdx = -1;
+
+        const doFind = () => {
+            const term = findInput.value.trim().toLowerCase();
+            matches = [];
+            currentIdx = -1;
+            // Clear previous highlights
+            document.querySelectorAll('.xmind-node.find-highlight').forEach(el => {
+                el.classList.remove('find-highlight');
+                el.style.outline = '';
+            });
+            if (!term) { statusEl.textContent = ''; return; }
+
+            const nodes = this.jm.mind.nodes;
+            for (const id in nodes) {
+                if (nodes[id].topic.toLowerCase().includes(term)) {
+                    matches.push(id);
+                    const el = this.jm.view.get_node_element(id);
+                    if (el) { el.classList.add('find-highlight'); el.style.outline = '2px solid #ffc107'; }
+                }
+            }
+            statusEl.textContent = matches.length + _t(' found');
+            if (matches.length > 0) goNext();
+        };
+
+        const goNext = () => {
+            if (matches.length === 0) return;
+            // Remove current highlight
+            if (currentIdx >= 0) {
+                const prev = this.jm.view.get_node_element(matches[currentIdx]);
+                if (prev) prev.style.outline = '2px solid #ffc107';
+            }
+            currentIdx = (currentIdx + 1) % matches.length;
+            const el = this.jm.view.get_node_element(matches[currentIdx]);
+            if (el) {
+                el.style.outline = '3px solid #dc3545';
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            this.jm.select_node(matches[currentIdx]);
+            statusEl.textContent = `${currentIdx + 1} / ${matches.length}`;
+        };
+
+        const goPrev = () => {
+            if (matches.length === 0) return;
+            if (currentIdx >= 0) {
+                const prev = this.jm.view.get_node_element(matches[currentIdx]);
+                if (prev) prev.style.outline = '2px solid #ffc107';
+            }
+            currentIdx = (currentIdx - 1 + matches.length) % matches.length;
+            const el = this.jm.view.get_node_element(matches[currentIdx]);
+            if (el) {
+                el.style.outline = '3px solid #dc3545';
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            this.jm.select_node(matches[currentIdx]);
+            statusEl.textContent = `${currentIdx + 1} / ${matches.length}`;
+        };
+
+        const doReplaceOne = () => {
+            if (currentIdx < 0 || !matches[currentIdx]) return;
+            const term = findInput.value.trim();
+            const replacement = replaceInput.value;
+            const node = this.jm.get_node(matches[currentIdx]);
+            if (node && term) {
+                const newTopic = node.topic.replace(new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), replacement);
+                this.jm.view._updateNodeTopic(node, newTopic);
+                this.commandStack.isDirty = true;
+                this.commandStack._notifyListeners();
+            }
+            doFind(); // Re-search
+        };
+
+        const doReplaceAll = () => {
+            const term = findInput.value.trim();
+            const replacement = replaceInput.value;
+            if (!term) return;
+            const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            let count = 0;
+            const nodes = this.jm.mind.nodes;
+            for (const id in nodes) {
+                if (nodes[id].topic.toLowerCase().includes(term.toLowerCase())) {
+                    const newTopic = nodes[id].topic.replace(regex, replacement);
+                    this.jm.view._updateNodeTopic(nodes[id], newTopic);
+                    count++;
+                }
+            }
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
+            statusEl.textContent = count + _t(' replaced');
+            doFind();
+        };
+
+        const closeDialog = () => {
+            document.querySelectorAll('.xmind-node.find-highlight').forEach(el => {
+                el.classList.remove('find-highlight');
+                el.style.outline = '';
+            });
+            overlay.remove();
+        };
+
+        findInput.addEventListener('input', doFind);
+        findInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.shiftKey ? goPrev() : goNext(); e.preventDefault(); }
+            if (e.key === 'Escape') closeDialog();
+        });
+        overlay.querySelector('.o_find_next').addEventListener('click', goNext);
+        overlay.querySelector('.o_find_prev').addEventListener('click', goPrev);
+        overlay.querySelector('.o_replace_one').addEventListener('click', doReplaceOne);
+        overlay.querySelector('.o_replace_all').addEventListener('click', doReplaceAll);
+        overlay.querySelector('.o_find_close').addEventListener('click', closeDialog);
+
+        findInput.focus();
+    }
+
+    // ===== Feature 2: Legend (Marker Index) =====
+    onToggleLegend() {
+        const existing = document.querySelector('.o_xmind_legend');
+        if (existing) { existing.remove(); return; }
+
+        // Collect all markers used in the map
+        const usedMarkers = new Map(); // code → { marker, count }
+        const nodes = this.jm.mind.nodes;
+        for (const id in nodes) {
+            const markerCodes = nodes[id].data && nodes[id].data.markers || [];
+            for (const code of markerCodes) {
+                if (usedMarkers.has(code)) {
+                    usedMarkers.get(code).count++;
+                } else {
+                    const marker = this.markers.find(m => m.code === code);
+                    if (marker) usedMarkers.set(code, { marker, count: 1 });
+                }
+            }
+        }
+
+        if (usedMarkers.size === 0) {
+            this._showWarning(_t('No markers used in this map'));
+            return;
+        }
+
+        const legend = document.createElement('div');
+        legend.className = 'o_xmind_legend';
+        legend.style.cssText = 'position:absolute;bottom:40px;right:20px;z-index:100;background:#fff;border:1px solid #dee2e6;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:12px;min-width:160px;max-width:240px;';
+        legend.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <strong style="font-size:12px;"><i class="fa fa-list-ul"></i> ${_t('Legend')}</strong>
+            <button class="btn btn-sm btn-link" style="padding:0;" onclick="this.closest('.o_xmind_legend').remove()"><i class="fa fa-times"></i></button>
+        </div>`;
+
+        // Group by category
+        const categories = {};
+        for (const [code, { marker, count }] of usedMarkers) {
+            const cat = marker.category || 'other';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push({ marker, count });
+        }
+
+        for (const [cat, items] of Object.entries(categories)) {
+            const catDiv = document.createElement('div');
+            catDiv.style.marginBottom = '6px';
+            catDiv.innerHTML = `<small class="text-muted text-uppercase" style="font-size:9px;">${cat}</small>`;
+            for (const { marker, count } of items) {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;';
+                row.innerHTML = `<i class="${marker.icon}" style="color:${marker.color};width:14px;text-align:center;"></i>
+                    <span style="flex:1;">${marker.name}</span>
+                    <span class="badge text-bg-secondary" style="font-size:9px;">${count}</span>`;
+                catDiv.appendChild(row);
+            }
+            legend.appendChild(catDiv);
+        }
+
+        const canvas = this.canvasRef.el;
+        if (canvas) canvas.appendChild(legend);
+    }
+
+    // ===== Feature 3: Numbering (Auto-number) =====
+    onToggleNumbering() {
+        this._numberingEnabled = !this._numberingEnabled;
+        this._applyNumbering();
+        this._updateStatus(this._numberingEnabled ? _t('Numbering enabled') : _t('Numbering disabled'));
+    }
+
+    _applyNumbering() {
+        const nodes = this.jm.mind.nodes;
+        for (const id in nodes) {
+            const element = this.jm.view.get_node_element(id);
+            if (!element) continue;
+            // Remove existing number prefix
+            const existing = element.querySelector('.xmind-number-prefix');
+            if (existing) existing.remove();
+
+            if (!this._numberingEnabled) continue;
+
+            const node = nodes[id];
+            if (node.isroot) continue;
+
+            // Calculate number string (e.g., "1.2.3")
+            const numStr = this._getNodeNumberString(node);
+            if (numStr) {
+                const prefix = document.createElement('span');
+                prefix.className = 'xmind-number-prefix';
+                prefix.style.cssText = 'margin-right:4px;color:#888;font-size:0.85em;';
+                prefix.textContent = numStr;
+                const textSpan = element.querySelector('.xmind-topic-text');
+                const markers = element.querySelector('.xmind-markers');
+                if (markers) {
+                    markers.parentNode.insertBefore(prefix, markers);
+                } else if (textSpan) {
+                    element.insertBefore(prefix, textSpan);
+                }
+            }
+        }
+    }
+
+    _getNodeNumberString(node) {
+        const path = [];
+        let current = node;
+        while (current && !current.isroot) {
+            const parent = current.parent;
+            if (!parent) break;
+            const idx = parent.children.indexOf(current);
+            path.unshift(idx + 1);
+            current = parent;
+        }
+        return path.join('.');
+    }
+
+    // ===== Feature 4: Multi-Sheet Tab Bar =====
+    onAddSheet() {
+        if (!this.workbookId) return;
+        const name = prompt(_t('New sheet name:'), _t('Sheet ') + ((this._sheets || []).length + 1));
+        if (!name) return;
+        rpc('/xmind/workbook/' + this.workbookId + '/sheet/create', { name }).then(result => {
+            if (result.success) {
+                this._loadSheets();
+                this._updateStatus(_t('Sheet created: ') + name);
+            }
+        });
+    }
+
+    onSwitchSheet(sheetId) {
+        if (!this.workbookId || this._currentSheetId === sheetId) return;
+        // Save current sheet first
+        this._saveData().then(() => {
+            this._currentSheetId = sheetId;
+            rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}).then(result => {
+                if (result.mindmap_data) {
+                    this.mindmapData = result.mindmap_data;
+                    this.jm.show(this.mindmapData);
+                    setTimeout(() => this._renderAllXMindFeatures(), 200);
+                    this._updateSheetTabs();
+                    this._updateStatus(_t('Switched to sheet: ') + result.name);
+                }
+            });
+        });
+    }
+
+    onRenameSheet(sheetId) {
+        const name = prompt(_t('Rename sheet:'));
+        if (!name) return;
+        rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/rename', { name }).then(result => {
+            if (result.success) this._loadSheets();
+        });
+    }
+
+    onDeleteSheet(sheetId) {
+        if (!this._sheets || this._sheets.length <= 1) {
+            this._showWarning(_t('Cannot delete the last sheet'));
+            return;
+        }
+        if (confirm(_t('Delete this sheet?'))) {
+            rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/delete', {}).then(result => {
+                if (result.success) {
+                    if (this._currentSheetId === sheetId) {
+                        this._currentSheetId = null;
+                    }
+                    this._loadSheets();
+                }
+            });
+        }
+    }
+
+    async _loadSheets() {
+        if (!this.workbookId) return;
+        try {
+            const result = await rpc('/xmind/workbook/' + this.workbookId + '/sheets', {});
+            this._sheets = result.sheets || [];
+            if (!this._currentSheetId && this._sheets.length > 0) {
+                this._currentSheetId = this._sheets[0].id;
+            }
+            this._renderSheetTabs();
+        } catch (e) {
+            this._sheets = [];
+        }
+    }
+
+    _renderSheetTabs() {
+        let tabBar = this.canvasRef.el?.parentElement?.querySelector('.o_xmind_sheet_tabs');
+        if (!tabBar) {
+            tabBar = document.createElement('div');
+            tabBar.className = 'o_xmind_sheet_tabs';
+            tabBar.style.cssText = 'display:flex;align-items:center;gap:2px;padding:4px 8px;background:#f8f9fa;border-top:1px solid #dee2e6;font-size:12px;overflow-x:auto;';
+            // Insert before status bar
+            const statusBar = this.canvasRef.el?.parentElement?.querySelector('.o_mindmap_statusbar');
+            if (statusBar) {
+                statusBar.parentNode.insertBefore(tabBar, statusBar);
+            }
+        }
+        tabBar.innerHTML = '';
+        for (const sheet of (this._sheets || [])) {
+            const tab = document.createElement('span');
+            const isActive = sheet.id === this._currentSheetId;
+            tab.className = `badge ${isActive ? 'text-bg-primary' : 'text-bg-light text-dark'}`;
+            tab.style.cssText = 'cursor:pointer;padding:4px 10px;user-select:none;';
+            tab.textContent = sheet.name;
+            tab.addEventListener('click', () => this.onSwitchSheet(sheet.id));
+            tab.addEventListener('dblclick', () => this.onRenameSheet(sheet.id));
+            tab.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (confirm(_t('Delete sheet "') + sheet.name + '"?')) {
+                    this.onDeleteSheet(sheet.id);
+                }
+            });
+            tabBar.appendChild(tab);
+        }
+        // Add new sheet button
+        const addBtn = document.createElement('span');
+        addBtn.className = 'badge text-bg-light text-dark';
+        addBtn.style.cssText = 'cursor:pointer;padding:4px 8px;';
+        addBtn.innerHTML = '<i class="fa fa-plus"></i>';
+        addBtn.title = _t('New Sheet');
+        addBtn.addEventListener('click', () => this.onAddSheet());
+        tabBar.appendChild(addBtn);
+    }
+
+    _updateSheetTabs() {
+        this._renderSheetTabs();
     }
 
     onSidebarClose() {
@@ -1633,6 +2823,11 @@ export class MindmapEditor extends Component {
         if (noteEl) noteEl.focus();
     }
 
+    onInsertComment(ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        this._showWarning(_t('Comments feature coming soon'));
+    }
+
     onInsertAttachment(ev) {
         ev.preventDefault();
         if (!this.selectedNode) {
@@ -1694,15 +2889,14 @@ export class MindmapEditor extends Component {
         const styleData = this._collectFormatSettings();
 
         if (this.selectedNodes.length > 0) {
-            for (let node of this.selectedNodes) {
-                this._applyStyleToNode(node, styleData);
-                if (node.children && node.children.length > 0) {
-                    this._applyBranchStyles(node, styleData.branch);
-                }
+            for (let nodeId of this.selectedNodes) {
+                this._applyStyleToNode(nodeId, styleData);
+                this._applyBranchStyles(nodeId, styleData.branch);
             }
             this._updateStatus(_t('Style applied to ') + this.selectedNodes.length + _t(' topics'));
         } else if (this.selectedNode) {
             this._applyStyleToNode(this.selectedNode, styleData);
+            this._applyBranchStyles(this.selectedNode, styleData.branch);
             this._updateStatus(_t('Style applied'));
         } else {
             this.notification.add(_t('Please select at least one topic first'), { type: 'warning' });
@@ -1746,19 +2940,24 @@ export class MindmapEditor extends Component {
 
     // ===== Boundary =====
     onAddBoundary() {
-        if (!this.selectedNode) {
+        // Fix #6: Use multi-selected nodes if available, otherwise single selected
+        let topicIds = [];
+        if (this.selectedNodes.length > 1) {
+            topicIds = this.selectedNodes.map(n => n.id || n);
+        } else if (this.selectedNode) {
+            topicIds = [this.selectedNode];
+        } else {
             this._showWarning(_t('Please select at least one topic to create a boundary'));
             return;
         }
-        this.selectedTopicsForFeature = [this.selectedNode];
+        this.selectedTopicsForFeature = topicIds;
 
-        // Simple boundary with default options
         const options = {
             shape: 'rounded',
-            fillColor: 'rgba(255, 255, 0, 0.2)',
-            borderColor: '#ffc107',
-            borderWidth: 2,
-            borderStyle: 'solid',
+            fillColor: 'rgba(195, 214, 155, 0.2)',
+            borderColor: '#77933C',
+            borderWidth: 3,
+            borderStyle: 'dotted',
             title: '',
         };
         this._createBoundary(options);
@@ -1785,37 +2984,43 @@ export class MindmapEditor extends Component {
 
     // ===== Summary =====
     onAddSummary() {
-        if (!this.selectedNode) {
+        // Fix #7: Use multi-selected sibling nodes for summary range
+        let topicIds = [];
+        if (this.selectedNodes.length > 1) {
+            topicIds = this.selectedNodes.map(n => n.id || n);
+        } else if (this.selectedNode) {
+            topicIds = [this.selectedNode];
+        } else {
             this._showWarning(_t('Please select sibling topics to summarize'));
             return;
         }
 
-        const node = this.jm.get_node(this.selectedNode);
+        const node = this.jm.get_node(topicIds[0]);
         if (!node || !node.parent) {
             this._showWarning(_t('Cannot create summary for root node'));
             return;
         }
 
         const summaryOptions = {
-            lineType: 'bracket',
-            lineWidth: 2,
-            lineColor: '#6c757d',
+            lineType: 'square',
+            lineWidth: 5,
+            lineColor: '#C3D69B',
             topicText: _t('Summary'),
-            topicFillColor: '#E3F2FD',
-            topicTextColor: '#1565C0',
-            topicFontSize: 14,
+            topicFillColor: '#77933C',
+            topicTextColor: '#FFFFFF',
+            topicFontSize: 10,
             topicShape: 'rounded',
-            topicBorderColor: '#2196F3',
-            topicBorderWidth: 2,
+            topicBorderColor: 'transparent',
+            topicBorderWidth: 0,
             topicBold: false,
-            topicItalic: false,
+            topicItalic: true,
             branchType: 'curved',
             branchEndMarker: 'none',
-            branchWidth: 2,
-            branchColor: '#2196F3',
+            branchWidth: 1,
+            branchColor: '#C3D69B',
         };
 
-        this._createSummary([this.selectedNode], summaryOptions);
+        this._createSummary(topicIds, summaryOptions);
     }
 
     _createSummary(topicIds, summaryOptions) {
@@ -1896,37 +3101,12 @@ export class MindmapEditor extends Component {
     onAddFloatingTopic() {
         const title = prompt(_t('Topic Text:'), _t('Floating Topic'));
         if (title) {
-            this._createFloatingTopicElement(title, '');
+            // Place at center of visible canvas
+            const canvas = this.canvasRef.el;
+            const x = canvas ? canvas.scrollLeft + canvas.clientWidth / 2 : 200;
+            const y = canvas ? canvas.scrollTop + canvas.clientHeight / 2 : 200;
+            this._createFloatingTopicAt(title, '', x, y);
         }
-    }
-
-    _createFloatingTopicElement(title, note) {
-        const canvas = this.canvasRef.el;
-        const floatingDiv = document.createElement('div');
-        floatingDiv.className = 'xmind-floating-topic';
-        floatingDiv.style.cssText = 'position: absolute; left: 100px; top: 100px; background: #e0e0e0; padding: 10px 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: move; z-index: 20;';
-        floatingDiv.textContent = title;
-        if (note) floatingDiv.title = note;
-
-        let isDragging = false, offsetX, offsetY;
-        floatingDiv.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            offsetX = e.clientX - floatingDiv.offsetLeft;
-            offsetY = e.clientY - floatingDiv.offsetTop;
-        });
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                floatingDiv.style.left = (e.clientX - offsetX) + 'px';
-                floatingDiv.style.top = (e.clientY - offsetY) + 'px';
-            }
-        });
-        document.addEventListener('mouseup', () => { isDragging = false; });
-
-        canvas.appendChild(floatingDiv);
-        this.floatingTopics.push({ element: floatingDiv, title, note });
-        this.commandStack.isDirty = true;
-        this.commandStack._notifyListeners();
-        this._updateStatus(_t('Floating topic added'));
     }
 
     // ===== Image =====
@@ -1966,7 +3146,7 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Internal Methods =====
-    _editSelectedNode() {
+    _editSelectedNode(initialChar) {
         if (!this.selectedNode) return;
         const node = this.jm.get_node(this.selectedNode);
         if (!node) return;
@@ -1976,10 +3156,25 @@ export class MindmapEditor extends Component {
         setTimeout(() => {
             const container = this.containerRef.el;
             if (!container) return;
-            const editElement = container.querySelector('input.jmnode-input');
+            const editElement = container.querySelector('input.xmind-edit-input');
             if (editElement) {
                 const oldTopic = node.topic;
+                let cancelled = false;
+
+                // If triggered by typing a character, replace content with that char
+                if (initialChar) {
+                    editElement.value = initialChar;
+                    // Move cursor to end
+                    editElement.setSelectionRange(initialChar.length, initialChar.length);
+                }
+
+                // Listen for Escape to cancel (jsMind resets value, we flag it)
+                editElement.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') cancelled = true;
+                });
+
                 editElement.addEventListener('blur', () => {
+                    if (cancelled) return; // Escape pressed — jsMind already restored original text
                     const newTopic = editElement.value;
                     if (newTopic !== oldTopic) {
                         const cmd = new UpdateNodeCommand(this.jm, this.selectedNode, newTopic, oldTopic);
@@ -2095,7 +3290,7 @@ export class MindmapEditor extends Component {
     _showRelationshipPropertiesDialog(sourceId, targetId, existingRelId) {
         const existing = existingRelId ? this.relationships.find(r => r.id === existingRelId) : null;
         const defaults = existing ? existing.options : {
-            shapeType: 'curved', lineStyle: 'dashed', lineWidth: 2, lineColor: '#999999',
+            shapeType: 'curved', lineStyle: 'dotted', lineWidth: 3, lineColor: '#0068cf',
             startMarker: 'none', endMarker: 'arrow', markerSize: 'medium',
             label: '', labelFontSize: 12, labelColor: '#666666',
             labelBold: false, labelItalic: false, labelBackground: false,
@@ -2283,12 +3478,66 @@ export class MindmapEditor extends Component {
     async _saveData() {
         if (!this.workbookId) return;
         const data = this.jm.get_data('node_tree');
-        await this.rpc('/xmind/workbook/' + this.workbookId + '/save', { data });
+        await rpc('/xmind/workbook/' + this.workbookId + '/save', { data });
+
+        // Save relationships
+        if (this.relationships.length > 0) {
+            this._syncRelationshipControlPoints();
+            const relData = this.relationships.map(r => ({
+                source_id: r.sourceId,
+                target_id: r.targetId,
+                options: r.options || {},
+                controlPoints: r.controlPoints || [],
+            }));
+            await rpc('/xmind/workbook/' + this.workbookId + '/relationships', { relationships: relData });
+        } else if (this._hadRelationshipsOnLoad) {
+            // Clear relationships if all were deleted
+            await rpc('/xmind/workbook/' + this.workbookId + '/relationships', { relationships: [] });
+        }
+
+        // Save boundaries
+        if (this.boundaries.length > 0) {
+            const bndData = this.boundaries.map(b => ({
+                topicIds: b.topicIds || [],
+                options: b.options || {},
+            }));
+            await rpc('/xmind/workbook/' + this.workbookId + '/boundaries', { boundaries: bndData });
+        }
+
+        // Save summaries
+        if (this.summaries.length > 0) {
+            const sumData = this.summaries.map(s => ({
+                topicIds: s.topicIds || [],
+                summaryNodeId: s.summaryNodeId || '',
+                options: s.options || {},
+            }));
+            await rpc('/xmind/workbook/' + this.workbookId + '/summaries/save', { summaries: sumData });
+        }
+
+        // Save callouts
+        if (this.callouts.length > 0) {
+            const callData = this.callouts.map(c => ({
+                parentNodeId: c.parentNodeId || '',
+                options: c.options || {},
+            }));
+            await rpc('/xmind/workbook/' + this.workbookId + '/callouts', { callouts: callData });
+        }
+
+        // Save floating topics
+        const ftData = this.floatingTopics.map(ft => ({
+            component_id: ft.component_id || ft.id,
+            title: ft.title,
+            note: ft.note || '',
+            x: Math.round(ft.x),
+            y: Math.round(ft.y),
+            style: ft.style || {},
+        }));
+        await rpc('/xmind/workbook/' + this.workbookId + '/floating_topics', { floating_topics: ftData });
     }
 
     async _saveSettings() {
         if (!this.workbookId) return;
-        await this.rpc('/xmind/workbook/' + this.workbookId + '/settings', { settings: this.sheetSettings });
+        await rpc('/xmind/workbook/' + this.workbookId + '/settings', { settings: this.sheetSettings });
     }
 
     _generateNodeId() {
@@ -2316,7 +3565,12 @@ export class MindmapEditor extends Component {
         element.style.clipPath = '';
         element.style.border = '';
         element.style.backgroundColor = '';
-        element.classList.remove('shape-rectangle', 'shape-rounded', 'shape-ellipse', 'shape-diamond', 'shape-parallelogram', 'shape-hexagon', 'shape-cloud', 'shape-underline');
+        element.style.boxShadow = '';
+        element.style.aspectRatio = '';
+        element.style.outline = '';
+        element.classList.remove('shape-rectangle', 'shape-rounded', 'shape-ellipse', 'shape-circle',
+            'shape-diamond', 'shape-parallelogram', 'shape-hexagon', 'shape-cloud',
+            'shape-underline', 'shape-stroke');
 
         switch (shapeData.type) {
             case 'rectangle':
@@ -2330,6 +3584,15 @@ export class MindmapEditor extends Component {
             case 'ellipse':
                 element.style.borderRadius = '50%';
                 element.classList.add('shape-ellipse');
+                break;
+            case 'circle':
+                // XMind 2 circle: perfect circle that fits content (aspect-ratio 1:1)
+                element.style.borderRadius = '50%';
+                element.style.aspectRatio = '1';
+                element.style.display = 'flex';
+                element.style.alignItems = 'center';
+                element.style.justifyContent = 'center';
+                element.classList.add('shape-circle');
                 break;
             case 'diamond':
                 element.style.clipPath = 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
@@ -2350,7 +3613,7 @@ export class MindmapEditor extends Component {
             case 'underline':
                 element.style.backgroundColor = 'transparent';
                 element.style.border = 'none';
-                element.style.borderBottom = `${shapeData.borderWidth}px solid ${shapeData.borderColor}`;
+                element.style.borderBottom = `${shapeData.borderWidth || 2}px solid ${shapeData.borderColor || '#558ED5'}`;
                 element.style.boxShadow = 'none';
                 element.classList.add('shape-underline');
                 return;
@@ -2360,6 +3623,15 @@ export class MindmapEditor extends Component {
                 element.style.boxShadow = 'none';
                 element.style.borderRadius = '0';
                 return;
+            case 'stroke':
+                // XMind 2 StrokeCircle: double-ring circle (inner border + outer outline)
+                element.style.borderRadius = '50%';
+                element.style.aspectRatio = '1';
+                element.style.display = 'flex';
+                element.style.alignItems = 'center';
+                element.style.justifyContent = 'center';
+                element.classList.add('shape-stroke');
+                break;
             case 'fishhead_left':
                 element.style.clipPath = 'polygon(15% 0%, 100% 0%, 100% 100%, 15% 100%, 0% 50%)';
                 element.style.borderRadius = '0';
@@ -2373,6 +3645,12 @@ export class MindmapEditor extends Component {
         if (shapeData.fillColor) element.style.backgroundColor = shapeData.fillColor;
         if (shapeData.borderColor && shapeData.borderWidth) {
             element.style.border = `${shapeData.borderWidth}px solid ${shapeData.borderColor}`;
+        }
+        // Stroke shape: add outer ring via outline
+        if (shapeData.type === 'stroke') {
+            const outlineColor = shapeData.borderColor || '#558ED5';
+            element.style.outline = `3px solid ${outlineColor}`;
+            element.style.outlineOffset = '3px';
         }
     }
 
@@ -2417,49 +3695,46 @@ export class MindmapEditor extends Component {
         if (n) { if (!n.data) n.data = {}; n.data.style = textStyle; }
     }
 
-    _applyBranchStyles(node, branchStyle) {
-        const svgContainer = this.jm.view.e_lines;
-        if (!svgContainer) return;
-        const paths = svgContainer.querySelectorAll('path');
-        paths.forEach(path => {
-            path.style.stroke = branchStyle.lineColor;
-            path.style.strokeWidth = branchStyle.lineWidth + 'px';
-            switch (branchStyle.lineStyle) {
-                case 'dashed': path.style.strokeDasharray = '8, 4'; break;
-                case 'dotted': path.style.strokeDasharray = '2, 2'; break;
-                default: path.style.strokeDasharray = 'none';
-            }
-        });
+    _applyBranchStyles(nodeId, branchStyle) {
+        // Save branch style to node data for persistence and per-node line drawing
+        const node = typeof nodeId === 'string' ? this.jm.get_node(nodeId) : nodeId;
+        if (!node) return;
+        if (!node.data) node.data = {};
+        node.data.branchStyle = { ...branchStyle };
+
+        // Redraw lines to pick up per-node overrides
+        this.jm.view.draw_lines();
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
     }
 
     _applyGlobalBranchStyles(branchStyle) {
         this.branchStyleSettings = branchStyle;
-        const svgContainer = this.jm.view.e_lines;
-        if (!svgContainer) return;
-        const paths = svgContainer.querySelectorAll('path');
-        paths.forEach(path => {
-            path.style.stroke = branchStyle.lineColor;
-            path.style.strokeWidth = branchStyle.lineWidth + 'px';
-            switch (branchStyle.lineStyle) {
-                case 'dashed': path.style.strokeDasharray = '8, 4'; break;
-                case 'dotted': path.style.strokeDasharray = '2, 2'; break;
-                default: path.style.strokeDasharray = 'none';
+
+        // Apply to all non-root nodes
+        const nodes = this.jm.mind.nodes;
+        for (let id in nodes) {
+            const node = nodes[id];
+            if (!node.isroot) {
+                if (!node.data) node.data = {};
+                node.data.branchStyle = { ...branchStyle };
             }
-        });
-        if (this.jm.options.view) {
-            this.jm.options.view.line_color = branchStyle.lineColor;
-            this.jm.options.view.line_width = branchStyle.lineWidth;
         }
+
+        // Redraw lines to pick up overrides
+        this.jm.view.draw_lines();
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
     }
 
     _applyLayoutSpacing(layoutSettings) {
-        if (this.jm && this.jm.options.layout) {
-            this.jm.options.layout.hspace = layoutSettings.hSpace;
-            this.jm.options.layout.vspace = layoutSettings.vSpace;
+        if (this.jm && this.jm.view) {
+            // Update layout engine gaps directly
+            this.jm.view.layout.hgap = layoutSettings.hSpace;
+            this.jm.view.layout.vgap = layoutSettings.vSpace;
             this.jm.view.relayout();
             setTimeout(() => {
                 this._renderAllXMindFeatures();
-                this._applyGlobalBranchStyles(this.branchStyleSettings);
             }, 100);
         }
     }
@@ -2484,15 +3759,15 @@ export class MindmapEditor extends Component {
         return {
             shape: {
                 type: getVal('.o_format_shape_type', 'rounded'),
-                fillColor: getVal('.o_format_fill_color', '#ffffff'),
+                fillColor: getVal('.o_format_fill_color', '#DCE6F2'),
                 borderColor: getVal('.o_format_border_color', '#558ED5'),
                 borderWidth: parseInt(getVal('.o_format_border_width', '2'))
             },
             text: {
-                fontFamily: getVal('.o_format_font_family', 'inherit'),
-                fontSize: getVal('.o_format_font_size', '14'),
-                color: getVal('.o_format_text_color', '#333333'),
-                bgColor: getVal('.o_format_bg_color', '#ffffff'),
+                fontFamily: getVal('.o_format_font_family', "'Open Sans', sans-serif"),
+                fontSize: getVal('.o_format_font_size', '13'),
+                color: getVal('.o_format_text_color', '#17375E'),
+                bgColor: getVal('.o_format_bg_color', '#DCE6F2'),
                 bold: this.formatState.bold,
                 italic: this.formatState.italic,
                 underline: this.formatState.underline,
@@ -2548,6 +3823,29 @@ export class MindmapEditor extends Component {
             this._addNodeToSelection(node);
         }
         this._updateSelectionCount();
+    }
+
+    _selectSiblingRange(fromId, toId) {
+        // Fix #2: Shift+Click — select all siblings between fromId and toId
+        const fromNode = this.jm.get_node(fromId);
+        const toNode = this.jm.get_node(toId);
+        if (!fromNode || !toNode) return;
+        // Must share same parent
+        if (!fromNode.parent || !toNode.parent || fromNode.parent.id !== toNode.parent.id) {
+            // Different parents — just toggle target
+            this._toggleNodeSelection(toNode);
+            return;
+        }
+        const siblings = fromNode.parent.children;
+        const idxA = siblings.findIndex(c => c.id === fromId);
+        const idxB = siblings.findIndex(c => c.id === toId);
+        if (idxA < 0 || idxB < 0) return;
+        const start = Math.min(idxA, idxB);
+        const end = Math.max(idxA, idxB);
+        this._clearMultiSelection();
+        for (let i = start; i <= end; i++) {
+            this._addNodeToSelection(siblings[i]);
+        }
     }
 
     _addNodeToSelection(node) {
@@ -2633,19 +3931,35 @@ export class MindmapEditor extends Component {
     // ===== Re-render All Features =====
     _renderAllXMindFeatures() {
         const nodes = this.jm.mind.nodes;
+        let needsRelayout = false;
+
         for (let id in nodes) {
             const node = nodes[id];
             const element = this.jm.view.get_node_element(id);
             if (element && node.data) {
                 if (node.data.shape) this._applyShapeToNode(element, node.data.shape);
                 if (node.data.style) this._restoreNodeStyle(element, node.data.style);
-                if (node.data.markers && node.data.markers.length > 0) this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
+                if (node.data.markers && node.data.markers.length > 0) {
+                    this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
+                    // Re-measure node since inline markers change width
+                    const rect = element.getBoundingClientRect();
+                    if (rect.width !== node._w || rect.height !== node._h) {
+                        node._w = rect.width;
+                        node._h = rect.height;
+                        needsRelayout = true;
+                    }
+                }
                 if (node.data.labels && node.data.labels.length > 0) this.labelRenderer.renderLabels(element, node.data.labels);
                 if (node.data.note) this.noteIndicator.addIndicator(element, true);
                 if (node.data.hyperlink) this.hyperlinkIndicator.addIndicator(element, node.data.hyperlink, node.data.hyperlinkTitle);
                 if (node.data.attachments && node.data.attachments.length > 0) this.attachmentIndicator.addIndicator(element, node.data.attachments.length);
                 if (node.data.image) this.imageRenderer.renderImage(element, node.data.image.data, node.data.image.options);
             }
+        }
+
+        // Relayout if any node changed size due to inline markers
+        if (needsRelayout) {
+            this.jm.view.refresh();
         }
 
         this.boundaryRenderer.clear();
@@ -2667,9 +3981,16 @@ export class MindmapEditor extends Component {
             const sourceElement = this.jm.view.get_node_element(rel.sourceId);
             const targetElement = this.jm.view.get_node_element(rel.targetId);
             if (sourceElement && targetElement) {
-                this.advancedRelationshipManager.addRelationship(sourceElement, targetElement, rel.options);
+                const opts = { ...rel.options };
+                if (rel.controlPoints && rel.controlPoints.length > 0) {
+                    opts.controlPoints = rel.controlPoints;
+                }
+                this.advancedRelationshipManager.addRelationship(sourceElement, targetElement, opts);
             }
         }
+
+        // Render floating topics (independent layer)
+        this._renderAllFloatingTopics();
     }
 
     // ===== Zoom Controls =====
@@ -2694,7 +4015,7 @@ export class MindmapEditor extends Component {
         if (!panel) return;
 
         // Get the bounding box of all nodes
-        const nodes = panel.querySelectorAll('.jmnode');
+        const nodes = panel.querySelectorAll('.xmind-node');
         if (nodes.length === 0) return;
 
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -2729,14 +4050,30 @@ export class MindmapEditor extends Component {
         this._applyZoom();
     }
 
+    _forceRelayout() {
+        // Re-measure and re-layout using the custom renderer's API
+        if (!this.jm || !this.jm.view) return;
+        // Re-measure all node sizes from DOM, then re-layout and redraw
+        if (this.jm.mind && this.jm.mind.nodes) {
+            const nodes = this.jm.mind.nodes;
+            for (const id in nodes) {
+                const node = nodes[id];
+                if (node._el) {
+                    const rect = node._el.getBoundingClientRect();
+                    node._w = rect.width;
+                    node._h = rect.height;
+                }
+            }
+        }
+        this.jm.view.refresh();
+    }
+
     _applyZoom() {
         if (!this.jm || !this.jm.view) return;
-        const panel = this.jm.view.e_panel;
-        if (!panel) return;
 
         const level = this._zoomLevel || 1;
-        panel.style.transform = `scale(${level})`;
-        panel.style.transformOrigin = 'center center';
+        // Use jsmind's built-in zoom (transform on world element)
+        this.jm.view.setZoom(level);
 
         const zoomEl = this._el('.o_mindmap_zoom_level');
         if (zoomEl) zoomEl.textContent = Math.round(level * 100) + '%';
@@ -2751,6 +4088,12 @@ export class MindmapEditor extends Component {
             e.preventDefault();
             e.stopPropagation();
 
+            // Fix #5: Right-click cancels relationship mode
+            if (this.relationshipMode) {
+                this._exitRelationshipMode();
+                return;
+            }
+
             // Remove existing context menus
             document.querySelectorAll('.o_xmind_context_menu').forEach(el => el.remove());
 
@@ -2763,7 +4106,19 @@ export class MindmapEditor extends Component {
                 return;
             }
 
-            const nodeElement = e.target.closest('.jmnode');
+            // Fix #8: Right-click on marker badge → show replace/remove menu
+            const markerBadge = e.target.closest('.xmind-marker-badge');
+            if (markerBadge) {
+                const nodeElement = markerBadge.closest('.xmind-node');
+                if (nodeElement) {
+                    const nodeId = nodeElement.getAttribute('data-nodeid');
+                    const markerCode = markerBadge.dataset.markerCode;
+                    this._showMarkerContextMenu(e, nodeId, markerCode);
+                    return;
+                }
+            }
+
+            const nodeElement = e.target.closest('.xmind-node');
             if (nodeElement) {
                 this._showNodeContextMenu(e, nodeElement);
             } else {
@@ -2773,7 +4128,7 @@ export class MindmapEditor extends Component {
     }
 
     _showNodeContextMenu(e, nodeElement) {
-        const nodeId = nodeElement.getAttribute('nodeid');
+        const nodeId = nodeElement.getAttribute('data-nodeid');
         const node = this.jm.get_node(nodeId);
         if (!node) return;
 
@@ -2783,44 +4138,67 @@ export class MindmapEditor extends Component {
         menu.className = 'o_xmind_context_menu dropdown-menu show';
         menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 10000;`;
 
+        const hasChildren = node.children && node.children.length > 0;
+
         const items = [
-            { icon: 'fa-plus', label: _t('Add Child (Tab)'), action: 'addChild', disabled: false },
-            { icon: 'fa-plus', label: _t('Add Sibling (Enter)'), action: 'addSibling', disabled: isRoot },
-            { icon: 'fa-level-up', label: _t('Add Before (Shift+Enter)'), action: 'addBefore', disabled: isRoot },
-            { icon: 'fa-level-down', label: _t('Add Parent (Ctrl+Enter)'), action: 'addParent', disabled: isRoot },
+            // Edit group
             { icon: 'fa-pencil', label: _t('Edit (F2)'), action: 'edit', disabled: false },
             { divider: true },
-            { icon: 'fa-arrow-up', label: _t('Move Up (Alt+↑)'), action: 'moveUp', disabled: isRoot },
-            { icon: 'fa-arrow-down', label: _t('Move Down (Alt+↓)'), action: 'moveDown', disabled: isRoot },
+            // Topic creation group (XMind 2: Insert submenu)
+            { icon: 'fa-plus', label: _t('Topic (Enter)'), action: 'addSibling', disabled: isRoot },
+            { icon: 'fa-level-down', label: _t('Subtopic (Tab)'), action: 'addChild', disabled: false },
+            { icon: 'fa-level-up', label: _t('Topic Before (Shift+Enter)'), action: 'addBefore', disabled: isRoot },
+            { icon: 'fa-outdent', label: _t('Parent Topic (Ctrl+Enter)'), action: 'addParent', disabled: isRoot },
+            { icon: 'fa-comment', label: _t('Callout'), action: 'callout', disabled: false },
             { divider: true },
-            { icon: 'fa-copy', label: _t('Copy Topic (Ctrl+C)'), action: 'copyTopic', disabled: false },
-            { icon: 'fa-paste', label: _t('Paste Topic (Ctrl+V)'), action: 'pasteTopic', disabled: !this._clipboardTopic },
+            // Structure elements
+            { icon: 'fa-link', label: _t('Relationship'), action: 'relationship', disabled: false },
+            { icon: 'fa-square-o', label: _t('Boundary'), action: 'boundary', disabled: false },
+            { icon: 'fa-indent', label: _t('Summary'), action: 'summary', disabled: isRoot },
+            { divider: true },
+            // Insert content
+            { icon: 'fa-flag', label: _t('Marker'), action: 'marker', disabled: false },
+            { icon: 'fa-sticky-note', label: _t('Notes'), action: 'note', disabled: false },
+            { icon: 'fa-tag', label: _t('Label'), action: 'label', disabled: false },
+            { icon: 'fa-link', label: _t('Hyperlink'), action: 'hyperlink', disabled: false },
+            { icon: 'fa-image', label: _t('Image'), action: 'image', disabled: false },
+            { divider: true },
+            // Clipboard (XMind 2: Cut/Copy/Paste/Duplicate)
+            { icon: 'fa-scissors', label: _t('Cut (Ctrl+X)'), action: 'cutTopic', disabled: isRoot },
+            { icon: 'fa-copy', label: _t('Copy (Ctrl+C)'), action: 'copyTopic', disabled: false },
+            { icon: 'fa-paste', label: _t('Paste (Ctrl+V)'), action: 'pasteTopic', disabled: !this._clipboardTopic },
+            { icon: 'fa-files-o', label: _t('Duplicate (Ctrl+D)'), action: 'duplicateTopic', disabled: isRoot },
+            { divider: true },
+            // Style
             { icon: 'fa-clone', label: _t('Copy Style'), action: 'copyStyle', disabled: false },
             { icon: 'fa-paint-brush', label: _t('Paste Style'), action: 'pasteStyle', disabled: !this._copiedStyle },
+            { icon: 'fa-eraser', label: _t('Reset Style'), action: 'resetStyle', disabled: false },
             { divider: true },
-            { icon: 'fa-search-plus', label: _t('Drill Down'), action: 'drillDown', disabled: !node.children || node.children.length === 0 },
-            { icon: 'fa-search-minus', label: _t('Drill Up'), action: 'drillUp', disabled: !this._drillStack || this._drillStack.length === 0 },
+            // Visibility (XMind 2: Extend/Collapse/ExtendAll/CollapseAll)
+            { icon: node.expanded ? 'fa-compress' : 'fa-expand', label: node.expanded ? _t('Collapse') : _t('Expand'), action: 'toggle', disabled: !hasChildren },
+            { icon: 'fa-expand', label: _t('Expand All'), action: 'expandAllFromNode', disabled: !hasChildren },
+            { icon: 'fa-compress', label: _t('Collapse All'), action: 'collapseAllFromNode', disabled: !hasChildren },
             { divider: true },
-            { icon: 'fa-link', label: _t('Add Relationship'), action: 'relationship', disabled: false },
-            { icon: 'fa-square-o', label: _t('Add Boundary'), action: 'boundary', disabled: false },
-            { icon: 'fa-indent', label: _t('Add Summary'), action: 'summary', disabled: isRoot },
-            { icon: 'fa-comment', label: _t('Add Callout'), action: 'callout', disabled: false },
+            // Navigation
+            { icon: 'fa-arrow-circle-down', label: _t('Drill Down'), action: 'drillDown', disabled: !hasChildren },
+            { icon: 'fa-arrow-circle-up', label: _t('Drill Up'), action: 'drillUp', disabled: !this._drillStack || this._drillStack.length === 0 },
             { divider: true },
-            { icon: 'fa-flag', label: _t('Add Marker'), action: 'marker', disabled: false },
-            { icon: 'fa-link', label: _t('Insert Hyperlink'), action: 'hyperlink', disabled: false },
-            { icon: 'fa-sticky-note', label: _t('Edit Note'), action: 'note', disabled: false },
-            { icon: 'fa-image', label: _t('Insert Image'), action: 'image', disabled: false },
+            // Position (XMind 2: Move/Sort)
+            { icon: 'fa-arrow-up', label: _t('Move Up (Alt+↑)'), action: 'moveUp', disabled: isRoot },
+            { icon: 'fa-arrow-down', label: _t('Move Down (Alt+↓)'), action: 'moveDown', disabled: isRoot },
+            { icon: 'fa-sort-alpha-asc', label: _t('Sort A→Z'), action: 'sortAsc', disabled: !hasChildren || node.children.length < 2 },
+            { icon: 'fa-sort-alpha-desc', label: _t('Sort Z→A'), action: 'sortDesc', disabled: !hasChildren || node.children.length < 2 },
+            { icon: 'fa-sort-numeric-asc', label: _t('Sort by Priority'), action: 'sortPriority', disabled: !hasChildren || node.children.length < 2 },
             { divider: true },
-            { icon: 'fa-expand', label: node.expanded ? _t('Collapse') : _t('Expand'), action: 'toggle', disabled: !node.children || node.children.length === 0 },
-            { divider: true },
-            { icon: 'fa-sort-alpha-asc', label: _t('Sort A→Z'), action: 'sortAsc', disabled: !node.children || node.children.length < 2 },
-            { icon: 'fa-sort-alpha-desc', label: _t('Sort Z→A'), action: 'sortDesc', disabled: !node.children || node.children.length < 2 },
-            { icon: 'fa-sort-numeric-asc', label: _t('Sort by Priority'), action: 'sortPriority', disabled: !node.children || node.children.length < 2 },
-            { divider: true },
+            // Selection
             { icon: 'fa-users', label: _t('Select Siblings'), action: 'selectSiblings', disabled: isRoot },
-            { icon: 'fa-level-down', label: _t('Select Children'), action: 'selectChildren', disabled: !node.children || node.children.length === 0 },
+            { icon: 'fa-level-down', label: _t('Select Children'), action: 'selectChildren', disabled: !hasChildren },
             { divider: true },
-            { icon: 'fa-trash text-danger', label: _t('Delete'), action: 'delete', disabled: isRoot, cls: 'text-danger' },
+            // Properties
+            { icon: 'fa-cog', label: _t('Properties'), action: 'properties', disabled: false },
+            { divider: true },
+            // Delete
+            { icon: 'fa-trash text-danger', label: _t('Delete (Del)'), action: 'delete', disabled: isRoot, cls: 'text-danger' },
         ];
 
         for (const item of items) {
@@ -2848,6 +4226,70 @@ export class MindmapEditor extends Component {
         setTimeout(() => {
             document.addEventListener('click', () => menu.remove(), { once: true });
         }, 10);
+    }
+
+    // Fix #8: Marker right-click replacement menu
+    _showMarkerContextMenu(e, nodeId, markerCode) {
+        const node = this.jm.get_node(nodeId);
+        if (!node) return;
+
+        const menu = document.createElement('div');
+        menu.className = 'o_xmind_context_menu dropdown-menu show';
+        menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:10000;max-height:300px;overflow-y:auto;`;
+
+        // Find current marker's category to show same-category alternatives
+        const currentMarker = this.markers.find(m => m.code === markerCode);
+        const category = currentMarker ? currentMarker.category : '';
+        const sameCategory = this.markers.filter(m => m.category === category);
+
+        for (const marker of sameCategory) {
+            const item = document.createElement('a');
+            item.className = 'dropdown-item' + (marker.code === markerCode ? ' active' : '');
+            item.href = '#';
+            item.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i> ${marker.name}`;
+            item.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                // Replace marker
+                if (!node.data) node.data = {};
+                if (!node.data.markers) node.data.markers = [];
+                const idx = node.data.markers.indexOf(markerCode);
+                if (idx > -1) node.data.markers[idx] = marker.code;
+                // Re-render
+                const element = this.jm.view.get_node_element(nodeId);
+                if (element) this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
+                this.commandStack.isDirty = true;
+                this.commandStack._notifyListeners();
+                menu.remove();
+            });
+            menu.appendChild(item);
+        }
+
+        // Remove marker option
+        const divider = document.createElement('div');
+        divider.className = 'dropdown-divider';
+        menu.appendChild(divider);
+        const removeItem = document.createElement('a');
+        removeItem.className = 'dropdown-item text-danger';
+        removeItem.href = '#';
+        removeItem.innerHTML = `<i class="fa fa-trash"></i> ${_t('Remove Marker')}`;
+        removeItem.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            if (node.data && node.data.markers) {
+                node.data.markers = node.data.markers.filter(c => c !== markerCode);
+                const element = this.jm.view.get_node_element(nodeId);
+                if (element) this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
+                this.commandStack.isDirty = true;
+                this.commandStack._notifyListeners();
+            }
+            menu.remove();
+        });
+        menu.appendChild(removeItem);
+
+        document.body.appendChild(menu);
+        setTimeout(() => {
+            const closeHandler = () => { menu.remove(); document.removeEventListener('click', closeHandler); };
+            document.addEventListener('click', closeHandler);
+        }, 100);
     }
 
     _showCanvasContextMenu(e) {
@@ -2994,6 +4436,10 @@ export class MindmapEditor extends Component {
                 this.selectedNode = nodeId;
                 this.onMoveDown();
                 break;
+            case 'cutTopic':
+                this.selectedNode = nodeId;
+                this.onCutTopic();
+                break;
             case 'copyTopic':
                 this.selectedNode = nodeId;
                 this.onCopyTopic();
@@ -3001,6 +4447,10 @@ export class MindmapEditor extends Component {
             case 'pasteTopic':
                 this.selectedNode = nodeId;
                 this.onPasteTopic();
+                break;
+            case 'duplicateTopic':
+                this.selectedNode = nodeId;
+                this.onDuplicateTopic();
                 break;
             case 'drillDown':
                 this.selectedNode = nodeId;
@@ -3034,6 +4484,10 @@ export class MindmapEditor extends Component {
                 break;
             case 'pasteStyle':
                 this._pasteNodeStyle(nodeId);
+                break;
+            case 'resetStyle':
+                this.selectedNode = nodeId;
+                this.onResetStyle();
                 break;
             case 'relationship':
                 this.selectedNode = nodeId;
@@ -3071,17 +4525,41 @@ export class MindmapEditor extends Component {
                 this.selectedNode = nodeId;
                 this._toggleSelectedExpand();
                 break;
+            case 'expandAllFromNode':
+                this.selectedNode = nodeId;
+                this.onExpandAllFromNode();
+                break;
+            case 'collapseAllFromNode':
+                this.selectedNode = nodeId;
+                this.onCollapseAllFromNode();
+                break;
+            case 'properties':
+                this.selectedNode = nodeId;
+                this._openSidebar();
+                this._updateSidebar(nodeId);
+                break;
+            case 'label':
+                this.selectedNode = nodeId;
+                this._openSidebar();
+                setTimeout(() => {
+                    const el = this._el('.o_topic_labels');
+                    if (el) el.focus();
+                }, 200);
+                break;
             case 'delete':
                 this.selectedNode = nodeId;
                 this.onDelete();
                 break;
             case 'floatingAt':
                 if (originalEvent) {
-                    const canvas = this.canvasRef.el;
-                    const rect = canvas.getBoundingClientRect();
-                    const x = originalEvent.clientX - rect.left;
-                    const y = originalEvent.clientY - rect.top;
-                    this._createFloatingTopicAt(_t('Floating Topic'), '', x, y);
+                    const world = this.jm.view.world;
+                    if (world) {
+                        const wr = world.getBoundingClientRect();
+                        const zoom = this._zoomLevel || 1;
+                        const fx = (originalEvent.clientX - wr.left) / zoom;
+                        const fy = (originalEvent.clientY - wr.top) / zoom;
+                        this._createFloatingTopicAt(_t('Floating Topic'), '', fx, fy);
+                    }
                 } else {
                     this.onAddFloatingTopic();
                 }
@@ -3099,6 +4577,7 @@ export class MindmapEditor extends Component {
             case 'themes': this.onManageThemes(); break;
             case 'template': this.onLoadTemplate(); break;
             case 'revisions': this.onToggleRevisions(); break;
+        }
     }
 
     _copyNodeStyle(nodeId) {
@@ -3138,32 +4617,166 @@ export class MindmapEditor extends Component {
     }
 
     _createFloatingTopicAt(title, note, x, y) {
-        const canvas = this.canvasRef.el;
-        const floatingDiv = document.createElement('div');
-        floatingDiv.className = 'xmind-floating-topic';
-        floatingDiv.style.cssText = `position: absolute; left: ${x}px; top: ${y}px; background: #e0e0e0; padding: 10px 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: move; z-index: 20;`;
-        floatingDiv.textContent = title;
-        if (note) floatingDiv.title = note;
-
-        let isDragging = false, offsetX, offsetY;
-        floatingDiv.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            offsetX = e.clientX - floatingDiv.offsetLeft;
-            offsetY = e.clientY - floatingDiv.offsetTop;
-        });
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                floatingDiv.style.left = (e.clientX - offsetX) + 'px';
-                floatingDiv.style.top = (e.clientY - offsetY) + 'px';
-            }
-        });
-        document.addEventListener('mouseup', () => { isDragging = false; });
-
-        canvas.appendChild(floatingDiv);
-        this.floatingTopics.push({ element: floatingDiv, title, note });
+        const id = 'ft_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        const ft = {
+            id: id,
+            component_id: id,
+            title: title || _t('Floating Topic'),
+            note: note || '',
+            x: x,
+            y: y,
+            style: { background: '#FFFFFF', color: '#303030', fontSize: 13, fontWeight: 'bold' },
+        };
+        this.floatingTopics.push(ft);
+        this._renderFloatingTopic(ft);
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
         this._updateStatus(_t('Floating topic added'));
+    }
+
+    _renderFloatingTopic(ft) {
+        const world = this.jm.view.world;
+        if (!world) return;
+
+        // Remove existing element if re-rendering
+        const existing = world.querySelector(`[data-ft-id="${ft.id}"]`);
+        if (existing) existing.remove();
+
+        const el = document.createElement('div');
+        el.className = 'xmind-floating-topic';
+        el.setAttribute('data-ft-id', ft.id);
+        const s = ft.style || {};
+        el.style.cssText = `
+            position:absolute; left:${ft.x}px; top:${ft.y}px;
+            background:${s.background || '#FFFFFF'}; color:${s.color || '#303030'};
+            font-size:${s.fontSize || 13}px; font-weight:${s.fontWeight || 'bold'};
+            font-family:'Open Sans',sans-serif;
+            padding:6px 12px; border-radius:8px;
+            border:2px solid ${s.borderColor || '#558ED5'};
+            box-shadow:0 2px 8px rgba(0,0,0,0.12);
+            cursor:move; user-select:none; white-space:nowrap; z-index:8;
+        `;
+        el.textContent = ft.title;
+
+        // Double-click to edit
+        el.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            const newTitle = prompt(_t('Edit floating topic:'), ft.title);
+            if (newTitle !== null && newTitle !== ft.title) {
+                ft.title = newTitle;
+                el.textContent = newTitle;
+                this.commandStack.isDirty = true;
+                this.commandStack._notifyListeners();
+            }
+        });
+
+        // Right-click context menu
+        el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._showFloatingTopicContextMenu(e, ft);
+        });
+
+        // Drag to reposition
+        let isDragging = false, startX, startY, origX, origY;
+        el.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            origX = ft.x;
+            origY = ft.y;
+            e.stopPropagation();
+            e.preventDefault();
+        });
+        const onMove = (e) => {
+            if (!isDragging) return;
+            const zoom = this._zoomLevel || 1;
+            ft.x = origX + (e.clientX - startX) / zoom;
+            ft.y = origY + (e.clientY - startY) / zoom;
+            el.style.left = ft.x + 'px';
+            el.style.top = ft.y + 'px';
+        };
+        const onUp = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+
+        world.appendChild(el);
+    }
+
+    _showFloatingTopicContextMenu(e, ft) {
+        document.querySelectorAll('.o_xmind_context_menu').forEach(el => el.remove());
+        const menu = document.createElement('div');
+        menu.className = 'o_xmind_context_menu dropdown-menu show';
+        menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:10000;`;
+
+        const items = [
+            { icon: 'fa-pencil', label: _t('Edit Title'), action: () => {
+                const newTitle = prompt(_t('Edit:'), ft.title);
+                if (newTitle !== null) {
+                    ft.title = newTitle;
+                    const el = this.jm.view.world.querySelector(`[data-ft-id="${ft.id}"]`);
+                    if (el) el.textContent = newTitle;
+                    this.commandStack.isDirty = true;
+                    this.commandStack._notifyListeners();
+                }
+            }},
+            { icon: 'fa-arrows', label: _t('Convert to Topic'), action: () => {
+                // Convert floating topic to regular child of root
+                const nodeId = this._generateNodeId();
+                const cmd = new AddNodeCommand(this.jm, this.jm.get_root().id, nodeId, ft.title, {
+                    style: ft.style, note: ft.note
+                });
+                this.commandStack.execute(cmd);
+                this._removeFloatingTopic(ft.id);
+            }},
+            { divider: true },
+            { icon: 'fa-trash text-danger', label: _t('Delete'), cls: 'text-danger', action: () => {
+                this._removeFloatingTopic(ft.id);
+            }},
+        ];
+
+        for (const item of items) {
+            if (item.divider) {
+                menu.insertAdjacentHTML('beforeend', '<div class="dropdown-divider"></div>');
+                continue;
+            }
+            const a = document.createElement('a');
+            a.className = `dropdown-item ${item.cls || ''}`;
+            a.href = '#';
+            a.innerHTML = `<i class="fa ${item.icon} me-2"></i>${item.label}`;
+            a.addEventListener('click', (ev) => { ev.preventDefault(); menu.remove(); item.action(); });
+            menu.appendChild(a);
+        }
+
+        document.body.appendChild(menu);
+        setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+    }
+
+    _removeFloatingTopic(ftId) {
+        const idx = this.floatingTopics.findIndex(f => f.id === ftId);
+        if (idx > -1) this.floatingTopics.splice(idx, 1);
+        const el = this.jm.view.world?.querySelector(`[data-ft-id="${ftId}"]`);
+        if (el) el.remove();
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Floating topic removed'));
+    }
+
+    _renderAllFloatingTopics() {
+        // Clear existing floating topic DOM elements
+        const world = this.jm.view.world;
+        if (world) {
+            world.querySelectorAll('.xmind-floating-topic').forEach(el => el.remove());
+        }
+        for (const ft of this.floatingTopics) {
+            this._renderFloatingTopic(ft);
+        }
     }
 
     // ===== Template System =====

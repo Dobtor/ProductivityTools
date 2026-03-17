@@ -5,7 +5,7 @@ import zipfile
 import io
 import uuid
 import html
-from odoo import models, fields, api, _
+from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
 
@@ -93,17 +93,30 @@ class XMindWorkbook(models.Model):
 
     def _topic_to_jsmind(self, topic):
         """Convert topic to jsMind format with styling"""
+        data = {
+            'note': topic.note or '',
+            'markers': topic.marker_ids.mapped('marker_id.code') if topic.marker_ids else [],
+            'labels': topic.labels.split(',') if topic.labels else [],
+            'style': self._get_topic_style(topic),
+        }
+
+        # Hyperlink
+        if topic.hyperlink:
+            data['hyperlink'] = topic.hyperlink
+        if topic.hyperlink_title:
+            data['hyperlinkTitle'] = topic.hyperlink_title
+
+        # Include shape if set
+        shape_data = self._get_topic_shape(topic)
+        if shape_data:
+            data['shape'] = shape_data
+
         node = {
             'id': topic.component_id or str(uuid.uuid4()),
             'topic': topic.title,
             'expanded': topic.expanded,
             'children': [],
-            'data': {
-                'note': topic.note or '',
-                'markers': topic.marker_ids.mapped('marker_id.code') if topic.marker_ids else [],
-                'labels': topic.labels.split(',') if topic.labels else [],
-                'style': self._get_topic_style(topic),
-            }
+            'data': data,
         }
 
         for child in topic.child_ids.sorted('sequence'):
@@ -112,21 +125,47 @@ class XMindWorkbook(models.Model):
         return node
 
     def _get_topic_style(self, topic):
-        """Get topic styling in XMind 2 format"""
+        """Get topic styling — dual format for both jsMind core and editor restore"""
         style = {}
+        # Old-format keys (read by jsMind _createNodeElement)
         if topic.background_color:
             style['background'] = topic.background_color
+            style['bgColor'] = topic.background_color
         if topic.text_color:
             style['color'] = topic.text_color
-        if topic.font_size:
+        if topic.font_size and topic.font_size != 14:
             style['font-size'] = f'{topic.font_size}px'
-        if topic.font_weight:
+            style['fontSize'] = str(topic.font_size)
+        if topic.font_weight and topic.font_weight != 'normal':
             style['font-weight'] = topic.font_weight
+            style['bold'] = topic.font_weight == 'bold'
+        if topic.font_style and topic.font_style != 'normal':
+            style['italic'] = topic.font_style == 'italic'
+        if topic.font_family:
+            style['fontFamily'] = topic.font_family
         if topic.border_color:
             style['border-color'] = topic.border_color
         if topic.border_width:
             style['border-width'] = f'{topic.border_width}px'
         return style
+
+    def _get_topic_shape(self, topic):
+        """Get topic shape data for frontend _applyShapeToNode"""
+        shape_type = topic.shape or 'rounded'
+        # Always include shape data if non-default shape, or if custom border/fill set
+        has_custom = (shape_type != 'rounded'
+                      or topic.border_color
+                      or (topic.border_width and topic.border_width > 1))
+        if not has_custom:
+            return {}
+        shape_data = {'type': shape_type}
+        if topic.background_color:
+            shape_data['fillColor'] = topic.background_color
+        if topic.border_color:
+            shape_data['borderColor'] = topic.border_color
+        if topic.border_width:
+            shape_data['borderWidth'] = topic.border_width
+        return shape_data
 
     def save_mindmap_data(self, data):
         """Save mindmap data from jsMind editor with command history"""
@@ -170,20 +209,41 @@ class XMindWorkbook(models.Model):
     def _import_jsmind_node(self, node, sheet, parent=False):
         """Import node from jsMind data with styling"""
         style_data = node.get('data', {}).get('style', {})
+        shape_data = node.get('data', {}).get('shape', {})
 
+        # Shape type from shape_data (Format menu) or default
+        shape_type = shape_data.get('type', 'rounded')
+        # Validate against known selection values
+        valid_shapes = ('rect', 'rounded', 'ellipse', 'circle', 'underline', 'diamond',
+                        'parallelogram', 'hexagon', 'cloud', 'noBorder',
+                        'fishhead_left', 'fishhead_right', 'stroke')
+        if shape_type not in valid_shapes:
+            shape_type = 'rounded'
+
+        # Colors: shape_data overrides style_data (Format menu has separate shape controls)
+        bg_color = shape_data.get('fillColor') or style_data.get('background') or style_data.get('bgColor') or ''
+        border_color = shape_data.get('borderColor') or style_data.get('border-color') or ''
+        border_width_str = str(shape_data.get('borderWidth', '') or style_data.get('border-width', '1'))
+
+        node_data = node.get('data', {})
         topic_vals = {
             'sheet_id': sheet.id,
             'component_id': node.get('id', str(uuid.uuid4())),
             'title': node.get('topic', ''),
             'expanded': node.get('expanded', True),
-            'note': node.get('data', {}).get('note', ''),
-            'labels': ','.join(node.get('data', {}).get('labels', [])),
-            'background_color': style_data.get('background', ''),
+            'note': node_data.get('note', ''),
+            'labels': ','.join(node_data.get('labels', [])),
+            'hyperlink': node_data.get('hyperlink', ''),
+            'hyperlink_title': node_data.get('hyperlinkTitle', ''),
+            'shape': shape_type,
+            'background_color': bg_color,
             'text_color': style_data.get('color', ''),
-            'font_size': int(style_data.get('font-size', '14').replace('px', '')) if style_data.get('font-size') else 14,
-            'font_weight': style_data.get('font-weight', 'normal'),
-            'border_color': style_data.get('border-color', ''),
-            'border_width': int(style_data.get('border-width', '1').replace('px', '')) if style_data.get('border-width') else 1,
+            'font_size': int(str(style_data.get('fontSize', style_data.get('font-size', '14'))).replace('px', '')) if style_data.get('fontSize') or style_data.get('font-size') else 14,
+            'font_weight': 'bold' if style_data.get('bold') or style_data.get('font-weight') == 'bold' else 'normal',
+            'font_style': 'italic' if style_data.get('italic') else 'normal',
+            'font_family': style_data.get('fontFamily', ''),
+            'border_color': border_color,
+            'border_width': int(str(border_width_str).replace('px', '')) if border_width_str else 1,
         }
 
         if parent:
@@ -191,10 +251,10 @@ class XMindWorkbook(models.Model):
 
         topic = self.env['xmind.topic'].create(topic_vals)
 
-        # Import markers from node.data
+        # Import markers from node.data (with XMind 2 alias fallback)
         marker_codes = node.get('data', {}).get('markers', [])
         for code in marker_codes:
-            marker = self.env['xmind.marker'].search([('code', '=', code)], limit=1)
+            marker = self._resolve_marker(code)
             if marker:
                 self.env['xmind.topic.marker'].create({
                     'topic_id': topic.id,
@@ -347,7 +407,8 @@ class XMindWorkbook(models.Model):
                 elif 'content.xml' in file_list:
                     # Old XMind XML format (XMind 7 and earlier)
                     content_xml = zf.read('content.xml')
-                    self._import_xmind_xml(content_xml)
+                    styles_xml = zf.read('styles.xml') if 'styles.xml' in file_list else None
+                    self._import_xmind_xml(content_xml, styles_xml=styles_xml)
 
                 else:
                     raise UserError(_('Invalid XMind file: neither content.json nor content.xml found'))
@@ -357,7 +418,11 @@ class XMindWorkbook(models.Model):
             raise UserError(_('Invalid file: not a valid ZIP/XMind archive'))
         except json.JSONDecodeError as e:
             raise UserError(_('Error parsing XMind JSON content: %s') % str(e))
+        except UserError:
+            raise
         except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception('XMind import error')
             raise UserError(_('Error importing XMind file: %s') % str(e))
 
         return True
@@ -429,12 +494,12 @@ class XMindWorkbook(models.Model):
 
         topic = self.env['xmind.topic'].create(topic_vals)
 
-        # Import icon -> marker mapping
+        # Import icon -> marker mapping (with alias fallback)
         for icon_elem in node_elem.findall('icon'):
             builtin = icon_elem.get('BUILTIN', '')
             marker_code = self._freemind_icon_to_marker(builtin)
             if marker_code:
-                marker = self.env['xmind.marker'].search([('code', '=', marker_code)], limit=1)
+                marker = self._resolve_marker(marker_code)
                 if marker:
                     self.env['xmind.topic.marker'].create({
                         'topic_id': topic.id,
@@ -563,15 +628,271 @@ class XMindWorkbook(models.Model):
 
         return topic
 
-    def _import_xmind_xml(self, content_xml):
+    # ===== XMind XML style-id → property mapping helpers =====
+
+    _XMIND_SHAPE_MAP = {
+        'org.xmind.topicShape.roundedRect': 'rounded',
+        'org.xmind.topicShape.rect': 'rect',
+        'org.xmind.topicShape.ellipse': 'ellipse',
+        'org.xmind.topicShape.circle': 'circle',
+        'org.xmind.topicShape.underline': 'underline',
+        'org.xmind.topicShape.diamond': 'diamond',
+        'org.xmind.topicShape.parallelogram': 'parallelogram',
+        'org.xmind.topicShape.cloud': 'cloud',
+        'org.xmind.topicShape.noBorder': 'noBorder',
+        'org.xmind.topicShape.stroke': 'stroke',
+    }
+
+    _XMIND_LINE_CLASS_MAP = {
+        'org.xmind.branchConnection.curve': 'curved',
+        'org.xmind.branchConnection.straight': 'straight',
+        'org.xmind.branchConnection.roundedElbow': 'rounded',
+        'org.xmind.branchConnection.elbow': 'angular',
+        'org.xmind.branchConnection.arrowed_curve': 'curved',
+        'org.xmind.branchConnection.arrowed curve': 'curved',
+        'org.xmind.branchConnection.arrowedCurve': 'curved',
+        'org.xmind.branchConnection.none': 'straight',
+    }
+
+    _XMIND_ARROW_MAP = {
+        'org.xmind.arrowShape.triangle': 'arrow',
+        'org.xmind.arrowShape.normal': 'arrow',
+        'org.xmind.arrowShape.spearhead': 'arrow-open',
+        'org.xmind.arrowShape.dot': 'circle-filled',
+        'org.xmind.arrowShape.square': 'square',
+        'org.xmind.arrowShape.diamond': 'diamond-filled',
+        'org.xmind.arrowShape.herringbone': 'arrow',
+        'org.xmind.arrowShape.none': 'none',
+    }
+
+    _XMIND_LINE_PATTERN_MAP = {
+        'solid': 'solid',
+        'dash': 'dashed',
+        'dot': 'dotted',
+        'dash-dot': 'dash-dot',
+        'dash-dot-dot': 'dash-dot',
+    }
+
+    _XMIND_STRUCTURE_MAP = {
+        'org.xmind.ui.logic.right': 'tree_right',
+        'org.xmind.ui.logic.left': 'tree_left',
+        'org.xmind.ui.tree.right': 'tree_right',
+        'org.xmind.ui.tree.left': 'tree_left',
+        'org.xmind.ui.org-chart.down': 'org_chart_down',
+        'org.xmind.ui.org-chart.up': 'org_chart_down',
+        'org.xmind.ui.fishbone.leftHeaded': 'tree_left',
+        'org.xmind.ui.fishbone.rightHeaded': 'tree_right',
+        'org.xmind.ui.map.unbalanced': 'map',
+        'org.xmind.ui.map.clockwise': 'map',
+        'org.xmind.ui.map.anticlockwise': 'map',
+        'org.xmind.ui.spreadsheet': 'org_chart_down',
+    }
+
+    # XMind 2 marker code → dobtor code alias (for codes that differ)
+    _XMIND_MARKER_ALIAS = {
+        # Smiley naming differences
+        'smiley-smile': 'smiley-happy',
+        # Symbol naming differences
+        'symbol-attention': 'symbol-warning',
+        'symbol-exclam': 'symbol-warning',
+        # Task progress naming (oct/quar → eighth/quarter)
+        'task-oct': 'task-1eighth',
+        'task-3oct': 'task-3eighth',
+        'task-5oct': 'task-5eighth',
+        'task-7oct': 'task-7eighth',
+        'task-3quar': 'task-3quarter',
+        # Other naming differences
+        'other-exclam': 'other-exclamation',
+        # Colored symbols (c_simbol-* → symbol-*)
+        'c_simbol-plus': 'symbol-plus',
+        'c_simbol-minus': 'symbol-minus',
+        'c_simbol-question': 'symbol-question',
+        'c_simbol-exclam': 'symbol-warning',
+        'c_simbol-info': 'symbol-info',
+        'c_simbol-wrong': 'symbol-wrong',
+        'c_simbol-right': 'symbol-right',
+        'c_simbol-pause': 'symbol-pause',
+        # Colored symbols (c_symbol_* → symbol-*)
+        'c_symbol_bar_chart': 'symbol-bar-chart',
+        'c_symbol_contact': 'symbol-contact',
+        'c_symbol_dislike': 'symbol-dislike',
+        'c_symbol_drink': 'symbol-drink',
+        'c_symbol_exercise': 'symbol-exercise',
+        'c_symbol_flight': 'symbol-flight',
+        'c_symbol_heart': 'symbol-heart',
+        'c_symbol_like': 'symbol-like',
+        'c_symbol_line_graph': 'symbol-line-graph',
+        'c_symbol_medals': 'symbol-medals',
+        'c_symbol_money': 'symbol-money',
+        'c_symbol_music': 'symbol-music',
+        'c_symbol_pen': 'symbol-pen',
+        'c_symbol_pie_chart': 'symbol-pie-chart',
+        'c_symbol_shopping_cart': 'symbol-shopping-cart',
+        'c_symbol_telephone': 'symbol-phone',
+        'c_symbol_thermometer': 'symbol-thermometer',
+        'c_symbol_trophy': 'symbol-trophy',
+    }
+
+    def _parse_xmind_styles_xml(self, styles_xml):
+        """Parse styles.xml and return a dict of style_id -> properties"""
+        import xml.etree.ElementTree as ET
+        style_map = {}
+        if not styles_xml:
+            return style_map
+
+        try:
+            root = ET.fromstring(styles_xml)
+        except ET.ParseError:
+            return style_map
+
+        ns = {
+            'xs': 'urn:xmind:xmap:xmlns:style:2.0',
+            'fo': 'http://www.w3.org/1999/XSL/Format',
+            'svg': 'http://www.w3.org/2000/svg',
+        }
+
+        # Search all style elements across automatic-styles, master-styles, styles
+        for style_elem in root.iter('{urn:xmind:xmap:xmlns:style:2.0}style'):
+            style_id = style_elem.get('id', '')
+            if not style_id:
+                continue
+
+            props = {}
+            style_type = style_elem.get('type', '')
+            props['_type'] = style_type
+
+            # Parse topic-properties
+            for tp in style_elem.iter('{urn:xmind:xmap:xmlns:style:2.0}topic-properties'):
+                props.update(self._parse_xmind_style_attrs(tp))
+            # Parse relationship-properties
+            for rp in style_elem.iter('{urn:xmind:xmap:xmlns:style:2.0}relationship-properties'):
+                props.update(self._parse_xmind_style_attrs(rp))
+            # Parse boundary-properties
+            for bp in style_elem.iter('{urn:xmind:xmap:xmlns:style:2.0}boundary-properties'):
+                props.update(self._parse_xmind_style_attrs(bp))
+            # Parse summary-properties
+            for sp in style_elem.iter('{urn:xmind:xmap:xmlns:style:2.0}summary-properties'):
+                props.update(self._parse_xmind_style_attrs(sp))
+            # Parse map-properties
+            for mp in style_elem.iter('{urn:xmind:xmap:xmlns:style:2.0}map-properties'):
+                props.update(self._parse_xmind_style_attrs(mp))
+
+            style_map[style_id] = props
+
+        # Parse theme default-styles (theme-properties/default-style)
+        for theme_elem in root.iter('{urn:xmind:xmap:xmlns:style:2.0}style'):
+            if theme_elem.get('type') == 'theme':
+                theme_id = theme_elem.get('id', '')
+                theme_defaults = {}
+                for ds in theme_elem.iter('{urn:xmind:xmap:xmlns:style:2.0}default-style'):
+                    family = ds.get('style-family', '')
+                    sid = ds.get('style-id', '')
+                    if family and sid:
+                        theme_defaults[family] = sid
+                if theme_id:
+                    style_map['_theme_' + theme_id] = theme_defaults
+
+        return style_map
+
+    def _parse_xmind_style_attrs(self, elem):
+        """Extract all XMind style attributes from an element"""
+        props = {}
+        for attr, val in elem.attrib.items():
+            # Normalize namespace prefixed attributes
+            # e.g., {http://www.w3.org/1999/XSL/Format}color -> fo:color
+            if '{http://www.w3.org/1999/XSL/Format}' in attr:
+                key = 'fo:' + attr.split('}')[1]
+            elif '{http://www.w3.org/2000/svg}' in attr:
+                key = 'svg:' + attr.split('}')[1]
+            else:
+                key = attr
+            props[key] = val
+        return props
+
+    def _resolve_marker(self, code):
+        """Find marker by code, with XMind 2 alias fallback"""
+        if not code:
+            return self.env['xmind.marker']
+        marker = self.env['xmind.marker'].search([('code', '=', code)], limit=1)
+        if not marker:
+            alias = self._XMIND_MARKER_ALIAS.get(code)
+            if alias:
+                marker = self.env['xmind.marker'].search([('code', '=', alias)], limit=1)
+        return marker
+
+    def _pt_to_px(self, val_str):
+        """Convert XMind pt value to px integer (e.g., '3pt' -> 4)"""
+        if not val_str:
+            return 0
+        val_str = val_str.strip().lower().replace('pt', '').replace('px', '')
+        try:
+            return max(1, round(float(val_str) * 1.33))
+        except (ValueError, TypeError):
+            return 0
+
+    def _apply_xmind_style_to_topic(self, topic, style_props, theme_defaults=None, style_map=None):
+        """Apply parsed style properties to a topic record"""
+        if not style_props:
+            return
+
+        vals = {}
+        # Background color
+        fill = style_props.get('svg:fill')
+        if fill:
+            vals['background_color'] = fill
+        # Text color
+        color = style_props.get('fo:color')
+        if color:
+            vals['text_color'] = color
+        # Font family
+        font_family = style_props.get('fo:font-family')
+        if font_family:
+            vals['font_family'] = font_family
+        # Font size
+        font_size = style_props.get('fo:font-size')
+        if font_size:
+            px = self._pt_to_px(font_size)
+            if px:
+                vals['font_size'] = px
+        # Font weight
+        font_weight = style_props.get('fo:font-weight')
+        if font_weight == 'bold':
+            vals['font_weight'] = 'bold'
+        # Font style
+        font_style = style_props.get('fo:font-style')
+        if font_style == 'italic':
+            vals['font_style'] = 'italic'
+        # Border
+        border_color = style_props.get('border-line-color')
+        if border_color:
+            vals['border_color'] = border_color
+        border_width = style_props.get('border-line-width')
+        if border_width:
+            px = self._pt_to_px(border_width)
+            if px:
+                vals['border_width'] = px
+        # Shape
+        shape_class = style_props.get('shape-class', '')
+        mapped_shape = self._XMIND_SHAPE_MAP.get(shape_class)
+        if mapped_shape:
+            vals['shape'] = mapped_shape
+
+        if vals:
+            topic.write(vals)
+
+    def _import_xmind_xml(self, content_xml, styles_xml=None):
         """Import old XMind XML format (XMind 7 and earlier)"""
         import xml.etree.ElementTree as ET
+
+        # Parse styles.xml
+        style_map = self._parse_xmind_styles_xml(styles_xml) if styles_xml else {}
 
         # Clear existing sheets
         self.sheet_ids.unlink()
 
         root = ET.fromstring(content_xml)
-        ns = {'xmap': 'urn:xmind:xmap:xmlns:content:2.0'}
+        ns = {'xmap': 'urn:xmind:xmap:xmlns:content:2.0',
+              'svg': 'http://www.w3.org/2000/svg'}
 
         # Find all sheets
         for sheet_elem in root.findall('.//xmap:sheet', ns):
@@ -583,6 +904,10 @@ class XMindWorkbook(models.Model):
             if title_elem is not None and title_elem.text:
                 sheet_title = title_elem.text
 
+            # Resolve theme defaults for this sheet
+            theme_id = sheet_elem.get('theme', '')
+            theme_defaults = style_map.get('_theme_' + theme_id, {}) if theme_id else {}
+
             sheet = self.env['xmind.sheet'].create({
                 'workbook_id': self.id,
                 'name': sheet_title,
@@ -592,19 +917,23 @@ class XMindWorkbook(models.Model):
             # Find root topic
             root_topic_elem = sheet_elem.find('xmap:topic', ns)
             if root_topic_elem is not None:
-                self._import_xmind_xml_topic(root_topic_elem, sheet, ns)
+                self._import_xmind_xml_topic(
+                    root_topic_elem, sheet, ns,
+                    style_map=style_map, theme_defaults=theme_defaults)
 
             # Import relationships
             rels_elem = sheet_elem.find('xmap:relationships', ns)
             if rels_elem is not None:
                 for rel_elem in rels_elem.findall('xmap:relationship', ns):
-                    self._import_xmind_xml_relationship(rel_elem, sheet, ns)
+                    self._import_xmind_xml_relationship(
+                        rel_elem, sheet, ns, style_map=style_map)
 
-    def _import_xmind_xml_topic(self, topic_elem, sheet, ns, parent=False):
-        """Import topic from XML format"""
+    def _import_xmind_xml_topic(self, topic_elem, sheet, ns, parent=False,
+                                 style_map=None, theme_defaults=None):
+        """Import topic from XML format with full style + summary support"""
         topic_id = topic_elem.get('id', str(uuid.uuid4()))
 
-        # Get title
+        # Get title (may be multiline)
         title = ''
         title_elem = topic_elem.find('xmap:title', ns)
         if title_elem is not None and title_elem.text:
@@ -616,7 +945,7 @@ class XMindWorkbook(models.Model):
         topic_vals = {
             'sheet_id': sheet.id,
             'component_id': topic_id,
-            'title': title,
+            'title': title or _('Topic'),
             'structure_class': structure_class,
         }
 
@@ -638,32 +967,141 @@ class XMindWorkbook(models.Model):
 
         topic = self.env['xmind.topic'].create(topic_vals)
 
-        # Import markers
+        # Apply styles from style-id reference
+        style_id = topic_elem.get('style-id', '')
+        style_props = {}
+        if style_id and style_map:
+            style_props = style_map.get(style_id, {})
+        # Fall back to theme defaults based on depth
+        if not style_props and theme_defaults and style_map:
+            if not parent:
+                default_sid = theme_defaults.get('centralTopic', '')
+            elif not parent.parent_id:
+                default_sid = theme_defaults.get('mainTopic', '')
+            else:
+                default_sid = theme_defaults.get('subTopic', '')
+            if default_sid:
+                style_props = style_map.get(default_sid, {})
+
+        if style_props:
+            self._apply_xmind_style_to_topic(topic, style_props)
+
+        # Import markers (with XMind 2 alias fallback)
         for marker_elem in topic_elem.findall('.//xmap:marker-refs/xmap:marker-ref', ns):
             marker_id = marker_elem.get('marker-id', '')
             if marker_id:
-                marker = self.env['xmind.marker'].search([
-                    ('code', '=', marker_id)
-                ], limit=1)
+                marker = self._resolve_marker(marker_id)
                 if marker:
                     self.env['xmind.topic.marker'].create({
                         'topic_id': topic.id,
                         'marker_id': marker.id,
                     })
 
-        # Import children
+        # Import children — distinguish attached vs summary topics
         children_elem = topic_elem.find('xmap:children', ns)
         if children_elem is not None:
-            topics_elem = children_elem.find('xmap:topics', ns)
-            if topics_elem is not None:
-                for idx, child_elem in enumerate(topics_elem.findall('xmap:topic', ns)):
-                    child = self._import_xmind_xml_topic(child_elem, sheet, ns, topic)
-                    child.sequence = idx
+            idx = 0
+            for topics_elem in children_elem.findall('xmap:topics', ns):
+                topics_type = topics_elem.get('type', 'attached')
+                if topics_type == 'summary':
+                    # Summary topics — import as children but mark for summary linking
+                    for child_elem in topics_elem.findall('xmap:topic', ns):
+                        child = self._import_xmind_xml_topic(
+                            child_elem, sheet, ns, topic,
+                            style_map=style_map, theme_defaults=theme_defaults)
+                        child.sequence = idx
+                        idx += 1
+                elif topics_type == 'detached':
+                    # Detached topics → import as floating topics
+                    for child_elem in topics_elem.findall('xmap:topic', ns):
+                        ft_title = ''
+                        ft_title_elem = child_elem.find('xmap:title', ns)
+                        if ft_title_elem is not None and ft_title_elem.text:
+                            ft_title = ft_title_elem.text
+                        # Parse position
+                        pos_elem = child_elem.find('xmap:position', ns)
+                        pos_x, pos_y = 100, 100
+                        if pos_elem is not None:
+                            try:
+                                pos_x = int(pos_elem.get('{http://www.w3.org/2000/svg}x',
+                                            pos_elem.get('svg:x', '100')))
+                                pos_y = int(pos_elem.get('{http://www.w3.org/2000/svg}y',
+                                            pos_elem.get('svg:y', '100')))
+                            except (ValueError, TypeError):
+                                pass
+                        self.env['xmind.floating.topic'].create({
+                            'sheet_id': sheet.id,
+                            'component_id': child_elem.get('id', str(uuid.uuid4())),
+                            'title': ft_title or _('Floating Topic'),
+                            'position_x': pos_x,
+                            'position_y': pos_y,
+                        })
+                else:
+                    # Regular attached children
+                    for child_elem in topics_elem.findall('xmap:topic', ns):
+                        child = self._import_xmind_xml_topic(
+                            child_elem, sheet, ns, topic,
+                            style_map=style_map, theme_defaults=theme_defaults)
+                        child.sequence = idx
+                        idx += 1
+
+        # Import summaries (the bracket + range)
+        summaries_elem = topic_elem.find('xmap:summaries', ns)
+        if summaries_elem is not None:
+            attached_children = topic.child_ids.sorted('sequence')
+            for summary_elem in summaries_elem.findall('xmap:summary', ns):
+                range_str = summary_elem.get('range', '')
+                summary_topic_id = summary_elem.get('topic-id', '')
+
+                # Parse range "(start,end)" — indices into attached children
+                start_idx, end_idx = 0, 0
+                if range_str:
+                    range_str = range_str.strip('()')
+                    parts = range_str.split(',')
+                    if len(parts) == 2:
+                        try:
+                            start_idx = int(parts[0].strip())
+                            end_idx = int(parts[1].strip())
+                        except ValueError:
+                            continue
+
+                # Find the summary topic by component_id
+                summary_topic = self.env['xmind.topic'].search([
+                    ('sheet_id', '=', sheet.id),
+                    ('component_id', '=', summary_topic_id)
+                ], limit=1) if summary_topic_id else False
+
+                # Collect topics in the range
+                range_topics = []
+                for i in range(start_idx, min(end_idx + 1, len(attached_children))):
+                    range_topics.append(attached_children[i])
+
+                if summary_topic and range_topics:
+                    self.env['xmind.summary'].create({
+                        'sheet_id': sheet.id,
+                        'component_id': summary_elem.get('id', str(uuid.uuid4())),
+                        'summary_topic_id': summary_topic.id,
+                        'topic_ids': [Command.set([t.id for t in range_topics])],
+                    })
+
+        # Parse extensions (right-number for unbalanced layout)
+        extensions_elem = topic_elem.find('xmap:extensions', ns)
+        if extensions_elem is not None:
+            for ext_elem in extensions_elem.findall('xmap:extension', ns):
+                provider = ext_elem.get('provider', '')
+                if provider == 'org.xmind.ui.map.unbalanced':
+                    content_elem = ext_elem.find('xmap:content', ns)
+                    if content_elem is not None:
+                        rn_elem = content_elem.find('xmap:right-number', ns)
+                        if rn_elem is not None and rn_elem.text:
+                            # Store right-number for frontend layout
+                            # -1 means all right (logic.right)
+                            pass  # Handled via structure_class mapping
 
         return topic
 
-    def _import_xmind_xml_relationship(self, rel_elem, sheet, ns):
-        """Import relationship from XML format"""
+    def _import_xmind_xml_relationship(self, rel_elem, sheet, ns, style_map=None):
+        """Import relationship from XML format with control points and styling"""
         rel_id = rel_elem.get('id', str(uuid.uuid4()))
         end1_id = rel_elem.get('end1', '')
         end2_id = rel_elem.get('end2', '')
@@ -673,6 +1111,40 @@ class XMindWorkbook(models.Model):
         title_elem = rel_elem.find('xmap:title', ns)
         if title_elem is not None and title_elem.text:
             title = title_elem.text
+
+        # Parse control points
+        cp_x, cp_y = 0.0, 0.0
+        cp_elem = rel_elem.find('xmap:control-points', ns)
+        if cp_elem is not None:
+            # Use the first control point with a <position> child
+            for point_elem in cp_elem.findall('xmap:control-point', ns):
+                pos_elem = point_elem.find('xmap:position', ns)
+                if pos_elem is not None:
+                    # Try svg:x/svg:y with namespace
+                    x_val = pos_elem.get('{http://www.w3.org/2000/svg}x',
+                                         pos_elem.get('svg:x', '0'))
+                    y_val = pos_elem.get('{http://www.w3.org/2000/svg}y',
+                                         pos_elem.get('svg:y', '0'))
+                    try:
+                        cp_x = float(x_val)
+                        cp_y = float(y_val)
+                    except (ValueError, TypeError):
+                        pass
+                    break  # Use first control point with position
+
+        # Parse style from style-id
+        style_id = rel_elem.get('style-id', '')
+        rel_style = style_map.get(style_id, {}) if style_id and style_map else {}
+
+        # Map styling properties
+        line_color = rel_style.get('line-color', '#999999')
+        line_width = self._pt_to_px(rel_style.get('line-width', '')) or 2
+        line_pattern = rel_style.get('line-pattern', 'dash')
+        line_style = self._XMIND_LINE_PATTERN_MAP.get(line_pattern, 'dashed')
+        arrow_end_class = rel_style.get('arrow-end-class', '')
+        arrow_end = self._XMIND_ARROW_MAP.get(arrow_end_class, 'arrow')
+        arrow_begin_class = rel_style.get('arrow-begin-class', '')
+        arrow_begin = self._XMIND_ARROW_MAP.get(arrow_begin_class, 'none')
 
         if end1_id and end2_id:
             source = self.env['xmind.topic'].search([
@@ -691,6 +1163,13 @@ class XMindWorkbook(models.Model):
                     'target_topic_id': target.id,
                     'title': title,
                     'component_id': rel_id,
+                    'line_color': line_color,
+                    'line_width': line_width,
+                    'line_style': line_style,
+                    'arrow_begin': arrow_begin,
+                    'arrow_end': arrow_end,
+                    'control_point_x': cp_x,
+                    'control_point_y': cp_y,
                 })
 
     def _import_xmind_sheet(self, sheet_data):

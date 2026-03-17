@@ -28,6 +28,7 @@ export class RelationshipManager {
             left: 0;
             width: 100%;
             height: 100%;
+            overflow: visible;
             pointer-events: none;
             z-index: 15;
         `;
@@ -147,9 +148,12 @@ export class RelationshipManager {
     _onMouseMove(e) {
         if (!this.isDraggingControlPoint || !this.activeControlPoint) return;
 
+        // Convert mouse screen coords to world-space coords
+        // container is the world div, which has transform: translate(panX+cx, panY+cy) scale(zoom)
         const containerRect = this.container.getBoundingClientRect();
-        const x = e.clientX - containerRect.left;
-        const y = e.clientY - containerRect.top;
+        const zoom = this.container.style.transform ? parseFloat(this.container.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+        const x = (e.clientX - containerRect.left) / zoom;
+        const y = (e.clientY - containerRect.top) / zoom;
 
         this.activeControlPoint.x = x;
         this.activeControlPoint.y = y;
@@ -179,14 +183,12 @@ export class RelationshipManager {
     addRelationship(sourceElement, targetElement, options = {}) {
         if (!sourceElement || !targetElement) return null;
 
-        const containerRect = this.container.getBoundingClientRect();
-        const sourceRect = sourceElement.getBoundingClientRect();
-        const targetRect = targetElement.getBoundingClientRect();
-
-        const sx = sourceRect.left - containerRect.left + sourceRect.width / 2;
-        const sy = sourceRect.top - containerRect.top + sourceRect.height / 2;
-        const tx = targetRect.left - containerRect.left + targetRect.width / 2;
-        const ty = targetRect.top - containerRect.top + targetRect.height / 2;
+        // Use offsetLeft/offsetTop (local coords within world) instead of getBoundingClientRect
+        // This ensures coordinates are in the same space as the SVG (inside world transform)
+        const sx = sourceElement.offsetLeft + sourceElement.offsetWidth / 2;
+        const sy = sourceElement.offsetTop + sourceElement.offsetHeight / 2;
+        const tx = targetElement.offsetLeft + targetElement.offsetWidth / 2;
+        const ty = targetElement.offsetTop + targetElement.offsetHeight / 2;
 
         const relId = 'rel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
@@ -194,6 +196,13 @@ export class RelationshipManager {
         const midX = (sx + tx) / 2;
         const midY = (sy + ty) / 2;
         const distance = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
+
+        // Use saved control points if provided and non-zero, otherwise default
+        const savedCp = options.controlPoints;
+        const hasValidCp = savedCp && savedCp.length > 0 && (savedCp[0].x || savedCp[0].y);
+        const controlPoints = hasValidCp
+            ? savedCp.map(cp => ({ x: cp.x, y: cp.y }))
+            : [{ x: midX, y: midY - distance * 0.3 }];
 
         const relData = {
             id: relId,
@@ -203,22 +212,20 @@ export class RelationshipManager {
             sy: sy,
             tx: tx,
             ty: ty,
-            controlPoints: [
-                { x: midX, y: midY - distance * 0.3 } // Default curve offset
-            ],
+            controlPoints: controlPoints,
             options: Object.assign({
                 shapeType: 'curved',
                 lineStyle: 'dashed',
-                lineWidth: 2,
-                lineColor: '#999999',
+                lineWidth: 3,
+                lineColor: '#77933C',
                 startMarker: 'none',
                 endMarker: 'arrow',
                 markerSize: 'medium',
                 label: '',
-                labelFontSize: 12,
-                labelColor: '#666666',
+                labelFontSize: 10,
+                labelColor: '#595959',
                 labelBold: false,
-                labelItalic: false,
+                labelItalic: true,
                 labelBackground: false
             }, options),
             group: null,
@@ -289,7 +296,19 @@ export class RelationshipManager {
 
         // Apply markers
         if (opts.startMarker !== 'none') {
-            path.setAttribute('marker-start', `url(#${opts.startMarker}-${opts.markerSize})`);
+            // Start markers use reversed versions (arrow points backward toward source)
+            const startId = `${opts.startMarker}-${opts.markerSize}-rev`;
+            // Create reversed marker on-the-fly if not exists
+            if (!this.svg.querySelector(`#${startId}`)) {
+                const origMarker = this.svg.querySelector(`#${opts.startMarker}-${opts.markerSize}`);
+                if (origMarker) {
+                    const rev = origMarker.cloneNode(true);
+                    rev.setAttribute('id', startId);
+                    rev.setAttribute('orient', 'auto-start-reverse');
+                    this.svg.querySelector('defs').appendChild(rev);
+                }
+            }
+            path.setAttribute('marker-start', `url(#${startId})`);
         } else {
             path.removeAttribute('marker-start');
         }
@@ -405,6 +424,7 @@ export class RelationshipManager {
         text.setAttribute('dominant-baseline', 'middle');
         text.setAttribute('fill', opts.labelColor);
         text.setAttribute('font-size', opts.labelFontSize);
+        text.setAttribute('font-family', 'Georgia, serif');
 
         if (opts.labelBold) {
             text.setAttribute('font-weight', 'bold');
@@ -451,74 +471,174 @@ export class RelationshipManager {
         controlsGroup.setAttribute('class', 'control-points');
         controlsGroup.style.pointerEvents = 'auto';
 
-        // Source point (not draggable)
-        this._createControlPoint(controlsGroup, relData.sx, relData.sy, '#007bff', false);
+        // Control line (behind points)
+        const cp = relData.controlPoints[0] || { x: (relData.sx + relData.tx) / 2, y: (relData.sy + relData.ty) / 2 };
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        line.setAttribute('d', `M${relData.sx},${relData.sy} L${cp.x},${cp.y} L${relData.tx},${relData.ty}`);
+        line.setAttribute('stroke', '#aaa');
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('stroke-dasharray', '4,3');
+        line.setAttribute('fill', 'none');
+        line.style.pointerEvents = 'none';
+        controlsGroup.appendChild(line);
 
-        // Curve control points (draggable)
-        relData.controlPoints.forEach((cp, index) => {
-            const circle = this._createControlPoint(controlsGroup, cp.x, cp.y, '#28a745', true);
-            circle.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.isDraggingControlPoint = true;
-                this.activeControlPoint = {
-                    relationship: relData,
-                    pointIndex: index,
-                    x: cp.x,
-                    y: cp.y,
-                    element: circle
-                };
-                relData.controlPoints[index] = this.activeControlPoint;
-            });
-            relData.controlPointElements.push(circle);
+        // Source (🔵 circle) — offset left from connection point
+        const srcHandle = this._createEndpointHandle(controlsGroup, relData.sx - 16, relData.sy, '#007bff', '●', 'circle');
+        this._makeEndpointDraggable(srcHandle.hit, relData, 'source');
+
+        // Curve control (🟢 circle) — at control point
+        const curveHandle = this._createEndpointHandle(controlsGroup, cp.x, cp.y - 16, '#28a745', '●', 'circle');
+        const self = this;
+        curveHandle.hit.addEventListener('mousedown', function onDown(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const onMove = (ev) => {
+                const containerRect = self.container.getBoundingClientRect();
+                const zoom = self.container.style.transform
+                    ? parseFloat(self.container.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+                const x = (ev.clientX - containerRect.left) / zoom;
+                const y = (ev.clientY - containerRect.top) / zoom;
+                cp.x = x; cp.y = y;
+                curveHandle.visual.setAttribute('x', x - 8);
+                curveHandle.visual.setAttribute('y', y - 24);
+                curveHandle.hit.setAttribute('x', x - 12);
+                curveHandle.hit.setAttribute('y', y - 28);
+                line.setAttribute('d', `M${relData.sx},${relData.sy} L${x},${y} L${relData.tx},${relData.ty}`);
+                self._updateRelationshipPath(relData);
+            };
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
         });
+        relData.controlPointElements = [curveHandle.hit];
 
-        // Target point (not draggable)
-        this._createControlPoint(controlsGroup, relData.tx, relData.ty, '#dc3545', false);
-
-        // Draw control lines
-        const controlLine1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        controlLine1.setAttribute('x1', relData.sx);
-        controlLine1.setAttribute('y1', relData.sy);
-        controlLine1.setAttribute('x2', relData.controlPoints[0].x);
-        controlLine1.setAttribute('y2', relData.controlPoints[0].y);
-        controlLine1.setAttribute('stroke', '#28a745');
-        controlLine1.setAttribute('stroke-width', '1');
-        controlLine1.setAttribute('stroke-dasharray', '4,2');
-        controlLine1.setAttribute('class', 'control-line');
-        controlsGroup.insertBefore(controlLine1, controlsGroup.firstChild);
-
-        const controlLine2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        controlLine2.setAttribute('x1', relData.controlPoints[0].x);
-        controlLine2.setAttribute('y1', relData.controlPoints[0].y);
-        controlLine2.setAttribute('x2', relData.tx);
-        controlLine2.setAttribute('y2', relData.ty);
-        controlLine2.setAttribute('stroke', '#28a745');
-        controlLine2.setAttribute('stroke-width', '1');
-        controlLine2.setAttribute('stroke-dasharray', '4,2');
-        controlLine2.setAttribute('class', 'control-line');
-        controlsGroup.insertBefore(controlLine2, controlsGroup.firstChild);
+        // Target (🔴 circle) — offset right from connection point
+        const tgtHandle = this._createEndpointHandle(controlsGroup, relData.tx + 4, relData.ty, '#dc3545', '●', 'circle');
+        this._makeEndpointDraggable(tgtHandle.hit, relData, 'target');
 
         relData.group.appendChild(controlsGroup);
         relData.controlsGroup = controlsGroup;
     }
 
-    _createControlPoint(parent, x, y, color, draggable) {
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', x);
-        circle.setAttribute('cy', y);
-        circle.setAttribute('r', draggable ? 8 : 6);
-        circle.setAttribute('fill', color);
-        circle.setAttribute('stroke', '#ffffff');
-        circle.setAttribute('stroke-width', '2');
-        circle.style.cursor = draggable ? 'grab' : 'default';
+    // Create a labeled handle with large invisible hit area
+    _createEndpointHandle(parent, x, y, color, label, shape) {
+        // Invisible hit area (24×24) — easy to click
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        hit.setAttribute('x', x - 4);
+        hit.setAttribute('y', y - 4);
+        hit.setAttribute('width', '24');
+        hit.setAttribute('height', '24');
+        hit.setAttribute('fill', 'transparent');
+        hit.setAttribute('stroke', 'none');
+        hit.style.cursor = 'grab';
+        hit.style.pointerEvents = 'all';
+        hit.classList.add('draggable-control');
 
-        if (draggable) {
-            circle.classList.add('draggable-control');
-        }
+        // Visible label (16×16)
+        const visual = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        visual.setAttribute('x', x);
+        visual.setAttribute('y', y + 5);
+        visual.setAttribute('text-anchor', 'middle');
+        visual.setAttribute('dominant-baseline', 'middle');
+        visual.setAttribute('fill', color);
+        visual.setAttribute('font-size', '14');
+        visual.setAttribute('font-weight', 'bold');
+        visual.style.pointerEvents = 'none';
+        visual.style.userSelect = 'none';
 
-        parent.appendChild(circle);
-        return circle;
+        visual.textContent = '●';
+
+        // Background circle for visibility
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        bg.setAttribute('cx', x);
+        bg.setAttribute('cy', y + 2);
+        bg.setAttribute('r', '10');
+        bg.setAttribute('fill', 'white');
+        bg.setAttribute('stroke', color);
+        bg.setAttribute('stroke-width', '2');
+        bg.style.pointerEvents = 'none';
+
+        parent.appendChild(bg);
+        parent.appendChild(visual);
+        parent.appendChild(hit);
+
+        return { hit, visual, bg };
+    }
+
+    _makeEndpointDraggable(circle, relData, endType) {
+        const self = this;
+        const origSx = relData.sx, origSy = relData.sy;
+        const origTx = relData.tx, origTy = relData.ty;
+
+        circle.addEventListener('mousedown', function onDown(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            circle.setAttribute('r', '10');
+
+            const onMove = (ev) => {
+                const containerRect = self.container.getBoundingClientRect();
+                const zoom = self.container.style.transform
+                    ? parseFloat(self.container.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1) : 1;
+                const x = (ev.clientX - containerRect.left) / zoom;
+                const y = (ev.clientY - containerRect.top) / zoom;
+
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+
+                if (endType === 'source') { relData.sx = x; relData.sy = y; }
+                else { relData.tx = x; relData.ty = y; }
+                self._updateRelationshipPath(relData);
+
+                // Highlight nearest node
+                const el = document.elementFromPoint(ev.clientX, ev.clientY);
+                const nodeEl = el ? el.closest('.xmind-node') : null;
+                self.container.querySelectorAll('.rel-drop-target').forEach(n => n.classList.remove('rel-drop-target'));
+                if (nodeEl) nodeEl.classList.add('rel-drop-target');
+            };
+
+            const onUp = (ev) => {
+                // Cleanup listeners immediately
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                circle.setAttribute('r', '8');
+                self.container.querySelectorAll('.rel-drop-target').forEach(n => n.classList.remove('rel-drop-target'));
+
+                const el = document.elementFromPoint(ev.clientX, ev.clientY);
+                const nodeEl = el ? el.closest('.xmind-node') : null;
+
+                if (nodeEl) {
+                    const nx = nodeEl.offsetLeft + nodeEl.offsetWidth / 2;
+                    const ny = nodeEl.offsetTop + nodeEl.offsetHeight / 2;
+
+                    if (endType === 'source') {
+                        relData.sourceElement = nodeEl;
+                        relData.sx = nx; relData.sy = ny;
+                    } else {
+                        relData.targetElement = nodeEl;
+                        relData.tx = nx; relData.ty = ny;
+                    }
+
+                    const midX = (relData.sx + relData.tx) / 2;
+                    const midY = (relData.sy + relData.ty) / 2;
+                    const dist = Math.sqrt((relData.tx - relData.sx) ** 2 + (relData.ty - relData.sy) ** 2);
+                    relData.controlPoints = [{ x: midX, y: midY - dist * 0.3 }];
+                } else {
+                    // Snap back
+                    if (endType === 'source') { relData.sx = origSx; relData.sy = origSy; }
+                    else { relData.tx = origTx; relData.ty = origTy; }
+                }
+
+                self._updateRelationshipPath(relData);
+                self._hideControlPoints(relData);
+                self._showControlPoints(relData);
+            };
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
     }
 
     _hideControlPoints(relData) {
@@ -585,19 +705,14 @@ export class RelationshipManager {
     }
 
     refreshPositions() {
-        const containerRect = this.container.getBoundingClientRect();
-
         this.relationships.forEach(relData => {
             if (!relData.sourceElement || !relData.targetElement) return;
 
-            const sourceRect = relData.sourceElement.getBoundingClientRect();
-            const targetRect = relData.targetElement.getBoundingClientRect();
-
-            // Calculate delta
-            const newSx = sourceRect.left - containerRect.left + sourceRect.width / 2;
-            const newSy = sourceRect.top - containerRect.top + sourceRect.height / 2;
-            const newTx = targetRect.left - containerRect.left + targetRect.width / 2;
-            const newTy = targetRect.top - containerRect.top + targetRect.height / 2;
+            // Use local coords (offsetLeft/Top) to stay in world transform space
+            const newSx = relData.sourceElement.offsetLeft + relData.sourceElement.offsetWidth / 2;
+            const newSy = relData.sourceElement.offsetTop + relData.sourceElement.offsetHeight / 2;
+            const newTx = relData.targetElement.offsetLeft + relData.targetElement.offsetWidth / 2;
+            const newTy = relData.targetElement.offsetTop + relData.targetElement.offsetHeight / 2;
 
             const dsx = newSx - relData.sx;
             const dsy = newSy - relData.sy;
@@ -638,8 +753,8 @@ export class RelationshipManager {
     getRelationshipData() {
         return this.relationships.map(rel => ({
             id: rel.id,
-            sourceId: rel.sourceElement.getAttribute('nodeid'),
-            targetId: rel.targetElement.getAttribute('nodeid'),
+            sourceId: rel.sourceElement.getAttribute('data-nodeid'),
+            targetId: rel.targetElement.getAttribute('data-nodeid'),
             controlPoints: rel.controlPoints.map(cp => ({ x: cp.x, y: cp.y })),
             options: { ...rel.options }
         }));

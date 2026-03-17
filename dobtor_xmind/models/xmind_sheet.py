@@ -26,8 +26,11 @@ class XMindSheet(models.Model):
         ('tree_right', 'Tree Right'),
         ('tree_left', 'Tree Left'),
         ('logic_right', 'Logic Right'),
+        ('logic_left', 'Logic Left'),
         ('org_chart_down', 'Org Chart Down'),
         ('fishbone_left', 'Fishbone Left'),
+        ('fishbone_right', 'Fishbone Right'),
+        ('matrix', 'Matrix'),
     ], string='Layout Type', default='map')
 
     # Theme

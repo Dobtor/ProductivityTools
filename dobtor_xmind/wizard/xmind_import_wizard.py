@@ -55,13 +55,19 @@ class XMindImportWizard(models.TransientModel):
                 })
                 created_ids.append(workbook.id)
             except Exception as e:
+                import logging
+                _logger = logging.getLogger(__name__)
+                _logger.exception('XMind import failed for %s', line.filename)
                 line.write({
                     'status': 'error',
                     'message': str(e)[:200],
                 })
 
         if not created_ids:
-            raise UserError(_('No files were imported successfully.'))
+            # Show actual error messages from failed lines
+            errors = self.line_ids.filtered(lambda l: l.status == 'error').mapped('message')
+            error_detail = '\n'.join(errors) if errors else _('Unknown error')
+            raise UserError(_('Import failed:\n%s') % error_detail)
 
         # Return action to show all created workbooks
         if len(created_ids) == 1:
@@ -89,6 +95,10 @@ class XMindImportWizard(models.TransientModel):
         # Determine file type and extract name from content
         name = os.path.splitext(filename)[0]  # default: filename without extension
 
+        # Auto-detect format if no extension
+        if not ext:
+            ext = self._detect_format(file_data)
+
         if ext in ('.xmind',):
             workbook = self._import_xmind(file_data, name)
         elif ext in ('.mm',):
@@ -96,9 +106,27 @@ class XMindImportWizard(models.TransientModel):
         elif ext in ('.mmap',):
             workbook = self._import_mindmanager(file_data, name)
         else:
-            raise UserError(_('Unsupported file format: %s') % ext)
+            raise UserError(_('Unsupported file format: %s. Supported: .xmind, .mm, .mmap') % (ext or _('(none)')))
 
         return workbook
+
+    def _detect_format(self, file_data):
+        """Auto-detect file format from content."""
+        # ZIP-based formats (.xmind, .mmap)
+        if file_data[:4] == b'PK\x03\x04':
+            try:
+                with zipfile.ZipFile(io.BytesIO(file_data), 'r') as zf:
+                    names = zf.namelist()
+                    if 'content.json' in names or 'content.xml' in names:
+                        return '.xmind'
+                    if 'Document.xml' in names:
+                        return '.mmap'
+            except zipfile.BadZipFile:
+                pass
+        # XML-based (.mm FreeMind)
+        if file_data[:5] == b'<?xml' or file_data.lstrip()[:5] == b'<map>' or file_data.lstrip()[:5] == b'<map ':
+            return '.mm'
+        return ''
 
     def _import_xmind(self, file_data, default_name):
         """Import .xmind file → new Workbook with name from root topic."""
