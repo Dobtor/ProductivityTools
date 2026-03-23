@@ -27,8 +27,8 @@ class XMindRelationship(models.Model):
         ('dotted', 'Dotted'),
         ('dash-dot', 'Dash-Dot'),
     ], string='Line Style', default='dashed')
-    line_color = fields.Char('Line Color', default='#999999')
-    line_width = fields.Integer('Line Width', default=2)
+    line_color = fields.Char('Line Color', default='#77933C')
+    line_width = fields.Integer('Line Width', default=3)
     arrow_begin = fields.Selection([
         ('none', 'None'),
         ('arrow', 'Arrow'),
@@ -54,5 +54,8 @@ class XMindRelationship(models.Model):
         ('medium', 'Medium'),
         ('large', 'Large'),
     ], string='Arrow Size', default='medium')
-    control_point_x = fields.Float('Control Point X')
-    control_point_y = fields.Float('Control Point Y')
+    cp0_x = fields.Float('Control Point 0 X')
+    cp0_y = fields.Float('Control Point 0 Y')
+    cp1_x = fields.Float('Control Point 1 X')
+    cp1_y = fields.Float('Control Point 1 Y')
+    cp_is_relative = fields.Boolean('CPs are Relative Offsets', default=False)

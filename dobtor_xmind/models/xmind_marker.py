@@ -29,6 +29,7 @@ class XMindMarker(models.Model):
     ], string='Category', default='other')
     sequence = fields.Integer('Sequence', default=10)
     icon = fields.Char('Icon Class', help='FontAwesome or custom icon class')
+    short_label = fields.Char('Short Label', help='2-3 char label shown instead of icon (for month/weekday)')
     color = fields.Char('Color', default='#333333')
     hidden = fields.Boolean('Hidden', default=False,
                             help='Hidden markers are not shown in the picker but can be applied via import')

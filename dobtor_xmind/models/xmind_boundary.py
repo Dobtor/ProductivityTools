@@ -54,8 +54,16 @@ class XMindSummary(models.Model):
         'xmind.topic', 'xmind_summary_topic_rel',
         'summary_id', 'topic_id', string='Summarized Topics')
 
-    # The summary topic (conclusion)
-    summary_topic_id = fields.Many2one('xmind.topic', string='Summary Topic', ondelete='cascade')
+    # The summary topic (conclusion) — optional, for imported XMind files
+    summary_topic_id = fields.Many2one('xmind.topic', string='Summary Topic', ondelete='set null')
+
+    # Summary node styling (rendered as independent DOM element)
+    title = fields.Char('Summary Title', default='Summary')
+    fill_color = fields.Char('Fill Color', default='#77933C')
+    text_color = fields.Char('Text Color', default='#FFFFFF')
+    font_size = fields.Integer('Font Size', default=10)
+    font_italic = fields.Boolean('Italic', default=True)
+    line_type = fields.Char('Line Type', default='square')
 
     # Styling
     line_color = fields.Char('Line Color', default='#666666')

@@ -69,7 +69,7 @@ export const ActivityWeekMethods = {
         } catch (e) {
             console.error('Failed to load week info:', e);
             this.weekState.weeks = [
-                { number: -1, name: _t('Last Week'), display_name: _t('Last Week'), key: 'week_prev', count: 0, total_hours: 0, dates: {} },
+                { number: -1, name: _t('Previous Week'), display_name: _t('Previous Week'), key: 'week_prev', count: 0, total_hours: 0, dates: {} },
                 { number: 0, name: _t('This Week'), display_name: _t('This Week'), key: 'week0', count: 0, total_hours: 0, dates: {} },
                 { number: 1, name: _t('Next Week'), display_name: _t('Next Week'), key: 'week1', count: 0, total_hours: 0, dates: {} },
                 { number: 2, name: _t('Week 3'), display_name: _t('Week 3'), key: 'week2', count: 0, total_hours: 0, dates: {} },

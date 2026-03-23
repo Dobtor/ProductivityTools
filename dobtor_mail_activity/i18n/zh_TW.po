@@ -21,13 +21,13 @@ msgstr ""
 msgid ""
 "\n"
 "\n"
-"--- %s Reassigned ---\n"
-"From %s to %s"
+"--- %(date)s Reassigned ---\n"
+"From %(from_user)s to %(to_user)s"
 msgstr ""
 "\n"
 "\n"
-"--- %s 已變更分派 ---\n"
-"從 %s 到 %s"
+"--- %(date)s 已變更分派 ---\n"
+"從 %(from_user)s 到 %(to_user)s"
 
 #. module: dobtor_mail_activity
 #. odoo-python
@@ -35,64 +35,58 @@ msgstr ""
 msgid ""
 "\n"
 "\n"
-"--- %s Reassigned to %s ---"
+"--- %(date)s Reassigned to %(to_user)s ---"
 msgstr ""
 "\n"
 "\n"
-"--- %s 已變更分派給 %s ---"
+"--- %(date)s 已變更分派給 %(to_user)s ---"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/mail_activity.py:0
-msgid ""
-"\n"
-"\n"
-"--- %s claimed this activity ---"
-msgstr ""
-"\n"
-"\n"
-"--- %s 認領了此待辦 ---"
+msgid "%(user)s claimed this activity."
+msgstr "%(user)s 認領了此待辦。"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/wizards/mail_activity_reassign_wizard.py:0
 msgid ""
 "\n"
-"Reason: %s"
+"Reason: %(reason)s"
 msgstr ""
 "\n"
-"原因：%s"
+"原因：%(reason)s"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/weekly_report.py:0
-msgid " and %d more"
-msgstr " 及另外 %d 項"
+msgid " and %(count)d more"
+msgstr " 及另外 %(count)d 項"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/res_users.py:0
-msgid "%s Efficiency Metrics"
-msgstr "%s 效率指標"
+msgid "%(user)s Efficiency Metrics"
+msgstr "%(user)s 效率指標"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/weekly_report.py:0
-msgid "%s Weekly Report (%s)"
-msgstr "%s 週報 (%s)"
+msgid "%(user)s Weekly Report (%(week)s)"
+msgstr "%(user)s 週報 (%(week)s)"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/res_users.py:0
-msgid "%s Weekly Reports"
-msgstr "%s 週報"
+msgid "%(user)s Weekly Reports"
+msgstr "%(user)s 週報"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/res_users.py:0
 #: code:addons/dobtor_mail_activity/models/weekly_schedule_config.py:0
-msgid "%s Weekly Schedule"
-msgstr "%s 週計畫"
+msgid "%(user)s Weekly Schedule"
+msgstr "%(user)s 週計畫"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.view_calendar_event_form_inherit
@@ -283,8 +277,8 @@ msgstr "<p><strong>%s 待辦收件匣</strong></p><p>這是您的預設待辦筆
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/weekly_schedule_config.py:0
-msgid "<p>Weekly Schedule - %s</p><p>This week work plan</p>"
-msgstr "<p>週計畫 - %s</p><p>本週工作計畫</p>"
+msgid "<p>Weekly Schedule - %(week)s</p><p>This week work plan</p>"
+msgstr "<p>週計畫 - %(week)s</p><p>本週工作計畫</p>"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.message_context_preview
@@ -2428,8 +2422,8 @@ msgstr "需在此日期前排程"
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/mail_activity.py:0
-msgid "Needs to be scheduled by %s"
-msgstr "需在 %s 前排程"
+msgid "Needs to be scheduled by %(weekday)s"
+msgstr "需在 %(weekday)s 前排程"
 
 #. module: dobtor_mail_activity
 #. odoo-javascript
@@ -2529,6 +2523,8 @@ msgid "Next Summary"
 msgstr "下一個摘要"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_week_controller_mixin.js:0
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__mail_activity__schedule_week__week1
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_productivity
@@ -3106,7 +3102,11 @@ msgid "Previous Assignee"
 msgstr "先前負責人"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_week_controller_mixin.js:0
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__mail_activity__schedule_week__week_prev
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_productivity
 msgid "Previous Week"
 msgstr "上一週"
 
@@ -3156,16 +3156,16 @@ msgstr "專案"
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
-msgid "Project \"%s\" does not have timesheets enabled."
-msgstr "專案「%s」未啟用工時表。"
+msgid "Project \"%(project)s\" does not have timesheets enabled."
+msgstr "專案「%(project)s」未啟用工時表。"
 
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
 msgid ""
-"Project \"%s\" is missing a valid analytic account. Please configure it in "
+"Project \"%(project)s\" is missing a valid analytic account. Please configure it in "
 "project settings."
-msgstr "專案「%s」缺少有效的分析帳戶。請在專案設定中進行配置。"
+msgstr "專案「%(project)s」缺少有效的分析帳戶。請在專案設定中進行配置。"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__activity_efficiency_metrics__period_type__quarter
@@ -3790,13 +3790,15 @@ msgstr "筆記的第一個標籤，用於左側樹狀篩選面板。"
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/weekly_report.py:0
 msgid ""
-"There are %d pending activities from last week. Please complete or postpone them before creating the report:\n"
-"%s"
+"There are %(count)d pending activities from last week. Please complete or postpone them before creating the report:\n"
+"%(activities)s"
 msgstr ""
-"上週有 %d 個待處理的待辦。請在建立週報前完成或延期它們：\n"
-"%s"
+"上週有 %(count)d 個待處理的待辦。請在建立週報前完成或延期它們：\n"
+"%(activities)s"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_week_controller_mixin.js:0
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__mail_activity__schedule_week__week0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_productivity
@@ -4268,12 +4270,16 @@ msgid "Week"
 msgstr "週"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_week_controller_mixin.js:0
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__mail_activity__schedule_week__week2
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
 msgid "Week 3"
 msgstr "第三週"
 
 #. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_week_controller_mixin.js:0
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__mail_activity__schedule_week__week3
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
 msgid "Week 4"
@@ -4376,8 +4382,8 @@ msgstr "每週承諾工時，用於週報和效率指標計算"
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/activity_efficiency_metrics.py:0
-msgid "Weekly efficiency metrics calculated from %s to %s"
-msgstr "週效率指標計算期間 %s 至 %s"
+msgid "Weekly efficiency metrics calculated from %(start)s to %(end)s"
+msgstr "週效率指標計算期間 %(start)s 至 %(end)s"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_weekly_report
@@ -4944,8 +4950,8 @@ msgstr "請從行事曆事件參與者中指定至少一位簽名者。"
 
 #. module: dobtor_mail_activity
 #: code:addons/dobtor_mail_activity/models/note_note.py:0
-msgid "The following signers are not calendar event attendees: %s"
-msgstr "以下簽名者不是行事曆事件的參與者：%s"
+msgid "The following signers are not calendar event attendees: %(signers)s"
+msgstr "以下簽名者不是行事曆事件的參與者：%(signers)s"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.view_note_note_form
@@ -5196,8 +5202,8 @@ msgstr "搜尋簽名"
 
 #. module: dobtor_mail_activity
 #: code:addons/dobtor_mail_activity/models/note_note.py:0
-msgid "Meeting minutes sent for signature to: %s"
-msgstr "會議記錄已寄出給以下簽名者：%s"
+msgid "Meeting minutes sent for signature to: %(signers)s"
+msgstr "會議記錄已寄出給以下簽名者：%(signers)s"
 
 #. module: dobtor_mail_activity
 #: code:addons/dobtor_mail_activity/models/note_note.py:0
@@ -5206,8 +5212,8 @@ msgstr "成功"
 
 #. module: dobtor_mail_activity
 #: code:addons/dobtor_mail_activity/models/note_note.py:0
-msgid "Meeting minutes sent to %d signer(s)."
-msgstr "會議記錄已寄送給 %d 位簽名者。"
+msgid "Meeting minutes sent to %(count)d signer(s)."
+msgstr "會議記錄已寄送給 %(count)d 位簽名者。"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.activity_list_patch:0

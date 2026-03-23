@@ -90,13 +90,14 @@ class MailActivityReassignWizard(models.TransientModel):
         """格式化變更指派備註"""
         self.ensure_one()
 
-        note = _('\n\n--- %s Reassigned ---\nFrom %s to %s') % (
-            now_str,
-            self.current_user_id.name if self.current_user_id else _('Unassigned'),
-            self.new_user_id.name,
+        note = _(
+            '\n\n--- %(date)s Reassigned ---\nFrom %(from_user)s to %(to_user)s',
+            date=now_str,
+            from_user=self.current_user_id.name if self.current_user_id else _('Unassigned'),
+            to_user=self.new_user_id.name,
         )
         if self.reason:
-            note += _('\nReason: %s') % self.reason
+            note += _('\nReason: %(reason)s', reason=self.reason)
 
         return note
 
@@ -198,12 +199,13 @@ class MailActivityReassignWizard(models.TransientModel):
         self._create_assignment_history(new_activity)
 
         # 取消原待辦
-        cancel_note = _('\n\n--- %s Reassigned to %s ---') % (
-            now_str,
-            self.new_user_id.name,
+        cancel_note = _(
+            '\n\n--- %(date)s Reassigned to %(to_user)s ---',
+            date=now_str,
+            to_user=self.new_user_id.name,
         )
         if self.reason:
-            cancel_note += _('\nReason: %s') % self.reason
+            cancel_note += _('\nReason: %(reason)s', reason=self.reason)
 
         self._cancel_original_activity(cancel_note)
 

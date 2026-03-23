@@ -161,10 +161,10 @@ class WeeklyReport(models.Model):
     def _compute_name(self):
         for report in self:
             if report.week_start:
-                iso_year, iso_week, _ = report.week_start.isocalendar()
+                iso_year, iso_week, _dow = report.week_start.isocalendar()
                 week_str = '%d-W%02d' % (iso_year, iso_week)
                 user_name = report.user_id.name if report.user_id else ''
-                report.name = _('%s Weekly Report (%s)') % (user_name, week_str)
+                report.name = _('%(user)s Weekly Report (%(week)s)', user=user_name, week=week_str)
             else:
                 report.name = _('Weekly Report')
 
@@ -180,7 +180,7 @@ class WeeklyReport(models.Model):
     def _compute_week_number(self):
         for report in self:
             if report.week_start:
-                iso_year, iso_week, _ = report.week_start.isocalendar()
+                iso_year, iso_week, _dow = report.week_start.isocalendar()
                 report.week_number = '%d-W%02d' % (iso_year, iso_week)
             else:
                 report.week_number = False
@@ -423,11 +423,12 @@ class WeeklyReport(models.Model):
                 a.summary or _('(No summary)') for a in pending_activities[:5]
             )
             if len(pending_activities) > 5:
-                activity_names += _(' and %d more') % len(pending_activities)
+                activity_names += _(' and %(count)d more', count=len(pending_activities))
 
             raise UserError(_(
-                'There are %d pending activities from last week. Please complete or postpone them before creating the report:\n%s'
-            ) % (len(pending_activities), activity_names))
+                'There are %(count)d pending activities from last week. Please complete or postpone them before creating the report:\n%(activities)s',
+                count=len(pending_activities), activities=activity_names,
+            ))
 
         # 建立回顧記錄
         if review_lines:

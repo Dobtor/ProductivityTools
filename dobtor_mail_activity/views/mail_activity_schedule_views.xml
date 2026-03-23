@@ -65,7 +65,7 @@
                         domain="[('schedule_status', '=', 'waiting')]"/>
                 <separator/>
                 <!-- 週次篩選 -->
-                <filter string="Last Week" name="week_prev"
+                <filter string="Previous Week" name="week_prev"
                         domain="[('schedule_week_number', '=', -1)]"/>
                 <filter string="This Week" name="week0"
                         domain="[('schedule_week_number', '=', 0)]"/>

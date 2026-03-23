@@ -183,12 +183,12 @@ class MailActivityDoneWizard(models.TransientModel):
             ))
 
         if not project.allow_timesheets:
-            raise UserError(_('Project "%s" does not have timesheets enabled.') % project.name)
+            raise UserError(_('Project "%(project)s" does not have timesheets enabled.', project=project.name))
 
         # Odoo 18: analytic_account_id 已改為 account_id
         analytic_account = project.account_id
         if not analytic_account or not analytic_account.active:
-            raise UserError(_('Project "%s" is missing a valid analytic account. Please configure it in project settings.') % project.name)
+            raise UserError(_('Project "%(project)s" is missing a valid analytic account. Please configure it in project settings.', project=project.name))
 
         # 建立工時記錄
         timesheet_vals = {

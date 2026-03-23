@@ -196,6 +196,8 @@ export class MindmapEditor extends Component {
                         targetId: r.targetId,
                         options: r.options || {},
                         controlPoints: r.controlPoints || [],
+                        // If CPs came from XMind import, they are relative offsets from midpoint
+                        _cpIsRelativeOffset: r.cpIsRelativeOffset || false,
                     }));
                     this._hadRelationshipsOnLoad = true;
                 }
@@ -331,7 +333,10 @@ export class MindmapEditor extends Component {
                 this.jm.layout.setLayoutMode(layoutMode);
             }
 
-            this.jm.show(this.mindmapData);
+            this.jm.show(this.mindmapData, () => {
+                // Called after DOM is fully rendered + layout complete
+                this._renderAllXMindFeatures();
+            });
         } catch (error) {
             console.error('[MindmapEditor] Failed to initialize jsMind:', error);
             this.notification.add(_t('Failed to initialize mind map: ') + error.message, { type: 'danger' });
@@ -387,6 +392,9 @@ export class MindmapEditor extends Component {
             this._updateCommandCount(state.commandCount);
             if (state.isDirty) {
                 this._updateStatus(_t('Modified'));
+                // Update boundary/summary positions after any tree modification
+                clearTimeout(this._featureUpdateTimer);
+                this._featureUpdateTimer = setTimeout(() => this._updateFeaturePositions(), 50);
             }
         });
     }
@@ -413,13 +421,25 @@ export class MindmapEditor extends Component {
     _setupKeyboardShortcuts(e) {
         if (this._isInputFocused()) return;
 
-        // --- Fix #5: Escape cancels relationship mode ---
+        // Escape cancels any active mode
         if (e.key === 'Escape') {
             if (this.relationshipMode) {
                 this._exitRelationshipMode();
                 e.preventDefault();
                 return;
             }
+            if (this._pendingFeatureMode) {
+                this._pendingFeatureMode = null;
+                const canvas = this.canvasRef.el;
+                if (canvas) canvas.style.cursor = '';
+                this._updateStatus(_t('Ready'));
+                e.preventDefault();
+                return;
+            }
+            // Deselect relationship control points
+            this._deselectRelationship();
+            e.preventDefault();
+            return;
         }
 
         if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
@@ -433,7 +453,11 @@ export class MindmapEditor extends Component {
             this.onAddChild();
         } else if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
             e.preventDefault();
-            this.onAddSibling();
+            if (this._hasSelectedRelationship()) {
+                this._deselectRelationship();
+            } else {
+                this.onAddSibling();
+            }
         } else if (e.key === 'Delete') {
             e.preventDefault();
             this.onDelete();
@@ -582,32 +606,564 @@ export class MindmapEditor extends Component {
     _onJsMindEvent(type, data) {
         if (type === 1) { // select
             this.selectedNode = data.node;
+
+            if (this.relationshipMode) {
+                if (!this.relationshipSource) {
+                    // Step 1: source clicked — start preview line
+                    this.relationshipSource = data.node;
+                    const world = this.jm.view.world;
+                    // Create preview SVG if not exists
+                    let previewSvg = world.querySelector('.rel-preview-svg');
+                    if (!previewSvg) {
+                        this._setupRelationshipModeListeners();
+                        previewSvg = world.querySelector('.rel-preview-svg');
+                    }
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    line.setAttribute('stroke', '#77933C');
+                    line.setAttribute('stroke-width', '3');
+                    line.setAttribute('stroke-dasharray', '6,4');
+                    line.setAttribute('fill', 'none');
+                    line.setAttribute('stroke-linecap', 'round');
+                    line.setAttribute('marker-end', 'url(#rel-preview-arrow)');
+                    previewSvg.appendChild(line);
+                    this._relPreviewLine = line;
+                    this._relPreviewSvg = previewSvg;
+                    this._updateStatus(_t('Now click target topic... (Esc/Right-click to cancel)'));
+                    return; // Don't open sidebar during relationship creation
+                } else {
+                    // Step 2: target clicked — create relationship
+                    this._createRelationship(this.relationshipSource, data.node);
+                    this._exitRelationshipMode();
+                    return;
+                }
+            }
+
             this._updateSidebar(data.node);
             this._openSidebar();
-
-            if (this.relationshipMode && this.relationshipSource) {
-                this._createRelationship(this.relationshipSource, data.node);
-                this._exitRelationshipMode();
-            }
         } else if (type === 2) { // update
             this._updateFeaturePositions();
-        } else if (type === 3) { // show
-            setTimeout(() => this._updateFeaturePositions(), 100);
+        } else if (type === 3) { // show — features already rendered via show() callback
+            // No-op: rendering is done in the onReady callback passed to jm.show()
         } else if (type === 4) { // resize
             setTimeout(() => this._updateFeaturePositions(), 100);
         }
     }
 
     _updateFeaturePositions() {
-        if (this.summaryRenderer) {
-            this.summaryRenderer.updatePositions();
+        // 1. Rebuild summaries (positions summary nodes + their children)
+        this._rebuildSummaries();
+
+        // 2. Redraw all jsMind branch lines
+        if (this.jm && this.jm.view) {
+            this.jm.view.draw_lines();
         }
-        if (this.advancedRelationshipManager && typeof this.advancedRelationshipManager.refreshPositions === 'function') {
-            this.advancedRelationshipManager.refreshPositions();
+
+        // 3. Rebuild boundaries
+        this._rebuildBoundaries();
+
+        // 4. Rebuild relationships (not just refresh — re-create if source/target now available)
+        this._rebuildRelationships();
+    }
+
+    _rebuildRelationships() {
+        if (!this.advancedRelationshipManager) return;
+        // Sync control points from manager before clearing
+        this._syncRelationshipControlPoints();
+        this.advancedRelationshipManager.clear();
+        for (const rel of this.relationships) {
+            const sourceElement = this.jm.view.get_node_element(rel.sourceId);
+            const targetElement = this.jm.view.get_node_element(rel.targetId);
+            if (sourceElement && targetElement) {
+                const opts = { ...rel.options };
+                if (rel.controlPoints && rel.controlPoints.length > 0) {
+                    // Convert XMind relative offsets to absolute on first load
+                    if (rel._cpIsRelativeOffset) {
+                        const scx = sourceElement.offsetLeft + sourceElement.offsetWidth / 2;
+                        const scy = sourceElement.offsetTop + sourceElement.offsetHeight / 2;
+                        const tcx = targetElement.offsetLeft + targetElement.offsetWidth / 2;
+                        const tcy = targetElement.offsetTop + targetElement.offsetHeight / 2;
+                        const midX = (scx + tcx) / 2;
+                        const midY = (scy + tcy) / 2;
+                        rel.controlPoints = rel.controlPoints.map(cp => ({
+                            x: midX + (cp.x || 0),
+                            y: midY + (cp.y || 0),
+                        }));
+                        delete rel._cpIsRelativeOffset;
+                    }
+                    opts.controlPoints = rel.controlPoints;
+                }
+                const newId = this.advancedRelationshipManager.addRelationship(sourceElement, targetElement, opts);
+                // Update stored ID to match new manager ID (so future syncs work)
+                if (newId) rel.id = newId;
+            }
         }
-        if (this.boundaryRenderer && typeof this.boundaryRenderer.updatePositions === 'function') {
-            this.boundaryRenderer.updatePositions();
+    }
+
+    _collectSummaryElements(summary) {
+        // Expand topicIds to include siblings BETWEEN first and last original topic
+        // (newly inserted between them are included, but NOT siblings outside the range)
+        if (!summary.topicIds || summary.topicIds.length === 0) return [];
+
+        const firstNode = this.jm.get_node(summary.topicIds[0]);
+        if (!firstNode || !firstNode.parent) return this._collectBoundaryElements(summary.topicIds);
+
+        const parent = firstNode.parent;
+        const siblings = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+
+        // Find the range of original topicIds within current siblings
+        const origSet = new Set(summary.topicIds);
+        let startIdx = siblings.length, endIdx = -1;
+        for (let i = 0; i < siblings.length; i++) {
+            if (origSet.has(siblings[i].id)) {
+                startIdx = Math.min(startIdx, i);
+                endIdx = Math.max(endIdx, i);
+            }
         }
+
+        if (endIdx < 0) return this._collectBoundaryElements(summary.topicIds);
+
+        // Collect siblings in range [startIdx, endIdx] — includes newly inserted between
+        const rangeIds = [];
+        for (let i = startIdx; i <= endIdx; i++) {
+            rangeIds.push(siblings[i].id);
+        }
+
+        // Update stored topicIds to the current range
+        summary.topicIds = rangeIds;
+
+        return this._collectBoundaryElements(rangeIds);
+    }
+
+    _rebuildSummaries() {
+        if (!this.summaryRenderer) return;
+        this.summaryRenderer.clear();
+
+        if (!this.summaries || this.summaries.length === 0) return;
+
+        // Sort: outermost (shallowest) first — outer summaries position their children
+        // before inner summaries can use those children's positions
+        const sorted = [...this.summaries].sort((a, b) => {
+            const dA = this._getSummaryDepth(a);
+            const dB = this._getSummaryDepth(b);
+            return dA - dB; // shallowest first
+        });
+
+        // Single pass: position node → draw bracket (per summary, inner first)
+        for (const summary of sorted) {
+            const topicElements = this._collectSummaryElements(summary);
+            if (topicElements.length === 0) continue;
+
+            // 1. Position summary jsMind node at bracket endpoint
+            if (summary.summaryNodeId) {
+                this._positionSummaryNode(summary.summaryNodeId, summary.topicIds);
+            }
+
+            // 2. Re-collect elements AFTER positioning (children positions updated)
+            const freshElements = this._collectBoundaryElements(summary.topicIds);
+            if (freshElements.length === 0) continue;
+
+            // 3. Draw SVG bracket
+            const summaryEl = summary.summaryNodeId
+                ? this.jm.view.get_node_element(summary.summaryNodeId) : null;
+
+            const currentLayout = (this.jm && this.jm.view && this.jm.view.layout && this.jm.view.layout._currentMode) || '';
+            // XMind 2: nested summaries follow the SAME direction as parent layout
+            const effectiveLayout = currentLayout;
+            this.summaryRenderer.addSummary(freshElements, summaryEl, {
+                lineType: summary.options.lineType || 'square',
+                lineColor: summary.options.lineColor || '#C3D69B',
+                lineWidth: summary.options.lineWidth || 5,
+                summaryTitle: summary.options.topicText || summary.options.summaryTitle || 'Summary',
+                summaryFill: summary.options.topicFillColor || summary.options.summaryFill || '#77933C',
+                summaryColor: summary.options.topicTextColor || summary.options.summaryColor || '#FFFFFF',
+                summaryFontSize: summary.options.topicFontSize || summary.options.summaryFontSize || 10,
+                summaryItalic: summary.options.topicItalic || summary.options.summaryItalic || true,
+                layoutMode: effectiveLayout,
+            });
+        }
+
+        // Post-layout: resolve overlaps between summary elements and regular topics
+        // Only for vertical layouts where summaries extend horizontally across siblings
+        const postLayout = (this.jm && this.jm.view && this.jm.view.layout && this.jm.view.layout._currentMode) || '';
+        if (postLayout === 'org_chart_up' || postLayout === 'org_chart_down') {
+            this._resolveVerticalOverlaps();
+        }
+    }
+
+    /**
+     * After summaries are positioned, detect overlaps between all visible subtrees
+     * and shift apart to resolve. Multiple passes to handle cascading overlaps.
+     */
+    _resolveVerticalOverlaps() {
+        if (!this.jm || !this.jm.mind) return;
+        const nodes = this.jm.mind.nodes;
+
+        // Get bounding box of a node's entire visual subtree (including summary descendants)
+        const getSubtreeBounds = (node) => {
+            if (!node._w || !node._h || isNaN(node._x) || isNaN(node._y)) return null;
+            let left = node._x - node._w / 2;
+            let right = node._x + node._w / 2;
+            let top = node._y - node._h / 2;
+            let bottom = node._y + node._h / 2;
+            if (node.expanded && node.children) {
+                for (const c of node.children) {
+                    if (!c._el || c._el.style.display === 'none') continue;
+                    const cb = getSubtreeBounds(c);
+                    if (!cb) continue;
+                    left = Math.min(left, cb.left);
+                    right = Math.max(right, cb.right);
+                    top = Math.min(top, cb.top);
+                    bottom = Math.max(bottom, cb.bottom);
+                }
+            }
+            return { left, right, top, bottom };
+        };
+
+        const padding = 12;
+        let anyShifted = false;
+
+        // Check siblings at every level, bottom-up then top-down
+        const checkSiblings = (parent) => {
+            if (!parent || !parent.expanded) return;
+            const children = parent.children.filter(c =>
+                c._el && c._el.style.display !== 'none' && !(c.data && c.data._isSummaryNode));
+
+            // Recurse into children FIRST (bottom-up: fix inner overlaps before outer)
+            children.forEach(c => checkSiblings(c));
+
+            if (children.length < 2) return;
+
+            // Sort by X position
+            const sorted = [...children].sort((a, b) => a._x - b._x);
+
+            for (let i = 0; i < sorted.length - 1; i++) {
+                const leftBounds = getSubtreeBounds(sorted[i]);
+                const rightBounds = getSubtreeBounds(sorted[i + 1]);
+                if (!leftBounds || !rightBounds) continue;
+
+                const overlap = leftBounds.right + padding - rightBounds.left;
+                if (overlap > 0) {
+                    // Shift right sibling and all its descendants to the right
+                    for (let j = i + 1; j < sorted.length; j++) {
+                        this._shiftEntireSubtree(sorted[j], overlap, 0);
+                    }
+                    anyShifted = true;
+                }
+            }
+
+            // Re-center children under parent after shifting
+            if (anyShifted && children.length > 0) {
+                const firstBounds = getSubtreeBounds(sorted[0]);
+                const lastBounds = getSubtreeBounds(sorted[sorted.length - 1]);
+                if (firstBounds && lastBounds) {
+                    const currentCenter = (firstBounds.left + lastBounds.right) / 2;
+                    const shiftToCenter = parent._x - currentCenter;
+                    if (Math.abs(shiftToCenter) > 1) {
+                        for (const c of children) {
+                            this._shiftEntireSubtree(c, shiftToCenter, 0);
+                        }
+                    }
+                }
+            }
+        };
+
+        const root = this.jm.mind.root;
+        if (root) checkSiblings(root);
+
+        // Reposition ALL DOM elements after shifts (including summary nodes)
+        if (anyShifted) {
+            const isUp = (this.jm.view.layout && this.jm.view.layout._currentMode) === 'org_chart_up';
+            for (const id in nodes) {
+                const n = nodes[id];
+                if (!n._el || n._el.style.display === 'none') continue;
+                if (isNaN(n._x) || isNaN(n._y)) continue;
+
+                // Update ALL node positions (including summary nodes)
+                n._el.style.left = (n._x - n._w / 2) + 'px';
+                n._el.style.top = (n._y - n._h / 2) + 'px';
+
+                if (n._expander) {
+                    const d = n.direction || 1;
+                    if (d === 2) {
+                        n._expander.style.left = (n._x - 6) + 'px';
+                        n._expander.style.top = isUp
+                            ? (n._y - n._h / 2 - 13) + 'px'
+                            : (n._y + n._h / 2 + 2) + 'px';
+                    } else if (d === -1) {
+                        n._expander.style.left = (n._x - n._w / 2 - 15) + 'px';
+                        n._expander.style.top = (n._y - 6) + 'px';
+                    } else {
+                        n._expander.style.left = (n._x + n._w / 2 + 3) + 'px';
+                        n._expander.style.top = (n._y - 6) + 'px';
+                    }
+                }
+            }
+            // Redraw lines and re-position summary brackets
+            if (this.jm.view) this.jm.view.draw_lines();
+            if (this.summaryRenderer) {
+                const layoutMode = (this.jm.view.layout && this.jm.view.layout._currentMode) || '';
+                this.summaryRenderer.updatePositions(layoutMode);
+            }
+        }
+    }
+
+    _shiftEntireSubtree(node, dx, dy) {
+        node._x += dx;
+        node._y += dy;
+        if (node.expanded && node.children) {
+            for (const c of node.children) {
+                this._shiftEntireSubtree(c, dx, dy);
+            }
+        }
+    }
+
+    _getSummaryDepth(summary) {
+        if (!summary.topicIds || summary.topicIds.length === 0) return 0;
+        const node = this.jm.get_node(summary.topicIds[0]);
+        return node ? (node._depth || 0) : 0;
+    }
+
+    _positionSummaryNode(summaryNodeId, topicIds) {
+        const node = this.jm.get_node(summaryNodeId);
+        const el = this.jm.view.get_node_element(summaryNodeId);
+        if (!node || !el) return;
+
+        const topicElements = this._collectBoundaryElements(topicIds);
+        if (topicElements.length === 0) return;
+
+        const layoutMode = (this.jm.view.layout && this.jm.view.layout._currentMode) || '';
+        // XMind 2: ALL summaries in org_chart layouts follow the same vertical direction
+        const isVertical = layoutMode === 'org_chart_up' || layoutMode === 'org_chart_down';
+
+        if (isVertical) {
+            // XMind 2 algorithm: summary positioned in same direction as parent layout
+            // org_chart_down → summary SOUTH (below children)
+            // org_chart_up → summary NORTH (above children)
+
+            // Use SAME elements as SVG bracket (topicElements includes descendants)
+            // This ensures summary node is centered at the bracket stub line
+            let minY = Infinity, maxY = -Infinity, leftX = Infinity, rightX = -Infinity;
+            for (const te of topicElements) {
+                leftX = Math.min(leftX, te.offsetLeft);
+                rightX = Math.max(rightX, te.offsetLeft + te.offsetWidth);
+                minY = Math.min(minY, te.offsetTop);
+                maxY = Math.max(maxY, te.offsetTop + te.offsetHeight);
+            }
+            const midX = (leftX + rightX) / 2;
+
+            const isUp = layoutMode === 'org_chart_up';
+
+            // Position summary node at bracket stub endpoint
+            // SVG bracket uses same topicElements, so bracketY matches
+            const stubEndY = isUp ? (minY - 10 - 38) : (maxY + 10 + 38);
+            const nodeY = isUp
+                ? stubEndY - el.offsetHeight  // node bottom at stubEndY
+                : stubEndY;                    // node top at stubEndY
+
+            const posLeft = midX - el.offsetWidth / 2;
+            el.style.left = posLeft + 'px';
+            el.style.top = nodeY + 'px';
+
+            node._x = midX;
+            node._y = nodeY + el.offsetHeight / 2;
+            node.direction = 2; // vertical (same as parent org_chart direction)
+
+            // Summary children use the SAME org_chart layout (XMind 2 behavior)
+            if (node.children && node.children.length > 0) {
+                for (const c of node.children) {
+                    if (c._el) {
+                        const ow = c._el.offsetWidth;
+                        const oh = c._el.offsetHeight;
+                        if (ow > 1) { c._w = ow; c._h = oh; }
+                    }
+                }
+
+                // Use the SAME org_chart layout for children (not logic_right)
+                const layout = this.jm.view.layout;
+                if (isUp) {
+                    layout._layoutVerticalUpChildren(node);
+                } else {
+                    layout._layoutVerticalChildren(node);
+                }
+
+                this._positionSummaryChildren(node, 2);
+            }
+        } else {
+            let minY = Infinity, maxY = -Infinity, leftX = Infinity, rightX = -Infinity;
+            for (const te of topicElements) {
+                leftX = Math.min(leftX, te.offsetLeft);
+                rightX = Math.max(rightX, te.offsetLeft + te.offsetWidth);
+                minY = Math.min(minY, te.offsetTop);
+                maxY = Math.max(maxY, te.offsetTop + te.offsetHeight);
+            }
+
+            const dir = topicElements[0].offsetLeft < -50 ? -1 : 1;
+            const bracketX = dir > 0 ? rightX + 20 : leftX - 20;
+            // Align with SVG stub line endpoint: bracketX + dir * 38
+            const nodeX = bracketX + dir * 38;
+            const midY = (minY + maxY) / 2;
+
+            const posLeft = dir < 0 ? nodeX - el.offsetWidth : nodeX;
+            el.style.left = posLeft + 'px';
+            el.style.top = (midY - el.offsetHeight / 2) + 'px';
+
+            node._x = posLeft + el.offsetWidth / 2;
+            node._y = midY;
+            node.direction = dir;
+
+            // Layout summary's children branching from summary
+            if (node.children && node.children.length > 0) {
+                for (const c of node.children) {
+                    if (c._el) {
+                        const ow = c._el.offsetWidth;
+                        const oh = c._el.offsetHeight;
+                        if (ow > 1) { c._w = ow; c._h = oh; }
+                    }
+                }
+                const layout = this.jm.view.layout;
+                const savedMode = layout._currentMode;
+                layout._currentMode = 'logic_right';
+                layout._layoutBranch(node, node.children, dir);
+                layout._currentMode = savedMode;
+                this._positionSummaryChildren(node, dir);
+            }
+        }
+
+        // Reposition summary's own expander
+        if (node._expander) {
+            if (isVertical) {
+                const isUp = layoutMode === 'org_chart_up';
+                node._expander.style.left = (node._x - 6) + 'px';
+                node._expander.style.top = isUp
+                    ? (node._y - node._h / 2 - 13) + 'px'
+                    : (node._y + node._h / 2 + 2) + 'px';
+            } else {
+                const d = node.direction || 1;
+                if (d === -1) {
+                    node._expander.style.left = (node._x - node._w / 2 - 15) + 'px';
+                } else {
+                    node._expander.style.left = (node._x + node._w / 2 + 3) + 'px';
+                }
+                node._expander.style.top = (node._y - 6) + 'px';
+            }
+        }
+    }
+
+    _positionSummaryChildren(node, dir) {
+        const posAll = (n) => {
+            if (!n._el) return;
+            if (!(n.data && n.data._isSummaryNode)) {
+                n._el.style.left = (n._x - n._w / 2) + 'px';
+                n._el.style.top = (n._y - n._h / 2) + 'px';
+                n._el.style.display = '';
+            }
+            if (n._expander) {
+                const d = n.direction || dir;
+                if (d === -1) {
+                    n._expander.style.left = (n._x - n._w / 2 - 15) + 'px';
+                    n._expander.style.top = (n._y - 6) + 'px';
+                } else {
+                    n._expander.style.left = (n._x + n._w / 2 + 3) + 'px';
+                    n._expander.style.top = (n._y - 6) + 'px';
+                }
+            }
+            if (n.expanded) n.children.forEach(c => posAll(c));
+        };
+        node.children.forEach(c => posAll(c));
+    }
+
+    /**
+     * Check if the topics covered by a summary are descendants of a summary node.
+     * If so, this is a nested summary (inside a summary's children tree) → should stay horizontal.
+     */
+    _isSummaryDescendant(topicIds) {
+        if (!topicIds || topicIds.length === 0) return false;
+        const firstNode = this.jm.get_node(topicIds[0]);
+        if (!firstNode) return false;
+        // Walk up the parent chain; if any ancestor is a summary node, this is nested
+        let current = firstNode.parent;
+        while (current) {
+            if (current.data && current.data._isSummaryNode) return true;
+            current = current.parent;
+        }
+        return false;
+    }
+
+    _rebuildBoundaries() {
+        if (!this.boundaryRenderer) return;
+        this.boundaryRenderer.clear();
+
+        // Compute bounds for each boundary first
+        const boundsData = this.boundaries.map(boundary => {
+            const elements = this._collectBoundaryElements(boundary.topicIds);
+            if (elements.length === 0) return null;
+            // Compute raw bounding box
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const el of elements) {
+                if (!el || el.style.display === 'none') continue;
+                minX = Math.min(minX, el.offsetLeft);
+                minY = Math.min(minY, el.offsetTop);
+                maxX = Math.max(maxX, el.offsetLeft + el.offsetWidth);
+                maxY = Math.max(maxY, el.offsetTop + el.offsetHeight);
+            }
+            return { boundary, elements, minX, minY, maxX, maxY };
+        }).filter(b => b !== null);
+
+        // Sort by area (smallest first = innermost)
+        boundsData.sort((a, b) => {
+            const areaA = (a.maxX - a.minX) * (a.maxY - a.minY);
+            const areaB = (b.maxX - b.minX) * (b.maxY - b.minY);
+            return areaA - areaB;
+        });
+
+        // For each boundary, count how many others contain it → nesting level
+        for (let i = 0; i < boundsData.length; i++) {
+            let nestLevel = 0;
+            for (let j = 0; j < boundsData.length; j++) {
+                if (i === j) continue;
+                const outer = boundsData[j];
+                const inner = boundsData[i];
+                // Check if inner is contained within outer
+                if (inner.minX >= outer.minX && inner.minY >= outer.minY &&
+                    inner.maxX <= outer.maxX && inner.maxY <= outer.maxY) {
+                    nestLevel++;
+                }
+            }
+            boundsData[i].nestLevel = nestLevel;
+        }
+
+        // Render with extra padding per nesting level (outermost gets most padding)
+        const nestGap = 10; // px gap between nested boundary frames
+        for (const bd of boundsData) {
+            const extraPadding = bd.nestLevel * nestGap;
+            const opts = { ...bd.boundary.options, _extraPadding: extraPadding };
+            this.boundaryRenderer.addBoundary(bd.elements, opts);
+        }
+    }
+
+    _collectBoundaryElements(topicIds) {
+        // Collect elements for specified topic IDs plus ALL their descendants
+        const elements = [];
+        const seen = new Set();
+
+        const collectDescendants = (nodeId) => {
+            if (seen.has(nodeId)) return;
+            seen.add(nodeId);
+            const el = this.jm.view.get_node_element(nodeId);
+            if (el) elements.push(el);
+
+            const node = this.jm.get_node(nodeId);
+            if (node && node.expanded && node.children) {
+                for (const child of node.children) {
+                    collectDescendants(child.id);
+                }
+            }
+        };
+
+        for (const nodeId of topicIds) {
+            collectDescendants(nodeId);
+        }
+        return elements;
     }
 
     // ===== XMind Features Init =====
@@ -655,6 +1211,9 @@ export class MindmapEditor extends Component {
 
         // Drag-to-connect: Alt+drag from topic to topic creates relationship
         this._setupDragToConnect();
+
+        // Relationship button mode: click source → preview → click target
+        this._setupRelationshipModeListeners();
     }
 
     _setupRelationshipInteraction() {
@@ -689,6 +1248,25 @@ export class MindmapEditor extends Component {
                 this._updateStatus(_t('Curve adjusted'));
             }
         };
+    }
+
+    _hasSelectedRelationship() {
+        return this.advancedRelationshipManager &&
+            this.advancedRelationshipManager.selectedRelationship != null;
+    }
+
+    _deselectRelationship() {
+        if (!this.advancedRelationshipManager) return;
+        if (this.advancedRelationshipManager.selectedRelationship) {
+            // Sync control points before deselecting
+            this._syncRelationshipControlPoints();
+            this.advancedRelationshipManager._hideControlPoints(
+                this.advancedRelationshipManager.selectedRelationship
+            );
+            this.advancedRelationshipManager.selectedRelationship = null;
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
+        }
     }
 
     _syncRelationshipControlPoints() {
@@ -830,11 +1408,13 @@ export class MindmapEditor extends Component {
         let startX, startY;
 
         canvas.addEventListener('mousedown', (e) => {
-            // Fix #2: Start rectangle selection on empty canvas (no Shift required, like XMind 2)
             const clickedNode = e.target.closest('.xmind-node');
             const clickedExpander = e.target.closest('.xmind-expander');
-            if (!clickedNode && !clickedExpander && e.button === 0) {
-                // Left-click on empty area starts rectangle select
+            const clickedFloating = e.target.closest('.xmind-floating-topic');
+            if (!clickedNode && !clickedExpander && !clickedFloating && e.button === 0) {
+                // Left-click on empty area: clear selection + deselect relationship
+                this._clearMultiSelection();
+                this._deselectRelationship();
                 isSelecting = true;
                 e.stopPropagation(); // Prevent jsMind panel drag
                 const rect = canvas.getBoundingClientRect();
@@ -863,9 +1443,44 @@ export class MindmapEditor extends Component {
         document.addEventListener('mouseup', (e) => {
             if (!isSelecting) return;
             isSelecting = false;
-            this.selectionRect.style.display = 'none';
             const selRect = this.selectionRect.getBoundingClientRect();
-            this._selectNodesInRect(selRect);
+            const rectW = parseFloat(this.selectionRect.style.width);
+            const rectH = parseFloat(this.selectionRect.style.height);
+            this.selectionRect.style.display = 'none';
+
+            // Only select if drag area is meaningful (> 5px)
+            if (rectW > 5 && rectH > 5) {
+                // Clear previous selection before new rectangle select
+                this._clearMultiSelection();
+                this._selectNodesInRect(selRect);
+
+                // Auto-create feature if in pending mode
+                if (this._pendingFeatureMode && this.selectedNodes.length > 0) {
+                    const mode = this._pendingFeatureMode;
+                    this._pendingFeatureMode = null;
+                    const canvas = this.canvasRef.el;
+                    if (canvas) canvas.style.cursor = '';
+
+                    if (mode === 'boundary') {
+                        this.selectedTopicsForFeature = this.selectedNodes.map(n => n.id || n);
+                        this._createBoundaryWithDefaults();
+                    } else if (mode === 'summary') {
+                        const ids = this.selectedNodes.map(n => n.id || n);
+                        const node = this.jm.get_node(ids[0]);
+                        if (node && node.parent) {
+                            this._createSummary(ids, {
+                                lineType: 'square', lineWidth: 5, lineColor: '#C3D69B',
+                                topicText: _t('Summary'), topicFillColor: '#77933C',
+                                topicTextColor: '#FFFFFF', topicFontSize: 10,
+                                topicShape: 'rounded', topicBorderColor: 'transparent',
+                                topicBorderWidth: 0, topicBold: false, topicItalic: true,
+                                branchType: 'curved', branchEndMarker: 'none',
+                                branchWidth: 1, branchColor: '#C3D69B',
+                            });
+                        }
+                    }
+                }
+            }
         });
 
         canvas.addEventListener('click', (e) => {
@@ -973,7 +1588,14 @@ export class MindmapEditor extends Component {
         const style = data.style || {};
 
         const setVal = (sel, val) => { const el = this._el(sel); if (el) el.value = val; };
-        setVal('.o_topic_title', node.topic);
+        setVal('.o_topic_child_structure', data.childStructure || '');
+        const shape = data.shape || {};
+        setVal('.o_topic_shape_type', shape.type || 'rounded');
+        setVal('.o_topic_border_width', shape.borderWidth || '2');
+        const branch = data.branchStyle || {};
+        setVal('.o_topic_line_type', branch.lineType || 'curved');
+        setVal('.o_topic_line_width', branch.lineWidth || '1');
+        setVal('.o_topic_numbering', data.numbering || 'none');
         setVal('.o_topic_bg_color', style.background || '#ffffff');
         setVal('.o_topic_text_color', style.color || '#333333');
         setVal('.o_topic_font_size', parseInt(style['font-size']) || 14);
@@ -1412,8 +2034,7 @@ export class MindmapEditor extends Component {
             data: this._serializeNodeForJsMind(node),
         };
 
-        this.jm.show(subData);
-        setTimeout(() => this._renderAllXMindFeatures(), 200);
+        this.jm.show(subData, () => this._renderAllXMindFeatures());
         this._updateStatus(_t('Drill down: ') + node.topic);
     }
 
@@ -1423,8 +2044,7 @@ export class MindmapEditor extends Component {
             return;
         }
         const prevData = this._drillStack.pop();
-        this.jm.show(prevData);
-        setTimeout(() => this._renderAllXMindFeatures(), 200);
+        this.jm.show(prevData, () => this._renderAllXMindFeatures());
         this._updateStatus(_t('Drill up'));
     }
 
@@ -1793,8 +2413,7 @@ export class MindmapEditor extends Component {
                             await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
                             // Reload mindmap
                             await this._loadWorkbookData();
-                            this.jm.show(this.mindmapData);
-                            setTimeout(() => this._renderAllXMindFeatures(), 200);
+                            this.jm.show(this.mindmapData, () => this._renderAllXMindFeatures());
                             this._updateStatus(_t('Revision restored: ') + rev.name);
                         },
                     });
@@ -1805,8 +2424,7 @@ export class MindmapEditor extends Component {
                     const result = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/preview', {});
                     if (result && result.data) {
                         // Temporarily show the revision data
-                        this.jm.show(result.data);
-                        setTimeout(() => this._renderAllXMindFeatures(), 200);
+                        this.jm.show(result.data, () => this._renderAllXMindFeatures());
                         this._updateStatus(_t('Previewing: ') + rev.name + _t(' (not saved)'));
                     }
                 });
@@ -1837,24 +2455,98 @@ export class MindmapEditor extends Component {
     }
 
     onAddRelationship() {
-        if (!this.selectedNode) {
-            this._showWarning(_t('Please select a source topic first'));
-            return;
-        }
+        // Enter relationship mode: step 1 = click source, step 2 = click target
         this.relationshipMode = true;
-        this.relationshipSource = this.selectedNode;
-        // Fix #5: cursor feedback
+        this.relationshipSource = null;
+        this._relPreviewLine = null;
+        this._relPreviewSvg = null;
         const canvas = this.canvasRef.el;
         if (canvas) canvas.style.cursor = 'crosshair';
-        this._updateStatus(_t('Click on target topic to create relationship... (Esc/Right-click to cancel)'));
+        this._updateStatus(_t('Click source topic... (Esc/Right-click to cancel)'));
     }
 
     _exitRelationshipMode() {
         this.relationshipMode = false;
         this.relationshipSource = null;
+        // Clean up preview line
+        if (this._relPreviewLine && this._relPreviewLine.parentNode) {
+            this._relPreviewLine.parentNode.removeChild(this._relPreviewLine);
+        }
+        if (this._relPreviewSvg && this._relPreviewSvg.parentNode) {
+            this._relPreviewSvg.parentNode.removeChild(this._relPreviewSvg);
+        }
+        this._relPreviewLine = null;
+        this._relPreviewSvg = null;
+        // Remove target highlights
+        const world = this.jm.view.world;
+        if (world) {
+            world.querySelectorAll('.xmind-node.rel-drop-target').forEach(el => el.classList.remove('rel-drop-target'));
+        }
         const canvas = this.canvasRef.el;
         if (canvas) canvas.style.cursor = '';
         this._updateStatus(_t('Ready'));
+    }
+
+    _setupRelationshipModeListeners() {
+        const world = this.jm.view.world;
+        if (!world) return;
+
+        // Create SVG layer for preview line
+        const previewSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        previewSvg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:20;';
+        previewSvg.classList.add('rel-preview-svg');
+        world.appendChild(previewSvg);
+
+        // Arrow marker definition for preview
+        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        marker.setAttribute('id', 'rel-preview-arrow');
+        marker.setAttribute('viewBox', '0 0 10 10');
+        marker.setAttribute('refX', '10');
+        marker.setAttribute('refY', '5');
+        marker.setAttribute('markerWidth', '8');
+        marker.setAttribute('markerHeight', '8');
+        marker.setAttribute('orient', 'auto');
+        const arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arrowPath.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+        arrowPath.setAttribute('fill', '#77933C');
+        marker.appendChild(arrowPath);
+        defs.appendChild(marker);
+        previewSvg.appendChild(defs);
+
+        // Mouse move → update preview line from source to cursor
+        document.addEventListener('mousemove', (e) => {
+            if (!this.relationshipMode || !this.relationshipSource || !this._relPreviewLine) return;
+
+            const srcEl = this.jm.get_node(this.relationshipSource)?._el;
+            if (!srcEl) return;
+
+            const sx = srcEl.offsetLeft + srcEl.offsetWidth / 2;
+            const sy = srcEl.offsetTop + srcEl.offsetHeight / 2;
+
+            const worldRect = world.getBoundingClientRect();
+            const zoom = this.jm.view.getZoom ? this.jm.view.getZoom() : 1;
+            const mx = (e.clientX - worldRect.left) / zoom;
+            const my = (e.clientY - worldRect.top) / zoom;
+
+            // Snap to target node center if hovering over one
+            const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+            const targetNodeEl = targetEl ? targetEl.closest('.xmind-node') : null;
+            let ex = mx, ey = my;
+
+            // Highlight/unhighlight
+            world.querySelectorAll('.xmind-node.rel-drop-target').forEach(el => el.classList.remove('rel-drop-target'));
+            if (targetNodeEl && targetNodeEl.getAttribute('data-nodeid') !== this.relationshipSource) {
+                targetNodeEl.classList.add('rel-drop-target');
+                ex = targetNodeEl.offsetLeft + targetNodeEl.offsetWidth / 2;
+                ey = targetNodeEl.offsetTop + targetNodeEl.offsetHeight / 2;
+            }
+
+            // Bezier preview with arrow
+            const ctrl = Math.abs(ex - sx) * 0.33;
+            this._relPreviewLine.setAttribute('d',
+                `M${sx},${sy} C${sx + ctrl},${sy} ${ex - ctrl},${ey} ${ex},${ey}`);
+        });
     }
 
     onSave() {
@@ -2578,8 +3270,7 @@ export class MindmapEditor extends Component {
             rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}).then(result => {
                 if (result.mindmap_data) {
                     this.mindmapData = result.mindmap_data;
-                    this.jm.show(this.mindmapData);
-                    setTimeout(() => this._renderAllXMindFeatures(), 200);
+                    this.jm.show(this.mindmapData, () => this._renderAllXMindFeatures());
                     this._updateSheetTabs();
                     this._updateStatus(_t('Switched to sheet: ') + result.name);
                 }
@@ -2682,6 +3373,8 @@ export class MindmapEditor extends Component {
         if (this.jm && this.jm.layout && this.jm.view) {
             this.jm.layout.setLayoutMode(layout);
             this.jm.view.refresh();
+            // Rebuild all features after layout change
+            setTimeout(() => this._updateFeaturePositions(), 100);
         }
     }
 
@@ -2698,18 +3391,11 @@ export class MindmapEditor extends Component {
         const node = this.jm.get_node(this.selectedNode);
         if (!node) return;
 
-        const titleEl = this._el('.o_topic_title');
         const noteEl = this._el('.o_topic_note');
         const labelsEl = this._el('.o_topic_labels');
 
-        const newTopic = titleEl ? titleEl.value : '';
         const note = noteEl ? noteEl.value : '';
         const labels = labelsEl ? labelsEl.value.split(',').map(l => l.trim()).filter(l => l) : [];
-
-        if (newTopic !== node.topic) {
-            const cmd = new UpdateNodeCommand(this.jm, this.selectedNode, newTopic, node.topic);
-            this.commandStack.execute(cmd);
-        }
 
         node.data = node.data || {};
         node.data.note = note;
@@ -2739,6 +3425,201 @@ export class MindmapEditor extends Component {
         const cmd = new UpdateNodeStyleCommand(this.jm, this.selectedNode, newStyle, oldStyle);
         this.commandStack.execute(cmd);
         this._updateStatus(_t('Updated style'));
+    }
+
+    onTopicShapeChange() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node) return;
+
+        const shapeTypeEl = this._el('.o_topic_shape_type');
+        const borderWidthEl = this._el('.o_topic_border_width');
+
+        const shapeType = shapeTypeEl ? shapeTypeEl.value : 'rounded';
+        const borderWidth = borderWidthEl ? parseInt(borderWidthEl.value) : 2;
+
+        node.data = node.data || {};
+        const currentShape = node.data.shape || {};
+        node.data.shape = {
+            ...currentShape,
+            type: shapeType,
+            borderWidth: borderWidth,
+        };
+
+        const element = this.jm.view.get_node_element(this.selectedNode);
+        if (element) {
+            this._applyShapeToNode(element, node.data.shape);
+        }
+
+        this.jm.view.refresh();
+        setTimeout(() => this._updateFeaturePositions(), 50);
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Shape updated'));
+    }
+
+    onTopicChildStructureChange() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node) return;
+
+        const structureEl = this._el('.o_topic_child_structure');
+        const value = structureEl ? structureEl.value : '';
+
+        node.data = node.data || {};
+        if (value) {
+            node.data.childStructure = value;
+        } else {
+            delete node.data.childStructure;
+        }
+
+        // Re-layout to apply the new child structure
+        if (this.jm && this.jm.view) {
+            this.jm.view.refresh();
+            setTimeout(() => this._updateFeaturePositions(), 100);
+        }
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(value ? _t('Child structure: ') + value : _t('Child structure reset to default'));
+    }
+
+    onTopicBranchStyleChange() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node) return;
+
+        const lineTypeEl = this._el('.o_topic_line_type');
+        const lineWidthEl = this._el('.o_topic_line_width');
+
+        const lineType = lineTypeEl ? lineTypeEl.value : 'curved';
+        const lineWidth = lineWidthEl ? parseInt(lineWidthEl.value) : 1;
+
+        node.data = node.data || {};
+        node.data.branchStyle = {
+            ...(node.data.branchStyle || {}),
+            lineType: lineType,
+            lineWidth: lineWidth,
+        };
+
+        this.jm.view.draw_lines();
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Branch line style updated'));
+    }
+
+    onTopicNumberingChange() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node) return;
+
+        const numberingEl = this._el('.o_topic_numbering');
+        const value = numberingEl ? numberingEl.value : 'none';
+
+        node.data = node.data || {};
+        if (value && value !== 'none') {
+            node.data.numbering = value;
+        } else {
+            delete node.data.numbering;
+        }
+
+        this._applyPerTopicNumbering(node);
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(value !== 'none' ? _t('Numbering: ') + value : _t('Numbering disabled'));
+    }
+
+    /**
+     * Apply numbering to children of a specific topic based on its numbering setting.
+     * Format types: '1' (numeric), 'a'/'A' (alpha), 'i'/'I' (roman), '1.1' (hierarchical)
+     */
+    _applyPerTopicNumbering(parentNode) {
+        if (!parentNode) return;
+        const fmt = (parentNode.data && parentNode.data.numbering) || 'none';
+
+        // Clear existing numbering from all children recursively
+        const clearNumbering = (node) => {
+            const el = this.jm.view.get_node_element(node.id);
+            if (el) {
+                const existing = el.querySelector('.xmind-number-prefix');
+                if (existing) existing.remove();
+            }
+            for (const c of node.children) clearNumbering(c);
+        };
+        for (const child of parentNode.children) clearNumbering(child);
+
+        if (fmt === 'none') return;
+
+        // Apply numbering to direct children
+        const layoutChildren = parentNode.children.filter(c => !(c.data && c.data._isSummaryNode));
+        for (let i = 0; i < layoutChildren.length; i++) {
+            const child = layoutChildren[i];
+            const el = this.jm.view.get_node_element(child.id);
+            if (!el) continue;
+
+            let numStr = '';
+            if (fmt === '1') {
+                numStr = String(i + 1) + '.';
+            } else if (fmt === 'a') {
+                numStr = String.fromCharCode(97 + (i % 26)) + '.';
+            } else if (fmt === 'A') {
+                numStr = String.fromCharCode(65 + (i % 26)) + '.';
+            } else if (fmt === 'i') {
+                numStr = this._toRoman(i + 1).toLowerCase() + '.';
+            } else if (fmt === 'I') {
+                numStr = this._toRoman(i + 1) + '.';
+            } else if (fmt === '1.1') {
+                // Hierarchical: build parent chain number
+                numStr = this._getHierarchicalNumber(child) + '.';
+            }
+
+            if (numStr) {
+                const prefix = document.createElement('span');
+                prefix.className = 'xmind-number-prefix';
+                prefix.style.cssText = 'margin-right:4px;color:#888;font-size:0.85em;';
+                prefix.textContent = numStr;
+                const textSpan = el.querySelector('.xmind-topic-text');
+                const markers = el.querySelector('.xmind-markers');
+                if (markers) {
+                    markers.parentNode.insertBefore(prefix, markers);
+                } else if (textSpan) {
+                    el.insertBefore(prefix, textSpan);
+                }
+            }
+
+            // Recurse: if this child also has numbering, apply it too
+            if (child.data && child.data.numbering && child.data.numbering !== 'none') {
+                this._applyPerTopicNumbering(child);
+            }
+        }
+    }
+
+    _toRoman(num) {
+        const lookup = [
+            ['M', 1000], ['CM', 900], ['D', 500], ['CD', 400],
+            ['C', 100], ['XC', 90], ['L', 50], ['XL', 40],
+            ['X', 10], ['IX', 9], ['V', 5], ['IV', 4], ['I', 1]
+        ];
+        let result = '';
+        for (const [letter, value] of lookup) {
+            while (num >= value) { result += letter; num -= value; }
+        }
+        return result;
+    }
+
+    _getHierarchicalNumber(node) {
+        const path = [];
+        let current = node;
+        while (current && !current.isroot) {
+            const parent = current.parent;
+            if (!parent) break;
+            const siblings = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const idx = siblings.indexOf(current);
+            path.unshift(idx + 1);
+            // Stop if parent doesn't have hierarchical numbering
+            if (!parent.data || parent.data.numbering !== '1.1') break;
+            current = parent;
+        }
+        return path.join('.');
     }
 
     onTopicNoteChange() {
@@ -2900,7 +3781,11 @@ export class MindmapEditor extends Component {
             this._updateStatus(_t('Style applied'));
         } else {
             this.notification.add(_t('Please select at least one topic first'), { type: 'warning' });
+            return;
         }
+        // Shape/style changes may alter node dimensions → re-measure + re-layout + redraw lines
+        this.jm.view.refresh();
+        setTimeout(() => this._updateFeaturePositions(), 50);
     }
 
     onFormatApplyAll(e) {
@@ -2940,18 +3825,27 @@ export class MindmapEditor extends Component {
 
     // ===== Boundary =====
     onAddBoundary() {
-        // Fix #6: Use multi-selected nodes if available, otherwise single selected
+        // If topics already selected, create immediately
         let topicIds = [];
         if (this.selectedNodes.length > 1) {
             topicIds = this.selectedNodes.map(n => n.id || n);
         } else if (this.selectedNode) {
             topicIds = [this.selectedNode];
-        } else {
-            this._showWarning(_t('Please select at least one topic to create a boundary'));
-            return;
         }
-        this.selectedTopicsForFeature = topicIds;
 
+        if (topicIds.length > 0) {
+            this.selectedTopicsForFeature = topicIds;
+            this._createBoundaryWithDefaults();
+        } else {
+            // Enter boundary selection mode: drag to select → auto create
+            this._pendingFeatureMode = 'boundary';
+            const canvas = this.canvasRef.el;
+            if (canvas) canvas.style.cursor = 'crosshair';
+            this._updateStatus(_t('Drag to select topics for boundary... (Esc to cancel)'));
+        }
+    }
+
+    _createBoundaryWithDefaults() {
         const options = {
             shape: 'rounded',
             fillColor: 'rgba(195, 214, 155, 0.2)',
@@ -2964,11 +3858,8 @@ export class MindmapEditor extends Component {
     }
 
     _createBoundary(options) {
-        const topicElements = [];
-        for (let nodeId of this.selectedTopicsForFeature) {
-            const element = this.jm.view.get_node_element(nodeId);
-            if (element) topicElements.push(element);
-        }
+        // Collect topic elements including all descendants
+        const topicElements = this._collectBoundaryElements(this.selectedTopicsForFeature);
 
         if (topicElements.length > 0) {
             this.boundaryRenderer.addBoundary(topicElements, options);
@@ -2984,20 +3875,25 @@ export class MindmapEditor extends Component {
 
     // ===== Summary =====
     onAddSummary() {
-        // Fix #7: Use multi-selected sibling nodes for summary range
         let topicIds = [];
         if (this.selectedNodes.length > 1) {
             topicIds = this.selectedNodes.map(n => n.id || n);
         } else if (this.selectedNode) {
             topicIds = [this.selectedNode];
-        } else {
-            this._showWarning(_t('Please select sibling topics to summarize'));
-            return;
         }
 
-        const node = this.jm.get_node(topicIds[0]);
-        if (!node || !node.parent) {
-            this._showWarning(_t('Cannot create summary for root node'));
+        if (topicIds.length > 0) {
+            const node = this.jm.get_node(topicIds[0]);
+            if (!node || !node.parent) {
+                this._showWarning(_t('Cannot create summary for root node'));
+                return;
+            }
+        } else {
+            // Enter summary selection mode: drag to select → auto create
+            this._pendingFeatureMode = 'summary';
+            const canvas = this.canvasRef.el;
+            if (canvas) canvas.style.cursor = 'crosshair';
+            this._updateStatus(_t('Drag to select topics for summary... (Esc to cancel)'));
             return;
         }
 
@@ -3024,50 +3920,70 @@ export class MindmapEditor extends Component {
     }
 
     _createSummary(topicIds, summaryOptions) {
-        const parentId = this.jm.get_node(topicIds[0]).parent.id;
+        const node0 = this.jm.get_node(topicIds[0]);
+        if (!node0 || !node0.parent) return;
+
+        // Create summary node IN the jsMind tree (as sibling, with _isSummaryNode flag)
+        // This allows Tab/Enter to add child/sibling topics, dblclick to inline edit
+        // The layout engine skips it; SummaryRenderer positions it at the bracket endpoint
+        const parentId = node0.parent.id;
         const summaryNodeId = this._generateNodeId();
 
-        const nodeStyle = {
-            background: summaryOptions.topicFillColor,
-            color: summaryOptions.topicTextColor,
-            'font-size': summaryOptions.topicFontSize + 'px',
-            'border': `${summaryOptions.topicBorderWidth}px solid ${summaryOptions.topicBorderColor}`
+        const nodeData = {
+            _isSummaryNode: true,
+            style: {
+                background: summaryOptions.topicFillColor,
+                color: summaryOptions.topicTextColor,
+                'font-size': summaryOptions.topicFontSize + 'px',
+            },
         };
-        if (summaryOptions.topicBold) nodeStyle['font-weight'] = 'bold';
-        if (summaryOptions.topicItalic) nodeStyle['font-style'] = 'italic';
+        if (summaryOptions.topicItalic) nodeData.style['font-style'] = 'italic';
 
-        const cmd = new AddNodeCommand(this.jm, parentId, summaryNodeId, summaryOptions.topicText, { style: nodeStyle });
+        const cmd = new AddNodeCommand(this.jm, parentId, summaryNodeId, summaryOptions.topicText, nodeData);
         this.commandStack.execute(cmd);
 
+        // Wait for node to be in the tree, then render bracket + position the node
         setTimeout(() => {
             const summaryElement = this.jm.view.get_node_element(summaryNodeId);
-            if (summaryElement) summaryElement.classList.add('summary-topic');
+            if (summaryElement) {
+                summaryElement.classList.add('xmind-summary-node');
+                // Apply summary styling
+                summaryElement.style.background = summaryOptions.topicFillColor;
+                summaryElement.style.color = summaryOptions.topicTextColor;
+                summaryElement.style.fontFamily = 'Georgia, serif';
+                summaryElement.style.borderRadius = '4px';
+                summaryElement.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)';
+            }
 
-            this.summaryBranchStyles[summaryNodeId] = {
-                lineType: summaryOptions.branchType,
-                endMarker: summaryOptions.branchEndMarker,
-                lineWidth: summaryOptions.branchWidth,
-                lineColor: summaryOptions.branchColor
-            };
-        }, 100);
+            const topicElements = this._collectBoundaryElements(topicIds);
+            if (topicElements.length === 0) return;
 
-        const topicElements = topicIds.map(id => this.jm.view.get_node_element(id)).filter(e => e);
-        const summaryElement = this.jm.view.get_node_element(summaryNodeId);
+            const renderedSummaryId = this.summaryRenderer.addSummary(topicElements, summaryElement, {
+                lineType: summaryOptions.lineType,
+                lineColor: summaryOptions.lineColor,
+                lineWidth: summaryOptions.lineWidth,
+                summaryTitle: summaryOptions.topicText,
+                summaryFill: summaryOptions.topicFillColor,
+                summaryColor: summaryOptions.topicTextColor,
+                summaryFontSize: summaryOptions.topicFontSize,
+                summaryItalic: summaryOptions.topicItalic,
+            });
 
-        const renderedSummaryId = this.summaryRenderer.addSummary(topicElements, summaryElement, {
-            lineType: summaryOptions.lineType,
-            lineColor: summaryOptions.lineColor,
-            lineWidth: summaryOptions.lineWidth,
-        });
+            this.summaries.push({
+                id: renderedSummaryId,
+                topicIds: topicIds,
+                summaryNodeId: summaryNodeId,
+                options: summaryOptions,
+            });
 
-        this.summaries.push({
-            id: renderedSummaryId,
-            topicIds: topicIds,
-            summaryNodeId: summaryNodeId,
-            options: summaryOptions,
-        });
+            // Position the jsMind node at the bracket endpoint
+            this._positionSummaryNode(summaryNodeId, topicIds);
 
-        this._updateStatus(_t('Summary created'));
+            this._updateStatus(_t('Summary created'));
+        }, 200);
+
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
     }
 
     // ===== Callout =====
@@ -3196,6 +4112,116 @@ export class MindmapEditor extends Component {
         this.commandStack.execute(cmd);
     }
 
+    _showBranchStylePicker(nodeId) {
+        const node = this.jm.get_node(nodeId);
+        if (!node) return;
+        const current = (node.data && node.data.branchStyle) || {};
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = 'background:white;border-radius:12px;padding:20px;width:340px;box-shadow:0 16px 48px rgba(0,0,0,0.3);';
+        dialog.innerHTML = `
+            <h6 style="margin-bottom:14px;"><i class="fa fa-code-fork"></i> ${_t('Branch Style')}</h6>
+            <div class="mb-2">
+                <label class="small fw-bold">${_t('Line Type')}</label>
+                <div class="d-flex gap-1 flex-wrap o_bs_types"></div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-6">
+                    <label class="small fw-bold">${_t('Width')}</label>
+                    <input type="range" class="form-range o_bs_width" min="1" max="5" value="${current.lineWidth || 1}"/>
+                </div>
+                <div class="col-6">
+                    <label class="small fw-bold">${_t('Color')}</label>
+                    <input type="color" class="form-control form-control-sm o_bs_color" value="${current.lineColor || '#558ED5'}"/>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="small fw-bold">${_t('Pattern')}</label>
+                <div class="d-flex gap-1 o_bs_patterns"></div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary btn-sm o_bs_apply">${_t('Apply')}</button>
+                <button class="btn btn-outline-secondary btn-sm o_bs_reset">${_t('Reset')}</button>
+                <button class="btn btn-secondary btn-sm o_bs_close">${_t('Close')}</button>
+            </div>
+        `;
+
+        // Line type buttons with visual preview
+        const types = [
+            { id: 'curved', label: _t('Curve'), icon: '╭╯' },
+            { id: 'straight', label: _t('Straight'), icon: '─' },
+            { id: 'roundedElbow', label: _t('Rounded'), icon: '╰┐' },
+            { id: 'angular', label: _t('Angular'), icon: '└┐' },
+            { id: 'none', label: _t('None'), icon: '⋯' },
+        ];
+        const typesDiv = dialog.querySelector('.o_bs_types');
+        let selectedType = current.lineType || 'curved';
+        for (const t of types) {
+            const btn = document.createElement('button');
+            btn.className = `btn btn-sm ${t.id === selectedType ? 'btn-primary' : 'btn-outline-secondary'}`;
+            btn.style.cssText = 'min-width:55px;font-size:11px;';
+            btn.innerHTML = `<span style="font-size:14px;">${t.icon}</span><br/>${t.label}`;
+            btn.addEventListener('click', () => {
+                selectedType = t.id;
+                typesDiv.querySelectorAll('.btn').forEach(b => { b.className = 'btn btn-sm btn-outline-secondary'; b.style.minWidth = '55px'; b.style.fontSize = '11px'; });
+                btn.className = 'btn btn-sm btn-primary';
+                btn.style.cssText = 'min-width:55px;font-size:11px;';
+            });
+            typesDiv.appendChild(btn);
+        }
+
+        // Pattern buttons
+        const patterns = [
+            { id: 'solid', label: '───' },
+            { id: 'dashed', label: '- - -' },
+            { id: 'dotted', label: '···' },
+        ];
+        const patternsDiv = dialog.querySelector('.o_bs_patterns');
+        let selectedPattern = current.lineStyle || 'solid';
+        for (const p of patterns) {
+            const btn = document.createElement('button');
+            btn.className = `btn btn-sm ${p.id === selectedPattern ? 'btn-primary' : 'btn-outline-secondary'}`;
+            btn.style.fontSize = '12px';
+            btn.textContent = p.label;
+            btn.addEventListener('click', () => {
+                selectedPattern = p.id;
+                patternsDiv.querySelectorAll('.btn').forEach(b => b.className = 'btn btn-sm btn-outline-secondary');
+                btn.className = 'btn btn-sm btn-primary';
+            });
+            patternsDiv.appendChild(btn);
+        }
+
+        // Apply
+        dialog.querySelector('.o_bs_apply').addEventListener('click', () => {
+            const branchStyle = {
+                lineType: selectedType,
+                lineWidth: parseInt(dialog.querySelector('.o_bs_width').value),
+                lineColor: dialog.querySelector('.o_bs_color').value,
+                lineStyle: selectedPattern,
+            };
+            this._applyBranchStyles(nodeId, branchStyle);
+            overlay.remove();
+        });
+
+        // Reset
+        dialog.querySelector('.o_bs_reset').addEventListener('click', () => {
+            if (node.data) delete node.data.branchStyle;
+            this.jm.view.draw_lines();
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
+            overlay.remove();
+        });
+
+        dialog.querySelector('.o_bs_close').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+    }
+
     _showMarkerDialog() {
         // Group markers by category
         const categories = {};
@@ -3257,7 +4283,13 @@ export class MindmapEditor extends Component {
         node.data.markers = node.data.markers || [];
         if (!node.data.markers.includes(marker.code)) {
             node.data.markers.push(marker.code);
+            // Update sidebar display
             this._updateMarkersDisplay(node.data.markers);
+            // Update inline marker badges on the node
+            const element = this.jm.view.get_node_element(this.selectedNode);
+            if (element) {
+                this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
+            }
             this.commandStack.isDirty = true;
             this.commandStack._notifyListeners();
             this._updateStatus(_t('Added marker: ') + marker.name);
@@ -3271,7 +4303,13 @@ export class MindmapEditor extends Component {
         const index = node.data.markers.indexOf(code);
         if (index > -1) {
             node.data.markers.splice(index, 1);
+            // Update sidebar display
             this._updateMarkersDisplay(node.data.markers);
+            // Update inline marker badges on the node
+            const element = this.jm.view.get_node_element(this.selectedNode);
+            if (element) {
+                this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
+            }
             this.commandStack.isDirty = true;
             this.commandStack._notifyListeners();
             this._updateStatus(_t('Removed marker'));
@@ -3290,10 +4328,10 @@ export class MindmapEditor extends Component {
     _showRelationshipPropertiesDialog(sourceId, targetId, existingRelId) {
         const existing = existingRelId ? this.relationships.find(r => r.id === existingRelId) : null;
         const defaults = existing ? existing.options : {
-            shapeType: 'curved', lineStyle: 'dotted', lineWidth: 3, lineColor: '#0068cf',
+            shapeType: 'curved', lineStyle: 'dashed', lineWidth: 3, lineColor: '#77933C',
             startMarker: 'none', endMarker: 'arrow', markerSize: 'medium',
-            label: '', labelFontSize: 12, labelColor: '#666666',
-            labelBold: false, labelItalic: false, labelBackground: false,
+            label: '', labelFontSize: 10, labelColor: '#595959',
+            labelBold: false, labelItalic: true, labelBackground: false,
         };
 
         const overlay = document.createElement('div');
@@ -3495,33 +4533,27 @@ export class MindmapEditor extends Component {
             await rpc('/xmind/workbook/' + this.workbookId + '/relationships', { relationships: [] });
         }
 
-        // Save boundaries
-        if (this.boundaries.length > 0) {
-            const bndData = this.boundaries.map(b => ({
-                topicIds: b.topicIds || [],
-                options: b.options || {},
-            }));
-            await rpc('/xmind/workbook/' + this.workbookId + '/boundaries', { boundaries: bndData });
-        }
+        // Save boundaries (always send — empty array clears backend)
+        const bndData = this.boundaries.map(b => ({
+            topicIds: b.topicIds || [],
+            options: b.options || {},
+        }));
+        await rpc('/xmind/workbook/' + this.workbookId + '/boundaries', { boundaries: bndData });
 
-        // Save summaries
-        if (this.summaries.length > 0) {
-            const sumData = this.summaries.map(s => ({
-                topicIds: s.topicIds || [],
-                summaryNodeId: s.summaryNodeId || '',
-                options: s.options || {},
-            }));
-            await rpc('/xmind/workbook/' + this.workbookId + '/summaries/save', { summaries: sumData });
-        }
+        // Save summaries (always send — empty array clears backend)
+        const sumData = this.summaries.map(s => ({
+            topicIds: s.topicIds || [],
+            summaryNodeId: s.summaryNodeId || '',
+            options: s.options || {},
+        }));
+        await rpc('/xmind/workbook/' + this.workbookId + '/summaries/save', { summaries: sumData });
 
-        // Save callouts
-        if (this.callouts.length > 0) {
-            const callData = this.callouts.map(c => ({
-                parentNodeId: c.parentNodeId || '',
-                options: c.options || {},
-            }));
-            await rpc('/xmind/workbook/' + this.workbookId + '/callouts', { callouts: callData });
-        }
+        // Save callouts (always send — empty array clears backend)
+        const callData = this.callouts.map(c => ({
+            parentNodeId: c.parentNodeId || '',
+            options: c.options || {},
+        }));
+        await rpc('/xmind/workbook/' + this.workbookId + '/callouts', { callouts: callData });
 
         // Save floating topics
         const ftData = this.floatingTopics.map(ft => ({
@@ -3643,8 +4675,10 @@ export class MindmapEditor extends Component {
         }
 
         if (shapeData.fillColor) element.style.backgroundColor = shapeData.fillColor;
-        if (shapeData.borderColor && shapeData.borderWidth) {
-            element.style.border = `${shapeData.borderWidth}px solid ${shapeData.borderColor}`;
+        const bw = shapeData.borderWidth || 2;
+        const bc = shapeData.borderColor || '#558ED5';
+        if (shapeData.borderColor || shapeData.borderWidth) {
+            element.style.border = `${bw}px solid ${bc}`;
         }
         // Stroke shape: add outer ring via outline
         if (shapeData.type === 'stroke') {
@@ -3740,22 +4774,24 @@ export class MindmapEditor extends Component {
     }
 
     _applyLayoutType(layoutType) {
-        const layoutMap = {
-            'map': 'side', 'tree_right': 'right', 'tree_left': 'left',
-            'logic_right': 'right', 'logic_left': 'left',
-            'org_chart_down': 'side', 'org_chart_up': 'side',
-            'fishbone_left': 'left', 'fishbone_right': 'right'
-        };
-        if (this.jm) {
-            this.jm.options.layout = { type: layoutMap[layoutType] || 'side' };
-            this.jm.view.relayout();
-            setTimeout(() => this._renderAllXMindFeatures(), 100);
+        if (this.jm && this.jm.layout && this.jm.view) {
+            this.jm.layout.setLayoutMode(layoutType);
+            this.jm.view.refresh();
+            setTimeout(() => {
+                this._renderAllXMindFeatures();
+                this._updateFeaturePositions();
+            }, 100);
             this._updateStatus(_t('Layout changed to: ') + layoutType);
         }
     }
 
     _collectFormatSettings() {
-        const getVal = (sel, def) => { const el = this._el(sel); return el ? el.value : def; };
+        // Search in component root first, then globally (Bootstrap may move dropdown to body)
+        const getVal = (sel, def) => {
+            let el = this._el(sel);
+            if (!el) el = document.querySelector(sel);
+            return el ? el.value : def;
+        };
         return {
             shape: {
                 type: getVal('.o_format_shape_type', 'rounded'),
@@ -3942,10 +4978,12 @@ export class MindmapEditor extends Component {
                 if (node.data.markers && node.data.markers.length > 0) {
                     this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
                     // Re-measure node since inline markers change width
-                    const rect = element.getBoundingClientRect();
-                    if (rect.width !== node._w || rect.height !== node._h) {
-                        node._w = rect.width;
-                        node._h = rect.height;
+                    // Use offsetWidth/Height (unaffected by CSS transform/zoom)
+                    const ow = element.offsetWidth;
+                    const oh = element.offsetHeight;
+                    if (ow !== node._w || oh !== node._h) {
+                        node._w = ow;
+                        node._h = oh;
                         needsRelayout = true;
                     }
                 }
@@ -3962,35 +5000,36 @@ export class MindmapEditor extends Component {
             this.jm.view.refresh();
         }
 
-        this.boundaryRenderer.clear();
-        for (let boundary of this.boundaries) {
-            const elements = boundary.topicIds.map(id => this.jm.view.get_node_element(id)).filter(e => e);
-            if (elements.length > 0) this.boundaryRenderer.addBoundary(elements, boundary.options);
+        this._rebuildBoundaries();
+
+        this._rebuildSummaries();
+
+        // Redraw branch lines after summary positioning (hide parent→summary lines)
+        if (this.jm && this.jm.view) {
+            this.jm.view.draw_lines();
         }
 
-        this.summaryRenderer.clear();
-        for (let summary of this.summaries) {
-            const topicElements = summary.topicIds.map(id => this.jm.view.get_node_element(id)).filter(e => e);
-            const summaryElement = this.jm.view.get_node_element(summary.summaryNodeId);
-            if (topicElements.length > 0 && summaryElement) this.summaryRenderer.addSummary(topicElements, summaryElement);
-        }
-
-        // Use advancedRelationshipManager (with control points) instead of basic renderer
-        this.advancedRelationshipManager.clear();
-        for (let rel of this.relationships) {
-            const sourceElement = this.jm.view.get_node_element(rel.sourceId);
-            const targetElement = this.jm.view.get_node_element(rel.targetId);
-            if (sourceElement && targetElement) {
-                const opts = { ...rel.options };
-                if (rel.controlPoints && rel.controlPoints.length > 0) {
-                    opts.controlPoints = rel.controlPoints;
-                }
-                this.advancedRelationshipManager.addRelationship(sourceElement, targetElement, opts);
-            }
-        }
+        // Rebuild all relationships
+        this._rebuildRelationships();
 
         // Render floating topics (independent layer)
         this._renderAllFloatingTopics();
+
+        // Apply per-topic numbering
+        this._applyAllPerTopicNumbering();
+    }
+
+    /**
+     * Walk all nodes and apply per-topic numbering where node.data.numbering is set.
+     */
+    _applyAllPerTopicNumbering() {
+        const nodes = this.jm.mind.nodes;
+        for (const id in nodes) {
+            const node = nodes[id];
+            if (node.data && node.data.numbering && node.data.numbering !== 'none') {
+                this._applyPerTopicNumbering(node);
+            }
+        }
     }
 
     // ===== Zoom Controls =====
@@ -4059,9 +5098,8 @@ export class MindmapEditor extends Component {
             for (const id in nodes) {
                 const node = nodes[id];
                 if (node._el) {
-                    const rect = node._el.getBoundingClientRect();
-                    node._w = rect.width;
-                    node._h = rect.height;
+                    node._w = node._el.offsetWidth || node._w;
+                    node._h = node._el.offsetHeight || node._h;
                 }
             }
         }
@@ -4194,6 +5232,8 @@ export class MindmapEditor extends Component {
             { icon: 'fa-users', label: _t('Select Siblings'), action: 'selectSiblings', disabled: isRoot },
             { icon: 'fa-level-down', label: _t('Select Children'), action: 'selectChildren', disabled: !hasChildren },
             { divider: true },
+            // Branch Style
+            { icon: 'fa-code-fork', label: _t('Branch Style...'), action: 'branchStyle', disabled: isRoot },
             // Properties
             { icon: 'fa-cog', label: _t('Properties'), action: 'properties', disabled: false },
             { divider: true },
@@ -4374,7 +5414,7 @@ export class MindmapEditor extends Component {
                     this._showRelationshipPropertiesDialog(relData.sourceId, relData.targetId, relId);
                 } else if (item.action === 'controlPoints') {
                     this.advancedRelationshipManager.selectRelationship(relId);
-                    this._updateStatus(_t('Drag green points to adjust curve'));
+                    this._updateStatus(_t('Drag green points to adjust curve, blue/red to move endpoints'));
                 } else if (item.action === 'delete') {
                     this.advancedRelationshipManager.removeRelationship(relId);
                     const idx = this.relationships.findIndex(r => r.id === relId);
@@ -4533,6 +5573,10 @@ export class MindmapEditor extends Component {
                 this.selectedNode = nodeId;
                 this.onCollapseAllFromNode();
                 break;
+            case 'branchStyle':
+                this.selectedNode = nodeId;
+                this._showBranchStylePicker(nodeId);
+                break;
             case 'properties':
                 this.selectedNode = nodeId;
                 this._openSidebar();
@@ -4677,8 +5721,10 @@ export class MindmapEditor extends Component {
             this._showFloatingTopicContextMenu(e, ft);
         });
 
-        // Drag to reposition
+        // Drag to reposition — with snap-to-attach on tree nodes
         let isDragging = false, startX, startY, origX, origY;
+        let attachTarget = null; // hovered tree node for attachment
+
         el.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             isDragging = true;
@@ -4686,9 +5732,11 @@ export class MindmapEditor extends Component {
             startY = e.clientY;
             origX = ft.x;
             origY = ft.y;
+            attachTarget = null;
             e.stopPropagation();
             e.preventDefault();
         });
+
         const onMove = (e) => {
             if (!isDragging) return;
             const zoom = this._zoomLevel || 1;
@@ -4696,13 +5744,60 @@ export class MindmapEditor extends Component {
             ft.y = origY + (e.clientY - startY) / zoom;
             el.style.left = ft.x + 'px';
             el.style.top = ft.y + 'px';
+
+            // Detect proximity to tree nodes for attachment
+            world.querySelectorAll('.xmind-node.ft-attach-target').forEach(n => {
+                n.classList.remove('ft-attach-target');
+                n.style.outline = '';
+            });
+            attachTarget = null;
+
+            const ftCx = ft.x + el.offsetWidth / 2;
+            const ftCy = ft.y + el.offsetHeight / 2;
+            let closest = null, closestDist = 80; // 80px threshold
+
+            const nodes = this.jm.mind.nodes;
+            for (const id in nodes) {
+                const nodeEl = this.jm.view.get_node_element(id);
+                if (!nodeEl) continue;
+                const nx = nodeEl.offsetLeft + nodeEl.offsetWidth / 2;
+                const ny = nodeEl.offsetTop + nodeEl.offsetHeight / 2;
+                const dist = Math.sqrt((ftCx - nx) ** 2 + (ftCy - ny) ** 2);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = { id, el: nodeEl };
+                }
+            }
+
+            if (closest) {
+                attachTarget = closest;
+                closest.el.classList.add('ft-attach-target');
+                closest.el.style.outline = '3px dashed #28a745';
+                closest.el.style.outlineOffset = '4px';
+            }
         };
+
         const onUp = () => {
             if (!isDragging) return;
             isDragging = false;
-            this.commandStack.isDirty = true;
-            this.commandStack._notifyListeners();
+
+            // Clean up highlights
+            world.querySelectorAll('.xmind-node.ft-attach-target').forEach(n => {
+                n.classList.remove('ft-attach-target');
+                n.style.outline = '';
+                n.style.outlineOffset = '';
+            });
+
+            if (attachTarget) {
+                // Attach floating topic as child of target node
+                this._attachFloatingToNode(ft, attachTarget.id);
+                attachTarget = null;
+            } else {
+                this.commandStack.isDirty = true;
+                this.commandStack._notifyListeners();
+            }
         };
+
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
 
@@ -4756,6 +5851,25 @@ export class MindmapEditor extends Component {
 
         document.body.appendChild(menu);
         setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
+    }
+
+    _attachFloatingToNode(ft, targetNodeId) {
+        // Convert floating topic to a child of the target tree node
+        const nodeId = this._generateNodeId();
+        const data = { style: ft.style || {} };
+        if (ft.note) data.note = ft.note;
+
+        const cmd = new AddNodeCommand(this.jm, targetNodeId, nodeId, ft.title, data);
+        this.commandStack.execute(cmd);
+
+        // Remove from floating topics array and DOM
+        this._removeFloatingTopic(ft.id);
+
+        // Refresh to re-layout
+        this.jm.view.refresh();
+        setTimeout(() => this._renderAllXMindFeatures(), 100);
+
+        this._updateStatus(_t('Attached "') + ft.title + _t('" to tree'));
     }
 
     _removeFloatingTopic(ftId) {
@@ -5151,14 +6265,11 @@ export class MindmapEditor extends Component {
             body: _t('This will replace the current mind map. Continue?'),
             confirm: () => {
                 this.mindmapData = template.data;
-                this.jm.show(template.data);
-                this.commandStack.clear();
-
-                // Re-render features
-                setTimeout(() => {
+                this.jm.show(template.data, () => {
                     this._renderAllXMindFeatures();
                     this._updateStatus(_t('Template applied: ') + template.name);
-                }, 200);
+                });
+                this.commandStack.clear();
             },
         });
     }

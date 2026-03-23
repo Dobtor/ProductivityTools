@@ -128,6 +128,7 @@ export class BoundaryRenderer {
         this.svg.style.width = '100%';
         this.svg.style.height = '100%';
         this.svg.style.pointerEvents = 'none';
+        this.svg.style.overflow = 'visible';
         this.svg.style.zIndex = '1';
         this.container.appendChild(this.svg);
     }
@@ -137,23 +138,33 @@ export class BoundaryRenderer {
         this.boundaries = [];
     }
 
+    // Compute bounding box from the given topic elements (editor passes descendants already)
+    _computeBounds(topicElements) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        for (const el of topicElements) {
+            if (!el || el.style.display === 'none') continue;
+            const x = el.offsetLeft;
+            const y = el.offsetTop;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x + el.offsetWidth);
+            maxY = Math.max(maxY, y + el.offsetHeight);
+        }
+
+        if (minX === Infinity) return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+        return { minX, minY, maxX, maxY };
+    }
+
     addBoundary(topicElements, options = {}) {
         if (!topicElements || topicElements.length === 0) return;
 
-        // Use local coords for world-space SVG
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const bounds = this._computeBounds(topicElements);
+        let minX = bounds.minX, minY = bounds.minY;
+        let maxX = bounds.maxX, maxY = bounds.maxY;
 
-        for (let element of topicElements) {
-            const x = element.offsetLeft;
-            const y = element.offsetTop;
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x + element.offsetWidth);
-            maxY = Math.max(maxY, y + element.offsetHeight);
-        }
-
-        // Add padding
-        const padding = 15;
+        // Add padding (base + extra for nesting)
+        const padding = 15 + (options._extraPadding || 0);
         minX -= padding;
         minY -= padding;
         maxX += padding;
@@ -425,12 +436,19 @@ export class SummaryRenderer {
         this.svg.style.width = '100%';
         this.svg.style.height = '100%';
         this.svg.style.pointerEvents = 'none';
+        this.svg.style.overflow = 'visible';
         this.svg.style.zIndex = '3';
         this.container.appendChild(this.svg);
     }
 
     clear() {
         this.svg.innerHTML = '';
+        // Remove summary node DOM elements
+        for (const s of this.summaries) {
+            if (s.summaryNodeEl && s.summaryNodeEl.parentNode) {
+                s.summaryNodeEl.parentNode.removeChild(s.summaryNodeEl);
+            }
+        }
         this.summaries = [];
         this.selectedSummary = null;
     }
@@ -472,50 +490,130 @@ export class SummaryRenderer {
         const index = this.summaries.findIndex(s => s.id === summaryId);
         if (index !== -1) {
             const summary = this.summaries[index];
-            if (summary.group) {
-                summary.group.remove();
+            if (summary.group) summary.group.remove();
+            if (summary.summaryNodeEl && summary.summaryNodeEl.parentNode) {
+                summary.summaryNodeEl.parentNode.removeChild(summary.summaryNodeEl);
             }
             this.summaries.splice(index, 1);
         }
     }
 
-    // Shared bracket path generator — single source of truth for all 7 bracket types
-    _generateBracketPath(lineType, bracketX, minY, maxY, midY) {
+    // Shared bracket path generator — supports left/right direction
+    // dir: 1 = bracket on right (opens toward topics on left, tip points to summary on right)
+    //     -1 = bracket on left (opens toward topics on right, tip points to summary on left)
+    //
+    // For dir=1 (right side): bracket looks like  ]  (vertical bar on right, arms reach left toward topics, tip → summary)
+    //   Topics ──┐
+    //            │ ]─── Summary
+    //   Topics ──┘
+    _generateBracketPath(lineType, geo) {
+        if (geo.vertical) {
+            return this._generateVerticalBracketPath(lineType, geo);
+        }
+        return this._generateHorizontalBracketPath(lineType, geo);
+    }
+
+    _generateHorizontalBracketPath(lineType, geo) {
+        const { bracketX, minY, maxY, midY, dir } = geo;
+        const d = dir || 1;
+        const inward = -d * 10;
+        const outward = d * 10;
+        const inw5 = -d * 5;
+        const out5 = d * 5;
+
         switch (lineType) {
             case 'bracket':
-                return `M ${bracketX - 10} ${minY} L ${bracketX} ${minY} L ${bracketX} ${midY - 5} L ${bracketX + 10} ${midY} L ${bracketX} ${midY + 5} L ${bracketX} ${maxY} L ${bracketX - 10} ${maxY}`;
+                return `M ${bracketX + inward} ${minY} L ${bracketX} ${minY} L ${bracketX} ${midY - 5} L ${bracketX + outward} ${midY} L ${bracketX} ${midY + 5} L ${bracketX} ${maxY} L ${bracketX + inward} ${maxY}`;
             case 'brace':
-                return `M ${bracketX - 10} ${minY} Q ${bracketX} ${minY}, ${bracketX} ${minY + 10} L ${bracketX} ${midY - 15} Q ${bracketX} ${midY - 5}, ${bracketX + 10} ${midY} Q ${bracketX} ${midY + 5}, ${bracketX} ${midY + 15} L ${bracketX} ${maxY - 10} Q ${bracketX} ${maxY}, ${bracketX - 10} ${maxY}`;
+                return `M ${bracketX + inward} ${minY} Q ${bracketX} ${minY}, ${bracketX} ${minY + 10} L ${bracketX} ${midY - 15} Q ${bracketX} ${midY - 5}, ${bracketX + outward} ${midY} Q ${bracketX} ${midY + 5}, ${bracketX} ${midY + 15} L ${bracketX} ${maxY - 10} Q ${bracketX} ${maxY}, ${bracketX + inward} ${maxY}`;
             case 'straight':
-                return `M ${bracketX} ${minY} L ${bracketX} ${maxY} M ${bracketX} ${midY} L ${bracketX + 10} ${midY}`;
+                return `M ${bracketX} ${minY} L ${bracketX} ${maxY} M ${bracketX} ${midY} L ${bracketX + outward} ${midY}`;
             case 'curved':
-                return `M ${bracketX - 10} ${minY} C ${bracketX + 5} ${minY}, ${bracketX + 5} ${midY - 20}, ${bracketX + 10} ${midY} C ${bracketX + 5} ${midY + 20}, ${bracketX + 5} ${maxY}, ${bracketX - 10} ${maxY}`;
+                return `M ${bracketX + inward} ${minY} C ${bracketX + out5} ${minY}, ${bracketX + out5} ${midY - 20}, ${bracketX + outward} ${midY} C ${bracketX + out5} ${midY + 20}, ${bracketX + out5} ${maxY}, ${bracketX + inward} ${maxY}`;
             case 'square':
-                return `M ${bracketX} ${minY} L ${bracketX - 10} ${minY} L ${bracketX - 10} ${maxY} L ${bracketX} ${maxY} M ${bracketX - 10} ${midY} L ${bracketX + 10} ${midY}`;
+                return `M ${bracketX} ${minY} L ${bracketX + outward} ${minY} L ${bracketX + outward} ${maxY} L ${bracketX} ${maxY} M ${bracketX + outward} ${midY} L ${bracketX + outward * 2} ${midY}`;
             case 'angle':
-                return `M ${bracketX - 5} ${minY} L ${bracketX + 10} ${midY} L ${bracketX - 5} ${maxY}`;
+                return `M ${bracketX + inw5} ${minY} L ${bracketX + outward} ${midY} L ${bracketX + inw5} ${maxY}`;
             case 'round': {
                 const radius = (maxY - minY) / 2;
-                return `M ${bracketX - 5} ${minY} A ${radius * 0.6} ${radius} 0 0 1 ${bracketX - 5} ${maxY} M ${bracketX - 5 + radius * 0.3} ${midY} L ${bracketX + 10} ${midY}`;
+                const sweep = d > 0 ? 1 : 0;
+                return `M ${bracketX + inw5} ${minY} A ${radius * 0.6} ${radius} 0 0 ${sweep} ${bracketX + inw5} ${maxY} M ${bracketX + inw5 + d * radius * 0.3} ${midY} L ${bracketX + outward} ${midY}`;
             }
             default:
-                return `M ${bracketX - 10} ${minY} L ${bracketX} ${minY} L ${bracketX} ${midY - 5} L ${bracketX + 10} ${midY} L ${bracketX} ${midY + 5} L ${bracketX} ${maxY} L ${bracketX - 10} ${maxY}`;
+                return `M ${bracketX + inward} ${minY} L ${bracketX} ${minY} L ${bracketX} ${midY - 5} L ${bracketX + outward} ${midY} L ${bracketX} ${midY + 5} L ${bracketX} ${maxY} L ${bracketX + inward} ${maxY}`;
         }
     }
 
-    // Compute bracket geometry from topic elements
-    _computeBracketGeometry(topicElements) {
-        let minY = Infinity, maxY = -Infinity, rightX = -Infinity;
+    /**
+     * Generate bracket path for vertical layouts (org_chart_up/down).
+     * Bracket is horizontal, spanning minX~maxX, with tip pointing up or down.
+     */
+    _generateVerticalBracketPath(lineType, geo) {
+        const { bracketY, minX, maxX, midX, vdir } = geo;
+        const d = vdir || 1; // 1=down, -1=up
+        const inward = -d * 10;
+        const outward = d * 10;
+
+        switch (lineType) {
+            case 'bracket':
+                return `M ${minX} ${bracketY + inward} L ${minX} ${bracketY} L ${midX - 5} ${bracketY} L ${midX} ${bracketY + outward} L ${midX + 5} ${bracketY} L ${maxX} ${bracketY} L ${maxX} ${bracketY + inward}`;
+            case 'brace':
+                return `M ${minX} ${bracketY + inward} Q ${minX} ${bracketY}, ${minX + 10} ${bracketY} L ${midX - 15} ${bracketY} Q ${midX - 5} ${bracketY}, ${midX} ${bracketY + outward} Q ${midX + 5} ${bracketY}, ${midX + 15} ${bracketY} L ${maxX - 10} ${bracketY} Q ${maxX} ${bracketY}, ${maxX} ${bracketY + inward}`;
+            case 'straight':
+                return `M ${minX} ${bracketY} L ${maxX} ${bracketY} M ${midX} ${bracketY} L ${midX} ${bracketY + outward}`;
+            case 'square':
+                return `M ${minX} ${bracketY} L ${minX} ${bracketY + outward} L ${maxX} ${bracketY + outward} L ${maxX} ${bracketY} M ${midX} ${bracketY + outward} L ${midX} ${bracketY + outward * 2}`;
+            case 'angle':
+                return `M ${minX} ${bracketY - d * 5} L ${midX} ${bracketY + outward} L ${maxX} ${bracketY - d * 5}`;
+            default:
+                return `M ${minX} ${bracketY + inward} L ${minX} ${bracketY} L ${midX - 5} ${bracketY} L ${midX} ${bracketY + outward} L ${midX + 5} ${bracketY} L ${maxX} ${bracketY} L ${maxX} ${bracketY + inward}`;
+        }
+    }
+
+    /**
+     * Compute bracket geometry, supporting both horizontal and vertical layouts.
+     * @param {Element[]} topicElements
+     * @param {string} layoutMode - current layout mode (e.g. 'org_chart_up')
+     */
+    _computeBracketGeometry(topicElements, layoutMode) {
+        let minY = Infinity, maxY = -Infinity;
+        let leftX = Infinity, rightX = -Infinity;
+
         for (const element of topicElements) {
-            const x = element.offsetLeft + element.offsetWidth;
+            const x = element.offsetLeft;
             const y = element.offsetTop;
             minY = Math.min(minY, y);
             maxY = Math.max(maxY, y + element.offsetHeight);
-            rightX = Math.max(rightX, x);
+            leftX = Math.min(leftX, x);
+            rightX = Math.max(rightX, x + element.offsetWidth);
         }
-        const bracketX = rightX + 20;
+
+        const isVertical = layoutMode === 'org_chart_up' || layoutMode === 'org_chart_down';
+
+        if (isVertical) {
+            // Vertical layout: bracket is horizontal, spanning leftX~rightX
+            const midX = leftX + (rightX - leftX) / 2;
+            // org_chart_up: children above parent → bracket ABOVE children (vdir=-1=upward)
+            // org_chart_down: children below parent → bracket BELOW children (vdir=1=downward)
+            const vdir = layoutMode === 'org_chart_up' ? -1 : 1;
+            const bracketY = layoutMode === 'org_chart_up'
+                ? minY - 10   // above the spanned topics
+                : maxY + 10;  // below the spanned topics
+            return { vertical: true, bracketY, minX: leftX, maxX: rightX, midX, vdir, minY, maxY, leftX, rightX };
+        }
+
+        // Horizontal layout (default)
+        let dir = 1;
+        if (topicElements.length > 0) {
+            const firstEl = topicElements[0];
+            if (firstEl.offsetLeft < -50) {
+                dir = -1;
+            }
+        }
+
+        const bracketX = dir > 0 ? rightX + 20 : leftX - 20;
         const midY = minY + (maxY - minY) / 2;
-        return { bracketX, minY, maxY, midY };
+        return { vertical: false, bracketX, minY, maxY, midY, dir, leftX, rightX };
     }
 
     addSummary(topicElements, summaryElement, options = {}) {
@@ -525,20 +623,20 @@ export class SummaryRenderer {
         const lineType = options.lineType || 'bracket';
         const lineColor = options.lineColor || '#666666';
         const lineWidth = options.lineWidth || 2;
+        const layoutMode = options.layoutMode || '';
 
-        const geo = this._computeBracketGeometry(topicElements);
+        const geo = this._computeBracketGeometry(topicElements, layoutMode);
 
-        // Create a group for all summary elements
+        // Create SVG group for bracket + connection line
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         group.classList.add('summary-group');
         group.setAttribute('data-summary-id', summaryId);
         group.style.pointerEvents = 'stroke';
         group.style.cursor = 'pointer';
 
-        // Draw summary line based on type
+        // Draw bracket
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const d = this._generateBracketPath(lineType, geo.bracketX, geo.minY, geo.maxY, geo.midY);
-
+        const d = this._generateBracketPath(lineType, geo);
         path.setAttribute('d', d);
         path.setAttribute('stroke', lineColor);
         path.setAttribute('stroke-width', lineWidth);
@@ -546,46 +644,51 @@ export class SummaryRenderer {
         path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('stroke-linejoin', 'round');
         path.classList.add('summary-path');
-
         group.appendChild(path);
 
-        // Draw line to summary topic
-        let connectionLine = null;
-        if (summaryElement) {
-            const sx = summaryElement.offsetLeft;
-            const sy = summaryElement.offsetTop + summaryElement.offsetHeight / 2;
-
-            connectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            connectionLine.setAttribute('x1', bracketX + 10);
-            connectionLine.setAttribute('y1', midY);
-            connectionLine.setAttribute('x2', sx);
-            connectionLine.setAttribute('y2', sy);
-            connectionLine.setAttribute('stroke', lineColor);
-            connectionLine.setAttribute('stroke-width', lineWidth);
-            connectionLine.setAttribute('stroke-linecap', 'round');
-            connectionLine.classList.add('summary-connection');
-            group.appendChild(connectionLine);
+        // Connection line: short stub from bracket tip outward
+        // Summary node will be positioned at the end by _positionSummaryNode
+        const connectionLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        if (geo.vertical) {
+            const tipY = geo.bracketY + geo.vdir * 10;
+            const lineEndY = geo.bracketY + geo.vdir * 38;
+            connectionLine.setAttribute('x1', geo.midX);
+            connectionLine.setAttribute('y1', tipY);
+            connectionLine.setAttribute('x2', geo.midX);
+            connectionLine.setAttribute('y2', lineEndY);
+        } else {
+            const dir = geo.dir || 1;
+            const tipX = geo.bracketX + dir * 20;
+            const lineEndX = geo.bracketX + dir * 38;
+            connectionLine.setAttribute('x1', tipX);
+            connectionLine.setAttribute('y1', geo.midY);
+            connectionLine.setAttribute('x2', lineEndX);
+            connectionLine.setAttribute('y2', geo.midY);
         }
+        connectionLine.setAttribute('stroke', lineColor);
+        connectionLine.setAttribute('stroke-width', lineWidth);
+        connectionLine.setAttribute('stroke-linecap', 'round');
+        connectionLine.classList.add('summary-connection');
+        group.appendChild(connectionLine);
 
         this.svg.appendChild(group);
 
-        // Add event listeners
+        // Don't store jsMind node in summaryNodeEl — clear() would remove it from DOM
+        // summaryNodeEl is only for standalone DOM elements created by the renderer
+        let summaryNodeEl = null;
+
+        // Event listeners on SVG bracket
         const self = this;
-        group.addEventListener('click', function(e) {
+        group.addEventListener('click', (e) => {
             e.stopPropagation();
             self.selectSummary(summaryId);
-            if (self.onSummaryClick) {
-                self.onSummaryClick(summaryId, e);
-            }
+            if (self.onSummaryClick) self.onSummaryClick(summaryId, e);
         });
-
-        group.addEventListener('contextmenu', function(e) {
+        group.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             e.stopPropagation();
             self.selectSummary(summaryId);
-            if (self.onSummaryContextMenu) {
-                self.onSummaryContextMenu(summaryId, e);
-            }
+            if (self.onSummaryContextMenu) self.onSummaryContextMenu(summaryId, e);
         });
 
         const summaryData = {
@@ -593,9 +696,10 @@ export class SummaryRenderer {
             group: group,
             path: path,
             connectionLine: connectionLine,
+            summaryNodeEl: summaryNodeEl,
             topicElements: topicElements,
             summaryElement: summaryElement,
-            options: options
+            options: options,
         };
 
         this.summaries.push(summaryData);
@@ -603,27 +707,35 @@ export class SummaryRenderer {
     }
 
     // Update summary positions when layout changes
-    updatePositions() {
+    updatePositions(layoutMode) {
         if (!this.summaries || this.summaries.length === 0) return;
 
         for (const summary of this.summaries) {
             if (!summary.topicElements || summary.topicElements.length === 0) continue;
 
-            const geo = this._computeBracketGeometry(summary.topicElements);
+            const geo = this._computeBracketGeometry(summary.topicElements, layoutMode || '');
             const lineType = summary.options.lineType || 'bracket';
-            const d = this._generateBracketPath(lineType, geo.bracketX, geo.minY, geo.maxY, geo.midY);
+            const d = this._generateBracketPath(lineType, geo);
 
             summary.path.setAttribute('d', d);
 
-            // Update connection line if exists
-            if (summary.connectionLine && summary.summaryElement) {
-                const sx = summary.summaryElement.offsetLeft;
-                const sy = summary.summaryElement.offsetTop + summary.summaryElement.offsetHeight / 2;
-
-                summary.connectionLine.setAttribute('x1', geo.bracketX + 10);
-                summary.connectionLine.setAttribute('y1', geo.midY);
-                summary.connectionLine.setAttribute('x2', sx);
-                summary.connectionLine.setAttribute('y2', sy);
+            if (summary.connectionLine) {
+                if (geo.vertical) {
+                    const tipY = geo.bracketY + geo.vdir * 10;
+                    const lineEndY = geo.bracketY + geo.vdir * 38;
+                    summary.connectionLine.setAttribute('x1', geo.midX);
+                    summary.connectionLine.setAttribute('y1', tipY);
+                    summary.connectionLine.setAttribute('x2', geo.midX);
+                    summary.connectionLine.setAttribute('y2', lineEndY);
+                } else {
+                    const dir = geo.dir || 1;
+                    const tipX = geo.bracketX + dir * 20;
+                    const lineEndX = geo.bracketX + dir * 38;
+                    summary.connectionLine.setAttribute('x1', tipX);
+                    summary.connectionLine.setAttribute('y1', geo.midY);
+                    summary.connectionLine.setAttribute('x2', lineEndX);
+                    summary.connectionLine.setAttribute('y2', geo.midY);
+                }
             }
         }
     }
@@ -697,7 +809,19 @@ export class MarkerBadgeRenderer {
                 badge.style.fontSize = '12px';
                 badge.style.lineHeight = '1';
                 badge.style.flexShrink = '0';
-                badge.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i>`;
+                if (marker.short_label) {
+                    // Icon + overlaid number/text (e.g., calendar icon with "1月" on top)
+                    badge.style.position = 'relative';
+                    badge.style.width = '18px';
+                    badge.style.height = '18px';
+                    badge.style.fontSize = '16px';
+                    badge.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i>`
+                        + `<span style="position:absolute;top:5px;left:0;right:0;text-align:center;`
+                        + `font-size:6px;font-weight:bold;color:${marker.color};line-height:1;`
+                        + `text-shadow:0 0 2px #fff,0 0 2px #fff;">${marker.short_label}</span>`;
+                } else {
+                    badge.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i>`;
+                }
                 badge.title = marker.name;
                 badge.style.cursor = 'pointer';
                 badge.dataset.markerCode = code;

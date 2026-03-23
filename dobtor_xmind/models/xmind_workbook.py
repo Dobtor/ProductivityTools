@@ -111,6 +111,26 @@ class XMindWorkbook(models.Model):
         if shape_data:
             data['shape'] = shape_data
 
+        # Branch connection line style
+        branch_style = self._get_topic_branch_style(topic)
+        if branch_style:
+            data['branchStyle'] = branch_style
+
+        # Per-topic child structure (layout override for children)
+        # Only set childStructure for explicit overrides, not for default/map structures
+        if topic.structure_class and not topic.structure_class.startswith('org.xmind.ui.map'):
+            mapped = self._XMIND_STRUCTURE_MAP.get(topic.structure_class)
+            if mapped and mapped != 'map':
+                data['childStructure'] = mapped
+
+        # Right-number for unbalanced map layout
+        if topic.right_number != -2:
+            data['_rightNumber'] = topic.right_number
+
+        # Summary node flag
+        if topic.is_summary_node:
+            data['_isSummaryNode'] = True
+
         node = {
             'id': topic.component_id or str(uuid.uuid4()),
             'topic': topic.title,
@@ -150,12 +170,17 @@ class XMindWorkbook(models.Model):
         return style
 
     def _get_topic_shape(self, topic):
-        """Get topic shape data for frontend _applyShapeToNode"""
+        """Get topic shape data for frontend _applyShapeToNode.
+
+        Only returns shape data when the user has explicitly set a non-default
+        shape or fill.  Border-only changes (color / width) are handled by the
+        jsMind depth-based STYLES and should NOT trigger a shape override —
+        otherwise depth-2+ topics that are supposed to render as 'underline'
+        would be overwritten to 'rounded'.
+        """
         shape_type = topic.shape or 'rounded'
-        # Always include shape data if non-default shape, or if custom border/fill set
-        has_custom = (shape_type != 'rounded'
-                      or topic.border_color
-                      or (topic.border_width and topic.border_width > 1))
+        # Trigger shape output only for explicit shape change or fill color
+        has_custom = (shape_type != 'rounded' or topic.background_color)
         if not has_custom:
             return {}
         shape_data = {'type': shape_type}
@@ -166,6 +191,22 @@ class XMindWorkbook(models.Model):
         if topic.border_width:
             shape_data['borderWidth'] = topic.border_width
         return shape_data
+
+    def _get_topic_branch_style(self, topic):
+        """Get branch connection line style for frontend"""
+        style = {}
+        if topic.line_type:
+            style['lineType'] = topic.line_type
+        if topic.line_color:
+            style['lineColor'] = topic.line_color
+        if topic.line_width and topic.line_width > 0:
+            style['lineWidth'] = topic.line_width
+        return style
+
+    def _reverse_structure_map(self, layout_type):
+        """Convert frontend layout type back to XMind structure-class for storage"""
+        reverse = {v: k for k, v in self._XMIND_STRUCTURE_MAP.items()}
+        return reverse.get(layout_type, '')
 
     def save_mindmap_data(self, data):
         """Save mindmap data from jsMind editor with command history"""
@@ -179,7 +220,13 @@ class XMindWorkbook(models.Model):
         else:
             sheet = self.sheet_ids[0]
 
-        # Clear existing topics
+        # Clear dependent records BEFORE topics (avoid cascade deletion of relationships etc.)
+        sheet.relationship_ids.unlink()
+        sheet.boundary_ids.unlink()
+        sheet.summary_ids.unlink()
+        # Clear callouts (linked to topics, would cascade)
+        self.env['xmind.callout'].search([('topic_id', 'in', sheet.topic_ids.ids)]).unlink()
+        # Now safe to clear topics
         sheet.topic_ids.unlink()
 
         # Import from jsMind format
@@ -214,7 +261,7 @@ class XMindWorkbook(models.Model):
         # Shape type from shape_data (Format menu) or default
         shape_type = shape_data.get('type', 'rounded')
         # Validate against known selection values
-        valid_shapes = ('rect', 'rounded', 'ellipse', 'circle', 'underline', 'diamond',
+        valid_shapes = ('rectangle', 'rounded', 'ellipse', 'circle', 'underline', 'diamond',
                         'parallelogram', 'hexagon', 'cloud', 'noBorder',
                         'fishhead_left', 'fishhead_right', 'stroke')
         if shape_type not in valid_shapes:
@@ -235,6 +282,7 @@ class XMindWorkbook(models.Model):
             'labels': ','.join(node_data.get('labels', [])),
             'hyperlink': node_data.get('hyperlink', ''),
             'hyperlink_title': node_data.get('hyperlinkTitle', ''),
+            'is_summary_node': bool(node_data.get('_isSummaryNode', False)),
             'shape': shape_type,
             'background_color': bg_color,
             'text_color': style_data.get('color', ''),
@@ -244,6 +292,11 @@ class XMindWorkbook(models.Model):
             'font_family': style_data.get('fontFamily', ''),
             'border_color': border_color,
             'border_width': int(str(border_width_str).replace('px', '')) if border_width_str else 1,
+            'line_type': node_data.get('branchStyle', {}).get('lineType', ''),
+            'line_color': node_data.get('branchStyle', {}).get('lineColor', ''),
+            'line_width': node_data.get('branchStyle', {}).get('lineWidth', 0),
+            'structure_class': self._reverse_structure_map(node_data.get('childStructure', '')),
+            'right_number': node_data.get('_rightNumber', -2),
         }
 
         if parent:
@@ -331,7 +384,7 @@ class XMindWorkbook(models.Model):
             'id': topic.component_id,
             'class': 'topic',
             'title': topic.title,
-            'structureClass': topic.structure_class or 'org.xmind.ui.map.unbalanced',
+            'structureClass': topic.structure_class or '',
         }
 
         if topic.note:
@@ -632,7 +685,7 @@ class XMindWorkbook(models.Model):
 
     _XMIND_SHAPE_MAP = {
         'org.xmind.topicShape.roundedRect': 'rounded',
-        'org.xmind.topicShape.rect': 'rect',
+        'org.xmind.topicShape.rect': 'rectangle',
         'org.xmind.topicShape.ellipse': 'ellipse',
         'org.xmind.topicShape.circle': 'circle',
         'org.xmind.topicShape.underline': 'underline',
@@ -646,7 +699,7 @@ class XMindWorkbook(models.Model):
     _XMIND_LINE_CLASS_MAP = {
         'org.xmind.branchConnection.curve': 'curved',
         'org.xmind.branchConnection.straight': 'straight',
-        'org.xmind.branchConnection.roundedElbow': 'rounded',
+        'org.xmind.branchConnection.roundedElbow': 'roundedElbow',
         'org.xmind.branchConnection.elbow': 'angular',
         'org.xmind.branchConnection.arrowed_curve': 'curved',
         'org.xmind.branchConnection.arrowed curve': 'curved',
@@ -674,18 +727,23 @@ class XMindWorkbook(models.Model):
     }
 
     _XMIND_STRUCTURE_MAP = {
-        'org.xmind.ui.logic.right': 'tree_right',
-        'org.xmind.ui.logic.left': 'tree_left',
+        'org.xmind.ui.logic.right': 'logic_right',
+        'org.xmind.ui.logic.left': 'logic_left',
         'org.xmind.ui.tree.right': 'tree_right',
         'org.xmind.ui.tree.left': 'tree_left',
         'org.xmind.ui.org-chart.down': 'org_chart_down',
-        'org.xmind.ui.org-chart.up': 'org_chart_down',
-        'org.xmind.ui.fishbone.leftHeaded': 'tree_left',
-        'org.xmind.ui.fishbone.rightHeaded': 'tree_right',
+        'org.xmind.ui.org-chart.up': 'org_chart_up',
+        'org.xmind.ui.fishbone.leftHeaded': 'fishbone_left',
+        'org.xmind.ui.fishbone.rightHeaded': 'fishbone_right',
         'org.xmind.ui.map.unbalanced': 'map',
+        'org.xmind.ui.map': 'map',
         'org.xmind.ui.map.clockwise': 'map',
         'org.xmind.ui.map.anticlockwise': 'map',
-        'org.xmind.ui.spreadsheet': 'org_chart_down',
+        'org.xmind.ui.map.floating.clockwise': 'map',
+        'org.xmind.ui.spreadsheet': 'matrix',
+        'org.xmind.ui.spreadsheet.column': 'matrix',
+        'org.xmind.ui.timeline.horizontal': 'timeline_horizontal',
+        'org.xmind.ui.timeline.vertical': 'timeline_vertical',
     }
 
     # XMind 2 marker code → dobtor code alias (for codes that differ)
@@ -871,6 +929,20 @@ class XMindWorkbook(models.Model):
             px = self._pt_to_px(border_width)
             if px:
                 vals['border_width'] = px
+        # Connection line style (branch)
+        line_class = style_props.get('line-class', '')
+        if line_class:
+            mapped_line = self._XMIND_LINE_CLASS_MAP.get(line_class)
+            if mapped_line:
+                vals['line_type'] = mapped_line
+        line_color = style_props.get('line-color')
+        if line_color:
+            vals['line_color'] = line_color
+        line_width = style_props.get('line-width')
+        if line_width:
+            px = self._pt_to_px(line_width)
+            if px:
+                vals['line_width'] = px
         # Shape
         shape_class = style_props.get('shape-class', '')
         mapped_shape = self._XMIND_SHAPE_MAP.get(shape_class)
@@ -917,9 +989,15 @@ class XMindWorkbook(models.Model):
             # Find root topic
             root_topic_elem = sheet_elem.find('xmap:topic', ns)
             if root_topic_elem is not None:
-                self._import_xmind_xml_topic(
+                root_topic = self._import_xmind_xml_topic(
                     root_topic_elem, sheet, ns,
                     style_map=style_map, theme_defaults=theme_defaults)
+
+                # Set sheet layout from root topic's structure-class
+                if root_topic.structure_class:
+                    layout = self._XMIND_STRUCTURE_MAP.get(
+                        root_topic.structure_class, 'map')
+                    sheet.write({'layout_type': layout})
 
             # Import relationships
             rels_elem = sheet_elem.find('xmap:relationships', ns)
@@ -953,13 +1031,13 @@ class XMindWorkbook(models.Model):
             topic_vals['parent_id'] = parent.id
 
         # Get notes
-        notes_elem = topic_elem.find('.//xmap:notes/xmap:plain', ns)
+        notes_elem = topic_elem.find('xmap:notes/xmap:plain', ns)
         if notes_elem is not None and notes_elem.text:
             topic_vals['note'] = notes_elem.text
 
         # Get labels
         labels = []
-        for label_elem in topic_elem.findall('.//xmap:labels/xmap:label', ns):
+        for label_elem in topic_elem.findall('xmap:labels/xmap:label', ns):
             if label_elem.text:
                 labels.append(label_elem.text)
         if labels:
@@ -987,7 +1065,7 @@ class XMindWorkbook(models.Model):
             self._apply_xmind_style_to_topic(topic, style_props)
 
         # Import markers (with XMind 2 alias fallback)
-        for marker_elem in topic_elem.findall('.//xmap:marker-refs/xmap:marker-ref', ns):
+        for marker_elem in topic_elem.findall('xmap:marker-refs/xmap:marker-ref', ns):
             marker_id = marker_elem.get('marker-id', '')
             if marker_id:
                 marker = self._resolve_marker(marker_id)
@@ -1004,11 +1082,12 @@ class XMindWorkbook(models.Model):
             for topics_elem in children_elem.findall('xmap:topics', ns):
                 topics_type = topics_elem.get('type', 'attached')
                 if topics_type == 'summary':
-                    # Summary topics — import as children but mark for summary linking
+                    # Summary topics — import as children, mark as summary nodes
                     for child_elem in topics_elem.findall('xmap:topic', ns):
                         child = self._import_xmind_xml_topic(
                             child_elem, sheet, ns, topic,
                             style_map=style_map, theme_defaults=theme_defaults)
+                        child.write({'is_summary_node': True})
                         child.sequence = idx
                         idx += 1
                 elif topics_type == 'detached':
@@ -1048,7 +1127,10 @@ class XMindWorkbook(models.Model):
         # Import summaries (the bracket + range)
         summaries_elem = topic_elem.find('xmap:summaries', ns)
         if summaries_elem is not None:
-            attached_children = topic.child_ids.sorted('sequence')
+            # Only attached (non-summary) children — XMind range indices refer to these
+            attached_children = topic.child_ids.filtered(
+                lambda c: not c.is_summary_node
+            ).sorted('sequence')
             for summary_elem in summaries_elem.findall('xmap:summary', ns):
                 range_str = summary_elem.get('range', '')
                 summary_topic_id = summary_elem.get('topic-id', '')
@@ -1076,13 +1158,19 @@ class XMindWorkbook(models.Model):
                 for i in range(start_idx, min(end_idx + 1, len(attached_children))):
                     range_topics.append(attached_children[i])
 
-                if summary_topic and range_topics:
-                    self.env['xmind.summary'].create({
+                if range_topics:
+                    vals = {
                         'sheet_id': sheet.id,
                         'component_id': summary_elem.get('id', str(uuid.uuid4())),
-                        'summary_topic_id': summary_topic.id,
                         'topic_ids': [Command.set([t.id for t in range_topics])],
-                    })
+                        'line_type': 'square',
+                        'line_color': '#C3D69B',
+                        'line_width': 5,
+                    }
+                    if summary_topic:
+                        vals['summary_topic_id'] = summary_topic.id
+                        vals['title'] = summary_topic.title or 'Summary'
+                    self.env['xmind.summary'].create(vals)
 
         # Parse extensions (right-number for unbalanced layout)
         extensions_elem = topic_elem.find('xmap:extensions', ns)
@@ -1094,9 +1182,19 @@ class XMindWorkbook(models.Model):
                     if content_elem is not None:
                         rn_elem = content_elem.find('xmap:right-number', ns)
                         if rn_elem is not None and rn_elem.text:
-                            # Store right-number for frontend layout
-                            # -1 means all right (logic.right)
-                            pass  # Handled via structure_class mapping
+                            try:
+                                right_number = int(rn_elem.text.strip())
+                                if right_number == -1:
+                                    # -1 = all children go right
+                                    # 只在 map/unbalanced 佈局時覆寫，不覆蓋已明確設定的佈局
+                                    vals = {'right_number': -1}
+                                    if not structure_class or structure_class.startswith('org.xmind.ui.map'):
+                                        vals['structure_class'] = 'org.xmind.ui.logic.right'
+                                    topic.write(vals)
+                                elif right_number >= 0:
+                                    topic.write({'right_number': right_number})
+                            except (ValueError, TypeError):
+                                pass
 
         return topic
 
@@ -1112,36 +1210,48 @@ class XMindWorkbook(models.Model):
         if title_elem is not None and title_elem.text:
             title = title_elem.text
 
-        # Parse control points
-        cp_x, cp_y = 0.0, 0.0
+        # Parse control points (XMind has 2: CP0 near source, CP1 near target)
+        cp0_x, cp0_y, cp1_x, cp1_y = 0.0, 0.0, 0.0, 0.0
         cp_elem = rel_elem.find('xmap:control-points', ns)
         if cp_elem is not None:
-            # Use the first control point with a <position> child
-            for point_elem in cp_elem.findall('xmap:control-point', ns):
+            cp_points = cp_elem.findall('xmap:control-point', ns)
+            for i, point_elem in enumerate(cp_points[:2]):
                 pos_elem = point_elem.find('xmap:position', ns)
                 if pos_elem is not None:
-                    # Try svg:x/svg:y with namespace
                     x_val = pos_elem.get('{http://www.w3.org/2000/svg}x',
                                          pos_elem.get('svg:x', '0'))
                     y_val = pos_elem.get('{http://www.w3.org/2000/svg}y',
                                          pos_elem.get('svg:y', '0'))
                     try:
-                        cp_x = float(x_val)
-                        cp_y = float(y_val)
+                        x = float(x_val)
+                        y = float(y_val)
                     except (ValueError, TypeError):
-                        pass
-                    break  # Use first control point with position
+                        x, y = 0.0, 0.0
+                    if i == 0:
+                        cp0_x, cp0_y = x, y
+                    else:
+                        cp1_x, cp1_y = x, y
 
-        # Parse style from style-id
+        # Parse style from style-id, fall back to theme default relationship style
         style_id = rel_elem.get('style-id', '')
-        rel_style = style_map.get(style_id, {}) if style_id and style_map else {}
+        rel_style = {}
+        if style_id and style_map:
+            rel_style = style_map.get(style_id, {})
+        if not rel_style and style_map:
+            # No per-relationship style — look for theme default relationship style
+            for key, val in style_map.items():
+                if key.startswith('_theme_') and isinstance(val, dict):
+                    default_rel_sid = val.get('relationship', '')
+                    if default_rel_sid and default_rel_sid in style_map:
+                        rel_style = style_map[default_rel_sid]
+                        break
 
-        # Map styling properties
-        line_color = rel_style.get('line-color', '#999999')
-        line_width = self._pt_to_px(rel_style.get('line-width', '')) or 2
+        # Map styling properties (XMind Professional defaults)
+        line_color = rel_style.get('line-color', '#77933C')
+        line_width = self._pt_to_px(rel_style.get('line-width', '3pt')) or 3
         line_pattern = rel_style.get('line-pattern', 'dash')
         line_style = self._XMIND_LINE_PATTERN_MAP.get(line_pattern, 'dashed')
-        arrow_end_class = rel_style.get('arrow-end-class', '')
+        arrow_end_class = rel_style.get('arrow-end-class', 'org.xmind.arrowShape.triangle')
         arrow_end = self._XMIND_ARROW_MAP.get(arrow_end_class, 'arrow')
         arrow_begin_class = rel_style.get('arrow-begin-class', '')
         arrow_begin = self._XMIND_ARROW_MAP.get(arrow_begin_class, 'none')
@@ -1168,8 +1278,11 @@ class XMindWorkbook(models.Model):
                     'line_style': line_style,
                     'arrow_begin': arrow_begin,
                     'arrow_end': arrow_end,
-                    'control_point_x': cp_x,
-                    'control_point_y': cp_y,
+                    'cp0_x': cp0_x,
+                    'cp0_y': cp0_y,
+                    'cp1_x': cp1_x,
+                    'cp1_y': cp1_y,
+                    'cp_is_relative': bool(cp0_x or cp0_y or cp1_x or cp1_y),
                 })
 
     def _import_xmind_sheet(self, sheet_data):

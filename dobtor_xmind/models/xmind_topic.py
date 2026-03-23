@@ -63,7 +63,7 @@ class XMindTopic(models.Model):
     border_color = fields.Char('Border Color')
     border_width = fields.Integer('Border Width', default=1)
     shape = fields.Selection([
-        ('rect', 'Rectangle'),
+        ('rectangle', 'Rectangle'),
         ('rounded', 'Rounded Rectangle'),
         ('ellipse', 'Ellipse'),
         ('circle', 'Circle'),
@@ -89,8 +89,15 @@ class XMindTopic(models.Model):
         ('right', 'Right'),
     ], string='Text Alignment', default='left')
 
+    # Branch connection line style
+    line_type = fields.Char('Connection Line Type')  # curved, straight, roundedElbow, angular, none
+    line_color = fields.Char('Connection Line Color')
+    line_width = fields.Integer('Connection Line Width', default=0)  # 0 = inherit from theme
+
     # Structure
-    structure_class = fields.Char('Structure Class', default='org.xmind.ui.map.unbalanced')
+    structure_class = fields.Char('Structure Class', default='')
+    right_number = fields.Integer('Right Number', default=-2)  # -2=not set, -1=all right, N=first N go right
+    is_summary_node = fields.Boolean('Is Summary Node', default=False)
 
     # Markers
     marker_ids = fields.One2many('xmind.topic.marker', 'topic_id', string='Markers')

@@ -173,7 +173,7 @@ class ResUsers(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('%s Weekly Reports') % self.name,
+            'name': _('%(user)s Weekly Reports', user=self.name),
             'res_model': 'weekly.report',
             'view_mode': 'list,form',
             'domain': [('user_id', '=', self.id)],
@@ -185,7 +185,7 @@ class ResUsers(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('%s Efficiency Metrics') % self.name,
+            'name': _('%(user)s Efficiency Metrics', user=self.name),
             'res_model': 'activity.efficiency.metrics',
             'view_mode': 'list,form',
             'domain': [('user_id', '=', self.id)],
@@ -206,7 +206,7 @@ class ResUsers(models.Model):
 
         return {
             'type': 'ir.actions.act_window',
-            'name': _('%s Weekly Schedule') % self.name,
+            'name': _('%(user)s Weekly Schedule', user=self.name),
             'res_model': 'weekly.schedule.config',
             'res_id': config.id,
             'view_mode': 'form',

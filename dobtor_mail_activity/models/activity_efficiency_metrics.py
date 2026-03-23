@@ -390,7 +390,7 @@ class ActivityEfficiencyMetrics(models.Model):
             'tag': 'display_notification',
             'params': {
                 'title': _('Calculation Complete'),
-                'message': _('Weekly efficiency metrics calculated from %s to %s') % (week_start, week_end),
+                'message': _('Weekly efficiency metrics calculated from %(start)s to %(end)s', start=week_start, end=week_end),
                 'sticky': False,
                 'type': 'success',
             }

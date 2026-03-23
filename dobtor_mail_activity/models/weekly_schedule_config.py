@@ -137,7 +137,7 @@ class WeeklyScheduleConfig(models.Model):
     def _compute_name(self):
         for record in self:
             if record.user_id:
-                record.name = _('%s Weekly Schedule') % record.user_id.name
+                record.name = _('%(user)s Weekly Schedule', user=record.user_id.name)
             else:
                 record.name = _('Weekly Schedule')
 
@@ -189,7 +189,7 @@ class WeeklyScheduleConfig(models.Model):
                 week_str = '%d-W%02d' % (iso_year, iso_week)
                 note = self.env['note.note'].create({
                     'user_id': self.user_id.id,
-                    'memo': _('<p>Weekly Schedule - %s</p><p>This week work plan</p>') % week_str,
+                    'memo': _('<p>Weekly Schedule - %(week)s</p><p>This week work plan</p>', week=week_str),
                 })
                 return ('note.note', note.id)
             else:

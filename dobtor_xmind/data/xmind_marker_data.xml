@@ -9,7 +9,8 @@
             <field name="name">Priority 1</field>
             <field name="code">priority-1</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-exclamation-circle</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">1</field>
             <field name="color">#ff0000</field>
             <field name="sequence">1</field>
         </record>
@@ -17,7 +18,8 @@
             <field name="name">Priority 2</field>
             <field name="code">priority-2</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-exclamation-triangle</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">2</field>
             <field name="color">#ff6600</field>
             <field name="sequence">2</field>
         </record>
@@ -25,7 +27,8 @@
             <field name="name">Priority 3</field>
             <field name="code">priority-3</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-info-circle</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">3</field>
             <field name="color">#ffcc00</field>
             <field name="sequence">3</field>
         </record>
@@ -33,7 +36,8 @@
             <field name="name">Priority 4</field>
             <field name="code">priority-4</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-arrow-down</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">4</field>
             <field name="color">#66cc00</field>
             <field name="sequence">4</field>
         </record>
@@ -41,7 +45,8 @@
             <field name="name">Priority 5</field>
             <field name="code">priority-5</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-arrow-down</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">5</field>
             <field name="color">#0099cc</field>
             <field name="sequence">5</field>
         </record>
@@ -49,7 +54,8 @@
             <field name="name">Priority 6</field>
             <field name="code">priority-6</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-arrow-down</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">6</field>
             <field name="color">#9933ff</field>
             <field name="sequence">6</field>
         </record>
@@ -57,7 +63,8 @@
             <field name="name">Priority 7</field>
             <field name="code">priority-7</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-circle</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">7</field>
             <field name="color">#999999</field>
             <field name="sequence">7</field>
         </record>
@@ -65,7 +72,8 @@
             <field name="name">Priority 8</field>
             <field name="code">priority-8</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-circle</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">8</field>
             <field name="color">#666666</field>
             <field name="sequence">8</field>
         </record>
@@ -73,7 +81,8 @@
             <field name="name">Priority 9</field>
             <field name="code">priority-9</field>
             <field name="category">priority</field>
-            <field name="icon">fa fa-circle</field>
+            <field name="icon">fa fa-bookmark-o</field>
+            <field name="short_label">9</field>
             <field name="color">#333333</field>
             <field name="sequence">9</field>
         </record>
@@ -83,26 +92,26 @@
         <!-- Resequenced to accommodate 1/8 increments                    -->
         <!-- ============================================================ -->
         <record id="marker_task_start" model="xmind.marker">
-            <field name="name">Task Start</field>
+            <field name="name">Task Start (0%)</field>
             <field name="code">task-start</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-play</field>
-            <field name="color">#28a745</field>
+            <field name="icon">fa fa-battery-empty</field>
+            <field name="color">#6c757d</field>
             <field name="sequence">10</field>
         </record>
         <record id="marker_task_1eighth" model="xmind.marker">
             <field name="name">Task 12.5%</field>
             <field name="code">task-1eighth</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-circle-o</field>
-            <field name="color">#e9ecef</field>
+            <field name="icon">fa fa-battery-empty</field>
+            <field name="color">#dc3545</field>
             <field name="sequence">11</field>
         </record>
         <record id="marker_task_quarter" model="xmind.marker">
             <field name="name">Task 25%</field>
             <field name="code">task-quarter</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-battery-1</field>
+            <field name="icon">fa fa-battery-quarter</field>
             <field name="color">#ffc107</field>
             <field name="sequence">12</field>
         </record>
@@ -110,7 +119,7 @@
             <field name="name">Task 37.5%</field>
             <field name="code">task-3eighth</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-spinner</field>
+            <field name="icon">fa fa-battery-quarter</field>
             <field name="color">#ffc107</field>
             <field name="sequence">13</field>
         </record>
@@ -118,7 +127,7 @@
             <field name="name">Task 50%</field>
             <field name="code">task-half</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-battery-2</field>
+            <field name="icon">fa fa-battery-half</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">14</field>
         </record>
@@ -126,7 +135,7 @@
             <field name="name">Task 62.5%</field>
             <field name="code">task-5eighth</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-hourglass-2</field>
+            <field name="icon">fa fa-battery-half</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">15</field>
         </record>
@@ -134,7 +143,7 @@
             <field name="name">Task 75%</field>
             <field name="code">task-3quarter</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-battery-3</field>
+            <field name="icon">fa fa-battery-three-quarters</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">16</field>
         </record>
@@ -142,15 +151,15 @@
             <field name="name">Task 87.5%</field>
             <field name="code">task-7eighth</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-battery-4</field>
+            <field name="icon">fa fa-battery-three-quarters</field>
             <field name="color">#28a745</field>
             <field name="sequence">17</field>
         </record>
         <record id="marker_task_done" model="xmind.marker">
-            <field name="name">Task Done</field>
+            <field name="name">Task Done (100%)</field>
             <field name="code">task-done</field>
             <field name="category">task</field>
-            <field name="icon">fa fa-check-circle</field>
+            <field name="icon">fa fa-battery-full</field>
             <field name="color">#28a745</field>
             <field name="sequence">18</field>
         </record>
@@ -683,6 +692,7 @@
             <field name="code">month-jan</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">1月</field>
             <field name="color">#007bff</field>
             <field name="sequence">200</field>
         </record>
@@ -691,6 +701,7 @@
             <field name="code">month-feb</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">2月</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">201</field>
         </record>
@@ -699,6 +710,7 @@
             <field name="code">month-mar</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">3月</field>
             <field name="color">#28a745</field>
             <field name="sequence">202</field>
         </record>
@@ -707,6 +719,7 @@
             <field name="code">month-apr</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">4月</field>
             <field name="color">#e83e8c</field>
             <field name="sequence">203</field>
         </record>
@@ -715,6 +728,7 @@
             <field name="code">month-may</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">5月</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">204</field>
         </record>
@@ -723,6 +737,7 @@
             <field name="code">month-jun</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">6月</field>
             <field name="color">#20c997</field>
             <field name="sequence">205</field>
         </record>
@@ -731,6 +746,7 @@
             <field name="code">month-jul</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">7月</field>
             <field name="color">#dc3545</field>
             <field name="sequence">206</field>
         </record>
@@ -739,6 +755,7 @@
             <field name="code">month-aug</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">8月</field>
             <field name="color">#ffc107</field>
             <field name="sequence">207</field>
         </record>
@@ -747,6 +764,7 @@
             <field name="code">month-sep</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">9月</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">208</field>
         </record>
@@ -755,6 +773,7 @@
             <field name="code">month-oct</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">10月</field>
             <field name="color">#6c757d</field>
             <field name="sequence">209</field>
         </record>
@@ -763,6 +782,7 @@
             <field name="code">month-nov</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">11月</field>
             <field name="color">#343a40</field>
             <field name="sequence">210</field>
         </record>
@@ -771,6 +791,7 @@
             <field name="code">month-dec</field>
             <field name="category">month</field>
             <field name="icon">fa fa-calendar</field>
+            <field name="short_label">12月</field>
             <field name="color">#155724</field>
             <field name="sequence">211</field>
         </record>
@@ -782,7 +803,8 @@
             <field name="name">Sunday</field>
             <field name="code">week-sun</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">日</field>
             <field name="color">#dc3545</field>
             <field name="sequence">220</field>
         </record>
@@ -790,7 +812,8 @@
             <field name="name">Monday</field>
             <field name="code">week-mon</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">一</field>
             <field name="color">#fd7e14</field>
             <field name="sequence">221</field>
         </record>
@@ -798,7 +821,8 @@
             <field name="name">Tuesday</field>
             <field name="code">week-tue</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">二</field>
             <field name="color">#ffc107</field>
             <field name="sequence">222</field>
         </record>
@@ -806,7 +830,8 @@
             <field name="name">Wednesday</field>
             <field name="code">week-wed</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">三</field>
             <field name="color">#28a745</field>
             <field name="sequence">223</field>
         </record>
@@ -814,7 +839,8 @@
             <field name="name">Thursday</field>
             <field name="code">week-thu</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">四</field>
             <field name="color">#17a2b8</field>
             <field name="sequence">224</field>
         </record>
@@ -822,7 +848,8 @@
             <field name="name">Friday</field>
             <field name="code">week-fri</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">五</field>
             <field name="color">#007bff</field>
             <field name="sequence">225</field>
         </record>
@@ -830,7 +857,8 @@
             <field name="name">Saturday</field>
             <field name="code">week-sat</field>
             <field name="category">weekday</field>
-            <field name="icon">fa fa-calendar</field>
+            <field name="icon">fa fa-calendar-o</field>
+            <field name="short_label">六</field>
             <field name="color">#6f42c1</field>
             <field name="sequence">226</field>
         </record>

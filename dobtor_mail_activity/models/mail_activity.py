@@ -808,7 +808,7 @@ class MailActivity(models.Model):
             if needs_schedule_date <= week_end:
                 weekday = needs_schedule_date.weekday()
                 activity.needs_schedule_by = weekday_map.get(weekday)
-                activity.schedule_warning = _('Needs to be scheduled by %s') % weekday_names.get(weekday, '')
+                activity.schedule_warning = _('Needs to be scheduled by %(weekday)s', weekday=weekday_names.get(weekday, ''))
 
     # ========== Override Methods ==========
 
@@ -1474,12 +1474,14 @@ class MailActivity(models.Model):
 
         weekday_keys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
+        # 直接從 selection 欄位取翻譯標籤，確保與欄位定義一致
+        selection_labels = dict(self._fields['schedule_week']._description_selection(self.env))
         week_configs = [
-            (-1, _('Last Week'), 'week_prev'),
-            (0, _('This Week'), 'week0'),
-            (1, _('Next Week'), 'week1'),
-            (2, _('Week 3'), 'week2'),
-            (3, _('Week 4'), 'week3'),
+            (-1, selection_labels.get('week_prev', 'Previous Week'), 'week_prev'),
+            (0, selection_labels.get('week0', 'This Week'), 'week0'),
+            (1, selection_labels.get('week1', 'Next Week'), 'week1'),
+            (2, selection_labels.get('week2', 'Week 3'), 'week2'),
+            (3, selection_labels.get('week3', 'Week 4'), 'week3'),
         ]
 
         # 單次查詢：以 schedule_week_number 分組統計所有 5 週的待辦數量和工時

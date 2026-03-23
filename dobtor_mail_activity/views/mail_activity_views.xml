@@ -667,7 +667,7 @@
                         domain="[('schedule_week', '=', 'week0')]"/>
                 <filter string="Next Week" name="next_week"
                         domain="[('schedule_week', '=', 'week1')]"/>
-                <filter string="Last Week" name="week_prev"
+                <filter string="Previous Week" name="week_prev"
                         domain="[('schedule_week', '=', 'week_prev')]"/>
 
                 <separator/>

@@ -603,7 +603,7 @@ class NoteNote(models.Model):
                 'tag': 'display_notification',
                 'params': {
                     'title': _('Warning'),
-                    'message': _('The following signers are not calendar event attendees: %s') % ', '.join(invalid_signers.mapped('name')),
+                    'message': _('The following signers are not calendar event attendees: %(signers)s', signers=', '.join(invalid_signers.mapped('name'))),
                     'type': 'warning',
                     'sticky': False,
                 }
@@ -656,12 +656,12 @@ class NoteNote(models.Model):
 
             if failed_signers:
                 self.message_post(
-                    body=_('Meeting minutes sent for signature. Failed to notify: %s') % ', '.join(failed_signers),
+                    body=_('Meeting minutes sent for signature. Failed to notify: %(signers)s', signers=', '.join(failed_signers)),
                     message_type='notification',
                 )
             else:
                 self.message_post(
-                    body=_('Meeting minutes sent for signature to: %s') % ', '.join(self.signer_ids.mapped('name')),
+                    body=_('Meeting minutes sent for signature to: %(signers)s', signers=', '.join(self.signer_ids.mapped('name'))),
                     message_type='notification',
                 )
 
@@ -670,7 +670,7 @@ class NoteNote(models.Model):
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('Meeting minutes sent to %d signer(s).') % len(self.signer_ids),
+                'message': _('Meeting minutes sent to %(count)d signer(s).', count=len(self.signer_ids)),
                 'type': 'success',
                 'sticky': False,
             }

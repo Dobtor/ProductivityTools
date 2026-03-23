@@ -23,14 +23,18 @@ class XMindSheet(models.Model):
     # Layout settings
     layout_type = fields.Selection([
         ('map', 'Mind Map'),
-        ('tree_right', 'Tree Right'),
-        ('tree_left', 'Tree Left'),
         ('logic_right', 'Logic Right'),
         ('logic_left', 'Logic Left'),
+        ('tree_right', 'Tree Right'),
+        ('tree_left', 'Tree Left'),
         ('org_chart_down', 'Org Chart Down'),
+        ('org_chart_up', 'Org Chart Up'),
+        ('updown', 'Up-Down'),
         ('fishbone_left', 'Fishbone Left'),
         ('fishbone_right', 'Fishbone Right'),
         ('matrix', 'Matrix'),
+        ('timeline_horizontal', 'Timeline Horizontal'),
+        ('timeline_vertical', 'Timeline Vertical'),
     ], string='Layout Type', default='map')
 
     # Theme

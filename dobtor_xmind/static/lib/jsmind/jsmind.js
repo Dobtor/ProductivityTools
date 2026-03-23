@@ -28,31 +28,31 @@
             borderColor: '#558ED5', borderWidth: 5,
             lineClass: 'curve', lineColor: '#558ED5', lineWidth: 1, lineCorner: 8,
             spacingMajor: 20, spacingMinor: 10,
-            fontFamily: "'Open Sans', sans-serif",
+            fontFamily: "'Open Sans', 'Microsoft YaHei', sans-serif",
         },
         main: {
             fontSize: 13, fontWeight: 'normal', color: '#17375E', fill: '#DCE6F2',
             shape: 'roundedRect', corner: 5, textAlign: 'left',
-            paddingH: 6, paddingV: 6, border: '#558ED5', borderWidth: 2,
+            paddingH: 6, paddingV: 6, border: '#558ED5', borderColor: '#558ED5', borderWidth: 2,
             lineClass: 'curve', lineColor: '#558ED5', lineWidth: 1, lineCorner: 4,
             spacingMajor: 8, spacingMinor: 1,
-            fontFamily: "'Open Sans', sans-serif",
+            fontFamily: "'Open Sans', 'Microsoft YaHei', sans-serif",
         },
         sub: {
-            fontSize: 10, fontWeight: 'normal', color: '#000000', fill: '#f0f0f0',
+            fontSize: 10, fontWeight: 'normal', color: '#000000', fill: 'transparent',
             shape: 'underline', corner: 3, textAlign: 'left',
-            paddingH: 4, paddingV: 1, border: '#558ED5', borderWidth: 3,
+            paddingH: 4, paddingV: 1, border: '#558ED5', borderColor: '#558ED5', borderWidth: 3,
             lineClass: 'curve', lineColor: '#558ED5', lineWidth: 1, lineCorner: 4,
             spacingMajor: 8, spacingMinor: 1,
-            fontFamily: "'Open Sans', sans-serif",
+            fontFamily: "'Open Sans', 'Microsoft YaHei', sans-serif",
         },
         deep: {
-            fontSize: 10, fontWeight: 'normal', color: '#333333', fill: 'transparent',
+            fontSize: 10, fontWeight: 'normal', color: '#000000', fill: 'transparent',
             shape: 'underline', corner: 3, textAlign: 'left',
-            paddingH: 4, paddingV: 1, border: '#558ED5', borderWidth: 1,
+            paddingH: 4, paddingV: 1, border: '#558ED5', borderColor: '#558ED5', borderWidth: 3,
             lineClass: 'curve', lineColor: '#558ED5', lineWidth: 1, lineCorner: 4,
-            spacingMajor: 6, spacingMinor: 1,
-            fontFamily: "'Open Sans', sans-serif",
+            spacingMajor: 8, spacingMinor: 1,
+            fontFamily: "'Open Sans', 'Microsoft YaHei', sans-serif",
         },
         // Special topic styles (XMind 2 defaultStyles.xml)
         callout: {
@@ -62,7 +62,7 @@
             fontFamily: 'Verdana, sans-serif',
         },
         summaryTopic: {
-            fontSize: 9, fontWeight: 'normal', color: '#FFFFFF', fill: '#77933C',
+            fontSize: 10, fontWeight: 'normal', color: '#FFFFFF', fill: '#77933C',
             shape: 'roundedRect', corner: 5, textAlign: 'left',
             paddingH: 4, paddingV: 4, border: 'none', borderWidth: 0,
             fontFamily: 'Georgia, serif', fontStyle: 'italic',
@@ -71,7 +71,7 @@
             fontSize: 13, fontWeight: 'bold', color: '#FFFFFF', fill: '#558ED5',
             shape: 'roundedRect', corner: 8, textAlign: 'left',
             paddingH: 6, paddingV: 6, border: 'none', borderWidth: 0,
-            fontFamily: "'Open Sans', sans-serif",
+            fontFamily: "'Open Sans', 'Microsoft YaHei', sans-serif",
         },
         map: { fill: '#FFFFFF', opacity: 1.0 },
         relationship: {
@@ -240,20 +240,33 @@
 
         layout(root, mode) {
             if (!root) return;
+            this._currentMode = mode;  // 記錄當前 layout mode 供子節點 fallback
             this._measureAll(root);
 
             if (mode === 'org_chart_down') {
                 this._layoutVertical(root);
-            } else if (mode === 'tree_right' || mode === 'logic_right') {
+            } else if (mode === 'org_chart_up') {
+                this._layoutVerticalUp(root);
+            } else if (mode === 'logic_right') {
                 this._layoutSingleSide(root, 1);
-            } else if (mode === 'tree_left') {
+            } else if (mode === 'logic_left') {
                 this._layoutSingleSide(root, -1);
+            } else if (mode === 'tree_right') {
+                this._layoutTreeRoot(root, 1);
+            } else if (mode === 'tree_left') {
+                this._layoutTreeRoot(root, -1);
+            } else if (mode === 'updown') {
+                this._layoutUpDown(root);
             } else if (mode === 'fishbone_right') {
                 this._layoutFishbone(root, 1);
             } else if (mode === 'fishbone_left') {
                 this._layoutFishbone(root, -1);
             } else if (mode === 'matrix') {
                 this._layoutMatrix(root);
+            } else if (mode === 'timeline_horizontal') {
+                this._layoutTimelineH(root);
+            } else if (mode === 'timeline_vertical') {
+                this._layoutTimelineV(root);
             } else {
                 // Default: map (balanced left/right)
                 this._layoutBalanced(root);
@@ -262,16 +275,17 @@
 
         _measureAll(node) {
             const s = getStyleForDepth(node._depth);
-            // Estimate size from text (always reliable, even before browser layout)
             const charW = s.fontSize * 0.55;
             const estW = Math.max(node.topic.length * charW + s.paddingH * 2, 50);
             const estH = s.fontSize * 1.4 + s.paddingV * 2;
 
             if (node._el) {
-                const rect = node._el.getBoundingClientRect();
-                // Use DOM measurement only if it's valid (> 0), otherwise fallback
-                node._w = (rect.width > 1) ? rect.width : estW;
-                node._h = (rect.height > 1) ? rect.height : estH;
+                // Use offsetWidth/offsetHeight — NOT affected by CSS transform (zoom/pan)
+                // getBoundingClientRect() returns scaled values which cause line offset at zoom ≠ 1
+                const ow = node._el.offsetWidth;
+                const oh = node._el.offsetHeight;
+                node._w = (ow > 1) ? ow : estW;
+                node._h = (oh > 1) ? oh : estH;
             } else {
                 node._w = estW;
                 node._h = estH;
@@ -282,13 +296,58 @@
         }
 
         _subtreeHeight(node) {
-            if (!node.expanded || node.children.length === 0) return node._h;
+            if (node.data && node.data._isSummaryNode) return 0; // summary nodes excluded from layout
+            const layoutChildren = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (!node.expanded || layoutChildren.length === 0) return node._h;
             let total = 0;
-            for (const c of node.children) {
+            for (const c of layoutChildren) {
                 total += this._subtreeHeight(c);
             }
-            total += this.vgap * (node.children.length - 1);
+            total += this.vgap * (layoutChildren.length - 1);
             return Math.max(node._h, total);
+        }
+
+        /**
+         * Calculate the total width needed for a subtree in vertical layout (org_chart_up/down).
+         * At each level, children spread horizontally. The subtree width is the MAX of:
+         *   - the node's own width
+         *   - the sum of ALL children subtree widths + gaps
+         * This ensures that deeply nested wide subtrees correctly reserve space.
+         */
+        _subtreeWidthVertical(node) {
+            if (node.data && node.data._isSummaryNode) return 0;
+            const layoutChildren = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (!node.expanded || layoutChildren.length === 0) return node._w;
+            const ps = getStyleForDepth(node._depth);
+            // Org chart: use spacingMinor as horizontal gap between siblings
+            const hgap = ps.spacingMinor || this.vgap;
+            let total = 0;
+            for (const c of layoutChildren) {
+                // Each child's subtree width includes all its descendants
+                total += this._subtreeWidthVertical(c);
+            }
+            total += hgap * (layoutChildren.length - 1);
+            // Also add minimum padding to prevent tight packing
+            const minPadding = 10;
+            return Math.max(node._w + minPadding, total);
+        }
+
+        /**
+         * Calculate the total height of a subtree in vertical layout (org_chart_up/down).
+         * node height + vgap + max child subtree height (recursive).
+         */
+        _subtreeHeightVertical(node) {
+            if (node.data && node.data._isSummaryNode) return 0;
+            const layoutChildren = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (!node.expanded || layoutChildren.length === 0) return node._h;
+            const ps = getStyleForDepth(node._depth);
+            // Org chart: use spacingMajor as vertical gap
+            const vgap = ps.spacingMajor || this.hgap;
+            let maxChildH = 0;
+            for (const c of layoutChildren) {
+                maxChildH = Math.max(maxChildH, this._subtreeHeightVertical(c));
+            }
+            return node._h + vgap + maxChildH;
         }
 
         _layoutBalanced(root) {
@@ -296,8 +355,17 @@
             root._y = 0;
 
             // XMind 2 unbalanced layout: right-number controls how many go right
-            // Default: 3 right, rest left (matches XMind 2 default)
-            const rightNum = this._rightNumber || Math.ceil(root.children.length / 2);
+            // Only use _rightNumber when the topic's original structure is map-related
+            // (ignore for org_chart, tree, fishbone etc. where right-number is irrelevant)
+            const dataRN = root.data && root.data._rightNumber;
+            const sc = (root.data && root.data.structure_class) || '';
+            const isMapStructure = !sc || sc.startsWith('org.xmind.ui.map');
+            let rightNum;
+            if (isMapStructure && dataRN != null) {
+                rightNum = dataRN === -1 ? root.children.length : dataRN;
+            } else {
+                rightNum = Math.ceil(root.children.length / 2);
+            }
 
             // Assign rainbow branch colors + split by right-number
             const right = [], left = [];
@@ -349,7 +417,102 @@
             this._layoutVerticalChildren(root);
         }
 
+        // Org Chart Up — children extend upward from root
+        _layoutVerticalUp(root) {
+            root._x = 0;
+            root._y = 0;
+            for (let i = 0; i < root.children.length; i++) {
+                root.children[i].direction = 2; // uses direction 2 but positioned above
+                root.children[i]._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(root.children[i]);
+            }
+            this._layoutVerticalChildrenUp(root);
+        }
+
+        _layoutVerticalChildrenUp(parent) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const ps = getStyleForDepth(parent._depth);
+            // Org chart vertical: swap major/minor semantics
+            // Major → horizontal gap between siblings, Minor → vertical gap parent↔child
+            // But Minor is often too small (1px), so use Major for vgap in org chart
+            const hgap = ps.spacingMinor || this.vgap;   // sibling horizontal gap
+            const vgap = ps.spacingMajor || this.hgap;   // parent-child vertical gap
+
+            // Extra gap for expander button (above node for org_chart_up)
+            const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
+
+            // Use subtree width to prevent horizontal overlapping
+            const childWidths = children.map(c => this._subtreeWidthVertical(c));
+            const totalW = childWidths.reduce((sum, w) => sum + w, 0) + hgap * (children.length - 1);
+            let curX = parent._x - totalW / 2;
+
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const sw = childWidths[i];
+                child._x = curX + sw / 2;
+                // Children above parent, with gap for expander
+                child._y = parent._y - parent._h / 2 - expanderGap - vgap - child._h / 2;
+                child.direction = 2;
+                curX += sw + hgap;
+
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutChildrenWithStructure(child, 2);
+                }
+            }
+        }
+
+        // Up-Down — first half above, second half below (XMind 2 updown structure)
+        _layoutUpDown(root) {
+            root._x = 0;
+            root._y = 0;
+            const halfIdx = Math.ceil(root.children.length / 2);
+
+            for (let i = 0; i < root.children.length; i++) {
+                root.children[i]._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(root.children[i]);
+                root.children[i].direction = 2;
+            }
+
+            // Upper half
+            const upper = root.children.slice(0, halfIdx);
+            if (upper.length > 0) {
+                const ps = getStyleForDepth(root._depth);
+                const hgap = ps.spacingMajor || this.hgap;
+                const vgap = ps.spacingMinor || this.vgap;
+                const totalW = upper.reduce((sum, c) => sum + c._w, 0) + hgap * (upper.length - 1);
+                let curX = root._x - totalW / 2;
+                for (const child of upper) {
+                    child._x = curX + child._w / 2;
+                    child._y = root._y - root._h / 2 - vgap - child._h / 2;
+                    curX += child._w + hgap;
+                    if (child.expanded && child.children.length > 0) {
+                        this._layoutChildrenWithStructure(child, 2);
+                    }
+                }
+            }
+
+            // Lower half
+            const lower = root.children.slice(halfIdx);
+            if (lower.length > 0) {
+                const ps = getStyleForDepth(root._depth);
+                const hgap = ps.spacingMajor || this.hgap;
+                const vgap = ps.spacingMinor || this.vgap;
+                const totalW = lower.reduce((sum, c) => sum + c._w, 0) + hgap * (lower.length - 1);
+                let curX = root._x - totalW / 2;
+                for (const child of lower) {
+                    child._x = curX + child._w / 2;
+                    child._y = root._y + root._h / 2 + vgap + child._h / 2;
+                    curX += child._w + hgap;
+                    if (child.expanded && child.children.length > 0) {
+                        this._layoutChildrenWithStructure(child, 2);
+                    }
+                }
+            }
+        }
+
         // Fishbone layout — children alternate above/below a horizontal spine
+        // direction = 7 (fishbone child) for 45° diagonal connection lines
         _layoutFishbone(root, dir) {
             root._x = 0;
             root._y = 0;
@@ -361,30 +524,32 @@
                 const child = root.children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-                child.direction = dir;
+                child.direction = 7; // fishbone child — uses diagonal line
 
                 // Alternate above (odd) and below (even)
                 const above = (i % 2 === 0);
                 const subH = this._subtreeHeight(child);
                 child._x = curX + (child._w / 2) * dir;
                 child._y = above ? -(subH / 2 + 20) : (subH / 2 + 20);
+                child._fishboneAbove = above;
+                child._fishboneDir = dir;
 
                 curX += (child._w + spineGap) * dir;
 
-                // Layout child's own children as a vertical branch
+                // Layout child's own children as vertical branch extending away from spine
                 if (child.expanded && child.children.length > 0) {
-                    for (const gc of child.children) gc.direction = above ? -1 : 1;
-                    const childDir = above ? -1 : 1;
-                    // Stack grandchildren vertically from the child
-                    let gcY = child._y + (above ? -child._h / 2 - 10 : child._h / 2 + 10);
+                    const vDir = above ? -1 : 1; // above: extend upward, below: extend downward
+                    const hGap = 20;
+                    const vGap = 5;
+                    let gcY = child._y + (child._h / 2 + 10) * vDir;
                     for (const gc of child.children) {
-                        gc._x = child._x + (gc._w / 2 + 20) * dir;
-                        gc._y = gcY + (above ? -gc._h / 2 : gc._h / 2);
-                        gc.direction = dir;
-                        gcY += (gc._h + 5) * (above ? -1 : 1);
-                        // Deep children use standard branch
+                        if (gc.data && gc.data._isSummaryNode) continue;
+                        gc._x = child._x + (gc._w / 2 + hGap) * dir;
+                        gc._y = gcY + (gc._h / 2) * vDir;
+                        gc.direction = dir; // horizontal direction for further children
+                        gcY += (gc._h + vGap) * vDir;
                         if (gc.expanded && gc.children.length > 0) {
-                            this._layoutBranch(gc, gc.children, dir);
+                            this._layoutChildrenWithStructure(gc, dir);
                         }
                     }
                 }
@@ -418,58 +583,397 @@
                 child._x = startX + col * (cellW + gapX) + cellW / 2;
                 child._y = startY + row * (cellH + gapY) + cellH / 2;
 
-                // Children of matrix cells go right
+                // Children of matrix cells
                 if (child.expanded && child.children.length > 0) {
-                    for (const gc of child.children) gc.direction = 1;
-                    this._layoutBranch(child, child.children, 1);
+                    this._layoutChildrenWithStructure(child, 1);
                 }
             }
         }
 
         _layoutBranch(parent, children, dir) {
-            if (children.length === 0) return;
+            // Filter out summary nodes — they are positioned by SummaryRenderer
+            const layoutChildren = children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (layoutChildren.length === 0) return;
 
             // Per-depth spacing from STYLES (XMind 2: spacingMajor/spacingMinor)
             const ps = getStyleForDepth(parent._depth);
             const hgap = ps.spacingMajor || this.hgap;
             const vgap = ps.spacingMinor || this.vgap;
 
-            const totalH = children.reduce((sum, c) => sum + this._subtreeHeight(c), 0)
-                + vgap * (children.length - 1);
+            const totalH = layoutChildren.reduce((sum, c) => sum + this._subtreeHeight(c), 0)
+                + vgap * (layoutChildren.length - 1);
 
             let curY = parent._y - totalH / 2;
 
-            for (const child of children) {
+            // Extra gap for expander button (11px wide + 3px offset from node edge)
+            const expanderGap = (!parent.isroot && layoutChildren.length > 0) ? 14 : 0;
+
+            for (const child of layoutChildren) {
                 const subH = this._subtreeHeight(child);
                 child._y = curY + subH / 2;
-                child._x = parent._x + (parent._w / 2 + hgap + child._w / 2) * dir;
+                child._x = parent._x + (parent._w / 2 + expanderGap + hgap + child._w / 2) * dir;
                 child.direction = dir;
                 curY += subH + vgap;
 
                 if (child.expanded && child.children.length > 0) {
-                    for (const gc of child.children) gc.direction = dir;
-                    this._layoutBranch(child, child.children, dir);
+                    this._layoutChildrenWithStructure(child, dir);
                 }
             }
         }
 
-        _layoutVerticalChildren(parent) {
-            const children = parent.children.filter(() => true);
-            if (children.length === 0) return;
+        /**
+         * Layout children of a node, respecting per-node childStructure override.
+         * If node.data.childStructure is set, use that layout mode for its children.
+         */
+        // Layout modes that children should inherit from parent/sheet
+        static _INHERITABLE_LAYOUTS = new Set([
+            'org_chart_down', 'org_chart_up', 'tree_right', 'tree_left',
+            'fishbone_right', 'fishbone_left', 'timeline_horizontal', 'timeline_vertical',
+        ]);
 
-            const totalW = children.reduce((sum, c) => sum + c._w, 0)
-                + this.hgap * (children.length - 1);
+        _layoutChildrenWithStructure(node, defaultDir) {
+            const nodeStructure = node.data && node.data.childStructure;
+            // 只有可繼承的佈局模式才 fallback 到 sheet layout mode
+            const childStructure = nodeStructure
+                || (LayoutEngine._INHERITABLE_LAYOUTS.has(this._currentMode) ? this._currentMode : '');
+            if (!childStructure) {
+                // Default: continue with standard branch layout (map, logic_right, logic_left)
+                for (const gc of node.children) gc.direction = defaultDir;
+                this._layoutBranch(node, node.children, defaultDir);
+                return;
+            }
+
+            // Per-node child structure override
+            switch (childStructure) {
+                case 'logic_right':
+                    for (const gc of node.children) gc.direction = 1;
+                    this._layoutBranch(node, node.children, 1);
+                    break;
+                case 'logic_left':
+                    for (const gc of node.children) gc.direction = -1;
+                    this._layoutBranch(node, node.children, -1);
+                    break;
+                case 'tree_right':
+                    this._layoutTreeChildren(node, 1);
+                    break;
+                case 'tree_left':
+                    this._layoutTreeChildren(node, -1);
+                    break;
+                case 'org_chart_down':
+                    this._layoutVerticalChildren(node);
+                    break;
+                case 'org_chart_up':
+                    this._layoutVerticalUpChildren(node);
+                    break;
+                case 'map':
+                    this._layoutBalancedChildren(node);
+                    break;
+                case 'fishbone_right':
+                    this._layoutFishboneChildren(node, 1);
+                    break;
+                case 'fishbone_left':
+                    this._layoutFishboneChildren(node, -1);
+                    break;
+                case 'timeline_horizontal':
+                    this._layoutTimelineHChildren(node);
+                    break;
+                case 'timeline_vertical':
+                    this._layoutTimelineVChildren(node);
+                    break;
+                default:
+                    for (const gc of node.children) gc.direction = defaultDir;
+                    this._layoutBranch(node, node.children, defaultDir);
+                    break;
+            }
+        }
+
+        _layoutVerticalChildren(parent) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const ps = getStyleForDepth(parent._depth);
+            // Org chart vertical: swap major/minor semantics
+            const hgap = ps.spacingMinor || this.vgap;   // sibling horizontal gap
+            const vgap = ps.spacingMajor || this.hgap;   // parent-child vertical gap
+
+            // Extra gap for expander (dir=2: below node)
+            const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
+
+            // Use subtree width to prevent overlapping
+            const childWidths = children.map(c => this._subtreeWidthVertical(c));
+            const totalW = childWidths.reduce((sum, w) => sum + w, 0)
+                + hgap * (children.length - 1);
 
             let curX = parent._x - totalW / 2;
 
-            for (const child of children) {
-                child._x = curX + child._w / 2;
-                child._y = parent._y + parent._h / 2 + this.vgap + child._h / 2;
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const sw = childWidths[i];
+                child._x = curX + sw / 2;
+                child._y = parent._y + parent._h / 2 + expanderGap + vgap + child._h / 2;
                 child.direction = 2;
-                curX += child._w + this.hgap;
+                curX += sw + hgap;
 
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutVerticalChildren(child);
+                    this._layoutChildrenWithStructure(child, 2);
+                }
+            }
+        }
+
+        /**
+         * Layout children of a node using vertical-up style (children extend upward).
+         */
+        _layoutVerticalUpChildren(parent) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const ps = getStyleForDepth(parent._depth);
+            const hgap = ps.spacingMajor || this.hgap;
+            const vgap = ps.spacingMinor || this.vgap;
+
+            // Use subtree width to prevent overlapping
+            const childWidths = children.map(c => this._subtreeWidthVertical(c));
+            const totalW = childWidths.reduce((sum, w) => sum + w, 0) + hgap * (children.length - 1);
+            let curX = parent._x - totalW / 2;
+
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const sw = childWidths[i];
+                child._x = curX + sw / 2;
+                child._y = parent._y - parent._h / 2 - vgap - child._h / 2;
+                child.direction = 2;
+                curX += sw + hgap;
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutChildrenWithStructure(child, 2);
+                }
+            }
+        }
+
+        /**
+         * Layout children of a node using balanced (map) style — split left/right.
+         */
+        _layoutBalancedChildren(parent) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const half = Math.ceil(children.length / 2);
+            const right = children.slice(0, half);
+            const left = children.slice(half);
+            for (const c of right) c.direction = 1;
+            for (const c of left) c.direction = -1;
+            this._layoutBranch(parent, right, 1);
+            this._layoutBranch(parent, left, -1);
+        }
+
+        /**
+         * Layout children of a node using fishbone style — alternate above/below.
+         */
+        _layoutFishboneChildren(parent, dir) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const spineGap = 40;
+            let curX = parent._x + dir * (parent._w / 2 + spineGap);
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                child.direction = dir;
+                const above = (i % 2 === 0);
+                const subH = this._subtreeHeight(child);
+                child._x = curX + (child._w / 2) * dir;
+                child._y = parent._y + (above ? -(subH / 2 + 20) : (subH / 2 + 20));
+                curX += (child._w + spineGap) * dir;
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutChildrenWithStructure(child, dir);
+                }
+            }
+        }
+
+        // =================================================================
+        // Tree layout — children drop down vertically, then extend in dir
+        // XMind Tree: parent → vertical drop → children stacked vertically
+        // Connection line: parent bottom → vertical → horizontal → child left
+        // =================================================================
+
+        _layoutTreeRoot(root, dir) {
+            root._x = 0;
+            root._y = 0;
+            for (let i = 0; i < root.children.length; i++) {
+                root.children[i]._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(root.children[i]);
+            }
+            this._layoutTreeChildren(root, dir);
+        }
+
+        /**
+         * Tree layout for children: each child is positioned below the parent,
+         * indented from parent's reference point. Children stack vertically.
+         * XMind Tree: x = parent.x + majorSpacing, y = parent.bottom + majorSpacing
+         * direction = 3 (tree-right) or 4 (tree-left)
+         */
+        _layoutTreeChildren(parent, dir) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+
+            const ps = getStyleForDepth(parent._depth);
+            const majorGap = ps.spacingMajor || this.hgap;
+            const minorGap = ps.spacingMinor || this.vgap;
+
+            // XMind Tree: children indent from parent's center x, drop below parent's bottom
+            const indentX = parent._x + majorGap * dir;
+            let curY = parent._y + parent._h / 2 + majorGap;
+
+            for (const child of children) {
+                const subH = this._treeSubtreeHeight(child, minorGap, majorGap);
+                child._x = indentX + (child._w / 2) * dir;
+                child._y = curY + child._h / 2;
+                child.direction = dir > 0 ? 3 : 4;
+                curY += subH + minorGap;
+
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutTreeChildren(child, dir);
+                }
+            }
+        }
+
+        /** Compute total height of a tree subtree (vertical stacking). */
+        _treeSubtreeHeight(node, minorGap, majorGap) {
+            if (node.data && node.data._isSummaryNode) return 0;
+            const children = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (!node.expanded || children.length === 0) return node._h;
+            let childrenH = 0;
+            for (const c of children) {
+                childrenH += this._treeSubtreeHeight(c, minorGap, majorGap);
+            }
+            childrenH += minorGap * (children.length - 1);
+            return node._h + majorGap + childrenH;
+        }
+
+        // =================================================================
+        // Timeline Horizontal — XMind style: head topic on left, children
+        // along horizontal spine alternating above/below, each child's own
+        // children extend vertically (tree-like).
+        // direction = 5 (timeline-h) for spine connection lines.
+        // =================================================================
+
+        _layoutTimelineH(root) {
+            root._x = 0;
+            root._y = 0;
+
+            const children = root.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+
+            const majorGap = 50;
+            const spineY = 0; // spine runs through root's y
+
+            // Track x positions for upper and lower rows independently to avoid overlap
+            let xUp = root._w / 2 + majorGap;
+            let xDown = root._w / 2 + majorGap;
+
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(child);
+
+                const above = (i % 2 === 0);
+                child.direction = 5; // timeline-h marker
+
+                // Pick x: use the further of the two tracks to avoid overlap
+                const curX = above
+                    ? Math.max(xUp, xDown > xUp ? xDown : xUp)
+                    : Math.max(xDown, xUp > xDown ? xUp : xDown);
+
+                child._x = curX + child._w / 2;
+                if (above) {
+                    child._y = spineY - child._h / 2 - 30;
+                    xUp = child._x + child._w / 2 + majorGap;
+                } else {
+                    child._y = spineY + child._h / 2 + 30;
+                    xDown = child._x + child._w / 2 + majorGap;
+                }
+
+                // Children of each timeline item extend vertically (tree-like)
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutTreeChildren(child, 1);
+                }
+            }
+        }
+
+        _layoutTimelineHChildren(parent) {
+            this._layoutTimelineH_inner(parent);
+        }
+
+        _layoutTimelineH_inner(parent) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const majorGap = 40;
+            let xUp = parent._x + parent._w / 2 + majorGap;
+            let xDown = xUp;
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const above = (i % 2 === 0);
+                child.direction = 5;
+                const curX = Math.max(xUp, xDown);
+                child._x = curX + child._w / 2;
+                if (above) {
+                    child._y = parent._y - child._h / 2 - 25;
+                    xUp = child._x + child._w / 2 + majorGap;
+                } else {
+                    child._y = parent._y + child._h / 2 + 25;
+                    xDown = child._x + child._w / 2 + majorGap;
+                }
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutTreeChildren(child, 1);
+                }
+            }
+        }
+
+        // =================================================================
+        // Timeline Vertical — XMind style: head topic on top, children along
+        // vertical spine alternating left/right.
+        // direction = 6 (timeline-v) for spine connection lines.
+        // =================================================================
+
+        _layoutTimelineV(root) {
+            root._x = 0;
+            root._y = 0;
+
+            const children = root.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+
+            const majorGap = 35;
+            const spineX = 0;
+            let curY = root._h / 2 + majorGap;
+
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(child);
+
+                const goRight = (i % 2 === 0);
+                child.direction = 6; // timeline-v marker
+
+                const offset = child._w / 2 + 50;
+                child._x = spineX + (goRight ? offset : -offset);
+                child._y = curY + child._h / 2;
+                curY += child._h + majorGap;
+
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutChildrenWithStructure(child, goRight ? 1 : -1);
+                }
+            }
+        }
+
+        _layoutTimelineVChildren(parent) {
+            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (children.length === 0) return;
+            const majorGap = 30;
+            let curY = parent._y + parent._h / 2 + majorGap;
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const goRight = (i % 2 === 0);
+                child.direction = 6;
+                const offset = child._w / 2 + 40;
+                child._x = parent._x + (goRight ? offset : -offset);
+                child._y = curY + child._h / 2;
+                curY += child._h + majorGap;
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutChildrenWithStructure(child, goRight ? 1 : -1);
                 }
             }
         }
@@ -601,7 +1105,7 @@
 
         // === Rendering ===
 
-        show(mind) {
+        show(mind, onReady) {
             // Clear previous render (prevent duplicates)
             this.nodesLayer.innerHTML = '';
             while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
@@ -613,7 +1117,12 @@
             // First layout pass with estimated sizes
             this.refresh();
             // Second pass after browser renders DOM (accurate sizes)
-            requestAnimationFrame(() => this.refresh());
+            requestAnimationFrame(() => {
+                this.refresh();
+                // DOM is now fully ready — safe to render features
+                if (onReady) onReady();
+                this._fireEvent(3, {}); // show event
+            });
         }
 
         refresh() {
@@ -712,10 +1221,9 @@
             this.nodesLayer.appendChild(el);
             node._el = el;
 
-            // Measure
-            const rect = el.getBoundingClientRect();
-            node._w = rect.width;
-            node._h = rect.height;
+            // Measure — use offsetWidth/Height (unaffected by CSS transform/zoom)
+            node._w = el.offsetWidth || 50;
+            node._h = el.offsetHeight || 20;
 
             // Expander
             if (node.children.length > 0 && !node.isroot) {
@@ -758,6 +1266,18 @@
         _positionAllNodes(node) {
             if (!node) return;
             this._positionNode(node);
+            // Summary nodes: don't position children here (done by _positionSummaryNode),
+            // but ensure they're visible so draw_lines can find them
+            if (node.data && node.data._isSummaryNode) {
+                if (node.expanded) {
+                    const showAll = (n) => {
+                        if (n._el) n._el.style.display = '';
+                        if (n.expanded) n.children.forEach(c => showAll(c));
+                    };
+                    node.children.forEach(c => showAll(c));
+                }
+                return;
+            }
             if (node.expanded) {
                 for (const c of node.children) this._positionAllNodes(c);
             } else {
@@ -768,6 +1288,11 @@
 
         _positionNode(node) {
             if (!node._el) return;
+            // Summary nodes are positioned by SummaryRenderer, not layout engine
+            if (node.data && node.data._isSummaryNode) {
+                node._el.style.display = ''; // ensure visible, but don't set position
+                return;
+            }
             node._el.style.left = (node._x - node._w / 2) + 'px';
             node._el.style.top = (node._y - node._h / 2) + 'px';
             node._el.style.display = '';
@@ -776,9 +1301,13 @@
             if (node._expander) {
                 const dir = node.direction || 1;
                 let ex, ey;
-                if (dir === 2) {
+                if (dir === 2 || dir === 3 || dir === 4 || dir === 5 || dir === 6 || dir === 7) {
+                    // Vertical/tree/timeline: expander below or above the node
+                    const isUp = dir === 2 && (this.layout && this.layout._currentMode) === 'org_chart_up';
                     ex = node._x - 6;
-                    ey = node._y + node._h / 2 + 2;
+                    ey = isUp
+                        ? node._y - node._h / 2 - 13  // above node for org_chart_up
+                        : node._y + node._h / 2 + 2;  // below node for others
                 } else if (dir === -1) {
                     ex = node._x - node._w / 2 - 15;
                     ey = node._y - 6;
@@ -816,23 +1345,137 @@
             while (this.svg.firstChild) this.svg.removeChild(this.svg.firstChild);
 
             if (!this.mind || !this.mind.root) return;
+
+            // Draw spine lines (before branch lines so they're behind)
+            const mode = this.options.layout?.mode || 'map';
+            if (mode === 'timeline_horizontal' || mode === 'timeline_vertical') {
+                this._drawTimelineSpine(this.mind.root, mode);
+            } else if (mode === 'fishbone_right' || mode === 'fishbone_left') {
+                this._drawFishboneSpine(this.mind.root, mode === 'fishbone_right' ? 1 : -1);
+            }
+
             this._drawLinesForNode(this.mind.root);
+        }
+
+        /** Draw the timeline spine (axis line through all children). */
+        _drawTimelineSpine(root, mode) {
+            const children = root.children.filter(c =>
+                !(c.data && c.data._isSummaryNode) && c._el && c._el.style.display !== 'none');
+            if (children.length === 0) return;
+
+            const spine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            spine.setAttribute('stroke', '#558ED5');
+            spine.setAttribute('stroke-width', '2');
+            spine.setAttribute('fill', 'none');
+            spine.setAttribute('stroke-linecap', 'round');
+            spine.setAttribute('opacity', '0.5');
+
+            if (mode === 'timeline_horizontal') {
+                // Horizontal spine from root right edge to last child x
+                const lastX = Math.max(...children.map(c => c._x + c._w / 2));
+                const y = root._y;
+                spine.setAttribute('d', `M${root._x + root._w / 2},${y} L${lastX + 20},${y}`);
+            } else {
+                // Vertical spine from root bottom to last child y
+                const lastY = Math.max(...children.map(c => c._y + c._h / 2));
+                const x = root._x;
+                spine.setAttribute('d', `M${x},${root._y + root._h / 2} L${x},${lastY + 20}`);
+            }
+
+            this.svg.appendChild(spine);
+        }
+
+        /** Draw the fishbone spine (horizontal axis through root). */
+        _drawFishboneSpine(root, dir) {
+            const children = root.children.filter(c =>
+                !(c.data && c.data._isSummaryNode) && c._el && c._el.style.display !== 'none');
+            if (children.length === 0) return;
+
+            const spine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const color = root._branchColor || children[0]._branchColor || '#558ED5';
+            spine.setAttribute('stroke', color);
+            spine.setAttribute('stroke-width', '3');
+            spine.setAttribute('fill', 'none');
+            spine.setAttribute('stroke-linecap', 'round');
+
+            // Spine from root edge to beyond the last child
+            const xs = children.map(c => c._x);
+            const endX = dir > 0 ? Math.max(...xs) + 40 : Math.min(...xs) - 40;
+            const y = root._y;
+            spine.setAttribute('d', `M${root._x + (root._w / 2) * dir},${y} L${endX},${y}`);
+
+            // Arrow head at the end
+            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const ax = endX;
+            const headSize = 10;
+            arrow.setAttribute('d', `M${ax - headSize * dir},${y - headSize / 2} L${ax},${y} L${ax - headSize * dir},${y + headSize / 2}`);
+            arrow.setAttribute('stroke', color);
+            arrow.setAttribute('stroke-width', '3');
+            arrow.setAttribute('fill', 'none');
+            arrow.setAttribute('stroke-linecap', 'round');
+            arrow.setAttribute('stroke-linejoin', 'round');
+
+            this.svg.appendChild(spine);
+            this.svg.appendChild(arrow);
         }
 
         _drawLinesForNode(node) {
             if (!node.expanded || node.children.length === 0) return;
 
+            // Fix #3: Tree layout — draw shared vertical trunk for tree children
+            const treeChildren = node.children.filter(c =>
+                c._el && c._el.style.display !== 'none'
+                && !(c.data && c.data._isSummaryNode)
+                && (c.direction === 3 || c.direction === 4));
+            if (treeChildren.length > 0) {
+                this._drawTreeTrunk(node, treeChildren);
+            }
+
             for (const child of node.children) {
                 if (child._el && child._el.style.display !== 'none') {
-                    this._drawLine(node, child);
+                    if (!(child.data && child.data._isSummaryNode)) {
+                        this._drawLine(node, child);
+                    }
                     this._drawLinesForNode(child);
                 }
             }
         }
 
+        /**
+         * Draw the shared vertical trunk for tree layout.
+         * One vertical line from parent bottom to the last child's y,
+         * then each child gets a horizontal branch from the trunk.
+         */
+        _drawTreeTrunk(parent, treeChildren) {
+            if (treeChildren.length < 2) return; // single child uses normal L-shape
+
+            const s = getStyleForDepth(treeChildren[0]._depth);
+            const bs = (treeChildren[0].data && treeChildren[0].data.branchStyle) || {};
+            const lineColor = bs.lineColor || treeChildren[0]._branchColor || s.lineColor;
+            const lineWidth = bs.lineWidth || s.lineWidth || 1;
+
+            const trunkX = parent._x;
+            const trunkStartY = parent._y + parent._h / 2;
+            const lastChild = treeChildren[treeChildren.length - 1];
+            const trunkEndY = lastChild._y;
+
+            // Draw the vertical trunk line
+            const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            trunk.setAttribute('d', `M${trunkX},${trunkStartY} L${trunkX},${trunkEndY}`);
+            trunk.setAttribute('stroke', lineColor);
+            trunk.setAttribute('stroke-width', lineWidth);
+            trunk.setAttribute('fill', 'none');
+            trunk.setAttribute('stroke-linecap', 'round');
+            this.svg.appendChild(trunk);
+        }
+
         _drawLine(parent, child) {
+            // Double-guard: never draw branch line to a summary node
+            if (child.data && child.data._isSummaryNode) return;
+
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             const s = getStyleForDepth(child._depth);
+            const ps = getStyleForDepth(parent._depth);
 
             // Per-node branch style override (stored in child.data.branchStyle)
             const bs = (child.data && child.data.branchStyle) || {};
@@ -840,52 +1483,203 @@
             // Rainbow branch color → per-node override → style default
             const lineColor = bs.lineColor || child._branchColor || s.lineColor;
             // Line width: per-node override → depth default
-            const lineWidth = bs.lineWidth || (parent.isroot ? 2 : s.lineWidth);
+            const lineWidth = bs.lineWidth || s.lineWidth || 1;
             // Line class: per-node override → depth default
-            const lineClass = bs.lineType || (parent.isroot ? 'straight' : s.lineClass);
+            const lineClass = bs.lineType || s.lineClass || 'curve';
             // Line corner for rounded elbow
-            const lineCorner = s.lineCorner;
+            const lineCorner = s.lineCorner || 4;
+
+            // --- Determine if parent/child have underline shape ---
+            // Underline topics: connection starts/ends at bottom-edge, not center-y
+            const parentIsUnderline = ps.shape === 'underline'
+                || (parent.data && parent.data.shape && parent.data.shape.type === 'underline');
+            const childIsUnderline = s.shape === 'underline'
+                || (child.data && child.data.shape && child.data.shape.type === 'underline');
 
             // Connection points
             let sx, sy, ex, ey;
             const dir = child.direction || 1;
+            const hasExpander = parent._expander && parent.children.length > 0 && !parent.isroot;
+            const expanderHalf = 5.5;
 
-            if (dir === 2) {
+            // Fix #1: Underline shape — sy/ey at bottom edge instead of center
+            const parentSy = parentIsUnderline
+                ? parent._y + parent._h / 2   // bottom of underline
+                : parent._y;
+            const childEy = childIsUnderline
+                ? child._y + child._h / 2     // bottom of underline
+                : child._y;
+
+            if (dir === 7) {
+                // Fishbone: diagonal from spine intersection to child
+                // Spine runs at parent._y, intersection at child._x offset back by height
+                const above = child._fishboneAbove;
+                const fbDir = child._fishboneDir || 1;
+                const offset = Math.abs(child._y - parent._y); // vertical distance
+                sx = child._x - offset * fbDir * 0.7; // 45° angle back along spine
+                sy = parent._y; // on the spine
+                ex = child._x - (child._w / 2) * fbDir;
+                ey = child._y;
+            } else if (dir === 5) {
+                // Timeline horizontal: vertical stub from spine to child
+                sx = child._x;
+                sy = parent._y; // spine Y
+                ex = child._x;
+                ey = child._y > sy ? child._y - child._h / 2 : child._y + child._h / 2;
+            } else if (dir === 6) {
+                // Timeline vertical: horizontal stub from spine to child
+                sx = parent._x; // spine X
+                sy = child._y;
+                ex = child._x > sx ? child._x - child._w / 2 : child._x + child._w / 2;
+                ey = child._y;
+            } else if (dir === 3 || dir === 4) {
+                // Tree layout: vertical trunk from parent bottom, horizontal branch to child
                 sx = parent._x;
                 sy = parent._y + parent._h / 2;
-                ex = child._x;
-                ey = child._y - child._h / 2;
+                ex = child._x - (child._w / 2) * (dir === 3 ? 1 : -1);
+                ey = child._y;
+            } else if (dir === 2) {
+                // Vertical connection: org_chart_down → parent bottom to child top
+                //                      org_chart_up   → parent top to child bottom
+                const isUp = (this.layout && this.layout._currentMode) === 'org_chart_up';
+                sx = parent._x;
+                if (isUp) {
+                    sy = hasExpander
+                        ? parent._y - parent._h / 2 - 2 - expanderHalf
+                        : parent._y - parent._h / 2;
+                    ex = child._x;
+                    ey = child._y + child._h / 2;
+                } else {
+                    sy = hasExpander
+                        ? parent._y + parent._h / 2 + 2 + expanderHalf
+                        : parent._y + parent._h / 2;
+                    ex = child._x;
+                    ey = child._y - child._h / 2;
+                }
             } else if (dir === -1) {
-                sx = parent._x - parent._w / 2;
-                sy = parent._y;
+                // Fix #2: Root node (radial) — source from left edge for left children
+                if (parent.isroot) {
+                    sx = parent._x - parent._w / 2;
+                    sy = parentSy;
+                } else {
+                    sx = hasExpander
+                        ? parent._x - parent._w / 2 - 15 + expanderHalf
+                        : parent._x - parent._w / 2;
+                    sy = parentSy;
+                }
                 ex = child._x + child._w / 2;
-                ey = child._y;
-            } else {
-                sx = parent._x + parent._w / 2;
-                sy = parent._y;
+                ey = childEy;
+            } else { // dir === 1
+                if (parent.isroot) {
+                    sx = parent._x + parent._w / 2;
+                    sy = parentSy;
+                } else {
+                    sx = hasExpander
+                        ? parent._x + parent._w / 2 + 3 + expanderHalf
+                        : parent._x + parent._w / 2;
+                    sy = parentSy;
+                }
                 ex = child._x - child._w / 2;
-                ey = child._y;
+                ey = childEy;
             }
 
             let d = '';
 
+            // --- Fishbone: diagonal line from spine to child ---
+            if (dir === 7) {
+                d = `M${sx},${sy} L${ex},${ey}`;
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', lineColor);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke-width', lineWidth);
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('data-parent-id', parent.id);
+                path.setAttribute('data-child-id', child.id);
+                this.svg.appendChild(path);
+                return;
+            }
+
+            // --- Timeline: straight stub + circle dot at spine ---
+            if (dir === 5 || dir === 6) {
+                d = `M${sx},${sy} L${ex},${ey}`;
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', lineColor);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke-width', lineWidth);
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('data-parent-id', parent.id);
+                path.setAttribute('data-child-id', child.id);
+                this.svg.appendChild(path);
+                // Fix #4: Add circle dot at spine intersection
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', sx);
+                dot.setAttribute('cy', sy);
+                dot.setAttribute('r', '4');
+                dot.setAttribute('fill', lineColor);
+                this.svg.appendChild(dot);
+                return;
+            }
+
+            // --- Tree: horizontal branch from vertical trunk to child ---
+            if (dir === 3 || dir === 4) {
+                // The vertical trunk is drawn by _drawTreeTrunk.
+                // Here we only draw the horizontal branch: from trunk x to child edge.
+                // For single-child case (no trunk), draw full L-shape.
+                const siblings = parent.children.filter(c =>
+                    !(c.data && c.data._isSummaryNode) && (c.direction === 3 || c.direction === 4));
+                const hasTrunk = siblings.length >= 2;
+
+                if (hasTrunk) {
+                    // Horizontal branch: trunk (sx) → child left/right edge
+                    const c = Math.min(lineCorner, Math.abs(ex - sx));
+                    const sgnX = ex > sx ? 1 : -1;
+                    if (c > 0 && Math.abs(ex - sx) > c) {
+                        d = `M${sx},${ey} Q${sx + c * sgnX * 0.5},${ey} ${sx + c * sgnX},${ey} L${ex},${ey}`;
+                    } else {
+                        d = `M${sx},${ey} L${ex},${ey}`;
+                    }
+                } else {
+                    // Single child — full L-shape
+                    const c = Math.min(lineCorner, Math.abs(ey - sy), Math.abs(ex - sx));
+                    const sgnX = ex > sx ? 1 : -1;
+                    const sgnY = ey > sy ? 1 : -1;
+                    if (c > 0 && Math.abs(ey - sy) > c && Math.abs(ex - sx) > c) {
+                        d = `M${sx},${sy} L${sx},${ey - c * sgnY} Q${sx},${ey} ${sx + c * sgnX},${ey} L${ex},${ey}`;
+                    } else {
+                        d = `M${sx},${sy} L${sx},${ey} L${ex},${ey}`;
+                    }
+                }
+                path.setAttribute('d', d);
+                path.setAttribute('stroke', lineColor);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke-width', lineWidth);
+                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('stroke-linejoin', 'round');
+                path.setAttribute('data-parent-id', parent.id);
+                path.setAttribute('data-child-id', child.id);
+                this.svg.appendChild(path);
+                return;
+            }
+
             if (lineClass === 'straight') {
                 d = `M${sx},${sy} L${ex},${ey}`;
             } else if (lineClass === 'roundedElbow' || lineClass === 'rounded' || lineClass === 'angular') {
-                // Rounded elbow (or angular with corners)
                 const midX = (sx + ex) / 2;
                 const corner = lineClass === 'angular' ? 0 : Math.min(lineCorner, Math.abs(ey - sy) / 2, Math.abs(midX - sx));
 
                 if (Math.abs(ey - sy) < 1) {
                     d = `M${sx},${sy} L${ex},${ey}`;
                 } else if (dir === 2) {
-                    const midY = (sy + ey) / 2;
-                    const c = lineClass === 'angular' ? 0 : Math.min(lineCorner, Math.abs(ex - sx) / 2, Math.abs(midY - sy));
+                    // XMind 2 Elbow for org_chart: horizontal first, then vertical
+                    // Elbow point at (child.x, parent.y) — same Y as source, same X as target
+                    const c = lineClass === 'angular' ? 0 : Math.min(lineCorner, Math.abs(ex - sx) / 2, Math.abs(ey - sy) / 2);
                     const sgnX = ex > sx ? 1 : -1;
+                    const sgnY = ey > sy ? 1 : -1;
                     if (c > 0) {
-                        d = `M${sx},${sy} L${sx},${midY - c} Q${sx},${midY} ${sx + c * sgnX},${midY} L${ex - c * sgnX},${midY} Q${ex},${midY} ${ex},${midY + c} L${ex},${ey}`;
+                        // Path: source → horizontal to near child.x → round corner → vertical to child
+                        d = `M${sx},${sy} L${ex - c * sgnX},${sy} Q${ex},${sy} ${ex},${sy + c * sgnY} L${ex},${ey}`;
                     } else {
-                        d = `M${sx},${sy} L${sx},${midY} L${ex},${midY} L${ex},${ey}`;
+                        d = `M${sx},${sy} L${ex},${sy} L${ex},${ey}`;
                     }
                 } else {
                     const sgnY = ey > sy ? 1 : -1;
@@ -895,14 +1689,27 @@
                         d = `M${sx},${sy} L${midX},${sy} L${midX},${ey} L${ex},${ey}`;
                     }
                 }
+            } else if (lineClass === 'none') {
+                return;
             } else {
-                // Bezier curve (default / 'curved') — XMind 2 uses 1/3 control point
-                const ctrl = Math.abs(ex - sx) * 0.33;
+                // ======================================================
+                // XMind 2 Quadratic Bezier — CPRatio = 1/3
+                // Control point = source * (1 - 1/3) + target * (1/3)
+                //   Horizontal target: cp.x = lerp(sx, ex, 1/3), cp.y = ey
+                //   Vertical target:   cp.x = ex,                cp.y = lerp(sy, ey, 1/3)
+                // ======================================================
+                const R = 1 / 3; // XMind 2 CurveBranchConnection.CPRatio
+                let cpx, cpy;
                 if (dir === 2) {
-                    d = `M${sx},${sy} C${sx},${sy + ctrl} ${ex},${ey - ctrl} ${ex},${ey}`;
+                    // Vertical: target is below/above → targetHorizontal=false
+                    cpx = ex;
+                    cpy = sy * (1 - R) + ey * R;
                 } else {
-                    d = `M${sx},${sy} C${sx + ctrl * dir},${sy} ${ex - ctrl * dir},${ey} ${ex},${ey}`;
+                    // Horizontal: target is left/right → targetHorizontal=true
+                    cpx = sx * (1 - R) + ex * R;
+                    cpy = ey;
                 }
+                d = `M${sx},${sy} Q${cpx},${cpy} ${ex},${ey}`;
             }
 
             path.setAttribute('d', d);
@@ -913,25 +1720,28 @@
             path.setAttribute('data-parent-id', parent.id);
             path.setAttribute('data-child-id', child.id);
 
-            // Line tapering: thicker at parent, thinner at child (XMind 2 tapered mode)
-            if (this._tapered && lineClass === 'curve') {
-                // Use a tapered path: draw as filled shape instead of stroke
+            // XMind 2 Tapered mode: filled quadratic outline (source thick → target thin)
+            if (this._tapered && (lineClass === 'curve' || lineClass === 'curved')) {
                 const startW = lineWidth * 2;
                 const endW = Math.max(lineWidth * 0.5, 0.5);
+                const R = 1 / 3;
+                let cpx, cpy;
+                if (dir === 2) {
+                    cpx = ex;
+                    cpy = sy * (1 - R) + ey * R;
+                } else {
+                    cpx = sx * (1 - R) + ex * R;
+                    cpy = ey;
+                }
+                // XMind 2: two quadratic outlines forming a filled shape
+                // Upper edge: (sx, sy-startW/2) → Q(cpx, cpy-midW/2) → (ex, ey-endW/2)
+                // Lower edge: (ex, ey+endW/2) → Q(cpx, cpy+midW/2) → (sx, sy+startW/2)
+                const midW = (startW + endW) / 2;
+                d = `M${sx},${sy - startW / 2} Q${cpx},${cpy - midW / 2} ${ex},${ey - endW / 2}`
+                  + ` L${ex},${ey + endW / 2} Q${cpx},${cpy + midW / 2} ${sx},${sy + startW / 2} Z`;
+                path.setAttribute('d', d);
                 path.setAttribute('stroke', 'none');
                 path.setAttribute('fill', lineColor);
-                // Approximate taper by generating an outlined curve path
-                const ctrl = Math.abs(ex - sx) * 0.33;
-                const dir2 = child.direction || 1;
-                if (dir2 !== 2) {
-                    const c1x = sx + ctrl * dir2, c1y = sy;
-                    const c2x = ex - ctrl * dir2, c2y = ey;
-                    d = `M${sx},${sy - startW / 2} C${c1x},${c1y - startW / 2} ${c2x},${c2y - endW / 2} ${ex},${ey - endW / 2}`
-                      + ` L${ex},${ey + endW / 2} C${c2x},${c2y + endW / 2} ${c1x},${c1y + startW / 2} ${sx},${sy + startW / 2} Z`;
-                    path.setAttribute('d', d);
-                } else {
-                    path.setAttribute('stroke-width', lineWidth);
-                }
             } else {
                 path.setAttribute('stroke-width', lineWidth);
             }
@@ -1003,8 +1813,8 @@
 
             input.addEventListener('blur', finish);
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-                if (e.key === 'Escape') { input.value = node.topic; input.blur(); }
+                if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); input.blur(); }
+                if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); input.value = node.topic; input.blur(); }
             });
         }
 
@@ -1013,10 +1823,9 @@
             if (node._el) {
                 const span = node._el.querySelector('.xmind-topic-text');
                 if (span) span.textContent = topic;
-                // Re-measure
-                const rect = node._el.getBoundingClientRect();
-                node._w = rect.width;
-                node._h = rect.height;
+                // Re-measure (offsetWidth/Height unaffected by zoom transform)
+                node._w = node._el.offsetWidth || node._w;
+                node._h = node._el.offsetHeight || node._h;
             }
             this.refresh();
         }
@@ -1076,9 +1885,9 @@
             };
         }
 
-        show(data) {
+        show(data, onReady) {
             this.mind = parseMindData(data);
-            this.view.show(this.mind);
+            this.view.show(this.mind, onReady);
         }
 
         get_data(format) {

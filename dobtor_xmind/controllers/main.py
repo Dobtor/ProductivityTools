@@ -56,17 +56,30 @@ class XMindController(http.Controller):
                 'options': {
                     'shapeType': rel.line_type or 'curved',
                     'lineStyle': rel.line_style or 'dashed',
-                    'lineColor': rel.line_color or '#999999',
-                    'lineWidth': rel.line_width or 2,
+                    'lineColor': rel.line_color or '#77933C',
+                    'lineWidth': rel.line_width or 3,
                     'startMarker': rel.arrow_begin or 'none',
                     'endMarker': rel.arrow_end or 'arrow',
                     'markerSize': rel.arrow_size or 'medium',
                     'label': rel.title or '',
+                    'labelFontSize': 10,
+                    'labelColor': '#595959',
+                    'labelItalic': True,
+                    'labelBold': False,
                 },
-                'controlPoints': [{'x': rel.control_point_x, 'y': rel.control_point_y}]
-                    if rel.control_point_x or rel.control_point_y else [],
+                'controlPoints': self._build_control_points(rel),
+                'cpIsRelativeOffset': rel.cp_is_relative,
             })
         return result
+
+    def _build_control_points(self, rel):
+        """Build control points list from relationship record"""
+        cps = []
+        if rel.cp0_x or rel.cp0_y:
+            cps.append({'x': rel.cp0_x, 'y': rel.cp0_y})
+        if rel.cp1_x or rel.cp1_y:
+            cps.append({'x': rel.cp1_x, 'y': rel.cp1_y})
+        return cps
 
     def _get_summaries(self, workbook):
         """Get summary data for the first sheet"""
@@ -77,14 +90,19 @@ class XMindController(http.Controller):
         result = []
         for summary in sheet.summary_ids:
             topic_ids = summary.topic_ids.mapped('component_id')
-            summary_topic_cid = summary.summary_topic_id.component_id if summary.summary_topic_id else ''
-            if topic_ids and summary_topic_cid:
+            if topic_ids:
                 result.append({
                     'topicIds': list(topic_ids),
-                    'summaryNodeId': summary_topic_cid,
+                    'summaryNodeId': summary.summary_topic_id.component_id if summary.summary_topic_id else '',
                     'options': {
-                        'lineColor': summary.line_color or '#666666',
-                        'lineWidth': summary.line_width or 2,
+                        'lineType': summary.line_type or 'square',
+                        'lineColor': summary.line_color or '#C3D69B',
+                        'lineWidth': summary.line_width or 5,
+                        'summaryTitle': summary.title or 'Summary',
+                        'summaryFill': summary.fill_color or '#77933C',
+                        'summaryColor': summary.text_color or '#FFFFFF',
+                        'summaryFontSize': summary.font_size or 10,
+                        'summaryItalic': summary.font_italic if summary.font_italic is not None else True,
                     },
                 })
         return result
@@ -264,6 +282,12 @@ class XMindController(http.Controller):
                     'topic_ids': [Command.set(topic_ids)],
                     'line_color': opts.get('lineColor', '#C3D69B'),
                     'line_width': opts.get('lineWidth', 5),
+                    'line_type': opts.get('lineType', 'square'),
+                    'title': opts.get('summaryTitle') or opts.get('topicText') or 'Summary',
+                    'fill_color': opts.get('summaryFill') or opts.get('topicFillColor') or '#77933C',
+                    'text_color': opts.get('summaryColor') or opts.get('topicTextColor') or '#FFFFFF',
+                    'font_size': opts.get('summaryFontSize') or opts.get('topicFontSize') or 10,
+                    'font_italic': opts.get('summaryItalic') or opts.get('topicItalic') or True,
                 })
         return {'success': True}
 
@@ -358,7 +382,8 @@ class XMindController(http.Controller):
             if source and target:
                 options = rel.get('options', {})
                 control_points = rel.get('controlPoints', [])
-                cp = control_points[0] if control_points else {}
+                cp0 = control_points[0] if len(control_points) > 0 else {}
+                cp1 = control_points[1] if len(control_points) > 1 else {}
                 request.env['xmind.relationship'].create({
                     'sheet_id': sheet.id,
                     'source_topic_id': source.id,
@@ -366,13 +391,15 @@ class XMindController(http.Controller):
                     'title': options.get('label', '') or rel.get('title', ''),
                     'line_type': options.get('shapeType', 'curved'),
                     'line_style': options.get('lineStyle', 'dashed'),
-                    'line_color': options.get('lineColor', '#999999'),
-                    'line_width': options.get('lineWidth', 2),
+                    'line_color': options.get('lineColor', '#77933C'),
+                    'line_width': options.get('lineWidth', 3),
                     'arrow_begin': options.get('startMarker', 'none'),
                     'arrow_end': options.get('endMarker', 'arrow'),
                     'arrow_size': options.get('markerSize', 'medium'),
-                    'control_point_x': cp.get('x', 0),
-                    'control_point_y': cp.get('y', 0),
+                    'cp0_x': cp0.get('x', 0),
+                    'cp0_y': cp0.get('y', 0),
+                    'cp1_x': cp1.get('x', 0),
+                    'cp1_y': cp1.get('y', 0),
                 })
 
         return {'success': True}
@@ -387,6 +414,7 @@ class XMindController(http.Controller):
             'code': m.code,
             'category': m.category,
             'icon': m.icon,
+            'short_label': m.short_label or '',
             'color': m.color,
         } for m in markers]
 

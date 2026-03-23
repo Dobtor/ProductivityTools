@@ -252,7 +252,7 @@
                     <notebook>
                         <page string="Content" name="content">
                             <field name="memo" placeholder="Enter note content here..."
-                                   options="{'collaborative': true}"
+                                   options="{'codeview': true,'collaborative': true}"
                                    readonly="is_locked and note_type == 'meeting'"/>
                         </page>
                         <page string="Signatures" name="signatures"

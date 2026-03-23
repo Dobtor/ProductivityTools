@@ -49,14 +49,14 @@
 
                 <!-- Group 3: Relationship / Boundary / Summary (XMind 2: mindmap toolbar group) -->
                 <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_relationship" title="Relationship" t-on-click="onAddRelationship">
-                        <i class="fa fa-link"/>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_relationship" title="Relationship: click source → click target" t-on-click="onAddRelationship">
+                        <i class="fa fa-long-arrow-right"/> Rel
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_boundary" title="Boundary" t-on-click="onAddBoundary">
-                        <i class="fa fa-square-o"/>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_boundary" title="Boundary: drag to select topics" t-on-click="onAddBoundary">
+                        <i class="fa fa-square-o"/> Bnd
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_summary" title="Summary" t-on-click="onAddSummary">
-                        <i class="fa fa-indent"/>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_summary" title="Summary: drag to select topics" t-on-click="onAddSummary">
+                        <i class="fa fa-indent"/> Sum
                     </button>
                 </div>
 
@@ -216,14 +216,16 @@
                                 <label class="small mb-1">Layout Type</label>
                                 <select class="form-control form-control-sm o_format_structure_type" t-on-change="onFormatStructureChange">
                                     <option value="map">Mind Map (Balanced)</option>
-                                    <option value="tree_right">Tree Right</option>
-                                    <option value="tree_left">Tree Left</option>
                                     <option value="logic_right">Logic Right</option>
                                     <option value="logic_left">Logic Left</option>
+                                    <option value="tree_right">Tree Right</option>
+                                    <option value="tree_left">Tree Left</option>
                                     <option value="org_chart_down">Org Chart Down</option>
                                     <option value="org_chart_up">Org Chart Up</option>
                                     <option value="fishbone_left">Fishbone Left</option>
                                     <option value="fishbone_right">Fishbone Right</option>
+                                    <option value="timeline_horizontal">Timeline Horizontal</option>
+                                    <option value="timeline_vertical">Timeline Vertical</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
@@ -252,6 +254,7 @@
                                     <option value="straight">Straight</option>
                                     <option value="angular">Angular</option>
                                     <option value="rounded">Rounded</option>
+                                    <option value="none">None</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
@@ -436,13 +439,18 @@
                 <div class="btn-group me-2">
                     <select class="form-control form-control-sm o_mindmap_layout_select" title="Structure" t-on-change="onLayoutChange">
                         <option value="map">Mind Map</option>
+                        <option value="logic_right">Logic Right</option>
+                        <option value="logic_left">Logic Left</option>
                         <option value="tree_right">Tree Right</option>
                         <option value="tree_left">Tree Left</option>
-                        <option value="logic_right">Logic Right</option>
-                        <option value="org_chart_down">Org Chart</option>
+                        <option value="org_chart_down">Org Chart ↓</option>
+                        <option value="org_chart_up">Org Chart ↑</option>
+                        <option value="updown">Up-Down</option>
                         <option value="fishbone_right">Fishbone →</option>
                         <option value="fishbone_left">Fishbone ←</option>
                         <option value="matrix">Matrix</option>
+                        <option value="timeline_horizontal">Timeline →</option>
+                        <option value="timeline_vertical">Timeline ↓</option>
                     </select>
                 </div>
 
@@ -502,9 +510,25 @@
                     </button>
                 </div>
                 <div class="o_mindmap_sidebar_content">
+                    <!-- Child Structure Layout -->
                     <div class="mb-3">
-                        <label>Title</label>
-                        <input type="text" class="form-control form-control-sm o_topic_title" t-on-change="onTopicPropertyChange"/>
+                        <label>
+                            <i class="fa fa-sitemap text-primary"/> Child Structure
+                        </label>
+                        <select class="form-control form-control-sm o_topic_child_structure" t-on-change="onTopicChildStructureChange">
+                            <option value="">Inherit (Default)</option>
+                            <option value="map">Mind Map (Balanced)</option>
+                            <option value="logic_right">Logic Right</option>
+                            <option value="logic_left">Logic Left</option>
+                            <option value="tree_right">Tree Right</option>
+                            <option value="tree_left">Tree Left</option>
+                            <option value="org_chart_down">Org Chart Down</option>
+                            <option value="org_chart_up">Org Chart Up</option>
+                            <option value="fishbone_left">Fishbone Left</option>
+                            <option value="fishbone_right">Fishbone Right</option>
+                            <option value="timeline_horizontal">Timeline Horizontal</option>
+                            <option value="timeline_vertical">Timeline Vertical</option>
+                        </select>
                     </div>
 
                     <!-- Hyperlink Section -->
@@ -537,6 +561,78 @@
                         </button>
                     </div>
 
+                    <!-- Shape Type -->
+                    <div class="mb-3">
+                        <label>
+                            <i class="fa fa-square-o text-secondary"/> Shape Type
+                        </label>
+                        <select class="form-control form-control-sm o_topic_shape_type" t-on-change="onTopicShapeChange">
+                            <option value="rectangle">Rectangle</option>
+                            <option value="rounded" selected="selected">Rounded Rectangle</option>
+                            <option value="ellipse">Ellipse</option>
+                            <option value="circle">Circle</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="parallelogram">Parallelogram</option>
+                            <option value="hexagon">Hexagon</option>
+                            <option value="cloud">Cloud</option>
+                            <option value="underline">Underline Only</option>
+                            <option value="noBorder">No Border</option>
+                            <option value="stroke">Stroke Circle</option>
+                        </select>
+                    </div>
+                    <!-- Border Width -->
+                    <div class="mb-3">
+                        <label>
+                            <i class="fa fa-square text-secondary"/> Border Width
+                        </label>
+                        <select class="form-control form-control-sm o_topic_border_width" t-on-change="onTopicShapeChange">
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                            <option value="4">Thick (4px)</option>
+                        </select>
+                    </div>
+                    <!-- Connection Line Style -->
+                    <div class="mb-3">
+                        <label>
+                            <i class="fa fa-code-fork text-info"/> Line Style
+                        </label>
+                        <select class="form-control form-control-sm o_topic_line_type" t-on-change="onTopicBranchStyleChange">
+                            <option value="curved">Curve</option>
+                            <option value="straight">Straight</option>
+                            <option value="roundedElbow">Rounded Elbow</option>
+                            <option value="angular">Angular</option>
+                            <option value="none">None</option>
+                        </select>
+                    </div>
+                    <!-- Connection Line Width -->
+                    <div class="mb-3">
+                        <label>
+                            <i class="fa fa-minus text-info"/> Line Width
+                        </label>
+                        <select class="form-control form-control-sm o_topic_line_width" t-on-change="onTopicBranchStyleChange">
+                            <option value="1" selected="selected">1px</option>
+                            <option value="2">2px</option>
+                            <option value="3">3px</option>
+                            <option value="4">4px</option>
+                            <option value="5">5px</option>
+                        </select>
+                    </div>
+                    <!-- Numbering -->
+                    <div class="mb-3">
+                        <label>
+                            <i class="fa fa-list-ol text-warning"/> Numbering
+                        </label>
+                        <select class="form-control form-control-sm o_topic_numbering" t-on-change="onTopicNumberingChange">
+                            <option value="none">None</option>
+                            <option value="1">1, 2, 3...</option>
+                            <option value="a">a, b, c...</option>
+                            <option value="A">A, B, C...</option>
+                            <option value="i">i, ii, iii...</option>
+                            <option value="I">I, II, III...</option>
+                            <option value="1.1">1.1, 1.2...</option>
+                        </select>
+                    </div>
                     <div class="mb-3">
                         <label>Background Color</label>
                         <input type="color" class="form-control form-control-sm o_topic_bg_color" t-on-change="onTopicStyleChange"/>
