@@ -18,11 +18,11 @@ def _fix_calendar_template_translation(env):
     env.cr.execute("""
         UPDATE mail_template
         SET body_html = REPLACE(
-            REPLACE(body_html, 'daymail_tz', 'mail_tz'),
+            REPLACE(body_html::text, 'daymail_tz', 'mail_tz'),
             'strformat_datetime', 'format_datetime'
-        )
-        WHERE body_html LIKE '%%daymail_tz%%'
-           OR body_html LIKE '%%strformat_datetime%%'
+        )::jsonb
+        WHERE body_html::text LIKE '%%daymail_tz%%'
+           OR body_html::text LIKE '%%strformat_datetime%%'
     """)
 
 
