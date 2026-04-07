@@ -11,5 +11,7 @@ access_xmind_callout,xmind.callout,model_xmind_callout,base.group_user,1,1,1,1
 access_xmind_floating_topic,xmind.floating.topic,model_xmind_floating_topic,base.group_user,1,1,1,1
 access_xmind_attachment,xmind.attachment,model_xmind_attachment,base.group_user,1,1,1,1
 access_xmind_revision,xmind.revision,model_xmind_revision,base.group_user,1,1,1,1
+access_xmind_tag_category,xmind.tag.category,model_xmind_tag_category,base.group_user,1,1,1,1
+access_xmind_tag,xmind.tag,model_xmind_tag,base.group_user,1,1,1,1
 access_xmind_import_wizard,xmind.import.wizard,model_xmind_import_wizard,base.group_user,1,1,1,1
 access_xmind_import_line,xmind.import.line,model_xmind_import_line,base.group_user,1,1,1,1

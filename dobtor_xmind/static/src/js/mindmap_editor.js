@@ -5,6 +5,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
+import { router } from "@web/core/browser/router";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import {
     CommandStack,
@@ -45,7 +46,14 @@ export class MindmapEditor extends Component {
         this.containerRef = useRef("jsmindContainer");
         this.sidebarRef = useRef("sidebar");
 
-        this.workbookId = this.props.action && this.props.action.params && this.props.action.params.workbook_id;
+        // Read workbook_id from action params (normal open) or router state (page refresh)
+        this.workbookId =
+            (this.props.action && this.props.action.params && this.props.action.params.workbook_id) ||
+            router.current.workbook_id ||
+            null;
+        if (this.workbookId) {
+            this.workbookId = parseInt(this.workbookId, 10) || null;
+        }
         this.jm = null;
         this.commandStack = new CommandStack(200);
         this.selectedNode = null;
@@ -115,6 +123,13 @@ export class MindmapEditor extends Component {
                 link.href = 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap';
                 document.head.appendChild(link);
             }
+            // Push state into URL so page refresh reopens the same mind map
+            if (this.workbookId) {
+                router.pushState({
+                    action: 'dobtor_xmind.mindmap_editor',
+                    workbook_id: this.workbookId,
+                });
+            }
             await this._loadData();
             const jmInitSuccess = this._initJsMind();
             if (!jmInitSuccess) {
@@ -140,6 +155,10 @@ export class MindmapEditor extends Component {
         onWillUnmount(() => {
             if (this.autoSaveTimer) {
                 clearInterval(this.autoSaveTimer);
+            }
+            // Auto-save + thumbnail on exit if dirty
+            if (this.commandStack && this.commandStack.isDirty && this.workbookId) {
+                this._saveData().then(() => this._saveThumbnail()).catch(() => {});
             }
             if (this.dragDropManager) {
                 this.dragDropManager.destroy();
@@ -256,6 +275,7 @@ export class MindmapEditor extends Component {
     }
 
     _getDefaultData() {
+        const rootDefaults = this._getDefaultsForDepth(0);
         return {
             meta: {
                 name: 'New Mind Map',
@@ -269,12 +289,8 @@ export class MindmapEditor extends Component {
                 expanded: true,
                 children: [],
                 data: {
-                    style: {
-                        background: '#428bca',
-                        color: '#ffffff',
-                        'font-weight': 'bold',
-                        'font-size': '18px',
-                    }
+                    shape: rootDefaults.shape,
+                    style: { ...rootDefaults.style },
                 }
             }
         };
@@ -331,6 +347,29 @@ export class MindmapEditor extends Component {
             const layoutMode = this.sheetSettings.layout || 'map';
             if (this.jm.layout && this.jm.layout.setLayoutMode) {
                 this.jm.layout.setLayoutMode(layoutMode);
+            }
+
+            // Inject floating topics as children of root with _isFloatingTopic flag
+            if (this.floatingTopics.length > 0 && this.mindmapData && this.mindmapData.data) {
+                if (!this.mindmapData.data.children) this.mindmapData.data.children = [];
+                for (const ft of this.floatingTopics) {
+                    // Avoid duplicates if already in tree
+                    if (this.mindmapData.data.children.some(c => c.id === ft.id)) continue;
+                    this.mindmapData.data.children.push({
+                        id: ft.id || ft.component_id,
+                        topic: ft.title,
+                        expanded: true,
+                        children: [],
+                        data: {
+                            _isFloatingTopic: true,
+                            _ftX: ft.x,
+                            _ftY: ft.y,
+                            note: ft.note || '',
+                            style: ft.style || { background: '#FFFFFF', color: '#303030', fontSize: '13', bold: true },
+                            shape: { type: 'rounded', fillColor: '#FFFFFF', borderColor: '#558ED5', borderWidth: 2 },
+                        },
+                    });
+                }
             }
 
             this.jm.show(this.mindmapData, () => {
@@ -442,10 +481,10 @@ export class MindmapEditor extends Component {
             return;
         }
 
-        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
             e.preventDefault();
             this.onUndo();
-        } else if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'y' || (e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') {
             e.preventDefault();
             this.onRedo();
         } else if (e.key === 'Tab' && !e.shiftKey) {
@@ -458,16 +497,16 @@ export class MindmapEditor extends Component {
             } else {
                 this.onAddSibling();
             }
-        } else if (e.key === 'Delete') {
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
             e.preventDefault();
             this.onDelete();
-        } else if (e.ctrlKey && e.key === 's') {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             this.onSave();
         } else if (e.key === 'F2') {
             e.preventDefault();
             this._editSelectedNode();
-        } else if (e.key.startsWith('Arrow') && !e.altKey && !e.ctrlKey) {
+        } else if (e.key.startsWith('Arrow') && !e.altKey && !e.ctrlKey && !e.metaKey) {
             this._handleArrowNavigation(e);
         } else if (e.key === ' ') {
             e.preventDefault();
@@ -475,7 +514,7 @@ export class MindmapEditor extends Component {
         } else if (e.shiftKey && e.key === 'Enter') {
             e.preventDefault();
             this.onAddTopicBefore();
-        } else if (e.ctrlKey && e.key === 'Enter') {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
             this.onAddParentTopic();
         } else if (e.altKey && e.key === 'ArrowUp') {
@@ -484,32 +523,32 @@ export class MindmapEditor extends Component {
         } else if (e.altKey && e.key === 'ArrowDown') {
             e.preventDefault();
             this.onMoveDown();
-        } else if (e.ctrlKey && e.key === 'x' && this.selectedNode) {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'x' && this.selectedNode) {
             e.preventDefault();
             this.onCutTopic();
-        } else if (e.ctrlKey && e.key === 'c' && this.selectedNode) {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'c' && this.selectedNode) {
             e.preventDefault();
             this.onCopyTopic();
-        } else if (e.ctrlKey && e.key === 'v' && this._clipboardTopic) {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'v' && this._clipboardTopic) {
             e.preventDefault();
             this.onPasteTopic();
-        } else if (e.ctrlKey && e.key === 'd' && this.selectedNode) {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'd' && this.selectedNode) {
             e.preventDefault();
             this.onDuplicateTopic();
-        } else if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+        } else if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
             e.preventDefault();
             this.onZoomIn();
-        } else if (e.ctrlKey && e.key === '-') {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
             e.preventDefault();
             this.onZoomOut();
-        } else if (e.ctrlKey && e.key === '0') {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
             e.preventDefault();
             this.onZoomReset();
-        } else if (e.ctrlKey && e.key === 'f') {
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
             e.preventDefault();
             this.onFindReplace();
         // --- Fix #4: Ctrl+Alt+Arrow scrolls canvas ---
-        } else if (e.ctrlKey && e.altKey && e.key.startsWith('Arrow')) {
+        } else if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.startsWith('Arrow')) {
             e.preventDefault();
             const canvas = this.canvasRef.el;
             if (canvas) {
@@ -595,6 +634,7 @@ export class MindmapEditor extends Component {
         if (indicator) indicator.textContent = _t('Saving...');
 
         await this._saveData();
+        this._saveThumbnail();
 
         if (indicator) {
             indicator.textContent = _t('Auto-saved');
@@ -604,6 +644,25 @@ export class MindmapEditor extends Component {
 
     // ===== jsMind Events =====
     _onJsMindEvent(type, data) {
+        if (type === 1 && (data.evt === 'expand' || data.evt === 'collapse')) {
+            // Expand/collapse: reposition floating subtrees, rebuild features
+            this._renderAllFloatingTopics();
+            this._rebuildBoundaries();
+            this._rebuildSummaries();
+            if (this.jm && this.jm.view) this.jm.view.draw_lines();
+            this._rebuildRelationships();
+            // Deferred second pass for floating topic summaries
+            if (this.floatingTopics.length > 0) {
+                requestAnimationFrame(() => {
+                    this._renderAllFloatingTopics();
+                    this._rebuildBoundaries();
+                    this._rebuildSummaries();
+                    if (this.jm && this.jm.view) this.jm.view.draw_lines();
+                    this._rebuildRelationships();
+                });
+            }
+            return;
+        }
         if (type === 1) { // select
             this.selectedNode = data.node;
 
@@ -708,7 +767,8 @@ export class MindmapEditor extends Component {
         if (!firstNode || !firstNode.parent) return this._collectBoundaryElements(summary.topicIds);
 
         const parent = firstNode.parent;
-        const siblings = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+        const siblings = parent.children.filter(c =>
+            !(c.data && (c.data._isSummaryNode || c.data._isFloatingTopic)));
 
         // Find the range of original topicIds within current siblings
         const origSet = new Set(summary.topicIds);
@@ -753,6 +813,19 @@ export class MindmapEditor extends Component {
             const topicElements = this._collectSummaryElements(summary);
             if (topicElements.length === 0) continue;
 
+            // Check if any summarized topic is visible (skip if all collapsed/hidden)
+            const visibleTopics = topicElements.filter(el => el && el.style.display !== 'none');
+            if (visibleTopics.length === 0) {
+                // Hide the summary node itself
+                if (summary.summaryNodeId) {
+                    const sEl = this.jm.view.get_node_element(summary.summaryNodeId);
+                    if (sEl) sEl.style.display = 'none';
+                    const sNode = this.jm.get_node(summary.summaryNodeId);
+                    if (sNode && sNode._expander) sNode._expander.style.display = 'none';
+                }
+                continue;
+            }
+
             // 1. Position summary jsMind node at bracket endpoint
             if (summary.summaryNodeId) {
                 this._positionSummaryNode(summary.summaryNodeId, summary.topicIds);
@@ -783,10 +856,14 @@ export class MindmapEditor extends Component {
         }
 
         // Post-layout: resolve overlaps between summary elements and regular topics
-        // Only for vertical layouts where summaries extend horizontally across siblings
-        const postLayout = (this.jm && this.jm.view && this.jm.view.layout && this.jm.view.layout._currentMode) || '';
-        if (postLayout === 'org_chart_up' || postLayout === 'org_chart_down') {
-            this._resolveVerticalOverlaps();
+        // Only for vertical layouts, and only on first pass (prevent infinite recursion)
+        if (!this._isResolvingOverlaps) {
+            const postLayout = (this.jm && this.jm.view && this.jm.view.layout && this.jm.view.layout._currentMode) || '';
+            if (postLayout === 'org_chart_up' || postLayout === 'org_chart_down') {
+                this._isResolvingOverlaps = true;
+                this._resolveVerticalOverlaps();
+                this._isResolvingOverlaps = false;
+            }
         }
     }
 
@@ -898,12 +975,13 @@ export class MindmapEditor extends Component {
                     }
                 }
             }
-            // Redraw lines and re-position summary brackets
+            // Redraw lines
             if (this.jm.view) this.jm.view.draw_lines();
+            // Re-run summary positioning (summaries may have shifted with their parent subtrees)
             if (this.summaryRenderer) {
-                const layoutMode = (this.jm.view.layout && this.jm.view.layout._currentMode) || '';
-                this.summaryRenderer.updatePositions(layoutMode);
+                this.summaryRenderer.clear();
             }
+            this._rebuildSummaries();
         }
     }
 
@@ -970,23 +1048,27 @@ export class MindmapEditor extends Component {
 
             // Summary children use the SAME org_chart layout (XMind 2 behavior)
             if (node.children && node.children.length > 0) {
-                for (const c of node.children) {
-                    if (c._el) {
-                        const ow = c._el.offsetWidth;
-                        const oh = c._el.offsetHeight;
-                        if (ow > 1) { c._w = ow; c._h = oh; }
-                    }
-                }
-
-                // Use the SAME org_chart layout for children (not logic_right)
-                const layout = this.jm.view.layout;
-                if (isUp) {
-                    layout._layoutVerticalUpChildren(node);
+                if (!node.expanded) {
+                    this.jm.view._hideDescendants(node);
                 } else {
-                    layout._layoutVerticalChildren(node);
-                }
+                    for (const c of node.children) {
+                        if (c._el) {
+                            const ow = c._el.offsetWidth;
+                            const oh = c._el.offsetHeight;
+                            if (ow > 1) { c._w = ow; c._h = oh; }
+                        }
+                    }
 
-                this._positionSummaryChildren(node, 2);
+                    // Use the SAME org_chart layout for children (not logic_right)
+                    const layout = this.jm.view.layout;
+                    if (isUp) {
+                        layout._layoutVerticalUpChildren(node);
+                    } else {
+                        layout._layoutVerticalChildren(node);
+                    }
+
+                    this._positionSummaryChildren(node, 2);
+                }
             }
         } else {
             let minY = Infinity, maxY = -Infinity, leftX = Infinity, rightX = -Infinity;
@@ -1013,24 +1095,29 @@ export class MindmapEditor extends Component {
 
             // Layout summary's children branching from summary
             if (node.children && node.children.length > 0) {
-                for (const c of node.children) {
-                    if (c._el) {
-                        const ow = c._el.offsetWidth;
-                        const oh = c._el.offsetHeight;
-                        if (ow > 1) { c._w = ow; c._h = oh; }
+                if (!node.expanded) {
+                    this.jm.view._hideDescendants(node);
+                } else {
+                    for (const c of node.children) {
+                        if (c._el) {
+                            const ow = c._el.offsetWidth;
+                            const oh = c._el.offsetHeight;
+                            if (ow > 1) { c._w = ow; c._h = oh; }
+                        }
                     }
+                    const layout = this.jm.view.layout;
+                    const savedMode = layout._currentMode;
+                    layout._currentMode = 'logic_right';
+                    layout._layoutBranch(node, node.children, dir);
+                    layout._currentMode = savedMode;
+                    this._positionSummaryChildren(node, dir);
                 }
-                const layout = this.jm.view.layout;
-                const savedMode = layout._currentMode;
-                layout._currentMode = 'logic_right';
-                layout._layoutBranch(node, node.children, dir);
-                layout._currentMode = savedMode;
-                this._positionSummaryChildren(node, dir);
             }
         }
 
         // Reposition summary's own expander
         if (node._expander) {
+            node._expander.style.display = node.children.length > 0 ? '' : 'none';
             if (isVertical) {
                 const isUp = layoutMode === 'org_chart_up';
                 node._expander.style.left = (node._x - 6) + 'px';
@@ -1050,6 +1137,7 @@ export class MindmapEditor extends Component {
     }
 
     _positionSummaryChildren(node, dir) {
+        const jmView = this.jm.view;
         const posAll = (n) => {
             if (!n._el) return;
             if (!(n.data && n.data._isSummaryNode)) {
@@ -1066,8 +1154,14 @@ export class MindmapEditor extends Component {
                     n._expander.style.left = (n._x + n._w / 2 + 3) + 'px';
                     n._expander.style.top = (n._y - 6) + 'px';
                 }
+                n._expander.style.display = n.children.length > 0 ? '' : 'none';
             }
-            if (n.expanded) n.children.forEach(c => posAll(c));
+            if (n.expanded) {
+                n.children.forEach(c => posAll(c));
+            } else if (n.children.length > 0) {
+                // Collapsed: hide all descendants
+                jmView._hideDescendants(n);
+            }
         };
         node.children.forEach(c => posAll(c));
     }
@@ -1093,50 +1187,77 @@ export class MindmapEditor extends Component {
         if (!this.boundaryRenderer) return;
         this.boundaryRenderer.clear();
 
-        // Compute bounds for each boundary first
+        // Compute raw bounds for each boundary
         const boundsData = this.boundaries.map(boundary => {
             const elements = this._collectBoundaryElements(boundary.topicIds);
             if (elements.length === 0) return null;
-            // Compute raw bounding box
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            let visibleCount = 0;
             for (const el of elements) {
                 if (!el || el.style.display === 'none') continue;
+                visibleCount++;
                 minX = Math.min(minX, el.offsetLeft);
                 minY = Math.min(minY, el.offsetTop);
                 maxX = Math.max(maxX, el.offsetLeft + el.offsetWidth);
                 maxY = Math.max(maxY, el.offsetTop + el.offsetHeight);
             }
+            if (visibleCount === 0) return null;
             return { boundary, elements, minX, minY, maxX, maxY };
         }).filter(b => b !== null);
 
-        // Sort by area (smallest first = innermost)
-        boundsData.sort((a, b) => {
-            const areaA = (a.maxX - a.minX) * (a.maxY - a.minY);
-            const areaB = (b.maxX - b.minX) * (b.maxY - b.minY);
-            return areaA - areaB;
-        });
+        if (boundsData.length === 0) return;
 
-        // For each boundary, count how many others contain it → nesting level
-        for (let i = 0; i < boundsData.length; i++) {
-            let nestLevel = 0;
-            for (let j = 0; j < boundsData.length; j++) {
-                if (i === j) continue;
-                const outer = boundsData[j];
-                const inner = boundsData[i];
-                // Check if inner is contained within outer
-                if (inner.minX >= outer.minX && inner.minY >= outer.minY &&
-                    inner.maxX <= outer.maxX && inner.maxY <= outer.maxY) {
-                    nestLevel++;
-                }
-            }
-            boundsData[i].nestLevel = nestLevel;
+        // Sort by minY then minX (top-to-bottom, left-to-right)
+        boundsData.sort((a, b) => a.minY - b.minY || a.minX - b.minX);
+
+        const padding = 14;
+        const minGap = 2; // minimum visible gap between adjacent boundary frames
+
+        for (const bd of boundsData) {
+            bd.padTop = padding;
+            bd.padRight = padding;
+            bd.padBottom = padding;
+            bd.padLeft = padding;
         }
 
-        // Render with extra padding per nesting level (outermost gets most padding)
-        const nestGap = 10; // px gap between nested boundary frames
+        // Prevent adjacent boundaries from overlapping by shrinking shared-edge padding.
+        // Title pills are now fully inside the frame, so no extra room needed above.
+        for (let i = 0; i < boundsData.length; i++) {
+            for (let j = i + 1; j < boundsData.length; j++) {
+                const a = boundsData[i];
+                const b = boundsData[j];
+
+                // Must share X range to be vertically adjacent
+                if (!(a.maxX > b.minX && b.maxX > a.minX)) continue;
+
+                const space = b.minY - a.maxY;
+                const needed = padding + minGap + padding;
+                if (space < needed) {
+                    const half = Math.max(0, (space - minGap) / 2);
+                    a.padBottom = Math.min(a.padBottom, half);
+                    b.padTop = Math.min(b.padTop, half);
+                }
+
+                // Horizontal adjacency
+                if (!(a.maxY > b.minY && b.maxY > a.minY)) continue;
+                const hSpace = b.minX - a.maxX;
+                if (hSpace < needed) {
+                    const half = Math.max(0, (hSpace - minGap) / 2);
+                    a.padRight = Math.min(a.padRight, half);
+                    b.padLeft = Math.min(b.padLeft, half);
+                }
+            }
+        }
+
+        // Render each boundary with its computed per-side padding
         for (const bd of boundsData) {
-            const extraPadding = bd.nestLevel * nestGap;
-            const opts = { ...bd.boundary.options, _extraPadding: extraPadding };
+            const opts = {
+                ...bd.boundary.options,
+                _padTop: bd.padTop,
+                _padRight: bd.padRight,
+                _padBottom: bd.padBottom,
+                _padLeft: bd.padLeft,
+            };
             this.boundaryRenderer.addBoundary(bd.elements, opts);
         }
     }
@@ -1698,20 +1819,34 @@ export class MindmapEditor extends Component {
         }
     }
 
+    _getDefaultsForDepth(depth) {
+        // Match XMind Professional theme (styles.xml)
+        if (depth === 0) {
+            return {
+                shape: { type: 'rounded', borderWidth: 5 },
+                style: { background: '#DCE6F2', color: '#376092', 'font-size': '18px', 'font-weight': 'bold' },
+            };
+        } else if (depth === 1) {
+            return {
+                shape: { type: 'rounded', borderWidth: 2 },
+                style: { background: '#DCE6F2', color: '#17375E', 'font-size': '13px', 'font-weight': 'normal' },
+            };
+        }
+        return {
+            shape: { type: 'underline', borderWidth: 3 },
+            style: { background: 'transparent', color: '#000000', 'font-size': '10px', 'font-weight': 'normal' },
+        };
+    }
+
     onAddChild() {
         const parentNode = this.selectedNode ? this.jm.get_node(this.selectedNode) : this.jm.get_root();
         const parentId = parentNode.id;
         const nodeId = this._generateNodeId();
         const topic = _t('New Topic');
 
-        const inheritedData = { style: { background: '#f0f0f0', color: '#333333' } };
-
-        if (parentNode.data && parentNode.data.shape) {
-            inheritedData.shape = JSON.parse(JSON.stringify(parentNode.data.shape));
-        }
-        if (parentNode.data && parentNode.data.style) {
-            inheritedData.style = JSON.parse(JSON.stringify(parentNode.data.style));
-        }
+        const childDepth = (parentNode._depth || 0) + 1;
+        const defaults = this._getDefaultsForDepth(childDepth);
+        const inheritedData = { shape: defaults.shape, style: { ...defaults.style } };
 
         let summaryBranchStyle = null;
         if (this.summaryBranchStyles && this.summaryBranchStyles[parentId]) {
@@ -1726,7 +1861,6 @@ export class MindmapEditor extends Component {
         const newElement = this.jm.view.get_node_element(nodeId);
         if (newNode && newElement) {
             if (inheritedData.shape) this._applyShapeToNode(newElement, inheritedData.shape);
-            if (inheritedData.style) this._restoreNodeStyle(newElement, inheritedData.style);
             if (summaryBranchStyle) this._applySummaryBranchStyle(parentId, nodeId, summaryBranchStyle);
         }
 
@@ -1745,13 +1879,9 @@ export class MindmapEditor extends Component {
         const nodeId = this._generateNodeId();
         const topic = _t('New Topic');
 
-        const inheritedData = { style: { background: '#f0f0f0', color: '#333333' } };
-        if (parentNode.data && parentNode.data.shape) {
-            inheritedData.shape = JSON.parse(JSON.stringify(parentNode.data.shape));
-        }
-        if (parentNode.data && parentNode.data.style) {
-            inheritedData.style = JSON.parse(JSON.stringify(parentNode.data.style));
-        }
+        const siblingDepth = node._depth || 1;
+        const defaults = this._getDefaultsForDepth(siblingDepth);
+        const inheritedData = { shape: defaults.shape, style: { ...defaults.style } };
 
         const cmd = new AddNodeCommand(this.jm, parentId, nodeId, topic, inheritedData);
         this.commandStack.execute(cmd);
@@ -1759,7 +1889,6 @@ export class MindmapEditor extends Component {
         const newElement = this.jm.view.get_node_element(nodeId);
         if (newElement) {
             if (inheritedData.shape) this._applyShapeToNode(newElement, inheritedData.shape);
-            if (inheritedData.style) this._restoreNodeStyle(newElement, inheritedData.style);
         }
 
         this.jm.select_node(nodeId);
@@ -1775,16 +1904,38 @@ export class MindmapEditor extends Component {
             return;
         }
 
-        this.dialog.add(ConfirmationDialog, {
-            body: _t('Delete this topic and all its children?'),
-            confirm: () => {
-                const cmd = new RemoveNodeCommand(this.jm, this.selectedNode);
-                this.commandStack.execute(cmd);
-                this.selectedNode = null;
-                this._closeSidebar();
+        // Determine next selection target before deletion:
+        // previous sibling → next sibling → parent
+        const parent = node.parent;
+        const siblings = parent.children || [];
+        const idx = siblings.indexOf(node);
+        let nextSelectId = null;
+        if (idx > 0) {
+            nextSelectId = siblings[idx - 1].id;
+        } else if (idx < siblings.length - 1) {
+            nextSelectId = siblings[idx + 1].id;
+        } else {
+            nextSelectId = parent.id;
+        }
+
+        const cmd = new RemoveNodeCommand(this.jm, this.selectedNode);
+        this.commandStack.execute(cmd);
+
+        // Auto-select nearest topic
+        if (nextSelectId) {
+            const nextNode = this.jm.get_node(nextSelectId);
+            if (nextNode) {
+                this.jm.select_node(nextSelectId);
+                this.selectedNode = nextSelectId;
+                this._updateSidebar(nextSelectId);
                 this._updateStatus(_t('Deleted node'));
-            },
-        });
+                return;
+            }
+        }
+
+        this.selectedNode = null;
+        this._closeSidebar();
+        this._updateStatus(_t('Deleted node'));
     }
 
     onExpandAll() {
@@ -1807,11 +1958,18 @@ export class MindmapEditor extends Component {
         const nodeId = this._generateNodeId();
         const topic = _t('New Topic');
 
+        const siblingDepth = node._depth || 1;
+        const defaults = this._getDefaultsForDepth(siblingDepth);
+        const inheritedData = { shape: defaults.shape, style: { ...defaults.style } };
+
         // Add as child of parent, then move before current node
-        const cmd = new AddNodeCommand(this.jm, parentId, nodeId, topic, {
-            style: { background: '#f0f0f0', color: '#333333' }
-        });
+        const cmd = new AddNodeCommand(this.jm, parentId, nodeId, topic, inheritedData);
         this.commandStack.execute(cmd);
+
+        const newElement = this.jm.view.get_node_element(nodeId);
+        if (newElement && inheritedData.shape) {
+            this._applyShapeToNode(newElement, inheritedData.shape);
+        }
 
         // Move it before the selected node
         try {
@@ -1831,11 +1989,19 @@ export class MindmapEditor extends Component {
         const newParentId = this._generateNodeId();
         const topic = _t('New Topic');
 
+        // New parent takes the same depth as current node (it replaces current's position)
+        const newParentDepth = node._depth || 1;
+        const defaults = this._getDefaultsForDepth(newParentDepth);
+        const inheritedData = { shape: defaults.shape, style: { ...defaults.style } };
+
         // 1. Create new node as sibling of current
-        const cmd = new AddNodeCommand(this.jm, grandParentId, newParentId, topic, {
-            style: { background: '#e9ecef', color: '#333333' }
-        });
+        const cmd = new AddNodeCommand(this.jm, grandParentId, newParentId, topic, inheritedData);
         this.commandStack.execute(cmd);
+
+        const newElement = this.jm.view.get_node_element(newParentId);
+        if (newElement && inheritedData.shape) {
+            this._applyShapeToNode(newElement, inheritedData.shape);
+        }
 
         // 2. Move current node under new parent
         try {
@@ -2554,6 +2720,8 @@ export class MindmapEditor extends Component {
         this._saveData().then(() => {
             this.commandStack.markSaved();
             this._updateStatus(_t('Saved successfully'));
+            // Capture thumbnail in background (non-blocking)
+            this._saveThumbnail();
         }).catch((error) => {
             this._showError(_t('Save failed: ') + error);
         });
@@ -4555,21 +4723,102 @@ export class MindmapEditor extends Component {
         }));
         await rpc('/xmind/workbook/' + this.workbookId + '/callouts', { callouts: callData });
 
-        // Save floating topics
-        const ftData = this.floatingTopics.map(ft => ({
-            component_id: ft.component_id || ft.id,
-            title: ft.title,
-            note: ft.note || '',
-            x: Math.round(ft.x),
-            y: Math.round(ft.y),
-            style: ft.style || {},
-        }));
+        // Save floating topics — sync positions from jsMind node data
+        const ftData = [];
+        for (const ft of this.floatingTopics) {
+            const node = this.jm.get_node(ft.id);
+            const nd = node && node.data || {};
+            ftData.push({
+                component_id: ft.component_id || ft.id,
+                title: node ? node.topic : (ft.title || ''),
+                note: nd.note || ft.note || '',
+                x: Math.round(nd._ftX != null ? nd._ftX : ft.x),
+                y: Math.round(nd._ftY != null ? nd._ftY : ft.y),
+                style: nd.style || ft.style || {},
+            });
+        }
         await rpc('/xmind/workbook/' + this.workbookId + '/floating_topics', { floating_topics: ftData });
     }
 
     async _saveSettings() {
         if (!this.workbookId) return;
         await rpc('/xmind/workbook/' + this.workbookId + '/settings', { settings: this.sheetSettings });
+    }
+
+    /** Capture a thumbnail of the current mind map and save to backend */
+    _saveThumbnail() {
+        if (!this.workbookId || !this.jm || !this.jm.view) return;
+        const panel = this.jm.view.e_panel;
+        if (!panel) return;
+
+        const nodes = panel.querySelectorAll('.xmind-node');
+        if (nodes.length === 0) return;
+
+        // Compute bounding box of all visible nodes
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(n => {
+            if (n.style.display === 'none') return;
+            const l = parseInt(n.style.left) || 0;
+            const t = parseInt(n.style.top) || 0;
+            minX = Math.min(minX, l);
+            minY = Math.min(minY, t);
+            maxX = Math.max(maxX, l + n.offsetWidth);
+            maxY = Math.max(maxY, t + n.offsetHeight);
+        });
+        if (minX === Infinity) return;
+
+        const pad = 20;
+        const fullW = maxX - minX + pad * 2;
+        const fullH = maxY - minY + pad * 2;
+
+        // Thumbnail target: max 400px wide, proportional height
+        const thumbMaxW = 400;
+        const scale = Math.min(1, thumbMaxW / fullW);
+        const thumbW = Math.round(fullW * scale);
+        const thumbH = Math.round(fullH * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = thumbW;
+        canvas.height = thumbH;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, fullW, fullH);
+
+        // Draw SVG lines first
+        const svgEl = this.jm.view.e_lines;
+        const drawNodes = () => {
+            this._drawNodesOnCanvas(ctx, nodes, minX, minY, pad, () => {
+                const dataUrl = canvas.toDataURL('image/png');
+                // Send to backend (fire and forget)
+                rpc('/xmind/workbook/' + this.workbookId + '/thumbnail', {
+                    thumbnail: dataUrl
+                }).catch(() => {}); // silent fail
+            });
+        };
+
+        if (svgEl) {
+            try {
+                const svgData = new XMLSerializer().serializeToString(svgEl);
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, -minX + pad, -minY + pad, panel.scrollWidth, panel.scrollHeight);
+                    URL.revokeObjectURL(url);
+                    drawNodes();
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    drawNodes();
+                };
+                img.src = url;
+            } catch (e) {
+                drawNodes();
+            }
+        } else {
+            drawNodes();
+        }
     }
 
     _generateNodeId() {
@@ -4967,8 +5216,8 @@ export class MindmapEditor extends Component {
     // ===== Re-render All Features =====
     _renderAllXMindFeatures() {
         const nodes = this.jm.mind.nodes;
-        let needsRelayout = false;
 
+        // Phase 1: Apply all visual features (shapes, styles, markers, labels, etc.)
         for (let id in nodes) {
             const node = nodes[id];
             const element = this.jm.view.get_node_element(id);
@@ -4977,15 +5226,6 @@ export class MindmapEditor extends Component {
                 if (node.data.style) this._restoreNodeStyle(element, node.data.style);
                 if (node.data.markers && node.data.markers.length > 0) {
                     this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
-                    // Re-measure node since inline markers change width
-                    // Use offsetWidth/Height (unaffected by CSS transform/zoom)
-                    const ow = element.offsetWidth;
-                    const oh = element.offsetHeight;
-                    if (ow !== node._w || oh !== node._h) {
-                        node._w = ow;
-                        node._h = oh;
-                        needsRelayout = true;
-                    }
                 }
                 if (node.data.labels && node.data.labels.length > 0) this.labelRenderer.renderLabels(element, node.data.labels);
                 if (node.data.note) this.noteIndicator.addIndicator(element, true);
@@ -4995,10 +5235,32 @@ export class MindmapEditor extends Component {
             }
         }
 
-        // Relayout if any node changed size due to inline markers
+        // Phase 2: Re-measure ALL nodes after styling — shapes/styles/markers can
+        // all change node dimensions.  Without this the layout uses stale sizes,
+        // causing branches and connection lines to overlap on first render.
+        let needsRelayout = false;
+        for (let id in nodes) {
+            const node = nodes[id];
+            const element = this.jm.view.get_node_element(id);
+            if (element) {
+                const ow = element.offsetWidth;
+                const oh = element.offsetHeight;
+                if (ow !== node._w || oh !== node._h) {
+                    node._w = ow;
+                    node._h = oh;
+                    needsRelayout = true;
+                }
+            }
+        }
+
+        // Phase 3: Relayout if any node changed size, then redraw lines
         if (needsRelayout) {
             this.jm.view.refresh();
         }
+
+        // Position floating topics BEFORE boundaries/summaries so their
+        // children are at correct positions for bounding-box calculations
+        this._renderAllFloatingTopics();
 
         this._rebuildBoundaries();
 
@@ -5012,11 +5274,21 @@ export class MindmapEditor extends Component {
         // Rebuild all relationships
         this._rebuildRelationships();
 
-        // Render floating topics (independent layer)
-        this._renderAllFloatingTopics();
-
         // Apply per-topic numbering
         this._applyAllPerTopicNumbering();
+
+        // Deferred second pass: floating topic sub-trees may need a re-layout
+        // after summaries are positioned (summary nodes change size/position).
+        // Also ensures boundaries/summaries reflect final positions.
+        if (this.floatingTopics.length > 0) {
+            requestAnimationFrame(() => {
+                this._renderAllFloatingTopics();
+                this._rebuildBoundaries();
+                this._rebuildSummaries();
+                if (this.jm && this.jm.view) this.jm.view.draw_lines();
+                this._rebuildRelationships();
+            });
+        }
     }
 
     /**
@@ -5237,6 +5509,8 @@ export class MindmapEditor extends Component {
             // Properties
             { icon: 'fa-cog', label: _t('Properties'), action: 'properties', disabled: false },
             { divider: true },
+            // Floating topic specific
+            { icon: 'fa-arrows', label: _t('Convert to Regular Topic'), action: 'convertFloating', disabled: !(node.data && node.data._isFloatingTopic) },
             // Delete
             { icon: 'fa-trash text-danger', label: _t('Delete (Del)'), action: 'delete', disabled: isRoot, cls: 'text-danger' },
         ];
@@ -5590,6 +5864,9 @@ export class MindmapEditor extends Component {
                     if (el) el.focus();
                 }, 200);
                 break;
+            case 'convertFloating':
+                this._convertFloatingToRegular(nodeId);
+                break;
             case 'delete':
                 this.selectedNode = nodeId;
                 this.onDelete();
@@ -5661,78 +5938,76 @@ export class MindmapEditor extends Component {
     }
 
     _createFloatingTopicAt(title, note, x, y) {
-        const id = 'ft_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-        const ft = {
-            id: id,
-            component_id: id,
-            title: title || _t('Floating Topic'),
+        if (!this.jm) return;
+        const rootId = this.jm.get_root().id;
+        const nodeId = this._generateNodeId();
+        const nodeData = {
+            _isFloatingTopic: true,
+            _ftX: x,
+            _ftY: y,
             note: note || '',
-            x: x,
-            y: y,
-            style: { background: '#FFFFFF', color: '#303030', fontSize: 13, fontWeight: 'bold' },
+            style: {
+                background: '#FFFFFF',
+                color: '#303030',
+                'font-size': '13px',
+                'font-weight': 'bold',
+                fontSize: '13',
+                bold: true,
+            },
+            shape: { type: 'rounded', fillColor: '#FFFFFF', borderColor: '#558ED5', borderWidth: 2 },
         };
-        this.floatingTopics.push(ft);
-        this._renderFloatingTopic(ft);
-        this.commandStack.isDirty = true;
-        this.commandStack._notifyListeners();
+
+        // Add as real jsMind node (child of root, excluded from layout)
+        const cmd = new AddNodeCommand(this.jm, rootId, nodeId, title || _t('Floating Topic'), nodeData);
+        this.commandStack.execute(cmd);
+
+        // Track in floatingTopics array for save/load
+        this.floatingTopics.push({ id: nodeId, component_id: nodeId, x, y });
+
+        // Position and style
+        this._positionFloatingNode(nodeId, x, y);
+        this._setupFloatingDrag(nodeId);
+
         this._updateStatus(_t('Floating topic added'));
     }
 
-    _renderFloatingTopic(ft) {
-        const world = this.jm.view.world;
-        if (!world) return;
+    /** Position a floating topic node at stored coordinates */
+    _positionFloatingNode(nodeId, x, y) {
+        const node = this.jm.get_node(nodeId);
+        if (!node) return;
+        // Update stored position in node data
+        if (node.data) {
+            node.data._ftX = x;
+            node.data._ftY = y;
+        }
+        // Run sub-tree layout for this floating node
+        if (this.jm.view._layoutFloatingSubtree) {
+            this.jm.view._layoutFloatingSubtree(node);
+        }
+        // Redraw lines for sub-tree
+        this.jm.view.draw_lines();
+    }
 
-        // Remove existing element if re-rendering
-        const existing = world.querySelector(`[data-ft-id="${ft.id}"]`);
-        if (existing) existing.remove();
+    /** Setup drag-to-reposition for a floating topic node */
+    _setupFloatingDrag(nodeId) {
+        const el = this.jm.view.get_node_element(nodeId);
+        if (!el) return;
+        el.classList.add('xmind-floating-topic');
+        el.style.cursor = 'move';
 
-        const el = document.createElement('div');
-        el.className = 'xmind-floating-topic';
-        el.setAttribute('data-ft-id', ft.id);
-        const s = ft.style || {};
-        el.style.cssText = `
-            position:absolute; left:${ft.x}px; top:${ft.y}px;
-            background:${s.background || '#FFFFFF'}; color:${s.color || '#303030'};
-            font-size:${s.fontSize || 13}px; font-weight:${s.fontWeight || 'bold'};
-            font-family:'Open Sans',sans-serif;
-            padding:6px 12px; border-radius:8px;
-            border:2px solid ${s.borderColor || '#558ED5'};
-            box-shadow:0 2px 8px rgba(0,0,0,0.12);
-            cursor:move; user-select:none; white-space:nowrap; z-index:8;
-        `;
-        el.textContent = ft.title;
-
-        // Double-click to edit
-        el.addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            const newTitle = prompt(_t('Edit floating topic:'), ft.title);
-            if (newTitle !== null && newTitle !== ft.title) {
-                ft.title = newTitle;
-                el.textContent = newTitle;
-                this.commandStack.isDirty = true;
-                this.commandStack._notifyListeners();
-            }
-        });
-
-        // Right-click context menu
-        el.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this._showFloatingTopicContextMenu(e, ft);
-        });
-
-        // Drag to reposition — with snap-to-attach on tree nodes
         let isDragging = false, startX, startY, origX, origY;
-        let attachTarget = null; // hovered tree node for attachment
+        const ftData = this.floatingTopics.find(f => f.id === nodeId);
 
         el.addEventListener('mousedown', (e) => {
+            // Only drag on left button and when clicking the floating node itself (not children)
             if (e.button !== 0) return;
+            const node = this.jm.get_node(nodeId);
+            if (!node || !node.data || !node.data._isFloatingTopic) return;
             isDragging = true;
             startX = e.clientX;
             startY = e.clientY;
-            origX = ft.x;
-            origY = ft.y;
-            attachTarget = null;
+            origX = ftData ? ftData.x : (parseInt(el.style.left) || 0);
+            origY = ftData ? ftData.y : (parseInt(el.style.top) || 0);
             e.stopPropagation();
             e.preventDefault();
         });
@@ -5740,156 +6015,179 @@ export class MindmapEditor extends Component {
         const onMove = (e) => {
             if (!isDragging) return;
             const zoom = this._zoomLevel || 1;
-            ft.x = origX + (e.clientX - startX) / zoom;
-            ft.y = origY + (e.clientY - startY) / zoom;
-            el.style.left = ft.x + 'px';
-            el.style.top = ft.y + 'px';
-
-            // Detect proximity to tree nodes for attachment
-            world.querySelectorAll('.xmind-node.ft-attach-target').forEach(n => {
-                n.classList.remove('ft-attach-target');
-                n.style.outline = '';
-            });
-            attachTarget = null;
-
-            const ftCx = ft.x + el.offsetWidth / 2;
-            const ftCy = ft.y + el.offsetHeight / 2;
-            let closest = null, closestDist = 80; // 80px threshold
-
-            const nodes = this.jm.mind.nodes;
-            for (const id in nodes) {
-                const nodeEl = this.jm.view.get_node_element(id);
-                if (!nodeEl) continue;
-                const nx = nodeEl.offsetLeft + nodeEl.offsetWidth / 2;
-                const ny = nodeEl.offsetTop + nodeEl.offsetHeight / 2;
-                const dist = Math.sqrt((ftCx - nx) ** 2 + (ftCy - ny) ** 2);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closest = { id, el: nodeEl };
-                }
-            }
-
-            if (closest) {
-                attachTarget = closest;
-                closest.el.classList.add('ft-attach-target');
-                closest.el.style.outline = '3px dashed #28a745';
-                closest.el.style.outlineOffset = '4px';
-            }
+            const newX = origX + (e.clientX - startX) / zoom;
+            const newY = origY + (e.clientY - startY) / zoom;
+            if (ftData) { ftData.x = newX; ftData.y = newY; }
+            this._positionFloatingNode(nodeId, newX, newY);
         };
 
         const onUp = () => {
             if (!isDragging) return;
             isDragging = false;
-
-            // Clean up highlights
-            world.querySelectorAll('.xmind-node.ft-attach-target').forEach(n => {
-                n.classList.remove('ft-attach-target');
-                n.style.outline = '';
-                n.style.outlineOffset = '';
-            });
-
-            if (attachTarget) {
-                // Attach floating topic as child of target node
-                this._attachFloatingToNode(ft, attachTarget.id);
-                attachTarget = null;
-            } else {
-                this.commandStack.isDirty = true;
-                this.commandStack._notifyListeners();
-            }
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
         };
 
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
-
-        world.appendChild(el);
     }
 
-    _showFloatingTopicContextMenu(e, ft) {
-        document.querySelectorAll('.o_xmind_context_menu').forEach(el => el.remove());
-        const menu = document.createElement('div');
-        menu.className = 'o_xmind_context_menu dropdown-menu show';
-        menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:10000;`;
-
-        const items = [
-            { icon: 'fa-pencil', label: _t('Edit Title'), action: () => {
-                const newTitle = prompt(_t('Edit:'), ft.title);
-                if (newTitle !== null) {
-                    ft.title = newTitle;
-                    const el = this.jm.view.world.querySelector(`[data-ft-id="${ft.id}"]`);
-                    if (el) el.textContent = newTitle;
-                    this.commandStack.isDirty = true;
-                    this.commandStack._notifyListeners();
-                }
-            }},
-            { icon: 'fa-arrows', label: _t('Convert to Topic'), action: () => {
-                // Convert floating topic to regular child of root
-                const nodeId = this._generateNodeId();
-                const cmd = new AddNodeCommand(this.jm, this.jm.get_root().id, nodeId, ft.title, {
-                    style: ft.style, note: ft.note
-                });
-                this.commandStack.execute(cmd);
-                this._removeFloatingTopic(ft.id);
-            }},
-            { divider: true },
-            { icon: 'fa-trash text-danger', label: _t('Delete'), cls: 'text-danger', action: () => {
-                this._removeFloatingTopic(ft.id);
-            }},
-        ];
-
-        for (const item of items) {
-            if (item.divider) {
-                menu.insertAdjacentHTML('beforeend', '<div class="dropdown-divider"></div>');
-                continue;
-            }
-            const a = document.createElement('a');
-            a.className = `dropdown-item ${item.cls || ''}`;
-            a.href = '#';
-            a.innerHTML = `<i class="fa ${item.icon} me-2"></i>${item.label}`;
-            a.addEventListener('click', (ev) => { ev.preventDefault(); menu.remove(); item.action(); });
-            menu.appendChild(a);
-        }
-
-        document.body.appendChild(menu);
-        setTimeout(() => document.addEventListener('click', () => menu.remove(), { once: true }), 10);
-    }
-
-    _attachFloatingToNode(ft, targetNodeId) {
-        // Convert floating topic to a child of the target tree node
-        const nodeId = this._generateNodeId();
-        const data = { style: ft.style || {} };
-        if (ft.note) data.note = ft.note;
-
-        const cmd = new AddNodeCommand(this.jm, targetNodeId, nodeId, ft.title, data);
-        this.commandStack.execute(cmd);
-
-        // Remove from floating topics array and DOM
-        this._removeFloatingTopic(ft.id);
-
-        // Refresh to re-layout
+    /** Convert a floating topic to a regular child of root (removes floating status) */
+    _convertFloatingToRegular(nodeId) {
+        const node = this.jm.get_node(nodeId);
+        if (!node || !node.data) return;
+        delete node.data._isFloatingTopic;
+        delete node.data._ftX;
+        delete node.data._ftY;
+        const el = this.jm.view.get_node_element(nodeId);
+        if (el) el.classList.remove('xmind-floating-topic');
+        // Remove from tracking array
+        const idx = this.floatingTopics.findIndex(f => f.id === nodeId);
+        if (idx > -1) this.floatingTopics.splice(idx, 1);
+        // Refresh layout so it joins the main tree
         this.jm.view.refresh();
         setTimeout(() => this._renderAllXMindFeatures(), 100);
-
-        this._updateStatus(_t('Attached "') + ft.title + _t('" to tree'));
+        this._updateStatus(_t('Converted to regular topic'));
     }
 
     _removeFloatingTopic(ftId) {
+        // Remove from tracking array
         const idx = this.floatingTopics.findIndex(f => f.id === ftId);
         if (idx > -1) this.floatingTopics.splice(idx, 1);
-        const el = this.jm.view.world?.querySelector(`[data-ft-id="${ftId}"]`);
-        if (el) el.remove();
+        // Remove the jsMind node (and its children)
+        this.jm.remove_node(ftId);
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
         this._updateStatus(_t('Floating topic removed'));
     }
 
     _renderAllFloatingTopics() {
-        // Clear existing floating topic DOM elements
-        const world = this.jm.view.world;
-        if (world) {
-            world.querySelectorAll('.xmind-floating-topic').forEach(el => el.remove());
+        if (this.floatingTopics.length === 0) return;
+
+        // Build set of node IDs that are wrapped by boundaries
+        const boundaryNodeIds = new Set();
+        for (const b of this.boundaries) {
+            if (b.topicIds) b.topicIds.forEach(id => boundaryNodeIds.add(id));
         }
+
+        // Phase 1: Initial positioning
         for (const ft of this.floatingTopics) {
-            this._renderFloatingTopic(ft);
+            const node = this.jm.get_node(ft.id);
+            if (!node) continue;
+            if (!node.data) node.data = {};
+            node.data._isFloatingTopic = true;
+            node.data._ftX = ft.x;
+            node.data._ftY = ft.y;
+
+            let hasBoundaryChildren = false;
+            if (node.children) {
+                for (const c of node.children) {
+                    if (boundaryNodeIds.has(c.id)) { hasBoundaryChildren = true; break; }
+                }
+            }
+            node.data._ftExtraVSpace = hasBoundaryChildren ? 36 : 0;
+
+            this._positionFloatingNode(ft.id, ft.x, ft.y);
+        }
+
+        // Phase 2: Collision detection & resolution between floating topics
+        this._resolveFloatingCollisions();
+
+        // Phase 3: Setup drag handlers
+        for (const ft of this.floatingTopics) {
+            this._setupFloatingDrag(ft.id);
+        }
+    }
+
+    /** Compute the bounding box of a floating topic's entire visible subtree */
+    _getFloatingSubtreeBounds(ftId) {
+        const node = this.jm.get_node(ftId);
+        if (!node) return null;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        const measure = (n) => {
+            const el = this.jm.view.get_node_element(n.id);
+            if (!el || el.style.display === 'none') return;
+            const l = parseInt(el.style.left) || 0;
+            const t = parseInt(el.style.top) || 0;
+            const w = el.offsetWidth || n._w || 0;
+            const h = el.offsetHeight || n._h || 0;
+            minX = Math.min(minX, l);
+            minY = Math.min(minY, t);
+            maxX = Math.max(maxX, l + w);
+            maxY = Math.max(maxY, t + h);
+            if (n.expanded && n.children) {
+                for (const c of n.children) measure(c);
+            }
+        };
+        measure(node);
+
+        if (minX === Infinity) return null;
+        // Add padding for boundaries
+        const pad = 20;
+        return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+    }
+
+    /** Push overlapping floating topics apart */
+    _resolveFloatingCollisions() {
+        if (this.floatingTopics.length < 2) return;
+
+        // Collect bounding boxes
+        const boxes = [];
+        for (const ft of this.floatingTopics) {
+            const bounds = this._getFloatingSubtreeBounds(ft.id);
+            if (bounds) {
+                boxes.push({ ft, bounds, node: this.jm.get_node(ft.id) });
+            }
+        }
+
+        // Iterative push-apart (max 10 iterations)
+        const margin = 20;
+        for (let iter = 0; iter < 10; iter++) {
+            let anyMoved = false;
+            for (let i = 0; i < boxes.length; i++) {
+                for (let j = i + 1; j < boxes.length; j++) {
+                    const a = boxes[i].bounds;
+                    const b = boxes[j].bounds;
+
+                    // Check overlap
+                    const overlapX = a.maxX > b.minX && b.maxX > a.minX;
+                    const overlapY = a.maxY > b.minY && b.maxY > a.minY;
+                    if (!overlapX || !overlapY) continue;
+
+                    // Calculate overlap amounts
+                    const pushRight = a.maxX - b.minX + margin;
+                    const pushDown = a.maxY - b.minY + margin;
+
+                    // Push the smaller (or rightward/downward) one away
+                    // Choose the direction with less overlap to minimize movement
+                    const bFt = boxes[j].ft;
+                    const bNode = boxes[j].node;
+
+                    if (pushRight < pushDown) {
+                        // Push B to the right
+                        bFt.x += pushRight;
+                    } else {
+                        // Push B downward
+                        bFt.y += pushDown;
+                    }
+
+                    // Re-position B
+                    if (bNode && bNode.data) {
+                        bNode.data._ftX = bFt.x;
+                        bNode.data._ftY = bFt.y;
+                    }
+                    this._positionFloatingNode(bFt.id, bFt.x, bFt.y);
+
+                    // Re-measure B's bounds
+                    const newBounds = this._getFloatingSubtreeBounds(bFt.id);
+                    if (newBounds) boxes[j].bounds = newBounds;
+
+                    anyMoved = true;
+                }
+            }
+            if (!anyMoved) break;
         }
     }
 

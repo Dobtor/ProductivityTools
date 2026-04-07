@@ -163,12 +163,12 @@ export class BoundaryRenderer {
         let minX = bounds.minX, minY = bounds.minY;
         let maxX = bounds.maxX, maxY = bounds.maxY;
 
-        // Add padding (base + extra for nesting)
-        const padding = 15 + (options._extraPadding || 0);
-        minX -= padding;
-        minY -= padding;
-        maxX += padding;
-        maxY += padding;
+        // Per-side padding (set by editor to prevent overlap) or uniform fallback
+        const fallback = 15 + (options._extraPadding || 0);
+        minX -= (options._padLeft != null ? options._padLeft : fallback);
+        minY -= (options._padTop != null ? options._padTop : fallback);
+        maxX += (options._padRight != null ? options._padRight : fallback);
+        maxY += (options._padBottom != null ? options._padBottom : fallback);
 
         const width = maxX - minX;
         const height = maxY - minY;
@@ -236,79 +236,51 @@ export class BoundaryRenderer {
     _createBoundaryTitle(minX, minY, width, height, options) {
         const titleGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
-        // Calculate position based on titlePosition
-        let textX, textY, textAnchor = 'start';
-        const padding = 8;
-        const fontSize = options.titleFontSize || 14;
+        const fontSize = options.titleFontSize || 11;
+        const insetX = 8;
+        const bgColor = options.borderColor || '#77933C';
 
-        switch (options.titlePosition || 'top-center') {
-            case 'top-left':
-                textX = minX + padding;
-                textY = minY - padding;
-                textAnchor = 'start';
-                break;
-            case 'top-center':
-                textX = minX + width / 2;
-                textY = minY - padding;
-                textAnchor = 'middle';
-                break;
-            case 'top-right':
-                textX = minX + width - padding;
-                textY = minY - padding;
-                textAnchor = 'end';
-                break;
-            case 'bottom-left':
-                textX = minX + padding;
-                textY = minY + height + fontSize + padding;
-                textAnchor = 'start';
-                break;
-            case 'bottom-center':
-                textX = minX + width / 2;
-                textY = minY + height + fontSize + padding;
-                textAnchor = 'middle';
-                break;
-            case 'bottom-right':
-                textX = minX + width - padding;
-                textY = minY + height + fontSize + padding;
-                textAnchor = 'end';
-                break;
-        }
-
-        // Create text element
+        // Placeholder text to measure
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', textX);
-        text.setAttribute('y', textY);
-        text.setAttribute('text-anchor', textAnchor);
-        text.setAttribute('dominant-baseline', 'middle');
-        text.setAttribute('fill', options.titleColor || '#856404');
+        text.setAttribute('x', 0);
+        text.setAttribute('y', 0);
+        text.setAttribute('text-anchor', 'start');
+        text.setAttribute('dominant-baseline', 'central');
+        text.setAttribute('fill', '#ffffff');
         text.setAttribute('font-size', fontSize);
-
-        if (options.titleBold) {
-            text.setAttribute('font-weight', 'bold');
-        }
-        if (options.titleItalic) {
-            text.setAttribute('font-style', 'italic');
-        }
-
+        text.setAttribute('font-family', "'Open Sans', sans-serif");
+        text.setAttribute('font-weight', 'bold');
         text.textContent = options.title;
         titleGroup.appendChild(text);
 
-        // Add background if needed
-        if (options.titleBackground) {
-            setTimeout(() => {
+        // Build pill background after text is measurable
+        setTimeout(() => {
+            try {
                 const bbox = text.getBBox();
-                const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                bgRect.setAttribute('x', bbox.x - 4);
-                bgRect.setAttribute('y', bbox.y - 2);
-                bgRect.setAttribute('width', bbox.width + 8);
-                bgRect.setAttribute('height', bbox.height + 4);
-                bgRect.setAttribute('fill', '#ffffff');
-                bgRect.setAttribute('stroke', options.borderColor || '#ffc107');
-                bgRect.setAttribute('stroke-width', '1');
-                bgRect.setAttribute('rx', '3');
-                titleGroup.insertBefore(bgRect, text);
-            }, 10);
-        }
+                if (bbox.width <= 0) return;
+                const padH = 8, padV = 3, radius = 4;
+                const pillW = bbox.width + padH * 2;
+                const pillH = bbox.height + padV * 2;
+                const pillX = minX + insetX;
+                // Pill centered on the border line (XMind style)
+                const pillY = minY - pillH / 2;
+
+                const pill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                pill.setAttribute('x', pillX);
+                pill.setAttribute('y', pillY);
+                pill.setAttribute('width', pillW);
+                pill.setAttribute('height', pillH);
+                pill.setAttribute('rx', radius);
+                pill.setAttribute('ry', radius);
+                pill.setAttribute('fill', bgColor);
+
+                // Position text inside pill
+                text.setAttribute('x', pillX + padH);
+                text.setAttribute('y', pillY + pillH / 2);
+
+                titleGroup.insertBefore(pill, text);
+            } catch (e) { /* not in DOM */ }
+        }, 10);
 
         return titleGroup;
     }

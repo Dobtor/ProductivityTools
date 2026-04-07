@@ -334,6 +334,19 @@ class XMindController(http.Controller):
         workbook.save_mindmap_data(data)
         return {'success': True}
 
+    @http.route('/xmind/workbook/<int:workbook_id>/thumbnail', type='json', auth='user')
+    def save_thumbnail(self, workbook_id, thumbnail, **kwargs):
+        """Save mind map thumbnail image (base64 PNG)"""
+        workbook = self._check_workbook_access(workbook_id, 'write')
+        if not workbook:
+            return {'error': 'Workbook not found or access denied'}
+        # thumbnail is base64 data URL: "data:image/png;base64,..."
+        import base64
+        if thumbnail and ',' in thumbnail:
+            thumbnail = thumbnail.split(',', 1)[1]
+        workbook.write({'thumbnail': thumbnail})
+        return {'success': True}
+
     @http.route('/xmind/workbook/<int:workbook_id>/settings', type='json', auth='user')
     def save_sheet_settings(self, workbook_id, settings, **kwargs):
         """Save sheet layout and theme settings"""

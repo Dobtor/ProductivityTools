@@ -267,9 +267,37 @@
    XMind 2 Default Styles — Custom renderer
    ================================================================ */
 
-/* Selection */
+/* Selection — XMind-style outer blue border with gap */
 .xmind-node.xmind-selected {
-    box-shadow: 0 0 0 2px #428bca, 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+    outline: 2.5px solid #4a90d9 !important;
+    outline-offset: 3px !important;
+    box-shadow: none !important;
+}
+/* underline / noBorder: show rounded rect selection outline */
+.xmind-node.shape-underline.xmind-selected,
+.xmind-node.shape-noBorder.xmind-selected {
+    outline-offset: 2px !important;
+    border-radius: 4px !important;
+}
+/* ellipse / circle / stroke: round outline */
+.xmind-node.shape-ellipse.xmind-selected,
+.xmind-node.shape-circle.xmind-selected,
+.xmind-node.shape-stroke.xmind-selected {
+    outline-offset: 4px !important;
+    border-radius: 50% !important;
+}
+/* clip-path shapes (diamond, parallelogram, hexagon, fishhead): rounded rect outline */
+.xmind-node.shape-diamond.xmind-selected,
+.xmind-node.shape-parallelogram.xmind-selected,
+.xmind-node.shape-hexagon.xmind-selected,
+.xmind-node.shape-fishhead_left.xmind-selected,
+.xmind-node.shape-fishhead_right.xmind-selected {
+    outline-offset: 4px !important;
+    border-radius: 6px !important;
+}
+/* cloud: follow cloud border-radius */
+.xmind-node.shape-cloud.xmind-selected {
+    outline-offset: 4px !important;
 }
 
 /* Relationship drag-to-connect target highlight */

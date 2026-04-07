@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Groups                                                        -->
+    <!-- ============================================================ -->
+    <record id="group_xmind_manager" model="res.groups">
+        <field name="name">Mind Map Manager</field>
+        <field name="comment">Can see and manage all mind maps.</field>
+        <field name="category_id" ref="base.module_category_productivity"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Record Rules                                                  -->
+    <!-- ============================================================ -->
+
+    <!-- Regular users: see own workbooks + workbooks they follow -->
+    <record id="rule_xmind_workbook_user" model="ir.rule">
+        <field name="name">Mind Map: own or follower</field>
+        <field name="model_id" ref="model_xmind_workbook"/>
+        <field name="domain_force">[
+            '|',
+            ('create_uid', '=', user.id),
+            ('message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <!-- Managers: see all workbooks (no domain restriction) -->
+    <record id="rule_xmind_workbook_manager" model="ir.rule">
+        <field name="name">Mind Map: manager sees all</field>
+        <field name="model_id" ref="model_xmind_workbook"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <!-- Sheets/Topics/etc follow workbook access (user can access if they can access the workbook) -->
+    <record id="rule_xmind_sheet_user" model="ir.rule">
+        <field name="name">Sheet: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_sheet"/>
+        <field name="domain_force">[
+            '|',
+            ('workbook_id.create_uid', '=', user.id),
+            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_xmind_sheet_manager" model="ir.rule">
+        <field name="name">Sheet: manager sees all</field>
+        <field name="model_id" ref="model_xmind_sheet"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <record id="rule_xmind_topic_user" model="ir.rule">
+        <field name="name">Topic: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_topic"/>
+        <field name="domain_force">[
+            '|',
+            ('sheet_id.workbook_id.create_uid', '=', user.id),
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_xmind_topic_manager" model="ir.rule">
+        <field name="name">Topic: manager sees all</field>
+        <field name="model_id" ref="model_xmind_topic"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+</odoo>

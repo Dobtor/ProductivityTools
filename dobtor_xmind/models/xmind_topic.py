@@ -106,6 +106,22 @@ class XMindTopic(models.Model):
     level = fields.Integer('Level', compute='_compute_level', store=True)
     has_children = fields.Boolean('Has Children', compute='_compute_has_children', store=True)
 
+    def write(self, vals):
+        res = super().write(vals)
+        if 'title' in vals and not self.env.context.get('_syncing_name'):
+            for record in self:
+                if record.parent_id:
+                    continue
+                workbook = record.sheet_id.workbook_id
+                if not workbook:
+                    continue
+                first_sheet = workbook.sheet_ids[:1]
+                if first_sheet and record.sheet_id == first_sheet:
+                    workbook.with_context(_syncing_name=True).write(
+                        {'name': vals['title']}
+                    )
+        return res
+
     @api.depends('parent_path')
     def _compute_level(self):
         for record in self:

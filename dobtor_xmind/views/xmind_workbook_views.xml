@@ -7,8 +7,11 @@
         <field name="arch" type="xml">
             <list>
                 <field name="name"/>
-                <field name="creator"/>
-                <field name="sheet_count"/>
+                <field name="partner_id" optional="show"/>
+                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                <field name="create_uid" widget="many2one_avatar_user" optional="show"/>
+                <field name="creator" optional="hide"/>
+                <field name="sheet_count" optional="hide"/>
                 <field name="topic_count"/>
                 <field name="modified_time"/>
             </list>
@@ -22,25 +25,33 @@
         <field name="arch" type="xml">
             <form>
                 <header>
-                    <button name="action_open_editor" string="Open Visual Editor" type="object" class="btn-primary"/>
+                    <button name="action_open_editor" string="Open Visual Editor" type="object" class="btn-primary" invisible="not active"/>
+                    <button name="action_archive" string="Archive" type="object" class="btn-secondary" invisible="not active"/>
+                    <button name="action_unarchive" string="Unarchive" type="object" class="btn-primary" invisible="active"/>
                     <button name="export_xmind_file" string="Export .xmind" type="object" class="btn-secondary"/>
                     <button name="export_svg" string="Export SVG" type="object" class="btn-secondary"/>
                     <button name="export_png" string="Export PNG" type="object" class="btn-secondary"/>
                     <button name="export_pdf" string="Export PDF" type="object" class="btn-secondary"/>
-                    <button name="import_xmind_file" string="Import .xmind" type="object" class="btn-secondary"/>
-                    <button name="import_freemind_file" string="Import FreeMind" type="object" class="btn-secondary"/>
-                    <button name="import_mindmanager_file" string="Import MindManager" type="object" class="btn-secondary"/>
+                    <button name="import_xmind_file" string="Import .xmind" type="object" class="btn-secondary" invisible="not active"/>
+                    <button name="import_freemind_file" string="Import FreeMind" type="object" class="btn-secondary" invisible="not active"/>
+                    <button name="import_mindmanager_file" string="Import MindManager" type="object" class="btn-secondary" invisible="not active"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-warning text-center" role="alert" invisible="active">
+                        <strong>This mind map is archived.</strong>
+                    </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="Mind Map Name"/>
                         </h1>
+                        <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}" placeholder="Tags..."/>
                     </div>
                     <group>
                         <group>
+                            <field name="partner_id"/>
                             <field name="description"/>
                             <field name="creator"/>
+                            <field name="create_uid" readonly="1"/>
                         </group>
                         <group>
                             <field name="created_time"/>
@@ -68,6 +79,7 @@
                         </page>
                     </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>
@@ -77,40 +89,34 @@
         <field name="name">xmind.workbook.kanban</field>
         <field name="model">xmind.workbook</field>
         <field name="arch" type="xml">
-            <kanban>
-                <field name="name"/>
-                <field name="creator"/>
+            <kanban action="action_open_editor" type="object">
+                <field name="create_uid"/>
+                <field name="tag_ids"/>
                 <field name="topic_count"/>
                 <field name="modified_time"/>
                 <field name="thumbnail"/>
                 <templates>
-                    <t t-name="kanban-box">
-                        <div class="oe_kanban_global_click">
-                            <div class="o_kanban_image">
-                                <t t-if="record.thumbnail.raw_value">
-                                    <img t-att-src="kanban_image('xmind.workbook', 'thumbnail', record.id.raw_value)" alt="Thumbnail"/>
-                                </t>
-                                <t t-else="">
-                                    <span class="fa fa-sitemap fa-3x text-muted"/>
-                                </t>
-                            </div>
-                            <div class="oe_kanban_details">
-                                <strong class="o_kanban_record_title">
-                                    <field name="name"/>
-                                </strong>
-                                <div class="o_kanban_record_subtitle">
-                                    <field name="creator"/>
-                                </div>
-                                <div>
-                                    <span class="badge text-bg-info">
-                                        <field name="topic_count"/> topics
-                                    </span>
-                                </div>
-                                <div class="text-muted">
-                                    <field name="modified_time"/>
-                                </div>
-                            </div>
+                    <t t-name="menu">
+                        <a role="menuitem" type="open" class="dropdown-item">Settings</a>
+                        <a role="menuitem" type="archive" class="dropdown-item">Archive</a>
+                        <a role="menuitem" type="delete" class="dropdown-item">Delete</a>
+                    </t>
+                    <t t-name="card">
+                        <field name="name" class="fw-bolder fs-5"/>
+                        <field name="partner_id" class="text-muted" invisible="not partner_id"/>
+                        <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                        <div class="d-flex align-items-center justify-content-between mt-1">
+                            <span class="badge text-bg-info">
+                                <field name="topic_count"/> topics
+                            </span>
+                            <field name="create_uid" widget="many2one_avatar_user"/>
                         </div>
+                        <div class="text-muted small mt-1">
+                            <field name="modified_time"/>
+                        </div>
+                        <field name="thumbnail" widget="image"
+                               invisible="not thumbnail"
+                               options="{'img_class': 'w-100 rounded mt-2', 'size': [0, 120]}"/>
                     </t>
                 </templates>
             </kanban>

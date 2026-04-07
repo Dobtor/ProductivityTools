@@ -11,9 +11,11 @@ from odoo.exceptions import UserError
 
 class XMindWorkbook(models.Model):
     _name = 'xmind.workbook'
+    _inherit = ['mail.thread']
     _description = 'XMind Workbook'
     _order = 'write_date desc'
 
+    active = fields.Boolean('Active', default=True, tracking=True)
     name = fields.Char('Name', required=True, default='New Mind Map')
     description = fields.Text('Description')
     creator = fields.Char('Creator')
@@ -29,6 +31,12 @@ class XMindWorkbook(models.Model):
     # Thumbnail
     thumbnail = fields.Binary('Thumbnail', attachment=True)
 
+    # Customer
+    partner_id = fields.Many2one('res.partner', string='Customer', tracking=True)
+
+    # Tags
+    tag_ids = fields.Many2many('xmind.tag', string='Tags')
+
     # Revisions
     revision_ids = fields.One2many('xmind.revision', 'workbook_id', string='Revisions')
 
@@ -42,6 +50,27 @@ class XMindWorkbook(models.Model):
             record.sheet_count = len(record.sheet_ids)
             record.topic_count = sum(len(sheet.topic_ids) for sheet in record.sheet_ids)
 
+    def action_archive(self):
+        self.write({'active': False})
+
+    def action_unarchive(self):
+        self.write({'active': True})
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'name' in vals and not self.env.context.get('_syncing_name'):
+            for record in self:
+                first_sheet = record.sheet_ids[:1]
+                if first_sheet:
+                    root_topic = first_sheet.topic_ids.filtered(
+                        lambda t: not t.parent_id
+                    )[:1]
+                    if root_topic:
+                        root_topic.with_context(_syncing_name=True).write(
+                            {'title': vals['name']}
+                        )
+        return res
+
     def get_mindmap_data(self):
         """Get mindmap data in jsMind format with XMind 2 features"""
         self.ensure_one()
@@ -52,9 +81,10 @@ class XMindWorkbook(models.Model):
             'expanded': True,
             'children': [],
             'data': {
+                'shape': {'type': 'rounded', 'borderWidth': 5},
                 'style': {
-                    'background': '#428bca',
-                    'color': '#ffffff',
+                    'background': '#DCE6F2',
+                    'color': '#376092',
                     'font-weight': 'bold',
                     'font-size': '18px',
                 }
@@ -76,8 +106,11 @@ class XMindWorkbook(models.Model):
         sheet = self.sheet_ids[0]
         root_topic = sheet.topic_ids.filtered(lambda t: not t.parent_id)
 
+        # Collect floating topic component_ids for marking in jsMind data
+        ft_cids = set(sheet.floating_topic_ids.mapped('component_id'))
+
         if root_topic:
-            data = self._topic_to_jsmind(root_topic[0])
+            data = self._topic_to_jsmind(root_topic[0], ft_cids=ft_cids)
         else:
             data = default_data
 
@@ -91,7 +124,7 @@ class XMindWorkbook(models.Model):
             'data': data,
         }
 
-    def _topic_to_jsmind(self, topic):
+    def _topic_to_jsmind(self, topic, ft_cids=None):
         """Convert topic to jsMind format with styling"""
         data = {
             'note': topic.note or '',
@@ -124,12 +157,27 @@ class XMindWorkbook(models.Model):
                 data['childStructure'] = mapped
 
         # Right-number for unbalanced map layout
+        # Only pass right_number for map-related structures (not org_chart, tree, etc.)
         if topic.right_number != -2:
-            data['_rightNumber'] = topic.right_number
+            sc = topic.structure_class or ''
+            if not sc or sc.startswith('org.xmind.ui.map'):
+                data['_rightNumber'] = topic.right_number
 
         # Summary node flag
         if topic.is_summary_node:
             data['_isSummaryNode'] = True
+
+        # Floating topic flag — match against floating_topic records by component_id
+        if ft_cids and topic.component_id in ft_cids:
+            data['_isFloatingTopic'] = True
+            # Get position from floating topic record
+            ft_rec = self.env['xmind.floating.topic'].search([
+                ('sheet_id', '=', topic.sheet_id.id),
+                ('component_id', '=', topic.component_id),
+            ], limit=1)
+            if ft_rec:
+                data['_ftX'] = ft_rec.position_x
+                data['_ftY'] = ft_rec.position_y
 
         node = {
             'id': topic.component_id or str(uuid.uuid4()),
@@ -140,7 +188,7 @@ class XMindWorkbook(models.Model):
         }
 
         for child in topic.child_ids.sorted('sequence'):
-            node['children'].append(self._topic_to_jsmind(child))
+            node['children'].append(self._topic_to_jsmind(child, ft_cids=ft_cids))
 
         return node
 
@@ -232,6 +280,10 @@ class XMindWorkbook(models.Model):
         # Import from jsMind format
         if 'data' in data:
             self._import_jsmind_node(data['data'], sheet, False)
+            # Sync root topic title → workbook name
+            root_title = data['data'].get('topic', '')
+            if root_title and root_title != self.name:
+                self.with_context(_syncing_name=True).write({'name': root_title})
 
         self.modified_time = fields.Datetime.now()
 
@@ -315,9 +367,12 @@ class XMindWorkbook(models.Model):
                 })
 
         # Import children
-        for idx, child_node in enumerate(node.get('children', [])):
+        seq = 0
+        for child_node in node.get('children', []):
             child = self._import_jsmind_node(child_node, sheet, topic)
-            child.sequence = idx
+            if child:
+                child.sequence = seq
+                seq += 1
 
         return topic
 
@@ -1091,12 +1146,8 @@ class XMindWorkbook(models.Model):
                         child.sequence = idx
                         idx += 1
                 elif topics_type == 'detached':
-                    # Detached topics → import as floating topics
+                    # Detached topics → import as full topic tree + floating topic record
                     for child_elem in topics_elem.findall('xmap:topic', ns):
-                        ft_title = ''
-                        ft_title_elem = child_elem.find('xmap:title', ns)
-                        if ft_title_elem is not None and ft_title_elem.text:
-                            ft_title = ft_title_elem.text
                         # Parse position
                         pos_elem = child_elem.find('xmap:position', ns)
                         pos_x, pos_y = 100, 100
@@ -1108,10 +1159,17 @@ class XMindWorkbook(models.Model):
                                             pos_elem.get('svg:y', '100')))
                             except (ValueError, TypeError):
                                 pass
+                        # Import as full topic tree (children, summaries, boundaries)
+                        ft_topic = self._import_xmind_xml_topic(
+                            child_elem, sheet, ns, topic,
+                            style_map=style_map, theme_defaults=theme_defaults)
+                        ft_topic.sequence = idx
+                        idx += 1
+                        # Also create floating topic record for position tracking
                         self.env['xmind.floating.topic'].create({
                             'sheet_id': sheet.id,
-                            'component_id': child_elem.get('id', str(uuid.uuid4())),
-                            'title': ft_title or _('Floating Topic'),
+                            'component_id': ft_topic.component_id,
+                            'title': ft_topic.title or _('Floating Topic'),
                             'position_x': pos_x,
                             'position_y': pos_y,
                         })
@@ -1171,6 +1229,54 @@ class XMindWorkbook(models.Model):
                         vals['summary_topic_id'] = summary_topic.id
                         vals['title'] = summary_topic.title or 'Summary'
                     self.env['xmind.summary'].create(vals)
+
+        # Import boundaries
+        boundaries_elem = topic_elem.find('xmap:boundaries', ns)
+        if boundaries_elem is not None:
+            attached_children = topic.child_ids.filtered(
+                lambda c: not c.is_summary_node
+            ).sorted('sequence')
+            for bnd_elem in boundaries_elem.findall('xmap:boundary', ns):
+                range_str = bnd_elem.get('range', '')
+                bnd_title = ''
+                bnd_title_elem = bnd_elem.find('xmap:title', ns)
+                if bnd_title_elem is not None and bnd_title_elem.text:
+                    bnd_title = bnd_title_elem.text
+
+                # Parse style
+                bnd_style_id = bnd_elem.get('style-id', '')
+                bnd_style = {}
+                if bnd_style_id and style_map:
+                    bnd_style = style_map.get(bnd_style_id, {})
+
+                start_idx, end_idx = 0, 0
+                if range_str:
+                    range_str = range_str.strip('()')
+                    parts = range_str.split(',')
+                    if len(parts) == 2:
+                        try:
+                            start_idx = int(parts[0].strip())
+                            end_idx = int(parts[1].strip())
+                        except ValueError:
+                            continue
+
+                range_topics = []
+                for i in range(start_idx, min(end_idx + 1, len(attached_children))):
+                    range_topics.append(attached_children[i])
+
+                if range_topics:
+                    self.env['xmind.boundary'].create({
+                        'sheet_id': sheet.id,
+                        'component_id': bnd_elem.get('id', str(uuid.uuid4())),
+                        'title': bnd_title,
+                        'topic_ids': [Command.set([t.id for t in range_topics])],
+                        'fill_color': bnd_style.get('svg:fill', 'rgba(195,214,155,0.2)'),
+                        'border_color': bnd_style.get('line-color', '#77933C'),
+                        'border_width': self._pt_to_px(bnd_style.get('line-width', '3pt')) or 3,
+                        'border_style': self._XMIND_LINE_PATTERN_MAP.get(
+                            bnd_style.get('line-pattern', 'dot'), 'dotted'),
+                        'shape': 'rounded',
+                    })
 
         # Parse extensions (right-number for unbalanced layout)
         extensions_elem = topic_elem.find('xmap:extensions', ns)
@@ -1345,9 +1451,28 @@ class XMindWorkbook(models.Model):
         # Import children
         children_data = topic_data.get('children', {})
         attached = children_data.get('attached', [])
-        for idx, child_data in enumerate(attached):
+        idx = 0
+        for child_data in attached:
             child = self._import_xmind_topic(child_data, sheet, topic)
             child.sequence = idx
+            idx += 1
+
+        # Import detached (floating) children — full topic tree + floating record
+        detached = children_data.get('detached', [])
+        for child_data in detached:
+            pos = child_data.get('position', {})
+            pos_x = pos.get('x', 100)
+            pos_y = pos.get('y', 100)
+            child = self._import_xmind_topic(child_data, sheet, topic)
+            child.sequence = idx
+            idx += 1
+            self.env['xmind.floating.topic'].create({
+                'sheet_id': sheet.id,
+                'component_id': child.component_id,
+                'title': child.title or _('Floating Topic'),
+                'position_x': int(pos_x),
+                'position_y': int(pos_y),
+            })
 
         return topic
 

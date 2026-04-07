@@ -7,31 +7,33 @@
             <form>
                 <group>
                     <p class="text-muted">
-                        Upload one or more .xmind, .mm (FreeMind), or .mmap (MindManager) files.
-                        Each file will be created as a separate Mind Map workbook.
-                        The title is automatically extracted from the file's root topic.
+                        Select one or more .xmind, .mm (FreeMind), or .mmap (MindManager) files.
+                        Each file will be created as a separate Mind Map workbook with a preview thumbnail.
                     </p>
                 </group>
-                <field name="line_ids">
-                    <list editable="bottom">
-                        <field name="file" filename="filename"/>
-                        <field name="filename" column_invisible="1"/>
-                        <field name="status" readonly="1"
+                <group>
+                    <field name="upload_files" widget="many2many_binary"
+                           string="Upload Files"/>
+                </group>
+                <field name="line_ids" readonly="1" invisible="not line_ids">
+                    <list>
+                        <field name="filename"/>
+                        <field name="status"
                                decoration-success="status == 'success'"
                                decoration-danger="status == 'error'"
                                widget="badge"/>
-                        <field name="message" readonly="1"/>
-                        <field name="workbook_id" readonly="1"/>
+                        <field name="message"/>
+                        <field name="workbook_id"/>
                     </list>
                 </field>
-                <group>
+                <group invisible="not line_ids">
                     <div class="d-flex gap-2">
                         <field name="import_count" string="Imported" widget="statinfo"/>
                         <field name="error_count" string="Errors" widget="statinfo"/>
                     </div>
                 </group>
                 <footer>
-                    <button name="action_import_all" string="Import All" type="object" class="btn-primary"/>
+                    <button name="action_import_all" string="Import" type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

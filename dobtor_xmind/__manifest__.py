@@ -17,9 +17,10 @@
     ''',
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
-    'depends': ['base', 'web'],
+    'depends': ['base', 'web', 'mail'],
     'data': [
         'security/ir.model.access.csv',
+        'security/xmind_security.xml',
         'data/xmind_marker_data.xml',
         'wizard/xmind_import_wizard_views.xml',
         'views/xmind_topic_views.xml',

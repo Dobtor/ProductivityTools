@@ -111,6 +111,12 @@
         return STYLES.deep;
     }
 
+    /** Check whether a node should be excluded from layout / branch-line drawing.
+     *  Summary nodes and floating topic nodes are both managed by the editor layer. */
+    function _isLayoutExcluded(node) {
+        return node.data && (node.data._isSummaryNode || node.data._isFloatingTopic);
+    }
+
     // =========================================================================
     // Data Model
     // =========================================================================
@@ -296,8 +302,8 @@
         }
 
         _subtreeHeight(node) {
-            if (node.data && node.data._isSummaryNode) return 0; // summary nodes excluded from layout
-            const layoutChildren = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (_isLayoutExcluded(node)) return 0; // summary nodes excluded from layout
+            const layoutChildren = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (!node.expanded || layoutChildren.length === 0) return node._h;
             let total = 0;
             for (const c of layoutChildren) {
@@ -315,8 +321,8 @@
          * This ensures that deeply nested wide subtrees correctly reserve space.
          */
         _subtreeWidthVertical(node) {
-            if (node.data && node.data._isSummaryNode) return 0;
-            const layoutChildren = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (_isLayoutExcluded(node)) return 0;
+            const layoutChildren = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (!node.expanded || layoutChildren.length === 0) return node._w;
             const ps = getStyleForDepth(node._depth);
             // Org chart: use spacingMinor as horizontal gap between siblings
@@ -337,8 +343,8 @@
          * node height + vgap + max child subtree height (recursive).
          */
         _subtreeHeightVertical(node) {
-            if (node.data && node.data._isSummaryNode) return 0;
-            const layoutChildren = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (_isLayoutExcluded(node)) return 0;
+            const layoutChildren = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (!node.expanded || layoutChildren.length === 0) return node._h;
             const ps = getStyleForDepth(node._depth);
             // Org chart: use spacingMajor as vertical gap
@@ -430,14 +436,12 @@
         }
 
         _layoutVerticalChildrenUp(parent) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const ps = getStyleForDepth(parent._depth);
-            // Org chart vertical: swap major/minor semantics
-            // Major → horizontal gap between siblings, Minor → vertical gap parent↔child
-            // But Minor is often too small (1px), so use Major for vgap in org chart
-            const hgap = ps.spacingMinor || this.vgap;   // sibling horizontal gap
-            const vgap = ps.spacingMajor || this.hgap;   // parent-child vertical gap
+            // Org chart: vertical gap needs enough space for expander + visible curve arc
+            const hgap = ps.spacingMinor || this.vgap;
+            const vgap = ps.spacingMajor || this.hgap;
 
             // Extra gap for expander button (above node for org_chart_up)
             const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
@@ -543,7 +547,7 @@
                     const vGap = 5;
                     let gcY = child._y + (child._h / 2 + 10) * vDir;
                     for (const gc of child.children) {
-                        if (gc.data && gc.data._isSummaryNode) continue;
+                        if (_isLayoutExcluded(gc)) continue;
                         gc._x = child._x + (gc._w / 2 + hGap) * dir;
                         gc._y = gcY + (gc._h / 2) * vDir;
                         gc.direction = dir; // horizontal direction for further children
@@ -592,7 +596,7 @@
 
         _layoutBranch(parent, children, dir) {
             // Filter out summary nodes — they are positioned by SummaryRenderer
-            const layoutChildren = children.filter(c => !(c.data && c.data._isSummaryNode));
+            const layoutChildren = children.filter(c => !(_isLayoutExcluded(c)));
             if (layoutChildren.length === 0) return;
 
             // Per-depth spacing from STYLES (XMind 2: spacingMajor/spacingMinor)
@@ -688,12 +692,12 @@
         }
 
         _layoutVerticalChildren(parent) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const ps = getStyleForDepth(parent._depth);
-            // Org chart vertical: swap major/minor semantics
-            const hgap = ps.spacingMinor || this.vgap;   // sibling horizontal gap
-            const vgap = ps.spacingMajor || this.hgap;   // parent-child vertical gap
+            // Org chart: vertical gap needs enough space for expander + visible curve arc
+            const hgap = ps.spacingMinor || this.vgap;
+            const vgap = ps.spacingMajor || this.hgap;
 
             // Extra gap for expander (dir=2: below node)
             const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
@@ -723,11 +727,15 @@
          * Layout children of a node using vertical-up style (children extend upward).
          */
         _layoutVerticalUpChildren(parent) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const ps = getStyleForDepth(parent._depth);
-            const hgap = ps.spacingMajor || this.hgap;
-            const vgap = ps.spacingMinor || this.vgap;
+            // Org chart: swap spacing for vertical layout
+            const hgap = ps.spacingMinor || this.vgap;
+            const vgap = ps.spacingMajor || this.hgap;
+
+            // Extra gap for expander button (above node for org_chart_up)
+            const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
 
             // Use subtree width to prevent overlapping
             const childWidths = children.map(c => this._subtreeWidthVertical(c));
@@ -738,7 +746,7 @@
                 const child = children[i];
                 const sw = childWidths[i];
                 child._x = curX + sw / 2;
-                child._y = parent._y - parent._h / 2 - vgap - child._h / 2;
+                child._y = parent._y - parent._h / 2 - expanderGap - vgap - child._h / 2;
                 child.direction = 2;
                 curX += sw + hgap;
                 if (child.expanded && child.children.length > 0) {
@@ -751,7 +759,7 @@
          * Layout children of a node using balanced (map) style — split left/right.
          */
         _layoutBalancedChildren(parent) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const half = Math.ceil(children.length / 2);
             const right = children.slice(0, half);
@@ -766,7 +774,7 @@
          * Layout children of a node using fishbone style — alternate above/below.
          */
         _layoutFishboneChildren(parent, dir) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const spineGap = 40;
             let curX = parent._x + dir * (parent._w / 2 + spineGap);
@@ -807,7 +815,7 @@
          * direction = 3 (tree-right) or 4 (tree-left)
          */
         _layoutTreeChildren(parent, dir) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
 
             const ps = getStyleForDepth(parent._depth);
@@ -833,8 +841,8 @@
 
         /** Compute total height of a tree subtree (vertical stacking). */
         _treeSubtreeHeight(node, minorGap, majorGap) {
-            if (node.data && node.data._isSummaryNode) return 0;
-            const children = node.children.filter(c => !(c.data && c.data._isSummaryNode));
+            if (_isLayoutExcluded(node)) return 0;
+            const children = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (!node.expanded || children.length === 0) return node._h;
             let childrenH = 0;
             for (const c of children) {
@@ -855,7 +863,7 @@
             root._x = 0;
             root._y = 0;
 
-            const children = root.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
 
             const majorGap = 50;
@@ -899,7 +907,7 @@
         }
 
         _layoutTimelineH_inner(parent) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const majorGap = 40;
             let xUp = parent._x + parent._w / 2 + majorGap;
@@ -933,7 +941,7 @@
             root._x = 0;
             root._y = 0;
 
-            const children = root.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
 
             const majorGap = 35;
@@ -960,7 +968,7 @@
         }
 
         _layoutTimelineVChildren(parent) {
-            const children = parent.children.filter(c => !(c.data && c.data._isSummaryNode));
+            const children = parent.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
             const majorGap = 30;
             let curY = parent._y + parent._h / 2 + majorGap;
@@ -1266,16 +1274,17 @@
         _positionAllNodes(node) {
             if (!node) return;
             this._positionNode(node);
-            // Summary nodes: don't position children here (done by _positionSummaryNode),
-            // but ensure they're visible so draw_lines can find them
+            // Summary nodes: positioned by editor (_positionSummaryNode).
+            // Only manage expand/collapse visibility here.
             if (node.data && node.data._isSummaryNode) {
-                if (node.expanded) {
-                    const showAll = (n) => {
-                        if (n._el) n._el.style.display = '';
-                        if (n.expanded) n.children.forEach(c => showAll(c));
-                    };
-                    node.children.forEach(c => showAll(c));
+                if (!node.expanded) {
+                    this._hideDescendants(node);
                 }
+                return;
+            }
+            // Floating topics: positioned by editor — layout children as sub-tree
+            if (node.data && node.data._isFloatingTopic) {
+                this._layoutFloatingSubtree(node);
                 return;
             }
             if (node.expanded) {
@@ -1288,9 +1297,15 @@
 
         _positionNode(node) {
             if (!node._el) return;
-            // Summary nodes are positioned by SummaryRenderer, not layout engine
+            // Summary nodes: positioned by SummaryRenderer
             if (node.data && node.data._isSummaryNode) {
-                node._el.style.display = ''; // ensure visible, but don't set position
+                node._el.style.display = '';
+                return;
+            }
+            // Floating topics: positioned at stored coordinates by the editor
+            if (node.data && node.data._isFloatingTopic) {
+                node._el.style.display = '';
+                // Position will be set by _layoutFloatingSubtree or editor
                 return;
             }
             node._el.style.left = (node._x - node._w / 2) + 'px';
@@ -1329,6 +1344,171 @@
             }
         }
 
+        /** Layout a floating topic and its children as an independent sub-tree.
+         *  Respects the topic's childStructure (org_chart_down = vertical, default = logic_right). */
+        _layoutFloatingSubtree(ftNode) {
+            const ftX = (ftNode.data && ftNode.data._ftX) || 0;
+            const ftY = (ftNode.data && ftNode.data._ftY) || 0;
+            const structure = (ftNode.data && ftNode.data.childStructure) || 'logic_right';
+            const isVertical = structure === 'org_chart_down' || structure === 'org_chart_up';
+            const extraV = (ftNode.data && ftNode.data._ftExtraVSpace) || 0;
+            const hspace = isVertical ? 15 : 30;
+            const vspace = (isVertical ? 20 : 8) + extraV;
+
+            // Position the floating topic node itself
+            if (ftNode._el) {
+                ftNode._el.style.left = ftX + 'px';
+                ftNode._el.style.top = ftY + 'px';
+                ftNode._el.style.display = '';
+            }
+            ftNode._x = ftX + (ftNode._w || 80) / 2;
+            ftNode._y = ftY + (ftNode._h || 20) / 2;
+
+            if (!ftNode.expanded) {
+                this._hideDescendants(ftNode);
+                return;
+            }
+
+            const self = this;
+
+            // Position expander for a node based on its direction
+            const posExpander = (node) => {
+                if (!node._expander) return;
+                if (node.children.length === 0) { node._expander.style.display = 'none'; return; }
+                node._expander.style.display = '';
+                const dir = node.direction || 1;
+                let ex, ey;
+                if (dir === 2) {
+                    ex = node._x - 6;
+                    ey = node._y + (node._h || 20) / 2 + 2;
+                } else if (dir === -1) {
+                    ex = node._x - (node._w || 80) / 2 - 15;
+                    ey = node._y - 6;
+                } else {
+                    ex = node._x + (node._w || 80) / 2 + 3;
+                    ey = node._y - 6;
+                }
+                node._expander.style.left = ex + 'px';
+                node._expander.style.top = ey + 'px';
+            };
+
+            // ---- Measure helpers ----
+            // measureSpan: returns the span of a subtree along the SPREAD axis
+            //   horizontal layout → spread = vertical (height)
+            //   vertical layout   → spread = horizontal (width)
+            const measureSpan = (node, vertical) => {
+                const layoutKids = node.children.filter(c => !_isLayoutExcluded(c));
+                if (!node.expanded || layoutKids.length === 0) {
+                    return vertical ? (node._w || 80) : (node._h || 20);
+                }
+                const gap = vertical ? hspace : vspace;
+                let total = 0;
+                for (const c of layoutKids) {
+                    total += measureSpan(c, vertical) + gap;
+                }
+                const own = vertical ? (node._w || 80) : (node._h || 20);
+                return Math.max(own, total - gap);
+            };
+
+            // ---- Position children recursively ----
+            const positionKids = (parent, px, py, vertical) => {
+                const kids = parent.children.filter(c => !_isLayoutExcluded(c));
+                if (kids.length === 0) return;
+
+                const pw = parent._w || 80;
+                const ph = parent._h || 20;
+                const gap = vertical ? hspace : vspace;
+
+                // Collect spans
+                const spans = kids.map(c => measureSpan(c, vertical));
+                const totalSpan = spans.reduce((a, b) => a + b, 0) + gap * (spans.length - 1);
+
+                let cursor;
+                if (vertical) {
+                    // org_chart_down: children below parent, spread horizontally
+                    const childY = py + ph + vspace;
+                    cursor = px + pw / 2 - totalSpan / 2;
+                    for (let i = 0; i < kids.length; i++) {
+                        const c = kids[i];
+                        c.direction = 2;
+                        const cw = c._w || 80;
+                        const cx = cursor + spans[i] / 2 - cw / 2;
+                        if (c._el) {
+                            c._el.style.left = cx + 'px';
+                            c._el.style.top = childY + 'px';
+                            c._el.style.display = '';
+                            c._x = cx + cw / 2;
+                            c._y = childY + (c._h || 20) / 2;
+                        }
+                        posExpander(c);
+                        if (c.expanded && c.children.length > 0) {
+                            positionKids(c, cx, childY, vertical);
+                        } else if (!c.expanded) {
+                            self._hideDescendants(c);
+                        }
+                        cursor += spans[i] + gap;
+                    }
+                } else {
+                    // logic_right: children to the right, spread vertically
+                    const childX = px + pw + hspace;
+                    cursor = py + ph / 2 - totalSpan / 2;
+                    for (let i = 0; i < kids.length; i++) {
+                        const c = kids[i];
+                        c.direction = 1;
+                        const ch = c._h || 20;
+                        const cy = cursor + spans[i] / 2 - ch / 2;
+                        if (c._el) {
+                            c._el.style.left = childX + 'px';
+                            c._el.style.top = cy + 'px';
+                            c._el.style.display = '';
+                            c._x = childX + (c._w || 80) / 2;
+                            c._y = cy + ch / 2;
+                        }
+                        posExpander(c);
+                        if (c.expanded && c.children.length > 0) {
+                            positionKids(c, childX, cy, vertical);
+                        } else if (!c.expanded) {
+                            self._hideDescendants(c);
+                        }
+                        cursor += spans[i] + gap;
+                    }
+                }
+            };
+
+            positionKids(ftNode, ftX, ftY, isVertical);
+
+            // Handle summary/excluded children of the floating topic and its descendants.
+            // These are skipped by positionKids but still need expand/collapse visibility.
+            const handleExcluded = (parent) => {
+                for (const c of parent.children) {
+                    if (_isLayoutExcluded(c)) {
+                        // Summary or nested floating: manage visibility
+                        if (c._el) c._el.style.display = '';
+                        posExpander(c);
+                        if (c.expanded) {
+                            const showTree = (n) => {
+                                if (n._el) n._el.style.display = '';
+                                posExpander(n);
+                                if (n.expanded) n.children.forEach(ch => showTree(ch));
+                                else self._hideDescendants(n);
+                            };
+                            c.children.forEach(ch => showTree(ch));
+                        } else {
+                            self._hideDescendants(c);
+                        }
+                    } else if (c.expanded) {
+                        // Regular child — recurse to find excluded grandchildren
+                        handleExcluded(c);
+                    }
+                }
+            };
+            handleExcluded(ftNode);
+
+            // Position the floating topic's own expander
+            ftNode.direction = isVertical ? 2 : 1;
+            posExpander(ftNode);
+        }
+
         // Temporarily make all nodes visible so getBoundingClientRect works
         _showAllForMeasure(node) {
             if (!node) return;
@@ -1360,7 +1540,7 @@
         /** Draw the timeline spine (axis line through all children). */
         _drawTimelineSpine(root, mode) {
             const children = root.children.filter(c =>
-                !(c.data && c.data._isSummaryNode) && c._el && c._el.style.display !== 'none');
+                !(_isLayoutExcluded(c)) && c._el && c._el.style.display !== 'none');
             if (children.length === 0) return;
 
             const spine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -1388,7 +1568,7 @@
         /** Draw the fishbone spine (horizontal axis through root). */
         _drawFishboneSpine(root, dir) {
             const children = root.children.filter(c =>
-                !(c.data && c.data._isSummaryNode) && c._el && c._el.style.display !== 'none');
+                !(_isLayoutExcluded(c)) && c._el && c._el.style.display !== 'none');
             if (children.length === 0) return;
 
             const spine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -1425,7 +1605,7 @@
             // Fix #3: Tree layout — draw shared vertical trunk for tree children
             const treeChildren = node.children.filter(c =>
                 c._el && c._el.style.display !== 'none'
-                && !(c.data && c.data._isSummaryNode)
+                && !(_isLayoutExcluded(c))
                 && (c.direction === 3 || c.direction === 4));
             if (treeChildren.length > 0) {
                 this._drawTreeTrunk(node, treeChildren);
@@ -1433,9 +1613,9 @@
 
             for (const child of node.children) {
                 if (child._el && child._el.style.display !== 'none') {
-                    if (!(child.data && child.data._isSummaryNode)) {
-                        this._drawLine(node, child);
-                    }
+                    // Draw branch line (skipped for summary/floating nodes via _drawLine guard)
+                    this._drawLine(node, child);
+                    // Always recurse to draw sub-tree lines (including floating topic children)
                     this._drawLinesForNode(child);
                 }
             }
@@ -1470,8 +1650,9 @@
         }
 
         _drawLine(parent, child) {
-            // Double-guard: never draw branch line to a summary node
+            // Never draw branch line to a summary node or to a floating topic from root
             if (child.data && child.data._isSummaryNode) return;
+            if (child.data && child.data._isFloatingTopic) return;
 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             const s = getStyleForDepth(child._depth);
@@ -1626,7 +1807,7 @@
                 // Here we only draw the horizontal branch: from trunk x to child edge.
                 // For single-child case (no trunk), draw full L-shape.
                 const siblings = parent.children.filter(c =>
-                    !(c.data && c.data._isSummaryNode) && (c.direction === 3 || c.direction === 4));
+                    !(_isLayoutExcluded(c)) && (c.direction === 3 || c.direction === 4));
                 const hasTrunk = siblings.length >= 2;
 
                 if (hasTrunk) {
@@ -1812,8 +1993,11 @@
             };
 
             input.addEventListener('blur', finish);
+            let isComposing = false;
+            input.addEventListener('compositionstart', () => { isComposing = true; });
+            input.addEventListener('compositionend', () => { isComposing = false; });
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); input.blur(); }
+                if (e.key === 'Enter' && !isComposing && !e.isComposing) { e.preventDefault(); e.stopPropagation(); input.blur(); }
                 if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); input.value = node.topic; input.blur(); }
             });
         }

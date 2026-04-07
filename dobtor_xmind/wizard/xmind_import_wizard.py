@@ -30,6 +30,10 @@ class XMindImportWizard(models.TransientModel):
     _name = 'xmind.import.wizard'
     _description = 'Import XMind Files'
 
+    upload_files = fields.Many2many(
+        'ir.attachment', string='Upload Files',
+        help='Select one or more .xmind, .mm, or .mmap files',
+    )
     line_ids = fields.One2many('xmind.import.line', 'wizard_id', string='Files')
     import_count = fields.Integer('Imported', compute='_compute_counts')
     error_count = fields.Integer('Errors', compute='_compute_counts')
@@ -40,14 +44,43 @@ class XMindImportWizard(models.TransientModel):
             rec.import_count = len(rec.line_ids.filtered(lambda l: l.status == 'success'))
             rec.error_count = len(rec.line_ids.filtered(lambda l: l.status == 'error'))
 
+    @api.onchange('upload_files')
+    def _onchange_upload_files(self):
+        """Auto-create import lines from uploaded attachments."""
+        existing_names = set(self.line_ids.mapped('filename'))
+        new_lines = []
+        for att in self.upload_files:
+            if att.name and att.name not in existing_names:
+                new_lines.append((0, 0, {
+                    'file': att.datas,
+                    'filename': att.name,
+                    'status': 'pending',
+                }))
+                existing_names.add(att.name)
+        if new_lines:
+            self.update({'line_ids': new_lines})
+
     def action_import_all(self):
-        """Import all uploaded files, creating one Workbook per file."""
+        """Import all pending files, create one Workbook per file, generate thumbnails."""
         self.ensure_one()
+
+        # If lines were created via onchange (NewId), persist them first
+        if not self.line_ids.ids and self.upload_files:
+            for att in self.upload_files:
+                self.env['xmind.import.line'].create({
+                    'wizard_id': self.id,
+                    'file': att.datas,
+                    'filename': att.name,
+                    'status': 'pending',
+                })
+
         created_ids = []
 
         for line in self.line_ids.filtered(lambda l: l.status == 'pending'):
             try:
                 workbook = self._import_single_file(line)
+                # Generate server-side thumbnail
+                self._generate_thumbnail(workbook)
                 line.write({
                     'status': 'success',
                     'message': _('Created: %s') % workbook.name,
@@ -64,12 +97,10 @@ class XMindImportWizard(models.TransientModel):
                 })
 
         if not created_ids:
-            # Show actual error messages from failed lines
             errors = self.line_ids.filtered(lambda l: l.status == 'error').mapped('message')
             error_detail = '\n'.join(errors) if errors else _('Unknown error')
             raise UserError(_('Import failed:\n%s') % error_detail)
 
-        # Return action to show all created workbooks
         if len(created_ids) == 1:
             return {
                 'type': 'ir.actions.act_window',
@@ -86,16 +117,32 @@ class XMindImportWizard(models.TransientModel):
             'target': 'current',
         }
 
+    def _generate_thumbnail(self, workbook):
+        """Generate a server-side thumbnail PNG from the SVG renderer."""
+        try:
+            svg_content = workbook._generate_svg()
+            # Try cairosvg for high-quality PNG
+            try:
+                import cairosvg
+                png_data = cairosvg.svg2png(
+                    bytestring=svg_content.encode('utf-8'),
+                    output_width=400,
+                )
+                workbook.thumbnail = base64.b64encode(png_data)
+            except ImportError:
+                # Fallback: store SVG as-is (Odoo image widget can handle it via base64)
+                workbook.thumbnail = base64.b64encode(svg_content.encode('utf-8'))
+        except Exception:
+            pass  # Thumbnail generation is best-effort
+
     def _import_single_file(self, line):
         """Import a single file and return the created workbook."""
         filename = line.filename or 'Untitled'
         file_data = base64.b64decode(line.file)
         ext = os.path.splitext(filename)[1].lower()
 
-        # Determine file type and extract name from content
-        name = os.path.splitext(filename)[0]  # default: filename without extension
+        name = os.path.splitext(filename)[0]
 
-        # Auto-detect format if no extension
         if not ext:
             ext = self._detect_format(file_data)
 
@@ -106,13 +153,14 @@ class XMindImportWizard(models.TransientModel):
         elif ext in ('.mmap',):
             workbook = self._import_mindmanager(file_data, name)
         else:
-            raise UserError(_('Unsupported file format: %s. Supported: .xmind, .mm, .mmap') % (ext or _('(none)')))
+            raise UserError(
+                _('Unsupported file format: %s. Supported: .xmind, .mm, .mmap') % (ext or _('(none)'))
+            )
 
         return workbook
 
     def _detect_format(self, file_data):
         """Auto-detect file format from content."""
-        # ZIP-based formats (.xmind, .mmap)
         if file_data[:4] == b'PK\x03\x04':
             try:
                 with zipfile.ZipFile(io.BytesIO(file_data), 'r') as zf:
@@ -123,7 +171,6 @@ class XMindImportWizard(models.TransientModel):
                         return '.mmap'
             except zipfile.BadZipFile:
                 pass
-        # XML-based (.mm FreeMind)
         if file_data[:5] == b'<?xml' or file_data.lstrip()[:5] == b'<map>' or file_data.lstrip()[:5] == b'<map ':
             return '.mm'
         return ''
@@ -136,7 +183,6 @@ class XMindImportWizard(models.TransientModel):
 
                 if 'content.json' in file_list:
                     content = json.loads(zf.read('content.json'))
-                    # Extract name from first sheet's root topic
                     root_title = default_name
                     if content and isinstance(content, list) and len(content) > 0:
                         first_sheet = content[0]
@@ -150,9 +196,7 @@ class XMindImportWizard(models.TransientModel):
                         'xmind_file': base64.b64encode(file_data),
                         'xmind_filename': default_name + '.xmind',
                     })
-                    # Reuse existing import logic
                     workbook.import_xmind_file()
-                    # Override name with root topic title
                     if root_title != default_name:
                         workbook.name = root_title
                     return workbook
@@ -163,14 +207,12 @@ class XMindImportWizard(models.TransientModel):
                     root = ET.fromstring(content_xml)
                     ns = {'xmap': 'urn:xmind:xmap:xmlns:content:2.0'}
 
-                    # Extract name from first sheet title or root topic
                     root_title = default_name
                     sheet_elem = root.find('.//xmap:sheet', ns)
                     if sheet_elem is not None:
                         title_elem = sheet_elem.find('xmap:title', ns)
                         if title_elem is not None and title_elem.text:
                             root_title = title_elem.text
-                        # Also try root topic title
                         topic_elem = sheet_elem.find('xmap:topic/xmap:title', ns)
                         if topic_elem is not None and topic_elem.text:
                             root_title = topic_elem.text

@@ -68,6 +68,98 @@
         parent="menu_xmind_root"
         sequence="100"/>
 
+    <!-- Tag Category Views -->
+    <record id="view_xmind_tag_category_list" model="ir.ui.view">
+        <field name="name">xmind.tag.category.list</field>
+        <field name="model">xmind.tag.category</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="color" widget="color_picker"/>
+                <field name="tag_ids" widget="many2many_tags"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_xmind_tag_category_form" model="ir.ui.view">
+        <field name="name">xmind.tag.category.form</field>
+        <field name="model">xmind.tag.category</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="color" widget="color_picker"/>
+                    </group>
+                    <field name="tag_ids">
+                        <list>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="color" widget="color_picker"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_xmind_tag_category" model="ir.actions.act_window">
+        <field name="name">Tag Categories</field>
+        <field name="res_model">xmind.tag.category</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Tag Views -->
+    <record id="view_xmind_tag_list" model="ir.ui.view">
+        <field name="name">xmind.tag.list</field>
+        <field name="model">xmind.tag</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="category_id"/>
+                <field name="color" widget="color_picker"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_xmind_tag_form" model="ir.ui.view">
+        <field name="name">xmind.tag.form</field>
+        <field name="model">xmind.tag</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="category_id"/>
+                        <field name="color" widget="color_picker"/>
+                        <field name="sequence"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_xmind_tag" model="ir.actions.act_window">
+        <field name="name">Tags</field>
+        <field name="res_model">xmind.tag</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- Configuration Menuitems -->
+    <menuitem id="menu_xmind_tag_categories"
+        name="Tag Categories"
+        parent="menu_xmind_config"
+        action="action_xmind_tag_category"
+        sequence="5"/>
+
+    <menuitem id="menu_xmind_tags"
+        name="Tags"
+        parent="menu_xmind_config"
+        action="action_xmind_tag"
+        sequence="6"/>
+
     <menuitem id="menu_xmind_markers"
         name="Markers"
         parent="menu_xmind_config"
