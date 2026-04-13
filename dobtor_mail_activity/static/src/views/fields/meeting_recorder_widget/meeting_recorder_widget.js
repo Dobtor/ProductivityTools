@@ -1,0 +1,118 @@
+/** @odoo-module */
+
+import { registry } from "@web/core/registry";
+import { standardFieldProps } from "@web/views/fields/standard_field_props";
+import { MeetingRecorder } from "@dobtor_mail_activity/components/meeting_recorder/meeting_recorder";
+import { useService } from "@web/core/utils/hooks";
+import { _t } from "@web/core/l10n/translation";
+import { Component, onWillUnmount } from "@odoo/owl";
+
+/**
+ * MeetingRecorderWidget
+ *
+ * 可嵌入 form view 的錄音 widget。
+ * 功能：
+ * - 嵌入 MeetingRecorder 錄音元件
+ * - 監聽 bus.bus 通知，辨識完成時自動 reload
+ */
+export class MeetingRecorderWidget extends Component {
+    static template = "dobtor_mail_activity.MeetingRecorderWidget";
+    static components = { MeetingRecorder };
+    static props = {
+        ...standardFieldProps,
+    };
+
+    setup() {
+        this.busService = useService("bus_service");
+        this.notification = useService("notification");
+
+        // 訂閱 bus.bus 辨識/摘要狀態通知，保存 unsubscribe 函數
+        const unsubTranscript = this.busService.subscribe(
+            "note_recording/transcription_update",
+            (payload) => this._onTranscriptionUpdate(payload)
+        );
+        const unsubSummary = this.busService.subscribe(
+            "note_recording/summary_update",
+            (payload) => this._onSummaryUpdate(payload)
+        );
+
+        // 元件卸載時取消訂閱，避免重複訂閱和記憶體洩漏
+        onWillUnmount(() => {
+            unsubTranscript();
+            unsubSummary();
+        });
+    }
+
+    get noteId() {
+        return this.props.record.resId;
+    }
+
+    get isReadonly() {
+        return this.props.readonly;
+    }
+
+    get isMeeting() {
+        return this.props.record.data.note_type === "meeting";
+    }
+
+    async onRecordingCreated(result) {
+        await this.props.record.model.root.load();
+    }
+
+    async _onTranscriptionUpdate(payload) {
+        // 只處理當前 note 的通知
+        if (payload.note_id !== this.noteId) {
+            return;
+        }
+
+        const done = payload.progress_done || 0;
+        const total = payload.progress_total || 1;
+
+        if (payload.state === "error") {
+            this.notification.add(
+                _t("Transcription failed: ") + (payload.error_message || ""),
+                { type: "danger", sticky: true }
+            );
+        } else if (done < total) {
+            // 進度通知
+            this.notification.add(
+                _t("Transcription progress: %(done)s / %(total)s completed.", { done, total }),
+                { type: "info" }
+            );
+        } else {
+            // 全部完成
+            this.notification.add(
+                _t("All transcriptions completed successfully."),
+                { type: "success" }
+            );
+        }
+
+        // 重新載入 record 以更新所有欄位
+        await this.props.record.model.root.load();
+    }
+
+    async _onSummaryUpdate(payload) {
+        if (payload.note_id !== this.noteId) {
+            return;
+        }
+
+        if (payload.summary_state === "done") {
+            this.notification.add(
+                _t("Meeting summary generated successfully."),
+                { type: "success" }
+            );
+        } else if (payload.summary_state === "error") {
+            this.notification.add(
+                _t("Summary generation failed."),
+                { type: "danger", sticky: true }
+            );
+        }
+
+        await this.props.record.model.root.load();
+    }
+}
+
+registry.category("fields").add("meeting_recorder_widget", {
+    component: MeetingRecorderWidget,
+    supportedTypes: ["integer"],
+});

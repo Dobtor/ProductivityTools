@@ -25,4 +25,10 @@ access_activity_efficiency_metrics_timesheet_manager,activity.efficiency.metrics
 access_activity_efficiency_metrics_activity_manager,activity.efficiency.metrics.activity.manager,model_activity_efficiency_metrics,dobtor_mail_activity.group_activity_manager,1,1,1,1
 access_weekly_schedule_config_user,weekly.schedule.config.user,model_weekly_schedule_config,base.group_user,1,1,1,0
 access_weekly_schedule_config_admin,weekly.schedule.config.admin,model_weekly_schedule_config,base.group_system,1,1,1,1
+access_note_recording_user,note.recording.user,model_note_recording,base.group_user,1,1,1,1
+access_note_recording_manager,note.recording.manager,model_note_recording,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_transcript_segment_user,note.transcript.segment.user,model_note_transcript_segment,base.group_user,1,1,1,1
+access_note_transcript_segment_manager,note.transcript.segment.manager,model_note_transcript_segment,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_speaker_mapping_user,note.speaker.mapping.user,model_note_speaker_mapping,base.group_user,1,1,1,0
+access_note_speaker_mapping_manager,note.speaker.mapping.manager,model_note_speaker_mapping,dobtor_mail_activity.group_activity_manager,1,1,1,1
 access_ir_model_user,ir.model.user,base.model_ir_model,base.group_user,1,0,0,0

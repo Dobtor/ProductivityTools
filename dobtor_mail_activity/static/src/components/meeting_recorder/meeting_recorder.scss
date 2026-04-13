@@ -1,0 +1,77 @@
+.o_meeting_recorder {
+    // 錄音按鈕
+    .o_recorder_btn {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+
+        &:hover {
+            transform: scale(1.1);
+        }
+    }
+
+    // 錄音中指示器（紅色脈動圓點）
+    .o_recording_indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: #dc3545;
+        animation: o_recording_pulse 1.5s ease-in-out infinite;
+    }
+
+    // 閃爍紅點
+    .o_recording_dot {
+        animation: o_recording_blink 1s step-end infinite;
+        font-size: 8px;
+        vertical-align: middle;
+    }
+
+    @keyframes o_recording_pulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.5;
+            transform: scale(1.3);
+        }
+    }
+
+    @keyframes o_recording_blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+
+    // 計時器
+    .o_recorder_timer {
+        min-width: 80px;
+    }
+}
+
+// 內嵌播放器
+.o_audio_player {
+    .o_audio_player_element {
+        height: 32px;
+        max-width: 240px;
+        vertical-align: middle;
+    }
+}
+
+// 逐字稿樣式
+.o_transcript_segment {
+    .o_transcript_speaker {
+        font-size: 0.9em;
+    }
+
+    .o_transcript_time {
+        font-family: monospace;
+        font-size: 0.85em;
+    }
+
+    .o_transcript_text {
+        line-height: 1.6;
+    }
+}

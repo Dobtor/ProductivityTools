@@ -173,6 +173,90 @@
         </record>
 
         <!-- ==========================================
+             note.recording 記錄規則
+             ========================================== -->
+
+        <!-- 用戶可存取自己建立筆記的錄音 -->
+        <record id="note_recording_rule_user" model="ir.rule">
+            <field name="name">Note Recording: User Access Own Note Recordings</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 管理者可存取所有錄音 -->
+        <record id="note_recording_rule_manager" model="ir.rule">
+            <field name="name">Note Recording: Manager Access All Recordings</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ==========================================
+             note.transcript.segment 記錄規則
+             ========================================== -->
+
+        <!-- 用戶可存取自己建立筆記的逐字稿 -->
+        <record id="note_transcript_segment_rule_user" model="ir.rule">
+            <field name="name">Transcript Segment: User Access Own Note Segments</field>
+            <field name="model_id" ref="model_note_transcript_segment"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 管理者可存取所有逐字稿 -->
+        <record id="note_transcript_segment_rule_manager" model="ir.rule">
+            <field name="name">Transcript Segment: Manager Access All Segments</field>
+            <field name="model_id" ref="model_note_transcript_segment"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ==========================================
+             note.speaker.mapping 記錄規則
+             ========================================== -->
+
+        <!-- 用戶可存取自己建立筆記的說話者對應 -->
+        <record id="note_speaker_mapping_rule_user" model="ir.rule">
+            <field name="name">Speaker Mapping: User Access Own Note Mappings</field>
+            <field name="model_id" ref="model_note_speaker_mapping"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 管理者可存取所有說話者對應 -->
+        <record id="note_speaker_mapping_rule_manager" model="ir.rule">
+            <field name="name">Speaker Mapping: Manager Access All Mappings</field>
+            <field name="model_id" ref="model_note_speaker_mapping"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ==========================================
              note.stage 記錄規則
              ========================================== -->
 

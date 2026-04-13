@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- note.recording List View                                      -->
+    <!-- 錄音清單視圖                                                   -->
+    <!-- ============================================================ -->
+    <record id="view_note_recording_list" model="ir.ui.view">
+        <field name="name">note.recording.list</field>
+        <field name="model">note.recording</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name" string="Name"/>
+                <field name="record_start" string="Start Time"/>
+                <field name="duration" string="Duration (s)" widget="float_time"/>
+                <field name="file_format" string="Format" optional="hide"/>
+                <field name="file_size" string="Size" optional="hide"/>
+                <field name="state" string="Status" widget="badge"
+                       decoration-info="state == 'uploaded'"
+                       decoration-warning="state == 'processing'"
+                       decoration-success="state == 'done'"
+                       decoration-danger="state == 'error'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.recording Form View                                      -->
+    <!-- 錄音表單視圖                                                   -->
+    <!-- ============================================================ -->
+    <record id="view_note_recording_form" model="ir.ui.view">
+        <field name="name">note.recording.form</field>
+        <field name="model">note.recording</field>
+        <field name="arch" type="xml">
+            <form string="Recording">
+                <header>
+                    <button name="action_transcribe" type="object"
+                            string="Start Transcription" class="btn-primary"
+                            icon="fa-language"
+                            invisible="state not in ('uploaded', 'error')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="uploaded,processing,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="note_id"/>
+                            <field name="record_start"/>
+                            <field name="record_end"/>
+                        </group>
+                        <group>
+                            <field name="duration" widget="float_time"/>
+                            <field name="file_format"/>
+                            <field name="file_size"/>
+                            <field name="attachment_id"/>
+                        </group>
+                    </group>
+                    <group invisible="state != 'error'">
+                        <field name="error_message" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.transcript.segment List View                             -->
+    <!-- 逐字稿段落清單視圖                                             -->
+    <!-- ============================================================ -->
+    <record id="view_note_transcript_segment_list" model="ir.ui.view">
+        <field name="name">note.transcript.segment.list</field>
+        <field name="model">note.transcript.segment</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="time_start" string="Start" widget="float_time"/>
+                <field name="time_end" string="End" widget="float_time"/>
+                <field name="speaker_label" string="Speaker ID"/>
+                <field name="speaker_name" string="Speaker"/>
+                <field name="text" string="Content"/>
+                <field name="confidence" string="Confidence" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.speaker.mapping List View                                -->
+    <!-- 說話者對應清單視圖                                             -->
+    <!-- ============================================================ -->
+    <record id="view_note_speaker_mapping_list" model="ir.ui.view">
+        <field name="name">note.speaker.mapping.list</field>
+        <field name="model">note.speaker.mapping</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="speaker_label" string="Speaker ID" readonly="1"/>
+                <field name="partner_id" string="Contact"/>
+                <field name="display_name_override" string="Display Name"/>
+            </list>
+        </field>
+    </record>
+
+</odoo>

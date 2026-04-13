@@ -1,10 +1,81 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import logging
 import uuid
+import threading
+import requests
+
+from markupsafe import escape as html_escape
+
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import html2plaintext
+
+SUMMARY_PROMPT_PRESETS = {
+    'formal': {
+        'name': 'Formal Meeting Minutes',
+        'name_zh': '正式會議記錄',
+        'prompt': (
+            '你是專業的會議記錄助理。請根據以下逐字稿產生結構化的會議摘要。\n\n'
+            '## 輸出格式（使用 HTML 標籤）\n'
+            '1. <h4>會議主題</h4>：一句話概述\n'
+            '2. <h4>出席者</h4>：列出所有發言者\n'
+            '3. <h4>討論要點</h4>：分點列出主要討論內容\n'
+            '4. <h4>決議事項</h4>：明確的決定，含負責人\n'
+            '5. <h4>待辦事項</h4>：具體的 action items，含負責人與期限\n\n'
+            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
+            '## 逐字稿\n{transcript}'
+        ),
+    },
+    'brainstorm': {
+        'name': 'Brainstorming Session',
+        'name_zh': '腦力激盪紀要',
+        'prompt': (
+            '你是創意會議的記錄助理。請根據以下逐字稿整理出腦力激盪的結果。\n\n'
+            '## 輸出格式（使用 HTML 標籤）\n'
+            '1. <h4>主題</h4>：討論的核心問題\n'
+            '2. <h4>提出的想法</h4>：列出所有被提及的想法或方案，標注提出者\n'
+            '3. <h4>篩選結果</h4>：哪些想法被認可、哪些被排除，附原因\n'
+            '4. <h4>下一步行動</h4>：後續要做的事\n\n'
+            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
+            '## 逐字稿\n{transcript}'
+        ),
+    },
+    'standup': {
+        'name': 'Daily Standup / Sprint Review',
+        'name_zh': '每日站會 / Sprint 回顧',
+        'prompt': (
+            '你是敏捷開發團隊的會議記錄助理。請根據以下逐字稿整理站會或回顧會議。\n\n'
+            '## 輸出格式（使用 HTML 標籤）\n'
+            '依每位發言者分段：\n'
+            '<h4>[姓名]</h4>\n'
+            '<ul>\n'
+            '  <li><b>昨天完成</b>：...</li>\n'
+            '  <li><b>今天計畫</b>：...</li>\n'
+            '  <li><b>遇到的阻礙</b>：...</li>\n'
+            '</ul>\n\n'
+            '最後加上 <h4>需要協調的事項</h4>。\n\n'
+            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
+            '## 逐字稿\n{transcript}'
+        ),
+    },
+    'project': {
+        'name': 'Project Status Meeting',
+        'name_zh': '專案進度會議',
+        'prompt': (
+            '你是專案管理的會議記錄助理。請根據以下逐字稿產生專案進度會議摘要。\n\n'
+            '## 輸出格式（使用 HTML 標籤）\n'
+            '1. <h4>專案概況</h4>：目前整體狀態（正常/延遲/風險）\n'
+            '2. <h4>各模組進度</h4>：依負責人或模組分段報告\n'
+            '3. <h4>風險與問題</h4>：需要注意的風險和待解問題\n'
+            '4. <h4>決議事項</h4>：會議中做出的決定\n'
+            '5. <h4>下次里程碑</h4>：下一個檢查點的日期和目標\n\n'
+            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
+            '## 逐字稿\n{transcript}'
+        ),
+    },
+}
 
 _logger = logging.getLogger(__name__)
 
@@ -170,6 +241,49 @@ class NoteNote(models.Model):
         help='Partners who can be selected as signers (from calendar event attendees)',
     )
 
+    # ===== 錄音與逐字稿欄位 =====
+    recording_ids = fields.One2many(
+        'note.recording',
+        'note_id',
+        string='Recordings',
+    )
+    recording_count = fields.Integer(
+        string='Recording Count',
+        compute='_compute_recording_count',
+    )
+    transcript_ids = fields.One2many(
+        'note.transcript.segment',
+        'note_id',
+        string='Transcript Segments',
+    )
+    transcript_html = fields.Html(
+        string='Transcript (Formatted)',
+        compute='_compute_transcript_html',
+        store=True,
+    )
+    transcript_state = fields.Selection([
+        ('none', 'None'),
+        ('processing', 'Processing'),
+        ('done', 'Done'),
+        ('error', 'Error'),
+    ], string='Transcript Status', default='none')
+    speaker_mapping_ids = fields.One2many(
+        'note.speaker.mapping',
+        'note_id',
+        string='Speaker Mapping',
+    )
+
+    # ===== 會議摘要欄位 =====
+    meeting_summary = fields.Html(
+        string='Meeting Summary',
+    )
+    summary_state = fields.Selection([
+        ('none', 'None'),
+        ('processing', 'Processing'),
+        ('done', 'Done'),
+        ('error', 'Error'),
+    ], string='Summary Status', default='none')
+
     # ===== 筆記專屬待辦關聯欄位 =====
     # 注意：不要覆寫 mail.activity.mixin 的 activity_ids，否則會影響標準活動功能
     note_activity_ids = fields.One2many(
@@ -221,6 +335,51 @@ class NoteNote(models.Model):
         """取得第一個標籤作為主要標籤"""
         for note in self:
             note.main_tag_id = note.tag_ids[:1]
+
+    @api.depends('recording_ids')
+    def _compute_recording_count(self):
+        """計算錄音數量"""
+        for note in self:
+            note.recording_count = len(note.recording_ids)
+
+    @api.depends('transcript_ids', 'transcript_ids.text',
+                 'transcript_ids.speaker_name', 'transcript_ids.speaker_label',
+                 'transcript_ids.time_start',
+                 'speaker_mapping_ids.partner_id',
+                 'speaker_mapping_ids.display_name_override')
+    def _compute_transcript_html(self):
+        """產生格式化逐字稿 HTML"""
+        for note in self:
+            if not note.transcript_ids:
+                note.transcript_html = False
+                continue
+
+            lines = []
+            current_speaker = None
+            for seg in note.transcript_ids.sorted('time_start'):
+                time_str = seg._format_time(seg.time_start)
+                name = html_escape(seg.speaker_name or seg.speaker_label or _('Unknown'))
+                text = html_escape(seg.text or '')
+
+                if name != current_speaker:
+                    current_speaker = name
+                    lines.append(
+                        f'<div class="o_transcript_segment mb-2">'
+                        f'<div class="o_transcript_speaker fw-bold text-primary">'
+                        f'<span class="o_transcript_time text-muted me-2">[{time_str}]</span>'
+                        f'{name}：'
+                        f'</div>'
+                        f'<div class="o_transcript_text ms-4">{text}</div>'
+                        f'</div>'
+                    )
+                else:
+                    lines.append(
+                        f'<div class="o_transcript_segment mb-1">'
+                        f'<div class="o_transcript_text ms-4">{text}</div>'
+                        f'</div>'
+                    )
+
+            note.transcript_html = ''.join(lines)
 
     @api.depends('calendar_event_ids')
     def _compute_calendar_event_count(self):
@@ -361,6 +520,10 @@ class NoteNote(models.Model):
             'active', 'open', 'date_done',
             # 日曆事件可以在鎖定後新增
             'calendar_event_ids',
+            # 錄音/逐字稿/摘要（鎖定後仍可操作）
+            'recording_ids', 'transcript_ids', 'transcript_html',
+            'transcript_state', 'speaker_mapping_ids',
+            'meeting_summary', 'summary_state',
         }
 
         # 檢查是否嘗試修改鎖定欄位
@@ -707,3 +870,304 @@ class NoteNote(models.Model):
             'url': self.get_portal_url(),
             'target': 'new',
         }
+
+    # ===== 錄音與逐字稿動作 =====
+    def action_transcribe_all(self):
+        """辨識所有已上傳的錄音"""
+        self.ensure_one()
+        recordings = self.recording_ids.filtered(lambda r: r.state in ('uploaded', 'error'))
+        if not recordings:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Information'),
+                    'message': _('No recordings to transcribe.'),
+                    'type': 'info',
+                    'sticky': False,
+                }
+            }
+        # 一次傳入所有錄音，在單一 thread 中依序處理
+        return recordings.action_transcribe()
+
+    def action_generate_summary(self):
+        """從逐字稿產生會議摘要（非同步）"""
+        self.ensure_one()
+        if not self.transcript_ids:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Warning'),
+                    'message': _('No transcript available. Please transcribe recordings first.'),
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+
+        company = self.env.company
+        provider = company.summary_provider
+        if not provider:
+            raise UserError(_('Please configure a summary provider in Settings.'))
+
+        handler = getattr(self, f'_summarize_{provider}', None)
+        if not handler:
+            raise UserError(_('Unsupported summary provider: %s', provider))
+
+        self.write({'summary_state': 'processing'})
+
+        # 在獨立 thread 中執行，避免阻塞
+        db_name = self.env.cr.dbname
+        note_id = self.id
+        uid = self.env.uid
+
+        thread = threading.Thread(
+            target=self._async_summary_worker,
+            args=(db_name, uid, note_id),
+            daemon=True,
+        )
+        thread.start()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Summary Generation Started'),
+                'message': _('Generating summary in background. You will be notified when complete.'),
+                'type': 'info',
+                'sticky': False,
+            }
+        }
+
+    @api.model
+    def _async_summary_worker(self, db_name, uid, note_id):
+        """獨立 thread 中的摘要產生工作"""
+        import odoo
+        registry = odoo.registry(db_name)
+
+        with registry.cursor() as cr:
+            env = api.Environment(cr, uid, {})
+            note = env['note.note'].browse(note_id)
+            summary_state = 'error'
+
+            try:
+                transcript_text = note._format_transcript_for_llm()
+                company = env.company
+                provider = company.summary_provider
+
+                prompt_template = company.summary_prompt_template or note._get_default_summary_prompt()
+                prompt = prompt_template.replace('{transcript}', transcript_text)
+
+                handler = getattr(note, f'_summarize_{provider}')
+                summary_html = handler(prompt)
+
+                note.write({
+                    'meeting_summary': summary_html,
+                    'summary_state': 'done',
+                })
+                summary_state = 'done'
+                cr.commit()
+            except Exception as e:
+                cr.rollback()
+                env.invalidate_all()
+                _logger.exception('Summary generation failed for note %s', note_id)
+                note.write({'summary_state': 'error'})
+                cr.commit()
+
+            # 發送 bus.bus 通知（用已確定的 state，避免讀取 rollback 後的快取）
+            try:
+                env['bus.bus']._sendone(
+                    env.user.partner_id,
+                    'note_recording/summary_update',
+                    {
+                        'note_id': note_id,
+                        'summary_state': summary_state,
+                    },
+                )
+                cr.commit()
+            except Exception:
+                cr.rollback()
+                _logger.exception('Failed to send bus notification for summary %s', note_id)
+
+    def action_apply_summary_to_memo(self):
+        """將摘要寫入 memo 欄位"""
+        self.ensure_one()
+        if self.is_locked:
+            raise UserError(_('Meeting minutes is locked. Cannot modify content.'))
+        if not self.meeting_summary:
+            raise UserError(_('No summary available to apply.'))
+        self.memo = (self.memo or '') + '<hr/>' + self.meeting_summary
+        return True
+
+    # ===== 逐字稿匯出 =====
+    def action_export_transcript_txt(self):
+        """匯出逐字稿為 TXT 檔"""
+        self.ensure_one()
+        if not self.transcript_ids:
+            raise UserError(_('No transcript available to export.'))
+
+        content = self._format_transcript_for_llm()
+        filename = f"transcript_{self.name or self.id}.txt"
+
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(content.encode('utf-8')),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'text/plain',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'new',
+        }
+
+    def action_export_transcript_srt(self):
+        """匯出逐字稿為 SRT 字幕檔"""
+        self.ensure_one()
+        if not self.transcript_ids:
+            raise UserError(_('No transcript available to export.'))
+
+        lines = []
+        for idx, seg in enumerate(self.transcript_ids.sorted('time_start'), 1):
+            start_srt = self._seconds_to_srt_time(seg.time_start)
+            end_srt = self._seconds_to_srt_time(seg.time_end)
+            name = seg.speaker_name or seg.speaker_label or ''
+            prefix = f'[{name}] ' if name else ''
+            lines.append(f'{idx}')
+            lines.append(f'{start_srt} --> {end_srt}')
+            lines.append(f'{prefix}{seg.text}')
+            lines.append('')
+
+        content = '\n'.join(lines)
+        filename = f"transcript_{self.name or self.id}.srt"
+
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(content.encode('utf-8')),
+            'res_model': self._name,
+            'res_id': self.id,
+            'mimetype': 'application/x-subrip',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'new',
+        }
+
+    @staticmethod
+    def _seconds_to_srt_time(seconds):
+        """將秒數轉換為 SRT 時間格式 HH:MM:SS,mmm"""
+        total_ms = int((seconds or 0) * 1000)
+        hours, remainder = divmod(total_ms, 3600000)
+        minutes, remainder = divmod(remainder, 60000)
+        secs, ms = divmod(remainder, 1000)
+        return f'{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}'
+
+    def _format_transcript_for_llm(self):
+        """將逐字稿格式化為 LLM 輸入文字"""
+        self.ensure_one()
+        lines = []
+        for seg in self.transcript_ids.sorted('time_start'):
+            name = seg.speaker_name or seg.speaker_label or _('Unknown')
+            minutes = int(seg.time_start // 60)
+            seconds = int(seg.time_start % 60)
+            time_str = f'{minutes:02d}:{seconds:02d}'
+            lines.append(f'[{time_str}] {name}：{seg.text}')
+        return '\n'.join(lines)
+
+    @api.model
+    def _get_default_summary_prompt(self):
+        """取得摘要 Prompt — 依公司設定的 preset 或自訂"""
+        company = self.env.company
+        preset_key = company.summary_prompt_preset
+        if preset_key and preset_key in SUMMARY_PROMPT_PRESETS:
+            return SUMMARY_PROMPT_PRESETS[preset_key]['prompt']
+        # fallback: formal
+        return SUMMARY_PROMPT_PRESETS['formal']['prompt']
+
+    @api.model
+    def get_summary_prompt_presets(self):
+        """回傳可用的 prompt 預設清單（給前端使用）"""
+        return [
+            {'key': k, 'name': v['name'], 'name_zh': v['name_zh']}
+            for k, v in SUMMARY_PROMPT_PRESETS.items()
+        ]
+
+    def _summarize_claude(self, prompt):
+        """使用 Claude API 產生摘要"""
+        api_key = self.env['ir.config_parameter'].sudo().get_param('dobtor_mail_activity.summary_api_key')
+        if not api_key:
+            raise UserError(_('Please configure the summary API key in Settings.'))
+
+        try:
+            response = requests.post(
+                'https://api.anthropic.com/v1/messages',
+                headers={
+                    'x-api-key': api_key,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json',
+                },
+                json={
+                    'model': 'claude-sonnet-4-20250514',
+                    'max_tokens': 4096,
+                    'messages': [{'role': 'user', 'content': prompt}],
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise UserError(_('Claude API error: %s', str(e)))
+        result = response.json()
+        return result['content'][0]['text']
+
+    def _summarize_openai(self, prompt):
+        """使用 OpenAI API 產生摘要"""
+        api_key = self.env['ir.config_parameter'].sudo().get_param('dobtor_mail_activity.summary_api_key')
+        if not api_key:
+            raise UserError(_('Please configure the summary API key in Settings.'))
+
+        try:
+            response = requests.post(
+                'https://api.openai.com/v1/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json',
+                },
+                json={
+                    'model': 'gpt-4o',
+                    'messages': [{'role': 'user', 'content': prompt}],
+                    'max_tokens': 4096,
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise UserError(_('OpenAI API error: %s', str(e)))
+        result = response.json()
+        return result['choices'][0]['message']['content']
+
+    def _summarize_ollama(self, prompt):
+        """使用本地 Ollama 產生摘要"""
+        company = self.env.company
+        api_url = company.summary_api_url
+        if not api_url:
+            raise UserError(_('Please configure the Ollama API URL in Settings.'))
+
+        try:
+            response = requests.post(
+                f'{api_url.rstrip("/")}/api/generate',
+                json={
+                    'model': company.summary_model_name or 'llama3',
+                    'prompt': prompt,
+                    'stream': False,
+                },
+                timeout=300,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise UserError(_('Ollama API error: %s', str(e)))
+        result = response.json()
+        return result.get('response', '')

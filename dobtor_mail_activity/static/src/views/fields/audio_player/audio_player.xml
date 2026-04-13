@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_mail_activity.AudioPlayerField">
+        <div class="o_audio_player">
+            <audio t-if="audioUrl"
+                   t-att-src="audioUrl"
+                   controls=""
+                   preload="none"
+                   class="o_audio_player_element"/>
+            <span t-else="" class="text-muted">—</span>
+        </div>
+    </t>
+
+</templates>

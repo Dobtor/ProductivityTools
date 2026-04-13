@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_mail_activity.MeetingRecorderWidget">
+        <div t-if="isMeeting and noteId" class="o_meeting_recorder_widget">
+            <MeetingRecorder
+                noteId="noteId"
+                readonly="isReadonly"
+                onRecordingCreated.bind="onRecordingCreated"/>
+        </div>
+    </t>
+
+</templates>

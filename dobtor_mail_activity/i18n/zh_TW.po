@@ -5548,3 +5548,299 @@ msgstr "簽名"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.view_note_note_form
 msgid "Link notes..."
 msgstr "關聯筆記..."
+
+#. module: dobtor_mail_activity
+#. ===== 錄音與逐字稿功能翻譯 =====
+
+#. module: dobtor_mail_activity
+#: model:ir.model,name:dobtor_mail_activity.model_note_recording
+msgid "Meeting Recording"
+msgstr "會議錄音"
+
+#. module: dobtor_mail_activity
+#: model:ir.model,name:dobtor_mail_activity.model_note_transcript_segment
+msgid "Transcript Segment"
+msgstr "逐字稿段落"
+
+#. module: dobtor_mail_activity
+#: model:ir.model,name:dobtor_mail_activity.model_note_speaker_mapping
+msgid "Speaker Mapping"
+msgstr "說話者對應"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_note_recording__name
+msgid "Recording %s"
+msgstr "錄音 %s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Recording #%s"
+msgstr "錄音 #%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Meeting minutes not found."
+msgstr "找不到會議記錄。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Recording file is too large (%(size).1f MB). Maximum allowed is %(max).0f MB."
+msgstr "錄音檔案過大（%(size).1f MB）。允許的最大上限為 %(max).0f MB。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Recording is too long (%(dur).0f minutes). Maximum allowed is %(max).0f minutes."
+msgstr "錄音時間過長（%(dur).0f 分鐘）。允許的最大上限為 %(max).0f 分鐘。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "This recording is already being processed."
+msgstr "此錄音正在處理中。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Processing %d recording(s) in background. You will be notified when complete."
+msgstr "正在背景處理 %d 段錄音，完成後將通知您。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Transcription Started"
+msgstr "辨識已開始"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Please configure a transcription provider in Settings."
+msgstr "請在設定中配置語音辨識供應商。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Unsupported transcription provider: %s"
+msgstr "不支援的語音辨識供應商：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Please configure the AssemblyAI API key in Settings > Productivity Tools."
+msgstr "請在設定 > 生產力工具中配置 AssemblyAI API 金鑰。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI upload failed: %s"
+msgstr "AssemblyAI 上傳失敗：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI upload failed: no upload URL returned."
+msgstr "AssemblyAI 上傳失敗：未回傳上傳網址。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI transcription request failed: %s"
+msgstr "AssemblyAI 轉錄請求失敗：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI: no transcript ID returned."
+msgstr "AssemblyAI：未回傳轉錄 ID。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI polling error: %s"
+msgstr "AssemblyAI 輪詢錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI transcription error: %s"
+msgstr "AssemblyAI 轉錄錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI unexpected status: %s"
+msgstr "AssemblyAI 未知狀態：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "AssemblyAI transcription timed out after %d seconds."
+msgstr "AssemblyAI 轉錄逾時（超過 %d 秒）。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Please configure the OpenAI API key in Settings."
+msgstr "請在設定中配置 OpenAI API 金鑰。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "OpenAI Whisper API error: %s"
+msgstr "OpenAI Whisper API 錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Please configure the transcription service URL in Settings."
+msgstr "請在設定中配置語音辨識服務網址。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Cannot connect to transcription service at %s"
+msgstr "無法連線到語音辨識服務 %s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Transcription service timed out. The recording may be too long."
+msgstr "語音辨識服務逾時。錄音可能過長。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_recording.py:0
+msgid "Transcription service error: %s"
+msgstr "語音辨識服務錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "No recordings to transcribe."
+msgstr "沒有可辨識的錄音。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "No transcript available. Please transcribe recordings first."
+msgstr "尚無逐字稿。請先辨識錄音。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Please configure a summary provider in Settings."
+msgstr "請在設定中配置摘要產生供應商。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Unsupported summary provider: %s"
+msgstr "不支援的摘要供應商：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Summary Generation Started"
+msgstr "摘要產生已開始"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Generating summary in background. You will be notified when complete."
+msgstr "正在背景產生摘要，完成後將通知您。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Meeting minutes is locked. Cannot modify content."
+msgstr "會議記錄已鎖定，無法修改內容。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "No summary available to apply."
+msgstr "沒有可套用的摘要。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "No transcript available to export."
+msgstr "沒有可匯出的逐字稿。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Please configure the summary API key in Settings."
+msgstr "請在設定中配置摘要 API 金鑰。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Claude API error: %s"
+msgstr "Claude API 錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "OpenAI API error: %s"
+msgstr "OpenAI API 錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Please configure the Ollama API URL in Settings."
+msgstr "請在設定中配置 Ollama API 網址。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Ollama API error: %s"
+msgstr "Ollama API 錯誤：%s"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/note_note.py:0
+msgid "Unknown"
+msgstr "未知"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Your browser does not support audio recording."
+msgstr "您的瀏覽器不支援錄音功能。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Microphone access denied. Please allow microphone access in your browser settings."
+msgstr "麥克風存取遭拒。請在瀏覽器設定中允許麥克風權限。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Failed to access microphone: "
+msgstr "無法存取麥克風："
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Recording error"
+msgstr "錄音錯誤"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Maximum recording duration reached. Recording stopped automatically."
+msgstr "已達最大錄音時長，錄音已自動停止。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Recording is empty. Please try again."
+msgstr "錄音為空，請重試。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Recording uploaded successfully."
+msgstr "錄音上傳成功。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Failed to upload recording: "
+msgstr "錄音上傳失敗："
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Transcription failed: "
+msgstr "辨識失敗："
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "All transcriptions completed successfully."
+msgstr "所有錄音辨識已完成。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Transcription progress: %(done)s / %(total)s completed."
+msgstr "辨識進度：%(done)s / %(total)s 已完成。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Meeting summary generated successfully."
+msgstr "會議摘要已產生。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Summary generation failed."
+msgstr "摘要產生失敗。"

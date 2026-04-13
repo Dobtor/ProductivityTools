@@ -165,6 +165,9 @@
                     <field name="calendar_event_count" invisible="1"/>
                     <field name="signature_count" invisible="1"/>
                     <field name="available_signer_ids" invisible="1"/>
+                    <field name="recording_count" invisible="1"/>
+                    <field name="transcript_state" invisible="1"/>
+                    <field name="summary_state" invisible="1"/>
 
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
@@ -183,6 +186,11 @@
                                 </span>
                                 <span class="o_stat_text">Signatures</span>
                             </div>
+                        </button>
+                        <button name="action_transcribe_all" type="object"
+                                class="oe_stat_button" icon="fa-microphone"
+                                invisible="note_type != 'meeting' or recording_count == 0">
+                            <field name="recording_count" widget="statinfo" string="Recordings"/>
                         </button>
                         <button name="action_view_calendar_events" type="object"
                                 class="oe_stat_button" icon="fa-calendar"
@@ -284,6 +292,141 @@
                                 </list>
                             </field>
                         </page>
+                        <!-- 錄音 -->
+                        <page string="Recordings" name="recordings"
+                              invisible="note_type != 'meeting'">
+                            <div class="mb-3">
+                                <div class="alert alert-info d-flex align-items-center" role="alert"
+                                     invisible="recording_count > 0">
+                                    <i class="fa fa-microphone fa-2x me-3"/>
+                                    <div>
+                                        Use the recording button below to record meeting audio directly from your browser.
+                                        After uploading, click "Start Transcription" to convert speech to text.
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 錄音器 Widget -->
+                            <field name="recording_count" widget="meeting_recorder_widget"
+                                   nolabel="1" class="mb-3"/>
+                            <field name="recording_ids">
+                                <list create="false" editable="bottom">
+                                    <field name="name" string="Name" readonly="1"/>
+                                    <field name="duration" string="Duration (s)" readonly="1"/>
+                                    <field name="audio_url" string="Play" widget="audio_player"
+                                           readonly="1"/>
+                                    <field name="file_format" string="Format" readonly="1" optional="hide"/>
+                                    <field name="state" string="Status" widget="badge"
+                                           decoration-info="state == 'uploaded'"
+                                           decoration-warning="state == 'processing'"
+                                           decoration-success="state == 'done'"
+                                           decoration-danger="state == 'error'"
+                                           readonly="1"/>
+                                    <button name="action_transcribe" type="object"
+                                            string="Transcribe" icon="fa-language"
+                                            invisible="state not in ('uploaded', 'error')"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- 逐字稿 -->
+                        <page string="Transcript" name="transcript"
+                              invisible="note_type != 'meeting' or transcript_state == 'none'">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="badge text-bg-warning"
+                                          invisible="transcript_state != 'processing'">
+                                        <i class="fa fa-spinner fa-spin me-1"/>Processing...
+                                    </span>
+                                    <span class="badge text-bg-success"
+                                          invisible="transcript_state != 'done'">
+                                        <i class="fa fa-check me-1"/>Transcription Complete
+                                    </span>
+                                    <span class="badge text-bg-danger"
+                                          invisible="transcript_state != 'error'">
+                                        <i class="fa fa-exclamation-triangle me-1"/>Error
+                                    </span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button name="action_export_transcript_txt" type="object"
+                                            string="Export TXT" class="btn-outline-secondary btn-sm"
+                                            icon="fa-file-text-o"
+                                            invisible="transcript_state != 'done'"/>
+                                    <button name="action_export_transcript_srt" type="object"
+                                            string="Export SRT" class="btn-outline-secondary btn-sm"
+                                            icon="fa-file-video-o"
+                                            invisible="transcript_state != 'done'"/>
+                                    <button name="action_transcribe_all" type="object"
+                                            string="Re-transcribe" class="btn-secondary btn-sm"
+                                            icon="fa-refresh"
+                                            invisible="transcript_state not in ('done', 'error')"/>
+                                </div>
+                            </div>
+
+                            <!-- 說話者對應 -->
+                            <group string="Speaker Mapping"
+                                   invisible="not speaker_mapping_ids">
+                                <field name="speaker_mapping_ids" nolabel="1">
+                                    <list editable="bottom" create="false" delete="false">
+                                        <field name="speaker_label" string="Speaker ID" readonly="1"/>
+                                        <field name="partner_id" string="Contact"
+                                               domain="[('id', 'in', parent.available_signer_ids)]"/>
+                                        <field name="display_name_override" string="Display Name"/>
+                                    </list>
+                                </field>
+                            </group>
+
+                            <!-- 格式化逐字稿 -->
+                            <field name="transcript_html" readonly="1"
+                                   invisible="not transcript_html"/>
+
+                            <!-- 逐字稿段落明細（可行內編輯修正辨識錯誤） -->
+                            <group string="Segment Details" invisible="not transcript_ids">
+                                <field name="transcript_ids" nolabel="1">
+                                    <list create="false" delete="false" editable="bottom">
+                                        <field name="time_start" string="Start" widget="float_time" readonly="1"/>
+                                        <field name="speaker_name" string="Speaker" readonly="1"/>
+                                        <field name="text" string="Content"/>
+                                        <field name="confidence" string="Confidence" optional="hide" readonly="1"/>
+                                    </list>
+                                </field>
+                            </group>
+                        </page>
+
+                        <!-- 會議摘要 -->
+                        <page string="Summary" name="summary"
+                              invisible="note_type != 'meeting' or (transcript_state != 'done' and summary_state == 'none')">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="badge text-bg-warning"
+                                          invisible="summary_state != 'processing'">
+                                        <i class="fa fa-spinner fa-spin me-1"/>Generating...
+                                    </span>
+                                    <span class="badge text-bg-success"
+                                          invisible="summary_state != 'done'">
+                                        <i class="fa fa-check me-1"/>Summary Ready
+                                    </span>
+                                    <span class="badge text-bg-danger"
+                                          invisible="summary_state != 'error'">
+                                        <i class="fa fa-exclamation-triangle me-1"/>Error
+                                    </span>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button name="action_generate_summary" type="object"
+                                            string="Generate Summary" class="btn-primary btn-sm"
+                                            icon="fa-magic"
+                                            invisible="summary_state == 'processing'"/>
+                                    <button name="action_apply_summary_to_memo" type="object"
+                                            string="Apply to Content" class="btn-secondary btn-sm"
+                                            icon="fa-arrow-up"
+                                            invisible="summary_state != 'done' or is_locked"
+                                            confirm="This will append the summary to the meeting content. Continue?"/>
+                                </div>
+                            </div>
+                            <field name="meeting_summary"
+                                   placeholder="Click 'Generate Summary' to create a meeting summary from the transcript..."
+                                   readonly="summary_state == 'processing'"/>
+                        </page>
+
                         <page string="Calendar Events" name="calendar_events"
                               invisible="note_type != 'meeting'">
                             <group>

@@ -89,6 +89,7 @@ Main Features:
         'views/note_tag_views.xml',
         'views/note_stage_views.xml',
         'views/note_views.xml',
+        'views/note_recording_views.xml',
         'views/note_signature_views.xml',
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
