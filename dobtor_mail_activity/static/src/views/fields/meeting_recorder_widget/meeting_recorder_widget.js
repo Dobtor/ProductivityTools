@@ -26,20 +26,16 @@ export class MeetingRecorderWidget extends Component {
         this.busService = useService("bus_service");
         this.notification = useService("notification");
 
-        // 訂閱 bus.bus 辨識/摘要狀態通知，保存 unsubscribe 函數
-        const unsubTranscript = this.busService.subscribe(
-            "note_recording/transcription_update",
-            (payload) => this._onTranscriptionUpdate(payload)
-        );
-        const unsubSummary = this.busService.subscribe(
-            "note_recording/summary_update",
-            (payload) => this._onSummaryUpdate(payload)
-        );
+        // 保存 callback 引用以便 unsubscribe
+        this._onTranscriptionBound = (payload) => this._onTranscriptionUpdate(payload);
+        this._onSummaryBound = (payload) => this._onSummaryUpdate(payload);
 
-        // 元件卸載時取消訂閱，避免重複訂閱和記憶體洩漏
+        this.busService.subscribe("note_recording/transcription_update", this._onTranscriptionBound);
+        this.busService.subscribe("note_recording/summary_update", this._onSummaryBound);
+
         onWillUnmount(() => {
-            unsubTranscript();
-            unsubSummary();
+            this.busService.unsubscribe("note_recording/transcription_update", this._onTranscriptionBound);
+            this.busService.unsubscribe("note_recording/summary_update", this._onSummaryBound);
         });
     }
 
