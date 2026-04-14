@@ -46,7 +46,7 @@
             </xpath>
 
             <!-- ===== Ribbons ===== -->
-            <xpath expr="//widget[@name='web_ribbon' and @title='Archived']" position="after">
+            <xpath expr="//widget[@name='web_ribbon']" position="after">
                 <widget name="web_ribbon" title="Fully Signed" bg_color="text-bg-success"
                         invisible="state != 'signed' or calendar_event_count == 0"/>
                 <widget name="web_ribbon" title="Locked" bg_color="text-bg-warning"
