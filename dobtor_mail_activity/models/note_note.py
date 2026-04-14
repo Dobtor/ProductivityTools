@@ -19,7 +19,7 @@ class NoteNote(models.Model):
     """
     _name = 'note.note'
     _description = 'Note'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'portal.mixin']
     _order = 'sequence, id desc'
 
     # ===== 基本欄位 =====

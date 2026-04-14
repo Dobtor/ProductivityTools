@@ -56,6 +56,7 @@ Main Features:
     'depends': [
         'mail',
         'calendar',
+        'portal',
         'hr_timesheet',
         'hr',
         'project',

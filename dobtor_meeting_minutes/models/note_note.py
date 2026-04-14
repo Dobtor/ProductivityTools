@@ -86,8 +86,11 @@ class NoteNote(models.Model):
     - AI 摘要產生（透過 ChatbotEngine）
     - 簽名流程（Portal 多方簽名）
     - PDF 報告
+
+    portal.mixin 透過 dobtor_mail_activity 的 base model 繼承鏈已包含，
+    此處不重複混入以避免 Many2many 欄位衝突。
     """
-    _inherit = ['note.note', 'portal.mixin']
+    _inherit = 'note.note'
 
     # ===== 會議記錄類型 =====
     note_type = fields.Selection(
