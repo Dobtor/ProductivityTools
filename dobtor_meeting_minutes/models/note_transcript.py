@@ -73,8 +73,8 @@ class NoteTranscriptSegment(models.Model):
             if mapping:
                 seg.partner_id = mapping.partner_id
                 seg.speaker_name = (
-                    mapping.partner_id.name
-                    or mapping.display_name_override
+                    mapping.display_name_override
+                    or mapping.partner_id.name
                     or seg.speaker_label
                 )
             else:

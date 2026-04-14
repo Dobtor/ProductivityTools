@@ -118,7 +118,7 @@ class MeetingPortal(CustomerPortal):
             'searchbar_filters': searchbar_filters,
         })
 
-        return request.render('dobtor_mail_activity.portal_my_meetings', values)
+        return request.render('dobtor_meeting_minutes.portal_my_meetings', values)
 
     @http.route(['/my/meeting/<int:note_id>'],
                 type='http', auth="public", website=True)
@@ -143,7 +143,7 @@ class MeetingPortal(CustomerPortal):
             return self._show_report(
                 model=note_sudo,
                 report_type=report_type,
-                report_ref='dobtor_mail_activity.action_report_meeting_minutes',
+                report_ref='dobtor_meeting_minutes.action_report_meeting_minutes',
                 download=download,
             )
 
@@ -221,7 +221,7 @@ class MeetingPortal(CustomerPortal):
             note_sudo, access_token, values, history_session_key, False, **kwargs
         )
 
-        return request.render('dobtor_mail_activity.meeting_portal_template', values)
+        return request.render('dobtor_meeting_minutes.meeting_portal_template', values)
 
     @http.route(['/my/meeting/<int:note_id>/sign'],
                 type='json', auth="public", website=True)
@@ -291,7 +291,7 @@ class MeetingPortal(CustomerPortal):
         # 如果全部簽名完成，生成最終 PDF
         if note_sudo.all_signed:
             pdf = request.env['ir.actions.report'].sudo()._render_qweb_pdf(
-                'dobtor_mail_activity.action_report_meeting_minutes',
+                'dobtor_meeting_minutes.action_report_meeting_minutes',
                 [note_sudo.id]
             )[0]
             note_sudo.message_post(

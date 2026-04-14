@@ -16,7 +16,7 @@ import { rpc } from "@web/core/network/rpc";
  * - 錄音完成後可觸發語音辨識
  */
 export class MeetingRecorder extends Component {
-    static template = "dobtor_mail_activity.MeetingRecorder";
+    static template = "dobtor_meeting_minutes.MeetingRecorder";
     static props = {
         noteId: { type: Number },
         readonly: { type: Boolean, optional: true },

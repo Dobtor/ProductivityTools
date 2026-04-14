@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- res.company Form View - Meeting Minutes Settings               -->
+    <!-- 公司表單繼承：語音辨識與 AI 摘要設定                              -->
+    <!-- ============================================================ -->
+    <record id="view_company_form_meeting_minutes" model="ir.ui.view">
+        <field name="name">res.company.form.meeting.minutes</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <notebook>
+                    <page string="Meeting Minutes" name="meeting_minutes_settings">
+                        <group string="Transcription Settings">
+                            <group>
+                                <field name="transcription_provider"/>
+                                <field name="transcription_service_url"
+                                       invisible="transcription_provider != 'remote'"/>
+                                <field name="transcription_model_size"
+                                       invisible="transcription_provider != 'remote'"/>
+                                <field name="transcription_language"/>
+                            </group>
+                            <group>
+                                <div class="text-muted" colspan="2">
+                                    API keys are managed in Settings &gt; Productivity Tools.
+                                </div>
+                            </group>
+                        </group>
+                        <group string="Summary Settings">
+                            <group>
+                                <field name="meeting_summary_chatbot_id"/>
+                                <field name="summary_prompt_preset"/>
+                            </group>
+                        </group>
+                    </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

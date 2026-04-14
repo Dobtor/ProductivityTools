@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================================ -->
+        <!-- note.signature Record Rules                                   -->
+        <!-- ============================================================ -->
+
+        <!-- User: own notes only -->
+        <record id="note_signature_rule_user" model="ir.rule">
+            <field name="name">note.signature: user own notes</field>
+            <field name="model_id" ref="model_note_signature"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Portal: own signature only (read) -->
+        <record id="note_signature_rule_portal" model="ir.rule">
+            <field name="name">note.signature: portal own signature</field>
+            <field name="model_id" ref="model_note_signature"/>
+            <field name="domain_force">[('partner_id', '=', user.partner_id.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Manager: all -->
+        <record id="note_signature_rule_manager" model="ir.rule">
+            <field name="name">note.signature: manager all</field>
+            <field name="model_id" ref="model_note_signature"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- note.recording Record Rules                                   -->
+        <!-- ============================================================ -->
+
+        <!-- User: own notes only -->
+        <record id="note_recording_rule_user" model="ir.rule">
+            <field name="name">note.recording: user own notes</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Manager: all -->
+        <record id="note_recording_rule_manager" model="ir.rule">
+            <field name="name">note.recording: manager all</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- note.transcript.segment Record Rules                          -->
+        <!-- ============================================================ -->
+
+        <!-- User: own notes only -->
+        <record id="note_transcript_segment_rule_user" model="ir.rule">
+            <field name="name">note.transcript.segment: user own notes</field>
+            <field name="model_id" ref="model_note_transcript_segment"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Manager: all -->
+        <record id="note_transcript_segment_rule_manager" model="ir.rule">
+            <field name="name">note.transcript.segment: manager all</field>
+            <field name="model_id" ref="model_note_transcript_segment"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- note.speaker.mapping Record Rules                             -->
+        <!-- ============================================================ -->
+
+        <!-- User: own notes only (no unlink) -->
+        <record id="note_speaker_mapping_rule_user" model="ir.rule">
+            <field name="name">note.speaker.mapping: user own notes</field>
+            <field name="model_id" ref="model_note_speaker_mapping"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Manager: all -->
+        <record id="note_speaker_mapping_rule_manager" model="ir.rule">
+            <field name="name">note.speaker.mapping: manager all</field>
+            <field name="model_id" ref="model_note_speaker_mapping"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

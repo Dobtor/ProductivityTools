@@ -9,7 +9,7 @@
         <field name="name">note.signature.list</field>
         <field name="model">note.signature</field>
         <field name="arch" type="xml">
-            <list string="Signatures" create="false">
+            <list create="false">
                 <field name="note_id" string="Meeting Minutes"/>
                 <field name="partner_id" string="Signer"/>
                 <field name="is_signed" string="Signed" widget="boolean_toggle" readonly="1"/>

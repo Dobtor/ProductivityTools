@@ -11,7 +11,7 @@ import { Component } from "@odoo/owl";
  * 綁定 Char 欄位（audio_url）。
  */
 export class AudioPlayerField extends Component {
-    static template = "dobtor_mail_activity.AudioPlayerField";
+    static template = "dobtor_meeting_minutes.AudioPlayerField";
     static props = {
         ...standardFieldProps,
     };

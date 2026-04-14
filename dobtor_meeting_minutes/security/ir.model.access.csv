@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_note_signature_user,note.signature.user,model_note_signature,base.group_user,1,1,1,1
+access_note_signature_portal,note.signature.portal,model_note_signature,base.group_portal,1,0,0,0
+access_note_recording_user,note.recording.user,model_note_recording,base.group_user,1,1,1,1
+access_note_recording_manager,note.recording.manager,model_note_recording,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_transcript_segment_user,note.transcript.segment.user,model_note_transcript_segment,base.group_user,1,1,1,1
+access_note_transcript_segment_manager,note.transcript.segment.manager,model_note_transcript_segment,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_speaker_mapping_user,note.speaker.mapping.user,model_note_speaker_mapping,base.group_user,1,1,1,0
+access_note_speaker_mapping_manager,note.speaker.mapping.manager,model_note_speaker_mapping,dobtor_mail_activity.group_activity_manager,1,1,1,1

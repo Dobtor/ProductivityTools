@@ -22,28 +22,6 @@
                         When an activity is completed without a linked project, the system will use this default project to create timesheet entries.
                         Please ensure the selected project has timesheet feature enabled.
                     </div>
-
-                    <group>
-                        <group string="Transcription Settings">
-                            <field name="transcription_provider"/>
-                            <field name="transcription_service_url"
-                                   invisible="transcription_provider != 'remote'"/>
-                            <field name="transcription_model_size"
-                                   invisible="transcription_provider != 'remote'"/>
-                            <field name="transcription_language"/>
-                        </group>
-                        <group string="Summary Settings">
-                            <field name="summary_provider"/>
-                            <field name="summary_api_url"
-                                   invisible="summary_provider != 'ollama'"/>
-                            <field name="summary_model_name"
-                                   invisible="summary_provider != 'ollama'"/>
-                        </group>
-                    </group>
-                    <div class="alert alert-warning" role="alert">
-                        <i class="fa fa-key me-1"/>
-                        API keys are managed securely in <b>Settings &gt; Productivity Tools</b>.
-                    </div>
                 </page>
             </xpath>
         </field>

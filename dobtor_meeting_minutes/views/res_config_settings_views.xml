@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Settings Page - Meeting Minutes                               -->
+    <!-- 設定頁：語音辨識與 AI 摘要（在 Productivity Tools app 下新增）    -->
+    <!-- ============================================================ -->
+    <record id="res_config_settings_view_form_meeting_minutes" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.meeting.minutes</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.res_config_settings_view_form_inherit_productivity"/>
+        <field name="arch" type="xml">
+
+            <!-- Transcription Settings block -->
+            <xpath expr="//app[@name='dobtor_mail_activity']" position="inside">
+                <block title="Transcription Settings" name="meeting_transcription_settings">
+                    <setting id="meeting_transcription_provider_setting"
+                             string="Transcription Provider"
+                             help="Choose how to process speech-to-text with speaker diarization.">
+                        <field name="transcription_provider"/>
+                    </setting>
+                    <setting id="meeting_transcription_api_key_setting"
+                             string="API Key"
+                             help="API key for AssemblyAI or OpenAI."
+                             invisible="transcription_provider not in ('assemblyai', 'api')">
+                        <field name="transcription_api_key" password="True"/>
+                        <div class="text-muted mt-1"
+                             invisible="transcription_provider != 'assemblyai'">
+                            Get your API key at <a href="https://www.assemblyai.com/" target="_blank">assemblyai.com</a>
+                        </div>
+                    </setting>
+                    <setting id="meeting_transcription_service_url_setting"
+                             string="Service URL"
+                             help="URL of the whisperX transcription service."
+                             invisible="transcription_provider != 'remote'">
+                        <field name="transcription_service_url"
+                               placeholder="http://gpu-server:8765"/>
+                    </setting>
+                    <setting id="meeting_transcription_model_size_setting"
+                             string="Model Size"
+                             help="Whisper model size (only for Remote whisperX mode)."
+                             invisible="transcription_provider != 'remote'">
+                        <field name="transcription_model_size"/>
+                    </setting>
+                    <setting id="meeting_transcription_language_setting"
+                             string="Language"
+                             help="Language code for speech recognition.">
+                        <field name="transcription_language" placeholder="zh"/>
+                    </setting>
+                </block>
+
+                <block title="Meeting Summary Settings" name="meeting_summary_settings">
+                    <setting id="meeting_summary_chatbot_setting"
+                             string="AI Chatbot"
+                             help="Select the AI Chatbot to use for generating meeting summaries.">
+                        <field name="meeting_summary_chatbot_id"/>
+                    </setting>
+                    <setting id="meeting_summary_prompt_preset_setting"
+                             string="Prompt Preset"
+                             help="Select a predefined prompt template for meeting summaries.">
+                        <field name="summary_prompt_preset"/>
+                    </setting>
+                </block>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

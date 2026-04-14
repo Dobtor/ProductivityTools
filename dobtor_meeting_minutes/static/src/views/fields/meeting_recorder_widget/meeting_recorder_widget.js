@@ -2,7 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { MeetingRecorder } from "@dobtor_mail_activity/components/meeting_recorder/meeting_recorder";
+import { MeetingRecorder } from "@dobtor_meeting_minutes/components/meeting_recorder/meeting_recorder";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { Component, onWillUnmount } from "@odoo/owl";
@@ -16,7 +16,7 @@ import { Component, onWillUnmount } from "@odoo/owl";
  * - 監聽 bus.bus 通知，辨識完成時自動 reload
  */
 export class MeetingRecorderWidget extends Component {
-    static template = "dobtor_mail_activity.MeetingRecorderWidget";
+    static template = "dobtor_meeting_minutes.MeetingRecorderWidget";
     static components = { MeetingRecorder };
     static props = {
         ...standardFieldProps,

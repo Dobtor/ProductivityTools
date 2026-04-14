@@ -56,7 +56,6 @@ Main Features:
     'depends': [
         'mail',
         'calendar',
-        'portal',
         'hr_timesheet',
         'hr',
         'project',
@@ -68,15 +67,11 @@ Main Features:
         # Security
         'security/security.xml',
         'security/ir.model.access.csv',
-        # Reports (must be loaded before mail templates that reference them)
-        'report/ir_actions_report.xml',
-        'report/report_meeting_minutes_templates.xml',
         # Data
         'data/mail_activity_data.xml',
         'data/mail_activity_transfer_config_data.xml',
         'data/note_data.xml',
         'data/cron_data.xml',
-        'data/mail_template_data.xml',
         # Wizards
         'views/wizard_views.xml',
         # Views
@@ -89,8 +84,6 @@ Main Features:
         'views/note_tag_views.xml',
         'views/note_stage_views.xml',
         'views/note_views.xml',
-        'views/note_recording_views.xml',
-        'views/note_signature_views.xml',
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
         'views/res_users_views.xml',
@@ -101,8 +94,6 @@ Main Features:
         'views/project_project_views.xml',
         'views/project_todo_override.xml',
         'views/menu_views.xml',
-        # Portal
-        'views/meeting_portal_templates.xml',
     ],
     'assets': {
         'web.assets_backend': [

@@ -8,10 +8,6 @@ from . import calendar_recurrence
 from . import note_stage
 from . import note_tag
 from . import note_note
-from . import note_recording
-from . import note_transcript
-from . import note_speaker_mapping
-from . import note_signature
 from . import mail_activity
 from . import mail_activity_type
 from . import mail_activity_assignment_history

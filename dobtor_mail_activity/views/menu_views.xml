@@ -21,12 +21,6 @@
               action="action_note_note"
               sequence="10"/>
 
-    <menuitem id="menu_meeting_minutes"
-              name="Meeting Minutes"
-              parent="menu_notebook_root"
-              action="action_meeting_minutes"
-              sequence="20"/>
-
     <!-- 筆記設定 -->
     <menuitem id="menu_notebook_configuration"
               name="Settings"

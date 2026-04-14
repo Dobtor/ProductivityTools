@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="ir_cron_cleanup_stale_processing" model="ir.cron">
+            <field name="name">Cleanup Stale Processing Recordings</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_cleanup_stale_processing()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="active">True</field>
+        </record>
+
+    </data>
+</odoo>

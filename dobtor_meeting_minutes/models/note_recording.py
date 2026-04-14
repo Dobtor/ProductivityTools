@@ -331,7 +331,7 @@ class NoteRecording(models.Model):
             note.write({'transcript_state': 'done'})
 
     def _transcribe_assemblyai(self):
-        """AssemblyAI 模式 — 內建 STT + 說話者辨識，無需部署
+        """AssemblyAI 模式 -- 內建 STT + 說話者辨識，無需部署
 
         流程：
         1. 上傳音檔取得 upload_url
@@ -341,7 +341,7 @@ class NoteRecording(models.Model):
         """
         self.ensure_one()
         company = self.env.company
-        api_key = self.env['ir.config_parameter'].sudo().get_param('dobtor_mail_activity.transcription_api_key')
+        api_key = self.env['ir.config_parameter'].sudo().get_param('dobtor_meeting_minutes.transcription_api_key')
         if not api_key:
             raise UserError(_('Please configure the AssemblyAI API key in Settings > Productivity Tools.'))
 
@@ -446,10 +446,10 @@ class NoteRecording(models.Model):
         return segments
 
     def _transcribe_api(self):
-        """OpenAI Whisper API 模式 — 純轉文字，無說話者辨識"""
+        """OpenAI Whisper API 模式 -- 純轉文字，無說話者辨識"""
         self.ensure_one()
         company = self.env.company
-        api_key = self.env['ir.config_parameter'].sudo().get_param('dobtor_mail_activity.transcription_api_key')
+        api_key = self.env['ir.config_parameter'].sudo().get_param('dobtor_meeting_minutes.transcription_api_key')
         if not api_key:
             raise UserError(_('Please configure the OpenAI API key in Settings.'))
 
@@ -485,7 +485,7 @@ class NoteRecording(models.Model):
         return segments
 
     def _transcribe_remote(self):
-        """遠端微服務模式 — 呼叫自建的 whisperX Docker 服務"""
+        """遠端微服務模式 -- 呼叫自建的 whisperX Docker 服務"""
         self.ensure_one()
         company = self.env.company
         url = company.transcription_service_url

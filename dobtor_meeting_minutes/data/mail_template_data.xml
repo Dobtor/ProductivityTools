@@ -8,7 +8,7 @@
         <!-- ============================================================ -->
         <record id="mail_template_meeting_minutes" model="mail.template">
             <field name="name">Meeting Minutes: Request for Signature</field>
-            <field name="model_id" ref="model_note_note"/>
+            <field name="model_id" ref="dobtor_mail_activity.model_note_note"/>
             <field name="subject">Meeting Minutes: {{ object.name }}</field>
             <field name="email_from">{{ (object.user_id.email_formatted or user.email_formatted) }}</field>
             <field name="partner_to"></field>
@@ -75,7 +75,7 @@
     </p>
 </div>
             </field>
-            <field name="report_template_ids" eval="[(4, ref('action_report_meeting_minutes'))]"/>
+            <field name="report_template_ids" eval="[(4, ref('dobtor_meeting_minutes.action_report_meeting_minutes'))]"/>
             <field name="auto_delete" eval="False"/>
         </record>
 
@@ -85,7 +85,7 @@
         <!-- ============================================================ -->
         <record id="mail_template_meeting_signed" model="mail.template">
             <field name="name">Meeting Minutes: All Signatures Complete</field>
-            <field name="model_id" ref="model_note_note"/>
+            <field name="model_id" ref="dobtor_mail_activity.model_note_note"/>
             <field name="subject">Meeting Minutes Signed: {{ object.name }}</field>
             <field name="email_from">{{ (object.user_id.email_formatted or user.email_formatted) }}</field>
             <field name="email_to">{{ object.user_id.email }}</field>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Meeting Minutes Menu                                          -->
+    <!-- 會議記錄選單                                                   -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_meeting_minutes"
+              name="Meeting Minutes"
+              parent="dobtor_mail_activity.menu_notebook_root"
+              action="action_meeting_minutes"
+              sequence="20"/>
+
+</odoo>

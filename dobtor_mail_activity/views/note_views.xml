@@ -94,18 +94,10 @@
                 <field name="stage_id" string="Stage"
                        column_invisible="context.get('hide_stage')"
                        optional="show"/>
-                <field name="state" string="Status" widget="badge"
-                       decoration-info="state == 'draft'"
-                       decoration-warning="state in ('sent', 'partial')"
-                       decoration-success="state == 'signed'"
-                       column_invisible="context.get('hide_state')"
-                       optional="show"/>
                 <field name="tag_ids" string="Tags" widget="many2many_tags"
                        options="{'color_field': 'color'}"/>
                 <field name="user_id" string="Owner" widget="many2one_avatar_user"/>
                 <field name="activity_ids" string="Next Activity" widget="list_activity"/>
-                <field name="signed_count" string="Signed" optional="hide"/>
-                <field name="signature_count" string="Total Signers" optional="hide"/>
                 <field name="note_active_activity_count" string="Active Activities" optional="hide"/>
                 <field name="create_date" string="Created" widget="date" optional="show"/>
                 <field name="write_date" string="Updated" widget="date" optional="show"/>
@@ -127,71 +119,21 @@
         <field name="arch" type="xml">
             <form string="Note">
                 <header>
-                    <!-- 會議記錄按鈕（只有在有關聯日曆事件時才顯示） -->
-                    <button name="action_send_for_signature" type="object"
-                            string="Send for Signature" class="btn-primary"
-                            icon="fa-paper-plane"
-                            invisible="note_type != 'meeting' or state != 'draft' or calendar_event_count == 0"/>
-                    <button name="action_preview_portal" type="object"
-                            string="Preview in Portal" class="btn-secondary"
-                            icon="fa-eye"
-                            invisible="note_type != 'meeting' or calendar_event_count == 0"/>
-                    <button name="action_reset_to_draft" type="object"
-                            string="Reset to Draft" class="btn-secondary"
-                            invisible="note_type != 'meeting' or state == 'draft'"
-                            confirm="This will reset the meeting minutes to draft and clear all signatures. Continue?"/>
-
-                    <!-- 筆記按鈕（僅會議記錄顯示排程會議） -->
-                    <button name="action_add_calendar_event" type="object"
-                            string="Schedule Meeting" class="btn-secondary"
-                            icon="fa-calendar-plus-o"
-                            invisible="note_type != 'meeting'"/>
-
-                    <!-- 狀態列 -->
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="draft,sent,partial,signed"
-                           invisible="note_type != 'meeting' or calendar_event_count == 0"/>
                     <field name="stage_id" widget="statusbar"
                            options="{'clickable': '1', 'fold_field': 'fold'}"
-                           domain="[('user_id', '=', uid)]"
-                           invisible="note_type == 'meeting'"/>
+                           domain="[('user_id', '=', uid)]"/>
                 </header>
                 <sheet>
                     <field name="active" invisible="1"/>
                     <field name="open" invisible="1"/>
                     <field name="note_type" invisible="1"/>
-                    <field name="is_locked" invisible="1"/>
                     <field name="note_activity_count" invisible="1"/>
                     <field name="calendar_event_count" invisible="1"/>
-                    <field name="signature_count" invisible="1"/>
-                    <field name="available_signer_ids" invisible="1"/>
-                    <field name="recording_count" invisible="1"/>
-                    <field name="transcript_state" invisible="1"/>
-                    <field name="summary_state" invisible="1"/>
 
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
-                    <widget name="web_ribbon" title="Fully Signed" bg_color="text-bg-success"
-                            invisible="state != 'signed' or calendar_event_count == 0"/>
-                    <widget name="web_ribbon" title="Locked" bg_color="text-bg-warning"
-                            invisible="not is_locked or state == 'signed' or calendar_event_count == 0"/>
 
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_signatures" type="object"
-                                class="oe_stat_button" icon="fa-pencil"
-                                invisible="note_type != 'meeting' or signature_count == 0 or calendar_event_count == 0">
-                            <div class="o_field_widget o_stat_info">
-                                <span class="o_stat_value">
-                                    <field name="signed_count" nolabel="1"/>/<field name="signature_count" nolabel="1"/>
-                                </span>
-                                <span class="o_stat_text">Signatures</span>
-                            </div>
-                        </button>
-                        <button name="action_transcribe_all" type="object"
-                                class="oe_stat_button" icon="fa-microphone"
-                                invisible="note_type != 'meeting' or recording_count == 0">
-                            <field name="recording_count" widget="statinfo" string="Recordings"/>
-                        </button>
                         <button name="action_view_calendar_events" type="object"
                                 class="oe_stat_button" icon="fa-calendar"
                                 invisible="calendar_event_count == 0">
@@ -213,67 +155,20 @@
 
                     <group>
                         <group>
-                            <field name="note_type" string="Type" widget="radio"
-                                   options="{'horizontal': true}"
-                                   readonly="is_locked"/>
                             <field name="user_id" string="Owner" widget="many2one_avatar_user"/>
                             <field name="tag_ids" string="Tags" widget="many2many_tags"
                                    options="{'color_field': 'color'}"/>
                         </group>
                         <group>
-                            <field name="date_done" string="Completed Date" invisible="open or note_type == 'meeting'"/>
+                            <field name="date_done" string="Completed Date" invisible="open"/>
                             <field name="color" widget="color_picker" string="Color"/>
                         </group>
                     </group>
 
-                    <!-- 鎖定提示 -->
-                    <div class="alert alert-warning" role="alert"
-                         invisible="not is_locked or calendar_event_count == 0">
-                        <i class="fa fa-lock me-2" title="Locked"/>
-                        <strong>This meeting minutes is locked.</strong>
-                        Content cannot be modified after sending for signature.
-                        To make changes, please click "Reset to Draft" (this will clear all existing signatures).
-                    </div>
-
-                    <!-- 簽名者設定（只有在有關聯日曆事件時才顯示，從行事曆參與者中選擇） -->
-                    <group string="Signature Settings"
-                           invisible="note_type != 'meeting' or calendar_event_count == 0">
-                        <group colspan="2">
-                            <field name="signer_ids" string="Required Signers"
-                                   widget="many2many_tags"
-                                   options="{'color_field': 'color'}"
-                                   domain="[('id', 'in', available_signer_ids)]"
-                                   readonly="is_locked"
-                                   help="Select signers from calendar event attendees"/>
-                        </group>
-                    </group>
-
-                    <!-- 提示：需要先關聯日曆事件 -->
-                    <div class="alert alert-info" role="alert"
-                         invisible="note_type != 'meeting' or calendar_event_count > 0">
-                        <i class="fa fa-info-circle me-2" title="Information"/>
-                        <strong>Link a calendar event to enable meeting minutes features.</strong>
-                        Use the "Calendar Events" tab below to link an existing event or schedule a new meeting.
-                        The meeting attendees will become available as signers.
-                    </div>
-
                     <notebook>
                         <page string="Content" name="content">
                             <field name="memo" placeholder="Enter note content here..."
-                                   options="{'codeview': true,'collaborative': true}"
-                                   readonly="is_locked and note_type == 'meeting'"/>
-                        </page>
-                        <page string="Signatures" name="signatures"
-                              invisible="note_type != 'meeting' or signature_count == 0 or calendar_event_count == 0">
-                            <field name="signature_ids">
-                                <list create="false" delete="false" editable="bottom">
-                                    <field name="partner_id" string="Signer"/>
-                                    <field name="is_signed" string="Signed" widget="boolean_toggle" readonly="1"/>
-                                    <field name="signed_by" string="Signed By"/>
-                                    <field name="signed_on" string="Signed On"/>
-                                    <field name="signature" string="Signature" widget="image" options="{'size': [100, 50]}"/>
-                                </list>
-                            </field>
+                                   options="{'codeview': true,'collaborative': true}"/>
                         </page>
                         <page string="Related Activities" name="activities" invisible="note_activity_count == 0">
                             <field name="note_activity_ids" context="{'active_test': False}">
@@ -289,161 +184,6 @@
                                     <button name="action_transfer_activity" type="object"
                                             string="Transfer" icon="fa-exchange"
                                             invisible="activity_status != 'active'"/>
-                                </list>
-                            </field>
-                        </page>
-                        <!-- 錄音 -->
-                        <page string="Recordings" name="recordings"
-                              invisible="note_type != 'meeting'">
-                            <div class="mb-3">
-                                <div class="alert alert-info d-flex align-items-center" role="alert"
-                                     invisible="recording_count > 0">
-                                    <i class="fa fa-microphone fa-2x me-3"/>
-                                    <div>
-                                        Use the recording button below to record meeting audio directly from your browser.
-                                        After uploading, click "Start Transcription" to convert speech to text.
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- 錄音器 Widget -->
-                            <field name="recording_count" widget="meeting_recorder_widget"
-                                   nolabel="1" class="mb-3"/>
-                            <field name="recording_ids">
-                                <list create="false" editable="bottom">
-                                    <field name="name" string="Name" readonly="1"/>
-                                    <field name="duration" string="Duration (s)" readonly="1"/>
-                                    <field name="audio_url" string="Play" widget="audio_player"
-                                           readonly="1"/>
-                                    <field name="file_format" string="Format" readonly="1" optional="hide"/>
-                                    <field name="state" string="Status" widget="badge"
-                                           decoration-info="state == 'uploaded'"
-                                           decoration-warning="state == 'processing'"
-                                           decoration-success="state == 'done'"
-                                           decoration-danger="state == 'error'"
-                                           readonly="1"/>
-                                    <button name="action_transcribe" type="object"
-                                            string="Transcribe" icon="fa-language"
-                                            invisible="state not in ('uploaded', 'error')"/>
-                                </list>
-                            </field>
-                        </page>
-
-                        <!-- 逐字稿 -->
-                        <page string="Transcript" name="transcript"
-                              invisible="note_type != 'meeting' or transcript_state == 'none'">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <span class="badge text-bg-warning"
-                                          invisible="transcript_state != 'processing'">
-                                        <i class="fa fa-spinner fa-spin me-1"/>Processing...
-                                    </span>
-                                    <span class="badge text-bg-success"
-                                          invisible="transcript_state != 'done'">
-                                        <i class="fa fa-check me-1"/>Transcription Complete
-                                    </span>
-                                    <span class="badge text-bg-danger"
-                                          invisible="transcript_state != 'error'">
-                                        <i class="fa fa-exclamation-triangle me-1"/>Error
-                                    </span>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button name="action_export_transcript_txt" type="object"
-                                            string="Export TXT" class="btn-outline-secondary btn-sm"
-                                            icon="fa-file-text-o"
-                                            invisible="transcript_state != 'done'"/>
-                                    <button name="action_export_transcript_srt" type="object"
-                                            string="Export SRT" class="btn-outline-secondary btn-sm"
-                                            icon="fa-file-video-o"
-                                            invisible="transcript_state != 'done'"/>
-                                    <button name="action_transcribe_all" type="object"
-                                            string="Re-transcribe" class="btn-secondary btn-sm"
-                                            icon="fa-refresh"
-                                            invisible="transcript_state not in ('done', 'error')"/>
-                                </div>
-                            </div>
-
-                            <!-- 說話者對應 -->
-                            <group string="Speaker Mapping"
-                                   invisible="not speaker_mapping_ids">
-                                <field name="speaker_mapping_ids" nolabel="1">
-                                    <list editable="bottom" create="false" delete="false">
-                                        <field name="speaker_label" string="Speaker ID" readonly="1"/>
-                                        <field name="partner_id" string="Contact"
-                                               domain="[('id', 'in', parent.available_signer_ids)]"/>
-                                        <field name="display_name_override" string="Display Name"/>
-                                    </list>
-                                </field>
-                            </group>
-
-                            <!-- 格式化逐字稿 -->
-                            <field name="transcript_html" readonly="1"
-                                   invisible="not transcript_html"/>
-
-                            <!-- 逐字稿段落明細（可行內編輯修正辨識錯誤） -->
-                            <group string="Segment Details" invisible="not transcript_ids">
-                                <field name="transcript_ids" nolabel="1">
-                                    <list create="false" delete="false" editable="bottom">
-                                        <field name="time_start" string="Start" widget="float_time" readonly="1"/>
-                                        <field name="speaker_name" string="Speaker" readonly="1"/>
-                                        <field name="text" string="Content"/>
-                                        <field name="confidence" string="Confidence" optional="hide" readonly="1"/>
-                                    </list>
-                                </field>
-                            </group>
-                        </page>
-
-                        <!-- 會議摘要 -->
-                        <page string="Summary" name="summary"
-                              invisible="note_type != 'meeting' or (transcript_state != 'done' and summary_state == 'none')">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <span class="badge text-bg-warning"
-                                          invisible="summary_state != 'processing'">
-                                        <i class="fa fa-spinner fa-spin me-1"/>Generating...
-                                    </span>
-                                    <span class="badge text-bg-success"
-                                          invisible="summary_state != 'done'">
-                                        <i class="fa fa-check me-1"/>Summary Ready
-                                    </span>
-                                    <span class="badge text-bg-danger"
-                                          invisible="summary_state != 'error'">
-                                        <i class="fa fa-exclamation-triangle me-1"/>Error
-                                    </span>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button name="action_generate_summary" type="object"
-                                            string="Generate Summary" class="btn-primary btn-sm"
-                                            icon="fa-magic"
-                                            invisible="summary_state == 'processing'"/>
-                                    <button name="action_apply_summary_to_memo" type="object"
-                                            string="Apply to Content" class="btn-secondary btn-sm"
-                                            icon="fa-arrow-up"
-                                            invisible="summary_state != 'done' or is_locked"
-                                            confirm="This will append the summary to the meeting content. Continue?"/>
-                                </div>
-                            </div>
-                            <field name="meeting_summary"
-                                   placeholder="Click 'Generate Summary' to create a meeting summary from the transcript..."
-                                   readonly="summary_state == 'processing'"/>
-                        </page>
-
-                        <page string="Calendar Events" name="calendar_events"
-                              invisible="note_type != 'meeting'">
-                            <group>
-                                <group>
-                                    <button name="action_add_calendar_event" type="object"
-                                            string="Schedule Meeting" class="btn-secondary"
-                                            icon="fa-calendar-plus-o" colspan="2"/>
-                                </group>
-                            </group>
-                            <field name="calendar_event_ids">
-                                <list>
-                                    <field name="name" string="Meeting"/>
-                                    <field name="start" string="Start"/>
-                                    <field name="stop" string="End"/>
-                                    <field name="location" string="Location" optional="show"/>
-                                    <field name="user_id" string="Organizer" widget="many2one_avatar_user"/>
-                                    <field name="partner_ids" string="Attendees" widget="many2many_tags"/>
                                 </list>
                             </field>
                         </page>
@@ -479,32 +219,12 @@
                         domain="[('open', '=', False)]"/>
 
                 <separator/>
-                <filter string="Notes" name="type_note"
-                        domain="[('note_type', '=', 'note')]"/>
-                <filter string="Meeting Minutes" name="type_meeting"
-                        domain="[('note_type', '=', 'meeting')]"/>
-
-                <separator/>
-                <filter string="Draft" name="state_draft"
-                        domain="[('state', '=', 'draft'), ('note_type', '=', 'meeting')]"/>
-                <filter string="Sent" name="state_sent"
-                        domain="[('state', '=', 'sent'), ('note_type', '=', 'meeting')]"/>
-                <filter string="Partially Signed" name="state_partial"
-                        domain="[('state', '=', 'partial'), ('note_type', '=', 'meeting')]"/>
-                <filter string="Fully Signed" name="state_signed"
-                        domain="[('state', '=', 'signed'), ('note_type', '=', 'meeting')]"/>
-
-                <separator/>
                 <filter string="Archived" name="archived"
                         domain="[('active', '=', False)]"/>
 
                 <group expand="0" string="Group By">
-                    <filter string="Type" name="group_type"
-                            context="{'group_by': 'note_type'}"/>
                     <filter string="Stage" name="group_stage"
                             context="{'group_by': 'stage_id'}"/>
-                    <filter string="Status" name="group_state"
-                            context="{'group_by': 'state'}"/>
                     <filter string="Owner" name="group_user"
                             context="{'group_by': 'user_id'}"/>
                     <filter string="Tag" name="group_tag"
@@ -527,13 +247,13 @@
     <!-- Actions                                                       -->
     <!-- ============================================================ -->
 
-    <!-- Action - 所有筆記（僅一般筆記） -->
+    <!-- Action - 所有筆記 -->
     <record id="action_note_note" model="ir.actions.act_window">
         <field name="name">All Notes</field>
         <field name="res_model">note.note</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('note_type', '=', 'note')]</field>
-        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1, 'default_note_type': 'note', 'hide_state': True}</field>
+        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1, 'default_note_type': 'note'}</field>
         <field name="search_view_id" ref="view_note_note_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first note</p>
@@ -562,13 +282,13 @@
         <field name="act_window_id" ref="action_note_note"/>
     </record>
 
-    <!-- Action - 個人筆記（當前使用者的一般筆記） -->
+    <!-- Action - 個人筆記（當前使用者的筆記） -->
     <record id="action_note_only" model="ir.actions.act_window">
         <field name="name">My Notes</field>
         <field name="res_model">note.note</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('note_type', '=', 'note'), ('user_id', '=', uid)]</field>
-        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1, 'default_note_type': 'note', 'hide_state': True}</field>
+        <field name="context">{'search_default_open_true': 1, 'search_default_group_stage': 1, 'default_note_type': 'note'}</field>
         <field name="search_view_id" ref="view_note_note_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first note</p>
@@ -595,41 +315,6 @@
         <field name="view_mode">form</field>
         <field name="view_id" ref="view_note_note_form"/>
         <field name="act_window_id" ref="action_note_only"/>
-    </record>
-
-    <!-- Action - 會議記錄 -->
-    <record id="action_meeting_minutes" model="ir.actions.act_window">
-        <field name="name">Meeting Minutes</field>
-        <field name="res_model">note.note</field>
-        <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('note_type', '=', 'meeting')]</field>
-        <field name="context">{'search_default_open_true': 1, 'default_note_type': 'meeting', 'hide_stage': True}</field>
-        <field name="search_view_id" ref="view_note_note_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first meeting minutes</p>
-            <p>Record meeting discussions, decisions, and action items.</p>
-        </field>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_meeting_minutes_list">
-        <field name="sequence">1</field>
-        <field name="view_mode">list</field>
-        <field name="view_id" ref="view_note_note_list"/>
-        <field name="act_window_id" ref="action_meeting_minutes"/>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_meeting_minutes_kanban">
-        <field name="sequence">2</field>
-        <field name="view_mode">kanban</field>
-        <field name="view_id" ref="view_note_note_kanban"/>
-        <field name="act_window_id" ref="action_meeting_minutes"/>
-    </record>
-
-    <record model="ir.actions.act_window.view" id="action_meeting_minutes_form">
-        <field name="sequence">3</field>
-        <field name="view_mode">form</field>
-        <field name="view_id" ref="view_note_note_form"/>
-        <field name="act_window_id" ref="action_meeting_minutes"/>
     </record>
 
 </odoo>
