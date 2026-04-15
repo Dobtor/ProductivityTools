@@ -5,7 +5,7 @@ import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { MeetingRecorder } from "@dobtor_meeting_minutes/components/meeting_recorder/meeting_recorder";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { Component, onWillUnmount } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 
 /**
  * MeetingRecorderWidget
@@ -26,17 +26,10 @@ export class MeetingRecorderWidget extends Component {
         this.busService = useService("bus_service");
         this.notification = useService("notification");
 
-        // 保存 callback 引用以便 unsubscribe
-        this._onTranscriptionBound = (payload) => this._onTranscriptionUpdate(payload);
-        this._onSummaryBound = (payload) => this._onSummaryUpdate(payload);
-
-        this.busService.subscribe("note_recording/transcription_update", this._onTranscriptionBound);
-        this.busService.subscribe("note_recording/summary_update", this._onSummaryBound);
-
-        onWillUnmount(() => {
-            this.busService.unsubscribe("note_recording/transcription_update", this._onTranscriptionBound);
-            this.busService.unsubscribe("note_recording/summary_update", this._onSummaryBound);
-        });
+        this.busService.subscribe("note_recording/transcription_update",
+            (payload) => this._onTranscriptionUpdate(payload));
+        this.busService.subscribe("note_recording/summary_update",
+            (payload) => this._onSummaryUpdate(payload));
     }
 
     get noteId() {
