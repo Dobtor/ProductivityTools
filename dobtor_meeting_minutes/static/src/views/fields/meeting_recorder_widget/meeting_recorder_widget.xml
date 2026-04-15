@@ -2,11 +2,17 @@
 <templates xml:space="preserve">
 
     <t t-name="dobtor_meeting_minutes.MeetingRecorderWidget">
-        <div t-if="isMeeting and noteId" class="o_meeting_recorder_widget">
-            <MeetingRecorder
-                noteId="noteId"
-                readonly="isReadonly"
-                onRecordingCreated.bind="onRecordingCreated"/>
+        <div t-if="isMeeting" class="o_meeting_recorder_widget">
+            <t t-if="noteId">
+                <MeetingRecorder
+                    noteId="noteId"
+                    readonly="isReadonly"
+                    onRecordingCreated.bind="onRecordingCreated"/>
+            </t>
+            <div t-else="" class="alert alert-info mb-0 py-2">
+                <i class="fa fa-info-circle me-2"/>
+                Please save the record first before recording.
+            </div>
         </div>
     </t>
 
