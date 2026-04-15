@@ -44,7 +44,9 @@ export class MeetingRecorderWidget extends Component {
     }
 
     get isReadonly() {
-        return this.props.readonly;
+        // 錄音器不受底層 computed 欄位的 readonly 影響
+        // 只有會議記錄鎖定時才禁用
+        return this.props.record.data.is_locked || false;
     }
 
     get isMeeting() {
