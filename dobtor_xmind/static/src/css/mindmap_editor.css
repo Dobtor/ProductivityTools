@@ -267,6 +267,20 @@
     color: #4a9eff;
 }
 
+/* Task Info on-node progress badge (XMind 8) */
+.xmind-task-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 5px;
+    font-size: 10px;
+    line-height: 15px;
+    border-radius: 8px;
+    background: #ffc107;
+    color: #5a3e00;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
 /* Marker Selector Dialog */
 .o_marker_selector {
     max-height: 400px;

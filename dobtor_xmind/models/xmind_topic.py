@@ -102,9 +102,24 @@ class XMindTopic(models.Model):
     # Markers
     marker_ids = fields.One2many('xmind.topic.marker', 'topic_id', string='Markers')
 
+    # Task Info (XMind 8 "Task Information")
+    task_start_date = fields.Date('Task Start')
+    task_end_date = fields.Date('Task End')
+    task_progress = fields.Integer('Progress %', default=0)  # 0..100
+    task_assignee = fields.Char('Assignee')
+    has_task = fields.Boolean('Has Task Info', compute='_compute_has_task', store=True)
+
     # Computed fields
     level = fields.Integer('Level', compute='_compute_level', store=True)
     has_children = fields.Boolean('Has Children', compute='_compute_has_children', store=True)
+
+    @api.depends('task_start_date', 'task_end_date', 'task_progress', 'task_assignee')
+    def _compute_has_task(self):
+        for record in self:
+            record.has_task = bool(
+                record.task_start_date or record.task_end_date
+                or record.task_progress or record.task_assignee
+            )
 
     def write(self, vals):
         res = super().write(vals)

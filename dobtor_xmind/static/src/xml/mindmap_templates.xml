@@ -545,6 +545,28 @@
                         <input type="text" class="form-control form-control-sm o_topic_hyperlink_title mt-1" placeholder="Link Title (optional)" t-on-change="onTopicHyperlinkChange"/>
                     </div>
 
+                    <!-- Task Info (XMind 8) -->
+                    <div class="mb-3 o_topic_task_section">
+                        <label>
+                            <i class="fa fa-tasks text-warning"/> Task Info
+                        </label>
+                        <div class="d-flex" style="gap:6px;">
+                            <div style="flex:1;">
+                                <span class="small text-muted">Start</span>
+                                <input type="date" class="form-control form-control-sm o_topic_task_start" t-on-change="onTopicTaskChange"/>
+                            </div>
+                            <div style="flex:1;">
+                                <span class="small text-muted">End</span>
+                                <input type="date" class="form-control form-control-sm o_topic_task_end" t-on-change="onTopicTaskChange"/>
+                            </div>
+                        </div>
+                        <div class="mt-1">
+                            <span class="small text-muted">Progress: <span class="o_topic_task_progress_val">0%</span></span>
+                            <input type="range" min="0" max="100" step="5" class="form-range o_topic_task_progress" t-on-input="onTopicTaskChange"/>
+                        </div>
+                        <input type="text" class="form-control form-control-sm o_topic_task_assignee mt-1" placeholder="Assignee" t-on-change="onTopicTaskChange"/>
+                    </div>
+
                     <!-- Image/Attachment Preview -->
                     <div class="mb-3">
                         <label>

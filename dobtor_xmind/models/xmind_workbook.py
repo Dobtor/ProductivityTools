@@ -163,6 +163,15 @@ class XMindWorkbook(models.Model):
             if not sc or sc.startswith('org.xmind.ui.map'):
                 data['_rightNumber'] = topic.right_number
 
+        # Task Info (XMind 8) — only emit when something is set
+        if topic.task_start_date or topic.task_end_date or topic.task_progress or topic.task_assignee:
+            data['taskInfo'] = {
+                'start': topic.task_start_date.isoformat() if topic.task_start_date else '',
+                'end': topic.task_end_date.isoformat() if topic.task_end_date else '',
+                'progress': topic.task_progress or 0,
+                'assignee': topic.task_assignee or '',
+            }
+
         # Summary node flag
         if topic.is_summary_node:
             data['_isSummaryNode'] = True
@@ -518,6 +527,14 @@ class XMindWorkbook(models.Model):
             'right_number': node_data.get('_rightNumber', -2),
         }
 
+        # Task Info (XMind 8)
+        task = node_data.get('taskInfo') or {}
+        if task:
+            topic_vals['task_start_date'] = task.get('start') or False
+            topic_vals['task_end_date'] = task.get('end') or False
+            topic_vals['task_progress'] = self._safe_int(task.get('progress', 0), 0)
+            topic_vals['task_assignee'] = task.get('assignee') or ''
+
         if parent:
             topic_vals['parent_id'] = parent.id
 
@@ -690,6 +707,14 @@ class XMindWorkbook(models.Model):
 
         if topic.hyperlink:
             xmind_topic['href'] = topic.hyperlink
+
+        if topic.task_start_date or topic.task_end_date or topic.task_progress or topic.task_assignee:
+            xmind_topic['taskInfo'] = {
+                'start': topic.task_start_date.isoformat() if topic.task_start_date else '',
+                'end': topic.task_end_date.isoformat() if topic.task_end_date else '',
+                'progress': topic.task_progress or 0,
+                'assignee': topic.task_assignee or '',
+            }
 
         props = self._topic_style_properties(topic)
         if props:
@@ -1751,6 +1776,14 @@ class XMindWorkbook(models.Model):
         # Hyperlink
         if topic_data.get('href'):
             topic_vals['hyperlink'] = topic_data['href']
+
+        # Task Info (XMind 8)
+        task = topic_data.get('taskInfo') or {}
+        if task:
+            topic_vals['task_start_date'] = task.get('start') or False
+            topic_vals['task_end_date'] = task.get('end') or False
+            topic_vals['task_progress'] = self._safe_int(task.get('progress', 0), 0)
+            topic_vals['task_assignee'] = task.get('assignee') or ''
 
         # Notes
         if 'notes' in topic_data:

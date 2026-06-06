@@ -1753,6 +1753,15 @@ export class MindmapEditor extends Component {
         setVal('.o_topic_hyperlink', data.hyperlink || '');
         setVal('.o_topic_hyperlink_title', data.hyperlinkTitle || '');
 
+        // Task Info
+        const task = data.taskInfo || {};
+        setVal('.o_topic_task_start', task.start || '');
+        setVal('.o_topic_task_end', task.end || '');
+        setVal('.o_topic_task_progress', task.progress || 0);
+        setVal('.o_topic_task_assignee', task.assignee || '');
+        const tpv = this._el('.o_topic_task_progress_val');
+        if (tpv) tpv.textContent = (task.progress || 0) + '%';
+
         const noteCount = this._el('.o_topic_note_count');
         if (noteCount) noteCount.textContent = (data.note || '').length + ' ' + _t('characters');
 
@@ -3848,6 +3857,58 @@ export class MindmapEditor extends Component {
         );
     }
 
+    /** Task Info (XMind 8) — write start/end/progress/assignee into node data. */
+    onTopicTaskChange() {
+        if (!this.selectedNode) return;
+        const node = this.jm.get_node(this.selectedNode);
+        if (!node) return;
+
+        const start = (this._el('.o_topic_task_start') || {}).value || '';
+        const end = (this._el('.o_topic_task_end') || {}).value || '';
+        const progEl = this._el('.o_topic_task_progress');
+        const progress = progEl ? (parseInt(progEl.value, 10) || 0) : 0;
+        const assigneeEl = this._el('.o_topic_task_assignee');
+        const assignee = assigneeEl ? assigneeEl.value.trim() : '';
+
+        const tpv = this._el('.o_topic_task_progress_val');
+        if (tpv) tpv.textContent = progress + '%';
+
+        node.data = node.data || {};
+        if (start || end || progress || assignee) {
+            node.data.taskInfo = { start, end, progress, assignee };
+        } else {
+            delete node.data.taskInfo;
+        }
+
+        const nodeElement = this.jm.view.get_node_element(this.selectedNode);
+        if (nodeElement) this._renderTaskIndicator(nodeElement, node.data.taskInfo);
+
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Task info updated'));
+    }
+
+    /** Render a small inline progress badge on a node (re-applied on render). */
+    _renderTaskIndicator(nodeElement, taskInfo) {
+        if (!nodeElement) return;
+        let badge = nodeElement.querySelector('.xmind-task-badge');
+        if (!taskInfo || (!taskInfo.progress && !taskInfo.start && !taskInfo.end && !taskInfo.assignee)) {
+            if (badge) badge.remove();
+            return;
+        }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'xmind-task-badge';
+            nodeElement.appendChild(badge);
+        }
+        const pct = taskInfo.progress || 0;
+        badge.textContent = pct ? (pct + '%') : '○';
+        badge.title = [
+            taskInfo.assignee && (_t('Assignee: ') + taskInfo.assignee),
+            (taskInfo.start || taskInfo.end) && ((taskInfo.start || '?') + ' → ' + (taskInfo.end || '?')),
+        ].filter(Boolean).join('\n');
+    }
+
     onOpenHyperlink() {
         const urlEl = this._el('.o_topic_hyperlink');
         if (urlEl && urlEl.value.trim()) {
@@ -5304,6 +5365,7 @@ export class MindmapEditor extends Component {
                 if (node.data.hyperlink) this.hyperlinkIndicator.addIndicator(element, node.data.hyperlink, node.data.hyperlinkTitle);
                 if (node.data.attachments && node.data.attachments.length > 0) this.attachmentIndicator.addIndicator(element, node.data.attachments.length);
                 if (node.data.image) this.imageRenderer.renderImage(element, node.data.image.data, node.data.image.options);
+                if (node.data.taskInfo) this._renderTaskIndicator(element, node.data.taskInfo);
             }
         }
 
