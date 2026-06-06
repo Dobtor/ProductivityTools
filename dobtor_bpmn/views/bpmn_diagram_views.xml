@@ -83,6 +83,7 @@
                 <field name="diagram_type"/>
                 <field name="purpose"/>
                 <field name="state"/>
+                <field name="thumbnail"/>
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_global_click">
@@ -91,6 +92,11 @@
                                 <span class="badge text-bg-secondary text-uppercase">
                                     <field name="diagram_type"/>
                                 </span>
+                            </div>
+                            <div t-if="record.thumbnail.value" class="my-2">
+                                <img class="w-100"
+                                     style="max-height: 160px; object-fit: contain; background: #fff; border: 1px solid #eee; border-radius: 4px;"
+                                     t-att-src="record.thumbnail.value" alt="預覽縮圖"/>
                             </div>
                             <div class="text-muted">
                                 <field name="purpose"/>

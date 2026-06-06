@@ -1,3 +1,5 @@
+import base64
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -76,6 +78,18 @@ class BpmnDiagram(models.Model):
     odoo_module = fields.Char(string='關聯 Odoo 模組技術名', help='documentation 用，如 sale')
     tag_ids = fields.Many2many('bpmn.diagram.tag', string='標籤')
     active = fields.Boolean(default=True)
+
+    # kanban 卡片預覽縮圖：由存檔時寫入的 svg 轉成 data URI（非儲存，隨 svg 變動）
+    thumbnail = fields.Char(string='預覽縮圖', compute='_compute_thumbnail')
+
+    @api.depends('svg')
+    def _compute_thumbnail(self):
+        for diagram in self:
+            if diagram.svg:
+                b64 = base64.b64encode(diagram.svg.encode('utf-8')).decode('ascii')
+                diagram.thumbnail = 'data:image/svg+xml;base64,' + b64
+            else:
+                diagram.thumbnail = False
 
     @api.model_create_multi
     def create(self, vals_list):
