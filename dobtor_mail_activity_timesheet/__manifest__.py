@@ -39,7 +39,6 @@ driven (typed relations, foreign-model UI, fields added to foreign models):
         'project_todo',
     ],
     'data': [
-        'data/transfer_config_data.xml',
         'views/crm_lead_views.xml',
         'views/project_project_views.xml',
         'views/mail_activity_timesheet_views.xml',
@@ -51,4 +50,5 @@ driven (typed relations, foreign-model UI, fields added to foreign models):
     'auto_install': True,
     'application': False,
     'license': 'LGPL-3',
+    'post_init_hook': '_post_init_hook',
 }
