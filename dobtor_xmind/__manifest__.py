@@ -29,6 +29,8 @@
     ],
     'assets': {
         'web.assets_backend': [
+            'dobtor_xmind/static/src/fields/xmind_multi_file_field.js',
+            'dobtor_xmind/static/src/fields/xmind_multi_file_field.xml',
             'dobtor_xmind/static/lib/jsmind/jsmind.css',
             'dobtor_xmind/static/lib/jsmind/jsmind.js',
             'dobtor_xmind/static/src/css/mindmap_editor.css',

@@ -12,8 +12,7 @@
                     </p>
                 </group>
                 <group>
-                    <field name="upload_files" widget="many2many_binary"
-                           string="Upload Files"/>
+                    <field name="files_json" widget="xmind_multi_file" nolabel="1"/>
                 </group>
                 <field name="line_ids" readonly="1" invisible="not line_ids">
                     <list>

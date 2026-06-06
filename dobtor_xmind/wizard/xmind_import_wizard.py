@@ -30,9 +30,11 @@ class XMindImportWizard(models.TransientModel):
     _name = 'xmind.import.wizard'
     _description = 'Import XMind Files'
 
-    upload_files = fields.Many2many(
-        'ir.attachment', string='Upload Files',
-        help='Select one or more .xmind, .mm, or .mmap files',
+    # JSON payload from the custom xmind_multi_file widget: [{name, data(base64)}].
+    # Self-contained multi-file upload — no ir.attachment dependency / residue.
+    files_json = fields.Text(
+        'Upload Files',
+        help='Select one or more .xmind, .mm, or .mmap files (multi-select supported)',
     )
     line_ids = fields.One2many('xmind.import.line', 'wizard_id', string='Files')
     import_count = fields.Integer('Imported', compute='_compute_counts')
@@ -44,43 +46,42 @@ class XMindImportWizard(models.TransientModel):
             rec.import_count = len(rec.line_ids.filtered(lambda l: l.status == 'success'))
             rec.error_count = len(rec.line_ids.filtered(lambda l: l.status == 'error'))
 
-    @api.onchange('upload_files')
-    def _onchange_upload_files(self):
-        """Auto-create import lines from uploaded attachments."""
-        existing_names = set(self.line_ids.mapped('filename'))
-        new_lines = []
-        for att in self.upload_files:
-            if att.name and att.name not in existing_names:
-                new_lines.append((0, 0, {
-                    'file': att.datas,
-                    'filename': att.name,
-                    'status': 'pending',
-                }))
-                existing_names.add(att.name)
-        if new_lines:
-            self.update({'line_ids': new_lines})
-
     def action_import_all(self):
-        """Import all pending files, create one Workbook per file, generate thumbnails."""
+        """Parse the JSON payload, create one Workbook per file, generate thumbnails.
+
+        Each file is imported inside its own savepoint so that one bad file
+        cannot poison the cursor or roll back the successfully-imported ones.
+        """
         self.ensure_one()
 
-        # If lines were created via onchange (NewId), persist them first
-        if not self.line_ids.ids and self.upload_files:
-            for att in self.upload_files:
-                self.env['xmind.import.line'].create({
-                    'wizard_id': self.id,
-                    'file': att.datas,
-                    'filename': att.name,
-                    'status': 'pending',
-                })
+        try:
+            entries = json.loads(self.files_json) if self.files_json else []
+        except (ValueError, TypeError):
+            raise UserError(_('Could not read the selected files.'))
+        if not entries:
+            raise UserError(_('Please select at least one file to import.'))
+
+        # Materialize one import line per uploaded file.
+        self.line_ids.unlink()
+        for entry in entries:
+            data = (entry or {}).get('data')
+            if not data:
+                continue
+            self.env['xmind.import.line'].create({
+                'wizard_id': self.id,
+                'file': data,  # base64 string
+                'filename': (entry.get('name') or 'Untitled'),
+                'status': 'pending',
+            })
 
         created_ids = []
 
         for line in self.line_ids.filtered(lambda l: l.status == 'pending'):
             try:
-                workbook = self._import_single_file(line)
-                # Generate server-side thumbnail
-                self._generate_thumbnail(workbook)
+                with self.env.cr.savepoint():
+                    workbook = self._import_single_file(line)
+                    # Generate server-side thumbnail
+                    self._generate_thumbnail(workbook)
                 line.write({
                     'status': 'success',
                     'message': _('Created: %s') % workbook.name,

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="dobtor_xmind.XmindMultiFileField">
+        <div class="o_xmind_multifile">
+            <div t-if="!readonly" class="mb-2 d-flex align-items-center gap-2">
+                <label class="btn btn-secondary mb-0">
+                    <i class="fa fa-paperclip me-1"/>Select files (multiple allowed)
+                    <input type="file" multiple="multiple"
+                           accept=".xmind,.mm,.mmap"
+                           class="d-none" t-on-change="onChange"/>
+                </label>
+                <button t-if="state.files.length" type="button"
+                        class="btn btn-link text-danger p-0" t-on-click="clearAll">Clear</button>
+                <span class="text-muted"><t t-esc="state.files.length"/> file(s) selected</span>
+            </div>
+            <ul t-if="state.files.length" class="list-group">
+                <li t-foreach="state.files" t-as="f" t-key="f_index"
+                    class="list-group-item d-flex justify-content-between align-items-center py-1">
+                    <span><i class="fa fa-file-o me-2"/><t t-esc="f.name"/></span>
+                    <button t-if="!readonly" type="button"
+                            class="btn btn-sm btn-link text-danger p-0"
+                            t-on-click="() => this.remove(f_index)" title="Remove">×</button>
+                </li>
+            </ul>
+            <div t-else="" class="text-muted fst-italic">No files selected yet.</div>
+        </div>
+    </t>
+</templates>
