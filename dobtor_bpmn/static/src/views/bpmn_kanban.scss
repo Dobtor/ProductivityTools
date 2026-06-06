@@ -1,0 +1,6 @@
+// dobtor_bpmn kanban：讓卡片右上三點選單常駐（預設只在 hover 顯示）
+.o_bpmn_kanban {
+    .o_dropdown_kanban {
+        visibility: visible !important;
+    }
+}
