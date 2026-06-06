@@ -1129,8 +1129,8 @@ class XMindWorkbook(models.Model):
         'org.xmind.ui.map.clockwise': 'map',
         'org.xmind.ui.map.anticlockwise': 'map',
         'org.xmind.ui.map.floating.clockwise': 'map',
-        'org.xmind.ui.spreadsheet': 'matrix',
-        'org.xmind.ui.spreadsheet.column': 'matrix',
+        'org.xmind.ui.spreadsheet': 'matrix_horizontal',
+        'org.xmind.ui.spreadsheet.column': 'matrix_vertical',
         'org.xmind.ui.timeline.horizontal': 'timeline_horizontal',
         'org.xmind.ui.timeline.vertical': 'timeline_vertical',
     }

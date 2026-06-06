@@ -267,8 +267,11 @@
                 this._layoutFishbone(root, 1);
             } else if (mode === 'fishbone_left') {
                 this._layoutFishbone(root, -1);
-            } else if (mode === 'matrix') {
-                this._layoutMatrix(root);
+            } else if (mode === 'matrix_horizontal') {
+                this._layoutMatrixH(root);
+            } else if (mode === 'matrix_vertical' || mode === 'matrix') {
+                // 'matrix' kept as a backward-compatible alias for the vertical table
+                this._layoutMatrixV(root);
             } else if (mode === 'timeline_horizontal') {
                 this._layoutTimelineH(root);
             } else if (mode === 'timeline_vertical') {
@@ -590,59 +593,60 @@
             }
         }
 
-        // Matrix/Spreadsheet layout — children in a grid (rows × cols).
-        // Cell sizes are derived from each child's REAL subtree bounding box so
-        // a cell's descendants never spill into neighbouring cells.
-        _layoutMatrix(root) {
+        // 橫表格圖 (Matrix Horizontal): top-level topics form a horizontal
+        // header row; each header's whole subtree extends DOWNWARD as a column
+        // (org-chart-down). Columns are spaced by their vertical subtree width.
+        _layoutMatrixH(root) {
             root._x = 0;
             root._y = 0;
-
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
 
-            const cols = Math.ceil(Math.sqrt(children.length));
-            const rows = Math.ceil(children.length / cols);
             const gapX = 40;
-            const gapY = 30;
-
-            // Real per-child extents (whole subtree, not just the node box).
-            // Children of a cell extend rightward (dir=1) and stack vertically.
-            const cw = children.map(c => this._subtreeWidthHorizontal(c));
-            const ch = children.map(c => this._subtreeHeight(c));
-
-            // Column width = widest cell in the column; row height = tallest in the row.
-            const colW = new Array(cols).fill(0);
-            const rowH = new Array(rows).fill(0);
-            for (let i = 0; i < children.length; i++) {
-                const col = i % cols, row = Math.floor(i / cols);
-                colW[col] = Math.max(colW[col], cw[i]);
-                rowH[row] = Math.max(rowH[row], ch[i]);
-            }
-
-            // Cumulative cell origins.
-            const colX = []; let accX = 0;
-            for (let c = 0; c < cols; c++) { colX.push(accX); accX += colW[c] + gapX; }
-            const totalW = Math.max(0, accX - gapX);
-            const rowY = []; let accY = 0;
-            for (let r = 0; r < rows; r++) { rowY.push(accY); accY += rowH[r] + gapY; }
-
-            const startX = -totalW / 2;
-            const startY = root._h / 2 + 50;
+            const widths = children.map(c => this._subtreeWidthVertical(c));
+            const totalW = widths.reduce((s, w) => s + w, 0) + gapX * (children.length - 1);
+            let curX = root._x - totalW / 2;
+            const headerY = root._y + root._h / 2 + 50;
 
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-                child.direction = 2; // down (root → cell connector)
-
-                const col = i % cols, row = Math.floor(i / cols);
-                // Node anchored at the cell's left edge, centred in its row band so
-                // its vertically-centred subtree fits inside rowH.
-                child._x = startX + colX[col] + child._w / 2;
-                child._y = startY + rowY[row] + rowH[row] / 2;
-
+                child.direction = 2; // root → header connector goes down
+                child._x = curX + widths[i] / 2;
+                child._y = headerY + child._h / 2;
+                curX += widths[i] + gapX;
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutChildrenWithStructure(child, 1);
+                    this._layoutVerticalChildren(child);
+                }
+            }
+        }
+
+        // 直表格圖 (Matrix Vertical): top-level topics form a vertical header
+        // column; each header's whole subtree extends RIGHTWARD as a row
+        // (logic-right). Rows are spaced by their subtree height.
+        _layoutMatrixV(root) {
+            root._x = 0;
+            root._y = 0;
+            const children = root.children.filter(c => !(_isLayoutExcluded(c)));
+            if (children.length === 0) return;
+
+            const gapY = 24;
+            const heights = children.map(c => this._subtreeHeight(c));
+            const totalH = heights.reduce((s, h) => s + h, 0) + gapY * (children.length - 1);
+            let curY = root._y - totalH / 2;
+            const headerX = root._x + root._w / 2 + 60;
+
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(child);
+                child.direction = 1; // root → header connector goes right
+                child._y = curY + heights[i] / 2;
+                child._x = headerX + child._w / 2;
+                curY += heights[i] + gapY;
+                if (child.expanded && child.children.length > 0) {
+                    this._layoutBranch(child, child.children, 1);
                 }
             }
         }

@@ -448,7 +448,8 @@
                         <option value="updown">Up-Down</option>
                         <option value="fishbone_right">Fishbone →</option>
                         <option value="fishbone_left">Fishbone ←</option>
-                        <option value="matrix">Matrix</option>
+                        <option value="matrix_horizontal">Matrix 橫表格</option>
+                        <option value="matrix_vertical">Matrix 直表格</option>
                         <option value="timeline_horizontal">Timeline →</option>
                         <option value="timeline_vertical">Timeline ↓</option>
                     </select>

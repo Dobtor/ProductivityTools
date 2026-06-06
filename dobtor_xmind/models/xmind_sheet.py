@@ -32,7 +32,9 @@ class XMindSheet(models.Model):
         ('updown', 'Up-Down'),
         ('fishbone_left', 'Fishbone Left'),
         ('fishbone_right', 'Fishbone Right'),
-        ('matrix', 'Matrix'),
+        ('matrix', 'Matrix'),  # legacy alias → vertical table
+        ('matrix_horizontal', 'Matrix (Horizontal Table)'),
+        ('matrix_vertical', 'Matrix (Vertical Table)'),
         ('timeline_horizontal', 'Timeline Horizontal'),
         ('timeline_vertical', 'Timeline Vertical'),
     ], string='Layout Type', default='map')
