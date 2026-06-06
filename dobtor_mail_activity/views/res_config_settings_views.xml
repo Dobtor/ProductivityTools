@@ -16,7 +16,7 @@
                                  string="Default Timesheet Project"
                                  help="When an activity is completed without a linked project, use this default project to create timesheet entries.">
                             <field name="timesheet_project_id"
-                                   domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
+                                   domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
                         </setting>
                     </block>
                 </app>

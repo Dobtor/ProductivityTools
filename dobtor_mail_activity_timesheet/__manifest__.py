@@ -40,8 +40,6 @@ driven (typed relations, foreign-model UI, fields added to foreign models):
     ],
     'data': [
         'data/transfer_config_data.xml',
-        'views/res_company_views.xml',
-        'views/res_config_settings_views.xml',
         'views/crm_lead_views.xml',
         'views/project_project_views.xml',
         'views/mail_activity_timesheet_views.xml',

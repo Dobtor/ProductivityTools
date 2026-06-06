@@ -12,12 +12,15 @@ class ResCompany(models.Model):
     """
     _inherit = 'res.company'
 
+    # 注意：domain 不以 allow_timesheets 過濾，因為該欄位由 hr_timesheet 提供，
+    # 而核心僅依賴 project（不依賴 hr_timesheet）。timesheet 橋接模組在實際
+    # 建立工時表記錄時會驗證 project.allow_timesheets。
     default_timesheet_project_id = fields.Many2one(
         'project.project',
         string='Default Timesheet Project',
-        domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', id)]",
+        domain="['|', ('company_id', '=', False), ('company_id', '=', id)]",
         help='When activity is completed without an associated project, this project will be used to create timesheet entries. '
-             'The project must have timesheets enabled.',
+             'The project must have timesheets enabled (validated by the timesheet bridge).',
     )
 
 
@@ -32,5 +35,5 @@ class ResConfigSettings(models.TransientModel):
         related='company_id.default_timesheet_project_id',
         string='Default Timesheet Project',
         readonly=False,
-        domain="[('allow_timesheets', '=', True), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]",
     )

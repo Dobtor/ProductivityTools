@@ -9,6 +9,7 @@ from . import mail_activity_assignment_history
 from . import mail_activity_postpone_history
 from . import mail_activity_transfer_config
 from . import mail_message
+from . import res_company
 from . import res_users
 from . import weekly_report
 from . import activity_efficiency_metrics

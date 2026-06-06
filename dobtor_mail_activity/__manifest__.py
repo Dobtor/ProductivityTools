@@ -58,6 +58,10 @@ Main Features:
         'calendar',
         'portal',
         'hr',
+        # project：僅為 res.company.default_timesheet_project_id（公司層級預設
+        # 工時專案設定）所需，此設定供本模組及生態系其他模組（如 meeting_minutes）
+        # 共用。完整工時表整合仍在 dobtor_mail_activity_timesheet 橋接模組。
+        'project',
     ],
     'data': [
         # Security
@@ -82,6 +86,8 @@ Main Features:
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
         'views/res_users_views.xml',
+        'views/res_company_views.xml',
+        'views/res_config_settings_views.xml',
         'views/weekly_schedule_config_views.xml',
         'views/menu_views.xml',
     ],
