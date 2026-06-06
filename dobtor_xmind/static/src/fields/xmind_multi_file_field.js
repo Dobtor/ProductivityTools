@@ -2,6 +2,7 @@
 
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
+import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { Component, useState } from "@odoo/owl";
 
@@ -19,6 +20,7 @@ export class XmindMultiFileField extends Component {
     static props = { ...standardFieldProps };
 
     setup() {
+        this.notification = useService("notification");
         this.state = useState({ files: this._parse() });
     }
 
@@ -48,16 +50,31 @@ export class XmindMultiFileField extends Component {
 
     async onChange(ev) {
         const fileList = Array.from(ev.target.files || []);
+        // Track names already chosen (previously + within this selection) so
+        // duplicate filenames are skipped rather than imported twice.
+        const existing = new Set(this.state.files.map((f) => f.name));
+        const skipped = [];
         for (const file of fileList) {
+            if (existing.has(file.name)) {
+                skipped.push(file.name);
+                continue;
+            }
             try {
                 const data = await this._readAsBase64(file);
                 this.state.files.push({ name: file.name, data });
+                existing.add(file.name);
             } catch {
                 // skip a single file that failed to read
             }
         }
         // Clear the input so the same file(s) can be re-selected
         ev.target.value = "";
+        if (skipped.length) {
+            this.notification.add(
+                _t("Skipped duplicate file name(s): %s", skipped.join(", ")),
+                { type: "warning" }
+            );
+        }
         await this._save();
     }
 

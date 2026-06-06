@@ -61,16 +61,23 @@ class XMindImportWizard(models.TransientModel):
         if not entries:
             raise UserError(_('Please select at least one file to import.'))
 
-        # Materialize one import line per uploaded file.
+        # Materialize one import line per uploaded file, skipping duplicate
+        # filenames (defence in depth — the widget already dedupes on select).
         self.line_ids.unlink()
+        seen_names = set()
         for entry in entries:
-            data = (entry or {}).get('data')
+            entry = entry or {}
+            data = entry.get('data')
             if not data:
                 continue
+            name = entry.get('name') or 'Untitled'
+            if name in seen_names:
+                continue  # duplicate filename — skip
+            seen_names.add(name)
             self.env['xmind.import.line'].create({
                 'wizard_id': self.id,
                 'file': data,  # base64 string
-                'filename': (entry.get('name') or 'Untitled'),
+                'filename': name,
                 'status': 'pending',
             })
 
