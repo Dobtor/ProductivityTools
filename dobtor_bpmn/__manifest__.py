@@ -28,9 +28,9 @@ Dobtor BPMN — 核心純設計模組
         'web.assets_backend': [
             'dobtor_bpmn/static/src/registry/node_type_registry.js',
             'dobtor_bpmn/static/src/modeler/lib_loader.js',
-            'dobtor_bpmn/static/src/fields/bpmn_editor_field.js',
-            'dobtor_bpmn/static/src/fields/bpmn_editor_field.xml',
-            'dobtor_bpmn/static/src/fields/bpmn_editor_field.scss',
+            'dobtor_bpmn/static/src/editor/bpmn_editor_action.js',
+            'dobtor_bpmn/static/src/editor/bpmn_editor_action.xml',
+            'dobtor_bpmn/static/src/editor/bpmn_editor_action.scss',
         ],
     },
     'application': True,

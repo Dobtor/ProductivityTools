@@ -25,8 +25,10 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_open_editor" type="object" string="開啟視覺編輯器"
+                            class="btn-primary" invisible="not id"/>
                     <button name="action_freeze" type="object" string="定版"
-                            class="btn-primary" invisible="state == 'frozen'"/>
+                            invisible="state == 'frozen'"/>
                     <button name="action_set_draft" type="object" string="設為草稿"
                             invisible="state != 'frozen'"/>
                     <button name="action_bump_version" type="object" string="升版"
@@ -54,12 +56,15 @@
                                    options="{'color_field': 'color'}"/>
                         </group>
                     </group>
+                    <div class="alert alert-info" role="alert" invisible="not id">
+                        <i class="fa fa-info-circle me-1"/>
+                        流程圖請按上方「<b>開啟視覺編輯器</b>」於全螢幕繪製；此頁僅管理設計圖的資訊。
+                    </div>
+                    <div class="alert alert-secondary" role="alert" invisible="id">
+                        <i class="fa fa-info-circle me-1"/>
+                        先儲存本設計圖，即可開啟視覺編輯器繪製流程。
+                    </div>
                     <notebook>
-                        <page string="設計圖" name="diagram">
-                            <field name="xml" widget="bpmn_editor"
-                                   options="{'type_field': 'diagram_type'}"
-                                   nolabel="1"/>
-                        </page>
                         <page string="XML 原始碼" name="xml_source" groups="base.group_no_one">
                             <field name="xml" nolabel="1"/>
                         </page>
@@ -67,6 +72,46 @@
                 </sheet>
                 <chatter/>
             </form>
+        </field>
+    </record>
+
+    <record id="view_bpmn_diagram_kanban" model="ir.ui.view">
+        <field name="name">bpmn.diagram.kanban</field>
+        <field name="model">bpmn.diagram</field>
+        <field name="arch" type="xml">
+            <kanban action="action_open_editor" type="object" class="o_kanban_mobile">
+                <field name="diagram_type"/>
+                <field name="purpose"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="d-flex justify-content-between">
+                                <strong class="fs-5"><field name="name"/></strong>
+                                <span class="badge text-bg-secondary text-uppercase">
+                                    <field name="diagram_type"/>
+                                </span>
+                            </div>
+                            <div class="text-muted">
+                                <field name="purpose"/>
+                            </div>
+                            <div class="mt-1">
+                                <field name="category_id"/>
+                                <span class="float-end">
+                                    <field name="tag_ids" widget="many2many_tags"
+                                           options="{'color_field': 'color'}"/>
+                                </span>
+                            </div>
+                            <div class="mt-1 text-muted">
+                                v<field name="version"/> ·
+                                <field name="state" widget="badge"
+                                       decoration-info="state == 'draft'"
+                                       decoration-success="state == 'frozen'"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
         </field>
     </record>
 
@@ -102,7 +147,7 @@
     <record id="action_bpmn_diagram" model="ir.actions.act_window">
         <field name="name">流程設計圖</field>
         <field name="res_model">bpmn.diagram</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="view_bpmn_diagram_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">建立第一張流程設計圖</p>

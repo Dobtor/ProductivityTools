@@ -118,6 +118,19 @@ class BpmnDiagram(models.Model):
             diagram.write({'state': 'frozen'})
         return True
 
+    def action_open_editor(self):
+        """開啟全螢幕視覺編輯器（client action，非 form notebook 內嵌）。"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'dobtor_bpmn.bpmn_editor',
+            'name': self.name or _('流程設計圖'),
+            'params': {
+                'diagram_id': self.id,
+            },
+            'target': 'current',
+        }
+
     def action_set_draft(self):
         for diagram in self:
             diagram.write({'state': 'draft'})
