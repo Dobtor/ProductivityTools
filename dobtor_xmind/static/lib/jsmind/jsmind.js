@@ -339,6 +339,27 @@
         }
 
         /**
+         * Horizontal extent of a subtree laid out as a logic/tree branch
+         * (children to one side, stacked vertically). Used by the secondary
+         * layouts (Up-Down / Fishbone / Timeline / Matrix) to reserve the real
+         * width a child's whole subtree occupies, instead of just the node box.
+         * Using this for spacing is monotonic: it can only spread nodes apart,
+         * never increase overlap.
+         */
+        _subtreeWidthHorizontal(node) {
+            if (_isLayoutExcluded(node)) return 0;
+            const layoutChildren = node.children.filter(c => !(_isLayoutExcluded(c)));
+            if (!node.expanded || layoutChildren.length === 0) return node._w;
+            const ps = getStyleForDepth(node._depth);
+            const hgap = ps.spacingMajor || this.hgap;
+            let maxChild = 0;
+            for (const c of layoutChildren) {
+                maxChild = Math.max(maxChild, this._subtreeWidthHorizontal(c));
+            }
+            return node._w + hgap + maxChild;
+        }
+
+        /**
          * Calculate the total height of a subtree in vertical layout (org_chart_up/down).
          * node height + vgap + max child subtree height (recursive).
          */
@@ -478,18 +499,21 @@
                 root.children[i].direction = 2;
             }
 
-            // Upper half
+            // Upper half — space siblings by their full subtree width so deep
+            // subtrees don't overlap horizontally.
             const upper = root.children.slice(0, halfIdx);
             if (upper.length > 0) {
                 const ps = getStyleForDepth(root._depth);
                 const hgap = ps.spacingMajor || this.hgap;
                 const vgap = ps.spacingMinor || this.vgap;
-                const totalW = upper.reduce((sum, c) => sum + c._w, 0) + hgap * (upper.length - 1);
+                const widths = upper.map(c => this._subtreeWidthHorizontal(c));
+                const totalW = widths.reduce((s, w) => s + w, 0) + hgap * (upper.length - 1);
                 let curX = root._x - totalW / 2;
-                for (const child of upper) {
+                for (let i = 0; i < upper.length; i++) {
+                    const child = upper[i];
                     child._x = curX + child._w / 2;
                     child._y = root._y - root._h / 2 - vgap - child._h / 2;
-                    curX += child._w + hgap;
+                    curX += widths[i] + hgap;
                     if (child.expanded && child.children.length > 0) {
                         this._layoutChildrenWithStructure(child, 2);
                     }
@@ -502,12 +526,14 @@
                 const ps = getStyleForDepth(root._depth);
                 const hgap = ps.spacingMajor || this.hgap;
                 const vgap = ps.spacingMinor || this.vgap;
-                const totalW = lower.reduce((sum, c) => sum + c._w, 0) + hgap * (lower.length - 1);
+                const widths = lower.map(c => this._subtreeWidthHorizontal(c));
+                const totalW = widths.reduce((s, w) => s + w, 0) + hgap * (lower.length - 1);
                 let curX = root._x - totalW / 2;
-                for (const child of lower) {
+                for (let i = 0; i < lower.length; i++) {
+                    const child = lower[i];
                     child._x = curX + child._w / 2;
                     child._y = root._y + root._h / 2 + vgap + child._h / 2;
-                    curX += child._w + hgap;
+                    curX += widths[i] + hgap;
                     if (child.expanded && child.children.length > 0) {
                         this._layoutChildrenWithStructure(child, 2);
                     }
@@ -533,12 +559,15 @@
                 // Alternate above (odd) and below (even)
                 const above = (i % 2 === 0);
                 const subH = this._subtreeHeight(child);
+                // Advance the spine by the rib's full subtree width so adjacent
+                // ribs' descendants don't overlap horizontally.
+                const ribW = this._subtreeWidthHorizontal(child);
                 child._x = curX + (child._w / 2) * dir;
                 child._y = above ? -(subH / 2 + 20) : (subH / 2 + 20);
                 child._fishboneAbove = above;
                 child._fishboneDir = dir;
 
-                curX += (child._w + spineGap) * dir;
+                curX += (ribW + spineGap) * dir;
 
                 // Layout child's own children as vertical branch extending away from spine
                 if (child.expanded && child.children.length > 0) {
@@ -560,34 +589,57 @@
             }
         }
 
-        // Matrix/Spreadsheet layout — children in a grid (rows × cols)
+        // Matrix/Spreadsheet layout — children in a grid (rows × cols).
+        // Cell sizes are derived from each child's REAL subtree bounding box so
+        // a cell's descendants never spill into neighbouring cells.
         _layoutMatrix(root) {
             root._x = 0;
             root._y = 0;
 
-            const children = root.children;
+            const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
 
             const cols = Math.ceil(Math.sqrt(children.length));
-            const cellW = 180; // cell width
-            const cellH = 80;  // cell height
-            const gapX = 30;
-            const gapY = 20;
-            const startX = -(cols * (cellW + gapX)) / 2;
-            const startY = root._h / 2 + 40;
+            const rows = Math.ceil(children.length / cols);
+            const gapX = 40;
+            const gapY = 30;
+
+            // Real per-child extents (whole subtree, not just the node box).
+            // Children of a cell extend rightward (dir=1) and stack vertically.
+            const cw = children.map(c => this._subtreeWidthHorizontal(c));
+            const ch = children.map(c => this._subtreeHeight(c));
+
+            // Column width = widest cell in the column; row height = tallest in the row.
+            const colW = new Array(cols).fill(0);
+            const rowH = new Array(rows).fill(0);
+            for (let i = 0; i < children.length; i++) {
+                const col = i % cols, row = Math.floor(i / cols);
+                colW[col] = Math.max(colW[col], cw[i]);
+                rowH[row] = Math.max(rowH[row], ch[i]);
+            }
+
+            // Cumulative cell origins.
+            const colX = []; let accX = 0;
+            for (let c = 0; c < cols; c++) { colX.push(accX); accX += colW[c] + gapX; }
+            const totalW = Math.max(0, accX - gapX);
+            const rowY = []; let accY = 0;
+            for (let r = 0; r < rows; r++) { rowY.push(accY); accY += rowH[r] + gapY; }
+
+            const startX = -totalW / 2;
+            const startY = root._h / 2 + 50;
 
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-                child.direction = 2; // down
+                child.direction = 2; // down (root → cell connector)
 
-                const col = i % cols;
-                const row = Math.floor(i / cols);
-                child._x = startX + col * (cellW + gapX) + cellW / 2;
-                child._y = startY + row * (cellH + gapY) + cellH / 2;
+                const col = i % cols, row = Math.floor(i / cols);
+                // Node anchored at the cell's left edge, centred in its row band so
+                // its vertically-centred subtree fits inside rowH.
+                child._x = startX + colX[col] + child._w / 2;
+                child._y = startY + rowY[row] + rowH[row] / 2;
 
-                // Children of matrix cells
                 if (child.expanded && child.children.length > 0) {
                     this._layoutChildrenWithStructure(child, 1);
                 }
@@ -887,12 +939,14 @@
                     : Math.max(xDown, xUp > xDown ? xUp : xDown);
 
                 child._x = curX + child._w / 2;
+                // Reserve the item's full subtree width (descendants extend right).
+                const itemRight = child._x - child._w / 2 + this._subtreeWidthHorizontal(child);
                 if (above) {
                     child._y = spineY - child._h / 2 - 30;
-                    xUp = child._x + child._w / 2 + majorGap;
+                    xUp = itemRight + majorGap;
                 } else {
                     child._y = spineY + child._h / 2 + 30;
-                    xDown = child._x + child._w / 2 + majorGap;
+                    xDown = itemRight + majorGap;
                 }
 
                 // Children of each timeline item extend vertically (tree-like)
@@ -957,9 +1011,11 @@
                 child.direction = 6; // timeline-v marker
 
                 const offset = child._w / 2 + 50;
+                // Reserve the item's full subtree height (descendants stack vertically).
+                const itemH = this._subtreeHeight(child);
                 child._x = spineX + (goRight ? offset : -offset);
-                child._y = curY + child._h / 2;
-                curY += child._h + majorGap;
+                child._y = curY + itemH / 2;
+                curY += itemH + majorGap;
 
                 if (child.expanded && child.children.length > 0) {
                     this._layoutChildrenWithStructure(child, goRight ? 1 : -1);

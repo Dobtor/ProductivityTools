@@ -3588,8 +3588,12 @@ export class MindmapEditor extends Component {
         if (this.jm && this.jm.layout && this.jm.view) {
             this.jm.layout.setLayoutMode(layout);
             this.jm.view.refresh();
-            // Rebuild all features after layout change
-            setTimeout(() => this._updateFeaturePositions(), 100);
+            // Rebuild all features after layout change, then fit the new layout
+            // into view so the user always sees the whole map after switching.
+            setTimeout(() => {
+                this._updateFeaturePositions();
+                this.onZoomFit();
+            }, 120);
         }
     }
 
