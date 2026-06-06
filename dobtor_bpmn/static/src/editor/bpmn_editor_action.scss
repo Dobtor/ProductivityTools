@@ -9,6 +9,25 @@
         background-color: var(--o-list-footer-bg-color, #f9f9f9);
     }
 
+    .o_bpmn_title_input {
+        border: 1px solid transparent;
+        background: transparent;
+        font-size: 1.05rem;
+        min-width: 160px;
+        max-width: 360px;
+        border-radius: 4px;
+        padding: 2px 6px;
+
+        &:hover {
+            border-color: var(--border-color, #dee2e6);
+        }
+        &:focus {
+            outline: none;
+            border-color: var(--o-action-color, #714b67);
+            background: #fff;
+        }
+    }
+
     .o_bpmn_action_body {
         flex: 1 1 auto;
         min-height: 0;

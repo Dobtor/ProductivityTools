@@ -6,7 +6,9 @@
                 <button class="btn btn-secondary btn-sm" t-on-click="onBack">
                     <i class="fa fa-arrow-left me-1"/>返回清單
                 </button>
-                <span class="fw-bold mx-2" t-esc="state.name"/>
+                <input type="text" class="o_bpmn_title_input fw-bold mx-2"
+                       t-att-value="state.name" t-on-change="onNameChange"
+                       placeholder="設計圖名稱" title="點擊可直接修改名稱"/>
                 <span class="badge text-bg-secondary text-uppercase" t-esc="state.diagramType"/>
                 <span t-if="state.dirty" class="badge text-bg-warning">未儲存</span>
                 <div class="flex-grow-1"/>

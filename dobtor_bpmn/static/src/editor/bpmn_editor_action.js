@@ -139,6 +139,26 @@ export class BpmnEditorAction extends Component {
         }
     }
 
+    async onNameChange(ev) {
+        const newName = (ev.target.value || "").trim();
+        if (!newName) {
+            ev.target.value = this.state.name; // 不允許空名稱，還原
+            return;
+        }
+        if (newName === this.state.name) {
+            return;
+        }
+        this.state.name = newName;
+        try {
+            await this.orm.write("bpmn.diagram", [this.diagramId], { name: newName });
+            this.notification.add(_t("名稱已更新。"), { type: "success" });
+        } catch (e) {
+            this.notification.add(_t("更新名稱失敗：%s", e?.message || e), {
+                type: "danger",
+            });
+        }
+    }
+
     onBack() {
         this.action.doAction("dobtor_bpmn.action_bpmn_diagram", {
             clearBreadcrumbs: true,
