@@ -22,6 +22,7 @@ Dobtor BPMN — 核心純設計模組
         'security/ir.model.access.csv',
         'views/bpmn_diagram_category_views.xml',
         'views/bpmn_diagram_views.xml',
+        'wizards/bpmn_diagram_import_views.xml',
         'views/menus.xml',
     ],
     'assets': {

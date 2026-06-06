@@ -5,3 +5,4 @@ access_bpmn_diagram_category_user,bpmn.diagram.category.user,model_bpmn_diagram_
 access_bpmn_diagram_category_manager,bpmn.diagram.category.manager,model_bpmn_diagram_category,group_bpmn_diagram_manager,1,1,1,1
 access_bpmn_diagram_tag_user,bpmn.diagram.tag.user,model_bpmn_diagram_tag,group_bpmn_diagram_user,1,0,0,0
 access_bpmn_diagram_tag_manager,bpmn.diagram.tag.manager,model_bpmn_diagram_tag,group_bpmn_diagram_manager,1,1,1,1
+access_bpmn_diagram_import_wizard_manager,bpmn.diagram.import.wizard.manager,model_bpmn_diagram_import_wizard,group_bpmn_diagram_manager,1,1,1,1

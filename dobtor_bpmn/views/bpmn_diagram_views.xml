@@ -140,6 +140,14 @@
                     <filter name="group_purpose" string="用途" context="{'group_by': 'purpose'}"/>
                     <filter name="group_category" string="分類" context="{'group_by': 'category_id'}"/>
                 </group>
+                <searchpanel>
+                    <field name="category_id" string="目錄" icon="fa-folder"
+                           select="one" enable_counters="1"/>
+                    <field name="diagram_type" string="圖類型" icon="fa-sitemap"
+                           select="one" enable_counters="1"/>
+                    <field name="tag_ids" string="標籤" icon="fa-tags"
+                           select="multi" enable_counters="1"/>
+                </searchpanel>
             </search>
         </field>
     </record>

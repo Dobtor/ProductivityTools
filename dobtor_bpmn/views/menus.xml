@@ -9,6 +9,12 @@
               action="action_bpmn_diagram"
               sequence="10"/>
 
+    <menuitem id="menu_bpmn_import" name="匯入檔案"
+              parent="menu_bpmn_root"
+              action="action_bpmn_diagram_import"
+              groups="group_bpmn_diagram_manager"
+              sequence="20"/>
+
     <menuitem id="menu_bpmn_config" name="設定"
               parent="menu_bpmn_root"
               groups="group_bpmn_diagram_manager"
