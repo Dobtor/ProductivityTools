@@ -1,7 +1,128 @@
 import base64
+import logging
+import xml.etree.ElementTree as ET
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
+
+
+def _ln(tag):
+    """取 XML 標籤 localname（去命名空間）。"""
+    return tag.rsplit('}', 1)[-1]
+
+
+def _esc(text):
+    return (text or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def build_preview_svg(xml):
+    """由 BPMN/DMN XML 的 DI（版面）資訊產生基本預覽 SVG。
+    解析 BPMNShape/DMNShape 的 Bounds 與 BPMNEdge/DMNEdge 的 waypoint，
+    依元素類型畫事件(圓)/閘道(菱形)/工作(圓角矩形)/其他(矩形)與連線。
+    無 DI 或解析失敗回傳 False。"""
+    if not xml:
+        return False
+    try:
+        root = ET.fromstring(xml.encode('utf-8') if isinstance(xml, str) else xml)
+    except Exception:
+        return False
+
+    id_type, id_name = {}, {}
+    for el in root.iter():
+        eid = el.get('id')
+        if eid:
+            id_type[eid] = _ln(el.tag)
+            if el.get('name'):
+                id_name[eid] = el.get('name')
+
+    shapes, edges = [], []
+    for el in root.iter():
+        ln = _ln(el.tag)
+        if ln in ('BPMNShape', 'DMNShape'):
+            ref = el.get('bpmnElement') or el.get('dmnElementRef')
+            bounds = next((c for c in el if _ln(c.tag) == 'Bounds'), None)
+            if bounds is None:
+                continue
+            try:
+                x = float(bounds.get('x', 0)); y = float(bounds.get('y', 0))
+                w = float(bounds.get('width', 0)); h = float(bounds.get('height', 0))
+            except (TypeError, ValueError):
+                continue
+            shapes.append((ref, x, y, w, h))
+        elif ln in ('BPMNEdge', 'DMNEdge'):
+            pts = []
+            for c in el:
+                if _ln(c.tag) == 'waypoint':
+                    try:
+                        pts.append((float(c.get('x', 0)), float(c.get('y', 0))))
+                    except (TypeError, ValueError):
+                        pass
+            if len(pts) >= 2:
+                edges.append(pts)
+
+    if not shapes:
+        return False
+
+    # 邊界
+    xs = [x for _r, x, _y, _w, _h in shapes] + [p[0] for e in edges for p in e]
+    ys = [y for _r, _x, y, _w, _h in shapes] + [p[1] for e in edges for p in e]
+    xe = [x + w for _r, x, _y, w, _h in shapes] + [p[0] for e in edges for p in e]
+    ye = [y + h for _r, _x, y, _w, h in shapes] + [p[1] for e in edges for p in e]
+    pad = 16
+    minx, miny = min(xs) - pad, min(ys) - pad
+    width = (max(xe) - minx) + pad
+    height = (max(ye) - miny) + pad
+    if width <= 0 or height <= 0:
+        return False
+
+    parts = []
+    # 連線
+    for pts in edges:
+        d = ' '.join('%.1f,%.1f' % (px, py) for px, py in pts)
+        parts.append(
+            '<polyline points="%s" fill="none" stroke="#888" stroke-width="2" '
+            'marker-end="url(#arrow)"/>' % d)
+    # 形狀
+    for ref, x, y, w, h in shapes:
+        t = id_type.get(ref, '')
+        cx, cy = x + w / 2, y + h / 2
+        if 'Event' in t:
+            r = min(w, h) / 2
+            parts.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#fff" '
+                         'stroke="#22863a" stroke-width="2"/>' % (cx, cy, r))
+        elif 'Gateway' in t:
+            r = min(w, h) / 2
+            pts = '%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f' % (
+                cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy)
+            parts.append('<polygon points="%s" fill="#fff8e1" stroke="#b08800" '
+                         'stroke-width="2"/>' % pts)
+        elif any(k in t for k in ('Task', 'Activity', 'SubProcess', 'CallActivity')):
+            parts.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="8" '
+                         'fill="#e8f0fe" stroke="#1a73e8" stroke-width="2"/>'
+                         % (x, y, w, h))
+        else:
+            parts.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                         'fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1.5"/>'
+                         % (x, y, w, h))
+        name = id_name.get(ref)
+        if name:
+            label = name if len(name) <= 18 else name[:17] + '…'
+            parts.append('<text x="%.1f" y="%.1f" font-size="12" text-anchor="middle" '
+                         'dominant-baseline="middle" fill="#333">%s</text>'
+                         % (cx, cy, _esc(label)))
+
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="%.1f %.1f %.1f %.1f" '
+        'width="%.0f" height="%.0f" font-family="sans-serif">'
+        '<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" '
+        'orient="auto"><path d="M0,0 L7,3 L0,6 z" fill="#888"/></marker></defs>'
+        '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#ffffff"/>'
+        '%s</svg>'
+    ) % (minx, miny, width, height, min(width, 1200), min(height, 900),
+         minx, miny, width, height, ''.join(parts))
+    return svg
 
 # 空白 BPMN 2.0 圖（bpmn-js importXML 可直接開啟）
 EMPTY_BPMN_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -131,6 +252,37 @@ class BpmnDiagram(models.Model):
                 continue
             diagram.write({'state': 'frozen'})
         return True
+
+    def _ensure_preview_svg(self, force=False):
+        """為缺少 svg（或 force）的設計圖，由 xml 產生基本預覽 svg。
+        回傳實際更新的筆數。供 migration 與按鈕共用。"""
+        updated = 0
+        for diagram in self:
+            if diagram.svg and not force:
+                continue
+            if not diagram.xml:
+                continue
+            try:
+                svg = build_preview_svg(diagram.xml)
+            except Exception:
+                _logger.exception('產生預覽 svg 失敗 (id=%s)', diagram.id)
+                svg = False
+            if svg:
+                diagram.svg = svg
+                updated += 1
+        return updated
+
+    def action_regenerate_thumbnail(self):
+        """由目前 XML 重新產生預覽縮圖（手動，會覆蓋現有 svg）。"""
+        n = self._ensure_preview_svg(force=True)
+        msg = _('已重新產生 %s 張預覽縮圖。', n) if n else _(
+            '無法產生預覽：XML 缺少版面(DI)資訊或無內容。')
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {'title': _('預覽縮圖'), 'message': msg,
+                       'type': 'success' if n else 'warning', 'sticky': False},
+        }
 
     def action_open_editor(self):
         """開啟全螢幕視覺編輯器（client action，非 form notebook 內嵌）。"""

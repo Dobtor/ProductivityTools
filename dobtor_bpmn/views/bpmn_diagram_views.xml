@@ -27,6 +27,9 @@
                 <header>
                     <button name="action_open_editor" type="object" string="開啟視覺編輯器"
                             class="btn-primary" invisible="not id"/>
+                    <button name="action_regenerate_thumbnail" type="object" string="重新產生預覽圖"
+                            invisible="not id"
+                            help="由目前 XML 的版面資訊重新產生 kanban 預覽縮圖"/>
                     <button name="action_freeze" type="object" string="定版"
                             invisible="state == 'frozen'"/>
                     <button name="action_set_draft" type="object" string="設為草稿"

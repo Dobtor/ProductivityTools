@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor BPMN (核心·純設計)',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Productivity',
     'summary': 'Odoo 內的 BPMN/DMN 純設計環境（等同 demo.bpmn.io），無執行語意',
     'description': """
