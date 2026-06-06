@@ -88,6 +88,15 @@
                 <field name="state"/>
                 <field name="thumbnail"/>
                 <templates>
+                    <t t-name="menu">
+                        <a role="menuitem" type="object" name="action_open_editor"
+                           class="dropdown-item">開啟視覺編輯器</a>
+                        <a role="menuitem" type="open" class="dropdown-item">編輯資訊</a>
+                        <t t-if="widget.deletable">
+                            <a role="menuitem" type="delete"
+                               class="dropdown-item text-danger">刪除</a>
+                        </t>
+                    </t>
                     <t t-name="card">
                         <div class="oe_kanban_global_click">
                             <div class="d-flex justify-content-between">
