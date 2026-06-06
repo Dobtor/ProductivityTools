@@ -499,46 +499,39 @@
                 root.children[i].direction = 2;
             }
 
-            // Upper half — space siblings by their full subtree width so deep
-            // subtrees don't overlap horizontally.
-            const upper = root.children.slice(0, halfIdx);
-            if (upper.length > 0) {
-                const ps = getStyleForDepth(root._depth);
-                const hgap = ps.spacingMajor || this.hgap;
-                const vgap = ps.spacingMinor || this.vgap;
-                const widths = upper.map(c => this._subtreeWidthHorizontal(c));
-                const totalW = widths.reduce((s, w) => s + w, 0) + hgap * (upper.length - 1);
-                let curX = root._x - totalW / 2;
-                for (let i = 0; i < upper.length; i++) {
-                    const child = upper[i];
-                    child._x = curX + child._w / 2;
-                    child._y = root._y - root._h / 2 - vgap - child._h / 2;
-                    curX += widths[i] + hgap;
-                    if (child.expanded && child.children.length > 0) {
-                        this._layoutChildrenWithStructure(child, 2);
-                    }
-                }
-            }
+            // Each half is a mirrored org-chart: upper branches sit above the
+            // root and their whole subtree extends UPWARD; lower branches sit
+            // below and extend DOWNWARD. Siblings are spaced by their vertical
+            // subtree width so deep subtrees never collide horizontally.
+            const ps = getStyleForDepth(root._depth);
+            const hgap = ps.spacingMajor || this.hgap;
+            const vgap = ps.spacingMinor || this.vgap;
 
-            // Lower half
-            const lower = root.children.slice(halfIdx);
-            if (lower.length > 0) {
-                const ps = getStyleForDepth(root._depth);
-                const hgap = ps.spacingMajor || this.hgap;
-                const vgap = ps.spacingMinor || this.vgap;
-                const widths = lower.map(c => this._subtreeWidthHorizontal(c));
-                const totalW = widths.reduce((s, w) => s + w, 0) + hgap * (lower.length - 1);
+            const layoutHalf = (branches, goUp) => {
+                if (!branches.length) return;
+                const widths = branches.map(c => this._subtreeWidthVertical(c));
+                const totalW = widths.reduce((s, w) => s + w, 0) + hgap * (branches.length - 1);
                 let curX = root._x - totalW / 2;
-                for (let i = 0; i < lower.length; i++) {
-                    const child = lower[i];
-                    child._x = curX + child._w / 2;
-                    child._y = root._y + root._h / 2 + vgap + child._h / 2;
+                for (let i = 0; i < branches.length; i++) {
+                    const child = branches[i];
+                    child._x = curX + widths[i] / 2;
+                    child._y = goUp
+                        ? root._y - root._h / 2 - vgap - child._h / 2
+                        : root._y + root._h / 2 + vgap + child._h / 2;
+                    child.direction = 2;
                     curX += widths[i] + hgap;
                     if (child.expanded && child.children.length > 0) {
-                        this._layoutChildrenWithStructure(child, 2);
+                        if (goUp) {
+                            this._layoutVerticalUpChildren(child);
+                        } else {
+                            this._layoutVerticalChildren(child);
+                        }
                     }
                 }
-            }
+            };
+
+            layoutHalf(root.children.slice(0, halfIdx), true);   // upper → org-chart-up
+            layoutHalf(root.children.slice(halfIdx), false);     // lower → org-chart-down
         }
 
         // Fishbone layout — children alternate above/below a horizontal spine
@@ -548,7 +541,12 @@
             root._y = 0;
 
             const spineGap = 40; // horizontal gap along the spine
-            let curX = dir * (root._w / 2 + spineGap);
+            // Ribs alternate above/below the spine, so each side gets its own
+            // cursor. Advancing only the SAME side by the rib's subtree width
+            // keeps same-side ribs from overlapping while letting opposite-side
+            // ribs interleave (without over-stretching the whole spine).
+            let dAbove = root._w / 2 + spineGap;
+            let dDown = root._w / 2 + spineGap;
 
             for (let i = 0; i < root.children.length; i++) {
                 const child = root.children[i];
@@ -556,18 +554,21 @@
                 this._propagateBranchColor(child);
                 child.direction = 7; // fishbone child — uses diagonal line
 
-                // Alternate above (odd) and below (even)
+                // Alternate above (even) and below (odd)
                 const above = (i % 2 === 0);
                 const subH = this._subtreeHeight(child);
-                // Advance the spine by the rib's full subtree width so adjacent
-                // ribs' descendants don't overlap horizontally.
                 const ribW = this._subtreeWidthHorizontal(child);
-                child._x = curX + (child._w / 2) * dir;
+                const d0 = above ? dAbove : dDown;
+                child._x = dir * (d0 + child._w / 2);
                 child._y = above ? -(subH / 2 + 20) : (subH / 2 + 20);
                 child._fishboneAbove = above;
                 child._fishboneDir = dir;
 
-                curX += (ribW + spineGap) * dir;
+                if (above) {
+                    dAbove = d0 + ribW + spineGap;
+                } else {
+                    dDown = d0 + ribW + spineGap;
+                }
 
                 // Layout child's own children as vertical branch extending away from spine
                 if (child.expanded && child.children.length > 0) {
@@ -770,7 +771,14 @@
                 curX += sw + hgap;
 
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutChildrenWithStructure(child, 2);
+                    // Keep descending vertically (down) unless the node overrides
+                    // its own child structure — so the whole subtree stays an
+                    // org-chart even when the sheet mode isn't org_chart_down.
+                    if (child.data && child.data.childStructure) {
+                        this._layoutChildrenWithStructure(child, 2);
+                    } else {
+                        this._layoutVerticalChildren(child);
+                    }
                 }
             }
         }
@@ -802,7 +810,12 @@
                 child.direction = 2;
                 curX += sw + hgap;
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutChildrenWithStructure(child, 2);
+                    // Keep descending vertically (up) unless the node overrides.
+                    if (child.data && child.data.childStructure) {
+                        this._layoutChildrenWithStructure(child, 2);
+                    } else {
+                        this._layoutVerticalUpChildren(child);
+                    }
                 }
             }
         }
@@ -1373,8 +1386,11 @@
                 const dir = node.direction || 1;
                 let ex, ey;
                 if (dir === 2 || dir === 3 || dir === 4 || dir === 5 || dir === 6 || dir === 7) {
-                    // Vertical/tree/timeline: expander below or above the node
-                    const isUp = dir === 2 && (this.layout && this.layout._currentMode) === 'org_chart_up';
+                    // Vertical/tree/timeline: expander below or above the node.
+                    // "Up" when this node's own children sit above it (org_chart_up
+                    // or Up-Down's upper half), decided by geometry not a global mode.
+                    const firstChild = node.children.find(c => !_isLayoutExcluded(c));
+                    const isUp = dir === 2 && firstChild && firstChild._y < node._y;
                     ex = node._x - 6;
                     ey = isUp
                         ? node._y - node._h / 2 - 13  // above node for org_chart_up
@@ -1776,9 +1792,11 @@
                 ex = child._x - (child._w / 2) * (dir === 3 ? 1 : -1);
                 ey = child._y;
             } else if (dir === 2) {
-                // Vertical connection: org_chart_down → parent bottom to child top
-                //                      org_chart_up   → parent top to child bottom
-                const isUp = (this.layout && this.layout._currentMode) === 'org_chart_up';
+                // Vertical connection: child below parent → parent bottom to child top
+                //                      child above parent → parent top to child bottom
+                // Decide by ACTUAL geometry, not a global mode, so Up-Down's upper
+                // half and nested org_chart_up both curve the right way.
+                const isUp = child._y < parent._y;
                 sx = parent._x;
                 if (isUp) {
                     sy = hasExpander
