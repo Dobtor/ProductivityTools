@@ -16,7 +16,7 @@ Dobtor BPMN — 核心純設計模組
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
     'license': 'LGPL-3',
-    'depends': ['base', 'web'],
+    'depends': ['base', 'web', 'mail'],
     'data': [
         'security/dobtor_bpmn_security.xml',
         'security/ir.model.access.csv',
