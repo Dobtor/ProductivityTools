@@ -128,17 +128,11 @@
                     <field name="open" invisible="1"/>
                     <field name="note_type" invisible="1"/>
                     <field name="note_activity_count" invisible="1"/>
-                    <field name="calendar_event_count" invisible="1"/>
 
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
 
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_calendar_events" type="object"
-                                class="oe_stat_button" icon="fa-calendar"
-                                invisible="calendar_event_count == 0">
-                            <field name="calendar_event_count" widget="statinfo" string="Events"/>
-                        </button>
                         <button name="action_view_activities" type="object"
                                 class="oe_stat_button" icon="fa-tasks"
                                 invisible="note_activity_count == 0">

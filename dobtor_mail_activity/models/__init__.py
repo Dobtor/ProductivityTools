@@ -2,7 +2,6 @@
 
 from . import account_analytic_line
 from . import calendar_attendee
-from . import calendar_event
 from . import crm_lead
 from . import calendar_recurrence
 from . import note_stage

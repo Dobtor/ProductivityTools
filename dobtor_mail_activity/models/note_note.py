@@ -100,20 +100,6 @@ class NoteNote(models.Model):
         help="The first tag of the note, used for the left tree filter panel.",
     )
 
-    # ===== 日曆事件關聯欄位 =====
-    calendar_event_ids = fields.Many2many(
-        'calendar.event',
-        'calendar_event_note_rel',
-        'note_id',
-        'event_id',
-        string='Calendar Events',
-        help='Calendar events linked to this note',
-    )
-    calendar_event_count = fields.Integer(
-        string='Event Count',
-        compute='_compute_calendar_event_count',
-    )
-
     # ===== 筆記專屬待辦關聯欄位 =====
     # 注意：不要覆寫 mail.activity.mixin 的 activity_ids，否則會影響標準活動功能
     note_activity_ids = fields.One2many(
@@ -144,12 +130,6 @@ class NoteNote(models.Model):
         """取得第一個標籤作為主要標籤"""
         for note in self:
             note.main_tag_id = note.tag_ids[:1]
-
-    @api.depends('calendar_event_ids')
-    def _compute_calendar_event_count(self):
-        """計算關聯日曆事件數量"""
-        for note in self:
-            note.calendar_event_count = len(note.calendar_event_ids)
 
     @api.depends('note_activity_ids', 'note_activity_ids.active')
     def _compute_note_activity_count(self):
@@ -250,42 +230,6 @@ class NoteNote(models.Model):
             'views': [(False, 'list'), (False, 'form')],
             'domain': [('note_id', '=', self.id)],
             'context': {'active_test': False},
-        }
-
-    def action_view_calendar_events(self):
-        """查看關聯日曆事件"""
-        self.ensure_one()
-        action = {
-            'type': 'ir.actions.act_window',
-            'name': _('Related Events'),
-            'res_model': 'calendar.event',
-            'view_mode': 'calendar,list,form',
-            'views': [(False, 'calendar'), (False, 'list'), (False, 'form')],
-            'domain': [('id', 'in', self.calendar_event_ids.ids)],
-            'context': {
-                'default_note_ids': [(4, self.id)],
-            },
-        }
-        if len(self.calendar_event_ids) == 1:
-            action['view_mode'] = 'form'
-            action['views'] = [(False, 'form')]
-            action['res_id'] = self.calendar_event_ids.id
-        return action
-
-    def action_add_calendar_event(self):
-        """新增日曆事件並關聯到此筆記"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Schedule Meeting'),
-            'res_model': 'calendar.event',
-            'view_mode': 'form',
-            'views': [(False, 'form')],
-            'target': 'current',
-            'context': {
-                'default_name': self.name or _('Meeting'),
-                'default_note_ids': [(4, self.id)],
-            },
         }
 
     # ===== API 方法 =====

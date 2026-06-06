@@ -76,7 +76,6 @@ Main Features:
         # Wizards
         'views/wizard_views.xml',
         # Views
-        'views/calendar_event_views.xml',
         'views/mail_activity_views.xml',
         'views/mail_message_templates.xml',
         'views/mail_activity_type_views.xml',
