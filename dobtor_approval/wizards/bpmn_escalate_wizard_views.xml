@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bpmn_escalate_wizard_form" model="ir.ui.view">
+        <field name="name">bpmn.escalate.wizard.form</field>
+        <field name="model">bpmn.escalate.wizard</field>
+        <field name="arch" type="xml">
+            <form string="上呈加簽">
+                <field name="link_id" invisible="1"/>
+                <group>
+                    <field name="target_type"/>
+                    <field name="target_user_id"
+                           invisible="target_type != 'specific_user'"
+                           required="target_type == 'specific_user'"/>
+                    <field name="target_role_id"
+                           invisible="target_type != 'role'"
+                           required="target_type == 'role'"/>
+                    <field name="return_after"/>
+                    <field name="reason"/>
+                </group>
+                <footer>
+                    <button name="action_escalate" type="object" string="送出加簽"
+                            class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 簽核活動表單擴充：加核准/駁回/上呈加簽按鈕 -->
+    <record id="view_mail_activity_form_bpmn" model="ir.ui.view">
+        <field name="name">mail.activity.form.bpmn.approval</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <field name="is_bpmn_approval" invisible="1"/>
+                <field name="bpmn_allow_escalation" invisible="1"/>
+                <button name="action_bpmn_reject" type="object"
+                        class="oe_stat_button" icon="fa-times"
+                        invisible="not active or not is_bpmn_approval">
+                    <span>駁回</span>
+                </button>
+                <button name="action_bpmn_escalate" type="object"
+                        class="oe_stat_button" icon="fa-level-up"
+                        invisible="not active or not is_bpmn_approval or not bpmn_allow_escalation">
+                    <span>上呈加簽</span>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

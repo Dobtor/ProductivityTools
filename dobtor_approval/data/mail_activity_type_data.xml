@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- BPMN 簽核活動類型（DESIGN.md §6.1） -->
+    <record id="activity_type_approval" model="mail.activity.type">
+        <field name="name">BPMN 簽核</field>
+        <field name="icon">fa-check-square-o</field>
+        <field name="delay_count">2</field>
+        <field name="delay_unit">days</field>
+        <field name="delay_from">current_date</field>
+    </record>
+
+</odoo>

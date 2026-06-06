@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bpmn_process_instance_list" model="ir.ui.view">
+        <field name="name">bpmn.process.instance.list</field>
+        <field name="model">bpmn.process.instance</field>
+        <field name="arch" type="xml">
+            <list decoration-info="state == 'running'"
+                  decoration-success="state == 'approved'"
+                  decoration-danger="state in ('rejected','incident')"
+                  decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="process_id"/>
+                <field name="applicant_user_id"/>
+                <field name="res_name"/>
+                <field name="definition_version"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bpmn_process_instance_form" model="ir.ui.view">
+        <field name="name">bpmn.process.instance.form</field>
+        <field name="model">bpmn.process.instance</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_open_document" type="object"
+                            string="開啟單據"
+                            invisible="res_model == False"/>
+                    <button name="action_view_activities" type="object"
+                            string="簽核活動"/>
+                    <button name="action_cancel_instance" type="object"
+                            string="取消流程"
+                            invisible="state != 'running'"
+                            groups="dobtor_approval.group_bpmn_approval_manager"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="process_id" readonly="1"/>
+                            <field name="definition_version" readonly="1"/>
+                            <field name="applicant_user_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="res_model" readonly="1"/>
+                            <field name="res_id" readonly="1"/>
+                            <field name="res_name" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="incident_message" readonly="1"
+                           invisible="state != 'incident'"/>
+                    <notebook>
+                        <page string="簽核軌跡" name="links">
+                            <field name="activity_link_ids" readonly="1">
+                                <list>
+                                    <field name="bpmn_element_id"/>
+                                    <field name="approver_user_id"/>
+                                    <field name="decision" widget="badge"/>
+                                    <field name="decided_by"/>
+                                    <field name="feedback"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Tokens" name="tokens"
+                              groups="dobtor_approval.group_bpmn_approval_manager">
+                            <field name="token_ids" readonly="1">
+                                <list>
+                                    <field name="bpmn_element_id"/>
+                                    <field name="node_name"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="待回放動作" name="pending"
+                              groups="dobtor_approval.group_bpmn_approval_manager">
+                            <field name="pending_action" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_bpmn_process_instance_search" model="ir.ui.view">
+        <field name="name">bpmn.process.instance.search</field>
+        <field name="model">bpmn.process.instance</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="process_id"/>
+                <field name="applicant_user_id"/>
+                <filter name="running" string="進行中"
+                        domain="[('state', '=', 'running')]"/>
+                <filter name="approved" string="核准完成"
+                        domain="[('state', '=', 'approved')]"/>
+                <filter name="my_applications" string="我的申請"
+                        domain="[('applicant_user_id', '=', uid)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_process" string="流程"
+                            context="{'group_by': 'process_id'}"/>
+                    <filter name="group_state" string="狀態"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_bpmn_process_instance" model="ir.actions.act_window">
+        <field name="name">簽核實例</field>
+        <field name="res_model">bpmn.process.instance</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_bpmn_process_instance_search"/>
+    </record>
+
+</odoo>

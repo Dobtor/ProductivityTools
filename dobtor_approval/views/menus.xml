@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 自己的頂層選單「簽核流程」（DESIGN_MODULE_SPLIT.md §3.1） -->
+    <menuitem id="menu_bpmn_approval_root"
+              name="簽核流程"
+              sequence="86"
+              groups="dobtor_approval.group_bpmn_approval_user"/>
+
+    <!-- 我的簽核（實例） -->
+    <menuitem id="menu_bpmn_instance"
+              name="簽核實例"
+              parent="menu_bpmn_approval_root"
+              action="action_bpmn_process_instance"
+              sequence="10"/>
+
+    <!-- 設定（設計者以上） -->
+    <menuitem id="menu_bpmn_config"
+              name="流程設定"
+              parent="menu_bpmn_approval_root"
+              sequence="20"
+              groups="dobtor_approval.group_bpmn_approval_designer"/>
+
+    <menuitem id="menu_bpmn_executable_process"
+              name="簽核流程定義"
+              parent="menu_bpmn_config"
+              action="action_bpmn_executable_process"
+              sequence="10"/>
+
+    <menuitem id="menu_bpmn_role"
+              name="簽核角色"
+              parent="menu_bpmn_config"
+              action="action_bpmn_role"
+              sequence="20"/>
+
+    <menuitem id="menu_bpmn_action_gate"
+              name="Action 閘門"
+              parent="menu_bpmn_config"
+              action="action_bpmn_action_gate"
+              sequence="30"
+              groups="dobtor_approval.group_bpmn_approval_designer"/>
+
+    <!-- 職務代理（一般使用者可設自己的代理） -->
+    <menuitem id="menu_bpmn_delegation"
+              name="職務代理"
+              parent="menu_bpmn_approval_root"
+              action="action_bpmn_delegation"
+              sequence="30"/>
+
+    <!-- 設定（管理者） -->
+    <menuitem id="menu_bpmn_settings"
+              name="設定"
+              parent="menu_bpmn_approval_root"
+              action="action_bpmn_config_settings"
+              sequence="90"
+              groups="dobtor_approval.group_bpmn_approval_manager"/>
+
+</odoo>

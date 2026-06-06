@@ -1,0 +1,18 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_bpmn_executable_process_user,bpmn.executable.process user,model_bpmn_executable_process,group_bpmn_approval_user,1,0,0,0
+access_bpmn_executable_process_designer,bpmn.executable.process designer,model_bpmn_executable_process,group_bpmn_approval_designer,1,1,1,1
+access_bpmn_node_config_user,bpmn.node.config user,model_bpmn_node_config,group_bpmn_approval_user,1,0,0,0
+access_bpmn_node_config_designer,bpmn.node.config designer,model_bpmn_node_config,group_bpmn_approval_designer,1,1,1,1
+access_bpmn_role_user,bpmn.role user,model_bpmn_role,group_bpmn_approval_user,1,0,0,0
+access_bpmn_role_designer,bpmn.role designer,model_bpmn_role,group_bpmn_approval_designer,1,1,1,1
+access_bpmn_action_gate_user,bpmn.action.gate user,model_bpmn_action_gate,group_bpmn_approval_user,1,0,0,0
+access_bpmn_action_gate_designer,bpmn.action.gate designer,model_bpmn_action_gate,group_bpmn_approval_designer,1,1,1,1
+access_bpmn_process_instance_user,bpmn.process.instance user,model_bpmn_process_instance,group_bpmn_approval_user,1,1,1,0
+access_bpmn_process_instance_manager,bpmn.process.instance manager,model_bpmn_process_instance,group_bpmn_approval_manager,1,1,1,1
+access_bpmn_token_user,bpmn.token user,model_bpmn_token,group_bpmn_approval_user,1,1,1,0
+access_bpmn_token_manager,bpmn.token manager,model_bpmn_token,group_bpmn_approval_manager,1,1,1,1
+access_bpmn_activity_link_user,bpmn.activity.link user,model_bpmn_activity_link,group_bpmn_approval_user,1,1,1,0
+access_bpmn_activity_link_manager,bpmn.activity.link manager,model_bpmn_activity_link,group_bpmn_approval_manager,1,1,1,1
+access_bpmn_delegation_user,bpmn.delegation user,model_bpmn_delegation,group_bpmn_approval_user,1,1,1,1
+access_bpmn_delegation_manager,bpmn.delegation manager,model_bpmn_delegation,group_bpmn_approval_manager,1,1,1,1
+access_bpmn_escalate_wizard_user,bpmn.escalate.wizard user,model_bpmn_escalate_wizard,group_bpmn_approval_user,1,1,1,1

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bpmn_executable_process_list" model="ir.ui.view">
+        <field name="name">bpmn.executable.process.list</field>
+        <field name="model">bpmn.executable.process</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="source_diagram_id"/>
+                <field name="link_mode"/>
+                <field name="capability_level"/>
+                <field name="definition_version"/>
+                <field name="instance_count"/>
+                <field name="state"
+                       decoration-success="state == 'published'"
+                       decoration-muted="state == 'archived'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bpmn_executable_process_form" model="ir.ui.view">
+        <field name="name">bpmn.executable.process.form</field>
+        <field name="model">bpmn.executable.process</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_publish" type="object" string="發佈"
+                            class="btn-primary"
+                            invisible="state == 'published'"/>
+                    <button name="action_pull_from_source" type="object"
+                            string="從來源拉取結構"
+                            invisible="source_diagram_id == False"/>
+                    <button name="action_set_draft" type="object" string="設為草稿"
+                            invisible="state != 'published'"/>
+                    <button name="action_archive_process" type="object" string="封存"
+                            invisible="state == 'archived'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(action_bpmn_process_instance)d" type="action"
+                                class="oe_stat_button" icon="fa-tasks"
+                                context="{'search_default_process_id': id}">
+                            <field name="instance_count" widget="statinfo" string="實例"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="流程名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="source_diagram_id"/>
+                            <field name="link_mode"/>
+                        </group>
+                        <group>
+                            <field name="capability_level"/>
+                            <field name="definition_version" readonly="1"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="節點執行規格" name="node_config">
+                            <field name="node_config_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="bpmn_element_id"/>
+                                    <field name="name"/>
+                                    <field name="node_type"/>
+                                    <field name="role_id"
+                                           invisible="node_type != 'user_task'"/>
+                                    <field name="approval_mode"
+                                           invisible="node_type != 'user_task'"/>
+                                    <field name="allow_escalation"
+                                           invisible="node_type != 'user_task'"/>
+                                    <field name="server_action_id"
+                                           invisible="node_type != 'service_task'"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="簽核角色" name="roles">
+                            <field name="role_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="resolver_type"/>
+                                    <field name="level"
+                                           invisible="resolver_type != 'manager_level'"/>
+                                    <field name="specific_department_id"
+                                           invisible="resolver_type != 'department_specific'"/>
+                                    <field name="job_id"
+                                           invisible="resolver_type != 'job_position'"/>
+                                    <field name="user_ids" widget="many2many_tags"
+                                           invisible="resolver_type != 'specific_user'"/>
+                                    <field name="group_id"
+                                           invisible="resolver_type != 'group'"/>
+                                    <field name="record_field"
+                                           invisible="resolver_type != 'field_on_record'"/>
+                                    <field name="apply_substitute"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Action 閘門" name="gates">
+                            <field name="gate_ids">
+                                <list editable="bottom">
+                                    <field name="name"/>
+                                    <field name="model_id"/>
+                                    <field name="method_name"/>
+                                    <field name="condition"/>
+                                    <field name="active"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="BPMN XML" name="xml">
+                            <field name="xml" widget="text"
+                                   placeholder="forked 模式存執行用 XML；linked 模式留空（讀來源設計圖）"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bpmn_executable_process" model="ir.actions.act_window">
+        <field name="name">簽核流程定義</field>
+        <field name="res_model">bpmn.executable.process</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

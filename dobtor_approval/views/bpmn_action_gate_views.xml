@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bpmn_action_gate_list" model="ir.ui.view">
+        <field name="name">bpmn.action.gate.list</field>
+        <field name="model">bpmn.action.gate</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="method_name"/>
+                <field name="process_id"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bpmn_action_gate_form" model="ir.ui.view">
+        <field name="name">bpmn.action.gate.form</field>
+        <field name="model">bpmn.action.gate</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="閘門名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="model_id"/>
+                            <field name="method_name"/>
+                            <field name="process_id"/>
+                        </group>
+                        <group>
+                            <field name="active"/>
+                            <field name="sequence"/>
+                        </group>
+                    </group>
+                    <group string="觸發條件 (Python 運算式)">
+                        <field name="condition" nolabel="1"
+                               placeholder="留空 = 總是觸發。例：record.amount_total > 10000"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bpmn_action_gate" model="ir.actions.act_window">
+        <field name="name">Action 閘門</field>
+        <field name="res_model">bpmn.action.gate</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

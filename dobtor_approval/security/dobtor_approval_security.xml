@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ========== 模組分類 ========== -->
+    <record id="module_category_bpmn_approval" model="ir.module.category">
+        <field name="name">BPM 簽核</field>
+        <field name="description">台灣 BPM 簽核引擎權限</field>
+        <field name="sequence">21</field>
+    </record>
+
+    <!-- ========== 權限群組（DESIGN.md §8 / TIERS §3.3） ========== -->
+    <!-- 一般使用者：看自己參與的實例、簽自己的活動 -->
+    <record id="group_bpmn_approval_user" model="res.groups">
+        <field name="name">簽核使用者</field>
+        <field name="category_id" ref="module_category_bpmn_approval"/>
+        <field name="implied_ids" eval="[(4, ref('dobtor_bpmn.group_bpmn_diagram_user'))]"/>
+    </record>
+
+    <!-- 設計者：設計/發佈流程、設角色、設 action gate -->
+    <record id="group_bpmn_approval_designer" model="res.groups">
+        <field name="name">簽核設計者</field>
+        <field name="category_id" ref="module_category_bpmn_approval"/>
+        <field name="implied_ids" eval="[(4, ref('group_bpmn_approval_user')), (4, ref('dobtor_bpmn.group_bpmn_diagram_manager'))]"/>
+    </record>
+
+    <!-- 管理者：看所有實例、強制終止、改派、治理 -->
+    <record id="group_bpmn_approval_manager" model="res.groups">
+        <field name="name">簽核管理者</field>
+        <field name="category_id" ref="module_category_bpmn_approval"/>
+        <field name="implied_ids" eval="[(4, ref('group_bpmn_approval_designer'))]"/>
+        <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- ========== Record Rules ========== -->
+    <!-- 實例：使用者只看自己申請、自己簽核（含代理）、或自己是 manager 的 -->
+    <record id="rule_bpmn_instance_user" model="ir.rule">
+        <field name="name">簽核實例：申請人/簽核人可見</field>
+        <field name="model_id" ref="model_bpmn_process_instance"/>
+        <field name="groups" eval="[(4, ref('group_bpmn_approval_user'))]"/>
+        <field name="domain_force">
+            ['|', ('applicant_user_id', '=', user.id),
+                  ('activity_link_ids.approver_user_id', '=', user.id)]
+        </field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_bpmn_instance_manager" model="ir.rule">
+        <field name="name">簽核實例：管理者全可見</field>
+        <field name="model_id" ref="model_bpmn_process_instance"/>
+        <field name="groups" eval="[(4, ref('group_bpmn_approval_manager'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+    <!-- 職務代理：使用者只管理自己當原簽核人的代理設定 -->
+    <record id="rule_bpmn_delegation_user" model="ir.rule">
+        <field name="name">職務代理：本人可管理</field>
+        <field name="model_id" ref="model_bpmn_delegation"/>
+        <field name="groups" eval="[(4, ref('group_bpmn_approval_user'))]"/>
+        <field name="domain_force">
+            ['|', ('delegator_id', '=', user.id), ('delegate_id', '=', user.id)]
+        </field>
+    </record>
+
+    <record id="rule_bpmn_delegation_manager" model="ir.rule">
+        <field name="name">職務代理：管理者全可見</field>
+        <field name="model_id" ref="model_bpmn_delegation"/>
+        <field name="groups" eval="[(4, ref('group_bpmn_approval_manager'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+</odoo>

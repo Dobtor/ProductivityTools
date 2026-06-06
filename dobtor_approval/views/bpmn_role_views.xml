@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bpmn_role_list" model="ir.ui.view">
+        <field name="name">bpmn.role.list</field>
+        <field name="model">bpmn.role</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="process_id"/>
+                <field name="resolver_type"/>
+                <field name="apply_substitute"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bpmn_role_form" model="ir.ui.view">
+        <field name="name">bpmn.role.form</field>
+        <field name="model">bpmn.role</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="角色名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="process_id"/>
+                            <field name="resolver_type"/>
+                            <field name="apply_substitute"/>
+                        </group>
+                        <group>
+                            <field name="level"
+                                   invisible="resolver_type != 'manager_level'"/>
+                            <field name="specific_department_id"
+                                   invisible="resolver_type != 'department_specific'"/>
+                            <field name="job_id"
+                                   invisible="resolver_type != 'job_position'"/>
+                            <field name="user_ids" widget="many2many_tags"
+                                   invisible="resolver_type != 'specific_user'"/>
+                            <field name="group_id"
+                                   invisible="resolver_type != 'group'"/>
+                            <field name="record_field"
+                                   invisible="resolver_type != 'field_on_record'"/>
+                        </group>
+                    </group>
+                    <group string="Python 運算式"
+                           invisible="resolver_type != 'expression'">
+                        <field name="expression" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bpmn_role" model="ir.actions.act_window">
+        <field name="name">簽核角色</field>
+        <field name="res_model">bpmn.role</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>
