@@ -239,10 +239,8 @@
                                    decoration-danger="state == 'overdue'"/>
                             <field name="activity_type_id" string="Type"
                                    options="{'no_create': True}"/>
-                            <field name="project_id" string="Project" readonly="1"
-                                   invisible="not project_id"/>
-                            <field name="crm_lead_id" string="Opportunity" readonly="1"
-                                   invisible="not crm_lead_id"/>
+                            <field name="res_name" string="Related Document" readonly="1"
+                                   invisible="not res_name"/>
                             <field name="note_id" string="Note" readonly="1"
                                    invisible="not note_id"/>
                             <field name="target_ref" string="Target Document"
@@ -291,21 +289,6 @@
                     <notebook>
                         <page string="Note" name="note">
                             <field name="note" placeholder="Add note..."/>
-                        </page>
-                        <page string="Timesheet" name="timesheet">
-                            <field name="timesheet_ids" readonly="1" context="{'default_activity_id': id}">
-                                <list>
-                                    <field name="date"/>
-                                    <field name="name" string="Description"/>
-                                    <field name="unit_amount" widget="float_time" string="Hours" sum="Total"/>
-                                    <field name="employee_id"/>
-                                    <field name="project_id"/>
-                                    <field name="task_id" optional="show"/>
-                                </list>
-                            </field>
-                            <group class="oe_subtotal_footer">
-                                <field name="actual_hours" widget="float_time" string="Total Actual Hours" readonly="1"/>
-                            </group>
                         </page>
                         <page string="Feedback" name="feedback" invisible="not feedback">
                             <field name="feedback" readonly="1"/>
@@ -433,8 +416,6 @@
                 <field name="estimated_hours"/>
                 <field name="schedule_warning"/>
                 <field name="partner_id"/>
-                <field name="project_id"/>
-                <field name="crm_lead_id"/>
                 <field name="note_id"/>
                 <field name="postpone_count"/>
                 <field name="create_date"/>
@@ -492,18 +473,13 @@
                                 </div>
                             </div>
 
-                            <!-- 第三列：關聯資訊（CRM/專案/筆記/文件/客戶） -->
+                            <!-- 第三列：關聯資訊（筆記/文件/客戶）-->
+                            <!-- 不綁定特定模組：有筆記顯示筆記，否則顯示來源文件連結 -->
                             <div class="text-muted small mb-1">
-                                <span t-if="record.crm_lead_id.raw_value" class="me-2" title="CRM Opportunity">
-                                    <i class="fa fa-usd text-success"/> <field name="crm_lead_id"/>
-                                </span>
-                                <span t-if="record.project_id.raw_value" class="me-2" title="Project">
-                                    <i class="fa fa-folder-open-o text-primary"/> <field name="project_id"/>
-                                </span>
                                 <span t-if="record.note_id.raw_value" class="me-2" title="Note">
                                     <i class="fa fa-sticky-note-o text-warning"/> <field name="note_id"/>
                                 </span>
-                                <span t-if="!record.crm_lead_id.raw_value and !record.project_id.raw_value and !record.note_id.raw_value">
+                                <span t-if="!record.note_id.raw_value and record.res_name.raw_value">
                                     <a type="object" name="action_open_document" title="Open Document">
                                         <i class="fa fa-external-link"/> <field name="res_name"/>
                                     </a>
@@ -601,8 +577,7 @@
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
                 <field name="partner_id" optional="show"/>
-                <field name="project_id" optional="show"/>
-                <field name="crm_lead_id" optional="show"/>
+                <field name="res_name" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
                 <field name="urgency" string="Urgency" widget="badge"
@@ -650,7 +625,6 @@
                 <field name="activity_type_id" string="Type"/>
                 <field name="res_name" string="Related Document"/>
                 <field name="partner_id" string="Customer"/>
-                <field name="project_id" string="Project"/>
 
                 <separator/>
                 <filter string="My Activities" name="my_activities"
@@ -707,8 +681,6 @@
                             context="{'group_by': 'importance'}"/>
                     <filter string="Due Date" name="group_deadline"
                             context="{'group_by': 'date_deadline:week'}"/>
-                    <filter string="Project" name="group_project"
-                            context="{'group_by': 'project_id'}"/>
                     <filter string="Customer" name="group_partner"
                             context="{'group_by': 'partner_id'}"/>
                 </group>

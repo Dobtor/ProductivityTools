@@ -96,7 +96,7 @@ class MailActivityDoneWizard(models.TransientModel):
 
     @api.depends('activity_id', 'activity_id.actual_hours')
     def _compute_accumulated_hours(self):
-        """計算已累計工時（來自 timesheet_ids）"""
+        """計算已累計工時（activity.actual_hours）"""
         for wizard in self:
             wizard.accumulated_hours = wizard.activity_id.actual_hours or 0.0
 
@@ -135,76 +135,21 @@ class MailActivityDoneWizard(models.TransientModel):
         if self.actual_hours < 0:
             raise UserError(_('Hours cannot be negative.'))
 
-    # ===== 工時表建立方法 =====
+    # ===== 工時記錄方法 =====
 
-    def _get_timesheet_project(self):
-        """取得工時表專案（優先級邏輯）"""
+    def _log_hours(self):
+        """記錄本次執行工時（核心 hook）。
+
+        核心模式（未安裝工時表整合）：直接累加到 activity.actual_hours。
+        安裝 timesheet 橋接模組（dobtor_mail_activity_timesheet）後，此方法
+        會被覆寫為建立 account.analytic.line 工時表記錄，並由工時表加總
+        自動更新 actual_hours。
+        """
+        self.ensure_one()
+        if self.actual_hours <= 0:
+            return
         activity = self.activity_id
-
-        # 優先級 1: 關聯 task 的專案
-        if activity.res_model == 'project.task':
-            task = self.env['project.task'].browse(activity.res_id)
-            if task.exists() and task.project_id:
-                return task.project_id
-
-        # 優先級 2: 關聯 lead 的專案
-        if activity.res_model == 'crm.lead':
-            lead = self.env['crm.lead'].browse(activity.res_id)
-            if hasattr(lead, 'project_id') and lead.project_id:
-                return lead.project_id
-
-        # 優先級 3: 公司預設專案
-        return self.env.company.default_timesheet_project_id
-
-    def _get_timesheet_task(self):
-        """取得工時表任務"""
-        activity = self.activity_id
-        if activity.res_model == 'project.task':
-            return activity.res_id
-        return False
-
-    def _create_timesheet_entry(self):
-        """建立工時表記錄"""
-        activity = self.activity_id
-        employee = self.env.user.employee_id
-
-        if not employee:
-            raise UserError(_('You do not have an employee record and cannot log time.'))
-
-        if not employee.active:
-            raise UserError(_('Your employee record is inactive and cannot log time.'))
-
-        # 決定專案
-        project = self._get_timesheet_project()
-        if not project:
-            raise UserError(_(
-                'Cannot find a project to log time.\n'
-                'Please ensure the activity is linked to a project task/lead, or the company has a default timesheet project configured.'
-            ))
-
-        if not project.allow_timesheets:
-            raise UserError(_('Project "%(project)s" does not have timesheets enabled.', project=project.name))
-
-        # Odoo 18: analytic_account_id 已改為 account_id
-        analytic_account = project.account_id
-        if not analytic_account or not analytic_account.active:
-            raise UserError(_('Project "%(project)s" is missing a valid analytic account. Please configure it in project settings.', project=project.name))
-
-        # 建立工時記錄
-        timesheet_vals = {
-            'date': activity.planned_date or fields.Date.today(),
-            'name': self.feedback or activity.summary or _('Activity Execution'),
-            'unit_amount': self.actual_hours,
-            'employee_id': employee.id,
-            'user_id': self.env.user.id,
-            'project_id': project.id,
-            'task_id': self._get_timesheet_task(),
-            'account_id': analytic_account.id,
-            'activity_id': activity.id,  # 關聯待辦
-            'company_id': analytic_account.company_id.id or project.company_id.id,
-        }
-
-        return self.env['account.analytic.line'].sudo().create(timesheet_vals)
+        activity.actual_hours = (activity.actual_hours or 0.0) + self.actual_hours
 
     def _get_attachment_ids(self):
         """取得附件 ID 列表"""
@@ -219,8 +164,8 @@ class MailActivityDoneWizard(models.TransientModel):
         if self.actual_hours <= 0:
             raise UserError(_('Please enter valid hours (must be greater than 0)'))
 
-        # 建立工時表記錄
-        self._create_timesheet_entry()
+        # 記錄本次工時
+        self._log_hours()
 
         # 關閉精靈並刷新視圖
         return {
@@ -235,9 +180,9 @@ class MailActivityDoneWizard(models.TransientModel):
 
         activity = self.activity_id
 
-        # 先登錄本次工時（如果有填寫且大於 0）
+        # 先記錄本次工時（如果有填寫且大於 0）
         if self.actual_hours > 0:
-            self._create_timesheet_entry()
+            self._log_hours()
 
         # 執行完成動作
         activity._action_done(
@@ -264,9 +209,9 @@ class MailActivityDoneWizard(models.TransientModel):
 
         activity = self.activity_id
 
-        # 先登錄本次工時（如果有填寫且大於 0）
+        # 先記錄本次工時（如果有填寫且大於 0）
         if self.actual_hours > 0:
-            self._create_timesheet_entry()
+            self._log_hours()
 
         # 執行完成動作
         activity._action_done(

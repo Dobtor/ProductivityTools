@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 在待辦表單加回「工時表」分頁（橋接：需要工時表整合）              -->
+    <!-- ============================================================ -->
+    <record id="mail_activity_view_form_schedule_timesheet" model="ir.ui.view">
+        <field name="name">mail.activity.form.schedule.timesheet</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='note']" position="after">
+                <page string="Timesheet" name="timesheet">
+                    <field name="timesheet_ids" readonly="1" context="{'default_activity_id': id}">
+                        <list>
+                            <field name="date"/>
+                            <field name="name" string="Description"/>
+                            <field name="unit_amount" widget="float_time" string="Hours" sum="Total"/>
+                            <field name="employee_id"/>
+                            <field name="project_id"/>
+                            <field name="task_id" optional="show"/>
+                        </list>
+                    </field>
+                    <group class="oe_subtotal_footer">
+                        <field name="actual_hours" widget="float_time" string="Total Actual Hours" readonly="1"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

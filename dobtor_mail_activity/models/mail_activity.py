@@ -220,61 +220,32 @@ class MailActivity(models.Model):
         store=True,
     )
 
-    # ===== 工時相關（改版）=====
+    # ===== 工時相關 =====
     estimated_hours = fields.Float(
         string='Estimated Hours',
         help='Estimated time required for execution (hours)',
     )
 
-    # 改為 One2many 關聯多個工時記錄
-    timesheet_ids = fields.One2many(
-        'account.analytic.line',
-        'activity_id',
-        string='Timesheet Entries',
-    )
-
-    # actual_hours 改為計算欄位
+    # actual_hours：核心為普通欄位（可手動累計）。
+    # 安裝 timesheet 橋接模組（dobtor_mail_activity_timesheet）後，
+    # 會被改寫為由關聯工時表記錄自動加總的計算欄位。
     actual_hours = fields.Float(
         string='Actual Hours',
-        compute='_compute_actual_hours',
-        store=True,
-        readonly=True,
-        help='Total of all logged hours',
+        help='Total time spent on this activity (hours).',
     )
 
     feedback = fields.Text(
         string='Completion Feedback',
     )
 
-    # ========== 工時計算方法 ==========
-
-    @api.depends('timesheet_ids', 'timesheet_ids.unit_amount')
-    def _compute_actual_hours(self):
-        """計算執行工時：所有登錄工時的總合"""
-        for activity in self:
-            activity.actual_hours = sum(
-                activity.timesheet_ids.mapped('unit_amount')
-            )
-
-    # ===== 關聯顯示（計算欄位）=====
+    # ===== 關聯顯示（設定驅動，不綁定特定模組）=====
+    # partner_id 由 mail.activity.transfer.config 指定的 partner 欄位
+    #（或自動探測模型上的 'partner_id'）派生；「關聯文件」顯示沿用既有的
+    # res_name（= 來源文件 display_name），同樣不認得任何具體模組。
     partner_id = fields.Many2one(
         'res.partner',
         string='Customer',
-        compute='_compute_related_records',
-        store=True,
-    )
-
-    project_id = fields.Many2one(
-        'project.project',
-        string='Project',
-        compute='_compute_related_records',
-        store=True,
-    )
-
-    crm_lead_id = fields.Many2one(
-        'crm.lead',
-        string='CRM Lead',
-        compute='_compute_related_records',
+        compute='_compute_partner_id',
         store=True,
     )
 
@@ -723,57 +694,49 @@ class MailActivity(models.Model):
             activity.postpone_count = len(activity.postpone_history_ids)
 
     @api.depends('res_model', 'res_id')
-    def _compute_related_records(self):
-        """計算關聯的客戶、專案和 CRM（批次優化版本）"""
-        # 初始化所有待辦的關聯欄位
-        for activity in self:
-            activity.partner_id = False
-            activity.project_id = False
-            activity.crm_lead_id = False
+    def _compute_partner_id(self):
+        """設定驅動派生關聯客戶（批次優化，不綁定特定模組）。
 
-        # 依模型分組待辦，批次處理
+        partner 欄位來源優先序：
+        1. mail.activity.transfer.config 為該模型指定的 partner_field
+        2. 自動探測來源模型上的 'partner_id' 欄位
+        皆無則留空。
+
+        如此核心 mail.activity 完全不認得 crm.lead / project.* 等具體模組，
+        新增可關聯模型只需在轉移/關聯設定中加一筆。
+        """
+        relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
+
+        # 初始化 + 依模型分組（僅處理目前已安裝、存在的模型）
         model_groups = defaultdict(list)
         for activity in self:
-            if activity.res_model and activity.res_id:
+            activity.partner_id = False
+            if activity.res_model and activity.res_id and activity.res_model in self.env:
                 model_groups[activity.res_model].append(activity)
 
-        # 批次處理每個模型
         for model_name, activities in model_groups.items():
-            try:
-                res_ids = list(set(a.res_id for a in activities))
-                records = self.env[model_name].browse(res_ids)
-                record_map = {r.id: r for r in records}
+            Model = self.env[model_name]
+            partner_field = relation_map.get(model_name, {}).get('partner_field')
+            if not partner_field and 'partner_id' in Model._fields:
+                partner_field = 'partner_id'
+            if not partner_field or partner_field not in Model._fields:
+                continue
 
-                for activity in activities:
-                    record = record_map.get(activity.res_id)
-                    if not record:
-                        continue
-
-                    # CRM Lead
-                    if model_name == 'crm.lead':
-                        activity.crm_lead_id = record.id
-                        activity.partner_id = record.partner_id.id if record.partner_id else False
-                        activity.project_id = record.project_id.id if record.project_id else False
-
-                    # Project Task
-                    elif model_name == 'project.task':
-                        activity.project_id = record.project_id.id if record.project_id else False
-                        activity.partner_id = record.partner_id.id if record.partner_id else False
-
-                    # Project
-                    elif model_name == 'project.project':
-                        activity.project_id = record.id
-                        activity.partner_id = record.partner_id.id if record.partner_id else False
-
-                    # Other models with partner_id
-                    elif hasattr(record, 'partner_id') and record.partner_id:
-                        activity.partner_id = record.partner_id.id
-
-            except Exception as e:
-                _logger.debug(
-                    'Failed to compute related records for model %s: %s',
-                    model_name, str(e)
-                )
+            res_ids = list({a.res_id for a in activities})
+            record_map = {r.id: r for r in Model.browse(res_ids).exists()}
+            for activity in activities:
+                record = record_map.get(activity.res_id)
+                if not record:
+                    continue
+                try:
+                    partner = record[partner_field]
+                except Exception as e:
+                    _logger.debug(
+                        'Failed to read partner field %s on %s: %s',
+                        partner_field, model_name, str(e)
+                    )
+                    continue
+                activity.partner_id = partner[:1].id if partner else False
 
     @api.depends('date_deadline', 'estimated_hours', 'schedule_status')
     def _compute_schedule_warning(self):
@@ -1312,6 +1275,30 @@ class MailActivity(models.Model):
                 })
 
         _logger.info('Weekly transition completed. Processed %d activities.', len(activities))
+
+    @api.model
+    def _cron_refresh_schedule_week(self):
+        """每日重算 schedule_week / schedule_week_number（修正 stored compute 腐化）。
+
+        這兩個欄位為 stored compute，計算依賴「今天」所在週次，但 ORM 只在
+        planned_date / scheduled_date 變更時才重算 → 時間流逝會讓 stored 值腐化
+        （例如「本週(0)」過一週後仍停在 0），導致 get_week_info()、週次篩選與
+        分組讀到過期資料。此 cron 每日強制重算，確保週次永遠對齊當前日期。
+        """
+        activities = self.with_context(active_test=False).search([
+            '|',
+            ('planned_date', '!=', False),
+            ('scheduled_date', '!=', False),
+        ])
+        if not activities:
+            return
+
+        # 強制標記 stored computed 欄位需重算（依賴 today，ORM 不會自動觸發）
+        for field_name in ('schedule_week', 'schedule_week_number'):
+            self.env.add_to_compute(self._fields[field_name], activities)
+        activities.flush_recordset(['schedule_week', 'schedule_week_number'])
+
+        _logger.info('Refreshed schedule_week for %d activities.', len(activities))
 
     # ========== 頻道工具方法 ==========
 

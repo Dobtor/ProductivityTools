@@ -57,12 +57,7 @@ Main Features:
         'mail',
         'calendar',
         'portal',
-        'hr_timesheet',
         'hr',
-        'project',
-        'project_todo',
-        'crm',
-        'sale_crm',
     ],
     'data': [
         # Security
@@ -87,12 +82,7 @@ Main Features:
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
         'views/res_users_views.xml',
-        'views/res_company_views.xml',
-        'views/res_config_settings_views.xml',
         'views/weekly_schedule_config_views.xml',
-        'views/crm_lead_views.xml',
-        'views/project_project_views.xml',
-        'views/project_todo_override.xml',
         'views/menu_views.xml',
     ],
     'assets': {

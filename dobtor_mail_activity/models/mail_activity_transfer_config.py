@@ -39,6 +39,13 @@ class MailActivityTransferConfig(models.Model):
         store=True,
         readonly=True,
     )
+    partner_field = fields.Char(
+        string='Partner Field',
+        help='Technical name of the field on this model that points to the related '
+             'customer (res.partner), e.g. "partner_id". Leave empty to auto-detect '
+             'a "partner_id" field. Used by activities to derive their related customer '
+             'without hard-coding any specific module.',
+    )
     active = fields.Boolean(
         string='Active',
         default=True,
@@ -82,6 +89,20 @@ class MailActivityTransferConfig(models.Model):
             if config.model_id:
                 selection.append((config.model, config.model_id.name))
         return selection
+
+    @api.model
+    def _get_relation_map(self):
+        """回傳 {model_name: {'partner_field': ...}} 供 mail.activity 設定驅動派生關聯。
+
+        只回傳啟用中的設定；partner_field 為空表示讓 mail.activity 自動探測。
+        """
+        result = {}
+        for config in self.search([('active', '=', True)]):
+            if config.model:
+                result[config.model] = {
+                    'partner_field': config.partner_field or False,
+                }
+        return result
 
     @api.model
     def get_allowed_models(self):

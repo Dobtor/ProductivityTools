@@ -13,6 +13,18 @@
             <field name="active">True</field>
         </record>
 
+        <!-- 每日重算排程週次（修正 stored compute 隨時間腐化） -->
+        <record id="ir_cron_refresh_schedule_week" model="ir.cron">
+            <field name="name">Refresh Activity Schedule Week</field>
+            <field name="model_id" ref="mail.model_mail_activity"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_refresh_schedule_week()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(datetime.datetime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 00:30:00')"/>
+            <field name="active">True</field>
+        </record>
+
         <!-- 效率指標計算定時任務 -->
         <record id="ir_cron_compute_efficiency_metrics" model="ir.cron">
             <field name="name">Calculate Efficiency Metrics</field>

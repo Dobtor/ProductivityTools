@@ -88,8 +88,6 @@
                             context="{'group_by': 'urgency'}"/>
                     <filter string="By Importance" name="group_by_importance"
                             context="{'group_by': 'importance'}"/>
-                    <filter string="By Project" name="group_by_project"
-                            context="{'group_by': 'project_id'}"/>
                     <filter string="By Customer" name="group_by_partner"
                             context="{'group_by': 'partner_id'}"/>
                     <filter string="By Assignee" name="group_by_user"
@@ -199,12 +197,10 @@
                                    readonly="id"
                                    options="{'no_create': True}"/>
                             <field name="res_model_id" invisible="1"/>
+                            <field name="res_name" string="Related Document" readonly="1"
+                                   invisible="not res_name"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="project_id" readonly="1"
-                                   invisible="not project_id"/>
-                            <field name="crm_lead_id" readonly="1"
-                                   invisible="not crm_lead_id"/>
                             <field name="note_id" readonly="1"
                                    invisible="not note_id"/>
                         </group>
@@ -469,8 +465,7 @@
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
                 <field name="partner_id" optional="show"/>
-                <field name="project_id" optional="show"/>
-                <field name="crm_lead_id" optional="show"/>
+                <field name="res_name" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
                 <field name="urgency" string="Urgency" widget="badge"
@@ -573,12 +568,10 @@
                                    required="not id"
                                    options="{'no_create': True}"/>
                             <field name="res_model_id" invisible="1"/>
+                            <field name="res_name" string="Related Document" readonly="1"
+                                   invisible="not res_name"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="project_id" readonly="1"
-                                   invisible="not project_id"/>
-                            <field name="crm_lead_id" readonly="1"
-                                   invisible="not crm_lead_id"/>
                             <field name="note_id" readonly="1"
                                    invisible="not note_id"/>
                         </group>
