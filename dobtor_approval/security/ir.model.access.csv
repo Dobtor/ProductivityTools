@@ -16,3 +16,6 @@ access_bpmn_activity_link_manager,bpmn.activity.link manager,model_bpmn_activity
 access_bpmn_delegation_user,bpmn.delegation user,model_bpmn_delegation,group_bpmn_approval_user,1,1,1,1
 access_bpmn_delegation_manager,bpmn.delegation manager,model_bpmn_delegation,group_bpmn_approval_manager,1,1,1,1
 access_bpmn_escalate_wizard_user,bpmn.escalate.wizard user,model_bpmn_escalate_wizard,group_bpmn_approval_user,1,1,1,1
+access_bpmn_lateral_wizard_user,bpmn.lateral.wizard user,model_bpmn_lateral_wizard,group_bpmn_approval_user,1,1,1,1
+access_bpmn_reject_wizard_user,bpmn.reject.wizard user,model_bpmn_reject_wizard,group_bpmn_approval_user,1,1,1,1
+access_bpmn_delegate_wizard_user,bpmn.delegate.wizard user,model_bpmn_delegate_wizard,group_bpmn_approval_user,1,1,1,1

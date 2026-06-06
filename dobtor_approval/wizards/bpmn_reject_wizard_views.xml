@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_bpmn_reject_wizard_form" model="ir.ui.view">
+        <field name="name">bpmn.reject.wizard.form</field>
+        <field name="model">bpmn.reject.wizard</field>
+        <field name="arch" type="xml">
+            <form string="駁回">
+                <field name="link_id" invisible="1"/>
+                <group>
+                    <field name="destination"/>
+                    <field name="target_element"
+                           invisible="destination != 'node'"
+                           required="destination == 'node'"/>
+                    <field name="reason"/>
+                </group>
+                <footer>
+                    <button name="action_reject" type="object" string="確認駁回"
+                            class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

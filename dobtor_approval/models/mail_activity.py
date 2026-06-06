@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""mail.activity 簽核橋接 — DESIGN.md §6.2 / 附錄 A。
+"""mail.activity 簽核橋接 — DESIGN_APPROVAL_EVENT.md。
 
-dobtor_mail_activity 已 override _action_done(feedback, attachment_ids)（archive + chaining，
-回傳 (messages, next_activities)）。此處再 override：先 super()，再以 hook 推進 BPMN token。
-另加駁回 / 上呈加簽按鈕。
+以 Odoo **原生** mail.activity 為事件基礎（不依賴 dobtor_mail_activity）。
+原生 _action_done(feedback, attachment_ids) 回傳 (messages, next_activities)；
+此處 override：先 super()，再以 hook 推進 BPMN token。簽核/駁回/加簽等動作於
+「簽核事件」inbox 進行。
 """
 import logging
 

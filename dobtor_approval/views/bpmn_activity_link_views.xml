@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 簽核事件 清單 -->
+    <record id="view_bpmn_activity_link_list" model="ir.ui.view">
+        <field name="name">bpmn.activity.link.list</field>
+        <field name="model">bpmn.activity.link</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="res_name"/>
+                <field name="process_id"/>
+                <field name="node_name"/>
+                <field name="applicant_user_id"/>
+                <field name="approver_user_id" optional="show"/>
+                <field name="date_deadline"/>
+                <field name="kind" optional="hide"/>
+                <field name="has_open_consult" optional="hide"/>
+                <field name="decision" widget="badge"
+                       decoration-info="decision == 'pending'"
+                       decoration-success="decision == 'approved'"
+                       decoration-danger="decision == 'rejected'"
+                       decoration-warning="decision in ('escalated','delegated')"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 簽核事件 看板 -->
+    <record id="view_bpmn_activity_link_kanban" model="ir.ui.view">
+        <field name="name">bpmn.activity.link.kanban</field>
+        <field name="model">bpmn.activity.link</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="decision"/>
+                <field name="has_open_consult"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <strong class="fs-6"><field name="res_name"/></strong>
+                            <div class="text-muted"><field name="process_id"/> · <field name="node_name"/></div>
+                            <div>申請人：<field name="applicant_user_id"/></div>
+                            <div class="mt-1">
+                                <field name="date_deadline"/>
+                                <span class="float-end">
+                                    <field name="decision" widget="badge"
+                                           decoration-info="decision == 'pending'"
+                                           decoration-success="decision == 'approved'"
+                                           decoration-danger="decision == 'rejected'"/>
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- 簽核事件 表單（動作列） -->
+    <record id="view_bpmn_activity_link_form" model="ir.ui.view">
+        <field name="name">bpmn.activity.link.form</field>
+        <field name="model">bpmn.activity.link</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_event_approve" type="object" string="核准"
+                            class="btn-primary"
+                            invisible="decision != 'pending' or kind in ('lateral_consult','lateral_info')"/>
+                    <button name="action_event_reject" type="object" string="駁回"
+                            invisible="decision != 'pending' or kind in ('lateral_consult','lateral_info')"/>
+                    <button name="action_event_escalate" type="object" string="向上加簽"
+                            invisible="decision != 'pending' or kind in ('lateral_consult','lateral_info')"/>
+                    <button name="action_event_lateral" type="object" string="橫向送簽"
+                            invisible="decision != 'pending' or kind in ('lateral_consult','lateral_info')"/>
+                    <button name="action_event_delegate" type="object" string="委派代簽"
+                            invisible="decision != 'pending' or kind in ('lateral_consult','lateral_info')"/>
+                    <button name="action_event_consult_reply" type="object" string="回覆會辦/徵詢"
+                            class="btn-primary"
+                            invisible="decision != 'pending' or kind not in ('lateral_consult','lateral_info')"/>
+                    <button name="action_event_retrieve" type="object" string="收回/抽單"
+                            invisible="decision != 'pending'"/>
+                    <field name="decision" widget="statusbar"
+                           statusbar_visible="pending,approved,rejected"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="會辦中" bg_color="text-bg-warning"
+                            invisible="not has_open_consult"/>
+                    <group>
+                        <group>
+                            <field name="res_name"/>
+                            <field name="process_id"/>
+                            <field name="node_name"/>
+                            <field name="kind"/>
+                        </group>
+                        <group>
+                            <field name="applicant_user_id"/>
+                            <field name="approver_user_id"/>
+                            <field name="date_deadline"/>
+                            <field name="decided_by" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="has_open_consult" invisible="1"/>
+                    <group string="意見">
+                        <field name="feedback" nolabel="1" placeholder="簽核意見…"/>
+                    </group>
+                    <group string="會辦/徵詢回覆" invisible="not consult_reply">
+                        <field name="consult_reply" nolabel="1" readonly="1"/>
+                    </group>
+                    <notebook>
+                        <page string="加簽/送簽子事件" name="children"
+                              invisible="not child_link_ids">
+                            <field name="child_link_ids" readonly="1">
+                                <list>
+                                    <field name="kind"/>
+                                    <field name="approver_user_id"/>
+                                    <field name="decision"/>
+                                    <field name="consult_reply"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- 搜尋 + 分頁篩選 -->
+    <record id="view_bpmn_activity_link_search" model="ir.ui.view">
+        <field name="name">bpmn.activity.link.search</field>
+        <field name="model">bpmn.activity.link</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="res_name"/>
+                <field name="process_id"/>
+                <field name="applicant_user_id"/>
+                <filter name="todo_mine" string="待我簽"
+                        domain="[('approver_user_id','=',uid),('decision','=','pending')]"/>
+                <filter name="sent_mine" string="我送出的"
+                        domain="[('applicant_user_id','=',uid)]"/>
+                <filter name="consulting" string="會辦中"
+                        domain="[('approver_user_id','=',uid),('has_open_consult','=',True)]"/>
+                <filter name="done" string="已完成"
+                        domain="[('decision','!=','pending')]"/>
+                <separator/>
+                <filter name="overdue" string="已逾期"
+                        domain="[('date_deadline','&lt;',context_today().strftime('%Y-%m-%d')),('decision','=','pending')]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_process" string="流程" context="{'group_by':'process_id'}"/>
+                    <filter name="g_decision" string="結果" context="{'group_by':'decision'}"/>
+                    <filter name="g_applicant" string="申請人" context="{'group_by':'applicant_user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_bpmn_activity_link" model="ir.actions.act_window">
+        <field name="name">簽核事件</field>
+        <field name="res_model">bpmn.activity.link</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_bpmn_activity_link_search"/>
+        <field name="context">{'search_default_todo_mine': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">目前沒有待您簽核的事件</p>
+            <p>簽核事件以 Odoo 原生活動為基礎；可在此核准/駁回，或向上加簽、橫向送簽（會辦/徵詢）、委派、收回。</p>
+        </field>
+    </record>
+
+    <!-- 批次動作（list 多選） -->
+    <record id="action_server_batch_approve" model="ir.actions.server">
+        <field name="name">批次核准</field>
+        <field name="model_id" ref="model_bpmn_activity_link"/>
+        <field name="binding_model_id" ref="model_bpmn_activity_link"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">records.action_batch_approve()</field>
+    </record>
+
+    <record id="action_server_batch_reject" model="ir.actions.server">
+        <field name="name">批次駁回</field>
+        <field name="model_id" ref="model_bpmn_activity_link"/>
+        <field name="binding_model_id" ref="model_bpmn_activity_link"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">records.action_batch_reject()</field>
+    </record>
+</odoo>

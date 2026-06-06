@@ -323,12 +323,30 @@ class BpmnProcessInstance(models.Model):
             self._advance_token(token)
 
     def _on_link_rejected(self, link):
-        """任一簽核駁回 → 整個實例駁回。"""
+        """任一簽核駁回 → 整個實例駁回；若指定駁回去向節點則退回該關重簽。"""
         self.ensure_one()
         # 取消所有待簽活動
         for l in self.activity_link_ids.filtered(lambda x: x.decision == 'pending'):
             if l.activity_id and l.activity_id.active:
                 l.activity_id.action_cancel()
+
+        # 退回指定關卡（駁回到節點）— best-effort，僅當目標為人工簽核節點
+        target = link.reject_to_element
+        if target and link.token_id:
+            cfg = self.process_id._config_for(target)
+            if cfg and cfg.node_type == 'user_task':
+                try:
+                    token = link.token_id
+                    token.write({'bpmn_element_id': target, 'state': 'active'})
+                    self.message_post(body=_(
+                        '流程經 %(user)s 駁回，退回關卡「%(node)s」重簽。',
+                        user=self.env.user.name, node=cfg.name or target))
+                    self._enter_user_task(token)
+                    return
+                except Exception:  # noqa: BLE001 退回失敗則改整案駁回
+                    _logger.exception('駁回退回節點失敗，改整案駁回')
+
+        # 預設：整案駁回
         self.token_ids.filtered(lambda t: t.state == 'active').consume()
         self.write({'state': 'rejected'})
         self.message_post(body=_(

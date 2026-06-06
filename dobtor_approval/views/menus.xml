@@ -7,6 +7,13 @@
               sequence="86"
               groups="dobtor_approval.group_bpmn_approval_user"/>
 
+    <!-- 簽核事件（每日待辦 inbox） -->
+    <menuitem id="menu_bpmn_activity_link"
+              name="簽核事件"
+              parent="menu_bpmn_approval_root"
+              action="action_bpmn_activity_link"
+              sequence="5"/>
+
     <!-- 我的簽核（實例） -->
     <menuitem id="menu_bpmn_instance"
               name="簽核實例"
