@@ -43,6 +43,13 @@
     }
 }
 
+// A6 預覽走訪：高亮經過的節點
+.djs-element.o_appr_walk .djs-visual > :nth-child(1) {
+    stroke: #1a73e8 !important;
+    stroke-width: 3px !important;
+    fill: #d2e3fc !important;
+}
+
 // canvas 節點徽章
 .o_appr_badge {
     display: inline-block;

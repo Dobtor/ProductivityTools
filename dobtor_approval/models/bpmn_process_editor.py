@@ -1,3 +1,4 @@
+import json
 import logging
 
 from lxml import etree
@@ -51,11 +52,17 @@ class BpmnExecutableProcessEditor(models.Model):
         xml = self._effective_xml()
         if xml:
             self._sync_node_configs_from_xml(xml)
+        outgoing, walk_order, names = self._parse_flows(xml)
         nodes = []
         for cfg in self.node_config_ids:
             role = cfg.role_id
+            try:
+                fconds = json.loads(cfg.flow_conditions or '{}')
+            except (ValueError, TypeError):
+                fconds = {}
+            eid = cfg.bpmn_element_id
             nodes.append({
-                'element_id': cfg.bpmn_element_id,
+                'element_id': eid,
                 'name': cfg.name,
                 'node_type': cfg.node_type,
                 'approval_mode': cfg.approval_mode or 'any',
@@ -63,6 +70,8 @@ class BpmnExecutableProcessEditor(models.Model):
                 'gate_timing': cfg.gate_timing or '',
                 'gate_model_id': cfg.gate_model_id.id or False,
                 'gate_method': cfg.gate_method or '',
+                'sla_hours': cfg.sla_hours or 0.0,
+                'sla_action': cfg.sla_action or '',
                 'resolver_type': role.resolver_type if role else '',
                 'level': role.level if role else 1,
                 'specific_department_id': role.specific_department_id.id if role else False,
@@ -71,6 +80,12 @@ class BpmnExecutableProcessEditor(models.Model):
                 'user_ids': role.user_ids.ids if role else [],
                 'record_field': role.record_field if role else '',
                 'expression': role.expression if role else '',
+                # gateway 出線（含目標名稱）+ 已存條件
+                'outgoing': [
+                    {'target_id': t, 'target_name': names.get(t, t),
+                     'rows': fconds.get(t, [])}
+                    for t in outgoing.get(eid, [])
+                ],
             })
         return {
             'process': {
@@ -78,11 +93,17 @@ class BpmnExecutableProcessEditor(models.Model):
                 'capability_level': self.capability_level, 'xml': xml or '',
             },
             'nodes': nodes,
+            'walk_order': walk_order,
             'enabled_features': sorted(self.env.company._bpmn_enabled_features()),
             'options': {
                 'resolver_types': self._selection_options('bpmn.role', 'resolver_type'),
                 'approval_modes': self._selection_options('bpmn.node.config', 'approval_mode'),
                 'gate_timings': self._selection_options('bpmn.node.config', 'gate_timing'),
+                'sla_actions': self._selection_options('bpmn.node.config', 'sla_action'),
+                'operators': [
+                    ['=', '等於'], ['!=', '不等於'], ['>', '大於'], ['>=', '大於等於'],
+                    ['<', '小於'], ['<=', '小於等於'], ['in', '屬於'], ['set', '已設定'],
+                ],
                 'departments': self._name_options('hr.department'),
                 'jobs': self._name_options('hr.job'),
                 'groups': self._name_options('res.groups'),
@@ -90,6 +111,38 @@ class BpmnExecutableProcessEditor(models.Model):
                 'models': self._name_options('ir.model', field='model', limit=1000),
             },
         }
+
+    def _parse_flows(self, xml):
+        """回傳 (outgoing{src:[target...]}, walk_order[元素id...], names{id:name})。"""
+        outgoing, names = {}, {}
+        start_id = None
+        if not xml:
+            return outgoing, [], names
+        try:
+            root = etree.fromstring(xml.encode('utf-8') if isinstance(xml, str) else xml)
+        except Exception:  # noqa: BLE001
+            return outgoing, [], names
+        flows = []
+        for el in root.iter():
+            tag = etree.QName(el).localname
+            if el.get('id'):
+                names[el.get('id')] = el.get('name') or el.get('id')
+            if tag == 'sequenceFlow':
+                s, t = el.get('sourceRef'), el.get('targetRef')
+                if s and t:
+                    flows.append((s, t))
+                    outgoing.setdefault(s, []).append(t)
+            elif tag == 'startEvent' and not start_id:
+                start_id = el.get('id')
+        # walk_order：自 start 沿第一條出線線性走訪（best-effort）
+        walk, seen = [], set()
+        cur = start_id
+        while cur and cur not in seen:
+            walk.append(cur)
+            seen.add(cur)
+            nxts = outgoing.get(cur)
+            cur = nxts[0] if nxts else None
+        return outgoing, walk, names
 
     @api.model
     def _name_options(self, model, field=None, limit=500):
@@ -104,7 +157,8 @@ class BpmnExecutableProcessEditor(models.Model):
     # 儲存單一節點設定（overlay + 角色）
     # ------------------------------------------------------------------
     _CONFIG_KEYS = ('approval_mode', 'allow_escalation', 'gate_timing',
-                    'gate_model_id', 'gate_method', 'gate_condition')
+                    'gate_model_id', 'gate_method', 'gate_condition',
+                    'flow_conditions', 'sla_hours', 'sla_action')
     _ROLE_KEYS = ('resolver_type', 'level', 'specific_department_id', 'job_id',
                   'group_id', 'user_ids', 'record_field', 'expression')
 

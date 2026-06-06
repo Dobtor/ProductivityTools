@@ -38,7 +38,10 @@ export class ApprovalProcessEditor extends Component {
             previewResults: [],
             lint: [],
             saving: false,
+            previewMode: false,
         });
+        this.walkOrder = [];
+        this._walkTimers = [];
 
         onWillStart(async () => {
             this.state.libMissing = !(await ensureBpmnLib());
@@ -52,6 +55,7 @@ export class ApprovalProcessEditor extends Component {
                     byId[n.element_id] = n;
                 }
                 this.state.nodesById = byId;
+                this.walkOrder = data.walk_order || [];
                 this._computeLint();
             } catch (e) {
                 this.state.error = e?.message?.data?.message || e?.message || String(e);
@@ -124,7 +128,70 @@ export class ApprovalProcessEditor extends Component {
         this._renderBadges();
     }
 
+    // ---- A6 預覽模式：token 走訪動畫 ----
+    togglePreview() {
+        this.state.previewMode = !this.state.previewMode;
+        if (this.state.previewMode) {
+            this._animateWalk();
+        } else {
+            this._clearWalk();
+        }
+    }
+
+    _animateWalk() {
+        this._clearWalk();
+        if (!this.modeler || !this.walkOrder.length) return;
+        const canvas = this.modeler.get("canvas");
+        this.walkOrder.forEach((id, i) => {
+            this._walkTimers.push(setTimeout(() => {
+                try {
+                    canvas.addMarker(id, "o_appr_walk");
+                } catch {
+                    /* element not in diagram */
+                }
+            }, i * 600));
+        });
+    }
+
+    _clearWalk() {
+        this._walkTimers.forEach((t) => clearTimeout(t));
+        this._walkTimers = [];
+        if (this.modeler) {
+            const canvas = this.modeler.get("canvas");
+            this.walkOrder.forEach((id) => {
+                try {
+                    canvas.removeMarker(id, "o_appr_walk");
+                } catch {
+                    /* noop */
+                }
+            });
+        }
+    }
+
+    // ---- A5 閘道出線條件 builder ----
+    addCond(targetId) {
+        const flow = (this.state.panel.outgoing || []).find((o) => o.target_id === targetId);
+        if (flow) {
+            flow.rows = [...(flow.rows || []), { field: "", op: "=", value: "" }];
+        }
+    }
+
+    removeCond(targetId, idx) {
+        const flow = (this.state.panel.outgoing || []).find((o) => o.target_id === targetId);
+        if (flow) {
+            flow.rows.splice(idx, 1);
+        }
+    }
+
+    setCond(targetId, idx, key, value) {
+        const flow = (this.state.panel.outgoing || []).find((o) => o.target_id === targetId);
+        if (flow && flow.rows[idx]) {
+            flow.rows[idx][key] = value;
+        }
+    }
+
     _destroy() {
+        this._clearWalk();
         if (this.modeler) {
             try {
                 this.modeler.destroy();
@@ -207,12 +274,25 @@ export class ApprovalProcessEditor extends Component {
                 approval_mode: p.approval_mode || "any",
                 allow_escalation: !!p.allow_escalation,
             };
+            if (this.feat("sla_timer")) {
+                vals.sla_hours = p.sla_hours || 0;
+                vals.sla_action = p.sla_action || false;
+            }
         } else if (p.node_type === "service_task") {
             vals = {
                 gate_timing: p.gate_timing || false,
                 gate_model_id: p.gate_model_id || false,
                 gate_method: p.gate_method || false,
             };
+        } else if (["exclusive_gw", "inclusive_gw", "parallel_gw"].includes(p.node_type)) {
+            const conds = {};
+            for (const flow of p.outgoing || []) {
+                const rows = (flow.rows || []).filter((r) => r.field);
+                if (rows.length) {
+                    conds[flow.target_id] = rows;
+                }
+            }
+            vals = { flow_conditions: JSON.stringify(conds) };
         }
         try {
             await this.orm.call(MODEL, "set_node_config", [[this.processId], p.element_id, vals]);

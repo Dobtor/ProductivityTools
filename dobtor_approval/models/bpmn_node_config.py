@@ -55,9 +55,18 @@ class BpmnNodeConfig(models.Model):
     gate_method = fields.Char(string='目標方法/按鈕')
     gate_condition = fields.Text(string='觸發條件 (JSON)')
 
-    # 出線（sequence flow）條件：dict {target_element_id: condition_expr}，存 JSON
+    # 出線（sequence flow）條件：dict {target_element_id: [{field,op,value}]}，存 JSON
     flow_conditions = fields.Text(string='出線條件 (JSON)',
                                   help='exclusive gateway 出線條件，key=目標元素id')
+
+    # SLA 逾時（DESIGN_APPROVAL_EDITOR §3.1，T5 sla_timer）
+    sla_hours = fields.Float(string='簽核期限(小時)')
+    sla_action = fields.Selection([
+        ('remind', '逾時提醒'),
+        ('escalate', '逾時自動加簽上級'),
+        ('auto_approve', '逾時視為核准'),
+        ('reject', '逾時退回'),
+    ], string='逾時動作')
 
     _sql_constraints = [
         ('uniq_process_element',

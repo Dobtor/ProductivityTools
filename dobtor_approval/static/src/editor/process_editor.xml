@@ -15,6 +15,11 @@
                 </span>
                 <span t-else="" class="badge text-bg-success">設定完整</span>
                 <div class="flex-grow-1"/>
+                <button class="btn btn-sm me-2"
+                        t-att-class="state.previewMode ? 'btn-info' : 'btn-outline-info'"
+                        t-on-click="togglePreview">
+                    <i class="fa fa-play me-1"/>預覽走訪
+                </button>
                 <button class="btn btn-primary btn-sm" t-on-click="onPublish"
                         t-att-disabled="state.lint.length">發佈</button>
             </div>
@@ -128,6 +133,23 @@
                                     <label class="form-check-label" for="allow_esc">允許主管自主往上加簽</label>
                                 </div>
 
+                                <!-- SLA 逾時（T5） -->
+                                <div t-if="feat('sla_timer')" class="border-top pt-2 mt-2">
+                                    <label class="form-label fw-bold">簽核期限 (SLA)</label>
+                                    <div class="d-flex gap-1 mb-2">
+                                        <input type="number" class="form-control form-control-sm"
+                                               placeholder="小時" t-att-value="state.panel.sla_hours"
+                                               t-on-change="(ev) => this.setField('sla_hours', parseFloat(ev.target.value)||0)"/>
+                                        <select class="form-select form-select-sm"
+                                                t-on-change="(ev) => this.setField('sla_action', ev.target.value)">
+                                            <option value="">逾時動作…</option>
+                                            <t t-foreach="state.options.sla_actions" t-as="sa" t-key="sa[0]">
+                                                <option t-att-value="sa[0]" t-att-selected="state.panel.sla_action === sa[0]"><t t-esc="sa[1]"/></option>
+                                            </t>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <!-- dry-run 預覽 -->
                                 <div class="border-top pt-2 mt-2">
                                     <label class="form-label fw-bold">誰會簽（試算）</label>
@@ -177,6 +199,41 @@
                                 <div t-else="" class="alert alert-info">
                                     請先於「設定 → BPMN 簽核」啟用 <b>T2 Action 攔截閘門</b> 才能設定動作插入點。
                                 </div>
+                            </t>
+
+                            <!-- 閘道：出線條件 builder -->
+                            <t t-elif="['exclusive_gw','inclusive_gw','parallel_gw'].includes(state.panel.node_type)">
+                                <t t-if="!feat('conditional')">
+                                    <div class="alert alert-info">請先啟用 <b>T1 條件分歧</b> 才能設定閘道條件。</div>
+                                </t>
+                                <t t-else="">
+                                    <label class="form-label fw-bold">出線條件</label>
+                                    <div t-if="!state.panel.outgoing.length" class="text-muted fst-italic">此閘道無出線。</div>
+                                    <div t-foreach="state.panel.outgoing" t-as="flow" t-key="flow.target_id"
+                                         class="border rounded p-2 mb-2">
+                                        <div class="fw-bold mb-1">→ <t t-esc="flow.target_name"/></div>
+                                        <div t-foreach="flow.rows" t-as="row" t-key="row_index"
+                                             class="d-flex gap-1 mb-1">
+                                            <input type="text" class="form-control form-control-sm" placeholder="欄位"
+                                                   t-att-value="row.field"
+                                                   t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'field', ev.target.value)"/>
+                                            <select class="form-select form-select-sm" style="max-width:90px"
+                                                    t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'op', ev.target.value)">
+                                                <t t-foreach="state.options.operators" t-as="op" t-key="op[0]">
+                                                    <option t-att-value="op[0]" t-att-selected="row.op === op[0]"><t t-esc="op[1]"/></option>
+                                                </t>
+                                            </select>
+                                            <input type="text" class="form-control form-control-sm" placeholder="值"
+                                                   t-att-value="row.value"
+                                                   t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'value', ev.target.value)"/>
+                                            <button class="btn btn-sm btn-link text-danger p-0"
+                                                    t-on-click="() => this.removeCond(flow.target_id, row_index)">×</button>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                t-on-click="() => this.addCond(flow.target_id)">+ 條件</button>
+                                    </div>
+                                    <small class="text-muted">多條件以 AND 結合；留空＝預設線。</small>
+                                </t>
                             </t>
 
                             <t t-else="">
