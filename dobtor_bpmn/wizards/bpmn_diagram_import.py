@@ -1,4 +1,5 @@
 import base64
+import json
 
 from odoo import _, fields, models
 from odoo.exceptions import UserError
@@ -8,9 +9,9 @@ class BpmnDiagramImportWizard(models.TransientModel):
     _name = 'bpmn.diagram.import.wizard'
     _description = '匯入流程設計圖（多檔上傳）'
 
-    attachment_ids = fields.Many2many(
-        'ir.attachment', string='檔案',
-        help='可一次選取多個 .bpmn / .dmn / .xml 檔')
+    files_json = fields.Text(
+        string='檔案',
+        help='由前端多檔上傳 widget 寫入的 JSON 陣列 [{name, data(base64)}]')
     diagram_type = fields.Selection([
         ('auto', '自動偵測'),
         ('bpmn', 'BPMN 流程圖'),
@@ -46,21 +47,27 @@ class BpmnDiagramImportWizard(models.TransientModel):
 
     def action_import(self):
         self.ensure_one()
-        if not self.attachment_ids:
+        try:
+            files = json.loads(self.files_json or '[]')
+        except (ValueError, TypeError):
+            files = []
+        if not files:
             raise UserError(_('請至少選擇一個檔案。'))
         Diagram = self.env['bpmn.diagram']
         created = Diagram
-        for att in self.attachment_ids:
-            raw = att.raw
-            if not raw and att.datas:
-                raw = base64.b64decode(att.datas)
-            content = (raw or b'').decode('utf-8', errors='replace')
+        for f in files:
+            name = f.get('name') or _('未命名')
+            try:
+                content = base64.b64decode(f.get('data') or '').decode(
+                    'utf-8', errors='replace')
+            except Exception:
+                content = ''
             if self.diagram_type != 'auto':
                 dtype = self.diagram_type
             else:
-                dtype = self._detect_type(att.name, content)
+                dtype = self._detect_type(name, content)
             created |= Diagram.create({
-                'name': self._strip_ext(att.name or _('未命名')),
+                'name': self._strip_ext(name),
                 'diagram_type': dtype,
                 'xml': content or False,
                 'purpose': self.purpose,

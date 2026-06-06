@@ -21,8 +21,8 @@
                                    options="{'color_field': 'color'}"/>
                         </group>
                     </group>
-                    <field name="attachment_ids" widget="many2many_binary"
-                           string="檔案（可多選）"/>
+                    <field name="files_json" widget="bpmn_multi_file"
+                           nolabel="1"/>
                 </sheet>
                 <footer>
                     <button name="action_import" type="object" string="匯入"

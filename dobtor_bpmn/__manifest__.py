@@ -32,6 +32,8 @@ Dobtor BPMN — 核心純設計模組
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.js',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.xml',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.scss',
+            'dobtor_bpmn/static/src/fields/bpmn_multi_file_field.js',
+            'dobtor_bpmn/static/src/fields/bpmn_multi_file_field.xml',
         ],
     },
     'application': True,
