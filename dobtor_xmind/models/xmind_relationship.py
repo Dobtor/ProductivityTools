@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class XMindRelationship(models.Model):
@@ -59,3 +60,15 @@ class XMindRelationship(models.Model):
     cp1_x = fields.Float('Control Point 1 X')
     cp1_y = fields.Float('Control Point 1 Y')
     cp_is_relative = fields.Boolean('CPs are Relative Offsets', default=False)
+
+    @api.constrains('source_topic_id', 'target_topic_id', 'sheet_id')
+    def _check_endpoints(self):
+        for rel in self:
+            if rel.source_topic_id and rel.source_topic_id == rel.target_topic_id:
+                raise ValidationError(
+                    "A relationship cannot connect a topic to itself.")
+            for endpoint in (rel.source_topic_id, rel.target_topic_id):
+                if endpoint and endpoint.sheet_id != rel.sheet_id:
+                    raise ValidationError(
+                        "Relationship endpoints must belong to the same sheet "
+                        "as the relationship.")

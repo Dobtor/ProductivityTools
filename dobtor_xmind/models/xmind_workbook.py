@@ -285,12 +285,179 @@ class XMindWorkbook(models.Model):
             if root_title and root_title != self.name:
                 self.with_context(_syncing_name=True).write({'name': root_title})
 
+        # Restore feature layers atomically in the SAME transaction as the tree
+        # so a revision snapshot / save can never leave relationships pointing at
+        # component_ids that no longer exist. Keys are optional: when absent the
+        # existing records (already unlinked above) simply stay empty.
+        if 'relationships' in data:
+            self._replace_relationships(sheet, data.get('relationships') or [])
+        if 'boundaries' in data:
+            self._replace_boundaries(sheet, data.get('boundaries') or [])
+        if 'summaries' in data:
+            self._replace_summaries(sheet, data.get('summaries') or [])
+        if 'callouts' in data:
+            self._replace_callouts(sheet, data.get('callouts') or [])
+        if 'floating_topics' in data:
+            self._replace_floating_topics(sheet, data.get('floating_topics') or [])
+
         self.modified_time = fields.Datetime.now()
 
-        # Create revision snapshot
+        # Create revision snapshot (captures the full payload incl. features)
         self._create_revision(data, is_auto=False)
 
         return True
+
+    def _topic_map(self, sheet):
+        """Return {component_id: topic_record} for a sheet in a single query.
+
+        Replaces the per-id ``search`` loops (N+1) used when resolving
+        relationship/boundary/summary/callout component references. Uses an
+        explicit ``search`` (not ``sheet.topic_ids``) so it stays correct right
+        after topics were freshly created within the same transaction.
+        """
+        topics = self.env['xmind.topic'].search([('sheet_id', '=', sheet.id)])
+        return {t.component_id: t for t in topics if t.component_id}
+
+    def _replace_relationships(self, sheet, relationships):
+        """Full-replace relationships for a sheet (atomic, no N+1)."""
+        sheet.relationship_ids.unlink()
+        topic_map = self._topic_map(sheet)
+        vals_list = []
+        for rel in relationships:
+            source = topic_map.get(rel.get('source_id'))
+            target = topic_map.get(rel.get('target_id'))
+            if not source or not target or source.id == target.id:
+                # Skip dangling or self-referencing relationships rather than
+                # letting the model constraint abort the whole save.
+                continue
+            options = rel.get('options', {})
+            control_points = rel.get('controlPoints', [])
+            cp0 = control_points[0] if len(control_points) > 0 else {}
+            cp1 = control_points[1] if len(control_points) > 1 else {}
+            vals_list.append({
+                'sheet_id': sheet.id,
+                'source_topic_id': source.id,
+                'target_topic_id': target.id,
+                'title': options.get('label', '') or rel.get('title', ''),
+                'line_type': options.get('shapeType', 'curved'),
+                'line_style': options.get('lineStyle', 'dashed'),
+                'line_color': options.get('lineColor', '#77933C'),
+                'line_width': options.get('lineWidth', 3),
+                'arrow_begin': options.get('startMarker', 'none'),
+                'arrow_end': options.get('endMarker', 'arrow'),
+                'arrow_size': options.get('markerSize', 'medium'),
+                'cp0_x': cp0.get('x', 0),
+                'cp0_y': cp0.get('y', 0),
+                'cp1_x': cp1.get('x', 0),
+                'cp1_y': cp1.get('y', 0),
+            })
+        if vals_list:
+            self.env['xmind.relationship'].create(vals_list)
+
+    def _replace_boundaries(self, sheet, boundaries):
+        """Full-replace boundaries for a sheet (atomic, no N+1)."""
+        sheet.boundary_ids.unlink()
+        topic_map = self._topic_map(sheet)
+        for b in boundaries:
+            opts = b.get('options', {})
+            topic_ids = [topic_map[cid].id for cid in b.get('topicIds', []) if cid in topic_map]
+            if not topic_ids:
+                continue
+            self.env['xmind.boundary'].create({
+                'sheet_id': sheet.id,
+                'title': opts.get('title', ''),
+                'shape': opts.get('shape', 'rounded'),
+                'fill_color': opts.get('fillColor', 'rgba(195,214,155,0.2)'),
+                'border_color': opts.get('borderColor', '#77933C'),
+                'border_width': opts.get('borderWidth', 3),
+                'border_style': opts.get('borderStyle', 'dotted'),
+                'topic_ids': [Command.set(topic_ids)],
+            })
+
+    def _replace_summaries(self, sheet, summaries):
+        """Full-replace summaries for a sheet (atomic, no N+1)."""
+        sheet.summary_ids.unlink()
+        topic_map = self._topic_map(sheet)
+        for s in summaries:
+            opts = s.get('options', {})
+            topic_ids = [topic_map[cid].id for cid in s.get('topicIds', []) if cid in topic_map]
+            if not topic_ids:
+                continue
+            summary_topic = topic_map.get(s.get('summaryNodeId'))
+            self.env['xmind.summary'].create({
+                'sheet_id': sheet.id,
+                'summary_topic_id': summary_topic.id if summary_topic else False,
+                'topic_ids': [Command.set(topic_ids)],
+                'line_color': opts.get('lineColor', '#C3D69B'),
+                'line_width': opts.get('lineWidth', 5),
+                'line_type': opts.get('lineType', 'square'),
+                'title': opts.get('summaryTitle') or opts.get('topicText') or 'Summary',
+                'fill_color': opts.get('summaryFill') or opts.get('topicFillColor') or '#77933C',
+                'text_color': opts.get('summaryColor') or opts.get('topicTextColor') or '#FFFFFF',
+                'font_size': opts.get('summaryFontSize') or opts.get('topicFontSize') or 10,
+                # NOTE: do NOT fall back to ``or True`` — that makes italic
+                # impossible to turn off (False or X or True == True).
+                'font_italic': self._coerce_bool(
+                    opts.get('summaryItalic', opts.get('topicItalic', True))),
+            })
+
+    def _replace_callouts(self, sheet, callouts):
+        """Full-replace callouts for a sheet (atomic, no N+1)."""
+        self.env['xmind.callout'].search([('topic_id', 'in', sheet.topic_ids.ids)]).unlink()
+        topic_map = self._topic_map(sheet)
+        for c in callouts:
+            opts = c.get('options', {})
+            topic = topic_map.get(c.get('parentNodeId'))
+            if not topic:
+                continue
+            self.env['xmind.callout'].create({
+                'topic_id': topic.id,
+                'title': opts.get('title', 'Note'),
+                'note': opts.get('content', ''),
+                'background_color': opts.get('backgroundColor', '#fffacd'),
+                'border_color': opts.get('borderColor', '#ffd700'),
+                'shape': opts.get('shape', 'callout'),
+                'offset_x': opts.get('offsetX', 80),
+                'offset_y': opts.get('offsetY', -50),
+            })
+
+    def _replace_floating_topics(self, sheet, floating_topics):
+        """Full-replace floating topics for a sheet (atomic)."""
+        sheet.floating_topic_ids.unlink()
+        for ft in floating_topics:
+            style = ft.get('style', {})
+            self.env['xmind.floating.topic'].create({
+                'sheet_id': sheet.id,
+                'component_id': ft.get('component_id') or str(uuid.uuid4()),
+                'title': ft.get('title', 'Floating Topic'),
+                'note': ft.get('note', ''),
+                'position_x': self._safe_int(ft.get('x', 100), 100),
+                'position_y': self._safe_int(ft.get('y', 100), 100),
+                'background_color': style.get('background', '#FFFFFF'),
+                'text_color': style.get('color', '#303030'),
+                'font_size': self._safe_int(style.get('fontSize', 13), 13),
+                'font_weight': style.get('fontWeight', 'normal'),
+            })
+
+    @staticmethod
+    def _coerce_bool(value):
+        """Coerce a JSON-supplied value to a real bool (handles 'false'/0/None)."""
+        if isinstance(value, str):
+            return value.strip().lower() not in ('', 'false', '0', 'none', 'no')
+        return bool(value)
+
+    @staticmethod
+    def _safe_int(value, default=0):
+        """Parse an int from possibly-dirty input ('14px', '1.5em', None…)."""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            pass
+        try:
+            cleaned = ''.join(ch for ch in str(value) if ch.isdigit() or ch == '-')
+            return int(cleaned) if cleaned not in ('', '-') else default
+        except (TypeError, ValueError):
+            return default
 
     def _create_revision(self, data, is_auto=False):
         """Create a revision snapshot of the current mindmap state."""
@@ -338,12 +505,12 @@ class XMindWorkbook(models.Model):
             'shape': shape_type,
             'background_color': bg_color,
             'text_color': style_data.get('color', ''),
-            'font_size': int(str(style_data.get('fontSize', style_data.get('font-size', '14'))).replace('px', '')) if style_data.get('fontSize') or style_data.get('font-size') else 14,
+            'font_size': self._safe_int(style_data.get('fontSize', style_data.get('font-size', 14)), 14),
             'font_weight': 'bold' if style_data.get('bold') or style_data.get('font-weight') == 'bold' else 'normal',
             'font_style': 'italic' if style_data.get('italic') else 'normal',
             'font_family': style_data.get('fontFamily', ''),
             'border_color': border_color,
-            'border_width': int(str(border_width_str).replace('px', '')) if border_width_str else 1,
+            'border_width': self._safe_int(border_width_str, 1) if border_width_str else 1,
             'line_type': node_data.get('branchStyle', {}).get('lineType', ''),
             'line_color': node_data.get('branchStyle', {}).get('lineColor', ''),
             'line_width': node_data.get('branchStyle', {}).get('lineWidth', 0),
@@ -377,33 +544,47 @@ class XMindWorkbook(models.Model):
         return topic
 
     def export_xmind_file(self):
-        """Export workbook as .xmind file"""
+        """Export workbook as a real, round-trippable ``.xmind`` archive.
+
+        Produces the modern XMind 8 / Zen JSON package:
+          - content.json   (sheets, full topic tree, features, relationships)
+          - metadata.json  (creator info)
+          - manifest.json  (file-entries, incl. thumbnail when present)
+          - Thumbnails/thumbnail.png  (optional, from stored thumbnail)
+
+        Topic style ``properties`` carry BOTH the simplified keys this module's
+        importer reads (``background``/``color``) AND the canonical XMind keys
+        (``svg:fill``/``fo:color``/``fo:font-size``…) so the file renders in a
+        real XMind client and re-imports here without loss.
+        """
         self.ensure_one()
 
-        # Create ZIP file structure
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # content.json - main content
             content = self._generate_xmind_content()
-            zf.writestr('content.json', json.dumps(content, indent=2))
+            zf.writestr('content.json', json.dumps(content, ensure_ascii=False, indent=2))
 
-            # metadata.json
             metadata = {
-                'creator': {
-                    'name': 'Dobtor XMind Editor',
-                    'version': '18.0.1.0.0'
-                }
+                'creator': {'name': 'Dobtor XMind Editor', 'version': '18.0.1.0.0'},
             }
-            zf.writestr('metadata.json', json.dumps(metadata, indent=2))
+            zf.writestr('metadata.json', json.dumps(metadata, ensure_ascii=False, indent=2))
 
-            # manifest.json
-            manifest = {
-                'file-entries': {
-                    'content.json': {},
-                    'metadata.json': {}
-                }
+            file_entries = {
+                'content.json': {},
+                'metadata.json': {},
             }
-            zf.writestr('manifest.json', json.dumps(manifest, indent=2))
+
+            # Embed the stored thumbnail (if any) so XMind shows a preview.
+            thumb_b64 = self.thumbnail
+            if thumb_b64:
+                try:
+                    zf.writestr('Thumbnails/thumbnail.png', base64.b64decode(thumb_b64))
+                    file_entries['Thumbnails/thumbnail.png'] = {'media-type': 'image/png'}
+                except Exception:
+                    pass
+
+            manifest = {'file-entries': file_entries}
+            zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
 
         zip_buffer.seek(0)
         self.xmind_file = base64.b64encode(zip_buffer.read())
@@ -416,74 +597,202 @@ class XMindWorkbook(models.Model):
         }
 
     def _generate_xmind_content(self):
-        """Generate XMind content.json structure"""
+        """Generate the XMind content.json structure (list of sheets)."""
         sheets_data = []
-
         for sheet in self.sheet_ids:
             root_topic = sheet.topic_ids.filtered(lambda t: not t.parent_id)
-            if root_topic:
-                sheet_data = {
-                    'id': sheet.component_id or str(uuid.uuid4()),
-                    'class': 'sheet',
-                    'title': sheet.name,
-                    'rootTopic': self._topic_to_xmind(root_topic[0]),
-                    'relationships': self._get_relationships(sheet),
-                }
-                sheets_data.append(sheet_data)
-
+            if not root_topic:
+                continue
+            ctx = self._build_export_context(sheet)
+            sheet_data = {
+                'id': sheet.component_id or str(uuid.uuid4()),
+                'class': 'sheet',
+                'title': sheet.name,
+                'rootTopic': self._topic_to_xmind(root_topic[0], ctx),
+                'relationships': self._relationships_to_xmind(sheet),
+            }
+            if sheet.theme:
+                sheet_data['theme'] = {'id': sheet.theme}
+            sheets_data.append(sheet_data)
         return sheets_data
 
-    def _topic_to_xmind(self, topic):
-        """Convert topic to XMind format"""
+    def _build_export_context(self, sheet):
+        """Precompute per-sheet lookups so topic export stays O(n) (no rescans).
+
+        Boundaries / summaries are indexed by the parent topic of their member
+        set (their members are siblings under one parent), and floating topics
+        by component_id so a child can be emitted under ``children.detached``.
+        """
+        boundaries_by_parent = {}
+        for b in sheet.boundary_ids:
+            if not b.topic_ids:
+                continue
+            parent = b.topic_ids[0].parent_id
+            boundaries_by_parent.setdefault(parent.id, self.env['xmind.boundary'])
+            boundaries_by_parent[parent.id] |= b
+        summaries_by_parent = {}
+        for s in sheet.summary_ids:
+            if not s.topic_ids:
+                continue
+            parent = s.topic_ids[0].parent_id
+            summaries_by_parent.setdefault(parent.id, self.env['xmind.summary'])
+            summaries_by_parent[parent.id] |= s
+        floating = {ft.component_id: ft for ft in sheet.floating_topic_ids if ft.component_id}
+        return {
+            'boundaries_by_parent': boundaries_by_parent,
+            'summaries_by_parent': summaries_by_parent,
+            'floating': floating,
+        }
+
+    def _topic_style_properties(self, topic):
+        """Return a style ``properties`` dict with module + canonical XMind keys."""
+        props = {}
+        if topic.background_color:
+            props['background'] = topic.background_color
+            props['svg:fill'] = topic.background_color
+        if topic.text_color:
+            props['color'] = topic.text_color
+            props['fo:color'] = topic.text_color
+        if topic.font_size:
+            props['fo:font-size'] = '%spt' % topic.font_size
+        if topic.font_weight and topic.font_weight != 'normal':
+            props['fo:font-weight'] = topic.font_weight
+        if topic.font_style and topic.font_style != 'normal':
+            props['fo:font-style'] = topic.font_style
+        if topic.font_family:
+            props['fo:font-family'] = topic.font_family
+        if topic.border_color:
+            props['border-line-color'] = topic.border_color
+        if topic.border_width:
+            props['border-line-width'] = '%spt' % topic.border_width
+        return props
+
+    def _topic_to_xmind(self, topic, ctx):
+        """Convert a topic (and its subtree + features) to XMind JSON."""
         xmind_topic = {
             'id': topic.component_id,
             'class': 'topic',
-            'title': topic.title,
-            'structureClass': topic.structure_class or '',
+            'title': topic.title or '',
         }
+        if topic.structure_class:
+            xmind_topic['structureClass'] = topic.structure_class
 
         if topic.note:
-            xmind_topic['notes'] = {
-                'plain': {'content': topic.note}
-            }
+            xmind_topic['notes'] = {'plain': {'content': topic.note}}
 
         if topic.labels:
-            xmind_topic['labels'] = topic.labels.split(',')
+            xmind_topic['labels'] = [l for l in topic.labels.split(',') if l]
 
         if topic.marker_ids:
             xmind_topic['markers'] = [
-                {'markerId': m.marker_id.code} for m in topic.marker_ids
+                {'markerId': m.marker_id.code} for m in topic.marker_ids if m.marker_id.code
             ]
 
-        # Style
-        style = {}
-        if topic.background_color:
-            style['background'] = topic.background_color
-        if topic.text_color:
-            style['color'] = topic.text_color
-        if style:
-            xmind_topic['style'] = {'properties': style}
+        if topic.hyperlink:
+            xmind_topic['href'] = topic.hyperlink
 
-        # Children
-        if topic.child_ids:
-            xmind_topic['children'] = {
-                'attached': [
-                    self._topic_to_xmind(child) for child in topic.child_ids.sorted('sequence')
-                ]
-            }
+        props = self._topic_style_properties(topic)
+        if props:
+            xmind_topic['style'] = {'id': topic.component_id, 'properties': props}
+
+        # Children — split into attached vs detached (floating) preserving order.
+        attached, detached = [], []
+        ordered_children = topic.child_ids.sorted('sequence')
+        for child in ordered_children:
+            child_json = self._topic_to_xmind(child, ctx)
+            ft = ctx['floating'].get(child.component_id)
+            if ft:
+                child_json['position'] = {'x': ft.position_x, 'y': ft.position_y}
+                detached.append(child_json)
+            else:
+                attached.append(child_json)
+        children = {}
+        if attached:
+            children['attached'] = attached
+        if detached:
+            children['detached'] = detached
+        if children:
+            xmind_topic['children'] = children
+
+        # Boundaries / summaries grouped under THIS topic (its children are the
+        # members). Range indices refer to the attached-children order above.
+        attached_ids = [c.component_id for c in ordered_children
+                        if c.component_id not in ctx['floating']]
+        idx_of = {cid: i for i, cid in enumerate(attached_ids)}
+
+        bnds = ctx['boundaries_by_parent'].get(topic.id)
+        if bnds:
+            blist = []
+            for b in bnds:
+                rng = self._range_for(b.topic_ids, idx_of)
+                if rng is None:
+                    continue
+                blist.append({
+                    'id': b.component_id or str(uuid.uuid4()),
+                    'range': '(%d,%d)' % rng,
+                    'title': b.title or '',
+                    'style': {'properties': {
+                        'svg:fill': b.fill_color or '',
+                        'border-line-color': b.border_color or '',
+                        'shape-class': 'org.xmind.boundaryShape.%s' % (b.shape or 'rounded'),
+                    }},
+                })
+            if blist:
+                xmind_topic['boundaries'] = blist
+
+        sums = ctx['summaries_by_parent'].get(topic.id)
+        if sums:
+            slist = []
+            for s in sums:
+                rng = self._range_for(s.topic_ids, idx_of)
+                if rng is None:
+                    continue
+                entry = {
+                    'id': s.component_id or str(uuid.uuid4()),
+                    'range': '(%d,%d)' % rng,
+                }
+                if s.summary_topic_id and s.summary_topic_id.component_id:
+                    entry['topicId'] = s.summary_topic_id.component_id
+                slist.append(entry)
+            if slist:
+                xmind_topic['summaries'] = slist
 
         return xmind_topic
 
-    def _get_relationships(self, sheet):
-        """Get relationships for a sheet"""
+    def _range_for(self, member_topics, idx_of):
+        """Compute an ``(start,end)`` index range from member component_ids."""
+        idxs = sorted(idx_of[t.component_id] for t in member_topics
+                      if t.component_id in idx_of)
+        if not idxs:
+            return None
+        return idxs[0], idxs[-1]
+
+    def _relationships_to_xmind(self, sheet):
+        """Serialize sheet relationships with endpoints, title, style and CPs."""
         relationships = []
         for rel in sheet.relationship_ids:
-            relationships.append({
+            if not rel.source_topic_id.component_id or not rel.target_topic_id.component_id:
+                continue
+            entry = {
                 'id': rel.component_id or str(uuid.uuid4()),
                 'end1Id': rel.source_topic_id.component_id,
                 'end2Id': rel.target_topic_id.component_id,
                 'title': rel.title or '',
-            })
+                'style': {'properties': {
+                    'line-color': rel.line_color or '',
+                    'line-width': '%spt' % (rel.line_width or 1),
+                    'line-pattern': rel.line_style or 'solid',
+                    'shape-class': 'org.xmind.relationshipShape.%s' % (rel.line_type or 'curved'),
+                }},
+            }
+            cps = []
+            if rel.cp0_x or rel.cp0_y:
+                cps.append({'x': rel.cp0_x, 'y': rel.cp0_y})
+            if rel.cp1_x or rel.cp1_y:
+                cps.append({'x': rel.cp1_x, 'y': rel.cp1_y})
+            if cps:
+                entry['controlPoints'] = cps
+            relationships.append(entry)
         return relationships
 
     def import_xmind_file(self):
@@ -1409,7 +1718,7 @@ class XMindWorkbook(models.Model):
         return sheet
 
     def _import_xmind_topic(self, topic_data, sheet, parent=False):
-        """Import XMind topic data"""
+        """Import XMind topic data (JSON format), incl. fonts/href/features."""
         style_props = topic_data.get('style', {}).get('properties', {})
 
         topic_vals = {
@@ -1417,12 +1726,31 @@ class XMindWorkbook(models.Model):
             'component_id': topic_data.get('id', str(uuid.uuid4())),
             'title': topic_data.get('title', ''),
             'structure_class': topic_data.get('structureClass', ''),
-            'background_color': style_props.get('background', ''),
-            'text_color': style_props.get('color', ''),
+            # Accept both the simplified module keys and canonical XMind keys.
+            'background_color': style_props.get('background') or style_props.get('svg:fill') or '',
+            'text_color': style_props.get('color') or style_props.get('fo:color') or '',
         }
+
+        # Fonts / border (canonical XMind keys; px/pt suffixes tolerated)
+        if style_props.get('fo:font-size'):
+            topic_vals['font_size'] = self._safe_int(style_props['fo:font-size'], 14)
+        if style_props.get('fo:font-weight'):
+            topic_vals['font_weight'] = 'bold' if 'bold' in str(style_props['fo:font-weight']).lower() else 'normal'
+        if style_props.get('fo:font-style'):
+            topic_vals['font_style'] = 'italic' if 'italic' in str(style_props['fo:font-style']).lower() else 'normal'
+        if style_props.get('fo:font-family'):
+            topic_vals['font_family'] = style_props['fo:font-family']
+        if style_props.get('border-line-color'):
+            topic_vals['border_color'] = style_props['border-line-color']
+        if style_props.get('border-line-width'):
+            topic_vals['border_width'] = self._safe_int(style_props['border-line-width'], 1)
 
         if parent:
             topic_vals['parent_id'] = parent.id
+
+        # Hyperlink
+        if topic_data.get('href'):
+            topic_vals['hyperlink'] = topic_data['href']
 
         # Notes
         if 'notes' in topic_data:
@@ -1439,9 +1767,7 @@ class XMindWorkbook(models.Model):
         # Import markers
         if 'markers' in topic_data:
             for marker_data in topic_data['markers']:
-                marker = self.env['xmind.marker'].search([
-                    ('code', '=', marker_data.get('markerId', ''))
-                ], limit=1)
+                marker = self._resolve_marker(marker_data.get('markerId', ''))
                 if marker:
                     self.env['xmind.topic.marker'].create({
                         'topic_id': topic.id,
@@ -1451,18 +1777,18 @@ class XMindWorkbook(models.Model):
         # Import children
         children_data = topic_data.get('children', {})
         attached = children_data.get('attached', [])
+        attached_children = []
         idx = 0
         for child_data in attached:
             child = self._import_xmind_topic(child_data, sheet, topic)
             child.sequence = idx
             idx += 1
+            attached_children.append(child)
 
         # Import detached (floating) children — full topic tree + floating record
         detached = children_data.get('detached', [])
         for child_data in detached:
             pos = child_data.get('position', {})
-            pos_x = pos.get('x', 100)
-            pos_y = pos.get('y', 100)
             child = self._import_xmind_topic(child_data, sheet, topic)
             child.sequence = idx
             idx += 1
@@ -1470,11 +1796,71 @@ class XMindWorkbook(models.Model):
                 'sheet_id': sheet.id,
                 'component_id': child.component_id,
                 'title': child.title or _('Floating Topic'),
-                'position_x': int(pos_x),
-                'position_y': int(pos_y),
+                'position_x': self._safe_int(pos.get('x', 100), 100),
+                'position_y': self._safe_int(pos.get('y', 100), 100),
             })
 
+        # Import boundaries / summaries (ranges index into attached children)
+        self._import_json_boundaries(topic_data.get('boundaries', []), sheet, attached_children)
+        self._import_json_summaries(topic_data.get('summaries', []), sheet, attached_children)
+
         return topic
+
+    def _parse_range(self, range_str, count):
+        """Parse an XMind ``(start,end)`` range string into clamped indices."""
+        if not range_str:
+            return None
+        try:
+            parts = range_str.strip('()').split(',')
+            start = int(parts[0])
+            end = int(parts[1]) if len(parts) > 1 else start
+        except (ValueError, IndexError):
+            return None
+        start = max(0, start)
+        end = min(end, count - 1)
+        if start > end:
+            return None
+        return start, end
+
+    def _import_json_boundaries(self, boundaries, sheet, attached_children):
+        """Create boundary records from JSON ``boundaries`` entries."""
+        for b in boundaries:
+            rng = self._parse_range(b.get('range', ''), len(attached_children))
+            if not rng:
+                continue
+            members = attached_children[rng[0]:rng[1] + 1]
+            if not members:
+                continue
+            props = (b.get('style') or {}).get('properties', {})
+            self.env['xmind.boundary'].create({
+                'sheet_id': sheet.id,
+                'component_id': b.get('id') or str(uuid.uuid4()),
+                'title': b.get('title', ''),
+                'fill_color': props.get('svg:fill') or 'rgba(195,214,155,0.2)',
+                'border_color': props.get('border-line-color') or '#77933C',
+                'topic_ids': [Command.set([t.id for t in members])],
+            })
+
+    def _import_json_summaries(self, summaries, sheet, attached_children):
+        """Create summary records from JSON ``summaries`` entries."""
+        for s in summaries:
+            rng = self._parse_range(s.get('range', ''), len(attached_children))
+            if not rng:
+                continue
+            members = attached_children[rng[0]:rng[1] + 1]
+            if not members:
+                continue
+            summary_topic = False
+            if s.get('topicId'):
+                summary_topic = self.env['xmind.topic'].search([
+                    ('sheet_id', '=', sheet.id), ('component_id', '=', s['topicId'])
+                ], limit=1)
+            self.env['xmind.summary'].create({
+                'sheet_id': sheet.id,
+                'component_id': s.get('id') or str(uuid.uuid4()),
+                'summary_topic_id': summary_topic.id if summary_topic else False,
+                'topic_ids': [Command.set([t.id for t in members])],
+            })
 
     def _import_relationship(self, rel_data, sheet):
         """Import relationship data"""
@@ -1487,14 +1873,30 @@ class XMindWorkbook(models.Model):
             ('component_id', '=', rel_data.get('end2Id'))
         ], limit=1)
 
-        if source and target:
-            self.env['xmind.relationship'].create({
+        if source and target and source.id != target.id:
+            props = (rel_data.get('style') or {}).get('properties', {})
+            cps = rel_data.get('controlPoints', []) or []
+            cp0 = cps[0] if len(cps) > 0 else {}
+            cp1 = cps[1] if len(cps) > 1 else {}
+            vals = {
                 'sheet_id': sheet.id,
                 'source_topic_id': source.id,
                 'target_topic_id': target.id,
                 'title': rel_data.get('title', ''),
                 'component_id': rel_data.get('id', str(uuid.uuid4())),
-            })
+                'cp0_x': cp0.get('x', 0), 'cp0_y': cp0.get('y', 0),
+                'cp1_x': cp1.get('x', 0), 'cp1_y': cp1.get('y', 0),
+            }
+            if props.get('line-color'):
+                vals['line_color'] = props['line-color']
+            if props.get('line-width'):
+                vals['line_width'] = self._safe_int(props['line-width'], 3)
+            if props.get('line-pattern'):
+                vals['line_style'] = props['line-pattern']
+            shape_class = props.get('shape-class', '')
+            if shape_class:
+                vals['line_type'] = shape_class.rsplit('.', 1)[-1]
+            self.env['xmind.relationship'].create(vals)
 
     # -------------------------------------------------------------------------
     # SVG / PNG Export

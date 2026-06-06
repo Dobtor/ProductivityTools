@@ -359,39 +359,45 @@ export class RelationshipManager {
                 break;
         }
 
-        // Apply markers
+        // Apply markers. Each relationship gets its OWN colour-keyed marker
+        // clone so that recolouring one line never bleeds into the shared
+        // marker definitions used by every other line.
         if (opts.startMarker !== 'none') {
-            const startId = `${opts.startMarker}-${opts.markerSize}-rev`;
-            if (!this.svg.querySelector(`#${startId}`)) {
-                const origMarker = this.svg.querySelector(`#${opts.startMarker}-${opts.markerSize}`);
-                if (origMarker) {
-                    const rev = origMarker.cloneNode(true);
-                    rev.setAttribute('id', startId);
-                    rev.setAttribute('orient', 'auto-start-reverse');
-                    this.svg.querySelector('defs').appendChild(rev);
-                }
-            }
+            const startId = this._getColoredMarkerId(opts.startMarker, opts.markerSize, opts.lineColor, true);
             path.setAttribute('marker-start', `url(#${startId})`);
         } else {
             path.removeAttribute('marker-start');
         }
 
         if (opts.endMarker !== 'none') {
-            path.setAttribute('marker-end', `url(#${opts.endMarker}-${opts.markerSize})`);
+            const endId = this._getColoredMarkerId(opts.endMarker, opts.markerSize, opts.lineColor, false);
+            path.setAttribute('marker-end', `url(#${endId})`);
         } else {
             path.removeAttribute('marker-end');
         }
+    }
 
-        // Set marker colors
-        const markers = this.svg.querySelectorAll('.marker-fill, .marker-stroke');
-        markers.forEach(m => {
-            if (m.classList.contains('marker-fill')) {
-                m.setAttribute('fill', opts.lineColor);
+    /**
+     * Return the id of a marker tinted with ``color`` (creating it on first
+     * use). Markers are keyed by type+size+color (+reverse) so each colour has
+     * its own def and lines never share/overwrite marker colours.
+     */
+    _getColoredMarkerId(baseType, size, color, reverse) {
+        const colorKey = String(color || '').replace(/[^a-zA-Z0-9]/g, '') || 'def';
+        const id = `${baseType}-${size}-${colorKey}${reverse ? '-rev' : ''}`;
+        if (!this.svg.querySelector(`#${CSS.escape(id)}`)) {
+            const orig = this.svg.querySelector(`#${baseType}-${size}`);
+            const defs = this.svg.querySelector('defs');
+            if (orig && defs) {
+                const clone = orig.cloneNode(true);
+                clone.setAttribute('id', id);
+                if (reverse) clone.setAttribute('orient', 'auto-start-reverse');
+                clone.querySelectorAll('.marker-fill').forEach(m => m.setAttribute('fill', color));
+                clone.querySelectorAll('.marker-stroke').forEach(m => m.setAttribute('stroke', color));
+                defs.appendChild(clone);
             }
-            if (m.classList.contains('marker-stroke')) {
-                m.setAttribute('stroke', opts.lineColor);
-            }
-        });
+        }
+        return id;
     }
 
     /**

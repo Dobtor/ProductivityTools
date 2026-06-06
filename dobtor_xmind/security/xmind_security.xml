@@ -70,4 +70,132 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+
+    <!-- ============================================================ -->
+    <!-- Feature-layer records follow workbook access via sheet_id     -->
+    <!-- (relationship / boundary / summary / floating topic)          -->
+    <!-- Without these rules any internal user could read/write the    -->
+    <!-- feature rows of another user's workbook directly.             -->
+    <!-- ============================================================ -->
+    <record id="rule_xmind_relationship_user" model="ir.rule">
+        <field name="name">Relationship: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_relationship"/>
+        <field name="domain_force">[
+            '|',
+            ('sheet_id.workbook_id.create_uid', '=', user.id),
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_relationship_manager" model="ir.rule">
+        <field name="name">Relationship: manager sees all</field>
+        <field name="model_id" ref="model_xmind_relationship"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <record id="rule_xmind_boundary_user" model="ir.rule">
+        <field name="name">Boundary: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_boundary"/>
+        <field name="domain_force">[
+            '|',
+            ('sheet_id.workbook_id.create_uid', '=', user.id),
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_boundary_manager" model="ir.rule">
+        <field name="name">Boundary: manager sees all</field>
+        <field name="model_id" ref="model_xmind_boundary"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <record id="rule_xmind_summary_user" model="ir.rule">
+        <field name="name">Summary: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_summary"/>
+        <field name="domain_force">[
+            '|',
+            ('sheet_id.workbook_id.create_uid', '=', user.id),
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_summary_manager" model="ir.rule">
+        <field name="name">Summary: manager sees all</field>
+        <field name="model_id" ref="model_xmind_summary"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <record id="rule_xmind_floating_topic_user" model="ir.rule">
+        <field name="name">Floating Topic: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_floating_topic"/>
+        <field name="domain_force">[
+            '|',
+            ('sheet_id.workbook_id.create_uid', '=', user.id),
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_floating_topic_manager" model="ir.rule">
+        <field name="name">Floating Topic: manager sees all</field>
+        <field name="model_id" ref="model_xmind_floating_topic"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <!-- Callout follows access via its topic_id → sheet → workbook -->
+    <record id="rule_xmind_callout_user" model="ir.rule">
+        <field name="name">Callout: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_callout"/>
+        <field name="domain_force">[
+            '|',
+            ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id),
+            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_callout_manager" model="ir.rule">
+        <field name="name">Callout: manager sees all</field>
+        <field name="model_id" ref="model_xmind_callout"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <!-- Revision follows access via its workbook_id -->
+    <record id="rule_xmind_revision_user" model="ir.rule">
+        <field name="name">Revision: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_revision"/>
+        <field name="domain_force">[
+            '|',
+            ('workbook_id.create_uid', '=', user.id),
+            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_revision_manager" model="ir.rule">
+        <field name="name">Revision: manager sees all</field>
+        <field name="model_id" ref="model_xmind_revision"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+
+    <!-- Attachment follows access via its topic_id → sheet → workbook -->
+    <record id="rule_xmind_attachment_user" model="ir.rule">
+        <field name="name">Attachment: follows workbook access</field>
+        <field name="model_id" ref="model_xmind_attachment"/>
+        <field name="domain_force">[
+            '|',
+            ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id),
+            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="rule_xmind_attachment_manager" model="ir.rule">
+        <field name="name">Attachment: manager sees all</field>
+        <field name="model_id" ref="model_xmind_attachment"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
 </odoo>

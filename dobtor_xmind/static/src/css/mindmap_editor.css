@@ -206,9 +206,9 @@
 /* Status Bar */
 .o_mindmap_statusbar {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 6px 16px;
+    gap: 10px;
+    padding: 4px 16px;
     background: #343a40;
     color: #ffffff;
     font-size: 0.85rem;
@@ -216,6 +216,55 @@
 
 .o_mindmap_autosave_indicator {
     color: #28a745;
+}
+
+.o_mindmap_status_spacer {
+    flex: 1 1 auto;
+}
+
+.o_mindmap_status_counts {
+    color: #c8cdd2;
+    white-space: nowrap;
+}
+
+.o_mindmap_zoom_control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.o_mindmap_zoom_btn {
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+    padding: 0;
+    border: 1px solid #5a6268;
+    border-radius: 3px;
+    background: #495057;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.o_mindmap_zoom_btn:hover {
+    background: #5a6268;
+}
+
+.o_mindmap_zoom_slider {
+    width: 110px;
+    cursor: pointer;
+    accent-color: #4a9eff;
+}
+
+.o_mindmap_zoom_level {
+    min-width: 42px;
+    text-align: right;
+    cursor: pointer;
+    user-select: none;
+}
+
+.o_mindmap_zoom_level:hover {
+    color: #4a9eff;
 }
 
 /* Marker Selector Dialog */

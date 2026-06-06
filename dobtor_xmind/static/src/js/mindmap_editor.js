@@ -164,6 +164,10 @@ export class MindmapEditor extends Component {
                 this.dragDropManager.destroy();
             }
             document.removeEventListener('keydown', this._boundKeydownHandler);
+            // Remove every tracked document-level listener (space-pan, rectangle
+            // select, relationship drag previews…) to avoid leaking the whole
+            // component closure each time the editor is reopened.
+            this._removeAllDocListeners();
         });
     }
 
@@ -1441,7 +1445,7 @@ export class MindmapEditor extends Component {
             this._updateStatus(_t('Drag to target topic to create relationship...'));
         });
 
-        document.addEventListener('mousemove', (e) => {
+        this._addDocListener('mousemove', (e) => {
             if (!isDragging || !sourceNode || !previewLine) return;
 
             const srcEl = sourceNode._el;
@@ -1473,7 +1477,7 @@ export class MindmapEditor extends Component {
             }
         });
 
-        document.addEventListener('mouseup', (e) => {
+        this._addDocListener('mouseup', (e) => {
             if (!isDragging) return;
             isDragging = false;
 
@@ -1550,7 +1554,7 @@ export class MindmapEditor extends Component {
             }
         });
 
-        document.addEventListener('mousemove', (e) => {
+        this._addDocListener('mousemove', (e) => {
             if (!isSelecting) return;
             const rect = canvas.getBoundingClientRect();
             const currentX = e.clientX - rect.left;
@@ -1561,7 +1565,7 @@ export class MindmapEditor extends Component {
             this.selectionRect.style.height = Math.abs(currentY - startY) + 'px';
         });
 
-        document.addEventListener('mouseup', (e) => {
+        this._addDocListener('mouseup', (e) => {
             if (!isSelecting) return;
             isSelecting = false;
             const selRect = this.selectionRect.getBoundingClientRect();
@@ -1635,8 +1639,11 @@ export class MindmapEditor extends Component {
                 setTimeout(() => {
                     if (this.jm && this.jm.view) {
                         this._zoomLevel = this.jm.view.getZoom();
-                        const zoomEl = this._el('.o_mindmap_zoom_level');
-                        if (zoomEl) zoomEl.textContent = Math.round(this._zoomLevel * 100) + '%';
+                        // Sync all zoom readouts + slider (toolbar + status bar).
+                        const pct = Math.round(this._zoomLevel * 100);
+                        this._elAll('.o_mindmap_zoom_level').forEach(el => { el.textContent = pct + '%'; });
+                        const slider = this._el('.o_mindmap_zoom_slider');
+                        if (slider) slider.value = pct;
                     }
                 }, 10);
             }
@@ -1644,6 +1651,26 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Space+Drag Pan =====
+    /**
+     * Register a document-level listener and remember it so onWillUnmount can
+     * remove it. Returns nothing; cleanup is automatic. Use this for every
+     * `document.addEventListener` in the component to avoid leaking listeners
+     * (and the whole component closure) each time the editor is reopened.
+     */
+    _addDocListener(type, handler, options) {
+        if (!this._docListeners) this._docListeners = [];
+        document.addEventListener(type, handler, options);
+        this._docListeners.push([type, handler, options]);
+    }
+
+    _removeAllDocListeners() {
+        if (!this._docListeners) return;
+        for (const [type, handler, options] of this._docListeners) {
+            document.removeEventListener(type, handler, options);
+        }
+        this._docListeners = [];
+    }
+
     _initSpacePan() {
         const canvas = this.canvasRef.el;
         if (!canvas) return;
@@ -1654,13 +1681,13 @@ export class MindmapEditor extends Component {
         let spaceDown = false;
 
         // Track Space key state — only activate pan cursor if no node is selected
-        document.addEventListener('keydown', (e) => {
+        this._addDocListener('keydown', (e) => {
             if (e.key === ' ' && !this._isInputFocused() && !this.selectedNode) {
                 spaceDown = true;
                 canvas.style.cursor = 'grab';
             }
         });
-        document.addEventListener('keyup', (e) => {
+        this._addDocListener('keyup', (e) => {
             if (e.key === ' ') {
                 spaceDown = false;
                 if (!isPanning) canvas.style.cursor = '';
@@ -1681,14 +1708,14 @@ export class MindmapEditor extends Component {
             }
         });
 
-        document.addEventListener('mousemove', (e) => {
+        this._addDocListener('mousemove', (e) => {
             if (!isPanning) return;
             this.jm.view._panX = savedPanX + (e.clientX - panStartX);
             this.jm.view._panY = savedPanY + (e.clientY - panStartY);
             this.jm.view._applyTransform();
         });
 
-        document.addEventListener('mouseup', (e) => {
+        this._addDocListener('mouseup', (e) => {
             if (!isPanning) return;
             isPanning = false;
             canvas.style.cursor = spaceDown ? 'grab' : '';
@@ -2681,7 +2708,7 @@ export class MindmapEditor extends Component {
         previewSvg.appendChild(defs);
 
         // Mouse move → update preview line from source to cursor
-        document.addEventListener('mousemove', (e) => {
+        this._addDocListener('mousemove', (e) => {
             if (!this.relationshipMode || !this.relationshipSource || !this._relPreviewLine) return;
 
             const srcEl = this.jm.get_node(this.relationshipSource)?._el;
@@ -2717,7 +2744,13 @@ export class MindmapEditor extends Component {
 
     onSave() {
         this._updateStatus(_t('Saving...'));
-        this._saveData().then(() => {
+        this._saveData().then((ok) => {
+            // _saveData reports failure via return value (it no longer throws);
+            // only mark clean / show success when the save actually landed.
+            if (ok === false) {
+                this._updateStatus(_t('Save failed'));
+                return;
+            }
             this.commandStack.markSaved();
             this._updateStatus(_t('Saved successfully'));
             // Capture thumbnail in background (non-blocking)
@@ -3432,8 +3465,13 @@ export class MindmapEditor extends Component {
 
     onSwitchSheet(sheetId) {
         if (!this.workbookId || this._currentSheetId === sheetId) return;
-        // Save current sheet first
-        this._saveData().then(() => {
+        // Save current sheet first; abort the switch if it failed so the
+        // current sheet's unsaved edits are not lost by the reload.
+        this._saveData().then((ok) => {
+            if (ok === false) {
+                this._showError(_t('Could not save the current sheet — staying here to avoid losing changes.'));
+                return;
+            }
             this._currentSheetId = sheetId;
             rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}).then(result => {
                 if (result.mindmap_data) {
@@ -4683,61 +4721,64 @@ export class MindmapEditor extends Component {
 
     async _saveData() {
         if (!this.workbookId) return;
+
+        // Build the full payload: tree + every feature layer in ONE request so
+        // the backend writes them in a single transaction. This removes the
+        // previous cross-RPC race (a relationship could end up pointing at a
+        // component_id whose topic save had not landed yet) and lets the
+        // revision snapshot capture the complete state (incl. features).
         const data = this.jm.get_data('node_tree');
-        await rpc('/xmind/workbook/' + this.workbookId + '/save', { data });
 
-        // Save relationships
-        if (this.relationships.length > 0) {
-            this._syncRelationshipControlPoints();
-            const relData = this.relationships.map(r => ({
-                source_id: r.sourceId,
-                target_id: r.targetId,
-                options: r.options || {},
-                controlPoints: r.controlPoints || [],
-            }));
-            await rpc('/xmind/workbook/' + this.workbookId + '/relationships', { relationships: relData });
-        } else if (this._hadRelationshipsOnLoad) {
-            // Clear relationships if all were deleted
-            await rpc('/xmind/workbook/' + this.workbookId + '/relationships', { relationships: [] });
-        }
+        this._syncRelationshipControlPoints();
+        data.relationships = this.relationships.map(r => ({
+            source_id: r.sourceId,
+            target_id: r.targetId,
+            options: r.options || {},
+            controlPoints: r.controlPoints || [],
+        }));
 
-        // Save boundaries (always send — empty array clears backend)
-        const bndData = this.boundaries.map(b => ({
+        data.boundaries = this.boundaries.map(b => ({
             topicIds: b.topicIds || [],
             options: b.options || {},
         }));
-        await rpc('/xmind/workbook/' + this.workbookId + '/boundaries', { boundaries: bndData });
 
-        // Save summaries (always send — empty array clears backend)
-        const sumData = this.summaries.map(s => ({
+        data.summaries = this.summaries.map(s => ({
             topicIds: s.topicIds || [],
             summaryNodeId: s.summaryNodeId || '',
             options: s.options || {},
         }));
-        await rpc('/xmind/workbook/' + this.workbookId + '/summaries/save', { summaries: sumData });
 
-        // Save callouts (always send — empty array clears backend)
-        const callData = this.callouts.map(c => ({
+        data.callouts = this.callouts.map(c => ({
             parentNodeId: c.parentNodeId || '',
             options: c.options || {},
         }));
-        await rpc('/xmind/workbook/' + this.workbookId + '/callouts', { callouts: callData });
 
-        // Save floating topics — sync positions from jsMind node data
-        const ftData = [];
-        for (const ft of this.floatingTopics) {
+        // Floating topics — sync positions from jsMind node data
+        data.floating_topics = this.floatingTopics.map(ft => {
             const node = this.jm.get_node(ft.id);
-            const nd = node && node.data || {};
-            ftData.push({
+            const nd = (node && node.data) || {};
+            return {
                 component_id: ft.component_id || ft.id,
                 title: node ? node.topic : (ft.title || ''),
                 note: nd.note || ft.note || '',
                 x: Math.round(nd._ftX != null ? nd._ftX : ft.x),
                 y: Math.round(nd._ftY != null ? nd._ftY : ft.y),
                 style: nd.style || ft.style || {},
-            });
+            };
+        });
+
+        try {
+            const result = await rpc('/xmind/workbook/' + this.workbookId + '/save', { data });
+            if (result && result.error) {
+                this._showError(result.error);
+                return false;
+            }
+            return true;
+        } catch (e) {
+            this._showError(_t('Save failed — your changes may not be stored. Please retry.'));
+            console.error('[xmind] save failed', e);
+            return false;
         }
-        await rpc('/xmind/workbook/' + this.workbookId + '/floating_topics', { floating_topics: ftData });
     }
 
     async _saveSettings() {
@@ -4828,6 +4869,37 @@ export class MindmapEditor extends Component {
     _updateStatus(message) {
         const el = this._el('.o_mindmap_status_text');
         if (el) el.textContent = message;
+        // Keep the status-bar counts fresh on every status change (cheap).
+        this._updateStatusCounts();
+    }
+
+    /** Refresh the topic + selection counters shown in the status bar. */
+    _updateStatusCounts() {
+        const topicEl = this._el('.o_mindmap_topic_count');
+        if (topicEl && this.jm && this.jm.mind && this.jm.mind.nodes) {
+            // Exclude internal summary nodes from the visible topic tally.
+            let n = 0;
+            for (const id in this.jm.mind.nodes) {
+                const nd = this.jm.mind.nodes[id];
+                if (nd && nd.data && nd.data._isSummaryNode) continue;
+                n++;
+            }
+            topicEl.textContent = n + (n === 1 ? ' topic' : ' topics');
+        }
+        const selEl = this._el('.o_mindmap_selection_count');
+        if (selEl) {
+            const selCount = (this.selectedNodes && this.selectedNodes.length)
+                || (this.selectedNode ? 1 : 0);
+            selEl.textContent = selCount > 1 ? ('  ·  ' + selCount + ' selected') : '';
+        }
+    }
+
+    /** Status-bar zoom slider → set absolute zoom level. */
+    onZoomSlider(ev) {
+        if (!this.jm) return;
+        const pct = parseInt(ev.target.value, 10) || 100;
+        this._zoomLevel = Math.min(Math.max(pct / 100, 0.3), 3);
+        this._applyZoom();
     }
 
     _showWarning(message) {
@@ -5385,8 +5457,12 @@ export class MindmapEditor extends Component {
         // Use jsmind's built-in zoom (transform on world element)
         this.jm.view.setZoom(level);
 
-        const zoomEl = this._el('.o_mindmap_zoom_level');
-        if (zoomEl) zoomEl.textContent = Math.round(level * 100) + '%';
+        // Update every zoom-level readout (toolbar + status bar).
+        const pct = Math.round(level * 100) + '%';
+        this._elAll('.o_mindmap_zoom_level').forEach(el => { el.textContent = pct; });
+        // Keep the status-bar slider in sync (wheel/keyboard/fit zoom changes).
+        const slider = this._el('.o_mindmap_zoom_slider');
+        if (slider) slider.value = Math.round(level * 100);
     }
 
     // ===== Global Context Menu =====
@@ -6022,6 +6098,10 @@ export class MindmapEditor extends Component {
         };
 
         const onUp = () => {
+            // Always detach the per-drag listeners (even if no drag occurred)
+            // so each mousedown doesn't permanently leak a move/up pair.
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
             if (!isDragging) return;
             isDragging = false;
             this.commandStack.isDirty = true;
