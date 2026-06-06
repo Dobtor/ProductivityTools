@@ -60,25 +60,40 @@ export class MeetingRecorderWidget extends Component {
         const total = payload.progress_total || 1;
 
         if (payload.state === "error") {
+            const codeLabels = {
+                config_error: _t("Configuration issue — please check Settings."),
+                quota_exceeded: _t("Provider quota exceeded."),
+                timeout: _t("Request timed out."),
+                network_error: _t("Network error."),
+                upload_failed: _t("Audio upload failed."),
+                parse_error: _t("Unexpected response from provider."),
+                http_error: _t("Provider returned an HTTP error."),
+                stale_worker: _t("Processing was interrupted."),
+                internal_error: _t("Internal error."),
+            };
+            const hint = codeLabels[payload.error_code] || _t("Transcription failed");
+            const detail = payload.error_message || "";
             this.notification.add(
-                _t("Transcription failed: ") + (payload.error_message || ""),
-                { type: "danger", sticky: true }
+                detail || hint,
+                { type: "danger", sticky: true, title: hint }
             );
         } else if (done < total) {
-            // 進度通知
             this.notification.add(
                 _t("Transcription progress: %(done)s / %(total)s completed.", { done, total }),
                 { type: "info" }
             );
+        } else if (payload.transcript_state === "partial") {
+            this.notification.add(
+                _t("Transcription partially completed. See Recordings for failed segments."),
+                { type: "warning", sticky: true }
+            );
         } else {
-            // 全部完成
             this.notification.add(
                 _t("All transcriptions completed successfully."),
                 { type: "success" }
             );
         }
 
-        // 重新載入 record 以更新所有欄位
         await this.props.record.model.root.load();
     }
 

@@ -10,7 +10,36 @@ from odoo.addons.portal.controllers.portal import CustomerPortal, pager as porta
 
 
 class MeetingPortal(CustomerPortal):
-    """會議記錄 Portal 控制器"""
+    """會議記錄 Portal 控制器
+
+    Sudo 使用原則：
+    - 僅在已通過 access_token / signature_token 驗證後使用 sudo
+    - 所有 sudo search 必須帶 note_id 過濾，避免跨 note 資料洩漏
+    - 公開訪客（_is_public）必須持 signature_token 才能留言/被識別
+    """
+
+    # ===== 內部 helper =====
+    @staticmethod
+    def _safe_int(val):
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return False
+
+    @staticmethod
+    def _lookup_signature(note_sudo, sig_id, signature_token):
+        """依 note_id + signature_token 精確查找單筆簽名記錄
+
+        此處用 sudo 因為 public user 沒有 note.signature 讀權限，
+        但 domain 鎖住 note_id 與 token，不會洩漏他人資料。
+        """
+        if not (note_sudo and sig_id and signature_token):
+            return None
+        return request.env['note.signature'].sudo().search([
+            ('id', '=', sig_id),
+            ('access_token', '=', signature_token),
+            ('note_id', '=', note_sudo.id),
+        ], limit=1) or None
 
     def _prepare_home_portal_values(self, counters):
         """準備首頁計數器"""
@@ -147,41 +176,41 @@ class MeetingPortal(CustomerPortal):
                 download=download,
             )
 
-        # 記錄瀏覽
+        # 記錄瀏覽 — 僅在可識別真實身份時留言，避免假冒
         if request.env.user.share and access_token:
             today = fields.Date.today().isoformat()
             session_key = f'view_meeting_{note_sudo.id}'
             if request.session.get(session_key) != today:
                 request.session[session_key] = today
-                author = (
-                    (note_sudo.signer_ids[:1] or note_sudo.available_signer_ids[:1])
-                    if request.env.user._is_public()
-                    else request.env.user.partner_id
-                )
-                if author:
+                viewer_partner = None
+                if not request.env.user._is_public():
+                    viewer_partner = request.env.user.partner_id
+                elif signature_id and signature_token:
+                    sig = self._lookup_signature(
+                        note_sudo, self._safe_int(signature_id), signature_token,
+                    )
+                    if sig:
+                        viewer_partner = sig.partner_id
+                if viewer_partner:
                     note_sudo.message_post(
-                        author_id=author.id,
-                        body=_('Meeting minutes viewed by %s', author.name),
+                        author_id=viewer_partner.id,
+                        body=_('Meeting minutes viewed by %s', viewer_partner.name),
                         message_type='notification',
                     )
 
         # 檢查當前用戶的簽名狀態
+        # 安全備註：此處 sudo 僅限於以 signature_token 驗證時，
+        # domain 已鎖定 note_id + access_token，無法跨 note 取得他人簽名
         current_signature = None
         needs_signature = False
         partner = None
 
         if signature_id and signature_token:
-            # 通過 signature_token 驗證
-            try:
-                sig_id = int(signature_id)
-            except (ValueError, TypeError):
-                sig_id = False
+            sig_id = self._safe_int(signature_id)
             if sig_id:
-                signature = request.env['note.signature'].sudo().search([
-                    ('id', '=', sig_id),
-                    ('access_token', '=', signature_token),
-                    ('note_id', '=', note_sudo.id),
-                ], limit=1)
+                signature = self._lookup_signature(
+                    note_sudo, sig_id, signature_token,
+                )
                 if signature:
                     current_signature = signature
                     partner = signature.partner_id
@@ -192,7 +221,7 @@ class MeetingPortal(CustomerPortal):
             current_signature = note_sudo._get_signature_for_partner(partner)
             needs_signature = note_sudo._has_to_be_signed_by(partner)
 
-        # 取得附件
+        # 取得附件 — domain 已鎖定 note_id，sudo 作用範圍最小化
         attachments = request.env['ir.attachment'].sudo().search([
             ('res_model', '=', 'note.note'),
             ('res_id', '=', note_sudo.id),
@@ -248,19 +277,10 @@ class MeetingPortal(CustomerPortal):
         # 驗證簽名記錄
         signature_record = None
         if signature_id and signature_token:
-            # 通過 signature_token 驗證（Email 連結）
-            try:
-                sig_id = int(signature_id)
-            except (ValueError, TypeError):
-                sig_id = False
-            if sig_id:
-                signature_record = request.env['note.signature'].sudo().search([
-                    ('id', '=', sig_id),
-                    ('access_token', '=', signature_token),
-                    ('note_id', '=', note_sudo.id),
-                ], limit=1)
+            signature_record = self._lookup_signature(
+                note_sudo, self._safe_int(signature_id), signature_token,
+            )
         elif not request.env.user._is_public():
-            # 登入用戶：查找其對應的簽名記錄
             partner = request.env.user.partner_id
             signature_record = note_sudo._get_signature_for_partner(partner)
 
@@ -313,8 +333,17 @@ class MeetingPortal(CustomerPortal):
 
     @http.route(['/my/meeting/<int:note_id>/message'],
                 type='http', auth="public", methods=['POST'], website=True)
-    def portal_meeting_post_message(self, note_id, access_token=None, **kwargs):
-        """Portal 上留言評論"""
+    def portal_meeting_post_message(self, note_id, access_token=None,
+                                    signature_id=None, signature_token=None, **kwargs):
+        """Portal 上留言評論
+
+        安全性：
+        - 公開用戶必須同時提供有效的 signature_id + signature_token 才能留言，
+          防止任何持有 access_token 的訪客假冒簽名者發言。
+        - 若僅持 access_token（無 signature token）且未登入，拒絕留言。
+        - author_id 嚴格對應到簽名記錄的 partner_id 或登入用戶的 partner_id，
+          不再退回使用任意 signer/attendee。
+        """
         try:
             note_sudo = self._document_check_access(
                 'note.note', note_id, access_token=access_token
@@ -322,26 +351,34 @@ class MeetingPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        message_content = kwargs.get('message', '').strip()
-        if message_content:
-            # 確定留言者
-            if request.env.user._is_public():
-                # 公開用戶：嘗試從參與者中找到相關人員
-                author = note_sudo.signer_ids[:1] or note_sudo.available_signer_ids[:1]
-                author_id = author.id if author else None
-            else:
-                author_id = request.env.user.partner_id.id
+        message_content = (kwargs.get('message') or '').strip()
+        if not message_content:
+            return request.redirect(note_sudo.get_portal_url())
 
-            note_sudo.message_post(
-                author_id=author_id,
-                body=message_content,
-                message_type='comment',
-                subtype_xmlid='mail.mt_comment',
+        if len(message_content) > 4000:
+            message_content = message_content[:4000]
+
+        author_partner = None
+        if not request.env.user._is_public():
+            author_partner = request.env.user.partner_id
+        elif signature_id and signature_token:
+            sig = self._lookup_signature(
+                note_sudo, self._safe_int(signature_id), signature_token,
             )
+            if sig:
+                author_partner = sig.partner_id
 
-        # 重導向回會議記錄頁面
-        redirect_url = note_sudo.get_portal_url()
-        return request.redirect(redirect_url)
+        if not author_partner:
+            # 公開訪客無 signature token → 拒絕留言
+            return request.redirect(f'{note_sudo.get_portal_url()}&message=not_authorized')
+
+        note_sudo.message_post(
+            author_id=author_partner.id,
+            body=message_content,
+            message_type='comment',
+            subtype_xmlid='mail.mt_comment',
+        )
+        return request.redirect(note_sudo.get_portal_url())
 
     @http.route(['/my/meeting/<int:note_id>/attachment/<int:attachment_id>'],
                 type='http', auth="public", website=True)

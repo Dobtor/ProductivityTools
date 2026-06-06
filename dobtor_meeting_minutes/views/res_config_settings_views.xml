@@ -23,7 +23,15 @@
                              string="API Key"
                              help="API key for AssemblyAI or OpenAI."
                              invisible="transcription_provider not in ('assemblyai', 'api')">
-                        <field name="transcription_api_key" password="True"/>
+                        <field name="transcription_api_key"
+                               password="True"
+                               placeholder="Enter new key or leave the ●●●● to keep existing"/>
+                        <field name="transcription_api_key_is_set" invisible="1"/>
+                        <div class="text-warning small mt-1"
+                             invisible="not transcription_api_key_is_set">
+                            <i class="fa fa-shield me-1"/>
+                            Key is stored masked. Changing this field will overwrite the current key — all changes are audited.
+                        </div>
                         <div class="text-muted mt-1"
                              invisible="transcription_provider != 'assemblyai'">
                             Get your API key at <a href="https://www.assemblyai.com/" target="_blank">assemblyai.com</a>
@@ -47,6 +55,13 @@
                              help="Language code for speech recognition.">
                         <field name="transcription_language" placeholder="zh"/>
                     </setting>
+                    <setting id="meeting_transcription_test_setting"
+                             string="Test Connection"
+                             help="Quickly verify your provider credentials without uploading audio.">
+                        <button name="action_test_transcription_connection"
+                                type="object" string="Run Test" class="btn-secondary"
+                                icon="fa-plug"/>
+                    </setting>
                 </block>
 
                 <block title="Meeting Summary Settings" name="meeting_summary_settings">
@@ -57,8 +72,13 @@
                     </setting>
                     <setting id="meeting_summary_prompt_preset_setting"
                              string="Prompt Preset"
-                             help="Select a predefined prompt template for meeting summaries.">
+                             help="Default preset. Override with a custom template below.">
                         <field name="summary_prompt_preset"/>
+                    </setting>
+                    <setting id="meeting_summary_prompt_template_setting"
+                             string="Custom Template"
+                             help="Optional: pick or create a custom template. Overrides the preset.">
+                        <field name="summary_prompt_template_id"/>
                     </setting>
                 </block>
             </xpath>

@@ -47,10 +47,16 @@ Complete meeting minutes management system:
         # Data
         'data/ai_chatbot_data.xml',
         'data/mail_template_data.xml',
+        'data/summary_template_data.xml',
         'data/cron_data.xml',
         # Views
+        'views/calendar_event_views.xml',
         'views/note_views.xml',
         'views/note_recording_views.xml',
+        'views/note_transcribe_log_views.xml',
+        'views/note_transcribe_job_views.xml',
+        'views/note_summary_log_views.xml',
+        'views/note_summary_template_views.xml',
         'views/note_signature_views.xml',
         'views/res_company_views.xml',
         'views/res_config_settings_views.xml',

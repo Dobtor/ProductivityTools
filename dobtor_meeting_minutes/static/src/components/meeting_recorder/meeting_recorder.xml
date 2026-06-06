@@ -4,26 +4,44 @@
     <t t-name="dobtor_meeting_minutes.MeetingRecorder">
         <div class="o_meeting_recorder" t-att-class="{'o_recording': state.status === 'recording'}">
 
-            <!-- 不支援提示 -->
-            <div t-if="!state.supported" class="alert alert-warning mb-0">
-                <i class="fa fa-exclamation-triangle me-2"/>
-                Your browser does not support audio recording.
-                Please use a modern browser (Chrome, Firefox, Edge).
+            <!-- 不支援錄音：顯示說明 + 檔案上傳 fallback -->
+            <div t-if="!state.supported" class="o_recorder_unsupported">
+                <div class="alert alert-warning mb-2">
+                    <i class="fa fa-exclamation-triangle me-2"/>
+                    <strong>Browser recording not available.</strong>
+                    <div class="small mt-1" t-esc="state.supportReason"/>
+                    <div class="small mt-1">
+                        You can still upload an existing audio file below.
+                    </div>
+                </div>
+                <div t-if="!props.readonly" class="d-flex align-items-center gap-2 p-2 border rounded bg-light">
+                    <label class="btn btn-secondary mb-0">
+                        <i class="fa fa-upload me-2"/>Upload audio file
+                        <input type="file" accept="audio/*,video/webm" class="d-none"
+                               t-on-change="onFileSelected"/>
+                    </label>
+                    <span class="text-muted small">Max 200 MB. Supported: mp3, wav, webm, m4a, ogg.</span>
+                </div>
             </div>
 
             <!-- 錄音控制區 -->
-            <div t-if="state.supported and !props.readonly" class="o_recorder_controls d-flex align-items-center gap-3 p-3 border rounded bg-light">
+            <div t-if="state.supported and !props.readonly" class="o_recorder_controls d-flex align-items-center gap-3 p-3 border rounded bg-light flex-wrap">
 
-                <!-- 閒置狀態：顯示開始按鈕 -->
+                <!-- 閒置狀態 -->
                 <t t-if="state.status === 'idle'">
                     <button class="btn btn-danger rounded-circle o_recorder_btn"
                             t-on-click="startRecording"
                             title="Start Recording">
                         <i class="fa fa-microphone fa-lg"/>
                     </button>
-                    <span class="text-muted">
-                        Click to start recording
-                    </span>
+                    <span class="text-muted">Click to start recording</span>
+                    <div class="ms-auto">
+                        <label class="btn btn-outline-secondary btn-sm mb-0">
+                            <i class="fa fa-upload me-1"/>Upload file
+                            <input type="file" accept="audio/*,video/webm" class="d-none"
+                                   t-on-change="onFileSelected"/>
+                        </label>
+                    </div>
                 </t>
 
                 <!-- 錄音中 -->
@@ -80,10 +98,15 @@
                 </t>
             </div>
 
-            <!-- 錯誤訊息 -->
-            <div t-if="state.error" class="alert alert-danger mt-2 mb-0 py-2">
-                <i class="fa fa-exclamation-circle me-2"/>
-                <t t-esc="state.error"/>
+            <!-- 錯誤訊息（含 dismiss 按鈕）-->
+            <div t-if="state.error" class="alert alert-danger alert-dismissible mt-2 mb-0 py-2 d-flex align-items-start">
+                <i class="fa fa-exclamation-circle me-2 mt-1"/>
+                <div class="flex-grow-1">
+                    <t t-esc="state.error"/>
+                </div>
+                <button type="button" class="btn-close btn-sm"
+                        t-on-click="dismissError"
+                        aria-label="Dismiss"/>
             </div>
 
         </div>

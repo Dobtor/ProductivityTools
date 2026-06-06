@@ -10,6 +10,11 @@ from markupsafe import escape as html_escape
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
+from ..utils.constants import (
+    TRANSCRIPT_STATE_SELECTION,
+    SUMMARY_STATE_SELECTION,
+)
+
 SUMMARY_PROMPT_PRESETS = {
     'formal': {
         'name': 'Formal Meeting Minutes',
@@ -92,6 +97,31 @@ class NoteNote(models.Model):
     """
     _inherit = 'note.note'
 
+    # ===== 多公司隔離 =====
+    company_id = fields.Many2one(
+        'res.company',
+        string='Company',
+        default=lambda self: self.env.company,
+        index=True,
+        help='Company that owns this meeting minutes. '
+             'Transcribe/summary workers read settings from this company '
+             'instead of the executing user\'s company (important for cron).',
+    )
+
+    # ===== 日曆事件關聯欄位 =====
+    calendar_event_ids = fields.Many2many(
+        'calendar.event',
+        'calendar_event_note_rel',
+        'note_id',
+        'event_id',
+        string='Calendar Events',
+        help='Calendar events linked to this note',
+    )
+    calendar_event_count = fields.Integer(
+        string='Event Count',
+        compute='_compute_calendar_event_count',
+    )
+
     # ===== 會議記錄類型 =====
     note_type = fields.Selection(
         selection_add=[('meeting', 'Meeting Minutes')],
@@ -170,14 +200,17 @@ class NoteNote(models.Model):
     transcript_html = fields.Html(
         string='Transcript (Formatted)',
         compute='_compute_transcript_html',
-        store=True,
+        store=False,
     )
-    transcript_state = fields.Selection([
-        ('none', 'None'),
-        ('processing', 'Processing'),
-        ('done', 'Done'),
-        ('error', 'Error'),
-    ], string='Transcript Status', default='none')
+    transcript_state = fields.Selection(
+        selection=TRANSCRIPT_STATE_SELECTION,
+        string='Transcript Status', default='none',
+    )
+    last_transcript_error = fields.Text(
+        string='Last Transcript Error',
+        compute='_compute_last_transcript_error',
+        help='Error summary from the most recent failed recording on this note.',
+    )
     speaker_mapping_ids = fields.One2many(
         'note.speaker.mapping',
         'note_id',
@@ -188,12 +221,15 @@ class NoteNote(models.Model):
     meeting_summary = fields.Html(
         string='Meeting Summary',
     )
-    summary_state = fields.Selection([
-        ('none', 'None'),
-        ('processing', 'Processing'),
-        ('done', 'Done'),
-        ('error', 'Error'),
-    ], string='Summary Status', default='none')
+    summary_state = fields.Selection(
+        selection=SUMMARY_STATE_SELECTION,
+        string='Summary Status', default='none',
+    )
+    summary_worker_pid = fields.Integer(
+        string='Summary Worker PID',
+        help='PID of the thread currently generating summary — cleared on completion.',
+    )
+    summary_worker_started_at = fields.Datetime()
 
     # ===== 預設範本 =====
     @api.model
@@ -217,11 +253,55 @@ class NoteNote(models.Model):
             self.memo = self._default_meeting_memo_template()
 
     # ===== 計算方法 =====
+    @api.depends('calendar_event_ids')
+    def _compute_calendar_event_count(self):
+        """計算關聯日曆事件數量"""
+        for note in self:
+            note.calendar_event_count = len(note.calendar_event_ids)
+
     @api.depends('recording_ids')
     def _compute_recording_count(self):
         """計算錄音數量"""
         for note in self:
             note.recording_count = len(note.recording_ids)
+
+    @api.depends('recording_ids.state', 'recording_ids.error_message')
+    def _compute_last_transcript_error(self):
+        """取最新一筆 error 錄音的摘要訊息（用於表單顯示）"""
+        for note in self:
+            errored = note.recording_ids.filtered(lambda r: r.state == 'error' and r.error_message)
+            if not errored:
+                note.last_transcript_error = False
+                continue
+            latest = errored.sorted('id', reverse=True)[:1]
+            note.last_transcript_error = latest.error_message
+
+    def _recompute_transcript_state(self):
+        """依所有錄音狀態重算 note 的 transcript_state
+
+        支援 partial 狀態 — 多段錄音中有成功也有失敗時，不會被單次 error 覆寫成 error。
+        """
+        for note in self:
+            recs = note.recording_ids
+            if not recs:
+                note.transcript_state = 'none'
+                continue
+            if any(r.state == 'processing' for r in recs):
+                note.transcript_state = 'processing'
+                continue
+            dones = any(r.state == 'done' for r in recs)
+            errors = any(r.state == 'error' for r in recs)
+            uploaded = any(r.state == 'uploaded' for r in recs)
+            if dones and errors:
+                note.transcript_state = 'partial'
+            elif errors:
+                note.transcript_state = 'error'
+            elif dones:
+                note.transcript_state = 'done'
+            elif uploaded:
+                note.transcript_state = 'none'
+            else:
+                note.transcript_state = 'none'
 
     @api.depends('transcript_ids', 'transcript_ids.text',
                  'transcript_ids.speaker_name', 'transcript_ids.speaker_label',
@@ -298,6 +378,43 @@ class NoteNote(models.Model):
                 note.note_type == 'meeting'
                 and note.state in ('sent', 'partial', 'signed')
             )
+
+    # ===== 日曆事件動作 =====
+    def action_view_calendar_events(self):
+        """查看關聯日曆事件"""
+        self.ensure_one()
+        action = {
+            'type': 'ir.actions.act_window',
+            'name': _('Related Events'),
+            'res_model': 'calendar.event',
+            'view_mode': 'calendar,list,form',
+            'views': [(False, 'calendar'), (False, 'list'), (False, 'form')],
+            'domain': [('id', 'in', self.calendar_event_ids.ids)],
+            'context': {
+                'default_note_ids': [(4, self.id)],
+            },
+        }
+        if len(self.calendar_event_ids) == 1:
+            action['view_mode'] = 'form'
+            action['views'] = [(False, 'form')]
+            action['res_id'] = self.calendar_event_ids.id
+        return action
+
+    def action_add_calendar_event(self):
+        """新增日曆事件並關聯到此筆記"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Schedule Meeting'),
+            'res_model': 'calendar.event',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
+            'context': {
+                'default_name': self.name or _('Meeting'),
+                'default_note_ids': [(4, self.id)],
+            },
+        }
 
     # ===== CRUD 方法 =====
     def write(self, vals):
@@ -593,7 +710,7 @@ class NoteNote(models.Model):
                 }
             }
 
-        chatbot = self.env.company.meeting_summary_chatbot_id
+        chatbot = (self.company_id or self.env.company).meeting_summary_chatbot_id
         if not chatbot:
             raise UserError(_(
                 'Please configure a Meeting Summary AI Chatbot in Settings > Productivity Tools.'
@@ -626,14 +743,40 @@ class NoteNote(models.Model):
 
     @api.model
     def _async_summary_worker(self, db_name, uid, note_id):
-        """獨立 thread 中的摘要產生工作（使用 ChatbotEngine）"""
-        import odoo
+        """獨立 thread 中的摘要產生工作 — 每次執行寫一筆 note.summary.log"""
+        import odoo, os, time, traceback as tb_module
         registry = odoo.registry(db_name)
 
         with registry.cursor() as cr:
             env = api.Environment(cr, uid, {})
             note = env['note.note'].browse(note_id)
             summary_state = 'error'
+            Log = env['note.summary.log']
+            company = note.company_id or env.company
+            chatbot = company.meeting_summary_chatbot_id
+            template = company.summary_prompt_template_id
+
+            started_at = fields.Datetime.now()
+            t0 = time.monotonic()
+            attempt_no = Log.search_count([('note_id', '=', note.id)]) + 1
+
+            log_base = {
+                'note_id': note.id,
+                'chatbot_id': chatbot.id if chatbot else False,
+                'template_id': template.id if template else False,
+                'attempt_no': attempt_no,
+                'started_at': started_at,
+            }
+
+            # 寫 worker 指紋
+            try:
+                note.write({
+                    'summary_worker_pid': os.getpid(),
+                    'summary_worker_started_at': started_at,
+                })
+                cr.commit()
+            except Exception:
+                cr.rollback()
 
             try:
                 transcript_text = note._format_transcript_for_llm()
@@ -645,20 +788,64 @@ class NoteNote(models.Model):
                 note.write({
                     'meeting_summary': summary_html,
                     'summary_state': 'done',
+                    'summary_worker_pid': 0,
+                    'summary_worker_started_at': False,
                 })
                 summary_state = 'done'
+                Log.create({
+                    **log_base,
+                    'state': 'success',
+                    'prompt_length': len(prompt or ''),
+                    'transcript_length': len(transcript_text or ''),
+                    'response_length': len(summary_html or ''),
+                    'request_latency_ms': int((time.monotonic() - t0) * 1000),
+                    'ended_at': fields.Datetime.now(),
+                })
+                cr.commit()
+            except UserError as e:
+                cr.rollback()
+                env.invalidate_all()
+                msg = str(e)
+                _logger.warning('[summary] note=%s config/chatbot error: %s', note_id, msg)
+                state = 'config_error' if 'configure' in msg.lower() or 'chatbot' in msg.lower() else 'chatbot_error'
+                Log.create({
+                    **log_base,
+                    'state': state,
+                    'error_message': msg,
+                    'traceback': tb_module.format_exc(),
+                    'ended_at': fields.Datetime.now(),
+                    'request_latency_ms': int((time.monotonic() - t0) * 1000),
+                })
+                note.write({
+                    'summary_state': 'error',
+                    'summary_worker_pid': 0,
+                    'summary_worker_started_at': False,
+                })
                 cr.commit()
             except Exception as e:
                 cr.rollback()
                 env.invalidate_all()
-                _logger.exception('Summary generation failed for note %s', note_id)
-                note.write({'summary_state': 'error'})
+                _logger.exception('[summary] note=%s unexpected error', note_id)
+                Log.create({
+                    **log_base,
+                    'state': 'internal_error',
+                    'error_message': str(e),
+                    'traceback': tb_module.format_exc(),
+                    'ended_at': fields.Datetime.now(),
+                    'request_latency_ms': int((time.monotonic() - t0) * 1000),
+                })
+                note.write({
+                    'summary_state': 'error',
+                    'summary_worker_pid': 0,
+                    'summary_worker_started_at': False,
+                })
                 cr.commit()
 
-            # 發送 bus.bus 通知
+            # 發送 bus.bus 通知（送給 note 擁有者，支援 cron 重試路徑）
             try:
+                target_partner = note.user_id.partner_id or env.user.partner_id
                 env['bus.bus']._sendone(
-                    env.user.partner_id,
+                    target_partner,
                     'note_recording/summary_update',
                     {
                         'note_id': note_id,
@@ -683,7 +870,7 @@ class NoteNote(models.Model):
             UserError: 當 chatbot 未設定或 API 呼叫失敗時
         """
         self.ensure_one()
-        chatbot = self.env.company.meeting_summary_chatbot_id
+        chatbot = (self.company_id or self.env.company).meeting_summary_chatbot_id
         if not chatbot:
             raise UserError(_(
                 'Please configure a Meeting Summary AI Chatbot in Settings > Productivity Tools.'
@@ -797,19 +984,42 @@ class NoteNote(models.Model):
             lines.append(f'[{time_str}] {name}：{seg.text}')
         return '\n'.join(lines)
 
-    @api.model
     def _get_default_summary_prompt(self):
-        """取得摘要 Prompt -- 依公司設定的 preset"""
-        company = self.env.company
-        preset_key = company.summary_prompt_preset
-        if preset_key and preset_key in SUMMARY_PROMPT_PRESETS:
+        """取得摘要 Prompt — 優先順序：
+        1. company.summary_prompt_template_id（管理員自定的範本）
+        2. 依 preset code 在 note.summary.template 查詢（seed 資料）
+        3. 降級到硬編 SUMMARY_PROMPT_PRESETS
+        """
+        # 優先取 note 所屬公司，fallback 當前 env.company（cron/thread 場景）
+        company = (self.company_id if self else False) or self.env.company
+
+        # 1. 自定範本優先
+        tmpl = company.summary_prompt_template_id
+        if tmpl and tmpl.active and tmpl.prompt:
+            return tmpl.prompt
+
+        # 2. 依 preset 查資料表
+        preset_key = company.summary_prompt_preset or 'formal'
+        tmpl = self.env['note.summary.template'].search(
+            [('code', '=', preset_key), ('active', '=', True)], limit=1,
+        )
+        if tmpl and tmpl.prompt:
+            return tmpl.prompt
+
+        # 3. Fallback：硬編常數（只在資料未載入時觸發）
+        if preset_key in SUMMARY_PROMPT_PRESETS:
             return SUMMARY_PROMPT_PRESETS[preset_key]['prompt']
-        # fallback: formal
         return SUMMARY_PROMPT_PRESETS['formal']['prompt']
 
     @api.model
     def get_summary_prompt_presets(self):
-        """回傳可用的 prompt 預設清單（給前端使用）"""
+        """回傳可用的 prompt 範本清單（優先從資料表讀，fallback 到常數）"""
+        templates = self.env['note.summary.template'].search([('active', '=', True)])
+        if templates:
+            return [
+                {'key': t.code, 'name': t.name, 'name_zh': t.name, 'description': t.description or ''}
+                for t in templates
+            ]
         return [
             {'key': k, 'name': v['name'], 'name_zh': v['name_zh']}
             for k, v in SUMMARY_PROMPT_PRESETS.items()

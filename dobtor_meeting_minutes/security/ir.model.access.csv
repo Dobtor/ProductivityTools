@@ -7,3 +7,11 @@ access_note_transcript_segment_user,note.transcript.segment.user,model_note_tran
 access_note_transcript_segment_manager,note.transcript.segment.manager,model_note_transcript_segment,dobtor_mail_activity.group_activity_manager,1,1,1,1
 access_note_speaker_mapping_user,note.speaker.mapping.user,model_note_speaker_mapping,base.group_user,1,1,1,0
 access_note_speaker_mapping_manager,note.speaker.mapping.manager,model_note_speaker_mapping,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_transcribe_log_user,note.transcribe.log.user,model_note_transcribe_log,base.group_user,1,0,1,0
+access_note_transcribe_log_manager,note.transcribe.log.manager,model_note_transcribe_log,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_summary_template_user,note.summary.template.user,model_note_summary_template,base.group_user,1,0,0,0
+access_note_summary_template_manager,note.summary.template.manager,model_note_summary_template,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_summary_log_user,note.summary.log.user,model_note_summary_log,base.group_user,1,0,1,0
+access_note_summary_log_manager,note.summary.log.manager,model_note_summary_log,dobtor_mail_activity.group_activity_manager,1,1,1,1
+access_note_transcribe_job_user,note.transcribe.job.user,model_note_transcribe_job,base.group_user,1,0,1,0
+access_note_transcribe_job_manager,note.transcribe.job.manager,model_note_transcribe_job,dobtor_mail_activity.group_activity_manager,1,1,1,1

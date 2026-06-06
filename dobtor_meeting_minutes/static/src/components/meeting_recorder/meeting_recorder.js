@@ -32,11 +32,13 @@ export class MeetingRecorder extends Component {
     setup() {
         this.notification = useService("notification");
 
+        const { supported, reason } = this._checkSupport();
         this.state = useState({
             status: "idle", // idle | recording | paused | uploading
             duration: 0,
             error: null,
-            supported: this._checkSupport(),
+            supported,
+            supportReason: reason,
         });
 
         this.mediaRecorder = null;
@@ -51,9 +53,96 @@ export class MeetingRecorder extends Component {
         });
     }
 
+    dismissError() {
+        this.state.error = null;
+    }
+
     // ===== 瀏覽器支援檢查 =====
     _checkSupport() {
-        return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return {
+                supported: false,
+                reason: _t("Your browser does not expose microphone APIs (requires HTTPS and a modern browser)."),
+            };
+        }
+        if (!window.MediaRecorder) {
+            return {
+                supported: false,
+                reason: _t("MediaRecorder API is not available in this browser."),
+            };
+        }
+        // Safari 某些版本支援 API 但不支援常見格式
+        const anyFormat = [
+            "audio/webm;codecs=opus", "audio/webm",
+            "audio/mp4", "audio/ogg;codecs=opus",
+        ].some((t) => {
+            try { return MediaRecorder.isTypeSupported(t); }
+            catch { return false; }
+        });
+        if (!anyFormat) {
+            return {
+                supported: false,
+                reason: _t("No compatible audio format available in this browser."),
+            };
+        }
+        return { supported: true, reason: null };
+    }
+
+    // ===== 檔案上傳 fallback（瀏覽器不支援錄音時）=====
+    async onFileSelected(ev) {
+        const file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+
+        // 型別檢查：允許 audio/* 和 video/webm（瀏覽器錄製的 webm 可能標記為 video/webm）
+        const ALLOWED_TYPES = ["audio/", "video/webm"];
+        if (!ALLOWED_TYPES.some((t) => file.type.startsWith(t))) {
+            this.state.error = _t("Please select an audio file.");
+            ev.target.value = "";
+            return;
+        }
+        const MAX = 200 * 1024 * 1024;
+        if (file.size > MAX) {
+            this.state.error = _t("File too large. Maximum is 200 MB.");
+            ev.target.value = "";
+            return;
+        }
+
+        this.state.status = "uploading";
+        this.state.error = null;
+        try {
+            const base64 = await this._blobToBase64(file);
+            const fileFormat = this._getFileExtension(file.type) || (file.name.split('.').pop() || 'webm');
+            const now = new Date();
+            const result = await rpc(
+                "/web/dataset/call_kw/note.recording/create_from_browser",
+                {
+                    model: "note.recording",
+                    method: "create_from_browser",
+                    args: [{
+                        note_id: this.props.noteId,
+                        audio_base64: base64,
+                        duration: 0,
+                        file_format: fileFormat,
+                        record_start: now.toISOString(),
+                        record_end: now.toISOString(),
+                    }],
+                    kwargs: {},
+                }
+            );
+            this.notification.add(
+                _t("Audio file uploaded successfully."),
+                { type: "success" }
+            );
+            if (this.props.onRecordingCreated) {
+                this.props.onRecordingCreated(result);
+            }
+        } catch (err) {
+            console.error("File upload error:", err);
+            this.state.error = _t("Failed to upload file: ") + (err.message || err);
+        } finally {
+            this.state.status = "idle";
+            ev.target.value = "";
+        }
     }
 
     // ===== 錄音控制 =====

@@ -11,4 +11,33 @@
               action="action_meeting_minutes"
               sequence="20"/>
 
+    <!-- Technical sub-menu for admins -->
+    <menuitem id="menu_meeting_minutes_technical"
+              name="Transcription Logs"
+              parent="dobtor_mail_activity.menu_notebook_root"
+              action="action_note_transcribe_log"
+              groups="dobtor_mail_activity.group_activity_manager"
+              sequence="90"/>
+
+    <menuitem id="menu_meeting_minutes_summary_templates"
+              name="Summary Templates"
+              parent="dobtor_mail_activity.menu_notebook_root"
+              action="action_note_summary_template"
+              groups="dobtor_mail_activity.group_activity_manager"
+              sequence="91"/>
+
+    <menuitem id="menu_meeting_minutes_summary_logs"
+              name="Summary Logs"
+              parent="dobtor_mail_activity.menu_notebook_root"
+              action="action_note_summary_log"
+              groups="dobtor_mail_activity.group_activity_manager"
+              sequence="92"/>
+
+    <menuitem id="menu_meeting_minutes_jobs"
+              name="Transcription Jobs"
+              parent="dobtor_mail_activity.menu_notebook_root"
+              action="action_note_transcribe_job"
+              groups="dobtor_mail_activity.group_activity_manager"
+              sequence="93"/>
+
 </odoo>

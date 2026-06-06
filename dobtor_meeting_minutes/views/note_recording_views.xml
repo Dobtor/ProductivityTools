@@ -37,11 +37,22 @@
                     <button name="action_transcribe" type="object"
                             string="Start Transcription" class="btn-primary"
                             icon="fa-language"
-                            invisible="state not in ('uploaded', 'error')"/>
+                            invisible="state != 'uploaded'"/>
+                    <button name="action_retry_transcribe" type="object"
+                            string="Retry" class="btn-warning"
+                            icon="fa-refresh"
+                            invisible="state != 'error' or not can_retry"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="uploaded,processing,done"/>
                 </header>
                 <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_logs" type="object"
+                                class="oe_stat_button" icon="fa-history"
+                                invisible="log_count == 0">
+                            <field name="log_count" widget="statinfo" string="Logs"/>
+                        </button>
+                    </div>
                     <group>
                         <group>
                             <field name="name"/>
@@ -56,9 +67,71 @@
                             <field name="attachment_id"/>
                         </group>
                     </group>
-                    <group invisible="state != 'error'">
-                        <field name="error_message" readonly="1"/>
+                    <group string="Worker Info" invisible="state != 'processing'">
+                        <group>
+                            <field name="worker_pid" readonly="1"/>
+                            <field name="worker_started_at" readonly="1"/>
+                        </group>
                     </group>
+                    <field name="can_retry" invisible="1"/>
+                    <div class="alert alert-danger" role="alert"
+                         invisible="state != 'error' or not error_message">
+                        <i class="fa fa-exclamation-triangle me-2" title="Error"/>
+                        <strong>Last error:</strong>
+                        <field name="error_message" readonly="1" nolabel="1"
+                               class="d-inline ms-2 text-pre-wrap"/>
+                    </div>
+                    <notebook>
+                        <page string="Transcription History" name="history"
+                              invisible="log_count == 0">
+                            <field name="log_ids" readonly="1" nolabel="1">
+                                <list create="false" delete="false">
+                                    <field name="create_date" string="When"/>
+                                    <field name="attempt_no" string="#"/>
+                                    <field name="provider"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'success'"
+                                           decoration-warning="state in ('timeout','network_error','stale_worker','upload_failed')"
+                                           decoration-danger="state in ('config_error','http_error','quota_exceeded','parse_error','internal_error')"/>
+                                    <field name="http_status" optional="show"/>
+                                    <field name="request_latency_ms" string="Latency (ms)" optional="hide"/>
+                                    <field name="retriable" optional="hide"/>
+                                    <field name="error_message" optional="show"/>
+                                </list>
+                                <form>
+                                    <sheet>
+                                        <group>
+                                            <group>
+                                                <field name="create_date"/>
+                                                <field name="provider"/>
+                                                <field name="attempt_no"/>
+                                                <field name="state"/>
+                                                <field name="retriable"/>
+                                            </group>
+                                            <group>
+                                                <field name="http_status"/>
+                                                <field name="http_url"/>
+                                                <field name="request_latency_ms"/>
+                                                <field name="audio_bytes"/>
+                                                <field name="audio_duration"/>
+                                            </group>
+                                        </group>
+                                        <group string="Error Message">
+                                            <field name="error_message" nolabel="1" readonly="1"/>
+                                        </group>
+                                        <group string="Response Body (masked)" invisible="not response_snippet">
+                                            <field name="response_snippet" nolabel="1" readonly="1"
+                                                   widget="text"/>
+                                        </group>
+                                        <group string="Traceback" invisible="not traceback">
+                                            <field name="traceback" nolabel="1" readonly="1"
+                                                   widget="text"/>
+                                        </group>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>

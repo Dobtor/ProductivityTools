@@ -11,6 +11,11 @@
         <field name="inherit_id" ref="dobtor_mail_activity.view_note_note_form"/>
         <field name="arch" type="xml">
 
+            <!-- ===== Header: 會議記錄模式隱藏筆記 stage statusbar ===== -->
+            <xpath expr="//header/field[@name='stage_id']" position="attributes">
+                <attribute name="invisible">note_type == 'meeting'</attribute>
+            </xpath>
+
             <!-- ===== Header: 會議記錄按鈕 ===== -->
             <xpath expr="//header" position="inside">
                 <button name="action_send_for_signature" type="object"
@@ -42,6 +47,7 @@
                 <field name="available_signer_ids" invisible="1"/>
                 <field name="recording_count" invisible="1"/>
                 <field name="transcript_state" invisible="1"/>
+                <field name="last_transcript_error" invisible="1"/>
                 <field name="summary_state" invisible="1"/>
             </xpath>
 
@@ -53,8 +59,13 @@
                         invisible="not is_locked or state == 'signed' or calendar_event_count == 0"/>
             </xpath>
 
-            <!-- ===== Button Box: Signatures stat button ===== -->
+            <!-- ===== Button Box: Calendar Events + Signatures stat buttons ===== -->
             <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_calendar_events" type="object"
+                        class="oe_stat_button" icon="fa-calendar"
+                        invisible="calendar_event_count == 0">
+                    <field name="calendar_event_count" widget="statinfo" string="Events"/>
+                </button>
                 <button name="action_view_signatures" type="object"
                         class="oe_stat_button" icon="fa-pencil"
                         invisible="note_type != 'meeting' or signature_count == 0 or calendar_event_count == 0">
@@ -117,7 +128,7 @@
                     <div class="mb-3">
                         <div class="alert alert-info d-flex align-items-center" role="alert"
                              invisible="recording_count > 0">
-                            <i class="fa fa-microphone fa-2x me-3"/>
+                            <i class="fa fa-microphone fa-2x me-3" title="Recording"/>
                             <div>
                                 Use the recording button below to record meeting audio directly from your browser.
                                 After uploading, click "Start Transcription" to convert speech to text.
@@ -140,9 +151,19 @@
                                    decoration-success="state == 'done'"
                                    decoration-danger="state == 'error'"
                                    readonly="1"/>
+                            <field name="error_message" string="Error Detail"
+                                   readonly="1" optional="show"
+                                   decoration-danger="state == 'error'"/>
+                            <field name="can_retry" column_invisible="1"/>
                             <button name="action_transcribe" type="object"
                                     string="Transcribe" icon="fa-language"
-                                    invisible="state not in ('uploaded', 'error')"/>
+                                    invisible="state != 'uploaded'"/>
+                            <button name="action_retry_transcribe" type="object"
+                                    string="Retry" icon="fa-refresh" class="btn-warning"
+                                    invisible="state != 'error' or not can_retry"/>
+                            <button name="action_view_logs" type="object"
+                                    string="History" icon="fa-history"
+                                    invisible="state not in ('done', 'error')"/>
                         </list>
                     </field>
                 </page>
@@ -160,6 +181,10 @@
                                   invisible="transcript_state != 'done'">
                                 <i class="fa fa-check me-1"/>Transcription Complete
                             </span>
+                            <span class="badge text-bg-warning"
+                                  invisible="transcript_state != 'partial'">
+                                <i class="fa fa-exclamation-circle me-1"/>Partially Done
+                            </span>
                             <span class="badge text-bg-danger"
                                   invisible="transcript_state != 'error'">
                                 <i class="fa fa-exclamation-triangle me-1"/>Error
@@ -169,15 +194,27 @@
                             <button name="action_export_transcript_txt" type="object"
                                     string="Export TXT" class="btn-outline-secondary btn-sm"
                                     icon="fa-file-text-o"
-                                    invisible="transcript_state != 'done'"/>
+                                    invisible="transcript_state not in ('done', 'partial')"/>
                             <button name="action_export_transcript_srt" type="object"
                                     string="Export SRT" class="btn-outline-secondary btn-sm"
                                     icon="fa-file-video-o"
-                                    invisible="transcript_state != 'done'"/>
+                                    invisible="transcript_state not in ('done', 'partial')"/>
                             <button name="action_transcribe_all" type="object"
                                     string="Re-transcribe" class="btn-secondary btn-sm"
                                     icon="fa-refresh"
-                                    invisible="transcript_state not in ('done', 'error')"/>
+                                    invisible="transcript_state not in ('done', 'partial', 'error')"/>
+                        </div>
+                    </div>
+
+                    <!-- Error detail banner -->
+                    <div class="alert alert-danger" role="alert"
+                         invisible="transcript_state not in ('error', 'partial') or not last_transcript_error">
+                        <i class="fa fa-exclamation-triangle me-2" title="Error"/>
+                        <strong>Latest error:</strong>
+                        <field name="last_transcript_error" nolabel="1" readonly="1"
+                               class="d-inline ms-2 text-pre-wrap"/>
+                        <div class="text-muted small mt-1">
+                            See the Recordings tab for per-recording details and retry options.
                         </div>
                     </div>
 

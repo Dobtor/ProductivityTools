@@ -126,5 +126,80 @@
             <field name="perm_unlink" eval="True"/>
         </record>
 
+        <!-- ============================================================ -->
+        <!-- note.note Portal Record Rule                                  -->
+        <!-- 讓 portal 使用者可讀取自己為 signer 或 attendee 的會議記錄，    -->
+        <!-- 減少 controller 中全程 sudo 的需要                             -->
+        <!-- ============================================================ -->
+        <record id="note_note_rule_portal" model="ir.rule">
+            <field name="name">note.note: portal own meetings</field>
+            <field name="model_id" ref="dobtor_mail_activity.model_note_note"/>
+            <field name="domain_force">[
+                '&amp;',
+                ('note_type', '=', 'meeting'),
+                '|',
+                ('signer_ids', 'in', [user.partner_id.id]),
+                ('calendar_event_ids.partner_ids', 'in', [user.partner_id.id]),
+            ]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- note.transcribe.log Record Rules                              -->
+        <!-- ============================================================ -->
+
+        <!-- User: only own notes' logs (read-only by rule; write perm 0 in CSV) -->
+        <record id="note_transcribe_log_rule_user" model="ir.rule">
+            <field name="name">note.transcribe.log: user own notes</field>
+            <field name="model_id" ref="model_note_transcribe_log"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Manager: all -->
+        <record id="note_transcribe_log_rule_manager" model="ir.rule">
+            <field name="name">note.transcribe.log: manager all</field>
+            <field name="model_id" ref="model_note_transcribe_log"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- note.summary.log Record Rules                                 -->
+        <!-- ============================================================ -->
+        <record id="note_summary_log_rule_user" model="ir.rule">
+            <field name="name">note.summary.log: user own notes</field>
+            <field name="model_id" ref="model_note_summary_log"/>
+            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="note_summary_log_rule_manager" model="ir.rule">
+            <field name="name">note.summary.log: manager all</field>
+            <field name="model_id" ref="model_note_summary_log"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
     </data>
 </odoo>

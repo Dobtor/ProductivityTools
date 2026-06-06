@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- note.transcribe.log List View                                 -->
+    <!-- ============================================================ -->
+    <record id="view_note_transcribe_log_list" model="ir.ui.view">
+        <field name="name">note.transcribe.log.list</field>
+        <field name="model">note.transcribe.log</field>
+        <field name="arch" type="xml">
+            <list default_order="create_date desc"
+                  decoration-success="state == 'success'"
+                  decoration-warning="state in ('timeout','network_error','stale_worker','upload_failed')"
+                  decoration-danger="state in ('config_error','http_error','quota_exceeded','parse_error','internal_error')">
+                <field name="create_date" string="When"/>
+                <field name="note_id" string="Meeting"/>
+                <field name="recording_id" string="Recording"/>
+                <field name="provider"/>
+                <field name="attempt_no" string="#"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'success'"
+                       decoration-warning="state in ('timeout','network_error','stale_worker','upload_failed')"
+                       decoration-danger="state in ('config_error','http_error','quota_exceeded','parse_error','internal_error')"/>
+                <field name="http_status" optional="show"/>
+                <field name="request_latency_ms" string="Latency (ms)" optional="show"/>
+                <field name="audio_duration" string="Audio (s)" optional="hide"/>
+                <field name="retriable" optional="show"/>
+                <field name="error_message" optional="show"/>
+                <button name="action_retry" type="object"
+                        string="Retry" icon="fa-refresh" class="btn-link"
+                        invisible="not retriable"/>
+                <button name="action_open_recording" type="object"
+                        string="Open" icon="fa-external-link" class="btn-link"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.transcribe.log Form View                                 -->
+    <!-- ============================================================ -->
+    <record id="view_note_transcribe_log_form" model="ir.ui.view">
+        <field name="name">note.transcribe.log.form</field>
+        <field name="model">note.transcribe.log</field>
+        <field name="arch" type="xml">
+            <form string="Transcription Log" create="false">
+                <header>
+                    <button name="action_retry" type="object"
+                            string="Retry Transcription" class="btn-warning"
+                            icon="fa-refresh"
+                            invisible="not retriable"/>
+                    <button name="action_open_recording" type="object"
+                            string="Open Recording" class="btn-secondary"
+                            icon="fa-external-link"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="display_name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="note_id" readonly="1"/>
+                            <field name="recording_id" readonly="1"/>
+                            <field name="provider" readonly="1"/>
+                            <field name="attempt_no" readonly="1"/>
+                            <field name="state" readonly="1"/>
+                            <field name="retriable" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="http_status" readonly="1"/>
+                            <field name="http_url" readonly="1"/>
+                            <field name="request_latency_ms" readonly="1"/>
+                            <field name="audio_bytes" readonly="1"/>
+                            <field name="audio_duration" readonly="1"/>
+                            <field name="started_at" readonly="1"/>
+                            <field name="ended_at" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Error Message" invisible="not error_message">
+                        <field name="error_message" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Response Body (masked)" invisible="not response_snippet">
+                        <field name="response_snippet" nolabel="1" readonly="1" widget="text"/>
+                    </group>
+                    <group string="Traceback" invisible="not traceback">
+                        <field name="traceback" nolabel="1" readonly="1" widget="text"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.transcribe.log Search View                               -->
+    <!-- ============================================================ -->
+    <record id="view_note_transcribe_log_search" model="ir.ui.view">
+        <field name="name">note.transcribe.log.search</field>
+        <field name="model">note.transcribe.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="note_id"/>
+                <field name="recording_id"/>
+                <field name="error_message"/>
+                <field name="http_status"/>
+                <separator/>
+                <filter name="filter_failed" string="Failures"
+                        domain="[('state','!=','success')]"/>
+                <filter name="filter_success" string="Successes"
+                        domain="[('state','=','success')]"/>
+                <filter name="filter_retriable" string="Retriable"
+                        domain="[('retriable','=',True)]"/>
+                <separator/>
+                <filter name="filter_today" string="Today"
+                        domain="[('create_date','&gt;=',context_today().strftime('%Y-%m-%d 00:00:00'))]"/>
+                <filter name="filter_week" string="Last 7 Days"
+                        domain="[('create_date','&gt;=',(context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d 00:00:00'))]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_state" string="Result" context="{'group_by': 'state'}"/>
+                    <filter name="group_provider" string="Provider" context="{'group_by': 'provider'}"/>
+                    <filter name="group_note" string="Meeting" context="{'group_by': 'note_id'}"/>
+                    <filter name="group_day" string="Day" context="{'group_by': 'create_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- note.transcribe.log Pivot View (Phase 4 監控)                  -->
+    <!-- ============================================================ -->
+    <record id="view_note_transcribe_log_pivot" model="ir.ui.view">
+        <field name="name">note.transcribe.log.pivot</field>
+        <field name="model">note.transcribe.log</field>
+        <field name="arch" type="xml">
+            <pivot string="Transcription Metrics">
+                <field name="create_date" interval="day" type="row"/>
+                <field name="provider" type="col"/>
+                <field name="state" type="col"/>
+                <field name="id" type="measure" string="Count"/>
+                <field name="request_latency_ms" type="measure"/>
+                <field name="audio_duration" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_note_transcribe_log_graph" model="ir.ui.view">
+        <field name="name">note.transcribe.log.graph</field>
+        <field name="model">note.transcribe.log</field>
+        <field name="arch" type="xml">
+            <graph string="Transcription Results" type="bar" stacked="1">
+                <field name="create_date" interval="day"/>
+                <field name="state"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Action                                                        -->
+    <!-- ============================================================ -->
+    <record id="action_note_transcribe_log" model="ir.actions.act_window">
+        <field name="name">Transcription Logs</field>
+        <field name="res_model">note.transcribe.log</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_note_transcribe_log_search"/>
+        <field name="context">{'search_default_filter_failed': 1, 'search_default_filter_week': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No transcription logs yet</p>
+            <p>Every transcription attempt is recorded here, whether it succeeded or failed.</p>
+        </field>
+    </record>
+
+</odoo>

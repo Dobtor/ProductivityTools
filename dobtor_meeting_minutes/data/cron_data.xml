@@ -7,8 +7,59 @@
             <field name="model_id" ref="model_note_recording"/>
             <field name="state">code</field>
             <field name="code">model._cron_cleanup_stale_processing()</field>
+            <field name="interval_number">15</field>
+            <field name="interval_type">minutes</field>
+            <field name="active">True</field>
+        </record>
+
+        <record id="ir_cron_auto_retry_transcription" model="ir.cron">
+            <field name="name">Auto-retry Failed Transcriptions</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_auto_retry_transcription()</field>
+            <field name="interval_number">5</field>
+            <field name="interval_type">minutes</field>
+            <field name="active">False</field>
+        </record>
+
+        <record id="ir_cron_cleanup_old_logs" model="ir.cron">
+            <field name="name">Cleanup Old Transcribe Logs</field>
+            <field name="model_id" ref="model_note_recording"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_cleanup_old_logs()</field>
             <field name="interval_number">1</field>
-            <field name="interval_type">hours</field>
+            <field name="interval_type">days</field>
+            <field name="active">True</field>
+        </record>
+
+        <record id="ir_cron_reencrypt_api_keys" model="ir.cron">
+            <field name="name">Re-encrypt API Keys After Rotation</field>
+            <field name="model_id" ref="base.model_res_company"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_reencrypt_api_keys()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active">False</field>
+        </record>
+
+        <!-- Q1 Job Queue crons -->
+        <record id="ir_cron_reclaim_stale_jobs" model="ir.cron">
+            <field name="name">Reclaim Stale Transcribe Jobs</field>
+            <field name="model_id" ref="model_note_transcribe_job"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_reclaim_stale_jobs()</field>
+            <field name="interval_number">5</field>
+            <field name="interval_type">minutes</field>
+            <field name="active">True</field>
+        </record>
+
+        <record id="ir_cron_process_job_queue" model="ir.cron">
+            <field name="name">Process Transcribe Job Queue</field>
+            <field name="model_id" ref="model_note_transcribe_job"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_process_queue()</field>
+            <field name="interval_number">2</field>
+            <field name="interval_type">minutes</field>
             <field name="active">True</field>
         </record>
 
