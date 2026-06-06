@@ -45,6 +45,16 @@ class BpmnNodeConfig(models.Model):
     server_action_id = fields.Many2one('ir.actions.server', string='綁定 Server Action')
     bound_method = fields.Char(string='綁定方法名')
 
+    # 動作插入點（DESIGN_APPROVAL_EDITOR §3.2）— 在節點上綁既有 Odoo 動作
+    gate_timing = fields.Selection([
+        ('before', '攔截：先簽核後執行'),
+        ('after', '後置：執行後觸發'),
+        ('replace', '核准後才執行原動作'),
+    ], string='動作時機')
+    gate_model_id = fields.Many2one('ir.model', string='目標模型')
+    gate_method = fields.Char(string='目標方法/按鈕')
+    gate_condition = fields.Text(string='觸發條件 (JSON)')
+
     # 出線（sequence flow）條件：dict {target_element_id: condition_expr}，存 JSON
     flow_conditions = fields.Text(string='出線條件 (JSON)',
                                   help='exclusive gateway 出線條件，key=目標元素id')

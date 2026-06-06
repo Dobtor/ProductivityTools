@@ -123,6 +123,21 @@ class BpmnRole(models.Model):
         # 去重 + 過濾無效
         return users.filtered(lambda u: u.active) if users else Users
 
+    def resolve_preview(self, applicant_user_id, res_model=False, res_id=False):
+        """dry-run 預覽：給定假申請人（與選用單據），算出此角色會解析出的簽核人。
+        以 transient 實例重用 resolve()，不建立真實流程實例。"""
+        self.ensure_one()
+        inst = self.env['bpmn.process.instance'].new({
+            'applicant_user_id': applicant_user_id or False,
+            'res_model': res_model or False,
+            'res_id': res_id or 0,
+        })
+        try:
+            return self.resolve(inst)
+        except Exception:  # noqa: BLE001 預覽不可因單一角色設定錯誤而中斷
+            _logger.exception('resolve_preview 失敗 (role=%s)', self.id)
+            return self.env['res.users']
+
     def _resolve_field_on_record(self, instance):
         """取單據上的欄位值，轉成 res.users。支援 res.users / hr.employee / partner→user。"""
         Users = self.env['res.users']

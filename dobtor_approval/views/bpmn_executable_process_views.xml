@@ -27,8 +27,10 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_open_process_editor" type="object"
+                            string="開啟簽核設定編輯器" class="btn-primary"
+                            invisible="not id"/>
                     <button name="action_publish" type="object" string="發佈"
-                            class="btn-primary"
                             invisible="state == 'published'"/>
                     <button name="action_pull_from_source" type="object"
                             string="從來源拉取結構"

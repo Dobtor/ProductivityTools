@@ -1,0 +1,280 @@
+/** @odoo-module **/
+
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import { _t } from "@web/core/l10n/translation";
+import { ensureBpmnLib } from "@dobtor_bpmn/modeler/lib_loader";
+import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
+
+const MODEL = "bpmn.executable.process";
+
+export class ApprovalProcessEditor extends Component {
+    static template = "dobtor_approval.ProcessEditor";
+    static props = ["*"];
+
+    setup() {
+        this.orm = useService("orm");
+        this.action = useService("action");
+        this.notification = useService("notification");
+        this.canvasRef = useRef("canvas");
+        this.modeler = null;
+
+        this.processId =
+            (this.props.action && this.props.action.params &&
+                this.props.action.params.process_id) || null;
+
+        this.state = useState({
+            loading: true,
+            libMissing: false,
+            error: "",
+            process: {},
+            nodesById: {},
+            options: {},
+            enabledFeatures: [],
+            selectedId: null,
+            panel: null,           // 目前編輯中的節點設定副本
+            gateMethods: [],
+            previewApplicantId: false,
+            previewResults: [],
+            lint: [],
+            saving: false,
+        });
+
+        onWillStart(async () => {
+            this.state.libMissing = !(await ensureBpmnLib());
+            try {
+                const data = await this.orm.call(MODEL, "get_editor_data", [[this.processId]]);
+                this.state.process = data.process;
+                this.state.options = data.options;
+                this.state.enabledFeatures = data.enabled_features || [];
+                const byId = {};
+                for (const n of data.nodes) {
+                    byId[n.element_id] = n;
+                }
+                this.state.nodesById = byId;
+                this._computeLint();
+            } catch (e) {
+                this.state.error = e?.message?.data?.message || e?.message || String(e);
+            }
+            this.state.loading = false;
+        });
+
+        onMounted(() => this._initCanvas());
+        onWillUnmount(() => this._destroy());
+    }
+
+    // ---- canvas ----
+    async _initCanvas() {
+        if (this.state.libMissing || this.state.error || !window.BpmnJS) {
+            if (!window.BpmnJS) this.state.libMissing = true;
+            return;
+        }
+        try {
+            this.modeler = new window.BpmnJS({ container: this.canvasRef.el });
+            await this.modeler.importXML(this.state.process.xml || "");
+            try {
+                this.modeler.get("canvas").zoom("fit-viewport");
+            } catch {
+                /* noop */
+            }
+            this.modeler.on("selection.changed", (e) => {
+                const sel = (e.newSelection || [])[0];
+                this._onSelect(sel ? sel.id : null);
+            });
+            this._renderBadges();
+        } catch (e) {
+            this.state.error = e?.message || String(e);
+        }
+    }
+
+    _renderBadges() {
+        if (!this.modeler) return;
+        let overlays;
+        try {
+            overlays = this.modeler.get("overlays");
+        } catch {
+            return;
+        }
+        for (const [id, node] of Object.entries(this.state.nodesById)) {
+            let html = null;
+            if (node.node_type === "user_task") {
+                html = node.resolver_type
+                    ? '<span class="o_appr_badge ok">✓</span>'
+                    : '<span class="o_appr_badge warn">⚠</span>';
+            } else if (node.node_type === "service_task" && node.gate_timing) {
+                html = '<span class="o_appr_badge act">⚡</span>';
+            }
+            if (html) {
+                try {
+                    overlays.add(id, { position: { top: -10, right: 10 }, html });
+                } catch {
+                    /* element not in diagram */
+                }
+            }
+        }
+    }
+
+    _refreshBadges() {
+        if (!this.modeler) return;
+        try {
+            this.modeler.get("overlays").clear();
+        } catch {
+            /* noop */
+        }
+        this._renderBadges();
+    }
+
+    _destroy() {
+        if (this.modeler) {
+            try {
+                this.modeler.destroy();
+            } catch {
+                /* noop */
+            }
+            this.modeler = null;
+        }
+    }
+
+    // ---- selection / panel ----
+    _onSelect(id) {
+        this.state.selectedId = id;
+        this.state.previewResults = [];
+        if (id && this.state.nodesById[id]) {
+            this.state.panel = { ...this.state.nodesById[id] };
+            if (this.state.panel.node_type === "service_task" && this.state.panel.gate_model_id) {
+                this._loadGateMethods(this.state.panel.gate_model_id);
+            }
+        } else {
+            this.state.panel = null;
+        }
+    }
+
+    feat(key) {
+        return this.state.enabledFeatures.includes(key);
+    }
+
+    setField(field, value) {
+        if (this.state.panel) {
+            this.state.panel[field] = value;
+        }
+    }
+
+    onResolverTypeChange(ev) {
+        this.setField("resolver_type", ev.target.value);
+    }
+
+    onUserMultiChange(ev) {
+        const ids = Array.from(ev.target.selectedOptions).map((o) => parseInt(o.value, 10));
+        this.setField("user_ids", ids);
+    }
+
+    async onGateModelChange(ev) {
+        const id = ev.target.value ? parseInt(ev.target.value, 10) : false;
+        this.setField("gate_model_id", id);
+        this.setField("gate_method", "");
+        await this._loadGateMethods(id);
+    }
+
+    async _loadGateMethods(modelId) {
+        const model = (this.state.options.models || []).find((m) => m.id === modelId);
+        if (!model) {
+            this.state.gateMethods = [];
+            return;
+        }
+        try {
+            this.state.gateMethods = await this.orm.call(MODEL, "scan_model_actions", [model.name]);
+        } catch {
+            this.state.gateMethods = [];
+        }
+    }
+
+    // ---- save ----
+    async onSaveNode() {
+        if (!this.state.panel || this.state.saving) return;
+        this.state.saving = true;
+        const p = this.state.panel;
+        let vals = {};
+        if (p.node_type === "user_task") {
+            vals = {
+                resolver_type: p.resolver_type || false,
+                level: p.level || 1,
+                specific_department_id: p.specific_department_id || false,
+                job_id: p.job_id || false,
+                group_id: p.group_id || false,
+                user_ids: p.user_ids || [],
+                record_field: p.record_field || false,
+                expression: p.expression || false,
+                approval_mode: p.approval_mode || "any",
+                allow_escalation: !!p.allow_escalation,
+            };
+        } else if (p.node_type === "service_task") {
+            vals = {
+                gate_timing: p.gate_timing || false,
+                gate_model_id: p.gate_model_id || false,
+                gate_method: p.gate_method || false,
+            };
+        }
+        try {
+            await this.orm.call(MODEL, "set_node_config", [[this.processId], p.element_id, vals]);
+            this.state.nodesById[p.element_id] = { ...p };
+            this._computeLint();
+            this._refreshBadges();
+            this.notification.add(_t("已儲存節點設定。"), { type: "success" });
+        } catch (e) {
+            this.notification.add(_t("儲存失敗：%s", e?.message?.data?.message || e?.message || e), {
+                type: "danger",
+            });
+        }
+        this.state.saving = false;
+    }
+
+    // ---- dry-run ----
+    async onPreview() {
+        if (!this.state.selectedId) return;
+        try {
+            this.state.previewResults = await this.orm.call(
+                MODEL, "preview_approvers",
+                [[this.processId], this.state.selectedId, this.state.previewApplicantId || false]
+            );
+        } catch (e) {
+            this.notification.add(_t("預覽失敗：%s", e?.message || e), { type: "danger" });
+        }
+    }
+
+    onPreviewApplicantChange(ev) {
+        this.state.previewApplicantId = ev.target.value ? parseInt(ev.target.value, 10) : false;
+    }
+
+    // ---- lint ----
+    _computeLint() {
+        const issues = [];
+        for (const node of Object.values(this.state.nodesById)) {
+            if (node.node_type === "user_task" && !node.resolver_type) {
+                issues.push({ id: node.element_id, msg: _t("簽核節點「%s」尚未設定簽核人", node.name) });
+            }
+            if (node.node_type === "service_task" && node.gate_timing && !node.gate_method) {
+                issues.push({ id: node.element_id, msg: _t("動作節點「%s」未選目標方法", node.name) });
+            }
+        }
+        this.state.lint = issues;
+    }
+
+    async onPublish() {
+        try {
+            await this.orm.call(MODEL, "action_publish", [[this.processId]]);
+            this.notification.add(_t("流程已發佈。"), { type: "success" });
+        } catch (e) {
+            this.notification.add(_t("發佈失敗：%s", e?.message?.data?.message || e?.message || e), {
+                type: "danger", sticky: true,
+            });
+        }
+    }
+
+    onBack() {
+        this.action.doAction("dobtor_approval.action_bpmn_executable_process", {
+            clearBreadcrumbs: true,
+        });
+    }
+}
+
+registry.category("actions").add("dobtor_approval.process_editor", ApprovalProcessEditor);

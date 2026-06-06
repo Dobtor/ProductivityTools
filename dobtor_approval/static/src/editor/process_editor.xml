@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="dobtor_approval.ProcessEditor">
+        <div class="o_appr_editor d-flex flex-column">
+            <!-- Toolbar -->
+            <div class="o_appr_toolbar d-flex align-items-center p-2 gap-2">
+                <button class="btn btn-secondary btn-sm" t-on-click="onBack">
+                    <i class="fa fa-arrow-left me-1"/>返回
+                </button>
+                <span class="fw-bold mx-1" t-esc="state.process.name"/>
+                <span class="badge text-bg-secondary" t-esc="state.process.state"/>
+                <span t-if="state.lint.length" class="badge text-bg-warning"
+                      t-attf-title="{{ state.lint.length }} 個待設定">
+                    <i class="fa fa-exclamation-triangle me-1"/><t t-esc="state.lint.length"/> 待設定
+                </span>
+                <span t-else="" class="badge text-bg-success">設定完整</span>
+                <div class="flex-grow-1"/>
+                <button class="btn btn-primary btn-sm" t-on-click="onPublish"
+                        t-att-disabled="state.lint.length">發佈</button>
+            </div>
+
+            <div t-if="state.libMissing" class="alert alert-warning m-2">
+                無法載入 bpmn.io 函式庫（無法連外/CSP/未放本地檔），請見 dobtor_bpmn lib README。
+            </div>
+            <div t-if="state.error" class="alert alert-danger m-2"><span t-esc="state.error"/></div>
+
+            <div t-if="!state.libMissing and !state.error" class="o_appr_body d-flex flex-grow-1">
+                <!-- Canvas -->
+                <div class="o_appr_canvas flex-grow-1" t-ref="canvas"/>
+
+                <!-- 右側設定 Panel -->
+                <div class="o_appr_panel">
+                    <t t-if="!state.panel">
+                        <div class="text-muted p-3 fst-italic">
+                            點選流程圖上的節點以設定簽核控制項。
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <div class="o_appr_panel_header p-2 border-bottom">
+                            <strong t-esc="state.panel.name"/>
+                            <span class="badge text-bg-light ms-1" t-esc="state.panel.node_type"/>
+                        </div>
+                        <div class="o_appr_panel_body p-2">
+
+                            <!-- 簽核節點 -->
+                            <t t-if="state.panel.node_type === 'user_task'">
+                                <label class="form-label fw-bold">簽核對象</label>
+                                <select class="form-select form-select-sm mb-2"
+                                        t-on-change="onResolverTypeChange">
+                                    <option value="">— 請選擇 —</option>
+                                    <t t-foreach="state.options.resolver_types" t-as="rt" t-key="rt[0]">
+                                        <option t-att-value="rt[0]"
+                                                t-att-selected="state.panel.resolver_type === rt[0]">
+                                            <t t-esc="rt[1]"/>
+                                        </option>
+                                    </t>
+                                </select>
+
+                                <div t-if="state.panel.resolver_type === 'manager_level'" class="mb-2">
+                                    <label class="form-label">往上第幾級</label>
+                                    <input type="number" class="form-control form-control-sm"
+                                           t-att-value="state.panel.level"
+                                           t-on-change="(ev) => this.setField('level', parseInt(ev.target.value)||1)"/>
+                                </div>
+                                <div t-if="state.panel.resolver_type === 'department_specific'" class="mb-2">
+                                    <label class="form-label">指定部門</label>
+                                    <select class="form-select form-select-sm"
+                                            t-on-change="(ev) => this.setField('specific_department_id', parseInt(ev.target.value)||false)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.departments" t-as="d" t-key="d.id">
+                                            <option t-att-value="d.id" t-att-selected="state.panel.specific_department_id === d.id"><t t-esc="d.name"/></option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div t-if="state.panel.resolver_type === 'job_position'" class="mb-2">
+                                    <label class="form-label">指定職位</label>
+                                    <select class="form-select form-select-sm"
+                                            t-on-change="(ev) => this.setField('job_id', parseInt(ev.target.value)||false)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.jobs" t-as="j" t-key="j.id">
+                                            <option t-att-value="j.id" t-att-selected="state.panel.job_id === j.id"><t t-esc="j.name"/></option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div t-if="state.panel.resolver_type === 'group'" class="mb-2">
+                                    <label class="form-label">權限群組</label>
+                                    <select class="form-select form-select-sm"
+                                            t-on-change="(ev) => this.setField('group_id', parseInt(ev.target.value)||false)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.groups" t-as="g" t-key="g.id">
+                                            <option t-att-value="g.id" t-att-selected="state.panel.group_id === g.id"><t t-esc="g.name"/></option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div t-if="state.panel.resolver_type === 'specific_user'" class="mb-2">
+                                    <label class="form-label">指定人員（可多選）</label>
+                                    <select class="form-select form-select-sm" multiple="multiple" size="5"
+                                            t-on-change="onUserMultiChange">
+                                        <t t-foreach="state.options.users" t-as="u" t-key="u.id">
+                                            <option t-att-value="u.id" t-att-selected="(state.panel.user_ids || []).includes(u.id)"><t t-esc="u.name"/></option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div t-if="state.panel.resolver_type === 'field_on_record'" class="mb-2">
+                                    <label class="form-label">單據欄位名稱</label>
+                                    <input type="text" class="form-control form-control-sm"
+                                           t-att-value="state.panel.record_field"
+                                           t-on-change="(ev) => this.setField('record_field', ev.target.value)"/>
+                                </div>
+                                <div t-if="state.panel.resolver_type === 'expression'" class="mb-2">
+                                    <label class="form-label">運算式</label>
+                                    <textarea class="form-control form-control-sm" rows="2"
+                                              t-on-change="(ev) => this.setField('expression', ev.target.value)"><t t-esc="state.panel.expression"/></textarea>
+                                </div>
+
+                                <label class="form-label fw-bold mt-2">簽核方式</label>
+                                <select class="form-select form-select-sm mb-2"
+                                        t-on-change="(ev) => this.setField('approval_mode', ev.target.value)">
+                                    <t t-foreach="state.options.approval_modes" t-as="am" t-key="am[0]">
+                                        <option t-att-value="am[0]" t-att-selected="state.panel.approval_mode === am[0]"><t t-esc="am[1]"/></option>
+                                    </t>
+                                </select>
+
+                                <div class="form-check mb-2" t-if="feat('escalation')">
+                                    <input type="checkbox" class="form-check-input" id="allow_esc"
+                                           t-att-checked="state.panel.allow_escalation"
+                                           t-on-change="(ev) => this.setField('allow_escalation', ev.target.checked)"/>
+                                    <label class="form-check-label" for="allow_esc">允許主管自主往上加簽</label>
+                                </div>
+
+                                <!-- dry-run 預覽 -->
+                                <div class="border-top pt-2 mt-2">
+                                    <label class="form-label fw-bold">誰會簽（試算）</label>
+                                    <div class="d-flex gap-1">
+                                        <select class="form-select form-select-sm" t-on-change="onPreviewApplicantChange">
+                                            <option value="">選申請人…</option>
+                                            <t t-foreach="state.options.users" t-as="u" t-key="u.id">
+                                                <option t-att-value="u.id"><t t-esc="u.name"/></option>
+                                            </t>
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-primary" t-on-click="onPreview">試算</button>
+                                    </div>
+                                    <ul class="mt-1 mb-0 ps-3">
+                                        <li t-foreach="state.previewResults" t-as="r" t-key="r.id" t-esc="r.name"/>
+                                        <li t-if="!state.previewResults.length" class="text-muted fst-italic list-unstyled">（按試算顯示）</li>
+                                    </ul>
+                                </div>
+                            </t>
+
+                            <!-- 動作插入點 -->
+                            <t t-elif="state.panel.node_type === 'service_task'">
+                                <t t-if="feat('action_gate')">
+                                    <label class="form-label fw-bold">動作時機</label>
+                                    <select class="form-select form-select-sm mb-2"
+                                            t-on-change="(ev) => this.setField('gate_timing', ev.target.value)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.gate_timings" t-as="gt" t-key="gt[0]">
+                                            <option t-att-value="gt[0]" t-att-selected="state.panel.gate_timing === gt[0]"><t t-esc="gt[1]"/></option>
+                                        </t>
+                                    </select>
+                                    <label class="form-label">目標模型</label>
+                                    <select class="form-select form-select-sm mb-2" t-on-change="onGateModelChange">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.models" t-as="m" t-key="m.id">
+                                            <option t-att-value="m.id" t-att-selected="state.panel.gate_model_id === m.id"><t t-esc="m.name"/></option>
+                                        </t>
+                                    </select>
+                                    <label class="form-label">目標方法/按鈕</label>
+                                    <select class="form-select form-select-sm mb-2"
+                                            t-on-change="(ev) => this.setField('gate_method', ev.target.value)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.gateMethods" t-as="gm" t-key="gm.name">
+                                            <option t-att-value="gm.name" t-att-selected="state.panel.gate_method === gm.name"><t t-esc="gm.label"/></option>
+                                        </t>
+                                    </select>
+                                </t>
+                                <div t-else="" class="alert alert-info">
+                                    請先於「設定 → BPMN 簽核」啟用 <b>T2 Action 攔截閘門</b> 才能設定動作插入點。
+                                </div>
+                            </t>
+
+                            <t t-else="">
+                                <div class="text-muted fst-italic">此節點型別（<t t-esc="state.panel.node_type"/>）暫無可設定的簽核控制項。</div>
+                            </t>
+                        </div>
+                        <div class="o_appr_panel_footer p-2 border-top">
+                            <button class="btn btn-primary btn-sm w-100" t-on-click="onSaveNode"
+                                    t-att-disabled="state.saving">儲存此節點</button>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- 底部問題清單 -->
+            <div t-if="state.lint.length" class="o_appr_lint p-2 border-top">
+                <small class="text-danger">
+                    <i class="fa fa-exclamation-circle me-1"/>
+                    <t t-foreach="state.lint" t-as="l" t-key="l.id"><span class="me-3" t-esc="l.msg"/></t>
+                </small>
+            </div>
+        </div>
+    </t>
+</templates>

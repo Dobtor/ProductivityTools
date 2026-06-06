@@ -3,6 +3,7 @@ from . import bpmn_role
 from . import bpmn_node_config
 from . import bpmn_action_gate
 from . import bpmn_executable_process
+from . import bpmn_process_editor
 from . import bpmn_token
 from . import bpmn_activity_link
 from . import bpmn_process_instance
