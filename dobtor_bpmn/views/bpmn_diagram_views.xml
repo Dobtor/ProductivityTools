@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_bpmn_diagram_list" model="ir.ui.view">
+        <field name="name">bpmn.diagram.list</field>
+        <field name="model">bpmn.diagram</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="diagram_type"/>
+                <field name="purpose"/>
+                <field name="category_id"/>
+                <field name="project_ref"/>
+                <field name="odoo_module"/>
+                <field name="version"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'frozen'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bpmn_diagram_form" model="ir.ui.view">
+        <field name="name">bpmn.diagram.form</field>
+        <field name="model">bpmn.diagram</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_freeze" type="object" string="定版"
+                            class="btn-primary" invisible="state == 'frozen'"/>
+                    <button name="action_set_draft" type="object" string="設為草稿"
+                            invisible="state != 'frozen'"/>
+                    <button name="action_bump_version" type="object" string="升版"
+                            invisible="state == 'frozen'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,reviewed,frozen"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="設計圖名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="diagram_type"/>
+                            <field name="purpose"/>
+                            <field name="code"/>
+                            <field name="version"/>
+                        </group>
+                        <group>
+                            <field name="category_id"/>
+                            <field name="project_ref"
+                                   invisible="purpose != 'blueprint'"/>
+                            <field name="odoo_module"
+                                   invisible="purpose != 'documentation'"/>
+                            <field name="tag_ids" widget="many2many_tags"
+                                   options="{'color_field': 'color'}"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="設計圖" name="diagram">
+                            <field name="xml" widget="bpmn_editor"
+                                   options="{'type_field': 'diagram_type'}"
+                                   nolabel="1"/>
+                        </page>
+                        <page string="XML 原始碼" name="xml_source" groups="base.group_no_one">
+                            <field name="xml" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_bpmn_diagram_search" model="ir.ui.view">
+        <field name="name">bpmn.diagram.search</field>
+        <field name="model">bpmn.diagram</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="odoo_module"/>
+                <field name="project_ref"/>
+                <field name="category_id"/>
+                <field name="tag_ids"/>
+                <filter name="bpmn" string="BPMN" domain="[('diagram_type', '=', 'bpmn')]"/>
+                <filter name="dmn" string="DMN" domain="[('diagram_type', '=', 'dmn')]"/>
+                <separator/>
+                <filter name="documentation" string="模組流程記錄" domain="[('purpose', '=', 'documentation')]"/>
+                <filter name="blueprint" string="規格藍圖" domain="[('purpose', '=', 'blueprint')]"/>
+                <filter name="template" string="樣板" domain="[('purpose', '=', 'template')]"/>
+                <filter name="executable_src" string="執行來源" domain="[('purpose', '=', 'executable_src')]"/>
+                <separator/>
+                <filter name="frozen" string="已定版" domain="[('state', '=', 'frozen')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_type" string="圖類型" context="{'group_by': 'diagram_type'}"/>
+                    <filter name="group_purpose" string="用途" context="{'group_by': 'purpose'}"/>
+                    <filter name="group_category" string="分類" context="{'group_by': 'category_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_bpmn_diagram" model="ir.actions.act_window">
+        <field name="name">流程設計圖</field>
+        <field name="res_model">bpmn.diagram</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_bpmn_diagram_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一張流程設計圖</p>
+            <p>用 BPMN/DMN 視覺編輯器繪製流程；可用於記錄既有 Odoo 模組流程、繪製客戶專案規格藍圖，或作為簽核流程的設計來源。</p>
+        </field>
+    </record>
+</odoo>

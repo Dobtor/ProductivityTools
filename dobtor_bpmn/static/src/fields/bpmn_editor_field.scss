@@ -1,0 +1,33 @@
+.o_bpmn_editor {
+    width: 100%;
+    min-height: 600px;
+
+    .o_bpmn_editor_body {
+        flex: 1 1 auto;
+        min-height: 560px;
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .o_bpmn_canvas {
+        min-height: 560px;
+        height: 100%;
+        background-color: #fff;
+    }
+
+    .o_bpmn_panel {
+        width: 300px;
+        flex: 0 0 auto;
+        overflow-y: auto;
+        border-left: 1px solid var(--border-color, #dee2e6);
+
+        &:empty {
+            display: none;
+        }
+    }
+
+    .o_bpmn_editor_toolbar {
+        flex: 0 0 auto;
+    }
+}

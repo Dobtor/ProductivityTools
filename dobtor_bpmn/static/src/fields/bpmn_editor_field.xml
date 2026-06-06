@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="dobtor_bpmn.BpmnEditorField">
+        <div class="o_bpmn_editor d-flex flex-column">
+            <div t-if="state.libMissing" class="alert alert-warning m-2" role="alert">
+                <h5>尚未安裝 bpmn.io 函式庫</h5>
+                <p>
+                    視覺編輯器需要 bpmn-js / dmn-js 函式庫。請依
+                    <code>dobtor_bpmn/static/lib/bpmn-io/README.md</code>
+                    指示放置 dist 檔案後重新整理。在此之前，可於下方「XML 原始碼」分頁直接編輯。
+                </p>
+            </div>
+            <div t-if="state.error" class="alert alert-danger m-2" role="alert">
+                <span t-esc="state.error"/>
+            </div>
+            <div t-if="!state.libMissing" class="o_bpmn_editor_body d-flex">
+                <div class="o_bpmn_canvas flex-grow-1" t-ref="canvas"/>
+                <div class="o_bpmn_panel" t-ref="panel"/>
+            </div>
+            <div t-if="!state.libMissing and !readonly" class="o_bpmn_editor_toolbar p-2">
+                <button type="button" class="btn btn-primary btn-sm" t-on-click="save">
+                    套用流程圖
+                </button>
+                <small class="text-muted ms-2">套用後請記得存檔紀錄。</small>
+            </div>
+        </div>
+    </t>
+</templates>
