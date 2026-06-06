@@ -1,0 +1,27 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Packaging / virtualenv
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Odoo runtime
+*.pyc
+.odoorc
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
