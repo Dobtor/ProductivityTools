@@ -1,8 +1,16 @@
 # bpmn.io 函式庫放置說明
 
 本模組的視覺編輯器使用 [bpmn.io](https://bpmn.io) 的 **bpmn-js** 與 **dmn-js**。
-這些函式庫體積大、且非本模組授權範圍，需自行取得官方 dist 檔放於此資料夾。
-模組在缺檔時仍可安裝（編輯器會顯示本說明、並可改用 XML 原始碼分頁編輯）。
+
+## 載入策略（`static/src/modeler/lib_loader.js`）
+**本地優先 → CDN 後援**：
+1. 先試本地 `static/lib/bpmn-io/`（若你放了 dist 檔，離線可用、不依賴外網）。
+2. 本地沒有 → 自動改用 **CDN（unpkg）** 載入 `bpmn-js@17` / `dmn-js@16`。
+3. 兩者皆失敗（離線且無本地檔、或 CSP 擋外連）→ 編輯器顯示提示，可改用「XML 原始碼」分頁編輯。
+
+> 連外的環境**通常不必放任何檔案**，CDN 後援會自動讓編輯器運作。
+> **離線 / 內網 / 有嚴格 CSP** 的環境，請依下方放置本地 dist 檔。
+> 若 CSP 擋下 unpkg：放本地檔即可，或在反向代理放行 `unpkg.com`。
 
 ## 需要的檔案（放在 `dobtor_bpmn/static/lib/bpmn-io/`）
 
