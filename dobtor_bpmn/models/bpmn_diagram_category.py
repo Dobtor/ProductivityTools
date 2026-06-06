@@ -12,7 +12,7 @@ class BpmnDiagramCategory(models.Model):
     parent_id = fields.Many2one(
         'bpmn.diagram.category', string='上層分類',
         ondelete='cascade', index=True)
-    parent_path = fields.Char(index=True, unaccent=False)
+    parent_path = fields.Char(index=True)
     complete_name = fields.Char(
         compute='_compute_complete_name', recursive=True, store=True)
     child_ids = fields.One2many('bpmn.diagram.category', 'parent_id', string='下層分類')
