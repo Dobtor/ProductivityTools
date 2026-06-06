@@ -55,29 +55,66 @@ class BpmnDiagramImportWizard(models.TransientModel):
             raise UserError(_('請至少選擇一個檔案。'))
         Diagram = self.env['bpmn.diagram']
         created = Diagram
+        skipped = []          # 被略過的重複檔名
+        seen_in_batch = set()  # 同批次重複偵測
         for f in files:
-            name = f.get('name') or _('未命名')
+            raw_name = f.get('name') or _('未命名')
+            name = self._strip_ext(raw_name)
+            key = name.strip().lower()
+            # 同批次重複，或與既有設計圖同名 → 略過
+            if key in seen_in_batch or Diagram.search_count([('name', '=', name)]):
+                skipped.append(raw_name)
+                continue
+            seen_in_batch.add(key)
             try:
                 content = base64.b64decode(f.get('data') or '').decode(
                     'utf-8', errors='replace')
             except Exception:
                 content = ''
-            if self.diagram_type != 'auto':
-                dtype = self.diagram_type
-            else:
-                dtype = self._detect_type(name, content)
+            dtype = self.diagram_type if self.diagram_type != 'auto' \
+                else self._detect_type(name, content)
             created |= Diagram.create({
-                'name': self._strip_ext(name),
+                'name': name,
                 'diagram_type': dtype,
                 'xml': content or False,
                 'purpose': self.purpose,
                 'category_id': self.category_id.id or False,
                 'tag_ids': [(6, 0, self.tag_ids.ids)],
             })
+
+        # 後續動作：有匯入 → 導向清單；全部重複 → 關閉精靈
+        if created:
+            next_action = {
+                'type': 'ir.actions.act_window',
+                'name': _('已匯入的設計圖'),
+                'res_model': 'bpmn.diagram',
+                'view_mode': 'kanban,list,form',
+                'domain': [('id', 'in', created.ids)],
+            }
+        else:
+            next_action = {'type': 'ir.actions.act_window_close'}
+
+        # 沒有任何重複 → 直接導向清單
+        if not skipped:
+            return next_action
+
+        # 有重複 → 先提示被略過的檔名，再執行 next_action
+        if created:
+            message = _(
+                '已匯入 %(ok)s 個；略過 %(n)s 個重複檔名：%(names)s',
+                ok=len(created), n=len(skipped), names='、'.join(skipped))
+        else:
+            message = _(
+                '全部 %(n)s 個檔名皆重複，未匯入：%(names)s',
+                n=len(skipped), names='、'.join(skipped))
         return {
-            'type': 'ir.actions.act_window',
-            'name': _('已匯入的設計圖'),
-            'res_model': 'bpmn.diagram',
-            'view_mode': 'kanban,list,form',
-            'domain': [('id', 'in', created.ids)],
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('匯入結果'),
+                'message': message,
+                'type': 'warning',
+                'sticky': True,
+                'next': next_action,
+            },
         }
