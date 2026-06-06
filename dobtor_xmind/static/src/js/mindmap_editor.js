@@ -3986,12 +3986,18 @@ export class MindmapEditor extends Component {
             this._showWarning(_t('Please select a topic first'));
             return;
         }
-        // Create file input and trigger
+        // Create file input and trigger — allow selecting MULTIPLE files at once.
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
+        fileInput.multiple = true;
         fileInput.addEventListener('change', () => {
-            if (fileInput.files && fileInput.files[0]) {
-                this._addAttachment(fileInput.files[0], fileInput.files[0].name);
+            const files = fileInput.files ? Array.from(fileInput.files) : [];
+            if (!files.length) return;
+            for (const f of files) {
+                this._addAttachment(f, f.name);
+            }
+            if (files.length > 1) {
+                this._updateStatus(_t('Added %s attachments').replace('%s', files.length));
             }
         });
         fileInput.click();

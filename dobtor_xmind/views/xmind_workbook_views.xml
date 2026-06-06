@@ -18,6 +18,34 @@
         </field>
     </record>
 
+    <!-- Workbook Search View — with left navigation panel (searchpanel) that
+         lets users browse/filter by tag category (directory) and tag. -->
+    <record id="view_xmind_workbook_search" model="ir.ui.view">
+        <field name="name">xmind.workbook.search</field>
+        <field name="model">xmind.workbook</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="tag_ids"/>
+                <field name="partner_id"/>
+                <field name="create_uid"/>
+                <separator/>
+                <filter name="filter_my" string="My Mind Maps" domain="[('create_uid', '=', uid)]"/>
+                <filter name="filter_archived" string="Archived" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_partner" string="Customer" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_creator" string="Created by" context="{'group_by': 'create_uid'}"/>
+                </group>
+                <!-- Left navigation panel: tags grouped by their category, with
+                     per-value counters. Checking tags filters the list. -->
+                <searchpanel>
+                    <field name="tag_ids" select="multi" icon="fa-tags"
+                           enable_counters="1" groupby="category_id"/>
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
     <!-- Workbook Form View -->
     <record id="view_xmind_workbook_form" model="ir.ui.view">
         <field name="name">xmind.workbook.form</field>
@@ -128,5 +156,6 @@
         <field name="name">Mind Maps</field>
         <field name="res_model">xmind.workbook</field>
         <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_xmind_workbook_search"/>
     </record>
 </odoo>
