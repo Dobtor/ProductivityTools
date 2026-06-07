@@ -314,16 +314,30 @@
             return Math.max(node._h, total);
         }
 
-        /** Bounding box (world coords) of a node's whole laid-out subtree. */
+        /**
+         * Bounding box (world coords) of a node's whole laid-out subtree.
+         * Summary topics are excluded from normal layout, but they sit to the
+         * RIGHT of the grouped siblings (bracket + stub + node ≈ +60 + width),
+         * so reserve that extent — otherwise table columns size too narrow and
+         * the summaries overflow into the next column.
+         */
         _subtreeBBox(node) {
             let minX = node._x - node._w / 2, maxX = node._x + node._w / 2;
             let minY = node._y - node._h / 2, maxY = node._y + node._h / 2;
             if (node.expanded) {
+                const summaries = [];
                 for (const c of node.children) {
+                    if (c.data && c.data._isSummaryNode) { summaries.push(c); continue; }
                     if (_isLayoutExcluded(c)) continue;
                     const b = this._subtreeBBox(c);
                     minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
                     minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY);
+                }
+                if (summaries.length) {
+                    const baseRight = maxX;
+                    for (const s of summaries) {
+                        maxX = Math.max(maxX, baseRight + 60 + s._w);
+                    }
                 }
             }
             return { minX, maxX, minY, maxY };
@@ -1706,17 +1720,30 @@
             this.svg.appendChild(tail);
         }
 
-        /** Bounding box (world coords) of a node's whole visible subtree. */
+        /**
+         * Bounding box (world coords) of a node's whole visible subtree.
+         * Reserves space for summary topics (which sit to the right of the
+         * grouped siblings) so the table grid encloses them — mirrors the
+         * LayoutEngine._subtreeBBox used to size the columns.
+         */
         _subtreeBBox(node) {
             let minX = node._x - node._w / 2, maxX = node._x + node._w / 2;
             let minY = node._y - node._h / 2, maxY = node._y + node._h / 2;
             if (node.expanded) {
+                const summaries = [];
                 for (const c of node.children) {
+                    if (c.data && c.data._isSummaryNode) { summaries.push(c); continue; }
                     if (_isLayoutExcluded(c)) continue;
                     if (c._el && c._el.style.display === 'none') continue;
                     const b = this._subtreeBBox(c);
                     minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
                     minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY);
+                }
+                if (summaries.length) {
+                    const baseRight = maxX;
+                    for (const s of summaries) {
+                        maxX = Math.max(maxX, baseRight + 60 + s._w);
+                    }
                 }
             }
             return { minX, maxX, minY, maxY };
