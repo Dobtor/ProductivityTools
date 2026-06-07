@@ -498,9 +498,10 @@ class BpmnProcessInstance(models.Model):
                 merged = {}
         merged.update(outputs)
         self.dmn_outputs = json.dumps(merged, default=str)
-        # 寫回單據同名欄位
+        # 寫回單據同名欄位（依欄位型別轉換）
         if cfg.dmn_write_to_record and record:
-            to_write = {k: v for k, v in outputs.items() if k in record._fields}
+            to_write = {k: self._coerce_for_field(record, k, v)
+                        for k, v in outputs.items() if k in record._fields}
             if to_write:
                 try:
                     record.with_context(bpmn_approved=True).write(to_write)
@@ -508,6 +509,27 @@ class BpmnProcessInstance(models.Model):
                     _logger.warning('商業規則寫回單據失敗: %s', exc)
         self.message_post(body=_('商業規則「%(d)s」求值：%(o)s',
                                  d=dec.name, o=str(outputs)))
+
+    def _coerce_for_field(self, record, fname, value):
+        """把 DMN 輸出值依目標欄位型別轉換（Decimal/date 等 → 欄位可寫型別）。"""
+        field = record._fields.get(fname)
+        if field is None or value is None:
+            return value
+        try:
+            if field.type in ('float', 'monetary'):
+                return float(value)
+            if field.type == 'integer':
+                return int(value)
+            if field.type == 'boolean':
+                return bool(value)
+            if field.type in ('char', 'text', 'html'):
+                v = value
+                if not isinstance(v, str):
+                    v = ('%f' % v).rstrip('0').rstrip('.') if isinstance(v, float) else str(v)
+                return v
+        except (ValueError, TypeError):
+            return value
+        return value
 
     def get_ctx_value(self, key):
         """取實例 DMN 輸出 ctx 值（供 dmn.input.binding 的 instance_ctx 來源）。"""

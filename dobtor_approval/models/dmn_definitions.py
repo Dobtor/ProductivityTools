@@ -346,8 +346,11 @@ class DmnDefinitions(models.Model):
                     done.add(d.id)
         return order
 
-    def evaluate_all(self, record=None, applicant=None, instance=None):
-        """求值所有決策與 BKM，回傳完整 ctx（決策名 → 值）。"""
+    def evaluate_all(self, record=None, applicant=None, instance=None, only=None):
+        """求值決策與 BKM，回傳 ctx（決策名 → 值）。
+
+        only：限定只求值的決策 recordset（None＝全部）；用於只算目標決策的依賴子樹。
+        """
         self.ensure_one()
         ctx = self.build_context(record, applicant, instance)
         ctx['__today__'] = fields.Date.context_today(self)
@@ -358,7 +361,11 @@ class DmnDefinitions(models.Model):
                     bkm.logic_type, bkm.literal_expression, bkm.table_id, ctx)
             except dmn_feel.FeelError as e:
                 _logger.warning('BKM %s 求值失敗：%s', bkm.name, e)
-        for dec in self._topo_decisions():
+        decs = self._topo_decisions()
+        if only is not None:
+            only_ids = set(only.ids)
+            decs = [d for d in decs if d.id in only_ids]
+        for dec in decs:
             try:
                 ctx[dec.name] = self._eval_logic(
                     dec.logic_type, dec.literal_expression, dec.table_id, ctx)
@@ -367,13 +374,26 @@ class DmnDefinitions(models.Model):
                 ctx[dec.name] = None
         return ctx
 
+    def _decision_closure(self, dec):
+        """回傳 dec 及其遞迴資訊需求（決策）的 recordset。"""
+        seen, stack = set(), [dec]
+        while stack:
+            d = stack.pop()
+            if d.id in seen:
+                continue
+            seen.add(d.id)
+            stack.extend(d.requires_ids)
+        return self.decision_ids.filtered(lambda x: x.id in seen)
+
     def evaluate_decision(self, dmn_id, record=None, applicant=None, instance=None):
-        """求值指定決策（by dmn_id），回傳其值。"""
+        """求值指定決策（by dmn_id），回傳其值。只算該決策的依賴子樹。"""
         self.ensure_one()
         dec = self.decision_ids.filtered(lambda d: d.dmn_id == dmn_id)[:1]
         if not dec:
             raise UserError(_('找不到決策：%s', dmn_id))
-        return self.evaluate_all(record, applicant, instance).get(dec.name)
+        ctx = self.evaluate_all(record, applicant, instance,
+                                only=self._decision_closure(dec))
+        return ctx.get(dec.name)
 
     def _eval_logic(self, logic_type, literal, table, ctx):
         if logic_type == 'literal_expression':

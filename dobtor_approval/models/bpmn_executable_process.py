@@ -228,6 +228,10 @@ class BpmnExecutableProcess(models.Model):
                 used.add('cosign')
             if cfg.allow_escalation:
                 used.add('escalation')
+            # 閘道綁 DMN 決策 → 需要決策表能力（business_rule 由 XML tag 掃描覆蓋）
+            if cfg.dmn_decision_id and cfg.node_type in (
+                    'exclusive_gw', 'inclusive_gw'):
+                used.add('dmn_decision_table')
         # 簽核人解析方式 → 進階解析能力（field_on_record / expression）
         for role in self.role_ids:
             feat = FR.RESOLVER_FEATURE.get(role.resolver_type)

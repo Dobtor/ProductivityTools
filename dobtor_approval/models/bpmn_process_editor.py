@@ -83,6 +83,10 @@ class BpmnExecutableProcessEditor(models.Model):
                 'record_field': role.record_field if role else '',
                 'expression': role.expression if role else '',
                 'matrix_id': role.matrix_id.id if role else False,
+                'decision_id': role.decision_id.id if role else False,
+                # business_rule / 閘道 DMN
+                'dmn_decision_id': cfg.dmn_decision_id.id or False,
+                'dmn_write_to_record': cfg.dmn_write_to_record,
                 # gateway 出線（含目標名稱）+ 已存條件
                 'outgoing': [
                     {'target_id': t, 'target_name': names.get(t, t),
@@ -113,6 +117,7 @@ class BpmnExecutableProcessEditor(models.Model):
                 'users': self._name_options('res.users'),
                 'models': self._name_options('ir.model', field='model', limit=1000),
                 'matrices': self._name_options('bpmn.authority.matrix'),
+                'decisions': self._name_options('dmn.decision'),
             },
         }
 
@@ -162,9 +167,11 @@ class BpmnExecutableProcessEditor(models.Model):
     # ------------------------------------------------------------------
     _CONFIG_KEYS = ('approval_mode', 'allow_escalation', 'gate_timing',
                     'gate_model_id', 'gate_method', 'gate_condition',
-                    'flow_conditions', 'sla_hours', 'sla_action')
+                    'flow_conditions', 'sla_hours', 'sla_action',
+                    'dmn_decision_id', 'dmn_write_to_record')
     _ROLE_KEYS = ('resolver_type', 'level', 'specific_department_id', 'job_id',
-                  'group_id', 'user_ids', 'record_field', 'expression', 'matrix_id')
+                  'group_id', 'user_ids', 'record_field', 'expression', 'matrix_id',
+                  'decision_id')
 
     def set_node_config(self, element_id, vals):
         self.ensure_one()

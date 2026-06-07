@@ -136,6 +136,18 @@
                                     <small class="text-muted">簽核人由決策表依單據（金額/類別/部門）決定，命中各級<b>依序逐關核決</b>。</small>
                                 </div>
 
+                                <div t-if="state.panel.resolver_type === 'dmn_decision'" class="mb-2">
+                                    <label class="form-label">DMN 決策</label>
+                                    <select class="form-select form-select-sm"
+                                            t-on-change="(ev) => this.setIntField('decision_id', ev.target.value)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.decisions" t-as="dc" t-key="dc.id">
+                                            <option t-att-value="dc.id" t-att-selected="state.panel.decision_id === dc.id"><t t-esc="dc.name"/></option>
+                                        </t>
+                                    </select>
+                                    <small class="text-muted">簽核人由 DMN 決策表的 approver 輸出鏈決定，<b>依序逐關核決</b>。</small>
+                                </div>
+
                                 <label class="form-label fw-bold mt-2">簽核方式</label>
                                 <select class="form-select form-select-sm mb-2"
                                         t-on-change="(ev) => this.setField('approval_mode', ev.target.value)">
@@ -219,12 +231,47 @@
                                 </div>
                             </t>
 
+                            <!-- 商業規則任務：綁 DMN 決策 -->
+                            <t t-elif="state.panel.node_type === 'business_rule'">
+                                <t t-if="!feat('dmn_business_rule')">
+                                    <div class="alert alert-info">請先於「設定 → 能力分級」啟用 <b>商業規則任務（DMN）</b>。</div>
+                                </t>
+                                <t t-else="">
+                                    <label class="form-label fw-bold">DMN 決策</label>
+                                    <select class="form-select form-select-sm mb-2"
+                                            t-on-change="(ev) => this.setIntField('dmn_decision_id', ev.target.value)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.decisions" t-as="dc" t-key="dc.id">
+                                            <option t-att-value="dc.id" t-att-selected="state.panel.dmn_decision_id === dc.id"><t t-esc="dc.name"/></option>
+                                        </t>
+                                    </select>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="brWrite"
+                                               t-att-checked="state.panel.dmn_write_to_record"
+                                               t-on-change="(ev) => this.setField('dmn_write_to_record', ev.target.checked)"/>
+                                        <label class="form-check-label" for="brWrite">輸出寫回單據同名欄位</label>
+                                    </div>
+                                    <small class="text-muted">求值結果存入流程變數（供後續閘道/綁定引用），可選寫回單據。</small>
+                                </t>
+                            </t>
+
                             <!-- 閘道：出線條件 builder -->
                             <t t-elif="['exclusive_gw','inclusive_gw','parallel_gw'].includes(state.panel.node_type)">
                                 <t t-if="!feat('conditional')">
                                     <div class="alert alert-info">請先啟用 <b>T1 條件分歧</b> 才能設定閘道條件。</div>
                                 </t>
                                 <t t-else="">
+                                    <div t-if="state.panel.node_type === 'exclusive_gw' &amp;&amp; feat('dmn_decision_table')" class="mb-2">
+                                        <label class="form-label">綁 DMN 決策（選用）</label>
+                                        <select class="form-select form-select-sm"
+                                                t-on-change="(ev) => this.setIntField('dmn_decision_id', ev.target.value)">
+                                            <option value="">—</option>
+                                            <t t-foreach="state.options.decisions" t-as="dc" t-key="dc.id">
+                                                <option t-att-value="dc.id" t-att-selected="state.panel.dmn_decision_id === dc.id"><t t-esc="dc.name"/></option>
+                                            </t>
+                                        </select>
+                                        <small class="text-muted">求值後 <code>dmn_result</code> 注入出線條件運算式（於 BPMN 條件式引用，如 <code>dmn_result == 'approve'</code>）。</small>
+                                    </div>
                                     <label class="form-label fw-bold">出線條件</label>
                                     <div t-if="!state.panel.outgoing.length" class="text-muted fst-italic">此閘道無出線。</div>
                                     <div t-foreach="state.panel.outgoing" t-as="flow" t-key="flow.target_id"

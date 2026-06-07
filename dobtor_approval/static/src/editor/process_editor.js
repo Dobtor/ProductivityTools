@@ -234,6 +234,9 @@ export class ApprovalProcessEditor extends Component {
         if (code === "authority_matrix") {
             return this.feat("authority_matrix");
         }
+        if (code === "dmn_decision") {
+            return this.feat("dmn_decision_table");
+        }
         return true;
     }
 
@@ -297,6 +300,7 @@ export class ApprovalProcessEditor extends Component {
                 record_field: p.record_field || false,
                 expression: p.expression || false,
                 matrix_id: p.matrix_id || false,
+                decision_id: p.decision_id || false,
                 approval_mode: p.approval_mode || "any",
                 allow_escalation: !!p.allow_escalation,
             };
@@ -310,6 +314,11 @@ export class ApprovalProcessEditor extends Component {
                 gate_model_id: p.gate_model_id || false,
                 gate_method: p.gate_method || false,
             };
+        } else if (p.node_type === "business_rule") {
+            vals = {
+                dmn_decision_id: p.dmn_decision_id || false,
+                dmn_write_to_record: !!p.dmn_write_to_record,
+            };
         } else if (["exclusive_gw", "inclusive_gw", "parallel_gw"].includes(p.node_type)) {
             const conds = {};
             for (const flow of p.outgoing || []) {
@@ -319,6 +328,10 @@ export class ApprovalProcessEditor extends Component {
                 }
             }
             vals = { flow_conditions: JSON.stringify(conds) };
+            // 閘道可綁 DMN 決策（注入 dmn_result 供出線條件引用）
+            if (p.dmn_decision_id !== undefined) {
+                vals.dmn_decision_id = p.dmn_decision_id || false;
+            }
         }
         try {
             await this.orm.call(MODEL, "set_node_config", [[this.processId], p.element_id, vals]);
@@ -358,8 +371,14 @@ export class ApprovalProcessEditor extends Component {
             if (node.node_type === "user_task" && !node.resolver_type) {
                 issues.push({ id: node.element_id, msg: _t("簽核節點「%s」尚未設定簽核人", node.name) });
             }
+            if (node.node_type === "user_task" && node.resolver_type === "dmn_decision" && !node.decision_id) {
+                issues.push({ id: node.element_id, msg: _t("簽核節點「%s」選了 DMN 決策但未綁定", node.name) });
+            }
             if (node.node_type === "service_task" && node.gate_timing && !node.gate_method) {
                 issues.push({ id: node.element_id, msg: _t("動作節點「%s」未選目標方法", node.name) });
+            }
+            if (node.node_type === "business_rule" && !node.dmn_decision_id) {
+                issues.push({ id: node.element_id, msg: _t("商業規則節點「%s」尚未綁定 DMN 決策", node.name) });
             }
         }
         this.state.lint = issues;
