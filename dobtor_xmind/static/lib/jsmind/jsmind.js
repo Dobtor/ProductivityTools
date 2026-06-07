@@ -647,33 +647,57 @@
             root._x = tableRight / 2;
         }
 
-        // 直表格圖 (Matrix Vertical): top-level topics form a vertical header
-        // column; each header's whole subtree extends RIGHTWARD as a row
-        // (logic-right). Rows are spaced by their subtree height.
+        // 表格圖 (橫列 / rows): XMind table semantics, transpose of 直行.
+        //   Row 1 = central topic (title, spans the table)
+        //   Each level-2 topic is a ROW: its label sits in the left column and
+        //   its level-3+ subtree fills the row to the right as a logic-right tree.
+        // The grid conveys the central→level-2 and level-2→level-3 hierarchy,
+        // so those connector lines are omitted (see _drawLine depth guard).
         _layoutMatrixV(root) {
             root._x = 0;
             root._y = 0;
-            const children = root.children.filter(c => !(_isLayoutExcluded(c)));
-            if (children.length === 0) return;
+            const level2 = root.children.filter(c => !(_isLayoutExcluded(c)));
+            if (level2.length === 0) return;
 
-            const gapY = 24;
-            const heights = children.map(c => this._subtreeHeight(c));
-            const totalH = heights.reduce((s, h) => s + h, 0) + gapY * (children.length - 1);
-            let curY = root._y - totalH / 2;
-            const headerX = root._x + root._w / 2 + 60;
+            const rowGap = 30;     // between rows
+            const titleGap = 34;   // title row → first data row
+            const colGap = 40;     // label column → content
+            const ivgap = 16;      // between stacked level-3 items within a row
+            const labelW = Math.max(...level2.map(c => c._w));
+            const labelLeft = 0;
+            const contentLeft = labelLeft + labelW + colGap;
 
-            for (let i = 0; i < children.length; i++) {
-                const child = children[i];
-                child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
-                this._propagateBranchColor(child);
-                child.direction = 1; // root → header connector goes right
-                child._y = curY + heights[i] / 2;
-                child._x = headerX + child._w / 2;
-                curY += heights[i] + gapY;
-                if (child.expanded && child.children.length > 0) {
-                    this._layoutBranch(child, child.children, 1);
+            let curTop = root._y + root._h / 2 + titleGap;
+            let tableRight = contentLeft;
+            for (let i = 0; i < level2.length; i++) {
+                const topic = level2[i];
+                topic._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(topic);
+                topic.direction = 1;
+
+                const level3 = topic.children.filter(c => !(_isLayoutExcluded(c)));
+                let curY = curTop;
+                let rowBottom = curTop + topic._h;   // at least the label height
+                for (const l3 of level3) {
+                    l3.direction = 1;
+                    const subH = this._subtreeHeight(l3);
+                    l3._x = contentLeft + l3._w / 2;
+                    l3._y = curY + subH / 2;
+                    if (l3.expanded && l3.children.length > 0) {
+                        this._layoutBranch(l3, l3.children, 1);
+                    }
+                    const bb = this._subtreeBBox(l3);
+                    tableRight = Math.max(tableRight, bb.maxX);
+                    rowBottom = Math.max(rowBottom, bb.maxY);
+                    curY += subH + ivgap;
                 }
+                const rowHeight = rowBottom - curTop;
+                topic._x = labelLeft + labelW / 2;   // label in the left column
+                topic._y = curTop + rowHeight / 2;   // centred vertically in the row
+                curTop = rowBottom + rowGap;
             }
+            // Title centred horizontally over the whole table (row 1)
+            root._x = (labelLeft + tableRight) / 2;
         }
 
         _layoutBranch(parent, children, dir) {
@@ -1833,15 +1857,18 @@
                     line(x, titleBottom, x, maxY);                     // column separators
                 }
             } else {
-                const titleRight = root._x + root._w / 2 + pad / 2;
+                // 橫列: title spans the top row; level-2 labels form a left
+                // column; each level-2 row holds its logic-right content.
+                const titleBottom = root._y + root._h / 2 + pad / 2;
                 const labelRight = Math.max(...children.map(c => c._x + c._w / 2)) + pad / 2;
-                band(minX, minY, labelRight - minX, maxY - minY);      // title + label band
-                border(minX, minY, maxX - minX, maxY - minY);          // outer
-                line(titleRight, minY, titleRight, maxY);              // right of title
-                line(labelRight, minY, labelRight, maxY);              // right of label column
+                band(minX, minY, maxX - minX, titleBottom - minY);              // title band (full width)
+                band(minX, titleBottom, labelRight - minX, maxY - titleBottom); // label column band
+                border(minX, minY, maxX - minX, maxY - minY);                  // outer
+                line(minX, titleBottom, maxX, titleBottom);                    // below title
+                line(labelRight, titleBottom, labelRight, maxY);               // right of label column
                 for (let i = 0; i < boxes.length - 1; i++) {
                     const y = (boxes[i].maxY + boxes[i + 1].minY) / 2;
-                    line(minX, y, maxX, y);                            // row separators
+                    line(minX, y, maxX, y);                                    // row separators
                 }
             }
         }
@@ -1901,10 +1928,11 @@
             if (child.data && child.data._isSummaryNode) return;
             if (child.data && child.data._isFloatingTopic) return;
 
-            // Table layout (直行): the grid conveys the central→level-2 and
+            // Table layouts: the grid conveys the central→level-2 and
             // level-2→level-3 hierarchy, so those connectors are omitted.
             const _tableMode = this.options.layout && this.options.layout.mode;
-            if (_tableMode === 'matrix_horizontal' && child._depth <= 2) return;
+            if ((_tableMode === 'matrix_horizontal' || _tableMode === 'matrix_vertical'
+                || _tableMode === 'matrix') && child._depth <= 2) return;
 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             const s = getStyleForDepth(child._depth);
