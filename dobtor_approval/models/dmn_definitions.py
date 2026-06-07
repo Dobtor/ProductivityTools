@@ -65,6 +65,14 @@ def _href_id(el):
     return href[1:] if href.startswith('#') else href
 
 
+def _value_list(text):
+    """DMN inputValues/outputValues 的 FEEL 清單（如 "高","中","低"）→ 去引號逗號字串。"""
+    if not text:
+        return ''
+    parts = [p.strip().strip('"').strip("'").strip() for p in text.split(',')]
+    return ','.join(p for p in parts if p)
+
+
 class DmnDefinitions(models.Model):
     _name = 'dmn.definitions'
     _description = 'DMN 決策集'
@@ -240,19 +248,23 @@ class DmnDefinitions(models.Model):
         inputs = []
         for i, inp in enumerate(_children(dt, 'input')):
             ie = _first(inp, 'inputExpression')
+            iv = _first(inp, 'inputValues')
             inputs.append(Inp.create({
                 'table_id': table.id, 'sequence': (i + 1) * 10,
                 'label': inp.get('label') or '',
                 'expression': _text_of(ie) if ie is not None else '',
                 'type_ref': (ie.get('typeRef') if ie is not None and ie.get('typeRef') else 'string'),
+                'allowed_values': _value_list(_text_of(iv)) if iv is not None else '',
             }))
         outputs = []
         for i, out in enumerate(_children(dt, 'output')):
+            ov = _first(out, 'outputValues')
             outputs.append(Out.create({
                 'table_id': table.id, 'sequence': (i + 1) * 10,
                 'name': out.get('name') or ('output_%d' % (i + 1)),
                 'label': out.get('label') or '',
                 'type_ref': out.get('typeRef') or 'string',
+                'allowed_values': _value_list(_text_of(ov)) if ov is not None else '',
             }))
         for r, rule in enumerate(_children(dt, 'rule')):
             rrec = Rule.create({'table_id': table.id, 'sequence': (r + 1) * 10,

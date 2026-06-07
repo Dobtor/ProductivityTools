@@ -257,10 +257,19 @@ class BpmnExecutableProcess(models.Model):
                 matrix_errs = role.matrix_id.validate_for_publish()
                 if matrix_errs:
                     raise UserError('\n'.join(matrix_errs))
+            if role.resolver_type == 'dmn_decision' and not role.decision_id:
+                raise UserError(_(
+                    '簽核節點「%(node)s」選了 DMN 決策但未綁定。',
+                    node=cfg.name or cfg.bpmn_element_id))
         for cfg in configs.filtered(lambda c: c.node_type == 'service_task'):
             if not cfg.server_action_id and not cfg.bound_method:
                 raise UserError(_(
                     '系統動作節點「%(node)s」尚未綁定 Server Action 或方法。',
+                    node=cfg.name or cfg.bpmn_element_id))
+        for cfg in configs.filtered(lambda c: c.node_type == 'business_rule'):
+            if not cfg.dmn_decision_id:
+                raise UserError(_(
+                    '商業規則節點「%(node)s」尚未綁定 DMN 決策。',
                     node=cfg.name or cfg.bpmn_element_id))
 
     # ------------------------------------------------------------------
