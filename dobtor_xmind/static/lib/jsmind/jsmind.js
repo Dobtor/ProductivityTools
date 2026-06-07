@@ -117,6 +117,23 @@
         return node.data && (node.data._isSummaryNode || node.data._isFloatingTopic);
     }
 
+    /**
+     * Horizontal extent of a node's subtree if laid out as a logic-right tree,
+     * using node sizes only (no positions needed). The node itself is always
+     * counted (used for summary topics, which are layout-excluded as roots but
+     * whose own descendants must still be reserved). Over-estimate is safe.
+     */
+    function _logicSubtreeWidth(node) {
+        const w = node._w || 0;
+        if (!node.expanded || !node.children || node.children.length === 0) return w;
+        let maxChild = 0;
+        for (const c of node.children) {
+            if (c.data && (c.data._isSummaryNode || c.data._isFloatingTopic)) continue;
+            maxChild = Math.max(maxChild, _logicSubtreeWidth(c));
+        }
+        return maxChild ? w + 50 + maxChild : w;
+    }
+
     // =========================================================================
     // Data Model
     // =========================================================================
@@ -336,7 +353,8 @@
                 if (summaries.length) {
                     const baseRight = maxX;
                     for (const s of summaries) {
-                        maxX = Math.max(maxX, baseRight + 60 + s._w);
+                        // bracket+stub (~60) + the summary's WHOLE subtree width
+                        maxX = Math.max(maxX, baseRight + 60 + _logicSubtreeWidth(s));
                     }
                 }
             }
@@ -1742,7 +1760,8 @@
                 if (summaries.length) {
                     const baseRight = maxX;
                     for (const s of summaries) {
-                        maxX = Math.max(maxX, baseRight + 60 + s._w);
+                        // bracket+stub (~60) + the summary's WHOLE subtree width
+                        maxX = Math.max(maxX, baseRight + 60 + _logicSubtreeWidth(s));
                     }
                 }
             }
