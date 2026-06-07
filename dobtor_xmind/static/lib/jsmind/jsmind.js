@@ -546,19 +546,40 @@
             const DX = 0.5, DY = 0.87;    // diagonal unit vector (~60°)
             const ribs = root.children.filter(c => !(_isLayoutExcluded(c)));
             let along = root._w / 2 + 55;
-            for (let i = 0; i < ribs.length; i++) {
-                const rib = ribs[i];
-                rib._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
-                this._propagateBranchColor(rib);
-                const up = (i % 2 === 0);
-                rib._fishUp = up;
-                rib.direction = 7;
-                rib._x = tailDir * along;     // sits at the base, on the spine
-                rib._y = 0;
-                this._fishBoneLayout(rib, 'diag', up, tailDir, DX, DY);
-                const foot = Math.max(rib._w, this._fishBlock(rib, 'diag').w);
-                along += foot + 45;
+            // Ribs pair up (one above + one below) sharing the same spine point.
+            // The next pair is advanced only past the current pair's tail-ward
+            // extent, so no topic collides.
+            for (let p = 0; p < ribs.length; p += 2) {
+                const attachX = tailDir * along;
+                let pairExtent = 0;
+                for (let s = 0; s < 2; s++) {
+                    const rib = ribs[p + s];
+                    if (!rib) break;
+                    rib._branchColor = BRANCH_COLORS[(p + s) % BRANCH_COLORS.length];
+                    this._propagateBranchColor(rib);
+                    rib._fishUp = (s === 0);   // first = above, second = below
+                    rib.direction = 7;
+                    rib._x = attachX;           // both ribs share the spine point
+                    rib._y = 0;
+                    this._fishBoneLayout(rib, 'diag', rib._fishUp, tailDir, DX, DY);
+                    pairExtent = Math.max(pairExtent,
+                        this._fishboneSubtreeExtent(rib, attachX, tailDir));
+                }
+                along += pairExtent + 50;
             }
+        }
+
+        // Horizontal extent (toward the tail) of a fishbone subtree from attachX.
+        _fishboneSubtreeExtent(node, attachX, tailDir) {
+            let m = 0;
+            const walk = (n) => {
+                const pts = [n._x + tailDir * n._w, n._x];
+                if (n._boneEnd) pts.push(n._boneEnd.x);
+                for (const px of pts) m = Math.max(m, tailDir * (px - attachX));
+                for (const c of n.children) if (!(_isLayoutExcluded(c))) walk(c);
+            };
+            walk(node);
+            return m;
         }
 
         // Footprint {w,h} of a fishbone subtree (over-reserved to avoid overlap).
