@@ -32,7 +32,7 @@
             </div>
 
             <div t-if="state.libMissing" class="alert alert-warning m-2">
-                無法載入 bpmn.io 函式庫（無法連外/CSP/未放本地檔），請見 static/lib/bpmn-io/README。
+                bpmn-js 已隨模組打包（<code>window.BpmnJS</code> 應存在）。若仍出現此訊息，請升級模組並清除瀏覽器快取後重試。
             </div>
             <div t-if="state.error" class="alert alert-danger m-2"><span t-esc="state.error"/></div>
 

@@ -42,6 +42,18 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
     ],
     'assets': {
         'web.assets_backend': [
+            # bpmn-js / dmn-js 直接打包進模組（vendored，不再 runtime load / CDN）
+            'dobtor_approval/static/lib/bpmn-io/bpmn-modeler.production.min.js',
+            'dobtor_approval/static/lib/bpmn-io/assets/diagram-js.css',
+            'dobtor_approval/static/lib/bpmn-io/assets/bpmn-js.css',
+            'dobtor_approval/static/lib/bpmn-io/assets/bpmn.css',
+            'dobtor_approval/static/lib/dmn-io/dmn-modeler.production.min.js',
+            'dobtor_approval/static/lib/dmn-io/assets/dmn-js-shared.css',
+            'dobtor_approval/static/lib/dmn-io/assets/dmn-js-drd.css',
+            'dobtor_approval/static/lib/dmn-io/assets/dmn-js-decision-table.css',
+            'dobtor_approval/static/lib/dmn-io/assets/dmn-js-decision-table-controls.css',
+            'dobtor_approval/static/lib/dmn-io/assets/dmn-js-literal-expression.css',
+            'dobtor_approval/static/lib/dmn-io/assets/dmn.css',
             'dobtor_approval/static/src/registry/node_type_registry.js',
             'dobtor_approval/static/src/modeler/lib_loader.js',
             'dobtor_approval/static/src/registry/approval_node_types.js',

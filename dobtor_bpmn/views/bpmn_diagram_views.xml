@@ -29,9 +29,13 @@
                     <button name="action_open_editor" type="object" string="開啟視覺編輯器"
                             class="btn-primary" invisible="not id"/>
                     <button name="action_create_executable_process" type="object"
-                            string="建立簽核流程" invisible="not id"
+                            string="建立簽核流程" invisible="not id or diagram_type != 'bpmn'"
                             groups="dobtor_approval.group_bpmn_approval_designer"
                             help="複製本設計圖 XML，在 dobtor_approval 建立可執行簽核流程（forked）"/>
+                    <button name="action_create_dmn_definition" type="object"
+                            string="建立 DMN 決策集" invisible="not id or diagram_type != 'dmn'"
+                            groups="dobtor_approval.group_bpmn_approval_designer"
+                            help="複製本 DMN 設計圖 XML，在 dobtor_approval 建立可執行 DMN 決策集（forked）"/>
                     <button name="action_regenerate_thumbnail" type="object" string="重新產生預覽圖"
                             invisible="not id"
                             help="由目前 XML 的版面資訊重新產生 kanban 預覽縮圖"/>

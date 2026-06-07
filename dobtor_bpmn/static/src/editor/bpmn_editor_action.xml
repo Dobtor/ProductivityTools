@@ -25,11 +25,11 @@
             </div>
 
             <div t-if="state.libMissing" class="alert alert-warning m-2" role="alert">
-                <h5>無法載入 bpmn.io 視覺編輯器函式庫</h5>
+                <h5>視覺編輯器函式庫未載入</h5>
                 <p>
-                    已嘗試本地（<code>static/lib/bpmn-io/</code>）與 CDN（unpkg）皆失敗。
-                    常見原因：無法連外 / CSP 擋外部腳本 / 本地未放置 dist 檔。
-                    請參考 <code>dobtor_approval/static/lib/bpmn-io/README.md</code>。
+                    bpmn-js / dmn-js 已隨 <code>dobtor_approval</code> 打包（bundled），
+                    <code>window.BpmnJS</code> / <code>window.DmnJS</code> 應已存在。
+                    若仍出現此訊息，請升級模組並清除瀏覽器快取後重試。
                 </p>
             </div>
 

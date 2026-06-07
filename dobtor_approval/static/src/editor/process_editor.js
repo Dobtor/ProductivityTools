@@ -3,7 +3,6 @@
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { ensureBpmnLib } from "@dobtor_approval/modeler/lib_loader";
 import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 
 const MODEL = "bpmn.executable.process";
@@ -44,7 +43,8 @@ export class ApprovalProcessEditor extends Component {
         this._walkTimers = [];
 
         onWillStart(async () => {
-            this.state.libMissing = !(await ensureBpmnLib());
+            // bpmn-js 已隨模組打包（manifest web.assets_backend），不需 runtime load
+            this.state.libMissing = !window.BpmnJS;
             try {
                 const data = await this.orm.call(MODEL, "get_editor_data", [[this.processId]]);
                 this.state.process = data.process;

@@ -255,6 +255,19 @@ class BpmnDiagram(models.Model):
             'target': 'current',
         }
 
+    def action_create_dmn_definition(self):
+        """DMN 設計圖 → 複製 XML 建立 dobtor_approval 的可執行 DMN 決策集（forked），
+        並開啟其決策編輯器。需安裝 dobtor_approval（本模組依賴它）。"""
+        self.ensure_one()
+        if self.diagram_type != 'dmn':
+            raise UserError(_('僅 DMN 類型的設計圖可建立決策集。'))
+        defn = self.env['dmn.definitions'].create({
+            'name': self.name or _('DMN 決策集'),
+            'dmn_xml': self.get_xml(),
+        })
+        # create 已觸發 _parse_dmn，決策集一落地即有 shadow 可設定/試算。
+        return defn.action_open_editor()
+
     def action_freeze(self):
         """定版：凍結設計，狀態轉 frozen。"""
         for diagram in self:
