@@ -144,7 +144,7 @@ class BpmnProcessInstance(models.Model):
             elif node_type == 'inclusive_gw':
                 # join（多入線）：分支同步；未到齊則 park 等待。
                 if self._is_join(current.bpmn_element_id, flows) and \
-                        not self._gateway_join_ready(current, flows, 'inclusive_gw'):
+                        not self._gateway_join_ready(current, flows):
                     return
                 current = self._route_inclusive(current, nodes, flows)
                 return
@@ -152,7 +152,7 @@ class BpmnProcessInstance(models.Model):
             elif node_type == 'parallel_gw':
                 # join（多入線）：所有入線到齊才 split 出線。
                 if self._is_join(current.bpmn_element_id, flows) and \
-                        not self._gateway_join_ready(current, flows, 'parallel_gw'):
+                        not self._gateway_join_ready(current, flows):
                     return
                 current = self._route_parallel(current, nodes, flows)
                 return
@@ -183,8 +183,8 @@ class BpmnProcessInstance(models.Model):
                 return True
         return False
 
-    def _join_ready_peek(self, token, flows, node_type):
-        """非消耗式判斷 join 是否可推進（parallel/inclusive 統一）：
+    def _join_ready_peek(self, token, flows):
+        """非消耗式判斷 join 是否可推進（parallel/inclusive 統一，與節點型別無關）：
         所有入線到齊 → 過；否則僅當「別處已無 active token 仍能抵達此 join」才收斂
         （可達性分析：只等真正會匯入此 join 的分支 → 消除 over-sync、獨立區互不阻塞、無死結）。"""
         element_id = token.bpmn_element_id
@@ -198,9 +198,9 @@ class BpmnProcessInstance(models.Model):
                 return False  # 仍有分支會匯入 → 等待
         return True
 
-    def _gateway_join_ready(self, token, flows, node_type):
+    def _gateway_join_ready(self, token, flows):
         """ready 時消耗本閘道其餘 parked token，回 True 由本 token 續走（唯一消耗點）。"""
-        if not self._join_ready_peek(token, flows, node_type):
+        if not self._join_ready_peek(token, flows):
             return False
         here = self.token_ids.filtered(
             lambda t: t.state == 'active' and t.bpmn_element_id == token.bpmn_element_id)
@@ -220,7 +220,7 @@ class BpmnProcessInstance(models.Model):
                 continue
             if not self._is_join(tok.bpmn_element_id, flows):
                 continue
-            if self._join_ready_peek(tok, flows, data['node_type']):
+            if self._join_ready_peek(tok, flows):
                 self._advance_token(tok)
                 return  # 狀態已變；後續收斂點會再觸發重掃
 
