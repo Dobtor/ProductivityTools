@@ -37,11 +37,11 @@ class DmnDecisionPreview(models.TransientModel):
             raise UserError(_('輸入須為 JSON 物件。'))
 
         defn = self.definitions_id
-        ctx = defn.build_context(applicant=self.applicant_id)
-        ctx.update(overrides)
-        ctx['__today__'] = fields.Date.context_today(self)
-
         dec = self.decision_id
+        # 以 DRD 拓樸求值目標決策的依賴閉包（含上游決策 + BKM），seed 進 ctx，
+        # 使依賴上游決策的決策也能正確試算（修正單表求值漏上游的問題）。
+        ctx = defn.evaluate_all(applicant=self.applicant_id, overrides=overrides,
+                                only=defn._decision_closure(dec))
         body_parts = []
         try:
             if dec.logic_type == 'decision_table' and dec.table_id:

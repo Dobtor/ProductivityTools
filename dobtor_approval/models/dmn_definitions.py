@@ -346,13 +346,17 @@ class DmnDefinitions(models.Model):
                     done.add(d.id)
         return order
 
-    def evaluate_all(self, record=None, applicant=None, instance=None, only=None):
+    def evaluate_all(self, record=None, applicant=None, instance=None, only=None,
+                     overrides=None):
         """求值決策與 BKM，回傳 ctx（決策名 → 值）。
 
         only：限定只求值的決策 recordset（None＝全部）；用於只算目標決策的依賴子樹。
+        overrides：覆寫 binding 後的變數值（試算用，直接給輸入）。
         """
         self.ensure_one()
         ctx = self.build_context(record, applicant, instance)
+        if overrides:
+            ctx.update(overrides)
         ctx['__today__'] = fields.Date.context_today(self)
         # BKM 先求值（簡化：當作具名值，供決策引用）
         for bkm in self.bkm_ids:
