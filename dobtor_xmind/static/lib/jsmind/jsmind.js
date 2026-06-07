@@ -314,6 +314,21 @@
             return Math.max(node._h, total);
         }
 
+        /** Bounding box (world coords) of a node's whole laid-out subtree. */
+        _subtreeBBox(node) {
+            let minX = node._x - node._w / 2, maxX = node._x + node._w / 2;
+            let minY = node._y - node._h / 2, maxY = node._y + node._h / 2;
+            if (node.expanded) {
+                for (const c of node.children) {
+                    if (_isLayoutExcluded(c)) continue;
+                    const b = this._subtreeBBox(c);
+                    minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
+                    minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY);
+                }
+            }
+            return { minX, maxX, minY, maxY };
+        }
+
         /**
          * Calculate the total width needed for a subtree in vertical layout (org_chart_up/down).
          * At each level, children spread horizontally. The subtree width is the MAX of:
