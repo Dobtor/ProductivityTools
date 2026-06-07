@@ -303,10 +303,11 @@ export class FlowWizardDialog extends Component {
         try {
             const result = await this.orm.call(MODEL, "generate_from_wizard", [this._buildPayload()]);
             this.notification.add(_t("已產生簽核流程，請繼續設定或發佈。"), { type: "success" });
+            // 先開啟編輯器（doAction 取代當前視圖），再關閉本 Dialog，避免關閉先行導致導頁被吞
+            await this.action.doAction(result);
             if (this.props.close) {
                 this.props.close();
             }
-            await this.action.doAction(result);
         } catch (err) {
             this.notification.add(
                 _t("產生失敗：%s", err?.message?.data?.message || err?.message || String(err)),

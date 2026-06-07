@@ -194,8 +194,8 @@
                                     <select class="form-select form-select-sm mb-2"
                                             t-on-change="(ev) => this.setField('gate_timing', ev.target.value)">
                                         <option value="">—</option>
-                                        <t t-foreach="state.options.gate_timings" t-as="gt" t-key="gt[0]">
-                                            <option t-att-value="gt[0]" t-att-selected="state.panel.gate_timing === gt[0]"><t t-esc="gt[1]"/></option>
+                                        <t t-foreach="state.options.gate_timings" t-as="gtm" t-key="gtm[0]">
+                                            <option t-att-value="gtm[0]" t-att-selected="state.panel.gate_timing === gtm[0]"><t t-esc="gtm[1]"/></option>
                                         </t>
                                     </select>
                                     <label class="form-label">目標模型</label>

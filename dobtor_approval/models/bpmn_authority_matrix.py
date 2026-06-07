@@ -298,6 +298,7 @@ class BpmnAuthorityMatrixPreview(models.TransientModel):
         self.result_html = body
         return {
             'type': 'ir.actions.act_window',
+            'name': _('核決權限表試算'),
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
