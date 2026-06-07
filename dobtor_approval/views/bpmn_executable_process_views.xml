@@ -75,6 +75,10 @@
                                            invisible="node_type != 'user_task'"/>
                                     <field name="server_action_id"
                                            invisible="node_type != 'service_task'"/>
+                                    <field name="dmn_decision_id"
+                                           invisible="node_type not in ('business_rule', 'exclusive_gw')"/>
+                                    <field name="dmn_write_to_record"
+                                           invisible="node_type != 'business_rule'"/>
                                 </list>
                             </field>
                         </page>

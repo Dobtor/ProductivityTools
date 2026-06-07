@@ -63,9 +63,9 @@ class DmnDecisionTable(models.Model):
     _name = 'dmn.decision.table'
     _description = 'DMN 決策表'
 
-    # 直接掛 definitions：reparse / 刪除決策集時可一併清除（避免孤兒累積）
+    # 直接掛 definitions：reparse / 刪除決策集時可一併清除（避免孤兒累積）。
+    # 決策→表為單向（dmn.decision.table_id）；不再保留反向 decision_id（冗餘）。
     definitions_id = fields.Many2one('dmn.definitions', ondelete='cascade', index=True)
-    decision_id = fields.Many2one('dmn.decision', ondelete='cascade')
     hit_policy = fields.Selection([
         ('unique', 'Unique（唯一命中）'),
         ('any', 'Any（多命中輸出須相同）'),

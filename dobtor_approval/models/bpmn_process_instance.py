@@ -49,6 +49,9 @@ class BpmnProcessInstance(models.Model):
                                         string='簽核活動')
     pending_action = fields.Text(string='待回放動作 (JSON)')
     incident_message = fields.Text(string='異常訊息')
+    dmn_outputs = fields.Text(
+        string='DMN 決策輸出 (JSON)',
+        help='businessRuleTask 求值結果，供後續 instance_ctx 綁定 / 閘道條件引用')
 
     @api.depends('process_id', 'applicant_user_id')
     def _compute_name(self):
@@ -129,6 +132,12 @@ class BpmnProcessInstance(models.Model):
                     return
                 current = self._move_to_next(current, nodes, flows)
 
+            elif node_type == 'business_rule':
+                self._execute_business_rule(current)
+                if self.state != 'running':
+                    return
+                current = self._move_to_next(current, nodes, flows)
+
             elif node_type == 'exclusive_gw':
                 current = self._route_exclusive(current, nodes, flows)
 
@@ -159,6 +168,20 @@ class BpmnProcessInstance(models.Model):
         """互斥閘道：依條件選一條出線。無條件成立則走預設/第一條。"""
         outs = self._outgoing_flows(token.bpmn_element_id, flows)
         record = self._get_res_record()
+        base_ctx = {'record': record, 'applicant': self.applicant_user_id,
+                    'env': self.env}
+        # 閘道綁 DMN 決策：求值後把結果注入條件 ctx（dmn_result + 各輸出欄），
+        # 出線條件即可寫 dmn_result == 'approve' 之類引用。
+        cfg = self.process_id._config_for(token.bpmn_element_id)
+        if cfg and cfg.dmn_decision_id:
+            try:
+                res = cfg.dmn_decision_id.definitions_id.evaluate_decision(
+                    cfg.dmn_decision_id.dmn_id, record, self.applicant_user_id, self)
+                base_ctx['dmn_result'] = res
+                if isinstance(res, dict):
+                    base_ctx.update(res)
+            except Exception as exc:
+                _logger.warning('gateway DMN 決策求值失敗: %s', exc)
         chosen = None
         default = None
         for flow in outs:
@@ -166,10 +189,8 @@ class BpmnProcessInstance(models.Model):
             if not cond:
                 default = default or flow
                 continue
-            ctx = {'record': record, 'applicant': self.applicant_user_id,
-                   'env': self.env}
             try:
-                if safe_eval(cond, ctx):
+                if safe_eval(cond, dict(base_ctx)):
                     chosen = flow
                     break
             except Exception as exc:
@@ -446,6 +467,57 @@ class BpmnProcessInstance(models.Model):
                 getattr(record.with_context(bpmn_approved=True), cfg.bound_method)()
         except Exception as exc:
             self._set_incident(_('系統動作執行失敗：%s') % exc)
+
+    # ------------------------------------------------------------------
+    # Business Rule Task（DMN 求值寫回）
+    # ------------------------------------------------------------------
+    def _execute_business_rule(self, token):
+        """求值綁定的 DMN 決策 → 輸出存進實例 ctx（dmn_outputs JSON），
+        可選寫回單據同名欄位。輸出供後續 instance_ctx 綁定 / 閘道條件引用。"""
+        self.ensure_one()
+        cfg = self.process_id._config_for(token.bpmn_element_id)
+        dec = cfg.dmn_decision_id if cfg else False
+        if not dec:
+            self._set_incident(_('商業規則節點「%s」未綁定 DMN 決策')
+                               % (cfg.name if cfg else token.bpmn_element_id))
+            return
+        record = self._get_res_record()
+        try:
+            value = dec.definitions_id.evaluate_decision(
+                dec.dmn_id, record, self.applicant_user_id, self)
+        except Exception as exc:
+            self._set_incident(_('商業規則求值失敗：%s') % exc)
+            return
+        outputs = value if isinstance(value, dict) else {dec.name: value}
+        # 併入實例 ctx（Decimal/date 以 default=str 轉存）
+        merged = {}
+        if self.dmn_outputs:
+            try:
+                merged = json.loads(self.dmn_outputs)
+            except (ValueError, TypeError):
+                merged = {}
+        merged.update(outputs)
+        self.dmn_outputs = json.dumps(merged, default=str)
+        # 寫回單據同名欄位
+        if cfg.dmn_write_to_record and record:
+            to_write = {k: v for k, v in outputs.items() if k in record._fields}
+            if to_write:
+                try:
+                    record.with_context(bpmn_approved=True).write(to_write)
+                except Exception as exc:
+                    _logger.warning('商業規則寫回單據失敗: %s', exc)
+        self.message_post(body=_('商業規則「%(d)s」求值：%(o)s',
+                                 d=dec.name, o=str(outputs)))
+
+    def get_ctx_value(self, key):
+        """取實例 DMN 輸出 ctx 值（供 dmn.input.binding 的 instance_ctx 來源）。"""
+        self.ensure_one()
+        if not self.dmn_outputs:
+            return None
+        try:
+            return json.loads(self.dmn_outputs).get(key)
+        except (ValueError, TypeError):
+            return None
 
     # ------------------------------------------------------------------
     # 完成 / 異常

@@ -584,8 +584,9 @@ def _to_str(v):
 
 
 def _eq(l, r):
-    if isinstance(l, bool) or isinstance(r, bool):
-        return l is r or l == r if type(l) == type(r) else l == r
+    lb, rb = isinstance(l, bool), isinstance(r, bool)
+    if lb or rb:
+        return lb and rb and l == r   # boolean 僅與 boolean 相等（避免 true == 1）
     if _is_num(l) and _is_num(r):
         return _num(l) == _num(r)
     return l == r
@@ -799,6 +800,9 @@ def _selftest():
     chk(evaluate('3 = 3'), True, 'eq')
     chk(evaluate('3 != 4'), True, 'neq')
     chk(evaluate('"差旅" = "差旅"'), True, 'cjk-eq')
+    chk(evaluate('true = true'), True, 'bool-eq')
+    chk(evaluate('true = 1'), False, 'bool-strict')
+    chk(evaluate('1 = 1'), True, 'num-eq')
     # 函式
     chk(evaluate('upper("abc")'), 'ABC', 'upper')
     chk(evaluate('contains("hello", "ell")'), True, 'contains')

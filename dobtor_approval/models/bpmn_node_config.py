@@ -26,6 +26,7 @@ class BpmnNodeConfig(models.Model):
         ('end', '結束'),
         ('user_task', '人工簽核'),
         ('service_task', '系統動作'),
+        ('business_rule', '商業規則(DMN)'),
         ('exclusive_gw', '互斥閘道(XOR)'),
         ('parallel_gw', '並行閘道(AND)'),
         ('inclusive_gw', '包容閘道(OR)'),
@@ -44,6 +45,12 @@ class BpmnNodeConfig(models.Model):
     # ServiceTask 專用
     server_action_id = fields.Many2one('ir.actions.server', string='綁定 Server Action')
     bound_method = fields.Char(string='綁定方法名')
+
+    # 商業規則任務 / 閘道 DMN（business_rule 求值寫回；exclusive_gw 注入 dmn_result）
+    dmn_decision_id = fields.Many2one('dmn.decision', string='DMN 決策')
+    dmn_write_to_record = fields.Boolean(
+        string='輸出寫回單據欄位', default=False,
+        help='business_rule：把決策輸出（同名欄位）寫回單據')
 
     # 動作插入點（DESIGN_APPROVAL_EDITOR §3.2）— 在節點上綁既有 Odoo 動作
     gate_timing = fields.Selection([

@@ -88,23 +88,18 @@ class DmnDecisionPreview(models.TransientModel):
         for i, item in enumerate(raw or [], 1):
             if not isinstance(item, dict):
                 continue
-            vals = {
-                'resolver_type': dmn_feel._to_str(item.get('resolver')) or 'direct_manager',
+            norm = {
+                'resolver': dmn_feel._to_str(item.get('resolver')) or 'direct_manager',
                 'level': int(item['level']) if item.get('level') is not None else 1,
+                'job': dmn_feel._to_str(item.get('job')) if item.get('job') else False,
+                'users': item.get('users') or False,
             }
-            role = Role.new(self._role_vals_from(vals))
             try:
-                users = role.resolve(instance)
+                # 重用 role 鏈解析（支援 manager / job_position / specific_user）
+                users = Role._resolve_chain_item(norm, instance)
                 names = ', '.join(users.mapped('name')) or '（解析不到簽核人）'
             except Exception as e:
                 names = '（解析失敗：%s）' % e
             items.append('<li>第 %s 關 %s：<b>%s</b></li>'
-                         % (i, vals['resolver_type'], names))
+                         % (i, norm['resolver'], names))
         return '<p>依序核決鏈：</p><ol>%s</ol>' % ''.join(items)
-
-    def _role_vals_from(self, vals):
-        return {
-            'name': 'preview',
-            'resolver_type': vals['resolver_type'],
-            'level': vals.get('level', 1),
-        }

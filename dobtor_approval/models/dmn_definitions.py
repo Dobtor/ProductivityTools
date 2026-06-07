@@ -521,11 +521,58 @@ class DmnDefinitions(models.Model):
         if not dec or dec.logic_type != 'decision_table':
             return warns
         tbl = dec.table_id
-        # 死規則：永遠在更前面同條件被吃掉（簡化略過）；此處做數值階梯缺口
+        single_hit = tbl.hit_policy in ('unique', 'first', 'priority')
+        # 數值階梯缺口（單一數值輸入）
         num_inputs = tbl.input_ids.filtered(lambda i: i.type_ref == 'number')
-        if len(num_inputs) == 1 and tbl.hit_policy in ('unique', 'first', 'priority'):
+        if len(num_inputs) == 1 and single_hit:
             warns += self._numeric_gap(tbl, num_inputs)
+        # 列舉缺口：宣告 allowed_values 的輸入欄，哪些值無等值規則覆蓋
+        for inp in tbl.input_ids.filtered(lambda i: i.allowed_values):
+            warns += self._enum_gap(tbl, inp)
         return warns
+
+    def _enum_gap(self, tbl, inp):
+        """allowed_values 中未被任何規則等值/任意涵蓋的值 → 警示。"""
+        allowed = [v.strip() for v in (inp.allowed_values or '').split(',') if v.strip()]
+        if not allowed:
+            return []
+        covered, has_any = set(), False
+        for rule in tbl.rule_ids:
+            ent = rule.entry_ids.filtered(
+                lambda e: e.kind == 'input' and e.clause_input_id == inp)[:1]
+            txt = (ent.text if ent else '-').strip()
+            if txt in ('', '-'):
+                has_any = True
+                break
+            covered |= self._enum_values(txt)
+        if has_any:
+            return []
+        missing = [v for v in allowed if v not in covered]
+        if missing:
+            return [_('欄位「%(f)s」列舉值未覆蓋：%(v)s',
+                      f=inp.label or inp.expression, v='、'.join(missing))]
+        return []
+
+    def _enum_values(self, txt):
+        """從 unary test 抽出字面字串/數值集合（供列舉覆蓋比對）。"""
+        try:
+            node = dmn_feel.parse_unary(txt)
+        except dmn_feel.FeelError:
+            return set()
+        out = set()
+
+        def collect(n):
+            k = n.__class__
+            if k is dmn_feel.EqTest:
+                try:
+                    out.add(dmn_feel._to_str(dmn_feel.evaluate(n.expr)))
+                except Exception:
+                    pass
+            elif k in (dmn_feel.OrTests, dmn_feel.NotTest):
+                for t in n.tests:
+                    collect(t)
+        collect(node)
+        return out
 
     def _numeric_gap(self, tbl, num_input):
         bounds = []

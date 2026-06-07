@@ -45,6 +45,7 @@ _TAG_TO_NODE_TYPE = {
     'endEvent': 'end',
     'userTask': 'user_task',
     'serviceTask': 'service_task',
+    'businessRuleTask': 'business_rule',
     'exclusiveGateway': 'exclusive_gw',
     'parallelGateway': 'parallel_gw',
     'inclusiveGateway': 'inclusive_gw',
