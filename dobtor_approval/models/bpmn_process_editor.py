@@ -120,7 +120,9 @@ class BpmnExecutableProcessEditor(models.Model):
                 'decisions': [
                     {'id': d.id, 'name': '%s / %s' % (
                         d.definitions_id.name or '', d.name or d.dmn_id)}
-                    for d in self.env['dmn.decision'].search([], limit=500)
+                    for d in self.env['dmn.decision'].search(
+                        [('definitions_id.company_id', 'in',
+                          [self.env.company.id, False])], limit=500)
                 ],
             },
         }

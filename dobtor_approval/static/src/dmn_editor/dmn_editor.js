@@ -46,6 +46,8 @@ export class DmnEditor extends Component {
             version: 0,
             bindings: [],
             saving: false,
+            decisions: [],
+            preview: { decisionId: false, inputJson: "{}", html: "", loading: false },
         });
         this._xml = "";
 
@@ -58,6 +60,10 @@ export class DmnEditor extends Component {
                 this.state.version = data.version;
                 this.state.stateLabel = data.state;
                 this.state.bindings = (data.bindings || []).map((b) => ({ ...b }));
+                this.state.decisions = data.decisions || [];
+                if (this.state.decisions.length) {
+                    this.state.preview.decisionId = this.state.decisions[0].dmn_id;
+                }
                 this._xml = data.xml;
             } catch (e) {
                 this.state.error = e?.message?.data?.message || e?.message || String(e);
@@ -151,6 +157,31 @@ export class DmnEditor extends Component {
         if (!(await this._saveXml())) return;
         const act = await this.orm.call(MODEL, "action_open_preview", [[this.definitionsId]]);
         this.action.doAction(act);
+    }
+
+    // 內嵌即時試算
+    async onRunInline() {
+        if (!this.state.preview.decisionId) return;
+        this.state.preview.loading = true;
+        // 先存回 XML，使 shadow 反映目前編輯內容
+        if (!(await this._saveXml())) {
+            this.state.preview.loading = false;
+            return;
+        }
+        try {
+            this.state.preview.html = await this.orm.call(MODEL, "preview_inline", [
+                [this.definitionsId],
+                this.state.preview.decisionId,
+                this.state.preview.inputJson || "{}",
+                false,
+            ]);
+        } catch (e) {
+            this.state.preview.html =
+                '<p class="text-danger">' +
+                (e?.message?.data?.message || e?.message || e) +
+                "</p>";
+        }
+        this.state.preview.loading = false;
     }
 
     onBack() {

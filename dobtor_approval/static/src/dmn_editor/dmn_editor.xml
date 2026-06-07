@@ -82,6 +82,26 @@
                     </button>
 
                     <hr/>
+                    <h6 class="mb-1">即時試算</h6>
+                    <div t-if="!state.decisions.length" class="text-muted small">
+                        （存檔後才有可試算的決策）
+                    </div>
+                    <div t-else="">
+                        <select class="form-select form-select-sm mb-1" t-model="state.preview.decisionId">
+                            <option t-foreach="state.decisions" t-as="dc" t-key="dc.dmn_id"
+                                    t-att-value="dc.dmn_id" t-esc="dc.name"/>
+                        </select>
+                        <textarea class="form-control form-control-sm mb-1" rows="2"
+                                  t-model="state.preview.inputJson"
+                                  placeholder='{"amount": 600000}'/>
+                        <button class="btn btn-light btn-sm mb-1" t-on-click="onRunInline"
+                                t-att-disabled="state.preview.loading">
+                            <i class="fa fa-calculator"/> 試算（先存檔）
+                        </button>
+                        <div class="border rounded p-2 small" t-out="state.preview.html"/>
+                    </div>
+
+                    <hr/>
                     <p class="text-muted small mb-0">
                         簽核人鏈：決策表輸出欄含 <code>resolver</code>/<code>level</code> 等即視為
                         approver 慣例，送單時依命中列分階逐關核決。

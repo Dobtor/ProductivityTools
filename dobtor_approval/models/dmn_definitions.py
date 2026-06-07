@@ -668,7 +668,30 @@ class DmnDefinitions(models.Model):
                 'variable': b.variable, 'source_kind': b.source_kind,
                 'record_field': b.record_field or '', 'constant_value': b.constant_value or '',
             } for b in self.binding_ids],
+            'decisions': [
+                {'id': d.id, 'dmn_id': d.dmn_id, 'name': d.name or d.dmn_id}
+                for d in self.decision_ids
+            ],
         }
+
+    def preview_inline(self, decision_dmn_id, input_json, applicant_id=False):
+        """編輯器內嵌試算：對指定決策（by dmn_id，存檔 reparse 後仍穩定）求值，
+        回傳結果 HTML 字串（重用 preview 模型）。"""
+        self.ensure_one()
+        dec = self.decision_ids.filtered(lambda d: d.dmn_id == decision_dmn_id)[:1]
+        if not dec:
+            return '<p class="text-danger">請選擇決策。</p>'
+        pv = self.env['dmn.decision.preview'].create({
+            'definitions_id': self.id,
+            'decision_id': dec.id,
+            'input_json': input_json or '{}',
+            'applicant_id': applicant_id or False,
+        })
+        try:
+            pv.action_run()
+        except UserError as e:
+            return '<p class="text-danger">%s</p>' % e
+        return pv.result_html or ''
 
     def action_open_editor(self):
         self.ensure_one()

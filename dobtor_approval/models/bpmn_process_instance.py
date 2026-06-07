@@ -142,12 +142,18 @@ class BpmnProcessInstance(models.Model):
                 current = self._route_exclusive(current, nodes, flows)
 
             elif node_type == 'inclusive_gw':
-                # 包容閘道：split 條件成立的出線（OR）。
+                # join（多入線）：其他分支仍執行則 park 等待；全匯流才往下 split。
+                if self._is_join(current.bpmn_element_id, flows) and \
+                        not self._gateway_join_ready(current):
+                    return
                 current = self._route_inclusive(current, nodes, flows)
                 return
 
             elif node_type == 'parallel_gw':
-                # 並行：依出線數展開多 token。join 由 _check_completion 收斂。
+                # join（多入線）：同步所有分支；全匯流才 split 出線。
+                if self._is_join(current.bpmn_element_id, flows) and \
+                        not self._gateway_join_ready(current):
+                    return
                 current = self._route_parallel(current, nodes, flows)
                 return
             else:
@@ -156,6 +162,26 @@ class BpmnProcessInstance(models.Model):
 
     def _outgoing_flows(self, element_id, flows):
         return [f for f in flows if f['source'] == element_id]
+
+    def _incoming_flows(self, element_id, flows):
+        return [f for f in flows if f['target'] == element_id]
+
+    def _is_join(self, element_id, flows):
+        """多入線（>1）閘道＝join，需同步分支。"""
+        return len(self._incoming_flows(element_id, flows)) > 1
+
+    def _gateway_join_ready(self, token):
+        """join 同步：仍有其他分支在別處執行 → False(park)；
+        全部已匯流至本閘道 → 消耗此處其餘 parked token，回 True 由本 token 續走。
+        已結束(consumed)的分支不阻塞 → 無死結；over-sync 為可接受近似。"""
+        element_id = token.bpmn_element_id
+        active = self.token_ids.filtered(lambda t: t.state == 'active')
+        if active.filtered(lambda t: t.id != token.id
+                           and t.bpmn_element_id != element_id):
+            return False
+        active.filtered(lambda t: t.id != token.id
+                        and t.bpmn_element_id == element_id).consume()
+        return True
 
     def _move_to_next(self, token, nodes, flows):
         """單一出線：移動 token 到下一節點；無出線則消耗。"""

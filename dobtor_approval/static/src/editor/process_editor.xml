@@ -302,7 +302,8 @@
                                         <button class="btn btn-sm btn-outline-secondary"
                                                 t-on-click="() => this.addCond(flow.target_id)">+ 條件</button>
                                     </div>
-                                    <small class="text-muted">多條件以 AND 結合；留空＝預設線。</small>
+                                    <small class="text-muted d-block">同群組以「且」結合，「或」起新群組（群組間 OR）；留空＝預設線。</small>
+                                    <small class="text-muted d-block">值：數字直接填、文字直接填、日期用 YYYY-MM-DD、清單(屬於)用逗號分隔；可用欄位 <code>dmn_result</code>。</small>
                                 </t>
                             </t>
 
