@@ -8,7 +8,7 @@
 > 原 T0–T6 為工程視角（功能依賴），對客戶不直觀。v2.0 改成：
 > - **客戶方案階梯 L1–L4**（依規模×自家駕馭能力）：L1 輕簡 / L2 標準 / L3 進階 / L4 企業治理。
 > - **介面層（恆開）**：精靈 + 視覺編輯器（`wizard`/`visual_editor`/`basic_approval`，預設啟用、可隱藏其一）。
-> - **專家能力包（橫向 à-la-carte）**：`dmn`/`call_activity`/`expert_mode`/`migration`/`expression_resolver`，不綁階梯，僅 **`group_bpmn_implementer`（SI/實作者）** 可開、任一方案皆可加。
+> - **專家能力包（橫向 à-la-carte）**：`dmn`/`dmn_decision_table`/`dmn_drd`/`dmn_feel`/`dmn_business_rule`/`authority_matrix`（**DMN 決策＋核決權限表，已完整落地**）/`call_activity`/`expert_mode`/`migration`/`expression_resolver`，不綁階梯，僅 **`group_bpmn_implementer`（SI/實作者）** 可開、任一方案皆可加。
 > - **SI = 橫向支援角色**（每一層級都在），非頂層客群。
 > 落地：`feature_registry.PLAN_LEVEL_ADD/EXPERT_FEATURES`、`res.config.settings.bpmn_plan_level`（一鍵套用累加）、四段式設定頁、`_scan_used_features` 補掃 role resolver。下方 §1 表為新版；§2/§4 的 T0–T6 開關目錄與舊設定頁佈局已由新四段式取代（key 對映：designer→restricted_palette、hr_resolvers→field_resolver+expression_resolver、新增 visual_editor）。
 
@@ -36,11 +36,13 @@
 | **L3 進階** | 流程負責人＋IT | 300–1000 | 流程設計·時效 | escalation、parallel_gw、sla_timer、incident、multi_instance |
 | **L4 企業治理** | 大型/集團·公民+治理者 | 1000+ | 公民受限+治理 | restricted_palette、lint、sandbox、governance、scope |
 
-**專家能力包（橫向 à-la-carte，僅 SI/實作者 `group_bpmn_implementer`，任一級可加）**：`dmn`、`call_activity`、`expert_mode`、`migration`、`expression_resolver`。
+**專家能力包（橫向 à-la-carte，僅 SI/實作者 `group_bpmn_implementer`，任一級可加）**：
+`dmn`（總開關）、**`dmn_decision_table`（dmn-js 決策表）**、**`dmn_drd`（DRD 多決策編排）**、**`dmn_feel`（FEEL 進階）**、**`dmn_business_rule`（商業規則任務求值寫回）**、**`authority_matrix`（核決權限表）**、`call_activity`、`expert_mode`、`migration`、`expression_resolver`。
 
 > **由簡入深路徑**：客戶選最貼近的方案卡（一鍵套用 ≤ 該級累加能力）→ 需要時 granular 越級單點 → 深技術需求由 SI 加開專家能力包。**兩種設計介面每一級恆開**；分級只決定能力深度與編輯器調色盤豐富度，不決定「有沒有介面」。
 >
-> roadmap：L4 `restricted_palette`/`lint`/`sandbox` 與專家包 `dmn`/`call_activity` 的前端 bpmn-js 整合尚未落地；本版已備好分級結構＋開關＋守門＋group＋設定頁。
+> **更新（2026-06-08）**：**DMN 專家包已完整落地**——FEEL 求值引擎、決策表/DRD/BKM、核決權限表、商業規則任務、閘道 DMN 路由，dmn-js 編輯器**直接打包進模組（vendored，離線可用）**，並有 Odoo 測試套件。視覺編輯器已支援選 DMN 決策/核決權限表、商業規則節點面板、攔截方法下拉選按鈕。
+> roadmap 殘留：L4 `restricted_palette`/`lint`/`sandbox` 的受限調色盤、`call_activity`/`expert_mode` 的前端整合、`migration`（執行中實例遷移）尚未落地。
 
 ---
 
