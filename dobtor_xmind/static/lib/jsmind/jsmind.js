@@ -586,10 +586,9 @@
         _fishBoneLayout(node, axis, up, tailDir, DX, DY) {
             const bux = axis === 'diag' ? tailDir * DX : tailDir;
             const buy = axis === 'diag' ? (up ? -1 : 1) * DY : 0;
-            // Diagonal topics tilt to follow the bone (text at 60°); horizontal = 0.
-            let deg = Math.atan2(buy, bux) * 180 / Math.PI;
-            if (deg > 90) deg -= 180; else if (deg < -90) deg += 180;
-            node._fishRotate = (axis === 'diag') ? deg : 0;
+            // Raw bone angle — the topic is rotated so its bottom edge lies on
+            // the bone and its head-side start sits at the bone root (_positionNode).
+            node._fishBoneAngle = Math.atan2(buy, bux) * 180 / Math.PI;
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (kids.length === 0) {
                 node._boneEnd = { x: node._x + bux * 30, y: node._y + buy * 30 };
@@ -598,7 +597,9 @@
             const childAxis = axis === 'diag' ? 'horiz' : 'diag';
             const blocks = kids.map(c => this._fishBlock(c, childAxis));
             const GAP = 14;
-            let along = node._w / 2 + 24;
+            // Children start past the topic's text (which now lies along the bone
+            // from the root), not from the node centre.
+            let along = node._w + 22;
             for (let j = 0; j < kids.length; j++) {
                 const kid = kids[j], b = blocks[j];
                 // spacing along the bone = the child's perpendicular footprint
@@ -1453,13 +1454,27 @@
                 // Position will be set by _layoutFloatingSubtree or editor
                 return;
             }
-            node._el.style.left = (node._x - node._w / 2) + 'px';
-            node._el.style.top = (node._y - node._h / 2) + 'px';
-            // Fishbone: rotate diagonal-bone topics to follow the 60° line.
-            const _fbRot = this.options.layout
-                && (this.options.layout.mode === 'fishbone_left' || this.options.layout.mode === 'fishbone_right')
-                && node._fishRotate;
-            node._el.style.transform = _fbRot ? `rotate(${node._fishRotate}deg)` : '';
+            const _fbMode = this.options.layout && this.options.layout.mode;
+            const _fb = (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right');
+            if (_fb && node._fishBoneAngle !== undefined && !node.isroot) {
+                // Anchor the head-side bottom corner at the bone root, so the
+                // topic starts at the root and the bone sits at its bottom edge.
+                node._el.style.top = (node._y - node._h) + 'px';
+                if (_fbMode === 'fishbone_right') {            // tail on the right
+                    node._el.style.left = node._x + 'px';
+                    node._el.style.transformOrigin = '0% 100%';
+                    node._el.style.transform = `rotate(${node._fishBoneAngle}deg)`;
+                } else {                                       // tail on the left
+                    node._el.style.left = (node._x - node._w) + 'px';
+                    node._el.style.transformOrigin = '100% 100%';
+                    node._el.style.transform = `rotate(${node._fishBoneAngle + 180}deg)`;
+                }
+            } else {
+                node._el.style.left = (node._x - node._w / 2) + 'px';
+                node._el.style.top = (node._y - node._h / 2) + 'px';
+                node._el.style.transform = '';
+                node._el.style.transformOrigin = '';
+            }
             node._el.style.display = '';
 
             // Position expander (11px circle, XMind 2 style)
