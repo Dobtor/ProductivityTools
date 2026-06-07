@@ -208,9 +208,10 @@ class BpmnProcessInstance(models.Model):
             self._set_incident(_('簽核節點 %s 未綁定角色') % token.bpmn_element_id)
             return
 
-        # 核決權限表：分階（同階會簽、跨階依序）— 獨立路徑，不影響 any/all/sequential
-        if cfg.role_id.resolver_type == 'authority_matrix':
-            return self._enter_matrix_node(token, cfg)
+        # 決策型（核決權限表 / DMN 決策）：分階（同階會簽、跨階依序）—
+        # 獨立路徑，不影響 any/all/sequential
+        if cfg.role_id.resolver_type in self._PHASED_RESOLVERS:
+            return self._enter_decision_node(token, cfg)
 
         approvers = cfg.role_id.resolve(self)
         if not approvers:
@@ -235,25 +236,52 @@ class BpmnProcessInstance(models.Model):
                 activity = self._create_approval_activity(token.bpmn_element_id, user)
                 Link.create(self._link_vals(token, cfg, user, activity, seq=idx * 10))
 
-    def _enter_matrix_node(self, token, cfg):
-        """核決權限表節點：依命中鏈分階建立 link（phase＝規則列序）。
+    # 走分階逐關引擎的 resolver 型別（同階會簽、跨階依序）
+    _PHASED_RESOLVERS = ('authority_matrix', 'dmn_decision')
+
+    def _build_phased_chain(self, cfg):
+        """回傳依階排序的 [(phase, users)]。核決權限表＝規則列序；DMN＝approver 鏈 phase。"""
+        role = cfg.role_id
+        record = self._get_res_record()
+        applicant = self.applicant_user_id
+        Users = self.env['res.users']
+        if role.resolver_type == 'authority_matrix':
+            matrix = role.matrix_id
+            chain = matrix.resolve_approvers(record, applicant) if matrix else []
+            return [(i, users) for i, (_line, users) in enumerate(chain, start=1) if users]
+        if role.resolver_type == 'dmn_decision' and role.decision_id:
+            defn = role.decision_id.definitions_id
+            items = defn.resolve_approver_chain(
+                role.decision_id.dmn_id, record, applicant, self)
+            by_phase = {}
+            for n, item in enumerate(items, start=1):
+                ph = item.get('phase') or n
+                users = role._resolve_chain_item(item, self)
+                if users:
+                    by_phase[ph] = (by_phase.get(ph) or Users) | users
+            return [(ph, by_phase[ph]) for ph in sorted(by_phase)]
+        return []
+
+    def _enter_decision_node(self, token, cfg):
+        """決策型節點：依命中鏈分階建立 link（phase 正規化為 1..N）。
         第 1 階立即產生活動（同階會簽），其餘階待前階全部簽完再喚起（跨階依序）。"""
-        matrix = cfg.role_id.matrix_id
-        chain = matrix.resolve_approvers(
-            self._get_res_record(), self.applicant_user_id) if matrix else []
-        chain = [(line, users) for line, users in chain if users]
+        chain = self._build_phased_chain(cfg)
         if not chain:
             self._set_incident(_(
-                '核決權限表節點「%s」解析不到任何簽核人') % (cfg.name or token.bpmn_element_id))
+                '決策節點「%s」解析不到任何簽核人') % (cfg.name or token.bpmn_element_id))
             return
         Link = self.env['bpmn.activity.link']
-        for phase, (_line, users) in enumerate(chain, start=1):
+        for order, (_ph, users) in enumerate(chain, start=1):
             for idx, user in enumerate(users):
                 activity = (self._create_approval_activity(token.bpmn_element_id, user)
-                            if phase == 1 else False)
-                vals = self._link_vals(token, cfg, user, activity, seq=phase * 100 + idx)
-                vals['phase'] = phase
+                            if order == 1 else False)
+                vals = self._link_vals(token, cfg, user, activity, seq=order * 100 + idx)
+                vals['phase'] = order
                 Link.create(vals)
+
+    # 向後相容別名
+    def _enter_matrix_node(self, token, cfg):
+        return self._enter_decision_node(token, cfg)
 
     def _link_vals(self, token, cfg, user, activity, seq=10):
         return {
@@ -309,8 +337,8 @@ class BpmnProcessInstance(models.Model):
             lambda l: l.token_id == token and l.bpmn_element_id == element_id
             and l.decision != 'escalated')
 
-        # 核決權限表分階節點：同階會簽、跨階依序（獨立路徑）
-        if cfg and cfg.role_id and cfg.role_id.resolver_type == 'authority_matrix':
+        # 決策型分階節點：同階會簽、跨階依序（獨立路徑）
+        if cfg and cfg.role_id and cfg.role_id.resolver_type in self._PHASED_RESOLVERS:
             return self._on_matrix_link_approved(link, token, cfg, node_links)
 
         if mode == 'any':

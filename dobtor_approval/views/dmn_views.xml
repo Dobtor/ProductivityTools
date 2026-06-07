@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============ dmn.definitions ============ -->
+    <record id="view_dmn_definitions_list" model="ir.ui.view">
+        <field name="name">dmn.definitions.list</field>
+        <field name="model">dmn.definitions</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="decision_count"/>
+                <field name="version"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'published'"
+                       decoration-muted="state == 'archived'"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_dmn_definitions_form" model="ir.ui.view">
+        <field name="name">dmn.definitions.form</field>
+        <field name="model">dmn.definitions</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_open_editor" type="object" string="開啟決策編輯器"
+                            class="btn-primary" icon="fa-sitemap"/>
+                    <button name="action_publish" type="object" string="發佈"
+                            invisible="state == 'published'"/>
+                    <button name="action_set_draft" type="object" string="轉草稿"
+                            invisible="state != 'published'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="決策集名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="version"/>
+                            <field name="decision_count"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="變數綁定" name="bindings">
+                            <field name="binding_ids">
+                                <list editable="bottom">
+                                    <field name="variable"/>
+                                    <field name="source_kind"/>
+                                    <field name="record_field"/>
+                                    <field name="instance_key"/>
+                                    <field name="constant_value"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="決策" name="decisions">
+                            <field name="decision_ids" readonly="1">
+                                <list>
+                                    <field name="dmn_id"/>
+                                    <field name="name"/>
+                                    <field name="logic_type"/>
+                                    <field name="output_type_ref"/>
+                                    <field name="is_approver_output" widget="boolean"/>
+                                </list>
+                            </field>
+                            <field name="input_data_ids" readonly="1">
+                                <list>
+                                    <field name="dmn_id"/>
+                                    <field name="name"/>
+                                    <field name="type_ref"/>
+                                </list>
+                            </field>
+                            <field name="bkm_ids" readonly="1">
+                                <list>
+                                    <field name="dmn_id"/>
+                                    <field name="name"/>
+                                    <field name="logic_type"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="DMN XML" name="xml">
+                            <field name="dmn_xml" widget="ace" options="{'mode': 'xml'}"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_dmn_definitions" model="ir.actions.act_window">
+        <field name="name">決策（DMN）</field>
+        <field name="res_model">dmn.definitions</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_dmn_definitions"
+              name="決策（DMN）"
+              parent="menu_bpmn_config"
+              action="action_dmn_definitions"
+              sequence="26"
+              groups="dobtor_approval.group_bpmn_approval_designer"/>
+
+    <!-- ============ dmn.decision.preview（試算） ============ -->
+    <record id="view_dmn_decision_preview_form" model="ir.ui.view">
+        <field name="name">dmn.decision.preview.form</field>
+        <field name="model">dmn.decision.preview</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="definitions_id" readonly="1"/>
+                    <field name="decision_id"/>
+                    <field name="applicant_id"/>
+                    <field name="input_json" widget="ace" options="{'mode': 'json'}"/>
+                </group>
+                <footer>
+                    <button name="action_run" type="object" string="試算" class="btn-primary"/>
+                    <button special="cancel" string="關閉"/>
+                </footer>
+                <field name="result_html" nolabel="1" readonly="1"/>
+            </form>
+        </field>
+    </record>
+
+</odoo>

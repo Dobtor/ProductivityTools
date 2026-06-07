@@ -42,8 +42,9 @@ PLAN_LEVEL_ADD = {
 # ---------------------------------------------------------------------------
 # 專家能力包（橫向，不綁階梯，僅實作者可開）
 # ---------------------------------------------------------------------------
-EXPERT_FEATURES = ('dmn', 'authority_matrix', 'call_activity', 'expert_mode',
-                   'migration', 'expression_resolver')
+EXPERT_FEATURES = ('dmn', 'dmn_decision_table', 'dmn_drd', 'dmn_feel',
+                   'dmn_business_rule', 'authority_matrix', 'call_activity',
+                   'expert_mode', 'migration', 'expression_resolver')
 
 # 全部可切換 key（順序：方案階梯 + 專家包，去重）
 _LADDER = [k for lv in PLAN_LEVELS for k in PLAN_LEVEL_ADD[lv]]
@@ -92,6 +93,10 @@ FEATURE_DEPS = {
     'scope': ['governance'],
     # 專家包
     'dmn': ['conditional'],
+    'dmn_decision_table': ['dmn'],
+    'dmn_drd': ['dmn_decision_table'],
+    'dmn_feel': ['dmn_decision_table'],
+    'dmn_business_rule': ['dmn_decision_table', 'action_gate'],
     'authority_matrix': ['basic_approval'],
     'call_activity': ['visual_editor'],
     'expert_mode': ['visual_editor'],
@@ -121,7 +126,11 @@ FEATURE_LABELS = {
     'sandbox': '沙箱模擬（dry-run）',
     'governance': '送審生命週期',
     'scope': '公民 scope 權限限制',
-    'dmn': 'DMN 決策表求值',
+    'dmn': 'DMN 決策求值（總開關）',
+    'dmn_decision_table': 'DMN 決策表編輯器',
+    'dmn_drd': 'DMN 決策需求圖（DRD 編排）',
+    'dmn_feel': 'FEEL 運算式（進階）',
+    'dmn_business_rule': '商業規則任務（求值寫回）',
     'authority_matrix': '核決權限表（決策矩陣）',
     'call_activity': '子流程複用（Call Activity）',
     'expert_mode': '專家完整調色盤',
@@ -133,7 +142,7 @@ FEATURE_LABELS = {
 NODE_FEATURE = {
     'bpmn:userTask': 'basic_approval',
     'bpmn:serviceTask': 'action_gate',
-    'bpmn:businessRuleTask': 'dmn',
+    'bpmn:businessRuleTask': 'dmn_business_rule',
     'bpmn:exclusiveGateway': 'conditional',
     'bpmn:parallelGateway': 'parallel_gw',
     'bpmn:inclusiveGateway': 'parallel_gw',
@@ -147,6 +156,7 @@ RESOLVER_FEATURE = {
     'field_on_record': 'field_resolver',
     'expression': 'expression_resolver',
     'authority_matrix': 'authority_matrix',
+    'dmn_decision': 'dmn_decision_table',
 }
 
 

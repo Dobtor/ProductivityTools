@@ -227,6 +227,128 @@ class BpmnAuthorityMatrix(models.Model):
             'context': {'default_matrix_id': self.id},
         }
 
+    # ------------------------------------------------------------------
+    # 轉 DMN（Layer G）：核決權限表 → 等價 dmn.definitions（決策表 + 綁定）
+    # ------------------------------------------------------------------
+    def action_to_dmn(self):
+        """產生等價的 DMN 決策集並開啟其編輯器。
+
+        對映：金額/類別/部門 → 決策表輸入欄；規則列 → rule；
+        簽核解析 → approver 慣例輸出（resolver/level/job/users）。
+        綁定：amount←amount_field、category←category_field、department←department_field。
+        """
+        self.ensure_one()
+        xml = self._build_dmn_xml()
+        defn = self.env['dmn.definitions'].create({
+            'name': _('%s（轉自核決權限表）', self.name),
+            'dmn_xml': xml,
+            'company_id': self.env.company.id,
+        })
+        bindings = []
+        if self.amount_field:
+            bindings.append({'variable': 'amount', 'source_kind': 'record_field',
+                             'record_field': self.amount_field})
+        if self.category_field:
+            bindings.append({'variable': 'category', 'source_kind': 'record_field',
+                             'record_field': self.category_field})
+        if self.department_field and not self.use_applicant_department:
+            bindings.append({'variable': 'department', 'source_kind': 'record_field',
+                             'record_field': self.department_field})
+        if bindings:
+            defn.set_bindings(bindings)
+        self.message_post(body=_('已轉為 DMN 決策集「%s」。', defn.name))
+        return defn.action_open_editor()
+
+    def _build_dmn_xml(self):
+        """以 lxml 產生 DMN 1.3 XML。輸入欄依設定動態決定；輸出採 approver 慣例。"""
+        from lxml.builder import ElementMaker
+        from lxml import etree as _ET
+
+        ns = 'https://www.omg.org/spec/DMN/20191111/MODEL/'
+        E = ElementMaker(namespace=ns, nsmap={None: ns})
+
+        # 動態輸入欄
+        inputs = []
+        if self.amount_field:
+            inputs.append(('amount', 'number', '金額'))
+        if self.category_field:
+            inputs.append(('category', 'string', '類別'))
+        if self.department_field and not self.use_applicant_department:
+            inputs.append(('department', 'string', '部門'))
+
+        # 輸出欄（approver 慣例）
+        has_job = any(l.resolver_type == 'job_position' for l in self.line_ids)
+        has_users = any(l.resolver_type == 'specific_user' for l in self.line_ids)
+        outputs = [('resolver', 'string'), ('level', 'number')]
+        if has_job:
+            outputs.append(('job', 'string'))
+        if has_users:
+            outputs.append(('users', 'string'))
+
+        hit = {'collect': 'COLLECT', 'priority': 'PRIORITY',
+               'unique': 'UNIQUE'}.get(self.hit_policy, 'COLLECT')
+
+        dt_children = []
+        for i, (var, tref, label) in enumerate(inputs, start=1):
+            dt_children.append(E.input(
+                E.inputExpression(E.text(var), {'id': 'IE_%d' % i, 'typeRef': tref}),
+                {'id': 'In_%d' % i, 'label': label}))
+        for j, (name, tref) in enumerate(outputs, start=1):
+            dt_children.append(E.output({'id': 'Out_%d' % j, 'name': name, 'typeRef': tref}))
+
+        for r, line in enumerate(self.line_ids.sorted('sequence'), start=1):
+            rule = E.rule({'id': 'rule_%d' % r})
+            for (var, _t, _l) in inputs:
+                rule.append(E.inputEntry(E.text(self._dmn_input_entry(var, line)),
+                                         {'id': 'rin_%d_%s' % (r, var)}))
+            for (name, _t) in outputs:
+                rule.append(E.outputEntry(E.text(self._dmn_output_entry(name, line)),
+                                          {'id': 'rout_%d_%s' % (r, name)}))
+            dt_children.append(rule)
+
+        table = E.decisionTable(*dt_children, {'id': 'DT_chain', 'hitPolicy': hit})
+        decision = E.decision(table, {'id': 'Decision_chain', 'name': '核決層級鏈'})
+        extra = [E.inputData({'id': 'InputData_%s' % v, 'name': v})
+                 for (v, _t, _l) in inputs]
+        root = E.definitions(decision, *extra, {
+            'id': 'defn_from_matrix_%d' % self.id,
+            'name': self.name or 'matrix',
+            'namespace': 'http://dobtor/dmn'})
+        return _ET.tostring(root, pretty_print=True, xml_declaration=True,
+                            encoding='UTF-8').decode('utf-8')
+
+    def _dmn_input_entry(self, var, line):
+        if var == 'amount':
+            lo = line.amount_min or 0.0
+            hi = line.amount_max or 0.0
+            if hi and hi > 0:
+                return '[%s..%s]' % (_numfmt(lo), _numfmt(hi))
+            if lo and lo > 0:
+                return '>= %s' % _numfmt(lo)
+            return '-'
+        if var == 'category':
+            return '"%s"' % line.category_value if line.category_value else '-'
+        if var == 'department':
+            return '"%s"' % line.department_id.display_name if line.department_id else '-'
+        return '-'
+
+    def _dmn_output_entry(self, name, line):
+        if name == 'resolver':
+            return '"%s"' % line.resolver_type
+        if name == 'level':
+            return str(line.level or 1)
+        if name == 'job':
+            return '"%s"' % line.job_id.name if line.job_id else ''
+        if name == 'users':
+            names = line.user_ids.mapped('name')
+            return '[%s]' % ', '.join('"%s"' % n for n in names) if names else ''
+        return ''
+
+
+def _numfmt(v):
+    f = float(v)
+    return str(int(f)) if f == int(f) else repr(f)
+
 
 class BpmnAuthorityMatrixLine(models.Model):
     _name = 'bpmn.authority.matrix.line'

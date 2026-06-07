@@ -25,6 +25,8 @@
                 <header>
                     <button name="action_open_preview" type="object" string="試算"
                             invisible="not id"/>
+                    <button name="action_to_dmn" type="object" string="轉為 DMN 決策"
+                            invisible="not id" icon="fa-sitemap"/>
                     <button name="action_freeze" type="object" string="定版"
                             class="btn-primary" invisible="state == 'frozen'"/>
                     <button name="action_set_draft" type="object" string="設為草稿（升版）"

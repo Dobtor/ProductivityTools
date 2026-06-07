@@ -38,6 +38,7 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
         'views/res_config_settings_views.xml',
         'views/menus.xml',
         'views/bpmn_authority_matrix_views.xml',
+        'views/dmn_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
@@ -53,10 +54,14 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
             'dobtor_approval/static/src/components/flow_wizard/flow_wizard_list_controller.js',
             'dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml',
             'dobtor_approval/static/src/components/flow_wizard/flow_wizard.scss',
+            'dobtor_approval/static/src/dmn_editor/dmn_editor.js',
+            'dobtor_approval/static/src/dmn_editor/dmn_editor.xml',
+            'dobtor_approval/static/src/dmn_editor/dmn_editor.scss',
         ],
     },
     'demo': [
         'data/authority_matrix_demo.xml',
+        'data/dmn_demo.xml',
     ],
     'application': True,
     'installable': True,

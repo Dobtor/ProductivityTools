@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 範例：採購核決決策（開放下界 Collect → approver 慣例輸出依序鏈） -->
+        <record id="demo_dmn_purchase" model="dmn.definitions">
+            <field name="name">採購核決決策（範例）</field>
+            <field name="dmn_xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="defn_purchase" name="採購核決" namespace="http://dobtor/dmn">
+  <decision id="Decision_chain" name="核決層級鏈">
+    <decisionTable id="DT_chain" hitPolicy="COLLECT">
+      <input id="In_amount" label="金額">
+        <inputExpression id="IE_amount" typeRef="number"><text>amount</text></inputExpression>
+      </input>
+      <output id="Out_resolver" name="resolver" typeRef="string"/>
+      <output id="Out_level" name="level" typeRef="number"/>
+      <rule id="r1">
+        <inputEntry id="r1i"><text>>= 0</text></inputEntry>
+        <outputEntry id="r1o1"><text>"direct_manager"</text></outputEntry>
+        <outputEntry id="r1o2"><text>1</text></outputEntry>
+      </rule>
+      <rule id="r2">
+        <inputEntry id="r2i"><text>>= 50000</text></inputEntry>
+        <outputEntry id="r2o1"><text>"department_manager"</text></outputEntry>
+        <outputEntry id="r2o2"><text>1</text></outputEntry>
+      </rule>
+      <rule id="r3">
+        <inputEntry id="r3i"><text>>= 500000</text></inputEntry>
+        <outputEntry id="r3o1"><text>"manager_level"</text></outputEntry>
+        <outputEntry id="r3o2"><text>2</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <inputData id="InputData_amount" name="amount"/>
+</definitions>]]></field>
+        </record>
+
+        <!-- 變數綁定：amount ← 單據 amount_total -->
+        <record id="demo_dmn_purchase_binding_amount" model="dmn.input.binding">
+            <field name="definitions_id" ref="demo_dmn_purchase"/>
+            <field name="variable">amount</field>
+            <field name="source_kind">record_field</field>
+            <field name="record_field">amount_total</field>
+        </record>
+
+    </data>
+</odoo>

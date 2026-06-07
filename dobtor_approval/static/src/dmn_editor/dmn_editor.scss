@@ -1,0 +1,36 @@
+.o_dmn_editor {
+    height: 100%;
+    background: #fff;
+
+    .o_dmn_body {
+        min-height: 0; // 讓 flex 子項可縮，dmn-js 畫布才能取得高度
+    }
+
+    .o_dmn_canvas {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+
+        // dmn-js DRD / 決策表容器需填滿
+        .dmn-js-parent,
+        .dmn-decision-table-container,
+        .dmn-literal-expression-container,
+        .djs-container {
+            height: 100%;
+        }
+    }
+
+    .o_dmn_panel {
+        width: 360px;
+        flex: 0 0 360px;
+        overflow: auto;
+        background: #f9fafb;
+
+        input.form-control-sm,
+        select.form-select-sm {
+            font-size: 0.8125rem;
+        }
+    }
+}

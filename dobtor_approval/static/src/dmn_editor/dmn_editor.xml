@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_approval.DmnEditor">
+        <div class="o_dmn_editor d-flex flex-column h-100">
+            <div class="o_dmn_toolbar d-flex align-items-center gap-2 p-2 border-bottom">
+                <button class="btn btn-secondary btn-sm" t-on-click="onBack">
+                    <i class="fa fa-arrow-left"/> 返回
+                </button>
+                <span class="fw-bold" t-esc="state.name"/>
+                <span class="badge text-bg-secondary" t-esc="state.stateLabel"/>
+                <span class="text-muted small">v<t t-esc="state.version"/></span>
+                <div class="flex-grow-1"/>
+                <button class="btn btn-light btn-sm" t-on-click="onPreview">
+                    <i class="fa fa-calculator"/> 試算
+                </button>
+                <button class="btn btn-primary btn-sm" t-on-click="onSave"
+                        t-att-disabled="state.saving">
+                    <i class="fa fa-save"/> 儲存
+                </button>
+                <button class="btn btn-success btn-sm" t-on-click="onPublish">發佈</button>
+            </div>
+
+            <div t-if="state.loading" class="p-4 text-muted">載入中…</div>
+            <div t-if="state.error" class="alert alert-danger m-2" t-esc="state.error"/>
+            <div t-if="state.libMissing" class="alert alert-warning m-2">
+                dmn-js 未載入（<code>window.DmnJS</code> 不存在）。dmn-js 已隨模組打包，
+                請確認資產已更新：升級模組並清除瀏覽器快取後重試。
+            </div>
+
+            <div class="o_dmn_body d-flex flex-grow-1"
+                 t-att-class="{ 'd-none': state.loading or state.libMissing or state.error }">
+                <div class="o_dmn_canvas flex-grow-1" t-ref="canvas"/>
+                <div class="o_dmn_panel border-start p-2">
+                    <h6 class="mb-1">變數綁定</h6>
+                    <p class="text-muted small mb-2">
+                        FEEL 取值式引用的變數來源（白名單，僅可讀宣告過的欄位）。
+                    </p>
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>變數</th><th>來源</th><th>欄位 / 值</th><th/>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="state.bindings" t-as="b" t-key="b_index">
+                                <td>
+                                    <input class="form-control form-control-sm"
+                                           t-model="b.variable"/>
+                                </td>
+                                <td>
+                                    <select class="form-select form-select-sm"
+                                            t-model="b.source_kind">
+                                        <option t-foreach="SOURCE_KINDS" t-as="sk"
+                                                t-key="sk.value" t-att-value="sk.value"
+                                                t-esc="sk.label"/>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input t-if="b.source_kind === 'record_field'"
+                                           class="form-control form-control-sm"
+                                           t-model="b.record_field" placeholder="amount_total"/>
+                                    <input t-elif="b.source_kind === 'instance_ctx'"
+                                           class="form-control form-control-sm"
+                                           t-model="b.instance_key"/>
+                                    <input t-elif="b.source_kind === 'constant'"
+                                           class="form-control form-control-sm"
+                                           t-model="b.constant_value"/>
+                                    <span t-else="" class="text-muted small">申請人</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-link btn-sm text-danger p-0"
+                                            t-on-click="() => this.removeBinding(b_index)">
+                                        <i class="fa fa-trash"/>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <button class="btn btn-light btn-sm" t-on-click="addBinding">
+                        <i class="fa fa-plus"/> 新增綁定
+                    </button>
+
+                    <hr/>
+                    <p class="text-muted small mb-0">
+                        簽核人鏈：決策表輸出欄含 <code>resolver</code>/<code>level</code> 等即視為
+                        approver 慣例，送單時依命中列分階逐關核決。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>
