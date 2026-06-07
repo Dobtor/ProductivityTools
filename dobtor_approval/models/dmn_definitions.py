@@ -122,14 +122,15 @@ class DmnDefinitions(models.Model):
         self.ensure_one()
         if self.state == 'published':
             raise UserError(_('已發佈的決策集不可直接修改，請先轉草稿或升版。'))
-        self.dmn_xml = xml
-        self._parse_dmn()
+        self.dmn_xml = xml   # write() override 會觸發 _parse_dmn 重建 shadow
         return True
 
     def _parse_dmn(self):
         """DMN XML → shadow models（先刪後建）。XML 為真相。"""
         self.ensure_one()
-        # 清舊投影
+        # 清舊投影（含決策表本體，避免孤兒累積）
+        self.env['dmn.decision.table'].search(
+            [('definitions_id', '=', self.id)]).unlink()
         self.decision_ids.unlink()
         self.input_data_ids.unlink()
         self.bkm_ids.unlink()
@@ -227,6 +228,7 @@ class DmnDefinitions(models.Model):
     def _build_table(self, dt):
         Tbl = self.env['dmn.decision.table']
         table = Tbl.create({
+            'definitions_id': self.id,
             'hit_policy': _HIT_MAP.get((dt.get('hitPolicy') or 'UNIQUE').upper(), 'unique'),
             'aggregation': _AGG_MAP.get((dt.get('aggregation') or '').upper(), 'none'),
         })

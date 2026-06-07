@@ -118,11 +118,11 @@
                     <field name="applicant_id"/>
                     <field name="input_json" widget="ace" options="{'mode': 'json'}"/>
                 </group>
+                <field name="result_html" nolabel="1" readonly="1"/>
                 <footer>
                     <button name="action_run" type="object" string="試算" class="btn-primary"/>
                     <button special="cancel" string="關閉"/>
                 </footer>
-                <field name="result_html" nolabel="1" readonly="1"/>
             </form>
         </field>
     </record>

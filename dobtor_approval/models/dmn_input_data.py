@@ -32,7 +32,7 @@ class DmnBkm(models.Model):
         ('decision_table', '決策表'),
         ('literal_expression', 'FEEL 運算式'),
     ], string='邏輯型別', default='literal_expression', required=True)
-    table_id = fields.Many2one('dmn.decision.table', string='決策表', ondelete='cascade')
+    table_id = fields.Many2one('dmn.decision.table', string='決策表', ondelete='set null')
     literal_expression = fields.Text(string='FEEL 運算式')
 
 

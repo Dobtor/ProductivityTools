@@ -38,7 +38,7 @@ class DmnDecision(models.Model):
     ], string='邏輯型別', default='decision_table', required=True)
     output_type_ref = fields.Selection(TYPE_REFS, string='輸出型別')
     table_id = fields.Many2one('dmn.decision.table', string='決策表',
-                               ondelete='cascade')
+                               ondelete='set null')
     literal_expression = fields.Text(string='FEEL 運算式')
     requires_ids = fields.Many2many(
         'dmn.decision', 'dmn_decision_req_rel', 'decision_id', 'requires_id',
@@ -63,6 +63,8 @@ class DmnDecisionTable(models.Model):
     _name = 'dmn.decision.table'
     _description = 'DMN 決策表'
 
+    # 直接掛 definitions：reparse / 刪除決策集時可一併清除（避免孤兒累積）
+    definitions_id = fields.Many2one('dmn.definitions', ondelete='cascade', index=True)
     decision_id = fields.Many2one('dmn.decision', ondelete='cascade')
     hit_policy = fields.Selection([
         ('unique', 'Unique（唯一命中）'),
