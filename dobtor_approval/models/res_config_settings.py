@@ -92,8 +92,20 @@ class ResConfigSettings(models.TransientModel):
 
     # ── 專家能力包（橫向，僅實作者）──
     bpmn_enable_dmn = fields.Boolean(
-        string='DMN 決策表求值',
+        string='DMN 決策求值（總開關）',
         config_parameter='dobtor_approval.dmn')
+    bpmn_enable_dmn_decision_table = fields.Boolean(
+        string='DMN 決策表編輯器',
+        config_parameter='dobtor_approval.dmn_decision_table')
+    bpmn_enable_dmn_drd = fields.Boolean(
+        string='DMN 決策需求圖（DRD 編排）',
+        config_parameter='dobtor_approval.dmn_drd')
+    bpmn_enable_dmn_feel = fields.Boolean(
+        string='FEEL 運算式（進階）',
+        config_parameter='dobtor_approval.dmn_feel')
+    bpmn_enable_dmn_business_rule = fields.Boolean(
+        string='商業規則任務（求值寫回）',
+        config_parameter='dobtor_approval.dmn_business_rule')
     bpmn_enable_authority_matrix = fields.Boolean(
         string='核決權限表（決策矩陣）',
         config_parameter='dobtor_approval.authority_matrix')

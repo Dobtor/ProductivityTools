@@ -109,9 +109,26 @@
                     <block title="④ 專家能力包（SI / 實作者）" name="bpmn_expert"
                            groups="dobtor_approval.group_bpmn_implementer"
                            help="跨方案的深技術加值，通常由 SI/顧問依專案加開；最終客戶通常不自行設定。">
-                        <setting string="DMN 決策表求值 roadmap" help="需先啟用「條件分歧」">
+                        <setting string="DMN 決策求值（總開關）" help="需先啟用「條件分歧」">
                             <field name="bpmn_enable_dmn"
                                    readonly="not bpmn_enable_conditional"/>
+                        </setting>
+                        <setting string="DMN 決策表編輯器" help="dmn-js 決策表 + 求值，需先啟用「DMN 決策求值」">
+                            <field name="bpmn_enable_dmn_decision_table"
+                                   readonly="not bpmn_enable_dmn"/>
+                        </setting>
+                        <setting string="DMN 決策需求圖（DRD 編排）" help="多決策依賴編排，需先啟用「DMN 決策表編輯器」">
+                            <field name="bpmn_enable_dmn_drd"
+                                   readonly="not bpmn_enable_dmn_decision_table"/>
+                        </setting>
+                        <setting string="FEEL 運算式（進階）" help="自由 FEEL 運算式，需先啟用「DMN 決策表編輯器」">
+                            <field name="bpmn_enable_dmn_feel"
+                                   readonly="not bpmn_enable_dmn_decision_table"/>
+                        </setting>
+                        <setting string="商業規則任務（求值寫回）"
+                                 help="需先啟用「DMN 決策表編輯器」與「Action 攔截閘門」">
+                            <field name="bpmn_enable_dmn_business_rule"
+                                   readonly="not bpmn_enable_dmn_decision_table or not bpmn_enable_action_gate"/>
                         </setting>
                         <setting string="核決權限表（決策矩陣）"
                                  help="金額/類別/部門 → 簽核人；DMN 決策表的垂直切片，已可用">
