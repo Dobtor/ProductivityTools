@@ -170,21 +170,33 @@ class BpmnProcessInstance(models.Model):
         """多入線（>1）閘道＝join，需同步分支。"""
         return len(self._incoming_flows(element_id, flows)) > 1
 
-    def _join_ready_peek(self, token, flows, node_type):
-        """非消耗式判斷 join 是否可推進。
+    def _can_reach(self, src, dst, flows, seen=None):
+        """src 沿出線是否可抵達 dst（含 src==dst）。供 join 可達性分析。"""
+        if src == dst:
+            return True
+        seen = seen if seen is not None else set()
+        if src in seen:
+            return False
+        seen.add(src)
+        for f in flows:
+            if f['source'] == src and self._can_reach(f['target'], dst, flows, seen):
+                return True
+        return False
 
-        - parallel_gw：所有入線到齊（parked 數 >= 入線數）→ 精確、無死結、無 over-sync。
-        - inclusive_gw：到齊 或 別處已無 active token（部分分支啟動時的收斂）；
-          別處仍有 token 時 park，待其結束由 `_resume_joins` 重掃喚醒 → 不死結。
-        """
+    def _join_ready_peek(self, token, flows, node_type):
+        """非消耗式判斷 join 是否可推進（parallel/inclusive 統一）：
+        所有入線到齊 → 過；否則僅當「別處已無 active token 仍能抵達此 join」才收斂
+        （可達性分析：只等真正會匯入此 join 的分支 → 消除 over-sync、獨立區互不阻塞、無死結）。"""
         element_id = token.bpmn_element_id
         active = self.token_ids.filtered(lambda t: t.state == 'active')
         here = active.filtered(lambda t: t.bpmn_element_id == element_id)
         incoming = len(self._incoming_flows(element_id, flows))
-        if node_type == 'parallel_gw':
-            return len(here) >= incoming
-        elsewhere = active.filtered(lambda t: t.bpmn_element_id != element_id)
-        return len(here) >= incoming or not elsewhere
+        if len(here) >= incoming:
+            return True
+        for t in active.filtered(lambda t: t.bpmn_element_id != element_id):
+            if self._can_reach(t.bpmn_element_id, element_id, flows):
+                return False  # 仍有分支會匯入 → 等待
+        return True
 
     def _gateway_join_ready(self, token, flows, node_type):
         """ready 時消耗本閘道其餘 parked token，回 True 由本 token 續走（唯一消耗點）。"""

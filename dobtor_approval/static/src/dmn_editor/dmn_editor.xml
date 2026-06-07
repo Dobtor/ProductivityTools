@@ -91,6 +91,11 @@
                             <option t-foreach="state.decisions" t-as="dc" t-key="dc.dmn_id"
                                     t-att-value="dc.dmn_id" t-esc="dc.name"/>
                         </select>
+                        <select class="form-select form-select-sm mb-1" t-model="state.preview.applicantId">
+                            <option value="">（試算申請人…）</option>
+                            <option t-foreach="state.users" t-as="u" t-key="u.id"
+                                    t-att-value="u.id" t-esc="u.name"/>
+                        </select>
                         <textarea class="form-control form-control-sm mb-1" rows="2"
                                   t-model="state.preview.inputJson"
                                   placeholder='{"amount": 600000}'/>

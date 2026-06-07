@@ -47,7 +47,8 @@ export class DmnEditor extends Component {
             bindings: [],
             saving: false,
             decisions: [],
-            preview: { decisionId: false, inputJson: "{}", html: "", loading: false },
+            users: [],
+            preview: { decisionId: false, applicantId: false, inputJson: "{}", html: "", loading: false },
         });
         this._xml = "";
 
@@ -61,6 +62,7 @@ export class DmnEditor extends Component {
                 this.state.stateLabel = data.state;
                 this.state.bindings = (data.bindings || []).map((b) => ({ ...b }));
                 this.state.decisions = data.decisions || [];
+                this.state.users = data.users || [];
                 if (this.state.decisions.length) {
                     this.state.preview.decisionId = this.state.decisions[0].dmn_id;
                 }
@@ -173,7 +175,7 @@ export class DmnEditor extends Component {
                 [this.definitionsId],
                 this.state.preview.decisionId,
                 this.state.preview.inputJson || "{}",
-                false,
+                this.state.preview.applicantId ? parseInt(this.state.preview.applicantId, 10) : false,
             ]);
         } catch (e) {
             this.state.preview.html =

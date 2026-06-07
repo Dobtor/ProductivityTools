@@ -293,7 +293,14 @@
                                                     <option t-att-value="op[0]" t-att-selected="row.op === op[0]"><t t-esc="op[1]"/></option>
                                                 </t>
                                             </select>
-                                            <input type="text" class="form-control form-control-sm" placeholder="值"
+                                            <select class="form-select form-select-sm" style="max-width:64px"
+                                                    t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'vtype', ev.target.value)">
+                                                <option value="text" t-att-selected="(row.vtype || 'text') === 'text'">文</option>
+                                                <option value="number" t-att-selected="row.vtype === 'number'">數</option>
+                                                <option value="date" t-att-selected="row.vtype === 'date'">日</option>
+                                            </select>
+                                            <input t-att-type="row.vtype === 'date' ? 'date' : (row.vtype === 'number' ? 'number' : 'text')"
+                                                   class="form-control form-control-sm" placeholder="值"
                                                    t-att-value="row.value"
                                                    t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'value', ev.target.value)"/>
                                             <button class="btn btn-sm btn-link text-danger p-0"

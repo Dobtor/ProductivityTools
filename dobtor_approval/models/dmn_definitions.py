@@ -672,6 +672,11 @@ class DmnDefinitions(models.Model):
                 {'id': d.id, 'dmn_id': d.dmn_id, 'name': d.name or d.dmn_id}
                 for d in self.decision_ids
             ],
+            'users': [
+                {'id': u.id, 'name': u.name}
+                for u in self.env['res.users'].search(
+                    [('share', '=', False)], limit=100)
+            ],
         }
 
     def preview_inline(self, decision_dmn_id, input_json, applicant_id=False):
