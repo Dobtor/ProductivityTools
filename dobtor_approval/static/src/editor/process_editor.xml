@@ -261,7 +261,7 @@
                                     <div class="alert alert-info">請先啟用 <b>T1 條件分歧</b> 才能設定閘道條件。</div>
                                 </t>
                                 <t t-else="">
-                                    <div t-if="state.panel.node_type === 'exclusive_gw' &amp;&amp; feat('dmn_decision_table')" class="mb-2">
+                                    <div t-if="['exclusive_gw','inclusive_gw'].includes(state.panel.node_type) &amp;&amp; feat('dmn_decision_table')" class="mb-2">
                                         <label class="form-label">綁 DMN 決策（選用）</label>
                                         <select class="form-select form-select-sm"
                                                 t-on-change="(ev) => this.setIntField('dmn_decision_id', ev.target.value)">
