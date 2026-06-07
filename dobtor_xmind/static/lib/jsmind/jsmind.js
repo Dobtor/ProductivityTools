@@ -1946,7 +1946,13 @@
             // Line width: per-node override → depth default
             const lineWidth = bs.lineWidth || s.lineWidth || 1;
             // Line class: per-node override → depth default
-            const lineClass = bs.lineType || s.lineClass || 'curve';
+            let lineClass = bs.lineType || s.lineClass || 'curve';
+            // Fishbone sub-bones use straight lines (logic-tree off the diagonal
+            // rib), matching XMind — unless the user set an explicit line style.
+            const _fbMode = this.options.layout && this.options.layout.mode;
+            if (!bs.lineType && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {
+                lineClass = 'straight';
+            }
             // Line corner for rounded elbow
             const lineCorner = s.lineCorner || 4;
 
