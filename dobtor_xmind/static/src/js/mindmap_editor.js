@@ -712,7 +712,7 @@ export class MindmapEditor extends Component {
         }
     }
 
-    _updateFeaturePositions() {
+    _updateFeaturePositions(resetRelationshipCp = false) {
         // 1. Rebuild summaries (positions summary nodes + their children)
         this._rebuildSummaries();
 
@@ -725,20 +725,32 @@ export class MindmapEditor extends Component {
         this._rebuildBoundaries();
 
         // 4. Rebuild relationships (not just refresh — re-create if source/target now available)
-        this._rebuildRelationships();
+        this._rebuildRelationships(resetRelationshipCp);
     }
 
-    _rebuildRelationships() {
+    // resetControlPoints: discard saved (absolute) control points and let each
+    // relationship regenerate fresh defaults from the CURRENT node positions.
+    // Used on layout switch so the green connector re-optimises for the new
+    // structure instead of staying anchored to the previous layout's geometry.
+    _rebuildRelationships(resetControlPoints = false) {
         if (!this.advancedRelationshipManager) return;
-        // Sync control points from manager before clearing
-        this._syncRelationshipControlPoints();
+        // Sync control points from manager before clearing (preserves user drags).
+        // Skipped when resetting: we intentionally drop the old geometry.
+        if (!resetControlPoints) {
+            this._syncRelationshipControlPoints();
+        }
         this.advancedRelationshipManager.clear();
         for (const rel of this.relationships) {
             const sourceElement = this.jm.view.get_node_element(rel.sourceId);
             const targetElement = this.jm.view.get_node_element(rel.targetId);
             if (sourceElement && targetElement) {
                 const opts = { ...rel.options };
-                if (rel.controlPoints && rel.controlPoints.length > 0) {
+                if (resetControlPoints) {
+                    // Drop stale absolute control points → addRelationship will
+                    // build defaults relative to the new source/target positions.
+                    rel.controlPoints = null;
+                    delete rel._cpIsRelativeOffset;
+                } else if (rel.controlPoints && rel.controlPoints.length > 0) {
                     // Convert XMind relative offsets to absolute on first load
                     if (rel._cpIsRelativeOffset) {
                         const scx = sourceElement.offsetLeft + sourceElement.offsetWidth / 2;
@@ -759,6 +771,11 @@ export class MindmapEditor extends Component {
                 // Update stored ID to match new manager ID (so future syncs work)
                 if (newId) rel.id = newId;
             }
+        }
+        // Capture the freshly generated control points so they persist and so
+        // subsequent (non-reset) rebuilds reuse the new layout's geometry.
+        if (resetControlPoints) {
+            this._syncRelationshipControlPoints();
         }
     }
 
@@ -3590,8 +3607,10 @@ export class MindmapEditor extends Component {
             this.jm.view.refresh();
             // Rebuild all features after layout change, then fit the new layout
             // into view so the user always sees the whole map after switching.
+            // Pass reset=true so relationship connectors re-optimise for the new
+            // structure instead of staying pinned to the old layout's geometry.
             setTimeout(() => {
-                this._updateFeaturePositions();
+                this._updateFeaturePositions(true);
                 this.onZoomFit();
             }, 120);
         }
@@ -3695,7 +3714,8 @@ export class MindmapEditor extends Component {
         // Re-layout to apply the new child structure
         if (this.jm && this.jm.view) {
             this.jm.view.refresh();
-            setTimeout(() => this._updateFeaturePositions(), 100);
+            // reset=true → relationship connectors re-optimise for the new structure
+            setTimeout(() => this._updateFeaturePositions(true), 100);
         }
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
@@ -5171,7 +5191,8 @@ export class MindmapEditor extends Component {
             this.jm.view.refresh();
             setTimeout(() => {
                 this._renderAllXMindFeatures();
-                this._updateFeaturePositions();
+                // reset=true → relationship connectors re-optimise for new layout
+                this._updateFeaturePositions(true);
             }, 100);
             this._updateStatus(_t('Layout changed to: ') + layoutType);
         }
