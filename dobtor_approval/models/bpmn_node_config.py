@@ -47,7 +47,10 @@ class BpmnNodeConfig(models.Model):
     bound_method = fields.Char(string='綁定方法名')
 
     # 商業規則任務 / 閘道 DMN（business_rule 求值寫回；exclusive_gw 注入 dmn_result）
-    dmn_decision_id = fields.Many2one('dmn.decision', string='DMN 決策')
+    dmn_decision_id = fields.Many2one(
+        'dmn.decision', string='DMN 決策',
+        help='business_rule：求值此決策（輸出存實例 ctx／可寫回單據）；'
+             '互斥閘道：求值後以 dmn_result 注入出線條件')
     dmn_write_to_record = fields.Boolean(
         string='輸出寫回單據欄位', default=False,
         help='business_rule：把決策輸出（同名欄位）寫回單據')

@@ -141,8 +141,13 @@ class BpmnProcessInstance(models.Model):
             elif node_type == 'exclusive_gw':
                 current = self._route_exclusive(current, nodes, flows)
 
-            elif node_type in ('parallel_gw', 'inclusive_gw'):
-                # 簡化：依出線數展開多 token（T3 能力）。join 由 _check_completion 收斂。
+            elif node_type == 'inclusive_gw':
+                # 包容閘道：split 條件成立的出線（OR）。
+                current = self._route_inclusive(current, nodes, flows)
+                return
+
+            elif node_type == 'parallel_gw':
+                # 並行：依出線數展開多 token。join 由 _check_completion 收斂。
                 current = self._route_parallel(current, nodes, flows)
                 return
             else:
@@ -164,14 +169,10 @@ class BpmnProcessInstance(models.Model):
                      'node_name': nodes.get(target, {}).get('name')})
         return token
 
-    def _route_exclusive(self, token, nodes, flows):
-        """互斥閘道：依條件選一條出線。無條件成立則走預設/第一條。"""
-        outs = self._outgoing_flows(token.bpmn_element_id, flows)
-        record = self._get_res_record()
+    def _build_gateway_ctx(self, token, record):
+        """組閘道條件 ctx + row-builder 條件表。閘道綁 DMN 時注入 dmn_result/輸出欄。"""
         base_ctx = {'record': record, 'applicant': self.applicant_user_id,
                     'env': self.env}
-        # 閘道綁 DMN 決策：求值後把結果注入條件 ctx（dmn_result + 各輸出欄），
-        # 出線條件即可寫 dmn_result == 'approve' 之類引用。
         cfg = self.process_id._config_for(token.bpmn_element_id)
         if cfg and cfg.dmn_decision_id:
             try:
@@ -182,30 +183,40 @@ class BpmnProcessInstance(models.Model):
                     base_ctx.update(res)
             except Exception as exc:
                 _logger.warning('gateway DMN 決策求值失敗: %s', exc)
-        # 編輯器 row-builder 條件（node_config.flow_conditions JSON：{target: [rows]}）
         fconds = {}
         if cfg and cfg.flow_conditions:
             try:
                 fconds = json.loads(cfg.flow_conditions)
             except (ValueError, TypeError):
                 fconds = {}
+        return base_ctx, fconds
+
+    def _flow_passes(self, flow, fconds, base_ctx, record):
+        """回傳 True/False＝條件成立與否；None＝無條件（預設候選線）。"""
+        cond = flow.get('condition')
+        rows = fconds.get(flow['target'])
+        if not cond and not rows:
+            return None
+        try:
+            if cond:
+                return bool(safe_eval(cond, dict(base_ctx)))
+            return self._eval_cond_rows(rows, base_ctx, record)
+        except Exception as exc:
+            _logger.warning('gateway 條件求值失敗: %s', exc)
+            return False
+
+    def _route_exclusive(self, token, nodes, flows):
+        """互斥閘道：依條件選一條出線（首條成立）。皆不成立則走預設/第一條。"""
+        outs = self._outgoing_flows(token.bpmn_element_id, flows)
+        record = self._get_res_record()
+        base_ctx, fconds = self._build_gateway_ctx(token, record)
         chosen = None
         default = None
         for flow in outs:
-            cond = flow.get('condition')
-            rows = fconds.get(flow['target'])
-            if not cond and not rows:
+            res = self._flow_passes(flow, fconds, base_ctx, record)
+            if res is None:
                 default = default or flow
-                continue
-            try:
-                if cond:
-                    ok = bool(safe_eval(cond, dict(base_ctx)))
-                else:
-                    ok = self._eval_cond_rows(rows, base_ctx, record)
-            except Exception as exc:
-                _logger.warning('exclusive gateway 條件求值失敗: %s', exc)
-                ok = False
-            if ok:
+            elif res:
                 chosen = flow
                 break
         flow = chosen or default or (outs[0] if outs else None)
@@ -216,6 +227,32 @@ class BpmnProcessInstance(models.Model):
         token.write({'bpmn_element_id': flow['target'],
                      'node_name': nodes.get(flow['target'], {}).get('name')})
         return token
+
+    def _route_inclusive(self, token, nodes, flows):
+        """包容閘道(OR)：split 所有條件成立的出線；皆不成立則走預設/第一條。"""
+        outs = self._outgoing_flows(token.bpmn_element_id, flows)
+        record = self._get_res_record()
+        base_ctx, fconds = self._build_gateway_ctx(token, record)
+        passing, default = [], None
+        for flow in outs:
+            res = self._flow_passes(flow, fconds, base_ctx, record)
+            if res is None:
+                default = default or flow
+            elif res:
+                passing.append(flow)
+        targets = passing or ([default] if default else (outs[:1] if outs else []))
+        token.consume()
+        for flow in targets:
+            nt = self.env['bpmn.token'].create({
+                'instance_id': self.id,
+                'bpmn_element_id': flow['target'],
+                'node_name': nodes.get(flow['target'], {}).get('name'),
+                'state': 'active',
+            })
+            self._advance_token(nt)
+        if not targets:
+            self._check_completion()
+        return False
 
     @staticmethod
     def _as_num(v):
@@ -244,21 +281,37 @@ class BpmnProcessInstance(models.Model):
             '>': l > r, '>=': l >= r, '<': l < r, '<=': l <= r,
         }.get(op, False)
 
+    def _row_left(self, row, ctx, record):
+        """條件左運算元：先查 ctx（如 dmn_result），再查單據欄位（m2o 取 id）。"""
+        field = (row.get('field') or '').strip()
+        left = ctx.get(field)
+        if left is None and record and field in record._fields:
+            left = record[field]
+            if hasattr(left, '_name'):
+                left = left.id
+        return left
+
     def _eval_cond_rows(self, rows, ctx, record):
-        """AND-combine 編輯器 row-builder 條件 [{field, op, value}]。
-        field 先查 ctx（如 dmn_result），再查單據欄位（m2o 取 id）。"""
+        """求值 row-builder 條件 [{field, op, value, join}]。
+        row.join=='or' 起新 OR 群組；群組內 AND、群組間 OR。"""
+        groups, cur = [], []
         for row in rows or []:
-            field = (row.get('field') or '').strip()
-            if not field:
+            if not (row.get('field') or '').strip():
                 continue
-            left = ctx.get(field)
-            if left is None and record and field in record._fields:
-                left = record[field]
-                if hasattr(left, '_name'):
-                    left = left.id
-            if not self._cmp_row(left, row.get('op') or '=', row.get('value')):
-                return False
-        return True
+            if (row.get('join') or 'and') == 'or' and cur:
+                groups.append(cur)
+                cur = []
+            cur.append(row)
+        if cur:
+            groups.append(cur)
+        if not groups:
+            return True
+        for group in groups:
+            if all(self._cmp_row(self._row_left(row, ctx, record),
+                                 row.get('op') or '=', row.get('value'))
+                   for row in group):
+                return True
+        return False
 
     def _route_parallel(self, token, nodes, flows):
         """並行閘道：每條出線一個 token，原 token 消耗後逐一推進。"""

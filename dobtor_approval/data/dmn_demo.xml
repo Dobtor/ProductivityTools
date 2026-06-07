@@ -2,33 +2,55 @@
 <odoo>
     <data noupdate="1">
 
-        <!-- 範例：採購核決決策（開放下界 Collect → approver 慣例輸出依序鏈） -->
+        <!-- 範例：採購核決 DRD（風險評等 → 核決層級鏈 + 職等對照 BKM）。
+             示範多決策依賴編排（DRD）+ approver 慣例輸出依序鏈。 -->
         <record id="demo_dmn_purchase" model="dmn.definitions">
-            <field name="name">採購核決決策（範例）</field>
+            <field name="name">採購核決決策（範例 DRD）</field>
             <field name="dmn_xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
              id="defn_purchase" name="採購核決" namespace="http://dobtor/dmn">
-  <decision id="Decision_chain" name="核決層級鏈">
-    <decisionTable id="DT_chain" hitPolicy="COLLECT">
-      <input id="In_amount" label="金額">
-        <inputExpression id="IE_amount" typeRef="number"><text>amount</text></inputExpression>
+  <decision id="Decision_risk" name="風險評等">
+    <decisionTable id="DT_risk" hitPolicy="UNIQUE">
+      <input id="ri_in" label="金額">
+        <inputExpression id="rie" typeRef="number"><text>amount</text></inputExpression>
       </input>
-      <output id="Out_resolver" name="resolver" typeRef="string"/>
-      <output id="Out_level" name="level" typeRef="number"/>
-      <rule id="r1">
-        <inputEntry id="r1i"><text>>= 0</text></inputEntry>
-        <outputEntry id="r1o1"><text>"direct_manager"</text></outputEntry>
-        <outputEntry id="r1o2"><text>1</text></outputEntry>
+      <output id="ro_out" name="risk" typeRef="string">
+        <outputValues><text>"low","mid","high"</text></outputValues>
+      </output>
+      <rule><inputEntry><text>&lt; 50000</text></inputEntry><outputEntry><text>"low"</text></outputEntry></rule>
+      <rule><inputEntry><text>[50000..500000)</text></inputEntry><outputEntry><text>"mid"</text></outputEntry></rule>
+      <rule><inputEntry><text>&gt;= 500000</text></inputEntry><outputEntry><text>"high"</text></outputEntry></rule>
+    </decisionTable>
+  </decision>
+  <businessKnowledgeModel id="BKM_grade" name="職等對照">
+    <encapsulatedLogic>
+      <literalExpression><text>if amount &gt;= 500000 then "高階核決" else "一般核決"</text></literalExpression>
+    </encapsulatedLogic>
+  </businessKnowledgeModel>
+  <decision id="Decision_chain" name="核決層級鏈">
+    <informationRequirement><requiredDecision href="#Decision_risk"/></informationRequirement>
+    <informationRequirement><requiredInput href="#InputData_amount"/></informationRequirement>
+    <knowledgeRequirement><requiredKnowledge href="#BKM_grade"/></knowledgeRequirement>
+    <decisionTable id="DT_chain" hitPolicy="COLLECT">
+      <input id="ci_amt" label="金額">
+        <inputExpression id="cie1" typeRef="number"><text>amount</text></inputExpression>
+      </input>
+      <input id="ci_risk" label="風險">
+        <inputExpression id="cie2" typeRef="string"><text>風險評等</text></inputExpression>
+      </input>
+      <output id="co_res" name="resolver" typeRef="string"/>
+      <output id="co_lvl" name="level" typeRef="number"/>
+      <rule>
+        <inputEntry><text>&gt;= 0</text></inputEntry><inputEntry><text>-</text></inputEntry>
+        <outputEntry><text>"direct_manager"</text></outputEntry><outputEntry><text>1</text></outputEntry>
       </rule>
-      <rule id="r2">
-        <inputEntry id="r2i"><text>>= 50000</text></inputEntry>
-        <outputEntry id="r2o1"><text>"department_manager"</text></outputEntry>
-        <outputEntry id="r2o2"><text>1</text></outputEntry>
+      <rule>
+        <inputEntry><text>&gt;= 50000</text></inputEntry><inputEntry><text>-</text></inputEntry>
+        <outputEntry><text>"department_manager"</text></outputEntry><outputEntry><text>1</text></outputEntry>
       </rule>
-      <rule id="r3">
-        <inputEntry id="r3i"><text>>= 500000</text></inputEntry>
-        <outputEntry id="r3o1"><text>"manager_level"</text></outputEntry>
-        <outputEntry id="r3o2"><text>2</text></outputEntry>
+      <rule>
+        <inputEntry><text>-</text></inputEntry><inputEntry><text>"high"</text></inputEntry>
+        <outputEntry><text>"manager_level"</text></outputEntry><outputEntry><text>2</text></outputEntry>
       </rule>
     </decisionTable>
   </decision>

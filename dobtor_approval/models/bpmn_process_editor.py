@@ -117,7 +117,11 @@ class BpmnExecutableProcessEditor(models.Model):
                 'users': self._name_options('res.users'),
                 'models': self._name_options('ir.model', field='model', limit=1000),
                 'matrices': self._name_options('bpmn.authority.matrix'),
-                'decisions': self._name_options('dmn.decision'),
+                'decisions': [
+                    {'id': d.id, 'name': '%s / %s' % (
+                        d.definitions_id.name or '', d.name or d.dmn_id)}
+                    for d in self.env['dmn.decision'].search([], limit=500)
+                ],
             },
         }
 

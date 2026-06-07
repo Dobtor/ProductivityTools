@@ -278,7 +278,12 @@
                                          class="border rounded p-2 mb-2">
                                         <div class="fw-bold mb-1">→ <t t-esc="flow.target_name"/></div>
                                         <div t-foreach="flow.rows" t-as="row" t-key="row_index"
-                                             class="d-flex gap-1 mb-1">
+                                             class="d-flex gap-1 mb-1 align-items-center">
+                                            <select t-if="row_index > 0" class="form-select form-select-sm" style="max-width:64px"
+                                                    t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'join', ev.target.value)">
+                                                <option value="and" t-att-selected="(row.join || 'and') === 'and'">且</option>
+                                                <option value="or" t-att-selected="row.join === 'or'">或</option>
+                                            </select>
                                             <input type="text" class="form-control form-control-sm" placeholder="欄位"
                                                    t-att-value="row.field"
                                                    t-on-change="(ev) => this.setCond(flow.target_id, row_index, 'field', ev.target.value)"/>

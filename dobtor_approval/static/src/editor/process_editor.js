@@ -172,7 +172,7 @@ export class ApprovalProcessEditor extends Component {
     addCond(targetId) {
         const flow = (this.state.panel.outgoing || []).find((o) => o.target_id === targetId);
         if (flow) {
-            flow.rows = [...(flow.rows || []), { field: "", op: "=", value: "" }];
+            flow.rows = [...(flow.rows || []), { field: "", op: "=", value: "", join: "and" }];
         }
     }
 
