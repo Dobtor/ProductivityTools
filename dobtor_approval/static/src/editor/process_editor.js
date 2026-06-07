@@ -296,6 +296,7 @@ export class ApprovalProcessEditor extends Component {
                 user_ids: p.user_ids || [],
                 record_field: p.record_field || false,
                 expression: p.expression || false,
+                matrix_id: p.matrix_id || false,
                 approval_mode: p.approval_mode || "any",
                 allow_escalation: !!p.allow_escalation,
             };
