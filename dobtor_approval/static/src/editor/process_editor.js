@@ -243,6 +243,14 @@ export class ApprovalProcessEditor extends Component {
         }
     }
 
+    // OWL 模板表達式不提供 parseInt/parseFloat 等全域函式，故數字解析移至此
+    setIntField(field, value, fallback = false) {
+        this.setField(field, parseInt(value, 10) || fallback);
+    }
+    setFloatField(field, value, fallback = 0) {
+        this.setField(field, parseFloat(value) || fallback);
+    }
+
     onResolverTypeChange(ev) {
         this.setField("resolver_type", ev.target.value);
     }

@@ -72,12 +72,12 @@
                                     <label class="form-label">往上第幾級</label>
                                     <input type="number" class="form-control form-control-sm"
                                            t-att-value="state.panel.level"
-                                           t-on-change="(ev) => this.setField('level', parseInt(ev.target.value)||1)"/>
+                                           t-on-change="(ev) => this.setIntField('level', ev.target.value, 1)"/>
                                 </div>
                                 <div t-if="state.panel.resolver_type === 'department_specific'" class="mb-2">
                                     <label class="form-label">指定部門</label>
                                     <select class="form-select form-select-sm"
-                                            t-on-change="(ev) => this.setField('specific_department_id', parseInt(ev.target.value)||false)">
+                                            t-on-change="(ev) => this.setIntField('specific_department_id', ev.target.value)">
                                         <option value="">—</option>
                                         <t t-foreach="state.options.departments" t-as="d" t-key="d.id">
                                             <option t-att-value="d.id" t-att-selected="state.panel.specific_department_id === d.id"><t t-esc="d.name"/></option>
@@ -87,7 +87,7 @@
                                 <div t-if="state.panel.resolver_type === 'job_position'" class="mb-2">
                                     <label class="form-label">指定職位</label>
                                     <select class="form-select form-select-sm"
-                                            t-on-change="(ev) => this.setField('job_id', parseInt(ev.target.value)||false)">
+                                            t-on-change="(ev) => this.setIntField('job_id', ev.target.value)">
                                         <option value="">—</option>
                                         <t t-foreach="state.options.jobs" t-as="j" t-key="j.id">
                                             <option t-att-value="j.id" t-att-selected="state.panel.job_id === j.id"><t t-esc="j.name"/></option>
@@ -97,7 +97,7 @@
                                 <div t-if="state.panel.resolver_type === 'group'" class="mb-2">
                                     <label class="form-label">權限群組</label>
                                     <select class="form-select form-select-sm"
-                                            t-on-change="(ev) => this.setField('group_id', parseInt(ev.target.value)||false)">
+                                            t-on-change="(ev) => this.setIntField('group_id', ev.target.value)">
                                         <option value="">—</option>
                                         <t t-foreach="state.options.groups" t-as="g" t-key="g.id">
                                             <option t-att-value="g.id" t-att-selected="state.panel.group_id === g.id"><t t-esc="g.name"/></option>
@@ -127,7 +127,7 @@
                                 <div t-if="state.panel.resolver_type === 'authority_matrix'" class="mb-2">
                                     <label class="form-label">核決權限表</label>
                                     <select class="form-select form-select-sm"
-                                            t-on-change="(ev) => this.setField('matrix_id', parseInt(ev.target.value)||false)">
+                                            t-on-change="(ev) => this.setIntField('matrix_id', ev.target.value)">
                                         <option value="">—</option>
                                         <t t-foreach="state.options.matrices" t-as="mx" t-key="mx.id">
                                             <option t-att-value="mx.id" t-att-selected="state.panel.matrix_id === mx.id"><t t-esc="mx.name"/></option>
@@ -157,7 +157,7 @@
                                     <div class="d-flex gap-1 mb-2">
                                         <input type="number" class="form-control form-control-sm"
                                                placeholder="小時" t-att-value="state.panel.sla_hours"
-                                               t-on-change="(ev) => this.setField('sla_hours', parseFloat(ev.target.value)||0)"/>
+                                               t-on-change="(ev) => this.setFloatField('sla_hours', ev.target.value)"/>
                                         <select class="form-select form-select-sm"
                                                 t-on-change="(ev) => this.setField('sla_action', ev.target.value)">
                                             <option value="">逾時動作…</option>
