@@ -29,7 +29,7 @@
                 <p>
                     已嘗試本地（<code>static/lib/bpmn-io/</code>）與 CDN（unpkg）皆失敗。
                     常見原因：無法連外 / CSP 擋外部腳本 / 本地未放置 dist 檔。
-                    請參考 <code>dobtor_bpmn/static/lib/bpmn-io/README.md</code>。
+                    請參考 <code>dobtor_approval/static/lib/bpmn-io/README.md</code>。
                 </p>
             </div>
 

@@ -16,9 +16,14 @@ class ResCompany(models.Model):
         """
         self.ensure_one()
         ICP = self.env['ir.config_parameter'].sudo()
-        enabled = set(FR.BASE_FEATURES)
+        enabled = set()
         for key in FR.ALL_FEATURES:
-            if ICP.get_param('dobtor_approval.%s' % key) == 'True':
+            val = ICP.get_param('dobtor_approval.%s' % key)
+            if key in FR.BASE_FEATURES:
+                # 介面/基本核心：未明確關閉（'False'）即啟用
+                if val != 'False':
+                    enabled.add(key)
+            elif val == 'True':
                 enabled.add(key)
         return enabled
 

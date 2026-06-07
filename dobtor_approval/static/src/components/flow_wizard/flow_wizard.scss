@@ -1,0 +1,33 @@
+// Copyright 2026 Dobtor Systems Integration
+// License LGPL-3
+// L1 簽核流程精靈 — Dialog 內容樣式（風格比照 dobtor_finance_reports）
+
+// Dobtor 品牌色（對齊 dobtor_finance_reports/design_constants.scss）
+$dobtor-navy: #1F3864;
+$dobtor-light-blue: #DEEBF7;
+
+.o_appr_wizard_dialog {
+    .o_appr_wizard_steps {
+        thead th {
+            color: $dobtor-navy;
+            font-weight: 600;
+        }
+        td {
+            vertical-align: middle;
+        }
+        .o_appr_drag {
+            cursor: grab;
+            width: 28px;
+        }
+        // useSortable 拖曳中的佔位樣式
+        .o_appr_step_row.o_dragged {
+            opacity: 0.5;
+        }
+    }
+
+    .o_appr_wizard_preview {
+        background: $dobtor-light-blue;
+        font-weight: 500;
+        color: $dobtor-navy;
+    }
+}

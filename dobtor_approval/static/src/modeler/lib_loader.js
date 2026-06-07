@@ -10,7 +10,7 @@ import { loadJS, loadCSS } from "@web/core/assets";
  * 兩來源皆失敗（離線 + 無本地檔 + CSP 擋外連）才回傳 false，由元件顯示放置說明。
  */
 
-const LOCAL = "/dobtor_bpmn/static/lib/bpmn-io";
+const LOCAL = "/dobtor_approval/static/lib/bpmn-io";
 const CDN_BPMN = "https://unpkg.com/bpmn-js@17/dist";
 const CDN_DMN = "https://unpkg.com/dmn-js@16/dist";
 

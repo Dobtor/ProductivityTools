@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-"""可執行簽核流程 — DESIGN_MODULE_SPLIT.md §3.2、DESIGN.md §3.1。
+"""可執行簽核流程 — DESIGN.md §3.1。
 
-疊在 dobtor_bpmn 的純設計圖之上的「執行規格」。
-- linked：結構即時讀來源設計圖 XML，執行規格在 node_config_ids（overlay）。
-- forked：複製來源 XML 到自身 xml，可獨立增刪節點。
+自身持有執行用 BPMN XML（forked）：可由 dobtor_bpmn 設計圖複製帶入後獨立增刪節點，
+執行規格在 node_config_ids（overlay）。
 action_publish() 解析 XML → 校驗 node/role → 守門能力開關 → 凍結版本。
 """
 import json
@@ -19,7 +18,26 @@ from . import feature_registry as FR
 _logger = logging.getLogger(__name__)
 
 BPMN_NS = 'http://www.omg.org/spec/BPMN/20100524/MODEL'
-ODOO_NS = 'http://dobtor.com/schema/bpmn/odoo'
+
+# 從零新建流程的空白 BPMN 範本（含起始事件 + DI 版面），確保編輯器可開啟設計。
+EMPTY_BPMN_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:odoo="http://www.dobtor.com/schema/bpmn/odoo"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_1"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="173" y="102" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
 
 # 解析時 localname → node_config.node_type
 _TAG_TO_NODE_TYPE = {
@@ -43,16 +61,8 @@ class BpmnExecutableProcess(models.Model):
     code = fields.Char(string='流程代碼', help='攔截時可用代碼比對')
     active = fields.Boolean(default=True)
 
-    source_diagram_id = fields.Many2one(
-        'bpmn.diagram', string='來源設計圖', ondelete='restrict',
-        help='對應 dobtor_bpmn 的純設計圖')
-    link_mode = fields.Selection([
-        ('linked', '連動：追蹤來源設計（不可改結構，只加執行規格）'),
-        ('forked', '分支：複製來源後獨立延伸（可增刪節點）'),
-    ], string='延伸模式', default='forked', required=True)
-
     xml = fields.Text(string='執行用 BPMN XML',
-                      help='forked 模式存自身 XML；linked 模式渲染時合併來源')
+                      help='本流程自身的 BPMN XML（可由設計圖複製帶入後獨立編輯）')
 
     state = fields.Selection([
         ('draft', '草稿'),
@@ -77,36 +87,29 @@ class BpmnExecutableProcess(models.Model):
     instance_count = fields.Integer(compute='_compute_instance_count',
                                     string='實例數')
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        # 從零新建的流程預設帶入空白 BPMN（含起始事件），確保編輯器可直接開啟設計。
+        for vals in vals_list:
+            if not vals.get('xml'):
+                vals['xml'] = EMPTY_BPMN_XML
+        return super().create(vals_list)
+
     @api.depends('instance_ids')
     def _compute_instance_count(self):
-        data = self.env['bpmn.process.instance'].read_group(
-            [('process_id', 'in', self.ids)], ['process_id'], ['process_id'])
-        mapping = {d['process_id'][0]: d['process_id_count'] for d in data}
+        data = self.env['bpmn.process.instance']._read_group(
+            [('process_id', 'in', self.ids)], ['process_id'], ['__count'])
+        mapping = {process.id: count for process, count in data}
         for rec in self:
             rec.instance_count = mapping.get(rec.id, 0)
 
     # ------------------------------------------------------------------
-    # XML 來源（linked vs forked）
+    # XML 來源
     # ------------------------------------------------------------------
     def _effective_xml(self):
         """回傳實際用於解析/執行的 XML。"""
         self.ensure_one()
-        if self.link_mode == 'linked' and self.source_diagram_id:
-            return self.source_diagram_id.get_xml()
-        return self.xml or (self.source_diagram_id.get_xml()
-                            if self.source_diagram_id else '')
-
-    def action_pull_from_source(self):
-        """從來源設計圖重新拉取結構。"""
-        for rec in self:
-            if not rec.source_diagram_id:
-                raise UserError(_('流程「%s」未設定來源設計圖。', rec.name))
-            src_xml = rec.source_diagram_id.get_xml()
-            if rec.link_mode == 'forked':
-                rec.xml = src_xml
-            # linked 模式不存 xml，渲染時即時讀
-            rec._sync_node_configs_from_xml(src_xml)
-        return True
+        return self.xml or ''
 
     # ------------------------------------------------------------------
     # 發佈
@@ -161,13 +164,6 @@ class BpmnExecutableProcess(models.Model):
             tag = etree.QName(el).localname
             yield tag, el
 
-    def _odoo_attr(self, el, name):
-        """讀 odoo: 命名空間屬性（同時容忍無命名空間前綴）。"""
-        val = el.get('{%s}%s' % (ODOO_NS, name))
-        if val is None:
-            val = el.get('odoo:%s' % name)
-        return val
-
     def _sync_node_configs_from_xml(self, xml):
         """解析 XML 中的節點 → 建立/更新 bpmn.node.config（keyed by element id）。
 
@@ -211,24 +207,31 @@ class BpmnExecutableProcess(models.Model):
             stale.unlink()
 
     def _scan_used_features(self):
-        """解析 XML，回傳此流程用到的能力 key set（守門用）。"""
+        """回傳此流程用到的能力 key set（守門用）。
+
+        - 結構性能力（閘道型別等）：由 XML 節點標籤判定。
+        - 屬性性能力（會簽 cosign / 加簽 escalation）：由 node_config 判定——
+          編輯器將節點設定存於 bpmn.node.config（非 XML odoo: 屬性），故以此為準。
+        """
         self.ensure_one()
-        xml = self._effective_xml()
-        if not xml:
-            return set()
-        root = self._parse_xml(xml)
         used = set()
-        for tag, el in self._iter_elements(root):
-            qname = 'bpmn:%s' % tag
-            feat = FR.NODE_FEATURE.get(qname)
+        xml = self._effective_xml()
+        if xml:
+            root = self._parse_xml(xml)
+            for tag, el in self._iter_elements(root):
+                feat = FR.NODE_FEATURE.get('bpmn:%s' % tag)
+                if feat:
+                    used.add(feat)
+        for cfg in self.node_config_ids:
+            if cfg.approval_mode in ('all', 'sequential'):
+                used.add('cosign')
+            if cfg.allow_escalation:
+                used.add('escalation')
+        # 簽核人解析方式 → 進階解析能力（field_on_record / expression）
+        for role in self.role_ids:
+            feat = FR.RESOLVER_FEATURE.get(role.resolver_type)
             if feat:
                 used.add(feat)
-            # 會簽 / 加簽屬性
-            mode = self._odoo_attr(el, 'approvalMode')
-            if mode in ('all', 'sequential'):
-                used.add('cosign')
-            if self._odoo_attr(el, 'allowEscalation') in ('true', '1', 'True'):
-                used.add('escalation')
         return used
 
     def _validate_structure(self):
@@ -244,6 +247,15 @@ class BpmnExecutableProcess(models.Model):
                 raise UserError(_(
                     '簽核節點「%(node)s」尚未綁定簽核角色。',
                     node=cfg.name or cfg.bpmn_element_id))
+            role = cfg.role_id
+            if role.resolver_type == 'authority_matrix':
+                if not role.matrix_id:
+                    raise UserError(_(
+                        '簽核節點「%(node)s」選了核決權限表但未綁定。',
+                        node=cfg.name or cfg.bpmn_element_id))
+                matrix_errs = role.matrix_id.validate_for_publish()
+                if matrix_errs:
+                    raise UserError('\n'.join(matrix_errs))
         for cfg in configs.filtered(lambda c: c.node_type == 'service_task'):
             if not cfg.server_action_id and not cfg.bound_method:
                 raise UserError(_(
@@ -259,7 +271,10 @@ class BpmnExecutableProcess(models.Model):
         flows: list of {'id','source','target','condition'}
         """
         self.ensure_one()
-        root = self._parse_xml(self._effective_xml())
+        xml = self._effective_xml()
+        if not xml:
+            return {}, []
+        root = self._parse_xml(xml)
         nodes = {}
         flows = []
         for tag, el in self._iter_elements(root):

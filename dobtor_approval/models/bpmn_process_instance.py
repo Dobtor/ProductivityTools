@@ -207,6 +207,11 @@ class BpmnProcessInstance(models.Model):
         if not cfg or not cfg.role_id:
             self._set_incident(_('簽核節點 %s 未綁定角色') % token.bpmn_element_id)
             return
+
+        # 核決權限表：分階（同階會簽、跨階依序）— 獨立路徑，不影響 any/all/sequential
+        if cfg.role_id.resolver_type == 'authority_matrix':
+            return self._enter_matrix_node(token, cfg)
+
         approvers = cfg.role_id.resolve(self)
         if not approvers:
             self._set_incident(_(
@@ -229,6 +234,26 @@ class BpmnProcessInstance(models.Model):
             for idx, user in enumerate(approvers, start=1):
                 activity = self._create_approval_activity(token.bpmn_element_id, user)
                 Link.create(self._link_vals(token, cfg, user, activity, seq=idx * 10))
+
+    def _enter_matrix_node(self, token, cfg):
+        """核決權限表節點：依命中鏈分階建立 link（phase＝規則列序）。
+        第 1 階立即產生活動（同階會簽），其餘階待前階全部簽完再喚起（跨階依序）。"""
+        matrix = cfg.role_id.matrix_id
+        chain = matrix.resolve_approvers(
+            self._get_res_record(), self.applicant_user_id) if matrix else []
+        chain = [(line, users) for line, users in chain if users]
+        if not chain:
+            self._set_incident(_(
+                '核決權限表節點「%s」解析不到任何簽核人') % (cfg.name or token.bpmn_element_id))
+            return
+        Link = self.env['bpmn.activity.link']
+        for phase, (_line, users) in enumerate(chain, start=1):
+            for idx, user in enumerate(users):
+                activity = (self._create_approval_activity(token.bpmn_element_id, user)
+                            if phase == 1 else False)
+                vals = self._link_vals(token, cfg, user, activity, seq=phase * 100 + idx)
+                vals['phase'] = phase
+                Link.create(vals)
 
     def _link_vals(self, token, cfg, user, activity, seq=10):
         return {
@@ -284,6 +309,10 @@ class BpmnProcessInstance(models.Model):
             lambda l: l.token_id == token and l.bpmn_element_id == element_id
             and l.decision != 'escalated')
 
+        # 核決權限表分階節點：同階會簽、跨階依序（獨立路徑）
+        if cfg and cfg.role_id and cfg.role_id.resolver_type == 'authority_matrix':
+            return self._on_matrix_link_approved(link, token, cfg, node_links)
+
         if mode == 'any':
             # 任一核准即過 → 取消其餘待簽活動，推進
             self._cancel_pending_siblings(node_links, exclude=link)
@@ -305,6 +334,24 @@ class BpmnProcessInstance(models.Model):
                     nxt.activity_id = activity.id
             else:
                 self._proceed_after_node(token)
+
+    def _on_matrix_link_approved(self, link, token, cfg, node_links):
+        """核決權限表分階推進：本階全簽完（會簽）才喚起下一階；無下一階則節點完成。"""
+        if not link.phase:
+            # 非分階 link（如會辦/徵詢 phase=0）不推進核決鏈
+            return
+        cur = link.phase
+        if node_links.filtered(lambda l: l.phase == cur and l.decision == 'pending'):
+            return  # 本級尚有人未簽 → 等待會簽
+        nxt = node_links.filtered(lambda l: l.phase > cur)
+        if nxt:
+            np = min(nxt.mapped('phase'))
+            for l in nxt.filtered(lambda l: l.phase == np and not l.activity_id):
+                activity = self._create_approval_activity(
+                    link.bpmn_element_id, l.approver_user_id)
+                l.activity_id = activity.id
+        else:
+            self._proceed_after_node(token)
 
     def _cancel_pending_siblings(self, node_links, exclude=None):
         for l in node_links:

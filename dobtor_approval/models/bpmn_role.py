@@ -38,6 +38,7 @@ class BpmnRole(models.Model):
         ('group', '指定權限群組'),
         ('field_on_record', '取單據上的欄位'),
         ('expression', 'Python 運算式 (safe_eval)'),
+        ('authority_matrix', '核決權限表（決策矩陣）'),
     ], string='解析方式', required=True, default='direct_manager')
 
     level = fields.Integer(string='往上層級', default=1,
@@ -52,6 +53,9 @@ class BpmnRole(models.Model):
         string='Python 運算式',
         help="可用變數：record（單據）、applicant（申請人 res.users）、"
              "employee（申請人 hr.employee）、env。需回傳 res.users recordset。")
+    matrix_id = fields.Many2one(
+        'bpmn.authority.matrix', string='核決權限表',
+        help='authority_matrix 用：依單據（金額/類別/部門）決定簽核人')
 
     apply_substitute = fields.Boolean(string='啟用職務代理人', default=True)
 
@@ -116,12 +120,31 @@ class BpmnRole(models.Model):
         elif rtype == 'expression':
             users = self._resolve_expression(instance)
 
+        elif rtype == 'authority_matrix':
+            users = self._resolve_authority_matrix(instance)
+
         # 職務代理替換（代簽核）— 僅在能力開啟時生效
         if self.apply_substitute and self.env.company._bpmn_feature_enabled('delegation'):
             users = self._apply_substitutes(users, instance)
 
         # 去重 + 過濾無效
         return users.filtered(lambda u: u.active) if users else Users
+
+    def _resolve_authority_matrix(self, instance):
+        """核決權限表：依單據評估決策表，回傳「命中鏈」簽核人（依規則列序，去重）。
+
+        引擎對 authority_matrix 節點強制走 sequential（見 _enter_user_task），
+        故此處的順序＝實際逐關核決順序（直屬→部門經理→財務長…）。
+        """
+        Users = self.env['res.users']
+        if not self.matrix_id:
+            return Users
+        record = instance._get_res_record() if instance else False
+        applicant = instance.applicant_user_id if instance else False
+        users = Users
+        for _line, line_users in self.matrix_id.resolve_approvers(record, applicant):
+            users |= line_users
+        return users
 
     def resolve_preview(self, applicant_user_id, res_model=False, res_id=False):
         """dry-run 預覽：給定假申請人（與選用單據），算出此角色會解析出的簽核人。

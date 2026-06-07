@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<!-- ============ 精靈 Dialog ============ -->
+<t t-name="dobtor_approval.FlowWizard">
+    <Dialog title="'精靈建立簽核流程'" size="'xl'" contentClass="'o_appr_wizard_dialog'">
+
+        <!-- ① 基本 -->
+        <div class="mb-3">
+            <label class="form-label fw-bold mb-1">流程名稱</label>
+            <input type="text" class="form-control form-control-sm"
+                   placeholder="例：請假申請簽核" t-model="state.name"/>
+        </div>
+
+        <!-- ② 簽核關卡 -->
+        <label class="form-label fw-bold mb-1">簽核關卡（拖曳左側手柄調整順序）</label>
+        <table class="table table-sm align-middle o_appr_wizard_steps">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:28px;"></th>
+                    <th>關卡名稱</th>
+                    <th style="width:150px;">由誰簽</th>
+                    <th style="width:230px;">參數</th>
+                    <th style="width:150px;">簽核方式</th>
+                    <th t-if="canEscalate" style="width:48px;" class="text-center">加簽</th>
+                    <th style="width:36px;"></th>
+                </tr>
+            </thead>
+            <tbody t-ref="stepsBody">
+                <t t-foreach="state.steps" t-as="step" t-key="step._seq">
+                    <tr class="o_appr_step_row" t-att-data-idx="step_index">
+                        <td class="o_appr_drag text-muted text-center" title="拖曳排序">
+                            <i class="fa fa-bars"/>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control form-control-sm"
+                                   t-att-placeholder="'第' + (step_index + 1) + '關'"
+                                   t-model="step.label"/>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="(ev) => this.onResolverChange(step, ev)">
+                                <option t-foreach="RESOLVERS" t-as="r" t-key="r.value"
+                                        t-att-value="r.value"
+                                        t-att-selected="step.resolver === r.value"
+                                        t-esc="r.label"/>
+                            </select>
+                        </td>
+                        <td>
+                            <t t-set="pk" t-value="paramKind(step)"/>
+                            <t t-if="pk === 'level'">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">第</span>
+                                    <input type="number" min="1" max="10"
+                                           class="form-control" t-model.number="step.level"/>
+                                    <span class="input-group-text">級</span>
+                                </div>
+                            </t>
+                            <t t-elif="pk === 'job'">
+                                <AutoComplete sources="jobSources"
+                                              value="step.job ? step.job.name : ''"
+                                              placeholder="'搜尋職位…'"
+                                              onSelect="(o) => this.onPickJob(step, o)"/>
+                            </t>
+                            <t t-elif="pk === 'users'">
+                                <div t-if="step.users.length" class="d-flex flex-wrap gap-1 mb-1">
+                                    <span t-foreach="step.users" t-as="u" t-key="u.id"
+                                          class="badge text-bg-secondary">
+                                        <t t-esc="u.name"/>
+                                        <i class="fa fa-times ms-1" style="cursor:pointer;"
+                                           t-on-click="() => this.removeUser(step, u.id)"/>
+                                    </span>
+                                </div>
+                                <AutoComplete sources="userSources" value="''" resetOnSelect="true"
+                                              placeholder="'加入人員…'"
+                                              onSelect="(o) => this.onPickUser(step, o)"/>
+                            </t>
+                            <t t-else="">
+                                <span class="text-muted">—</span>
+                            </t>
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm" t-model="step.mode">
+                                <option t-foreach="availableModes" t-as="m" t-key="m.value"
+                                        t-att-value="m.value" t-esc="m.label"/>
+                            </select>
+                        </td>
+                        <td t-if="canEscalate" class="text-center">
+                            <input type="checkbox" class="form-check-input" t-model="step.escalate"/>
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-link text-danger p-0" title="刪除"
+                                    t-on-click="() => this.onRemoveStep(step_index)">
+                                <i class="fa fa-trash"/>
+                            </button>
+                        </td>
+                    </tr>
+                </t>
+            </tbody>
+        </table>
+        <button class="btn btn-outline-primary btn-sm" t-on-click="onAddStep">
+            <i class="fa fa-plus me-1"/>新增關卡
+        </button>
+
+        <!-- 即時預覽鏈 -->
+        <div class="o_appr_wizard_preview alert alert-light border mt-3 mb-2 py-2">
+            <i class="fa fa-sitemap me-1 text-primary"/>
+            <span t-esc="previewChain"/>
+        </div>
+
+        <!-- 能力提示 -->
+        <div t-if="warnings.length" class="alert alert-warning py-2 mb-2">
+            <i class="fa fa-exclamation-triangle me-1"/>
+            <t t-esc="warnings.join('；')"/>
+            <span class="text-muted">（未啟用時，產生後發佈會被擋；可先到「設定」開啟）</span>
+        </div>
+
+        <!-- dry-run：誰會簽 -->
+        <div class="border rounded p-2 mb-2 bg-light">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold small">試算誰會簽：</span>
+                <div style="min-width:220px;">
+                    <AutoComplete sources="applicantSources"
+                                  value="state.preview.applicant ? state.preview.applicant.name : ''"
+                                  placeholder="'選申請人…'"
+                                  onSelect="(o) => this.onPickApplicant(o)"/>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary"
+                        t-on-click="onRunPreview" t-att-disabled="state.preview.loading">
+                    <i class="fa fa-flask me-1"/>試算
+                </button>
+            </div>
+            <div t-if="state.preview.results.length" class="mt-2 small">
+                <div t-foreach="state.preview.results" t-as="r" t-key="r_index">
+                    <span class="fw-bold" t-esc="r.label"/>：
+                    <span t-if="r.names.length" t-esc="r.names.join('、')"/>
+                    <span t-else="" class="text-danger">（解析不到簽核人）</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ③ 進階 -->
+        <div class="mt-2">
+            <button class="btn btn-link btn-sm px-0 text-decoration-none"
+                    t-on-click="() => (state.advanced.open = !state.advanced.open)">
+                <i t-att-class="state.advanced.open ? 'fa fa-caret-down me-1' : 'fa fa-caret-right me-1'"/>進階（選填）
+            </button>
+            <div t-if="state.advanced.open" class="border rounded p-3 bg-light">
+                <div class="row g-2">
+                    <div t-if="canBindDoc" class="col-md-6">
+                        <label class="form-label small mb-1">綁定單據（模型技術名）</label>
+                        <input type="text" class="form-control form-control-sm"
+                               placeholder="例：hr.leave" t-model="state.advanced.model"/>
+                    </div>
+                    <div t-if="canBindDoc" class="col-md-6">
+                        <label class="form-label small mb-1">觸發動作（方法/按鈕）</label>
+                        <input type="text" class="form-control form-control-sm"
+                               placeholder="例：action_confirm" t-model="state.advanced.method"/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">每關期限（小時）</label>
+                        <input type="number" min="0" class="form-control form-control-sm"
+                               t-model.number="state.advanced.sla_hours"/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small mb-1">逾期處理</label>
+                        <select class="form-select form-select-sm" t-model="state.advanced.sla_action">
+                            <option t-foreach="SLA_ACTIONS" t-as="a" t-key="a.value"
+                                    t-att-value="a.value" t-esc="a.label"/>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <t t-set-slot="footer">
+            <button class="btn btn-secondary" t-on-click="onCancel">取消</button>
+            <button class="btn btn-primary" t-on-click="onGenerate" t-att-disabled="state.generating">
+                <i class="fa fa-magic me-1"/>產生流程
+            </button>
+        </t>
+    </Dialog>
+</t>
+
+<!-- ============ 簽核流程定義 list：上方「精靈建立」按鈕 ============ -->
+<t t-name="dobtor_approval.FlowWizardListView.Buttons"
+   t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+    <xpath expr="//div[hasclass('o_list_buttons')]" position="inside">
+        <button type="button" class="btn btn-primary o_appr_flow_wizard_btn"
+                t-on-click="openFlowWizard">
+            <i class="fa fa-magic me-1"/>精靈建立
+        </button>
+    </xpath>
+</t>
+
+</templates>

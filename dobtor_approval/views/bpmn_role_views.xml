@@ -43,6 +43,9 @@
                                    invisible="resolver_type != 'group'"/>
                             <field name="record_field"
                                    invisible="resolver_type != 'field_on_record'"/>
+                            <field name="matrix_id"
+                                   invisible="resolver_type != 'authority_matrix'"
+                                   options="{'no_create': true}"/>
                         </group>
                     </group>
                     <group string="Python 運算式"

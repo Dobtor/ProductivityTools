@@ -20,12 +20,19 @@
                         t-on-click="togglePreview">
                     <i class="fa fa-play me-1"/>預覽走訪
                 </button>
+                <button class="btn btn-outline-primary btn-sm" t-on-click="onSave"
+                        t-att-disabled="state.saving || state.process.state !== 'draft'">
+                    <i class="fa fa-save me-1"/>儲存
+                </button>
                 <button class="btn btn-primary btn-sm" t-on-click="onPublish"
-                        t-att-disabled="state.lint.length">發佈</button>
+                        t-att-disabled="state.lint.length || state.saving || state.process.state !== 'draft'">發佈</button>
+                <span t-if="state.process.state !== 'draft'" class="text-muted small ms-1">
+                    （非草稿，唯讀；如需修改請先在流程上「設為草稿」）
+                </span>
             </div>
 
             <div t-if="state.libMissing" class="alert alert-warning m-2">
-                無法載入 bpmn.io 函式庫（無法連外/CSP/未放本地檔），請見 dobtor_bpmn lib README。
+                無法載入 bpmn.io 函式庫（無法連外/CSP/未放本地檔），請見 static/lib/bpmn-io/README。
             </div>
             <div t-if="state.error" class="alert alert-danger m-2"><span t-esc="state.error"/></div>
 
@@ -54,7 +61,7 @@
                                         t-on-change="onResolverTypeChange">
                                     <option value="">— 請選擇 —</option>
                                     <t t-foreach="state.options.resolver_types" t-as="rt" t-key="rt[0]">
-                                        <option t-att-value="rt[0]"
+                                        <option t-if="resolverAllowed(rt[0])" t-att-value="rt[0]"
                                                 t-att-selected="state.panel.resolver_type === rt[0]">
                                             <t t-esc="rt[1]"/>
                                         </option>
@@ -117,12 +124,23 @@
                                     <textarea class="form-control form-control-sm" rows="2"
                                               t-on-change="(ev) => this.setField('expression', ev.target.value)"><t t-esc="state.panel.expression"/></textarea>
                                 </div>
+                                <div t-if="state.panel.resolver_type === 'authority_matrix'" class="mb-2">
+                                    <label class="form-label">核決權限表</label>
+                                    <select class="form-select form-select-sm"
+                                            t-on-change="(ev) => this.setField('matrix_id', parseInt(ev.target.value)||false)">
+                                        <option value="">—</option>
+                                        <t t-foreach="state.options.matrices" t-as="mx" t-key="mx.id">
+                                            <option t-att-value="mx.id" t-att-selected="state.panel.matrix_id === mx.id"><t t-esc="mx.name"/></option>
+                                        </t>
+                                    </select>
+                                    <small class="text-muted">簽核人由決策表依單據（金額/類別/部門）決定，命中各級<b>依序逐關核決</b>。</small>
+                                </div>
 
                                 <label class="form-label fw-bold mt-2">簽核方式</label>
                                 <select class="form-select form-select-sm mb-2"
                                         t-on-change="(ev) => this.setField('approval_mode', ev.target.value)">
                                     <t t-foreach="state.options.approval_modes" t-as="am" t-key="am[0]">
-                                        <option t-att-value="am[0]" t-att-selected="state.panel.approval_mode === am[0]"><t t-esc="am[1]"/></option>
+                                        <option t-if="modeAllowed(am[0])" t-att-value="am[0]" t-att-selected="state.panel.approval_mode === am[0]"><t t-esc="am[1]"/></option>
                                     </t>
                                 </select>
 

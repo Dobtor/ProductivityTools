@@ -25,6 +25,8 @@ class BpmnActivityLink(models.Model):
                                   ondelete='set null', index=True)
     approver_user_id = fields.Many2one('res.users', string='指派簽核人')
     sequence = fields.Integer(default=10, help='sequential 模式的簽核順序')
+    phase = fields.Integer(default=0,
+                           help='核決權限表分階：同 phase＝會簽，跨 phase＝依序（0＝非分階）')
 
     decision = fields.Selection([
         ('pending', '待簽'),

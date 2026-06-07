@@ -4,9 +4,10 @@
     'category': 'Productivity',
     'summary': '台灣 BPM 簽核引擎：角色解析、Action 介入、token 執行、mail.activity 橋接、加簽/代理（T0–T6 能力開關）',
     'description': """
-Dobtor Approval — BPM 簽核引擎（擴充 dobtor_bpmn 核心純設計）
+Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立設計簽核流程）
 =========================================================
-- 可執行簽核流程（bpmn.executable.process）：linked / forked 兩種延伸模式
+- 內建 BPMN 編輯器核心（bpmn-js / node 型別 registry），可獨立安裝後直接設計簽核流程
+- 可執行簽核流程（bpmn.executable.process）：forked（複製 XML）獨立延伸
 - 簽核人解析引擎（bpmn.role）：HR parent_id / department_manager / job / field / expression …
 - Action 介入閘門（bpmn.action.gate）：攔截 → 進 BPMN → 核准回放原 action
 - token 執行引擎（bpmn.process.instance + bpmn.token）
@@ -19,7 +20,7 @@ Dobtor Approval — BPM 簽核引擎（擴充 dobtor_bpmn 核心純設計）
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
     'license': 'LGPL-3',
-    'depends': ['dobtor_bpmn', 'mail', 'hr'],
+    'depends': ['web', 'mail', 'hr'],
     'data': [
         'security/dobtor_approval_security.xml',
         'security/ir.model.access.csv',
@@ -36,17 +37,27 @@ Dobtor Approval — BPM 簽核引擎（擴充 dobtor_bpmn 核心純設計）
         'views/bpmn_activity_link_views.xml',
         'views/res_config_settings_views.xml',
         'views/menus.xml',
+        'views/bpmn_authority_matrix_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
+            'dobtor_approval/static/src/registry/node_type_registry.js',
+            'dobtor_approval/static/src/modeler/lib_loader.js',
             'dobtor_approval/static/src/registry/approval_node_types.js',
             'dobtor_approval/static/src/gate/form_gate_patch.js',
             'dobtor_approval/static/src/designer/odoo_properties_provider.js',
             'dobtor_approval/static/src/editor/process_editor.js',
             'dobtor_approval/static/src/editor/process_editor.xml',
             'dobtor_approval/static/src/editor/process_editor.scss',
+            'dobtor_approval/static/src/components/flow_wizard/flow_wizard.js',
+            'dobtor_approval/static/src/components/flow_wizard/flow_wizard_list_controller.js',
+            'dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml',
+            'dobtor_approval/static/src/components/flow_wizard/flow_wizard.scss',
         ],
     },
+    'demo': [
+        'data/authority_matrix_demo.xml',
+    ],
     'application': True,
     'installable': True,
 }

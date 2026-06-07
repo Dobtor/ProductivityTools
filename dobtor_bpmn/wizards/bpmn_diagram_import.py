@@ -1,7 +1,7 @@
 import base64
 import json
 
-from odoo import _, fields, models
+from odoo import _, fields, models, Command
 from odoo.exceptions import UserError
 
 
@@ -79,7 +79,7 @@ class BpmnDiagramImportWizard(models.TransientModel):
                 'xml': content or False,
                 'purpose': self.purpose,
                 'category_id': self.category_id.id or False,
-                'tag_ids': [(6, 0, self.tag_ids.ids)],
+                'tag_ids': [Command.set(self.tag_ids.ids)],
             })
 
         # 後續動作：有匯入 → 導向清單；全部重複 → 關閉精靈

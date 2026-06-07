@@ -2,8 +2,9 @@
 
 > 文件版本：v1.5 ｜ 撰寫日：2026-06-06（v1.5 收斂為 2 模組）
 > 分析基準：`DESIGN.md`（M1–M7）+ `DESIGN_SELF_SERVICE_DESIGNER.md`（自助設計器）+ `DESIGN_PROGRESSIVE_TIERS.md`（T0–T6 能力分級）+ `DESIGN_MODULE_SPLIT.md`（設計/執行分層）全數完工的
-> **僅 2 模組：`dobtor_bpmn`（核心·純設計）+ `dobtor_approval`（簽核·BPM 引擎，含代簽核/加簽/DMN 求值，以能力開關分級啟用）**。
-> 本分析的對標主體為「簽核方案 `dobtor_approval`（含核心設計層 `dobtor_bpmn`）」。
+> **僅 2 模組：`dobtor_approval`（基礎·簽核·BPM 引擎＋內建 BPMN 編輯器核心，含代簽核/加簽/DMN 求值，以能力開關分級啟用）+ `dobtor_bpmn`（擴充·流程設計圖庫，depends approval）**。
+> **⚠️ 依賴已反轉（2026-06-07）**：`dobtor_approval` 自足（可獨立設計＋執行）；`dobtor_bpmn` 退為其上的設計圖庫。
+> 本分析的對標主體為「簽核方案 `dobtor_approval`（自足，含編輯器核心）」。
 > 對標對象：華苓 Agentflow、叡揚 Vitals ESP、**新人類 FlowMaster BPM**、鼎新 Workflow GP｜Camunda 8、Pega、Appian、Power Automate、Flowable/Bonita
 >
 > **v1.1 變更**：新增 BPMN/DMN 自助拖拉設計器（積木 + 精靈 + lint + 沙箱 + dmn-js），「公民開發」由 2/5 翻轉為 4/5、DMN 升為視覺化自助。

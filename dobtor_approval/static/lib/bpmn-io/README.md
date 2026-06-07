@@ -12,7 +12,7 @@
 > **離線 / 內網 / 有嚴格 CSP** 的環境，請依下方放置本地 dist 檔。
 > 若 CSP 擋下 unpkg：放本地檔即可，或在反向代理放行 `unpkg.com`。
 
-## 需要的檔案（放在 `dobtor_bpmn/static/lib/bpmn-io/`）
+## 需要的檔案（放在 `dobtor_approval/static/lib/bpmn-io/`）
 
 | 檔名 | 來源 |
 |------|------|

@@ -9,119 +9,131 @@
             <xpath expr="//form" position="inside">
                 <app data-string="BPMN 簽核" string="BPMN 簽核" name="dobtor_approval"
                      groups="dobtor_approval.group_bpmn_approval_designer">
-                    <block title="T0 入門·線性簽核（預設啟用）" name="bpmn_t0">
-                        <setting string="精靈建立流程"
-                                 help="以精靈快速建立線性簽核流程">
+
+                    <!-- ① 設計介面（恆開，可隱藏其一） -->
+                    <block title="① 設計介面" name="bpmn_interfaces"
+                           help="精靈與視覺編輯器預設皆啟用；如不需要可隱藏其一。">
+                        <setting string="精靈建立流程" help="引導式表單，不懂 BPMN 也能建流程">
                             <field name="bpmn_enable_wizard"/>
                         </setting>
-                        <setting string="基本簽核"
-                                 help="開始/簽核/結束、任一核准、直屬主管/部門經理">
-                            <field name="bpmn_enable_basic_approval"/>
+                        <setting string="視覺流程編輯器" help="拖拉畫布 + 右側簽核設定面板">
+                            <field name="bpmn_enable_visual_editor"/>
                         </setting>
                     </block>
 
-                    <block title="T1 條件與會簽" name="bpmn_t1">
+                    <!-- ② 客戶方案（一鍵套用） -->
+                    <block title="② 客戶方案" name="bpmn_plan"
+                           help="選一個最貼近你組織的方案，一鍵套用該級（含以下各級）全部能力；下方可再細調。">
+                        <setting string="方案等級">
+                            <field name="bpmn_plan_level" widget="radio"
+                                   options="{'horizontal': true}"/>
+                        </setting>
+                        <setting string="目前實際等級"
+                                 help="依已開能力反推；一鍵套用只增不減，此處顯示真實狀態。">
+                            <field name="bpmn_effective_plan_label" readonly="1"/>
+                        </setting>
+                    </block>
+
+                    <!-- ③ 方案進階微調（granular，相依 cascade） -->
+                    <block title="③ L2 標準（中小·拖拉）" name="bpmn_l2">
                         <setting string="條件分歧（互斥閘道）">
                             <field name="bpmn_enable_conditional"/>
                         </setting>
                         <setting string="會簽 / 依序簽核">
                             <field name="bpmn_enable_cosign"/>
                         </setting>
-                        <setting string="進階 HR 簽核人解析"
-                                 help="manager_level / job / field_on_record / expression">
-                            <field name="bpmn_enable_hr_resolvers"/>
-                        </setting>
                         <setting string="職務代理（代簽核）">
                             <field name="bpmn_enable_delegation"/>
                         </setting>
-                    </block>
-
-                    <block title="T2 業務動作整合" name="bpmn_t2">
                         <setting string="Action 攔截閘門"
                                  help="把簽核掛上 Odoo 按鈕：攔截→簽核→回放">
                             <field name="bpmn_enable_action_gate"/>
                         </setting>
+                        <setting string="單據欄位簽核人解析"
+                                 help="取單據上的欄位（如 user_id）為簽核人">
+                            <field name="bpmn_enable_field_resolver"/>
+                        </setting>
                     </block>
 
-                    <block title="T3 彈性例外（需先開 T1 會簽）" name="bpmn_t3">
-                        <setting string="主管自主加簽 / 上呈"
-                                 help="需先啟用「會簽 / 依序簽核」">
+                    <block title="③ L3 進階（成長·設計）" name="bpmn_l3">
+                        <setting string="主管自主加簽 / 上呈" help="需先啟用「會簽 / 依序簽核」">
                             <field name="bpmn_enable_escalation"
                                    readonly="not bpmn_enable_cosign"/>
                         </setting>
-                        <setting string="平行 / 包容閘道"
-                                 help="需先啟用「會簽 / 依序簽核」">
+                        <setting string="平行 / 包容閘道" help="需先啟用「會簽 / 依序簽核」">
                             <field name="bpmn_enable_parallel_gw"
                                    readonly="not bpmn_enable_cosign"/>
                         </setting>
-                    </block>
-
-                    <block title="T4 自助設計器（需先開 T1 條件）" name="bpmn_t4">
-                        <setting string="自助積木設計器"
-                                 help="需先啟用「條件分歧」">
-                            <field name="bpmn_enable_designer"
-                                   readonly="not bpmn_enable_conditional"/>
-                        </setting>
-                        <setting string="即時驗證 (bpmnlint)"
-                                 help="需先啟用「自助積木設計器」">
-                            <field name="bpmn_enable_lint"
-                                   readonly="not bpmn_enable_designer"/>
-                        </setting>
-                        <setting string="沙箱模擬 (dry-run)"
-                                 help="需先啟用「自助積木設計器」">
-                            <field name="bpmn_enable_sandbox"
-                                   readonly="not bpmn_enable_designer"/>
-                        </setting>
-                    </block>
-
-                    <block title="T5 進階引擎（需先開 T2 / T1）" name="bpmn_t5">
-                        <setting string="SLA 逾時事件"
-                                 help="需先啟用「Action 攔截閘門」">
+                        <setting string="SLA 逾時事件" help="需先啟用「Action 攔截閘門」">
                             <field name="bpmn_enable_sla_timer"
                                    readonly="not bpmn_enable_action_gate"/>
                         </setting>
-                        <setting string="失敗重試 (Incident)"
-                                 help="需先啟用「Action 攔截閘門」">
+                        <setting string="失敗重試 (Incident) roadmap" help="需先啟用「Action 攔截閘門」">
                             <field name="bpmn_enable_incident"
                                    readonly="not bpmn_enable_action_gate"/>
                         </setting>
-                        <setting string="真會簽 (Multi-instance 比例通過)"
+                        <setting string="真會簽 (Multi-instance 比例通過) roadmap"
                                  help="需先啟用「會簽 / 依序簽核」">
                             <field name="bpmn_enable_multi_instance"
                                    readonly="not bpmn_enable_cosign"/>
                         </setting>
-                        <setting string="DMN 決策表求值"
-                                 help="需先啟用「條件分歧」">
-                            <field name="bpmn_enable_dmn"
-                                   readonly="not bpmn_enable_conditional"/>
-                        </setting>
-                        <setting string="子流程複用 (Call Activity)"
-                                 help="需先啟用「自助積木設計器」">
-                            <field name="bpmn_enable_call_activity"
-                                   readonly="not bpmn_enable_designer"/>
-                        </setting>
                     </block>
 
-                    <block title="T6 治理與專家（需先開 T4）" name="bpmn_t6">
-                        <setting string="送審生命週期"
-                                 help="需先啟用「自助積木設計器」">
-                            <field name="bpmn_enable_governance"
-                                   readonly="not bpmn_enable_designer"/>
+                    <block title="③ L4 企業治理（大型·公民+治理）" name="bpmn_l4">
+                        <setting string="受限調色盤（公民模式）roadmap"
+                                 help="需先啟用「視覺流程編輯器」；前端 palette 整合為 roadmap">
+                            <field name="bpmn_enable_restricted_palette"
+                                   readonly="not bpmn_enable_visual_editor"/>
                         </setting>
-                        <setting string="公民 scope 權限限制"
-                                 help="需先啟用「送審生命週期」">
+                        <setting string="即時驗證 (bpmnlint) roadmap"
+                                 help="需先啟用「受限調色盤」">
+                            <field name="bpmn_enable_lint"
+                                   readonly="not bpmn_enable_restricted_palette"/>
+                        </setting>
+                        <setting string="沙箱模擬 (dry-run) roadmap"
+                                 help="需先啟用「受限調色盤」">
+                            <field name="bpmn_enable_sandbox"
+                                   readonly="not bpmn_enable_restricted_palette"/>
+                        </setting>
+                        <setting string="送審生命週期 roadmap" help="需先啟用「視覺流程編輯器」">
+                            <field name="bpmn_enable_governance"
+                                   readonly="not bpmn_enable_visual_editor"/>
+                        </setting>
+                        <setting string="公民 scope 權限限制 roadmap" help="需先啟用「送審生命週期」">
                             <field name="bpmn_enable_scope"
                                    readonly="not bpmn_enable_governance"/>
                         </setting>
-                        <setting string="專家完整調色盤"
-                                 help="需先啟用「自助積木設計器」">
-                            <field name="bpmn_enable_expert_mode"
-                                   readonly="not bpmn_enable_designer"/>
+                    </block>
+
+                    <!-- ④ 專家能力包（橫向，僅實作者可見/可開） -->
+                    <block title="④ 專家能力包（SI / 實作者）" name="bpmn_expert"
+                           groups="dobtor_approval.group_bpmn_implementer"
+                           help="跨方案的深技術加值，通常由 SI/顧問依專案加開；最終客戶通常不自行設定。">
+                        <setting string="DMN 決策表求值 roadmap" help="需先啟用「條件分歧」">
+                            <field name="bpmn_enable_dmn"
+                                   readonly="not bpmn_enable_conditional"/>
                         </setting>
-                        <setting string="執行中實例遷移"
-                                 help="需先啟用「送審生命週期」">
+                        <setting string="核決權限表（決策矩陣）"
+                                 help="金額/類別/部門 → 簽核人；DMN 決策表的垂直切片，已可用">
+                            <field name="bpmn_enable_authority_matrix"/>
+                        </setting>
+                        <setting string="子流程複用 (Call Activity) roadmap"
+                                 help="需先啟用「視覺流程編輯器」">
+                            <field name="bpmn_enable_call_activity"
+                                   readonly="not bpmn_enable_visual_editor"/>
+                        </setting>
+                        <setting string="專家完整調色盤 roadmap" help="需先啟用「視覺流程編輯器」">
+                            <field name="bpmn_enable_expert_mode"
+                                   readonly="not bpmn_enable_visual_editor"/>
+                        </setting>
+                        <setting string="執行中實例遷移 roadmap" help="需先啟用「送審生命週期」">
                             <field name="bpmn_enable_migration"
                                    readonly="not bpmn_enable_governance"/>
+                        </setting>
+                        <setting string="Python 運算式簽核人解析"
+                                 help="需先啟用「單據欄位簽核人解析」">
+                            <field name="bpmn_enable_expression_resolver"
+                                   readonly="not bpmn_enable_field_resolver"/>
                         </setting>
                     </block>
                 </app>

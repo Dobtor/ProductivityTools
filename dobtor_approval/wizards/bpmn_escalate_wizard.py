@@ -87,6 +87,9 @@ class BpmnEscalateWizard(models.TransientModel):
             'decision': 'pending',
             'parent_link_id': source.id,
             'return_after_escalate': self.return_after,
+            # 繼承父 phase：核決權限表分階節點上呈時，子 link 仍屬同一階，
+            # 直接上呈(return_after=False)簽完才能正確推進核決鏈
+            'phase': source.phase,
         })
 
         # 標記原 link 為已上呈

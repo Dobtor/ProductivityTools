@@ -47,16 +47,17 @@
 
 ## 2. 模組拆分（僅 2 模組，子功能以開關控制）
 
-> 命名：**核心（純設計）= `dobtor_bpmn`；簽核（BPM 引擎）= `dobtor_approval`**。
+> 命名：**基礎（簽核引擎＋編輯器核心）= `dobtor_approval`；擴充（流程設計圖庫）= `dobtor_bpmn`**。
+> **⚠️ 依賴已反轉（2026-06-07，見 `DESIGN_MODULE_SPLIT.md` v2.0）**：`dobtor_approval` 內建 BPMN 編輯器核心、成為自足基礎（可獨立設計＋執行簽核流程）；`dobtor_bpmn` 退為疊在其上的設計圖庫、depends `dobtor_approval`。
 > **僅 2 模組，不再分子模組**：原規劃的 `_activity`（代簽核/加簽）與 `_dmn`（DMN 求值）**併入 `dobtor_approval`**，改用模組內「能力開關（T0–T6，預設關閉）」控制啟用（見 `DESIGN_PROGRESSIVE_TIERS.md`）。
-> 設計/執行分層細節見 `DESIGN_MODULE_SPLIT.md`；本文件描述的「角色解析、Action 介入、token 執行、代簽核、DMN 求值」皆屬 **簽核 `dobtor_approval`**。
+> 本文件描述的「角色解析、Action 介入、token 執行、代簽核、DMN 求值」皆屬 **簽核 `dobtor_approval`**。
 
 | 模組 | 角色 | 依賴 | 內容 |
 |------|------|------|------|
-| `dobtor_bpmn` (核心·純設計) | 基礎 | `base, web` | BPMN/DMN 純編輯器（bpmn-js/dmn-js）、設計圖庫、版本、節點型別 registry；**無執行語意** |
-| `dobtor_approval` (簽核·BPM 引擎) | 擴充 | `dobtor_bpmn, mail, hr, dobtor_mail_activity` | 載入核心設計再延伸；角色解析、token 執行、Action 介入、簽核活動橋接、**代簽核/加簽**、**DMN 求值**——全部以能力開關分級啟用 |
+| `dobtor_approval` (簽核·BPM 引擎＋編輯器核心) | 基礎 | `web, mail, hr` | 內建 BPMN/DMN 編輯器核心（bpmn-js/dmn-js、節點 registry、process_editor）＋角色解析、token 執行、Action 介入、簽核活動橋接、**代簽核/加簽**、**DMN 求值**——全部以能力開關分級啟用；**可獨立設計＋執行** |
+| `dobtor_bpmn` (流程設計圖庫) | 擴充 | `dobtor_approval` | `bpmn.diagram` 設計圖庫、版本、用途分類；重用核心編輯器；可 forked 把設計圖交給簽核引擎；**無執行語意** |
 
-> 拆分理由：**設計與執行分離（核心 vs 簽核），但執行能力不再實體拆模組** —— 核心 `dobtor_bpmn` 只負責畫圖、可獨立成立為設計/規格工具；所有執行能力（含代簽核、DMN）收在 `dobtor_approval` 一個模組內，用開關（由簡入深）取代「多模組」的複雜度。
+> 拆分理由：**簽核才是主產品** —— 編輯器核心與引擎同住自足的 `dobtor_approval`，裝它就能設計＋執行簽核流程，所有執行能力（含代簽核、DMN）用開關（由簡入深）取代「多模組」複雜度；`dobtor_bpmn` 退為「通用流程文件/規格圖庫」加值層，可把設計圖 forked 交給簽核引擎。
 
 > ### 🚫 非目標（Out of Scope）
 > - **不提供任何表單設計器 / 表單建構器（form builder）。** 本專案走「**動作/單據中心**」而非「表單中心」：資料輸入一律使用 **Odoo 原生 form view / 既有單據**；簽核只在既有畫面與按鈕上掛閘門，不自造表單。

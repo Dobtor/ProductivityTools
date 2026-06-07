@@ -4,6 +4,14 @@
 > 整合檢討對象：`DESIGN.md`（核心引擎 M1–M7）、`DESIGN_SELF_SERVICE_DESIGNER.md`（自助設計器 M8–M12）、`COMPETITIVE_ANALYSIS.md`（v1.1）、BPMN 引擎不足分析
 > 設計範式：沿用 Dobtor-HR「功能模組開關 + Security Group」策略 — **進階功能預設關閉，用戶由簡入深逐步啟用**
 
+> ## ⚠️ v2.0 重構（2026-06-07）：分級改以「TA（客群）」為主軸
+> 原 T0–T6 為工程視角（功能依賴），對客戶不直觀。v2.0 改成：
+> - **客戶方案階梯 L1–L4**（依規模×自家駕馭能力）：L1 輕簡 / L2 標準 / L3 進階 / L4 企業治理。
+> - **介面層（恆開）**：精靈 + 視覺編輯器（`wizard`/`visual_editor`/`basic_approval`，預設啟用、可隱藏其一）。
+> - **專家能力包（橫向 à-la-carte）**：`dmn`/`call_activity`/`expert_mode`/`migration`/`expression_resolver`，不綁階梯，僅 **`group_bpmn_implementer`（SI/實作者）** 可開、任一方案皆可加。
+> - **SI = 橫向支援角色**（每一層級都在），非頂層客群。
+> 落地：`feature_registry.PLAN_LEVEL_ADD/EXPERT_FEATURES`、`res.config.settings.bpmn_plan_level`（一鍵套用累加）、四段式設定頁、`_scan_used_features` 補掃 role resolver。下方 §1 表為新版；§2/§4 的 T0–T6 開關目錄與舊設定頁佈局已由新四段式取代（key 對映：designer→restricted_palette、hr_resolvers→field_resolver+expression_resolver、新增 visual_editor）。
+
 ---
 
 ## 0. 設計目標與原則
@@ -17,19 +25,22 @@
 
 ---
 
-## 1. 能力分級總表（Tier 0 → Tier 6，由簡入深）
+## 1. 客戶方案總表（L1 → L4，依規模×駕馭能力；v2.0）
 
-| Tier | 名稱 | 一句話 | 預設 | 主要新增能力 | 對應里程碑 |
-|------|------|--------|------|-------------|-----------|
-| **T0** | 入門·線性簽核 | 開箱即用，最簡單序簽 | **✅ ON** | 精靈模式、直屬主管/部門經理、任一核准、mail.activity 待辦、開始/簽核/結束 | M1–M4 子集 |
-| **T1** | 條件與會簽 | 加條件分歧、會簽、HR 多解析 | OFF | exclusive gateway、會簽(all)/依序、HR 全 resolver_type、職務代理(代簽核) | M2,M4 |
-| **T2** | 業務動作整合 | 把簽核掛上 Odoo 按鈕 | OFF | Action 攔截閘門、ServiceTask、攔截→簽核→回放 | M5 |
-| **T3** | 彈性例外 | 主管自主加簽/上呈、平行會簽 | OFF | 個人化 runtime 加簽、parallel/inclusive gateway | M6 |
-| **T4** | 自助設計器 | 業務人員拖拉建流程 | OFF | bpmn-js 積木模式、元素樣板、屬性面板接 RPC、bpmnlint 即時驗證、沙箱 dry-run | M8–M10 |
-| **T5** | 進階引擎 | 補齊 BPMN 完整能力 | OFF | **SLA Timer/Boundary、Error/Incident 重試、真 Multi-instance、DMN 決策表、Call Activity、Event Subprocess** | M11 + 引擎補強 |
-| **T6** | 治理與專家 | 大型組織治理、專家全功能 | OFF | L3 專家全調色盤、送審生命週期、scope 權限、流程版本遷移/實例修改 | M12 + 進階 |
+**介面層（恆開，每一級都有）**：`wizard`（精靈）、`visual_editor`（視覺編輯器）、`basic_approval`（線性、六種簽核人、任一核准）。
 
-> **由簡入深路徑**：客戶從 T0 開箱 → 需要條件就開 T1 → 要綁 ERP 開 T2 → 要彈性加簽開 T3 → 要交給業務自助開 T4 → 要 SLA/複雜引擎開 T5 → 大型治理開 T6。**每一步都是一個開關，永遠不會被用不到的複雜度淹沒。**
+| 級別 | TA（最終客戶） | 規模 | 自家駕馭能力 | 累加新增能力 |
+|------|---------------|------|-------------|-------------|
+| **L1 輕簡** | 小微/個人，無專人 | 1–30 | 零技術·填表 | wizard、visual_editor、basic_approval |
+| **L2 標準** | 中小企業半技術管理員/HR | 30–300 | 拖拉·懂條件 | conditional、cosign、delegation、action_gate、field_resolver |
+| **L3 進階** | 流程負責人＋IT | 300–1000 | 流程設計·時效 | escalation、parallel_gw、sla_timer、incident、multi_instance |
+| **L4 企業治理** | 大型/集團·公民+治理者 | 1000+ | 公民受限+治理 | restricted_palette、lint、sandbox、governance、scope |
+
+**專家能力包（橫向 à-la-carte，僅 SI/實作者 `group_bpmn_implementer`，任一級可加）**：`dmn`、`call_activity`、`expert_mode`、`migration`、`expression_resolver`。
+
+> **由簡入深路徑**：客戶選最貼近的方案卡（一鍵套用 ≤ 該級累加能力）→ 需要時 granular 越級單點 → 深技術需求由 SI 加開專家能力包。**兩種設計介面每一級恆開**；分級只決定能力深度與編輯器調色盤豐富度，不決定「有沒有介面」。
+>
+> roadmap：L4 `restricted_palette`/`lint`/`sandbox` 與專家包 `dmn`/`call_activity` 的前端 bpmn-js 整合尚未落地；本版已備好分級結構＋開關＋守門＋group＋設定頁。
 
 ---
 

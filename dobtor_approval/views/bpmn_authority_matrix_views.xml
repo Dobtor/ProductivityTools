@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_bpmn_authority_matrix_list" model="ir.ui.view">
+        <field name="name">bpmn.authority.matrix.list</field>
+        <field name="model">bpmn.authority.matrix</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="model_id"/>
+                <field name="hit_policy"/>
+                <field name="line_count"/>
+                <field name="version"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'frozen'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_bpmn_authority_matrix_form" model="ir.ui.view">
+        <field name="name">bpmn.authority.matrix.form</field>
+        <field name="model">bpmn.authority.matrix</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_open_preview" type="object" string="試算"
+                            invisible="not id"/>
+                    <button name="action_freeze" type="object" string="定版"
+                            class="btn-primary" invisible="state == 'frozen'"/>
+                    <button name="action_set_draft" type="object" string="設為草稿（升版）"
+                            invisible="state != 'frozen'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,frozen"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="如：採購核決權限"/></h1>
+                    </div>
+                    <group>
+                        <group string="適用單據與輸入">
+                            <field name="model_id" options="{'no_create': true}"/>
+                            <field name="amount_field"
+                                   placeholder="amount_total"/>
+                            <field name="category_field"
+                                   placeholder="留空＝類別不限"/>
+                            <field name="use_applicant_department"/>
+                            <field name="department_field"
+                                   invisible="use_applicant_department"
+                                   placeholder="department_id"/>
+                        </group>
+                        <group string="命中策略">
+                            <field name="hit_policy"/>
+                            <field name="version" readonly="1"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="規則列" name="lines">
+                            <field name="line_ids" readonly="state == 'frozen'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="amount_min"/>
+                                    <field name="amount_max"/>
+                                    <field name="category_value"/>
+                                    <field name="department_id"/>
+                                    <field name="resolver_type"/>
+                                    <field name="level"
+                                           invisible="resolver_type != 'manager_level'"/>
+                                    <field name="job_id"
+                                           invisible="resolver_type != 'job_position'"/>
+                                    <field name="user_ids" widget="many2many_tags"
+                                           invisible="resolver_type != 'specific_user'"/>
+                                </list>
+                            </field>
+                            <p class="text-muted">
+                                金額：<b>金額 ≥ 下界</b> 且 <b>金額 &lt; 上界</b>（上界 0＝無上限）；
+                                類別/部門留空＝不限。Collect＝全部命中列的簽核人會簽。
+                            </p>
+                        </page>
+                        <page string="備註" name="note">
+                            <field name="note" placeholder="政策說明、版本變更原因…"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_bpmn_authority_matrix" model="ir.actions.act_window">
+        <field name="name">核決權限表</field>
+        <field name="res_model">bpmn.authority.matrix</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_bpmn_authority_matrix"
+              name="核決權限表"
+              parent="menu_bpmn_config"
+              action="action_bpmn_authority_matrix"
+              sequence="25"
+              groups="dobtor_approval.group_bpmn_approval_designer"/>
+
+    <!-- 試算精靈 -->
+    <record id="view_bpmn_authority_matrix_preview_form" model="ir.ui.view">
+        <field name="name">bpmn.authority.matrix.preview.form</field>
+        <field name="model">bpmn.authority.matrix.preview</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="matrix_id" readonly="1"/>
+                    <field name="amount"/>
+                    <field name="category" placeholder="與規則列「類別 =」相同字串"/>
+                    <field name="department_id"/>
+                    <field name="applicant_id"/>
+                </group>
+                <field name="result_html" readonly="1"/>
+                <footer>
+                    <button name="action_run" type="object" string="試算" class="btn-primary"/>
+                    <button string="關閉" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

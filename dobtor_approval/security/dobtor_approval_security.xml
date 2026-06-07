@@ -1,6 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ========== BPMN 編輯器核心群組（原 dobtor_bpmn，反轉後移入本模組） ========== -->
+    <record id="module_category_dobtor_bpmn" model="ir.module.category">
+        <field name="name">流程設計 (BPMN)</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <record id="group_bpmn_diagram_user" model="res.groups">
+        <field name="name">設計圖：使用者（檢視）</field>
+        <field name="category_id" ref="module_category_dobtor_bpmn"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_bpmn_diagram_manager" model="res.groups">
+        <field name="name">設計圖：設計師（建立/編輯）</field>
+        <field name="category_id" ref="module_category_dobtor_bpmn"/>
+        <field name="implied_ids" eval="[(4, ref('group_bpmn_diagram_user'))]"/>
+        <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+
     <!-- ========== 模組分類 ========== -->
     <record id="module_category_bpmn_approval" model="ir.module.category">
         <field name="name">BPM 簽核</field>
@@ -13,14 +32,14 @@
     <record id="group_bpmn_approval_user" model="res.groups">
         <field name="name">簽核使用者</field>
         <field name="category_id" ref="module_category_bpmn_approval"/>
-        <field name="implied_ids" eval="[(4, ref('dobtor_bpmn.group_bpmn_diagram_user'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_bpmn_diagram_user'))]"/>
     </record>
 
     <!-- 設計者：設計/發佈流程、設角色、設 action gate -->
     <record id="group_bpmn_approval_designer" model="res.groups">
         <field name="name">簽核設計者</field>
         <field name="category_id" ref="module_category_bpmn_approval"/>
-        <field name="implied_ids" eval="[(4, ref('group_bpmn_approval_user')), (4, ref('dobtor_bpmn.group_bpmn_diagram_manager'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_bpmn_approval_user')), (4, ref('group_bpmn_diagram_manager'))]"/>
     </record>
 
     <!-- 管理者：看所有實例、強制終止、改派、治理 -->
@@ -28,6 +47,14 @@
         <field name="name">簽核管理者</field>
         <field name="category_id" ref="module_category_bpmn_approval"/>
         <field name="implied_ids" eval="[(4, ref('group_bpmn_approval_designer'))]"/>
+        <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- 實作者（SI/顧問）：跨客戶方案，可開專家能力包、越級配置；含管理者全權 -->
+    <record id="group_bpmn_implementer" model="res.groups">
+        <field name="name">簽核實作者 (SI/顧問)</field>
+        <field name="category_id" ref="module_category_bpmn_approval"/>
+        <field name="implied_ids" eval="[(4, ref('group_bpmn_approval_manager'))]"/>
         <field name="users" eval="[(4, ref('base.user_admin'))]"/>
     </record>
 

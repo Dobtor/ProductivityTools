@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 範例：採購核決權限（開放下界 + Collect → 金額越高命中越多級 → 分階依序） -->
+        <record id="demo_authority_matrix_purchase" model="bpmn.authority.matrix">
+            <field name="name">採購核決權限（範例）</field>
+            <field name="amount_field">amount_total</field>
+            <field name="hit_policy">collect</field>
+            <field name="note">範例樣板：以「開放下界」設計，金額越高命中越多規則列，
+依序核決（直屬→部門經理→上層主管）。請設定「適用單據模型」後綁定使用。</field>
+        </record>
+
+        <record id="demo_authority_matrix_purchase_l1" model="bpmn.authority.matrix.line">
+            <field name="matrix_id" ref="demo_authority_matrix_purchase"/>
+            <field name="sequence">10</field>
+            <field name="name">直屬主管關</field>
+            <field name="amount_min">0</field>
+            <field name="amount_max">0</field>
+            <field name="resolver_type">direct_manager</field>
+        </record>
+
+        <record id="demo_authority_matrix_purchase_l2" model="bpmn.authority.matrix.line">
+            <field name="matrix_id" ref="demo_authority_matrix_purchase"/>
+            <field name="sequence">20</field>
+            <field name="name">部門經理關（5 萬以上）</field>
+            <field name="amount_min">50000</field>
+            <field name="amount_max">0</field>
+            <field name="resolver_type">department_manager</field>
+        </record>
+
+        <record id="demo_authority_matrix_purchase_l3" model="bpmn.authority.matrix.line">
+            <field name="matrix_id" ref="demo_authority_matrix_purchase"/>
+            <field name="sequence">30</field>
+            <field name="name">上層主管關（50 萬以上）</field>
+            <field name="amount_min">500000</field>
+            <field name="amount_max">0</field>
+            <field name="resolver_type">manager_level</field>
+            <field name="level">2</field>
+        </record>
+
+    </data>
+</odoo>

@@ -5,7 +5,7 @@
  * 供 element-template 的 "@rpc:bpmn.role.options" / "@rpc:bpmn.action.options"
  * 動態下拉使用：即時從 Odoo 抓角色 / Action 清單，避免填錯字。
  *
- * 核心 dobtor_bpmn 的屬性面板 provider 可呼叫本檔的 resolveRpcChoices()。
+ * 編輯器核心的屬性面板 provider 可呼叫本檔的 resolveRpcChoices()。
  */
 import { rpc } from "@web/core/network/rpc";
 

@@ -1,9 +1,11 @@
 import json
 import logging
+from xml.sax.saxutils import quoteattr
 
 from lxml import etree
 
-from odoo import _, api, models
+from odoo import _, api, models, Command
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -80,6 +82,7 @@ class BpmnExecutableProcessEditor(models.Model):
                 'user_ids': role.user_ids.ids if role else [],
                 'record_field': role.record_field if role else '',
                 'expression': role.expression if role else '',
+                'matrix_id': role.matrix_id.id if role else False,
                 # gateway 出線（含目標名稱）+ 已存條件
                 'outgoing': [
                     {'target_id': t, 'target_name': names.get(t, t),
@@ -109,6 +112,7 @@ class BpmnExecutableProcessEditor(models.Model):
                 'groups': self._name_options('res.groups'),
                 'users': self._name_options('res.users'),
                 'models': self._name_options('ir.model', field='model', limit=1000),
+                'matrices': self._name_options('bpmn.authority.matrix'),
             },
         }
 
@@ -160,7 +164,7 @@ class BpmnExecutableProcessEditor(models.Model):
                     'gate_model_id', 'gate_method', 'gate_condition',
                     'flow_conditions', 'sla_hours', 'sla_action')
     _ROLE_KEYS = ('resolver_type', 'level', 'specific_department_id', 'job_id',
-                  'group_id', 'user_ids', 'record_field', 'expression')
+                  'group_id', 'user_ids', 'record_field', 'expression', 'matrix_id')
 
     def set_node_config(self, element_id, vals):
         self.ensure_one()
@@ -182,7 +186,7 @@ class BpmnExecutableProcessEditor(models.Model):
         role_vals = {k: vals[k] for k in self._ROLE_KEYS if k in vals}
         if role_vals and role_vals.get('resolver_type'):
             if 'user_ids' in role_vals:
-                role_vals['user_ids'] = [(6, 0, role_vals['user_ids'] or [])]
+                role_vals['user_ids'] = [Command.set(role_vals['user_ids'] or [])]
             role = cfg.role_id
             if not role:
                 role = self.env['bpmn.role'].create({
@@ -194,6 +198,228 @@ class BpmnExecutableProcessEditor(models.Model):
             else:
                 role.write(role_vals)
         return True
+
+    def save_xml(self, xml):
+        """把編輯器 modeler 目前的 BPMN XML 存回（結構編輯持久化）。
+
+        讓 dobtor_approval 能獨立設計流程結構（增刪節點/連線），而非只覆蓋設定。
+        僅草稿可改；存回後同步 node_config（補建新節點、移除已刪節點）。
+        """
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_('流程「%s」非草稿狀態，不可修改結構。', self.name))
+        xml = xml or ''
+        if xml:
+            # 先驗證 well-formed：畸形 XML 於此擲錯，避免先寫入壞值再失敗
+            self._parse_xml(xml)
+        self.xml = xml
+        if xml:
+            self._sync_node_configs_from_xml(xml)
+        return True
+
+    # ------------------------------------------------------------------
+    # L1 簡易精靈：由設定產生線性簽核流程（自寫 OWL 前端呼叫）
+    # ------------------------------------------------------------------
+    _TIER_ORDER = ['T0', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6']
+
+    @api.model
+    def generate_from_wizard(self, payload):
+        """由精靈 payload 產生一條線性簽核流程，回傳開啟其編輯器的 action。
+
+        payload = {
+            'name': str,
+            'steps': [{label, resolver, level, job_id, user_ids[], mode, escalate}],
+            'advanced': {model_id, method, sla_hours, sla_action},
+        }
+        """
+        name = (payload.get('name') or '').strip()
+        if not name:
+            raise UserError(_('請輸入流程名稱。'))
+        steps = payload.get('steps') or []
+        if not steps:
+            raise UserError(_('請至少新增一個簽核關卡。'))
+        adv = payload.get('advanced') or {}
+
+        # 1) 產生線性 BPMN XML（含 DI 版面）
+        xml, task_ids = self._wizard_build_xml(steps)
+
+        # 2) 能力上限：依選項推算所需最高 tier
+        cap = 'T0'
+        for s in steps:
+            if s.get('mode') in ('all', 'sequential'):
+                cap = self._max_tier(cap, 'T1')
+            if s.get('escalate'):
+                cap = self._max_tier(cap, 'T3')
+
+        # 3) 建流程 + 同步 node_config（建立 start/end/usertask 列）
+        process = self.create({'name': name, 'xml': xml, 'capability_level': cap})
+        process._sync_node_configs_from_xml(xml)
+
+        # 4) 逐關設定 role + node_config
+        sla_hours = adv.get('sla_hours') or 0.0
+        sla_action = adv.get('sla_action') or False
+        for idx, (s, task_id) in enumerate(zip(steps, task_ids)):
+            role = self.env['bpmn.role'].create(self._wizard_role_vals(process, s, idx))
+            cfg = process.node_config_ids.filtered(
+                lambda c: c.bpmn_element_id == task_id)[:1]
+            vals = {
+                'role_id': role.id,
+                'approval_mode': s.get('mode') or 'any',
+                'allow_escalation': bool(s.get('escalate')),
+            }
+            # 僅在有設期限時才寫 SLA（sla_action 須為合法 selection 值）
+            if sla_hours > 0:
+                vals['sla_hours'] = sla_hours
+                if sla_action:
+                    vals['sla_action'] = sla_action
+            cfg.write(vals)
+
+        # 5) 綁定單據（選填）：前端傳模型技術名，後端解析成 ir.model
+        if adv.get('model') and adv.get('method'):
+            imodel = self.env['ir.model'].search(
+                [('model', '=', adv['model'])], limit=1)
+            if not imodel:
+                raise UserError(_('找不到模型「%s」，請確認技術名稱。', adv['model']))
+            self.env['bpmn.action.gate'].create({
+                'name': name,
+                'process_id': process.id,
+                'model_id': imodel.id,
+                'method_name': adv['method'],
+            })
+
+        # 6) 直接開啟簽核設定編輯器，立即可微調 / 發佈
+        return process.action_open_process_editor()
+
+    @api.model
+    def _max_tier(self, a, b):
+        return a if self._TIER_ORDER.index(a) >= self._TIER_ORDER.index(b) else b
+
+    @api.model
+    def preview_wizard_approvers(self, step, applicant_id):
+        """精靈內「誰會簽」dry-run：給單一關卡設定 + 申請人，回傳簽核人姓名清單。
+        重用 bpmn.role 的解析邏輯（以 NewId 暫存記錄，不落地）。"""
+        rtype = step.get('resolver') or 'direct_manager'
+        if rtype == 'specific_user':
+            users = self.env['res.users'].browse(step.get('user_ids') or [])
+            return users.mapped('name')
+        if not applicant_id:
+            return []
+        role = self.env['bpmn.role'].new({
+            'name': 'preview',
+            'resolver_type': rtype,
+            'level': max(1, int(step.get('level') or 1)),
+            'job_id': step.get('job_id') or False,
+            'apply_substitute': False,
+        })
+        instance = self.env['bpmn.process.instance'].new({
+            'applicant_user_id': applicant_id,
+        })
+        try:
+            return role.resolve(instance).mapped('name')
+        except Exception:  # noqa: BLE001 — 預覽不可中斷 UI
+            return []
+
+    def _wizard_role_vals(self, process, step, idx):
+        rtype = step.get('resolver') or 'direct_manager'
+        vals = {
+            'process_id': process.id,
+            'name': step.get('label') or _('第 %s 關', idx + 1),
+            'sequence': (idx + 1) * 10,
+            'resolver_type': rtype,
+        }
+        if rtype == 'manager_level':
+            vals['level'] = max(1, int(step.get('level') or 1))
+        elif rtype == 'job_position':
+            vals['job_id'] = step.get('job_id') or False
+        elif rtype == 'specific_user':
+            vals['user_ids'] = [Command.set(step.get('user_ids') or [])]
+        return vals
+
+    @api.model
+    def _wizard_build_xml(self, steps):
+        """組出線性 BPMN（Start → UserTask×N → End）+ DI 版面。
+        回傳 (xml, task_ids)。"""
+        n = len(steps)
+        start_id = 'StartEvent_1'
+        end_id = 'Event_end'
+        task_ids = ['Activity_%d' % (i + 1) for i in range(n)]
+        order = [start_id] + task_ids + [end_id]
+        flow_ids = ['Flow_%d' % (i + 1) for i in range(len(order) - 1)]
+
+        # bounds: {id: (x, y, w, h)}；由左而右排版，垂直置中於 y_center
+        y_center = 140
+        bounds = {}
+        x = 150
+        bounds[start_id] = (x, y_center - 18, 36, 36)
+        x += 36 + 70
+        for tid in task_ids:
+            bounds[tid] = (x, y_center - 40, 110, 80)
+            x += 110 + 70
+        bounds[end_id] = (x, y_center - 18, 36, 36)
+
+        def incoming_outgoing(node):
+            i = order.index(node)
+            inc = flow_ids[i - 1] if i > 0 else None
+            out = flow_ids[i] if i < len(flow_ids) else None
+            return inc, out
+
+        # ---- process 元素 ----
+        pe = []
+        inc, out = incoming_outgoing(start_id)
+        pe.append('    <bpmn:startEvent id="%s" name="申請">' % start_id)
+        pe.append('      <bpmn:outgoing>%s</bpmn:outgoing>' % out)
+        pe.append('    </bpmn:startEvent>')
+        for i, tid in enumerate(task_ids):
+            inc, out = incoming_outgoing(tid)
+            label = steps[i].get('label') or (_('第%s關') % (i + 1))
+            pe.append('    <bpmn:userTask id="%s" name=%s>' % (tid, quoteattr(label)))
+            pe.append('      <bpmn:incoming>%s</bpmn:incoming>' % inc)
+            pe.append('      <bpmn:outgoing>%s</bpmn:outgoing>' % out)
+            pe.append('    </bpmn:userTask>')
+        inc, out = incoming_outgoing(end_id)
+        pe.append('    <bpmn:endEvent id="%s" name="完成">' % end_id)
+        pe.append('      <bpmn:incoming>%s</bpmn:incoming>' % inc)
+        pe.append('    </bpmn:endEvent>')
+        for i, fid in enumerate(flow_ids):
+            pe.append('    <bpmn:sequenceFlow id="%s" sourceRef="%s" targetRef="%s"/>'
+                      % (fid, order[i], order[i + 1]))
+
+        # ---- DI 圖形 ----
+        di = []
+        for eid, (bx, by, bw, bh) in bounds.items():
+            di.append('      <bpmndi:BPMNShape id="%s_di" bpmnElement="%s">' % (eid, eid))
+            di.append('        <dc:Bounds x="%d" y="%d" width="%d" height="%d"/>'
+                      % (bx, by, bw, bh))
+            di.append('      </bpmndi:BPMNShape>')
+        for i, fid in enumerate(flow_ids):
+            sx, sy, sw, sh = bounds[order[i]]
+            tx, ty, tw, th = bounds[order[i + 1]]
+            x1, y1 = sx + sw, sy + sh // 2
+            x2, y2 = tx, ty + th // 2
+            di.append('      <bpmndi:BPMNEdge id="%s_di" bpmnElement="%s">' % (fid, fid))
+            di.append('        <di:waypoint x="%d" y="%d"/>' % (x1, y1))
+            di.append('        <di:waypoint x="%d" y="%d"/>' % (x2, y2))
+            di.append('      </bpmndi:BPMNEdge>')
+
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"\n'
+            '                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"\n'
+            '                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"\n'
+            '                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"\n'
+            '                  xmlns:odoo="http://www.dobtor.com/schema/bpmn/odoo"\n'
+            '                  id="Definitions_wizard" targetNamespace="http://bpmn.io/schema/bpmn">\n'
+            '  <bpmn:process id="Process_1" isExecutable="false">\n'
+            + '\n'.join(pe) + '\n'
+            '  </bpmn:process>\n'
+            '  <bpmndi:BPMNDiagram id="BPMNDiagram_1">\n'
+            '    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">\n'
+            + '\n'.join(di) + '\n'
+            '    </bpmndi:BPMNPlane>\n'
+            '  </bpmndi:BPMNDiagram>\n'
+            '</bpmn:definitions>'
+        )
+        return xml, task_ids
 
     # ------------------------------------------------------------------
     # dry-run：誰會簽

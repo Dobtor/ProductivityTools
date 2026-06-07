@@ -13,7 +13,7 @@
 
 | 議題 | 現況（依賴 dobtor_mail_activity） | 改版後 |
 |------|----------------------------------|--------|
-| 相依 | `depends=['dobtor_bpmn','mail','hr','dobtor_mail_activity']` | **`['dobtor_bpmn','mail','hr']`**（原生 mail 即足夠） |
+| 相依 | `depends=['dobtor_bpmn','mail','hr','dobtor_mail_activity']` | **`['web','mail','hr']`**（原生 mail 即足夠；2026-06-07 依賴反轉後 `dobtor_bpmn` 改為 depends approval，故 approval 不再 depends bpmn，補 `web` 載自有 JS） |
 | 事件載體 | dobtor_mail_activity 擴充版 mail.activity | **原生 `mail.activity`**（欄位/方法不改、行為單純） |
 | 簽核 UI | 借用 dobtor_mail_activity 的排程/看板/表單 | **自建「簽核事件」inbox 畫面**（專為簽核設計） |
 | 耦合風險 | 受對方改版牽動（曾因繼承其 view 安裝失敗） | **零耦合**，獨立可裝可賣 |
@@ -74,7 +74,7 @@
 
 | 項目 | 動作 |
 |------|------|
-| `__manifest__.py` depends | 移除 `dobtor_mail_activity` → `['dobtor_bpmn','mail','hr']` |
+| `__manifest__.py` depends | 移除 `dobtor_mail_activity`；2026-06-07 依賴反轉後再移除 `dobtor_bpmn`、補 `web` → `['web','mail','hr']` |
 | `mail.activity` override | `_action_done(feedback, attachment_ids)` 改 override **原生** mail.activity（原生回傳 `(messages, next_activities)`，行為相容）；移除對 dobtor_mail_activity 行為的假設 |
 | escalate wizard 視圖 | **不再繼承** `dobtor_mail_activity.mail_activity_view_form_schedule`；改為**自建簽核事件畫面內的動作**（不 inherit 任何他模組 view） |
 | activity 建立 | 用原生 `record.activity_schedule(act_type_xmlid, user_id=, summary=, date_deadline=)` 或 `mail.activity.create()` |

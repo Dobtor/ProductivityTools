@@ -1,4 +1,5 @@
 from . import feature_registry
+from . import bpmn_authority_matrix
 from . import bpmn_role
 from . import bpmn_node_config
 from . import bpmn_action_gate

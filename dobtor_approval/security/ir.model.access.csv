@@ -19,3 +19,8 @@ access_bpmn_escalate_wizard_user,bpmn.escalate.wizard user,model_bpmn_escalate_w
 access_bpmn_lateral_wizard_user,bpmn.lateral.wizard user,model_bpmn_lateral_wizard,group_bpmn_approval_user,1,1,1,1
 access_bpmn_reject_wizard_user,bpmn.reject.wizard user,model_bpmn_reject_wizard,group_bpmn_approval_user,1,1,1,1
 access_bpmn_delegate_wizard_user,bpmn.delegate.wizard user,model_bpmn_delegate_wizard,group_bpmn_approval_user,1,1,1,1
+access_bpmn_authority_matrix_user,bpmn.authority.matrix user,model_bpmn_authority_matrix,group_bpmn_approval_user,1,0,0,0
+access_bpmn_authority_matrix_designer,bpmn.authority.matrix designer,model_bpmn_authority_matrix,group_bpmn_approval_designer,1,1,1,1
+access_bpmn_authority_matrix_line_user,bpmn.authority.matrix.line user,model_bpmn_authority_matrix_line,group_bpmn_approval_user,1,0,0,0
+access_bpmn_authority_matrix_line_designer,bpmn.authority.matrix.line designer,model_bpmn_authority_matrix_line,group_bpmn_approval_designer,1,1,1,1
+access_bpmn_authority_matrix_preview_designer,bpmn.authority.matrix.preview designer,model_bpmn_authority_matrix_preview,group_bpmn_approval_designer,1,1,1,1

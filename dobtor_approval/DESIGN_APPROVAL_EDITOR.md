@@ -1,8 +1,9 @@
 # dobtor_approval — 全版簽核設定編輯器 改版規格建議
 
 > 文件版本：v1.0 ｜ 撰寫日：2026-06-07 ｜ 目標 Odoo：18.0
-> 定位：在 `dobtor_approval` 內提供**獨立於 `dobtor_bpmn` 純畫圖編輯器**的「**簽核設定編輯器**」——
-> 載入核心設計圖、在每個物件上以**右側設定 Panel** 配置「動作插入點、部門/角色、簽核控制項」。
+> 定位：在 `dobtor_approval` 內提供「**簽核設定編輯器**」（process_editor，client action）——
+> 直接編輯 `bpmn.executable.process` **自持的 BPMN XML**，並在每個物件上以**右側設定 Panel** 配置「動作插入點、部門/角色、簽核控制項」。
+> 註（2026-06-07 依賴反轉）：BPMN 編輯器核心（bpmn-js / node registry / lib_loader）已內建於本模組；`dobtor_bpmn` 的純畫圖編輯器與本編輯器**共用此核心**。
 > 對標國內外（華苓 Agentflow、新人類 FlowMaster、叡揚 Vitals ESP｜Camunda、Pega、Appian），目標：**更優**。
 
 ---
@@ -14,10 +15,10 @@
 | 目的 | 純畫 BPMN/DMN（demo.bpmn.io 等價） | **在圖上疊簽核執行設定** |
 | 編輯對象 | 圖形結構（節點/連線/版面） | 每個物件的**簽核控制項**（角色/閘門/SLA/加簽…） |
 | 右側 Panel | bpmn.io 標準屬性 | **Odoo 簽核設定 Panel**（部門/角色/動作插入點/條件） |
-| 資料 | `bpmn.diagram.xml`（純設計） | `bpmn.executable.process` + `bpmn.node.config`（overlay，keyed by element id） |
-| 改圖 | 可改結構 | 預設**不改結構**（linked overlay）；可加「簽核專屬節點」 |
+| 資料 | `bpmn.diagram.xml`（純設計） | `bpmn.executable.process.xml`（自持）+ `bpmn.node.config`（overlay，keyed by element id） |
+| 改圖 | 可改結構 | **可改結構**（forked，自持 XML）＋加「簽核專屬節點」 |
 
-> **核心理念（超越國內單檔式設計）**：國內 FlowMaster/Agentflow 是「畫圖 + 設屬性」綁在同一份檔。我們**設計與執行分離**——同一張核心設計圖，可被多個簽核流程以不同設定複用；改設定不動原圖、改原圖簽核設定自動對位。
+> **核心理念（超越國內單檔式設計）**：國內 FlowMaster/Agentflow 是「畫圖 + 設屬性」綁死在同一份檔且無圖庫概念。我們以 `bpmn.node.config` overlay（keyed by element id）把「角色/閘門/SLA 執行規格」與「圖形結構」分層存放，發佈/版本/治理清晰；流程亦可由 `dobtor_bpmn` 設計圖庫 **forked 複製 XML** 帶入（一次性複製，之後獨立演進）。
 
 ---
 
@@ -45,19 +46,20 @@
 │  Toolbar：返回 / 流程名 / 模式(設定·預覽) / 驗證狀態 / 發佈 / 儲存       │
 ├───────────────────────────────┬───────────────────────────────────┤
 │  Canvas（bpmn-js）             │  右側 Odoo 簽核設定 Panel（動態）       │
-│  ・載入核心設計圖(linked)       │  ・依選取物件型別切換內容              │
+│  ・載入本流程自持 XML(forked)   │  ・依選取物件型別切換內容              │
 │  ・節點上疊「設定狀態」徽章      │  ・部門/角色解析、動作插入點、SLA、加簽  │
 │  ・點節點→右側帶出該節點設定     │  ・「誰會簽」即時預覽                  │
-│  ・可加簽核專屬節點(palette)     │  ・條件 builder / DMN-lite            │
+│  ・增刪節點(原生palette,已存回)  │  ・條件 builder / DMN-lite            │
 ├───────────────────────────────┴───────────────────────────────────┤
 │  底部：問題清單(lint) / dry-run 申請人選擇器 / 流程說明                  │
 └────────────────────────────────────────────────────────────────────┘
-        │ 讀                          │ 寫 overlay
+        │ 讀/寫 XML                   │ 寫 overlay
         ▼                             ▼
- bpmn.diagram(核心,只讀)      bpmn.executable.process + bpmn.node.config
+ bpmn.executable.process.xml   bpmn.executable.process + bpmn.node.config
+ （同一筆流程自持，forked）      （node.config keyed by element id）
 ```
 
-- **Canvas**：用 bpmn-js（Viewer+輕量互動）渲染核心設計圖；**結構唯讀**（linked），但允許在 token 引擎支援範圍內加「簽核專屬節點」（forked 時）。
+- **Canvas**：用 bpmn-js Modeler 渲染本流程**自持的 BPMN XML（forked）**；可增刪節點/連線，「儲存」或「發佈」時以 `saveXML()` → `save_xml` 存回 `process.xml`（結構持久化）。標準 BPMN 元素由 bpmn-js 原生 palette 提供；**專屬「簽核任務/動作」palette 積木為 roadmap（見 DESIGN_MODULE_SPLIT §4.1，目前以原生 UserTask/ServiceTask + 右側面板設定取代）**。
 - **節點徽章**：每個 user_task 顯示「✅ 已設定 / ⚠ 未設簽核人」小圖示；service_task 顯示「⚡ 動作插入點」；gateway 顯示「◆ 條件」。一眼看出哪裡還沒設定（國內少見）。
 - **右側 Panel**：選取物件 → 帶出對應設定表單（Odoo OWL 表單元件，欄位接 RPC 動態選項）。
 
@@ -149,7 +151,7 @@ gate_condition = fields.Text()       # 視覺條件序列化
 - **元件**：`dobtor_approval` client action `dobtor_approval.process_editor`（全版 OWL），canvas 用 bpmn-js（lib 沿用 dobtor_bpmn 的 loader），右側 Panel 為 OWL 子元件（非 bpmn.io properties-panel，改用 **Odoo 原生表單元件**以接 RPC 動態選項、many2one 下拉、可重用 Odoo widget）。
 - **選取同步**：監聽 bpmn-js `selection.changed` → 載入該 element 的 `node.config` → 綁右側 Panel；Panel 變更 → ORM write overlay（即時或按儲存）。
 - **動態選項 RPC**：`scan_actions`（model→可攔截方法）、`field_options`（model→user/employee 欄位）、`role_resolve_preview`（role+applicant→簽核人）。
-- **加簽核專屬節點**：沿用核心 `nodeTypeRegistry`，approval 注入「簽核任務/動作插入點/條件閘道」積木（forked 模式可拉入）。
+- **加簽核專屬節點**（roadmap）：核心 `nodeTypeRegistry` 已註冊「簽核任務/動作插入點/條件閘道」定義，但動態 palette 消費端尚未落地；目前以原生 UserTask/ServiceTask + 右側面板設定達成同等功能。
 - **儲存**：overlay 寫 `bpmn.node.config`；結構（forked）寫回 process.xml；發佈生成 role/gate 並校驗能力開關。
 
 ---
@@ -157,8 +159,8 @@ gate_condition = fields.Text()       # 視覺條件序列化
 ## 9. 與既有規劃的關係
 
 - 取代 `DESIGN_SELF_SERVICE_DESIGNER.md` 中「屬性面板接 RPC」的構想，**具體化為 dobtor_approval 專屬全版編輯器**。
-- 沿用 `DESIGN_MODULE_SPLIT.md` 的 **linked overlay**（設計/執行分離）與 `DESIGN_PROGRESSIVE_TIERS.md` 的**能力開關**（Panel 動態長出）。
-- 與 `dobtor_bpmn` 編輯器互補：畫圖在核心、設簽核在 approval。
+- 沿用 `DESIGN_MODULE_SPLIT.md`（v2.0）的 **node.config overlay**（執行規格與結構分層）與 `DESIGN_PROGRESSIVE_TIERS.md` 的**能力開關**（Panel 動態長出）。流程 XML 為**自持（forked）**，不再 linked 連動 `bpmn.diagram`。
+- 與 `dobtor_bpmn` 編輯器**共用編輯器核心**：`dobtor_bpmn` 畫通用設計圖、本編輯器設簽核；設計圖可 forked 交付為簽核流程。
 
 ---
 

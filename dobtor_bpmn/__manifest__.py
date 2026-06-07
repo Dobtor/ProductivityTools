@@ -1,22 +1,22 @@
 {
-    'name': 'Dobtor BPMN (核心·純設計)',
-    'version': '18.0.1.1.0',
+    'name': 'Dobtor BPMN (流程設計圖庫)',
+    'version': '18.0.2.0.0',
     'category': 'Productivity',
-    'summary': 'Odoo 內的 BPMN/DMN 純設計環境（等同 demo.bpmn.io），無執行語意',
+    'summary': 'BPMN/DMN 流程設計圖庫，疊在 dobtor_approval 編輯器核心之上，可將設計圖交給簽核引擎',
     'description': """
-Dobtor BPMN — 核心純設計模組
+Dobtor BPMN — 流程設計圖庫（依賴 dobtor_approval 編輯器核心）
 ============================
-- BPMN 2.0 / DMN 視覺編輯器（bpmn-js / dmn-js）
 - 流程設計圖庫（bpmn.diagram）：用途分類 documentation / blueprint / template / executable_src
-- 節點型別 registry（供簽核擴充 dobtor_approval 注入新節點）
-- 無角色、無簽核、無執行——純設計，可獨立成立為設計/規格工具
+- 重用 dobtor_approval 內建的 BPMN 2.0 / DMN 視覺編輯器（bpmn-js / dmn-js）
+- 設計圖可一鍵「建立簽核流程」，複製 XML 至 dobtor_approval 的可執行簽核流程（forked）
+- 無角色、無簽核、無執行——純設計，作為設計/規格工具
 
 非目標：不提供表單設計器。資料輸入一律使用 Odoo 原生 form view。
 """,
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
     'license': 'LGPL-3',
-    'depends': ['base', 'web', 'mail'],
+    'depends': ['dobtor_approval'],
     'data': [
         'security/dobtor_bpmn_security.xml',
         'security/ir.model.access.csv',
@@ -27,8 +27,6 @@ Dobtor BPMN — 核心純設計模組
     ],
     'assets': {
         'web.assets_backend': [
-            'dobtor_bpmn/static/src/registry/node_type_registry.js',
-            'dobtor_bpmn/static/src/modeler/lib_loader.js',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.js',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.xml',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.scss',

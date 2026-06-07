@@ -5,11 +5,10 @@
         <field name="name">bpmn.executable.process.list</field>
         <field name="model">bpmn.executable.process</field>
         <field name="arch" type="xml">
-            <list>
+            <!-- js_class 套用自訂 controller，上方加「精靈建立」按鈕（dialog over list） -->
+            <list js_class="bpmn_executable_process_list">
                 <field name="name"/>
                 <field name="code"/>
-                <field name="source_diagram_id"/>
-                <field name="link_mode"/>
                 <field name="capability_level"/>
                 <field name="definition_version"/>
                 <field name="instance_count"/>
@@ -32,9 +31,6 @@
                             invisible="not id"/>
                     <button name="action_publish" type="object" string="發佈"
                             invisible="state == 'published'"/>
-                    <button name="action_pull_from_source" type="object"
-                            string="從來源拉取結構"
-                            invisible="source_diagram_id == False"/>
                     <button name="action_set_draft" type="object" string="設為草稿"
                             invisible="state != 'published'"/>
                     <button name="action_archive_process" type="object" string="封存"
@@ -56,8 +52,6 @@
                     <group>
                         <group>
                             <field name="code"/>
-                            <field name="source_diagram_id"/>
-                            <field name="link_mode"/>
                         </group>
                         <group>
                             <field name="capability_level"/>
@@ -119,7 +113,7 @@
                         </page>
                         <page string="BPMN XML" name="xml">
                             <field name="xml" widget="text"
-                                   placeholder="forked 模式存執行用 XML；linked 模式留空（讀來源設計圖）"/>
+                                   placeholder="本流程自身的執行用 BPMN XML（可由設計圖複製帶入後獨立編輯）"/>
                         </page>
                     </notebook>
                 </sheet>
@@ -128,10 +122,33 @@
         </field>
     </record>
 
+    <record id="view_bpmn_executable_process_search" model="ir.ui.view">
+        <field name="name">bpmn.executable.process.search</field>
+        <field name="model">bpmn.executable.process</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <filter name="draft" string="草稿" domain="[('state', '=', 'draft')]"/>
+                <filter name="published" string="已發佈" domain="[('state', '=', 'published')]"/>
+                <filter name="archived" string="封存" domain="[('state', '=', 'archived')]"/>
+                <separator/>
+                <filter name="active" string="啟用中" domain="[('active', '=', True)]"/>
+                <filter name="inactive" string="已停用" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="group_capability" string="能力上限"
+                            context="{'group_by': 'capability_level'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_bpmn_executable_process" model="ir.actions.act_window">
         <field name="name">簽核流程定義</field>
         <field name="res_model">bpmn.executable.process</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_bpmn_executable_process_search"/>
     </record>
 
 </odoo>

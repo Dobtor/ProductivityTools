@@ -14,6 +14,7 @@
                 <field name="version"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'draft'"
+                       decoration-warning="state == 'reviewed'"
                        decoration-success="state == 'frozen'"/>
             </list>
         </field>
@@ -27,6 +28,10 @@
                 <header>
                     <button name="action_open_editor" type="object" string="開啟視覺編輯器"
                             class="btn-primary" invisible="not id"/>
+                    <button name="action_create_executable_process" type="object"
+                            string="建立簽核流程" invisible="not id"
+                            groups="dobtor_approval.group_bpmn_approval_designer"
+                            help="複製本設計圖 XML，在 dobtor_approval 建立可執行簽核流程（forked）"/>
                     <button name="action_regenerate_thumbnail" type="object" string="重新產生預覽圖"
                             invisible="not id"
                             help="由目前 XML 的版面資訊重新產生 kanban 預覽縮圖"/>
@@ -113,6 +118,7 @@
                                 v<field name="version"/> ·
                                 <field name="state" widget="badge"
                                        decoration-info="state == 'draft'"
+                                       decoration-warning="state == 'reviewed'"
                                        decoration-success="state == 'frozen'"/>
                             </div>
                             <div class="d-flex justify-content-between align-items-end mt-1">

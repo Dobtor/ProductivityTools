@@ -5,6 +5,7 @@
     <menuitem id="menu_bpmn_approval_root"
               name="簽核流程"
               sequence="86"
+              web_icon="dobtor_approval,static/description/icon_menu.png"
               groups="dobtor_approval.group_bpmn_approval_user"/>
 
     <!-- 簽核事件（每日待辦 inbox） -->

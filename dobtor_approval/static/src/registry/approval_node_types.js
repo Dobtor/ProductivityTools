@@ -1,13 +1,13 @@
 /** @odoo-module **/
 
 /**
- * 向核心 dobtor_bpmn 編輯器註冊簽核專屬節點型別（積木）。
- * 契約：@dobtor_bpmn/registry/node_type_registry 匯出 nodeTypeRegistry，
+ * 向本模組（dobtor_approval）編輯器核心註冊簽核專屬節點型別（積木）。
+ * 契約：@dobtor_approval/registry/node_type_registry 匯出 nodeTypeRegistry，
  * 提供 register(def) / all()。本檔載入時 register 簽核積木。
  *
- * DESIGN_MODULE_SPLIT.md §4.1、DESIGN_SELF_SERVICE_DESIGNER.md §3.1。
+ * DESIGN_SELF_SERVICE_DESIGNER.md §3.1。
  */
-import { nodeTypeRegistry } from "@dobtor_bpmn/registry/node_type_registry";
+import { nodeTypeRegistry } from "@dobtor_approval/registry/node_type_registry";
 
 // element-template：簽核任務（只露業務欄位，隱藏 BPMN 術語）
 const APPROVAL_TASK_TEMPLATE = {

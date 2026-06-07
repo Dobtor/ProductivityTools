@@ -191,7 +191,7 @@ class BpmnDiagram(models.Model):
         ('documentation', '既有 Odoo 模組流程記錄 (as-is)'),
         ('blueprint', '客戶專案規格藍圖 (to-be，尚未實作)'),
         ('template', '可複用樣板'),
-        ('executable_src', '供擴充模組衍生可執行流程的來源'),
+        ('executable_src', '供簽核引擎衍生可執行流程的來源'),
     ], string='用途', default='documentation', required=True, index=True, tracking=True)
 
     category_id = fields.Many2one('bpmn.diagram.category', string='分類')
@@ -229,21 +229,31 @@ class BpmnDiagram(models.Model):
         if not self.xml or self.xml in (EMPTY_BPMN_XML, EMPTY_DMN_XML):
             self.xml = self._default_xml(self.diagram_type)
 
-    # ---- 對外 API（給擴充模組 dobtor_approval 使用）----
+    # ---- 對外 API（handoff 至簽核引擎 dobtor_approval）----
     def get_xml(self):
         """取得設計 XML（單筆）。"""
         self.ensure_one()
         return self.xml or self._default_xml(self.diagram_type)
 
-    def clone_for_extension(self, target_model=None):
-        """衍生一份副本給擴充模組（forked 模式）。回傳新的 bpmn.diagram record。"""
+    def action_create_executable_process(self):
+        """把本設計圖複製 XML，建立 dobtor_approval 的可執行簽核流程（forked），
+        並開啟該流程表單。需安裝 dobtor_approval（本模組依賴它）。"""
         self.ensure_one()
-        copy = self.copy({
-            'name': _('%s (副本)', self.name),
-            'state': 'draft',
-            'version': 1,
+        process = self.env['bpmn.executable.process'].create({
+            'name': self.name or _('簽核流程'),
+            'xml': self.get_xml(),
         })
-        return copy
+        # 立即依 XML 同步節點執行規格，使流程一落地即有 node_config 列可設定，
+        # 不必等使用者另外開編輯器或發佈才同步。
+        process._sync_node_configs_from_xml(process.xml)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('簽核流程'),
+            'res_model': 'bpmn.executable.process',
+            'res_id': process.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     def action_freeze(self):
         """定版：凍結設計，狀態轉 frozen。"""

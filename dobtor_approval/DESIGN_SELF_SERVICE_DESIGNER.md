@@ -136,7 +136,8 @@ export class BpmnDesigner extends Component {
 - L1 精靈 / L2 積木 模式進入時先問「從空白開始 or 套用樣板」。
 
 ### 3.4 設定精靈（L1，給最不懂的人）
-> 註：此處的「精靈」是 **Odoo 設定精靈（`TransientModel` + 原生 form view）**，用來**填寫簽核設定**並自動產生 BPMN——**不是表單設計器**，使用者不設計任何表單。
+> **✅ 已實作（2026-06-07）— 詳見 `DESIGN_FLOW_WIZARD.md`。**
+> 實作時改採 **自寫 OWL client action（modal，碼風格比照 dobtor_finance_reports）**，而非本節原訂的「`TransientModel` + 原生 form view」——理由：步驟卡片/即時預覽鏈/能力提示原生 form 做不到，且與既有 `process_editor.js` 一致。後端 `bpmn.executable.process.generate_from_wizard(payload)` 產生線性 BPMN。仍是**填寫簽核設定**、**不是表單設計器**。
 - 設定精靈（Odoo 原生 wizard 畫面）：
   ```
   流程名稱：[請假審批]

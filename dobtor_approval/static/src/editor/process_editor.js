@@ -3,7 +3,7 @@
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { ensureBpmnLib } from "@dobtor_bpmn/modeler/lib_loader";
+import { ensureBpmnLib } from "@dobtor_approval/modeler/lib_loader";
 import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 
 const MODEL = "bpmn.executable.process";
@@ -220,6 +220,23 @@ export class ApprovalProcessEditor extends Component {
         return this.state.enabledFeatures.includes(key);
     }
 
+    // 依能力顯隱簽核方式（會簽/依序需 cosign）與進階解析方式
+    modeAllowed(code) {
+        return code === "any" || this.feat("cosign");
+    }
+    resolverAllowed(code) {
+        if (code === "field_on_record") {
+            return this.feat("field_resolver");
+        }
+        if (code === "expression") {
+            return this.feat("expression_resolver");
+        }
+        if (code === "authority_matrix") {
+            return this.feat("authority_matrix");
+        }
+        return true;
+    }
+
     setField(field, value) {
         if (this.state.panel) {
             this.state.panel[field] = value;
@@ -339,7 +356,36 @@ export class ApprovalProcessEditor extends Component {
         this.state.lint = issues;
     }
 
+    // ---- 存回結構 XML ----
+    async _saveXml() {
+        // 把 modeler 目前 XML（含結構增刪）存回後端，使結構編輯持久化。
+        if (!this.modeler) return true;
+        try {
+            const { xml } = await this.modeler.saveXML({ format: true });
+            await this.orm.call(MODEL, "save_xml", [[this.processId], xml]);
+            return true;
+        } catch (e) {
+            this.notification.add(
+                _t("結構儲存失敗：%s", e?.message?.data?.message || e?.message || e),
+                { type: "danger", sticky: true }
+            );
+            return false;
+        }
+    }
+
+    async onSave() {
+        this.state.saving = true;
+        if (await this._saveXml()) {
+            this.notification.add(_t("已儲存流程結構。"), { type: "success" });
+        }
+        this.state.saving = false;
+    }
+
     async onPublish() {
+        // 先存回目前結構，確保發佈用的是畫布最新 XML（而非匯入時的舊結構）。
+        if (!(await this._saveXml())) {
+            return;
+        }
         try {
             await this.orm.call(MODEL, "action_publish", [[this.processId]]);
             this.notification.add(_t("流程已發佈。"), { type: "success" });
