@@ -142,17 +142,17 @@ class BpmnProcessInstance(models.Model):
                 current = self._route_exclusive(current, nodes, flows)
 
             elif node_type == 'inclusive_gw':
-                # join（多入線）：其他分支仍執行則 park 等待；全匯流才往下 split。
+                # join（多入線）：分支同步；未到齊則 park 等待。
                 if self._is_join(current.bpmn_element_id, flows) and \
-                        not self._gateway_join_ready(current):
+                        not self._gateway_join_ready(current, flows, 'inclusive_gw'):
                     return
                 current = self._route_inclusive(current, nodes, flows)
                 return
 
             elif node_type == 'parallel_gw':
-                # join（多入線）：同步所有分支；全匯流才 split 出線。
+                # join（多入線）：所有入線到齊才 split 出線。
                 if self._is_join(current.bpmn_element_id, flows) and \
-                        not self._gateway_join_ready(current):
+                        not self._gateway_join_ready(current, flows, 'parallel_gw'):
                     return
                 current = self._route_parallel(current, nodes, flows)
                 return
@@ -170,18 +170,47 @@ class BpmnProcessInstance(models.Model):
         """多入線（>1）閘道＝join，需同步分支。"""
         return len(self._incoming_flows(element_id, flows)) > 1
 
-    def _gateway_join_ready(self, token):
-        """join 同步：仍有其他分支在別處執行 → False(park)；
-        全部已匯流至本閘道 → 消耗此處其餘 parked token，回 True 由本 token 續走。
-        已結束(consumed)的分支不阻塞 → 無死結；over-sync 為可接受近似。"""
+    def _join_ready_peek(self, token, flows, node_type):
+        """非消耗式判斷 join 是否可推進。
+
+        - parallel_gw：所有入線到齊（parked 數 >= 入線數）→ 精確、無死結、無 over-sync。
+        - inclusive_gw：到齊 或 別處已無 active token（部分分支啟動時的收斂）；
+          別處仍有 token 時 park，待其結束由 `_resume_joins` 重掃喚醒 → 不死結。
+        """
         element_id = token.bpmn_element_id
         active = self.token_ids.filtered(lambda t: t.state == 'active')
-        if active.filtered(lambda t: t.id != token.id
-                           and t.bpmn_element_id != element_id):
+        here = active.filtered(lambda t: t.bpmn_element_id == element_id)
+        incoming = len(self._incoming_flows(element_id, flows))
+        if node_type == 'parallel_gw':
+            return len(here) >= incoming
+        elsewhere = active.filtered(lambda t: t.bpmn_element_id != element_id)
+        return len(here) >= incoming or not elsewhere
+
+    def _gateway_join_ready(self, token, flows, node_type):
+        """ready 時消耗本閘道其餘 parked token，回 True 由本 token 續走（唯一消耗點）。"""
+        if not self._join_ready_peek(token, flows, node_type):
             return False
-        active.filtered(lambda t: t.id != token.id
-                        and t.bpmn_element_id == element_id).consume()
+        here = self.token_ids.filtered(
+            lambda t: t.state == 'active' and t.bpmn_element_id == token.bpmn_element_id)
+        (here - token).consume()
         return True
+
+    def _resume_joins(self):
+        """重掃停在 join 閘道、現已可推進的 parked token（避免 inclusive over-sync 死結）。
+        以非消耗式 peek 判斷，再交 `_advance_token` 做唯一的消耗式推進。"""
+        self.ensure_one()
+        if self.state != 'running':
+            return
+        nodes, flows = self.process_id._build_graph()
+        for tok in self.token_ids.filtered(lambda t: t.state == 'active'):
+            data = nodes.get(tok.bpmn_element_id)
+            if not data or data['node_type'] not in ('parallel_gw', 'inclusive_gw'):
+                continue
+            if not self._is_join(tok.bpmn_element_id, flows):
+                continue
+            if self._join_ready_peek(tok, flows, data['node_type']):
+                self._advance_token(tok)
+                return  # 狀態已變；後續收斂點會再觸發重掃
 
     def _move_to_next(self, token, nodes, flows):
         """單一出線：移動 token 到下一節點；無出線則消耗。"""
@@ -684,6 +713,8 @@ class BpmnProcessInstance(models.Model):
         self.ensure_one()
         if self.state != 'running':
             return
+        # 先喚醒因 over-sync 而 park 在 join 閘道、現已可推進的 token（避免死結）
+        self._resume_joins()
         if self.token_ids.filtered(lambda t: t.state == 'active'):
             return  # 還有活躍 token
         self.write({'state': 'approved'})
