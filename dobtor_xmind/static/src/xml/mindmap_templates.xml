@@ -224,8 +224,8 @@
                                     <option value="logic_left">邏輯圖 (向左)</option>
                                     <option value="timeline_horizontal">時間軸 - 水平</option>
                                     <option value="timeline_vertical">時間軸 - 垂直</option>
-                                    <option value="fishbone_left">魚骨圖 (頭向左)</option>
-                                    <option value="fishbone_right">魚骨圖 (頭向右)</option>
+                                    <option value="fishbone_right">魚骨圖 (頭向左)</option>
+                                    <option value="fishbone_left">魚骨圖 (頭向右)</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
@@ -447,8 +447,8 @@
                         <option value="logic_left">邏輯圖 (向左)</option>
                         <option value="timeline_horizontal">時間軸 - 水平</option>
                         <option value="timeline_vertical">時間軸 - 垂直</option>
-                        <option value="fishbone_left">魚骨圖 (頭向左)</option>
-                        <option value="fishbone_right">魚骨圖 (頭向右)</option>
+                        <option value="fishbone_right">魚骨圖 (頭向左)</option>
+                        <option value="fishbone_left">魚骨圖 (頭向右)</option>
                         <option value="matrix_vertical">表格圖 (橫列)</option>
                         <option value="matrix_horizontal">表格圖 (直行)</option>
                     </select>
@@ -526,8 +526,8 @@
                             <option value="logic_left">邏輯圖 (向左)</option>
                             <option value="timeline_horizontal">時間軸 - 水平</option>
                             <option value="timeline_vertical">時間軸 - 垂直</option>
-                            <option value="fishbone_left">魚骨圖 (頭向左)</option>
-                            <option value="fishbone_right">魚骨圖 (頭向右)</option>
+                            <option value="fishbone_right">魚骨圖 (頭向左)</option>
+                            <option value="fishbone_left">魚骨圖 (頭向右)</option>
                         </select>
                     </div>
 

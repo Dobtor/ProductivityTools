@@ -31,8 +31,9 @@ class XMindSheet(models.Model):
         ('logic_left', '邏輯圖 (向左)'),
         ('timeline_horizontal', '時間軸 - 水平'),
         ('timeline_vertical', '時間軸 - 垂直'),
-        ('fishbone_left', '魚骨圖 (頭向左)'),
-        ('fishbone_right', '魚骨圖 (頭向右)'),
+        # 注意：_layoutFishbone(dir=-1)=fishbone_left 渲染為「頭向右」，dir=1=fishbone_right 渲染為「頭向左」
+        ('fishbone_right', '魚骨圖 (頭向左)'),
+        ('fishbone_left', '魚骨圖 (頭向右)'),
         # 注意：_layoutMatrixH 渲染為「直行」(欄)，_layoutMatrixV 渲染為「橫列」(列)
         ('matrix_vertical', '表格圖 (橫列)'),
         ('matrix_horizontal', '表格圖 (直行)'),

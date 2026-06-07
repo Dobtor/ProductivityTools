@@ -1044,3 +1044,11 @@
     text-align: center;
     cursor: default !important;
 }
+
+/* Fishbone mode: the central topic is wrapped by the SVG fish head, so hide
+   its own box border/background (the 7px transparent border keeps size stable). */
+.xmind-mode-fishbone .xmind-root {
+    border-color: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+}

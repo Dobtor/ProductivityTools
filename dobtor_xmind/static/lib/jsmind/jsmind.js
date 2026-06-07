@@ -1555,10 +1555,20 @@
 
             // Draw spine lines (before branch lines so they're behind)
             const mode = this.options.layout?.mode || 'map';
+            // Toggle a mode class so the central topic's own box border/background
+            // can be hidden in fishbone mode (the fish head becomes its container).
+            const world = this.svg.parentElement;
+            if (world) {
+                world.classList.toggle('xmind-mode-fishbone',
+                    mode === 'fishbone_right' || mode === 'fishbone_left');
+            }
             if (mode === 'timeline_horizontal' || mode === 'timeline_vertical') {
                 this._drawTimelineSpine(this.mind.root, mode);
             } else if (mode === 'fishbone_right' || mode === 'fishbone_left') {
                 this._drawFishboneSpine(this.mind.root, mode === 'fishbone_right' ? 1 : -1);
+            } else if (mode === 'matrix_horizontal' || mode === 'matrix_vertical' || mode === 'matrix') {
+                // matrix_horizontal → columns; matrix_vertical / legacy 'matrix' → rows
+                this._drawMatrixGrid(this.mind.root, mode === 'matrix_horizontal' ? 'col' : 'row');
             }
 
             this._drawLinesForNode(this.mind.root);
@@ -1592,38 +1602,160 @@
             this.svg.appendChild(spine);
         }
 
-        /** Draw the fishbone spine (horizontal axis through root). */
+        /**
+         * Draw the fishbone spine with a fish head around the central topic
+         * (nose pointing outward, away from the spine) and a forked fish tail
+         * at the far end.  dir = +1 → spine runs right (head on the left);
+         * dir = -1 → spine runs left (head on the right).
+         */
         _drawFishboneSpine(root, dir) {
             const children = root.children.filter(c =>
                 !(_isLayoutExcluded(c)) && c._el && c._el.style.display !== 'none');
             if (children.length === 0) return;
 
-            const spine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const NS = 'http://www.w3.org/2000/svg';
             const color = root._branchColor || children[0]._branchColor || '#558ED5';
+            const cx = root._x, cy = root._y;
+            const hw = root._w / 2;
+            const hh = root._h * 0.63;                 // fish-head half height
+
+            const xs = children.map(c => c._x);
+            const endX = dir > 0 ? Math.max(...xs) + 40 : Math.min(...xs) - 40;
+            const backX = cx + dir * (hw + 8);         // spine emerges from head back
+            const noseX = cx - dir * (hw + 42);        // head nose points outward
+
+            // Fish head wrapping the central topic
+            const head = document.createElementNS(NS, 'path');
+            head.setAttribute('d',
+                `M ${noseX},${cy} `
+              + `C ${noseX},${cy - hh * 0.55} ${cx - dir * hw},${cy - hh} ${cx},${cy - hh} `
+              + `C ${cx + dir * hw * 0.6},${cy - hh} ${backX},${cy - hh * 0.7} ${backX},${cy} `
+              + `C ${backX},${cy + hh * 0.7} ${cx + dir * hw * 0.6},${cy + hh} ${cx},${cy + hh} `
+              + `C ${cx - dir * hw},${cy + hh} ${noseX},${cy + hh * 0.55} ${noseX},${cy} Z`);
+            head.setAttribute('fill', color);
+            head.setAttribute('fill-opacity', '0.15');
+            head.setAttribute('stroke', color);
+            head.setAttribute('stroke-width', '2');
+            head.setAttribute('stroke-linejoin', 'round');
+
+            // Spine from head back to beyond the last child
+            const spine = document.createElementNS(NS, 'path');
             spine.setAttribute('stroke', color);
             spine.setAttribute('stroke-width', '3');
             spine.setAttribute('fill', 'none');
             spine.setAttribute('stroke-linecap', 'round');
+            spine.setAttribute('d', `M${backX},${cy} L${endX},${cy}`);
 
-            // Spine from root edge to beyond the last child
-            const xs = children.map(c => c._x);
-            const endX = dir > 0 ? Math.max(...xs) + 40 : Math.min(...xs) - 40;
-            const y = root._y;
-            spine.setAttribute('d', `M${root._x + (root._w / 2) * dir},${y} L${endX},${y}`);
+            // Forked fish tail at the far end, opening outward
+            const tail = document.createElementNS(NS, 'path');
+            tail.setAttribute('d',
+                `M ${endX - dir * 6},${cy} `
+              + `L ${endX + dir * 46},${cy - 30} `
+              + `L ${endX + dir * 28},${cy} `
+              + `L ${endX + dir * 46},${cy + 30} Z`);
+            tail.setAttribute('fill', color);
+            tail.setAttribute('fill-opacity', '0.15');
+            tail.setAttribute('stroke', color);
+            tail.setAttribute('stroke-width', '2');
+            tail.setAttribute('stroke-linejoin', 'round');
 
-            // Arrow head at the end
-            const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            const ax = endX;
-            const headSize = 10;
-            arrow.setAttribute('d', `M${ax - headSize * dir},${y - headSize / 2} L${ax},${y} L${ax - headSize * dir},${y + headSize / 2}`);
-            arrow.setAttribute('stroke', color);
-            arrow.setAttribute('stroke-width', '3');
-            arrow.setAttribute('fill', 'none');
-            arrow.setAttribute('stroke-linecap', 'round');
-            arrow.setAttribute('stroke-linejoin', 'round');
-
+            this.svg.appendChild(head);
             this.svg.appendChild(spine);
-            this.svg.appendChild(arrow);
+            this.svg.appendChild(tail);
+        }
+
+        /** Bounding box (world coords) of a node's whole visible subtree. */
+        _subtreeBBox(node) {
+            let minX = node._x - node._w / 2, maxX = node._x + node._w / 2;
+            let minY = node._y - node._h / 2, maxY = node._y + node._h / 2;
+            if (node.expanded) {
+                for (const c of node.children) {
+                    if (_isLayoutExcluded(c)) continue;
+                    if (c._el && c._el.style.display === 'none') continue;
+                    const b = this._subtreeBBox(c);
+                    minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
+                    minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY);
+                }
+            }
+            return { minX, maxX, minY, maxY };
+        }
+
+        /**
+         * Draw the table grid for matrix layouts: outer border, a title band for
+         * the central topic, a header band for the top-level topics, and cell
+         * separators wrapping each top-level subtree.
+         *   orient = 'col' → top-level topics are columns (表格圖 直行)
+         *   orient = 'row' → top-level topics are rows    (表格圖 橫列)
+         */
+        _drawMatrixGrid(root, orient) {
+            const NS = 'http://www.w3.org/2000/svg';
+            const children = root.children.filter(c =>
+                !(_isLayoutExcluded(c)) && c._el && c._el.style.display !== 'none');
+            if (children.length === 0) return;
+
+            const grid = '#A6BCD9';
+            const pad = 16;
+            const isCol = (orient === 'col');
+
+            // Per-top-level subtree bounding boxes + overall union (incl. central topic)
+            const boxes = children.map(c => this._subtreeBBox(c));
+            let minX = root._x - root._w / 2, maxX = root._x + root._w / 2;
+            let minY = root._y - root._h / 2, maxY = root._y + root._h / 2;
+            for (const b of boxes) {
+                minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
+                minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY);
+            }
+            minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+
+            const line = (x1, y1, x2, y2) => {
+                const p = document.createElementNS(NS, 'path');
+                p.setAttribute('d', `M${x1},${y1} L${x2},${y2}`);
+                p.setAttribute('stroke', grid);
+                p.setAttribute('stroke-width', '1');
+                p.setAttribute('fill', 'none');
+                this.svg.appendChild(p);
+            };
+            const band = (x, y, w, h) => {
+                const r = document.createElementNS(NS, 'rect');
+                r.setAttribute('x', x); r.setAttribute('y', y);
+                r.setAttribute('width', w); r.setAttribute('height', h);
+                r.setAttribute('fill', 'rgba(166,188,217,0.10)');
+                r.setAttribute('stroke', 'none');
+                this.svg.appendChild(r);
+            };
+            const border = (x, y, w, h) => {
+                const r = document.createElementNS(NS, 'rect');
+                r.setAttribute('x', x); r.setAttribute('y', y);
+                r.setAttribute('width', w); r.setAttribute('height', h);
+                r.setAttribute('fill', 'none');
+                r.setAttribute('stroke', grid);
+                r.setAttribute('stroke-width', '1.5');
+                this.svg.appendChild(r);
+            };
+
+            if (isCol) {
+                const titleBottom = root._y + root._h / 2 + pad / 2;
+                const headerBottom = Math.max(...children.map(c => c._y + c._h / 2)) + pad / 2;
+                band(minX, minY, maxX - minX, headerBottom - minY);   // title + header band
+                border(minX, minY, maxX - minX, maxY - minY);          // outer
+                line(minX, titleBottom, maxX, titleBottom);            // below title
+                line(minX, headerBottom, maxX, headerBottom);          // below header row
+                for (let i = 0; i < boxes.length - 1; i++) {
+                    const x = (boxes[i].maxX + boxes[i + 1].minX) / 2;
+                    line(x, titleBottom, x, maxY);                     // column separators
+                }
+            } else {
+                const titleRight = root._x + root._w / 2 + pad / 2;
+                const labelRight = Math.max(...children.map(c => c._x + c._w / 2)) + pad / 2;
+                band(minX, minY, labelRight - minX, maxY - minY);      // title + label band
+                border(minX, minY, maxX - minX, maxY - minY);          // outer
+                line(titleRight, minY, titleRight, maxY);              // right of title
+                line(labelRight, minY, labelRight, maxY);              // right of label column
+                for (let i = 0; i < boxes.length - 1; i++) {
+                    const y = (boxes[i].maxY + boxes[i + 1].minY) / 2;
+                    line(minX, y, maxX, y);                            // row separators
+                }
+            }
         }
 
         _drawLinesForNode(node) {
