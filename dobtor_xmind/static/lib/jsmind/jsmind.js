@@ -535,58 +535,101 @@
             }
         }
 
-        // Fishbone layout — children alternate above/below a horizontal spine
-        // direction = 7 (fishbone child) for 45° diagonal connection lines
+        // Fishbone (nested Ishikawa). Level-2 "main bones" run diagonally off the
+        // spine, alternating above/below at the same angle. Deeper levels
+        // alternate horizontal / diagonal each step (L3 horizontal, L4 diagonal…).
+        // Every fishbone node stores _boneStart (its attachment point on the
+        // parent bone) so _drawLine renders a straight bone. direction = 7.
         _layoutFishbone(root, dir) {
             root._x = 0;
             root._y = 0;
+            const headDir = -dir;   // horizontal direction toward the head
+            const ribs = root.children.filter(c => !(_isLayoutExcluded(c)));
+            let cAbove = root._w / 2 + 50;
+            let cBelow = root._w / 2 + 50;
+            for (let i = 0; i < ribs.length; i++) {
+                const rib = ribs[i];
+                rib._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
+                this._propagateBranchColor(rib);
+                const up = (i % 2 === 0);
+                rib._fishUp = up;
+                rib.direction = 7;
 
-            const spineGap = 40; // horizontal gap along the spine
-            // Ribs alternate above/below the spine, so each side gets its own
-            // cursor. Advancing only the SAME side by the rib's subtree width
-            // keeps same-side ribs from overlapping while letting opposite-side
-            // ribs interleave (without over-stretching the whole spine).
-            let dAbove = root._w / 2 + spineGap;
-            let dDown = root._w / 2 + spineGap;
+                const block = this._fishBlock(rib, 'diag');
+                const vExt = Math.max(80, block.h);    // diagonal bone vertical extent
+                const hShift = vExt * 0.55;            // horizontal component (toward head)
+                const foot = Math.max(rib._w, block.w) + hShift + 30;
+                const cur = up ? cAbove : cBelow;
+                const attachX = dir * (cur + foot / 2);
+                rib._boneStart = { x: attachX, y: 0 };
+                rib._x = attachX + headDir * hShift;
+                rib._y = (up ? -1 : 1) * vExt;
+                this._fishboneBranch(rib, 'diag', up, headDir);
+                if (up) cAbove = cur + foot + 50; else cBelow = cur + foot + 50;
+            }
+        }
 
-            for (let i = 0; i < root.children.length; i++) {
-                const child = root.children[i];
-                child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
-                this._propagateBranchColor(child);
-                child.direction = 7; // fishbone child — uses diagonal line
+        // Footprint {w,h} of a fishbone subtree. boneAxis = this node's OWN bone
+        // direction; its children's bones run on the opposite axis.
+        _fishBlock(node, boneAxis) {
+            const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
+            if (kids.length === 0) return { w: node._w, h: node._h };
+            const childAxis = boneAxis === 'diag' ? 'horiz' : 'diag';
+            const cb = kids.map(c => this._fishBlock(c, childAxis));
+            const GAP = 16;
+            if (boneAxis === 'diag') {
+                // children (horizontal bones) stack vertically
+                const h = cb.reduce((s, b) => s + b.h, 0) + GAP * (kids.length - 1);
+                const w = node._w + 45 + Math.max(...cb.map(b => b.w));
+                return { w, h: Math.max(node._h, h) };
+            }
+            // boneAxis === 'horiz' → children (diagonal bones) stack horizontally
+            const w = cb.reduce((s, b) => s + b.w, 0) + GAP * (kids.length - 1);
+            const h = node._h + 46 + Math.max(...cb.map(b => b.h));
+            return { w: Math.max(node._w, w), h };
+        }
 
-                // Alternate above (even) and below (odd)
-                const above = (i % 2 === 0);
-                const subH = this._subtreeHeight(child);
-                const ribW = this._subtreeWidthHorizontal(child);
-                const d0 = above ? dAbove : dDown;
-                child._x = dir * (d0 + child._w / 2);
-                child._y = above ? -(subH / 2 + 20) : (subH / 2 + 20);
-                child._fishboneAbove = above;
-                child._fishboneDir = dir;
+        // Place node's children along node's bone, alternating axis each level.
+        _fishboneBranch(node, boneAxis, up, headDir) {
+            const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
+            if (kids.length === 0) return;
+            const childAxis = boneAxis === 'diag' ? 'horiz' : 'diag';
+            const blocks = kids.map(c => this._fishBlock(c, childAxis));
+            const GAP = 16;
+            const bsx = node._boneStart.x, bsy = node._boneStart.y;
+            const tx = node._x, ty = node._y;
+            const ySign = up ? -1 : 1;
 
-                if (above) {
-                    dAbove = d0 + ribW + spineGap;
-                } else {
-                    dDown = d0 + ribW + spineGap;
+            if (boneAxis === 'diag') {
+                // children = horizontal bones, stacked vertically along the diagonal
+                let cy = bsy + ySign * 26;
+                for (let j = 0; j < kids.length; j++) {
+                    const kid = kids[j], b = blocks[j];
+                    const ccy = cy + ySign * b.h / 2;
+                    const t = (ty - bsy) ? (ccy - bsy) / (ty - bsy) : 0;
+                    const ax = bsx + (tx - bsx) * Math.max(0, Math.min(1, t));
+                    kid._boneStart = { x: ax, y: ccy };
+                    kid._x = ax + headDir * (kid._w / 2 + 45);
+                    kid._y = ccy;
+                    kid.direction = 7;
+                    kid._fishUp = up;
+                    this._fishboneBranch(kid, 'horiz', up, headDir);
+                    cy += ySign * (b.h + GAP);
                 }
-
-                // Layout child's own children as vertical branch extending away from spine
-                if (child.expanded && child.children.length > 0) {
-                    const vDir = above ? -1 : 1; // above: extend upward, below: extend downward
-                    const hGap = 20;
-                    const vGap = 5;
-                    let gcY = child._y + (child._h / 2 + 10) * vDir;
-                    for (const gc of child.children) {
-                        if (_isLayoutExcluded(gc)) continue;
-                        gc._x = child._x + (gc._w / 2 + hGap) * dir;
-                        gc._y = gcY + (gc._h / 2) * vDir;
-                        gc.direction = dir; // horizontal direction for further children
-                        gcY += (gc._h + vGap) * vDir;
-                        if (gc.expanded && gc.children.length > 0) {
-                            this._layoutChildrenWithStructure(gc, dir);
-                        }
-                    }
+            } else {
+                // children = diagonal bones, stacked horizontally along the horizontal bone
+                let cx = bsx + headDir * 26;
+                for (let j = 0; j < kids.length; j++) {
+                    const kid = kids[j], b = blocks[j];
+                    const ccx = cx + headDir * b.w / 2;
+                    const reachV = 46, reachH = 26;
+                    kid._boneStart = { x: ccx, y: node._y };
+                    kid._x = ccx + headDir * reachH;
+                    kid._y = node._y + ySign * reachV;
+                    kid.direction = 7;
+                    kid._fishUp = up;
+                    this._fishboneBranch(kid, 'diag', up, headDir);
+                    cx += headDir * (b.w + GAP);
                 }
             }
         }
@@ -1978,15 +2021,14 @@
                 : child._y;
 
             if (dir === 7) {
-                // Fishbone: diagonal from spine intersection to child
-                // Spine runs at parent._y, intersection at child._x offset back by height
-                const above = child._fishboneAbove;
-                const fbDir = child._fishboneDir || 1;
-                const offset = Math.abs(child._y - parent._y); // vertical distance
-                sx = child._x - offset * fbDir * 0.7; // 45° angle back along spine
-                sy = parent._y; // on the spine
-                ex = child._x - (child._w / 2) * fbDir;
-                ey = child._y;
+                // Fishbone bone: straight line from the attachment point on the
+                // parent bone (_boneStart) to the child's near edge.
+                const bs = child._boneStart || { x: parent._x, y: parent._y };
+                sx = bs.x;
+                sy = bs.y;
+                const ang = Math.atan2(child._y - bs.y, child._x - bs.x);
+                ex = child._x - Math.cos(ang) * (child._w / 2);
+                ey = child._y - Math.sin(ang) * (child._h / 2);
             } else if (dir === 5) {
                 // Timeline horizontal: vertical stub from spine to child
                 sx = child._x;
