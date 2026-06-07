@@ -586,6 +586,10 @@
         _fishBoneLayout(node, axis, up, tailDir, DX, DY) {
             const bux = axis === 'diag' ? tailDir * DX : tailDir;
             const buy = axis === 'diag' ? (up ? -1 : 1) * DY : 0;
+            // Diagonal topics tilt to follow the bone (text at 60°); horizontal = 0.
+            let deg = Math.atan2(buy, bux) * 180 / Math.PI;
+            if (deg > 90) deg -= 180; else if (deg < -90) deg += 180;
+            node._fishRotate = (axis === 'diag') ? deg : 0;
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (kids.length === 0) {
                 node._boneEnd = { x: node._x + bux * 30, y: node._y + buy * 30 };
@@ -1451,6 +1455,11 @@
             }
             node._el.style.left = (node._x - node._w / 2) + 'px';
             node._el.style.top = (node._y - node._h / 2) + 'px';
+            // Fishbone: rotate diagonal-bone topics to follow the 60° line.
+            const _fbRot = this.options.layout
+                && (this.options.layout.mode === 'fishbone_left' || this.options.layout.mode === 'fishbone_right')
+                && node._fishRotate;
+            node._el.style.transform = _fbRot ? `rotate(${node._fishRotate}deg)` : '';
             node._el.style.display = '';
 
             // Position expander (11px circle, XMind 2 style)
