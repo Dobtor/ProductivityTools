@@ -22,21 +22,21 @@ class XMindSheet(models.Model):
 
     # Layout settings
     layout_type = fields.Selection([
-        ('map', 'Mind Map'),
-        ('logic_right', 'Logic Right'),
-        ('logic_left', 'Logic Left'),
-        ('tree_right', 'Tree Right'),
-        ('tree_left', 'Tree Left'),
-        ('org_chart_down', 'Org Chart Down'),
-        ('org_chart_up', 'Org Chart Up'),
-        ('updown', 'Up-Down'),
-        ('fishbone_left', 'Fishbone Left'),
-        ('fishbone_right', 'Fishbone Right'),
-        ('matrix', 'Matrix'),  # legacy alias → vertical table
-        ('matrix_horizontal', 'Matrix (Horizontal Table)'),
-        ('matrix_vertical', 'Matrix (Vertical Table)'),
-        ('timeline_horizontal', 'Timeline Horizontal'),
-        ('timeline_vertical', 'Timeline Vertical'),
+        ('map', '心智圖'),
+        ('org_chart_down', '組織圖 (向下)'),
+        ('org_chart_up', '組織圖 (向上)'),
+        ('tree_right', '樹狀圖 (向右)'),
+        ('tree_left', '樹狀圖 (向左)'),
+        ('logic_right', '邏輯圖 (向右)'),
+        ('logic_left', '邏輯圖 (向左)'),
+        ('timeline_horizontal', '時間軸 - 水平'),
+        ('timeline_vertical', '時間軸 - 垂直'),
+        ('fishbone_left', '魚骨圖 (頭向左)'),
+        ('fishbone_right', '魚骨圖 (頭向右)'),
+        # 注意：_layoutMatrixH 渲染為「直行」(欄)，_layoutMatrixV 渲染為「橫列」(列)
+        ('matrix_vertical', '表格圖 (橫列)'),
+        ('matrix_horizontal', '表格圖 (直行)'),
+        ('matrix', '表格圖 (橫列)'),  # legacy alias → matrix_vertical
     ], string='Layout Type', default='map')
 
     # Theme

@@ -215,17 +215,17 @@
                             <div class="mb-3 mb-2">
                                 <label class="small mb-1">Layout Type</label>
                                 <select class="form-control form-control-sm o_format_structure_type" t-on-change="onFormatStructureChange">
-                                    <option value="map">Mind Map (Balanced)</option>
-                                    <option value="logic_right">Logic Right</option>
-                                    <option value="logic_left">Logic Left</option>
-                                    <option value="tree_right">Tree Right</option>
-                                    <option value="tree_left">Tree Left</option>
-                                    <option value="org_chart_down">Org Chart Down</option>
-                                    <option value="org_chart_up">Org Chart Up</option>
-                                    <option value="fishbone_left">Fishbone Left</option>
-                                    <option value="fishbone_right">Fishbone Right</option>
-                                    <option value="timeline_horizontal">Timeline Horizontal</option>
-                                    <option value="timeline_vertical">Timeline Vertical</option>
+                                    <option value="map">心智圖</option>
+                                    <option value="org_chart_down">組織圖 (向下)</option>
+                                    <option value="org_chart_up">組織圖 (向上)</option>
+                                    <option value="tree_right">樹狀圖 (向右)</option>
+                                    <option value="tree_left">樹狀圖 (向左)</option>
+                                    <option value="logic_right">邏輯圖 (向右)</option>
+                                    <option value="logic_left">邏輯圖 (向左)</option>
+                                    <option value="timeline_horizontal">時間軸 - 水平</option>
+                                    <option value="timeline_vertical">時間軸 - 垂直</option>
+                                    <option value="fishbone_left">魚骨圖 (頭向左)</option>
+                                    <option value="fishbone_right">魚骨圖 (頭向右)</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
@@ -438,20 +438,19 @@
                 <!-- Group 8: Structure / Theme selectors (XMind 2: Window > Properties panels) -->
                 <div class="btn-group me-2">
                     <select class="form-control form-control-sm o_mindmap_layout_select" title="Structure" t-on-change="onLayoutChange">
-                        <option value="map">Mind Map</option>
-                        <option value="logic_right">Logic Right</option>
-                        <option value="logic_left">Logic Left</option>
-                        <option value="tree_right">Tree Right</option>
-                        <option value="tree_left">Tree Left</option>
-                        <option value="org_chart_down">Org Chart ↓</option>
-                        <option value="org_chart_up">Org Chart ↑</option>
-                        <option value="updown">Up-Down</option>
-                        <option value="fishbone_right">Fishbone →</option>
-                        <option value="fishbone_left">Fishbone ←</option>
-                        <option value="matrix_horizontal">Matrix 橫表格</option>
-                        <option value="matrix_vertical">Matrix 直表格</option>
-                        <option value="timeline_horizontal">Timeline →</option>
-                        <option value="timeline_vertical">Timeline ↓</option>
+                        <option value="map">心智圖</option>
+                        <option value="org_chart_down">組織圖 (向下)</option>
+                        <option value="org_chart_up">組織圖 (向上)</option>
+                        <option value="tree_right">樹狀圖 (向右)</option>
+                        <option value="tree_left">樹狀圖 (向左)</option>
+                        <option value="logic_right">邏輯圖 (向右)</option>
+                        <option value="logic_left">邏輯圖 (向左)</option>
+                        <option value="timeline_horizontal">時間軸 - 水平</option>
+                        <option value="timeline_vertical">時間軸 - 垂直</option>
+                        <option value="fishbone_left">魚骨圖 (頭向左)</option>
+                        <option value="fishbone_right">魚骨圖 (頭向右)</option>
+                        <option value="matrix_vertical">表格圖 (橫列)</option>
+                        <option value="matrix_horizontal">表格圖 (直行)</option>
                     </select>
                 </div>
 
@@ -517,18 +516,18 @@
                             <i class="fa fa-sitemap text-primary"/> Child Structure
                         </label>
                         <select class="form-control form-control-sm o_topic_child_structure" t-on-change="onTopicChildStructureChange">
-                            <option value="">Inherit (Default)</option>
-                            <option value="map">Mind Map (Balanced)</option>
-                            <option value="logic_right">Logic Right</option>
-                            <option value="logic_left">Logic Left</option>
-                            <option value="tree_right">Tree Right</option>
-                            <option value="tree_left">Tree Left</option>
-                            <option value="org_chart_down">Org Chart Down</option>
-                            <option value="org_chart_up">Org Chart Up</option>
-                            <option value="fishbone_left">Fishbone Left</option>
-                            <option value="fishbone_right">Fishbone Right</option>
-                            <option value="timeline_horizontal">Timeline Horizontal</option>
-                            <option value="timeline_vertical">Timeline Vertical</option>
+                            <option value="">繼承 (預設)</option>
+                            <option value="map">心智圖</option>
+                            <option value="org_chart_down">組織圖 (向下)</option>
+                            <option value="org_chart_up">組織圖 (向上)</option>
+                            <option value="tree_right">樹狀圖 (向右)</option>
+                            <option value="tree_left">樹狀圖 (向左)</option>
+                            <option value="logic_right">邏輯圖 (向右)</option>
+                            <option value="logic_left">邏輯圖 (向左)</option>
+                            <option value="timeline_horizontal">時間軸 - 水平</option>
+                            <option value="timeline_vertical">時間軸 - 垂直</option>
+                            <option value="fishbone_left">魚骨圖 (頭向左)</option>
+                            <option value="fishbone_right">魚骨圖 (頭向右)</option>
                         </select>
                     </div>
 

@@ -261,8 +261,6 @@
                 this._layoutTreeRoot(root, 1);
             } else if (mode === 'tree_left') {
                 this._layoutTreeRoot(root, -1);
-            } else if (mode === 'updown') {
-                this._layoutUpDown(root);
             } else if (mode === 'fishbone_right') {
                 this._layoutFishbone(root, 1);
             } else if (mode === 'fishbone_left') {
@@ -344,7 +342,7 @@
         /**
          * Horizontal extent of a subtree laid out as a logic/tree branch
          * (children to one side, stacked vertically). Used by the secondary
-         * layouts (Up-Down / Fishbone / Timeline / Matrix) to reserve the real
+         * layouts (Fishbone / Timeline / Matrix) to reserve the real
          * width a child's whole subtree occupies, instead of just the node box.
          * Using this for spacing is monotonic: it can only spread nodes apart,
          * never increase overlap.
@@ -488,53 +486,6 @@
                     this._layoutChildrenWithStructure(child, 2);
                 }
             }
-        }
-
-        // Up-Down — first half above, second half below (XMind 2 updown structure)
-        _layoutUpDown(root) {
-            root._x = 0;
-            root._y = 0;
-            const halfIdx = Math.ceil(root.children.length / 2);
-
-            for (let i = 0; i < root.children.length; i++) {
-                root.children[i]._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
-                this._propagateBranchColor(root.children[i]);
-                root.children[i].direction = 2;
-            }
-
-            // Each half is a mirrored org-chart: upper branches sit above the
-            // root and their whole subtree extends UPWARD; lower branches sit
-            // below and extend DOWNWARD. Siblings are spaced by their vertical
-            // subtree width so deep subtrees never collide horizontally.
-            const ps = getStyleForDepth(root._depth);
-            const hgap = ps.spacingMajor || this.hgap;
-            const vgap = ps.spacingMinor || this.vgap;
-
-            const layoutHalf = (branches, goUp) => {
-                if (!branches.length) return;
-                const widths = branches.map(c => this._subtreeWidthVertical(c));
-                const totalW = widths.reduce((s, w) => s + w, 0) + hgap * (branches.length - 1);
-                let curX = root._x - totalW / 2;
-                for (let i = 0; i < branches.length; i++) {
-                    const child = branches[i];
-                    child._x = curX + widths[i] / 2;
-                    child._y = goUp
-                        ? root._y - root._h / 2 - vgap - child._h / 2
-                        : root._y + root._h / 2 + vgap + child._h / 2;
-                    child.direction = 2;
-                    curX += widths[i] + hgap;
-                    if (child.expanded && child.children.length > 0) {
-                        if (goUp) {
-                            this._layoutVerticalUpChildren(child);
-                        } else {
-                            this._layoutVerticalChildren(child);
-                        }
-                    }
-                }
-            };
-
-            layoutHalf(root.children.slice(0, halfIdx), true);   // upper → org-chart-up
-            layoutHalf(root.children.slice(halfIdx), false);     // lower → org-chart-down
         }
 
         // Fishbone layout — children alternate above/below a horizontal spine
