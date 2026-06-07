@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_approval.MethodSelectField">
+        <div class="o_field_bpmn_method d-flex gap-1 align-items-center">
+            <select t-if="!state.manual" class="form-select form-select-sm"
+                    t-on-change="onSelect">
+                <option value="">—</option>
+                <option t-foreach="state.options" t-as="o" t-key="o.name"
+                        t-att-value="o.name" t-att-selected="o.name === value">
+                    <t t-esc="o.label"/>
+                </option>
+                <option t-if="value and !valueKnown" t-att-value="value" selected="selected">
+                    <t t-esc="value"/>（手動）
+                </option>
+                <option value="__manual__">（手動輸入…）</option>
+            </select>
+            <t t-else="">
+                <input type="text" class="form-control form-control-sm"
+                       t-att-value="value" t-on-change="onManualInput" placeholder="方法名"/>
+                <button class="btn btn-link btn-sm p-0" title="改用下拉"
+                        t-on-click="backToSelect"><i class="fa fa-list"/></button>
+            </t>
+        </div>
+    </t>
+
+</templates>

@@ -27,7 +27,9 @@
                     <group>
                         <group>
                             <field name="model_id"/>
-                            <field name="method_name"/>
+                            <field name="model_name" invisible="1"/>
+                            <field name="method_name" widget="bpmn_method_select"
+                                   options="{'model_field': 'model_name'}"/>
                             <field name="process_id"/>
                         </group>
                         <group>

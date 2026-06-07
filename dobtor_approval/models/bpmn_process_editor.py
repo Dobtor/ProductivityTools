@@ -451,25 +451,41 @@ class BpmnExecutableProcessEditor(models.Model):
     # ------------------------------------------------------------------
     @api.model
     def scan_model_actions(self, model_name):
+        """回傳可攔截的方法/按鈕清單 [{name, label, source}]，供 UI 下拉選取（取代手打方法名）。
+
+        來源：① 預設 form（含繼承合併）的 type=object 按鈕 ② 該模型所有 form view 的 object 按鈕
+        ③ 白名單中模型確實存在的方法。以 name 去重，有中文 string 優先。
+        """
         if not model_name or model_name not in self.env:
             return []
         found = {}
-        # 1) form 按鈕 type=object
-        try:
-            arch = self.env[model_name].get_view(view_type='form')['arch']
-            root = etree.fromstring(arch.encode('utf-8'))
+
+        def _scan_arch(arch):
+            try:
+                root = etree.fromstring(arch.encode('utf-8'))
+            except Exception:  # noqa: BLE001
+                return
             for btn in root.iter('button'):
-                if btn.get('type') == 'object' and btn.get('name'):
-                    found[btn.get('name')] = {
-                        'name': btn.get('name'),
-                        'label': btn.get('string') or btn.get('name'),
-                        'source': 'button',
-                    }
+                name = btn.get('name')
+                if btn.get('type') == 'object' and name and not name.startswith('%'):
+                    label = btn.get('string') or btn.get('aria-label') or name
+                    cur = found.get(name)
+                    # 有中文/較長 label 的覆蓋純方法名
+                    if not cur or (cur['label'] == name and label != name):
+                        found[name] = {'name': name, 'label': label, 'source': 'button'}
+
+        # ① 預設合併 form（含 inherit）
+        try:
+            _scan_arch(self.env[model_name].get_view(view_type='form')['arch'])
         except Exception:  # noqa: BLE001
             pass
-        # 2) 白名單中模型確實有的方法
+        # ② 該模型所有 form view（特殊/次要視圖的按鈕）
+        for view in self.env['ir.ui.view'].sudo().search(
+                [('model', '=', model_name), ('type', '=', 'form')], limit=50):
+            _scan_arch(view.arch or '')
+        # ③ 白名單方法
         Model = self.env[model_name]
         for m in _METHOD_WHITELIST:
             if m not in found and hasattr(Model, m):
-                found[m] = {'name': m, 'label': m, 'source': 'whitelist'}
+                found[m] = {'name': m, 'label': '%s（常用）' % m, 'source': 'whitelist'}
         return sorted(found.values(), key=lambda d: d['label'])

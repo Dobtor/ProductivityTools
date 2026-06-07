@@ -68,6 +68,8 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
             'dobtor_approval/static/src/dmn_editor/dmn_editor.js',
             'dobtor_approval/static/src/dmn_editor/dmn_editor.xml',
             'dobtor_approval/static/src/dmn_editor/dmn_editor.scss',
+            'dobtor_approval/static/src/fields/method_select.js',
+            'dobtor_approval/static/src/fields/method_select.xml',
         ],
     },
     'demo': [
