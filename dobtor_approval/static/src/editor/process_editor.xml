@@ -270,7 +270,7 @@
                                                 <option t-att-value="dc.id" t-att-selected="state.panel.dmn_decision_id === dc.id"><t t-esc="dc.name"/></option>
                                             </t>
                                         </select>
-                                        <small class="text-muted">求值後 <code>dmn_result</code> 注入出線條件運算式（於 BPMN 條件式引用，如 <code>dmn_result == 'approve'</code>）。</small>
+                                        <small class="text-muted">求值後可於下方出線條件以欄位 <code>dmn_result</code> 引用（如 欄位=dmn_result、=、值=approve）。</small>
                                     </div>
                                     <label class="form-label fw-bold">出線條件</label>
                                     <div t-if="!state.panel.outgoing.length" class="text-muted fst-italic">此閘道無出線。</div>

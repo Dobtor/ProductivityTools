@@ -182,19 +182,32 @@ class BpmnProcessInstance(models.Model):
                     base_ctx.update(res)
             except Exception as exc:
                 _logger.warning('gateway DMN 決策求值失敗: %s', exc)
+        # 編輯器 row-builder 條件（node_config.flow_conditions JSON：{target: [rows]}）
+        fconds = {}
+        if cfg and cfg.flow_conditions:
+            try:
+                fconds = json.loads(cfg.flow_conditions)
+            except (ValueError, TypeError):
+                fconds = {}
         chosen = None
         default = None
         for flow in outs:
             cond = flow.get('condition')
-            if not cond:
+            rows = fconds.get(flow['target'])
+            if not cond and not rows:
                 default = default or flow
                 continue
             try:
-                if safe_eval(cond, dict(base_ctx)):
-                    chosen = flow
-                    break
+                if cond:
+                    ok = bool(safe_eval(cond, dict(base_ctx)))
+                else:
+                    ok = self._eval_cond_rows(rows, base_ctx, record)
             except Exception as exc:
                 _logger.warning('exclusive gateway 條件求值失敗: %s', exc)
+                ok = False
+            if ok:
+                chosen = flow
+                break
         flow = chosen or default or (outs[0] if outs else None)
         if not flow:
             token.consume()
@@ -203,6 +216,49 @@ class BpmnProcessInstance(models.Model):
         token.write({'bpmn_element_id': flow['target'],
                      'node_name': nodes.get(flow['target'], {}).get('name')})
         return token
+
+    @staticmethod
+    def _as_num(v):
+        if isinstance(v, bool) or v is None:
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+
+    def _cmp_row(self, left, op, val):
+        """單一條件比較（數值優先，否則字串）。"""
+        if op == 'set':
+            return bool(left)
+        if op == 'in':
+            opts = [v.strip() for v in (val or '').split(',') if v.strip()]
+            return str(left) in opts
+        lnum, rnum = self._as_num(left), self._as_num(val)
+        if lnum is not None and rnum is not None:
+            l, r = lnum, rnum
+        else:
+            l = '' if left is None else str(left)
+            r = val or ''
+        return {
+            '=': l == r, '!=': l != r,
+            '>': l > r, '>=': l >= r, '<': l < r, '<=': l <= r,
+        }.get(op, False)
+
+    def _eval_cond_rows(self, rows, ctx, record):
+        """AND-combine 編輯器 row-builder 條件 [{field, op, value}]。
+        field 先查 ctx（如 dmn_result），再查單據欄位（m2o 取 id）。"""
+        for row in rows or []:
+            field = (row.get('field') or '').strip()
+            if not field:
+                continue
+            left = ctx.get(field)
+            if left is None and record and field in record._fields:
+                left = record[field]
+                if hasattr(left, '_name'):
+                    left = left.id
+            if not self._cmp_row(left, row.get('op') or '=', row.get('value')):
+                return False
+        return True
 
     def _route_parallel(self, token, nodes, flows):
         """並行閘道：每條出線一個 token，原 token 消耗後逐一推進。"""
