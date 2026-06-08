@@ -544,18 +544,12 @@
             root._y = 0;
             const tailDir = dir;          // horizontal direction toward the tail
             const DX = 0.34, DY = 0.94;   // diagonal unit vector (~70°, steep)
-            const GAP = 26;               // spine gap between pairs
+            const GAP = 30;               // spine gap between pairs
             const ribs = root.children.filter(c => !(_isLayoutExcluded(c)));
-            // Tail-ward edge already consumed (head box, then each placed pair).
-            let tailEdge = tailDir * (root._w / 2 + 50);
+            let tailEdge = tailDir * (root._w / 2 + 50);   // x already consumed
             // Ribs pair up (one above + one below) sharing the same spine point.
             for (let p = 0; p < ribs.length; p += 2) {
-                // Tentatively attach just past the previous pair, lay out, measure
-                // the pair's head/tail span, then shift so its head edge clears the
-                // previous pair (horizontals fold head-ward, so a pair spreads both
-                // ways). This keeps groups compact yet non-colliding.
-                const tentX = tailEdge + tailDir * GAP;
-                let span = { head: 0, tail: 0 };
+                let headExt = 0, tailExt = 0;
                 const placed = [];
                 for (let s = 0; s < 2; s++) {
                     const rib = ribs[p + s];
@@ -563,47 +557,17 @@
                     rib._branchColor = BRANCH_COLORS[(p + s) % BRANCH_COLORS.length];
                     this._propagateBranchColor(rib);
                     rib._fishUp = (s === 0);   // first = above, second = below
-                    rib.direction = 7;
-                    rib._x = tentX;            // both ribs share the spine point
-                    rib._y = 0;
-                    this._fishBoneLayout(rib, 'diag', rib._fishUp, tailDir, DX, DY);
-                    const sp = this._fishboneSpanX(rib, tentX, tailDir);
-                    span.head = Math.max(span.head, sp.head);
-                    span.tail = Math.max(span.tail, sp.tail);
+                    // lay the rib's whole subtree out at a relative origin (0,0)
+                    const bb = this._fishLayout(rib, 'diag', rib._fishUp, tailDir, DX, DY);
+                    headExt = Math.max(headExt, tailDir > 0 ? -bb.minX : bb.maxX);
+                    tailExt = Math.max(tailExt, tailDir > 0 ? bb.maxX : -bb.minX);
                     placed.push(rib);
                 }
-                // shift so the pair's head edge sits GAP past the previous tail edge
-                const shift = (tailEdge + tailDir * GAP) - (tentX - tailDir * span.head);
-                for (const rib of placed) this._fishShiftX(rib, shift);
-                tailEdge = (tentX + shift) + tailDir * span.tail;
+                // place pair so its head edge sits GAP past the previous tail edge
+                const originX = tailEdge + tailDir * (GAP + headExt);
+                for (const rib of placed) this._fishTranslate(rib, originX, 0);
+                tailEdge = originX + tailDir * tailExt;
             }
-        }
-
-        // Head-ward / tail-ward horizontal span of a fishbone subtree from attachX.
-        _fishboneSpanX(node, attachX, tailDir) {
-            let head = 0, tail = 0;
-            const walk = (n) => {
-                const pts = [n._x, n._x + (n._fishBux || 0) * n._w];
-                if (n._boneEnd) pts.push(n._boneEnd.x);
-                for (const px of pts) {
-                    const d = tailDir * (px - attachX);   // +ve = tail-ward
-                    if (d > tail) tail = d; else if (-d > head) head = -d;
-                }
-                for (const c of n.children) if (!(_isLayoutExcluded(c))) walk(c);
-            };
-            walk(node);
-            return { head, tail };
-        }
-
-        // Translate a fishbone subtree's x positions (node + bone end) by dx.
-        _fishShiftX(node, dx) {
-            if (!dx) return;
-            const walk = (n) => {
-                n._x += dx;
-                if (n._boneEnd) n._boneEnd.x += dx;
-                for (const c of n.children) walk(c);
-            };
-            walk(node);
         }
 
         // Total number of descendant topics (the branch's expansion size).
@@ -614,62 +578,56 @@
             return n;
         }
 
-        // Footprint {w,h} of a fishbone subtree (over-reserved to avoid overlap).
-        // boneAxis = this node's OWN bone direction.
-        _fishBlock(node, boneAxis) {
-            const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
-            if (kids.length === 0) return { w: node._w, h: node._h };
-            const childAxis = boneAxis === 'diag' ? 'horiz' : 'diag';
-            const cb = kids.map(c => this._fishBlock(c, childAxis));
-            const GAP = 8;
-            if (boneAxis === 'diag') {
-                // children (horizontal bones) stack vertically
-                const h = cb.reduce((s, b) => s + b.h, 0) + GAP * (kids.length - 1);
-                const w = node._w + 30 + Math.max(...cb.map(b => b.w));
-                return { w, h: Math.max(node._h, h) };
-            }
-            // boneAxis === 'horiz' → children (diagonal bones) stack horizontally
-            const w = cb.reduce((s, b) => s + b.w, 0) + GAP * (kids.length - 1);
-            const h = node._h + 30 + Math.max(...cb.map(b => b.h));
-            return { w: Math.max(node._w, w), h };
+        // Translate a fishbone subtree by (dx,dy).
+        _fishTranslate(node, dx, dy) {
+            node._x += dx; node._y += dy;
+            if (node._boneEnd) { node._boneEnd.x += dx; node._boneEnd.y += dy; }
+            for (const c of node.children) this._fishTranslate(c, dx, dy);
         }
 
-        // Lay out node's bone (extending toward the tail) and its children along
-        // it. axis = node's own bone direction; children alternate to the other.
-        _fishBoneLayout(node, axis, up, tailDir, DX, DY) {
-            // All bones run toward the tail: diagonal (L2/L4/…) at the fixed angle
-            // up/down, horizontal (L3/L5/…) straight toward the tail.
+        // Lay out node's subtree with the node at origin (0,0); the bone extends
+        // toward the tail (diagonal for L2/L4…, horizontal for L3/L5…). Children
+        // are laid out at their own origin, measured, then translated into a slot
+        // sized by their TRUE bounding box so nothing overlaps. Returns the whole
+        // subtree's bounding box relative to the node origin.
+        _fishLayout(node, axis, up, tailDir, DX, DY) {
             const bux = axis === 'diag' ? tailDir * DX : tailDir;
             const buy = axis === 'diag' ? (up ? -1 : 1) * DY : 0;
             node._fishBux = bux;
             node._fishBuy = buy;
+            node._fishUp = up;
+            node.direction = 7;
+            node._x = 0; node._y = 0;
+            // the node's own text lies along the bone from the origin
+            const tx = bux * node._w, ty = buy * node._w;
+            const half = node._h * 0.5;
+            let minX = Math.min(0, tx) - half, maxX = Math.max(0, tx) + half;
+            let minY = Math.min(0, ty) - half, maxY = Math.max(0, ty) + half;
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
-            if (kids.length === 0) {
-                node._boneEnd = { x: node._x + bux * 30, y: node._y + buy * 30 };
-                return;
-            }
-            // Larger branches (more descendants) sit closer to the spine (near the
-            // bone root); smaller branches sit toward the outer tip.
+            const addBoneEnd = (a) => {
+                node._boneEnd = { x: bux * a, y: buy * a };
+                minX = Math.min(minX, node._boneEnd.x); maxX = Math.max(maxX, node._boneEnd.x);
+                minY = Math.min(minY, node._boneEnd.y); maxY = Math.max(maxY, node._boneEnd.y);
+            };
+            if (kids.length === 0) { addBoneEnd(Math.max(node._w, 28)); return { minX, maxX, minY, maxY }; }
+            // Larger branches near the spine root; smaller toward the outer tip.
             kids.sort((a, b) => this._fishSize(b) - this._fishSize(a));
             const childAxis = axis === 'diag' ? 'horiz' : 'diag';
-            const blocks = kids.map(c => this._fishBlock(c, childAxis));
-            const GAP = 10;
-            // Children start past the topic's text (which now lies along the bone
-            // from the root), not from the node centre.
+            const denom = (axis === 'diag') ? Math.abs(buy) : Math.abs(bux);  // bone's perp component
+            const GAP = 12;
             let along = node._w + 16;
-            for (let j = 0; j < kids.length; j++) {
-                const kid = kids[j], b = blocks[j];
-                // spacing along the bone = the child's perpendicular footprint
-                const sp = axis === 'diag' ? (b.h / DY) : b.w;
-                const center = along + sp / 2;
-                kid._x = node._x + bux * center;   // child sits on this bone
-                kid._y = node._y + buy * center;
-                kid._fishUp = up;
-                kid.direction = 7;
-                this._fishBoneLayout(kid, childAxis, up, tailDir, DX, DY);
-                along += sp + GAP;
+            for (const kid of kids) {
+                const cb = this._fishLayout(kid, childAxis, up, tailDir, DX, DY);  // kid at origin
+                const px = bux * along, py = buy * along;        // kid origin sits on this bone
+                this._fishTranslate(kid, px, py);
+                minX = Math.min(minX, cb.minX + px); maxX = Math.max(maxX, cb.maxX + px);
+                minY = Math.min(minY, cb.minY + py); maxY = Math.max(maxY, cb.maxY + py);
+                // advance along the bone by the child's true perpendicular extent
+                const perp = (axis === 'diag') ? (cb.maxY - cb.minY) : (cb.maxX - cb.minX);
+                along += (perp + GAP) / (denom || 1);
             }
-            node._boneEnd = { x: node._x + bux * along, y: node._y + buy * along };
+            addBoneEnd(along);
+            return { minX, maxX, minY, maxY };
         }
 
         // 表格圖 (直行 / columns): XMind table semantics.
