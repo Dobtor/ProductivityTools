@@ -544,14 +544,19 @@
             root._y = 0;
             const tailDir = dir;          // horizontal direction toward the tail
             const DX = 0.5, DY = 0.87;    // diagonal unit vector (~60°)
+            const GAP = 30;               // spine gap between pairs
             const ribs = root.children.filter(c => !(_isLayoutExcluded(c)));
-            let along = root._w / 2 + 55;
+            // Tail-ward edge already consumed (head box, then each placed pair).
+            let tailEdge = tailDir * (root._w / 2 + 50);
             // Ribs pair up (one above + one below) sharing the same spine point.
-            // The next pair is advanced only past the current pair's tail-ward
-            // extent, so no topic collides.
             for (let p = 0; p < ribs.length; p += 2) {
-                const attachX = tailDir * along;
-                let pairExtent = 0;
+                // Tentatively attach just past the previous pair, lay out, measure
+                // the pair's head/tail span, then shift so its head edge clears the
+                // previous pair (horizontals fold head-ward, so a pair spreads both
+                // ways). This keeps groups compact yet non-colliding.
+                const tentX = tailEdge + tailDir * GAP;
+                let span = { head: 0, tail: 0 };
+                const placed = [];
                 for (let s = 0; s < 2; s++) {
                     const rib = ribs[p + s];
                     if (!rib) break;
@@ -559,27 +564,46 @@
                     this._propagateBranchColor(rib);
                     rib._fishUp = (s === 0);   // first = above, second = below
                     rib.direction = 7;
-                    rib._x = attachX;           // both ribs share the spine point
+                    rib._x = tentX;            // both ribs share the spine point
                     rib._y = 0;
                     this._fishBoneLayout(rib, 'diag', rib._fishUp, tailDir, DX, DY);
-                    pairExtent = Math.max(pairExtent,
-                        this._fishboneSubtreeExtent(rib, attachX, tailDir));
+                    const sp = this._fishboneSpanX(rib, tentX, tailDir);
+                    span.head = Math.max(span.head, sp.head);
+                    span.tail = Math.max(span.tail, sp.tail);
+                    placed.push(rib);
                 }
-                along += pairExtent + 50;
+                // shift so the pair's head edge sits GAP past the previous tail edge
+                const shift = (tailEdge + tailDir * GAP) - (tentX - tailDir * span.head);
+                for (const rib of placed) this._fishShiftX(rib, shift);
+                tailEdge = (tentX + shift) + tailDir * span.tail;
             }
         }
 
-        // Horizontal extent (toward the tail) of a fishbone subtree from attachX.
-        _fishboneSubtreeExtent(node, attachX, tailDir) {
-            let m = 0;
+        // Head-ward / tail-ward horizontal span of a fishbone subtree from attachX.
+        _fishboneSpanX(node, attachX, tailDir) {
+            let head = 0, tail = 0;
             const walk = (n) => {
-                const pts = [n._x + tailDir * n._w, n._x];
+                const pts = [n._x, n._x + (n._fishBux || 0) * n._w];
                 if (n._boneEnd) pts.push(n._boneEnd.x);
-                for (const px of pts) m = Math.max(m, tailDir * (px - attachX));
+                for (const px of pts) {
+                    const d = tailDir * (px - attachX);   // +ve = tail-ward
+                    if (d > tail) tail = d; else if (-d > head) head = -d;
+                }
                 for (const c of n.children) if (!(_isLayoutExcluded(c))) walk(c);
             };
             walk(node);
-            return m;
+            return { head, tail };
+        }
+
+        // Translate a fishbone subtree's x positions (node + bone end) by dx.
+        _fishShiftX(node, dx) {
+            if (!dx) return;
+            const walk = (n) => {
+                n._x += dx;
+                if (n._boneEnd) n._boneEnd.x += dx;
+                for (const c of n.children) walk(c);
+            };
+            walk(node);
         }
 
         // Footprint {w,h} of a fishbone subtree (over-reserved to avoid overlap).
@@ -605,11 +629,13 @@
         // Lay out node's bone (extending toward the tail) and its children along
         // it. axis = node's own bone direction; children alternate to the other.
         _fishBoneLayout(node, axis, up, tailDir, DX, DY) {
-            const bux = axis === 'diag' ? tailDir * DX : tailDir;
+            // Diagonal bones (L2/L4/…) extend toward the tail (up/down); horizontal
+            // bones (L3/L5/…) fold back toward the HEAD so the subtree stays compact
+            // (classic Ishikawa) instead of running away toward the tail.
+            const bux = axis === 'diag' ? tailDir * DX : -tailDir;
             const buy = axis === 'diag' ? (up ? -1 : 1) * DY : 0;
-            // Raw bone angle — the topic is rotated so its bottom edge lies on
-            // the bone and its head-side start sits at the bone root (_positionNode).
-            node._fishBoneAngle = Math.atan2(buy, bux) * 180 / Math.PI;
+            node._fishBux = bux;
+            node._fishBuy = buy;
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (kids.length === 0) {
                 node._boneEnd = { x: node._x + bux * 30, y: node._y + buy * 30 };
@@ -1477,18 +1503,19 @@
             }
             const _fbMode = this.options.layout && this.options.layout.mode;
             const _fb = (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right');
-            if (_fb && node._fishBoneAngle !== undefined && !node.isroot) {
-                // Anchor the head-side bottom corner at the bone root, so the
-                // topic starts at the root and the bone sits at its bottom edge.
+            if (_fb && node._fishBux !== undefined && !node.isroot) {
+                // Anchor the bone-root bottom corner so the topic starts at the
+                // root, extends along the bone, and the bone sits at its bottom.
+                const angle = Math.atan2(node._fishBuy, node._fishBux) * 180 / Math.PI;
                 node._el.style.top = (node._y - node._h) + 'px';
-                if (_fbMode === 'fishbone_right') {            // tail on the right
+                if (node._fishBux >= -0.001) {           // bone heads right → anchor bottom-left
                     node._el.style.left = node._x + 'px';
                     node._el.style.transformOrigin = '0% 100%';
-                    node._el.style.transform = `rotate(${node._fishBoneAngle}deg)`;
-                } else {                                       // tail on the left
+                    node._el.style.transform = `rotate(${angle}deg)`;
+                } else {                                  // bone heads left → anchor bottom-right
                     node._el.style.left = (node._x - node._w) + 'px';
                     node._el.style.transformOrigin = '100% 100%';
-                    node._el.style.transform = `rotate(${node._fishBoneAngle + 180}deg)`;
+                    node._el.style.transform = `rotate(${angle - 180}deg)`;
                 }
             } else {
                 node._el.style.left = (node._x - node._w / 2) + 'px';
@@ -1781,8 +1808,18 @@
             const hw = root._w / 2;
             const hh = root._h * 0.63;                 // fish-head half height
 
-            const xs = children.map(c => c._x);
-            const endX = dir > 0 ? Math.max(...xs) + 40 : Math.min(...xs) - 40;
+            // Spine/tail must extend past the tail-most point of ALL content.
+            let extreme = cx;
+            const walk = (n) => {
+                if (n._el && n._el.style.display !== 'none') {
+                    const cand = n._x + dir * n._w;
+                    extreme = dir > 0 ? Math.max(extreme, cand, n._x) : Math.min(extreme, cand, n._x);
+                    if (n._boneEnd) extreme = dir > 0 ? Math.max(extreme, n._boneEnd.x) : Math.min(extreme, n._boneEnd.x);
+                }
+                for (const c of n.children) walk(c);
+            };
+            walk(root);
+            const endX = extreme + dir * 60;
             const backX = cx + dir * (hw + 8);         // spine emerges from head back
             const noseX = cx - dir * (hw + 42);        // head nose points outward
 
