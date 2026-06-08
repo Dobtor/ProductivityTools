@@ -36,6 +36,8 @@ class BpmnActivityLink(models.Model):
         ('delegated', '已代簽'),
     ], string='簽核結果', default='pending', index=True)
     decided_by = fields.Many2one('res.users', string='實際簽核人')
+    decided_date = fields.Datetime(string='決行時間', copy=False,
+                                   help='實際批准/駁回的時間，供單據內簽核時間軸顯示')
     feedback = fields.Text(string='簽核意見')
 
     # 加簽鏈（DESIGN.md §7.1）
@@ -96,6 +98,7 @@ class BpmnActivityLink(models.Model):
             link.write({
                 'decision': 'approved',
                 'decided_by': self.env.user.id,
+                'decided_date': fields.Datetime.now(),
                 'feedback': feedback or link.feedback,
             })
             link._post_decision_advance()
@@ -127,6 +130,7 @@ class BpmnActivityLink(models.Model):
             link.write({
                 'decision': 'rejected',
                 'decided_by': self.env.user.id,
+                'decided_date': fields.Datetime.now(),
                 'feedback': feedback or link.feedback,
             })
             # 關閉活動（不走核准 hook）

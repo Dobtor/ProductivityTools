@@ -72,7 +72,12 @@ class DobtorApprovalController(http.Controller):
         if running:
             return {'started': True, 'already_running': True,
                     'process_name': gate.process_id.name}
-        gate.process_id.start(
+        instance = gate.process_id.start(
             res_model=model, res_id=record.id, applicant=env.user,
             pending_action={'model': model, 'method': method, 'res_ids': [record.id]})
+        import json
+        instance.write({
+            'gate_id': gate.id,
+            'gate_snapshot': json.dumps(gate._snapshot(record), default=str),
+        })
         return {'started': True, 'process_name': gate.process_id.name}

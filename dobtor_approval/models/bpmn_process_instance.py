@@ -48,6 +48,9 @@ class BpmnProcessInstance(models.Model):
     activity_link_ids = fields.One2many('bpmn.activity.link', 'instance_id',
                                         string='簽核活動')
     pending_action = fields.Text(string='待回放動作 (JSON)')
+    gate_id = fields.Many2one('bpmn.action.gate', string='來源閘門', ondelete='set null')
+    gate_snapshot = fields.Text(string='送簽快照 (JSON)',
+                                help='送簽當下閘門欄位快照，回放前比對防止「批准 A 執行 B」')
     incident_message = fields.Text(string='異常訊息')
     dmn_outputs = fields.Text(
         string='DMN 決策輸出 (JSON)',
@@ -718,6 +721,177 @@ class BpmnProcessInstance(models.Model):
             return None
 
     # ------------------------------------------------------------------
+    # 單據內簽核 UX 狀態 / 動作（DESIGN_INLINE_APPROVAL.md）
+    # ------------------------------------------------------------------
+    @api.model
+    def get_record_approval_state(self, res_model, res_id):
+        """回傳單據簽核 UX 狀態：gated_methods（需送簽）+ 最近實例狀態 + 我的可用動作。"""
+        env = self.env
+        out = {'gated_methods': [], 'instance': None,
+               'my': {'role': 'observer', 'link_id': None, 'can': {}}}
+        if not env.company._bpmn_feature_enabled('action_gate') or res_model not in env:
+            return out
+        record = env[res_model].browse(int(res_id)).exists()
+        if not record:
+            return out
+        Gate = env['bpmn.action.gate']
+        seen = set()
+        for g in Gate.search([('model_name', '=', res_model), ('active', '=', True)]):
+            if g.method_name in seen or not g._condition_matches(record):
+                continue
+            dom = [('process_id', '=', g.process_id.id), ('res_model', '=', res_model),
+                   ('res_id', '=', record.id)]
+            if self.search_count(dom + [('state', 'in', ('running', 'approved'))]):
+                continue
+            out['gated_methods'].append({'method': g.method_name, 'label': g.name})
+            seen.add(g.method_name)
+        inst = self.search([('res_model', '=', res_model), ('res_id', '=', record.id)],
+                           order='id desc', limit=1)
+        if inst:
+            out['instance'] = inst._approval_state_payload()
+            out['my'] = inst._my_state(env.uid)
+        return out
+
+    @api.model
+    def submit_gate_for_record(self, res_model, res_id, method):
+        """送出簽核（ApprovalBar 用）：起閘門實例 + 寫 gate_id/快照。"""
+        env = self.env
+        if res_model not in env:
+            return {'started': False}
+        record = env[res_model].browse(int(res_id)).exists()
+        if not record:
+            return {'started': False}
+        gate = env['bpmn.action.gate']._match(res_model, method, record)
+        if not gate:
+            return {'started': False}
+        if self.search_count([('process_id', '=', gate.process_id.id),
+                              ('res_model', '=', res_model), ('res_id', '=', record.id),
+                              ('state', '=', 'running')]):
+            return {'started': True, 'already_running': True,
+                    'process_name': gate.process_id.name}
+        inst = gate.process_id.start(
+            res_model=res_model, res_id=record.id, applicant=env.user,
+            pending_action={'model': res_model, 'method': method, 'res_ids': [record.id]})
+        inst.write({'gate_id': gate.id,
+                    'gate_snapshot': json.dumps(gate._snapshot(record), default=str)})
+        return {'started': True, 'process_name': gate.process_id.name}
+
+    def _approval_state_payload(self):
+        """組時間軸（依 element_id+phase 分關）+ 進度。"""
+        self.ensure_one()
+        links = self.activity_link_ids.sorted(lambda l: (l.phase, l.sequence, l.id))
+        stages, idx = [], {}
+        for l in links:
+            key = (l.bpmn_element_id, l.phase)
+            if key not in idx:
+                idx[key] = {'name': l.node_name or l.bpmn_element_id,
+                            'phase': l.phase, 'links': []}
+                stages.append(idx[key])
+            idx[key]['links'].append(l)
+        steps = []
+        for st in stages:
+            ls = st['links']
+            pending = [x for x in ls if x.decision == 'pending']
+            rejected = [x for x in ls if x.decision == 'rejected']
+            approved = [x for x in ls if x.decision == 'approved']
+            status = ('rejected' if rejected else 'current' if pending
+                      else 'done' if approved else 'pending')
+            decided = [x.decided_date for x in approved if x.decided_date]
+            steps.append({
+                'name': st['name'], 'phase': st['phase'], 'status': status,
+                'kind': ls[0].kind,
+                'approvers': [{'id': x.approver_user_id.id, 'name': x.approver_user_id.name}
+                              for x in ls],
+                'decided_at': max(decided).isoformat() if decided else None,
+            })
+        cur = next((s for s in steps if s['status'] == 'current'), None)
+        return {
+            'id': self.id, 'state': self.state, 'process_name': self.process_id.name,
+            'applicant': {'id': self.applicant_user_id.id,
+                          'name': self.applicant_user_id.name},
+            'submitted_at': self.create_date.isoformat() if self.create_date else None,
+            'total_steps': len(steps),
+            'done_steps': len([s for s in steps if s['status'] == 'done']),
+            'current': ({'node_name': cur['name'], 'phase': cur['phase'],
+                         'approvers': cur['approvers']} if cur else None),
+            'steps': steps,
+        }
+
+    def _manager_actionable_link(self, uid):
+        """以 HR parent_id 鏈：uid 是否為某待簽 link 簽核人的主管（≤ manager_act_levels）。"""
+        self.ensure_one()
+        for l in self.activity_link_ids.filtered(lambda l: l.decision == 'pending'):
+            cfg = self.process_id._config_for(l.bpmn_element_id)
+            levels = (cfg.manager_act_levels if cfg else 0) or 0
+            emp = l.approver_user_id.employee_id
+            for _i in range(levels):
+                emp = emp.parent_id
+                if not emp:
+                    break
+                if emp.user_id.id == uid:
+                    return l
+        return self.env['bpmn.activity.link']
+
+    def _my_state(self, uid):
+        """觀看者角色 + 可用動作（後端守門，前端只渲染許可者）。"""
+        self.ensure_one()
+        company = self.env.company
+        is_applicant = self.applicant_user_id.id == uid
+        my_link = self.activity_link_ids.filtered(
+            lambda l: l.decision == 'pending' and l.approver_user_id.id == uid)[:1]
+        is_manager = False
+        can = {}
+        if self.state == 'running':
+            if is_applicant:
+                decided = self.activity_link_ids.filtered(
+                    lambda l: l.decision in ('approved', 'rejected'))
+                can['retrieve'] = not decided
+            if my_link:
+                cfg = self.process_id._config_for(my_link.bpmn_element_id)
+                can['approve'] = True
+                can['reject'] = True
+                esc = bool(cfg and cfg.allow_escalation) and company._bpmn_feature_enabled('escalation')
+                can['escalate'] = esc
+                can['add_sign'] = esc
+                can['delegate'] = company._bpmn_feature_enabled('delegation')
+                can['lateral'] = bool(cfg and cfg.lateral_allowed)
+            elif not is_applicant:
+                mlink = self._manager_actionable_link(uid)
+                if mlink:
+                    is_manager = True
+                    my_link = mlink
+                    can['approve'] = True
+                    can['reject'] = True
+                    can['delegate'] = company._bpmn_feature_enabled('delegation')
+        role = ('approver' if (my_link and not is_manager) else
+                'manager' if is_manager else
+                'applicant' if is_applicant else 'observer')
+        return {'role': role, 'link_id': my_link.id if my_link else None, 'can': can}
+
+    def record_action(self, action, link_id=False):
+        """ApprovalBar 動作入口：重新驗證權限後委派既有動作；回傳 act_window/True。"""
+        self.ensure_one()
+        can = self._my_state(self.env.uid)['can']
+        if not can.get(action):
+            raise UserError(_('您沒有執行此動作的權限。'))
+        Link = self.env['bpmn.activity.link']
+        link = Link.browse(link_id) if link_id else Link
+        if action == 'approve':
+            return link.action_event_approve()
+        if action == 'reject':
+            return link.action_event_reject()
+        if action in ('escalate', 'add_sign'):
+            return link.action_event_escalate()
+        if action == 'delegate':
+            return link.action_event_delegate()
+        if action == 'lateral':
+            return link.action_event_lateral()
+        if action == 'retrieve':
+            pend = self.activity_link_ids.filtered(lambda l: l.decision == 'pending')[:1]
+            return pend.action_event_retrieve() if pend else True
+        return True
+
+    # ------------------------------------------------------------------
     # 完成 / 異常
     # ------------------------------------------------------------------
     def _check_completion(self):
@@ -743,6 +917,12 @@ class BpmnProcessInstance(models.Model):
     # Action 介入回放 — DESIGN.md §5.3
     # ------------------------------------------------------------------
     def _replay_pending_action(self):
+        """核准後執行原動作（DESIGN_INLINE_APPROVAL.md §10）。
+
+        - 模式 B（manual_by_submitter）：不自動執行，僅通知申請人「請執行」（原鈕由 guard
+          偵測已核准實例放行）。
+        - 模式 A（auto_replay，預設）：① 變動防護（快照比對）② 以申請人身分回放 ③ 失敗→incident。
+        """
         self.ensure_one()
         if not self.pending_action:
             return
@@ -758,13 +938,36 @@ class BpmnProcessInstance(models.Model):
         records = self.env[model].browse(res_ids).exists()
         if not records:
             return
-        # 標記放行，避免再次被攔截
+
+        # 模式 B：交回送簽人手動執行
+        if self.gate_id and self.gate_id.execution_mode == 'manual_by_submitter':
+            self.message_post(
+                body=_('已核准。請送簽人 %s 於單據上手動執行「%s」。',
+                       self.applicant_user_id.name or '', method),
+                partner_ids=self.applicant_user_id.partner_id.ids)
+            return  # 保留 pending_action 供稽核；guard 以「已核准實例」放行
+
+        # 模式 A — 變動防護：核准的是「當時」那張單
+        if self.gate_id and self.gate_snapshot:
+            try:
+                snap = json.loads(self.gate_snapshot)
+            except (ValueError, TypeError):
+                snap = None
+            if snap is not None and self.gate_id._snapshot_changed(records[:1], snap):
+                self._set_incident(_(
+                    '單據關鍵欄位於送簽後已變動，未自動執行「%s」，請重新送簽。', method))
+                self.message_post(
+                    partner_ids=self.applicant_user_id.partner_id.ids,
+                    body=_('已核准但單據已變動 → 未自動執行，請重新送簽。'))
+                return
+
+        # 模式 A — 以「申請人」身分回放（權限/語意正確，而非以最後核准者）
+        runner = self.applicant_user_id or self.env.user
         try:
-            getattr(records.with_context(bpmn_approved=True), method)()
+            getattr(records.with_user(runner).with_context(bpmn_approved=True), method)()
         except Exception as exc:
             self._set_incident(_('回放原動作失敗：%s') % exc)
             return
-        # 清掉 pending（已回放）
         self.pending_action = False
 
     def _replay_pending_action_cron(self):

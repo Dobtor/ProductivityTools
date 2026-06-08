@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 簽核狀態列元件 -->
+    <t t-name="dobtor_approval.ApprovalBar">
+        <div t-if="visible" class="o_bpmn_approval_bar alert d-flex flex-column gap-1 mb-2"
+             t-att-class="{
+                'alert-warning': inst and inst.state === 'running',
+                'alert-success': inst and inst.state === 'approved',
+                'alert-danger': (inst and inst.state === 'rejected') || (inst and inst.state === 'incident'),
+                'alert-info': !inst }">
+
+            <!-- 未送簽：每方法一顆送簽鈕 -->
+            <div t-if="!inst and state.data.gated_methods.length" class="d-flex align-items-center gap-2 flex-wrap">
+                <span><i class="fa fa-shield"/> 此單據動作需簽核：</span>
+                <button t-foreach="state.data.gated_methods" t-as="g" t-key="g.method"
+                        class="btn btn-primary btn-sm" t-att-disabled="state.busy"
+                        t-on-click="() => this.onSubmit(g.method)">
+                    <i class="fa fa-paper-plane"/> 送出簽核：<t t-esc="g.label"/>
+                </button>
+            </div>
+
+            <!-- 有實例：狀態摘要 + 動作 -->
+            <div t-if="inst" class="d-flex align-items-center gap-2 flex-wrap">
+                <strong>
+                    <t t-if="inst.state === 'running'">簽核中</t>
+                    <t t-elif="inst.state === 'approved'">已核准</t>
+                    <t t-elif="inst.state === 'rejected'">已駁回</t>
+                    <t t-elif="inst.state === 'incident'">簽核異常</t>
+                    <t t-else=""><t t-esc="inst.state"/></t>
+                </strong>
+                <span class="text-muted">· <t t-esc="inst.process_name"/></span>
+                <span t-if="inst.state === 'running' and inst.current">
+                    · <t t-esc="progressLabel"/> · 待簽：<b><t t-esc="currentApprovers"/></b>
+                </span>
+                <span class="text-muted small">· 送出 <t t-esc="inst.submitted_at and inst.submitted_at.slice(5,16).replace('T',' ')"/></span>
+                <button class="btn btn-link btn-sm p-0" t-on-click="toggle">
+                    <t t-if="state.expanded">收合</t><t t-else="">時間軸</t>
+                </button>
+
+                <div class="ms-auto d-flex gap-1 flex-wrap">
+                    <button t-if="can.approve" class="btn btn-success btn-sm" t-att-disabled="state.busy"
+                            t-on-click="() => this.onAct('approve')"><i class="fa fa-check"/> 批准</button>
+                    <button t-if="can.reject" class="btn btn-danger btn-sm" t-att-disabled="state.busy"
+                            t-on-click="() => this.onAct('reject')"><i class="fa fa-times"/> 駁回</button>
+                    <button t-if="can.escalate" class="btn btn-outline-secondary btn-sm"
+                            t-on-click="() => this.onAct('escalate')">上簽/加簽</button>
+                    <button t-if="can.delegate" class="btn btn-outline-secondary btn-sm"
+                            t-on-click="() => this.onAct('delegate')">轉簽</button>
+                    <button t-if="can.lateral" class="btn btn-outline-secondary btn-sm"
+                            t-on-click="() => this.onAct('lateral')">會辦</button>
+                    <button t-if="can.retrieve" class="btn btn-outline-warning btn-sm"
+                            t-on-click="() => this.onAct('retrieve')">抽回</button>
+                </div>
+            </div>
+
+            <!-- 時間軸 -->
+            <div t-if="inst and state.expanded" class="o_bpmn_timeline mt-1 ps-2">
+                <div class="small text-muted">申請：<t t-esc="inst.applicant.name"/></div>
+                <div t-foreach="inst.steps" t-as="s" t-key="s_index" class="d-flex gap-2 small">
+                    <span t-att-class="{
+                        'text-success': s.status==='done', 'fw-bold': s.status==='current',
+                        'text-danger': s.status==='rejected', 'text-muted': s.status==='pending' }">
+                        <t t-if="s.status==='done'">✔</t><t t-elif="s.status==='current'">⏳</t><t t-elif="s.status==='rejected'">✖</t><t t-else="">·</t>
+                        <t t-esc="s.name"/>
+                    </span>
+                    <span class="text-muted"><t t-esc="s.approvers.map(a => a.name).join('、')"/></span>
+                    <span t-if="s.decided_at" class="text-muted"><t t-esc="s.decided_at.slice(5,16).replace('T',' ')"/></span>
+                    <span t-if="s.kind and s.kind !== 'normal'" class="badge text-bg-light"><t t-esc="s.kind"/></span>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <!-- 注入表單頂部 -->
+    <t t-inherit="web.FormRenderer" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_form_sheet_bg')]" position="before">
+            <ApprovalBar t-if="props.record.resId" record="props.record"/>
+        </xpath>
+    </t>
+
+    <!-- 隱藏被攔且未核准的原生 object 按鈕 -->
+    <t t-inherit="web.ViewButton" t-inherit-mode="extension">
+        <xpath expr="//button" position="attributes">
+            <attribute name="t-if">!__comp__.isBpmnGatedHidden</attribute>
+        </xpath>
+    </t>
+
+</templates>

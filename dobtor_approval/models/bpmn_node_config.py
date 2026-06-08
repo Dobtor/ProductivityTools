@@ -42,6 +42,20 @@ class BpmnNodeConfig(models.Model):
     ], string='簽核方式', default='any')
     allow_escalation = fields.Boolean(string='允許往上加簽', default=False)
 
+    # 例外處理授權（以 HR 組織關係；DESIGN_INLINE_APPROVAL.md §11）
+    escalate_allowed_by = fields.Selection([
+        ('approver', '僅簽核人本人'),
+        ('approver_manager', '簽核人 + 其主管'),
+    ], string='上簽/加簽可由', default='approver')
+    delegate_allowed_by = fields.Selection([
+        ('approver', '僅簽核人本人'),
+        ('approver_manager', '簽核人 + 其主管'),
+    ], string='轉簽可由', default='approver')
+    lateral_allowed = fields.Boolean(string='允許會辦/徵詢', default=True)
+    manager_act_levels = fields.Integer(
+        string='主管代決層級', default=0,
+        help='0＝不開放主管代批准/駁回；1＝直屬主管可代決；2＝上兩級…（依 HR parent_id 鏈）')
+
     # ServiceTask 專用
     server_action_id = fields.Many2one('ir.actions.server', string='綁定 Server Action')
     bound_method = fields.Char(string='綁定方法名')

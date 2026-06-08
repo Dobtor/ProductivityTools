@@ -5,6 +5,7 @@
 condition 成立且尚未核准 → 起實例擋下原動作；核准後回放。
 """
 import logging
+import re
 
 from odoo import api, fields, models, _
 from odoo.tools.safe_eval import safe_eval
@@ -32,6 +33,17 @@ class BpmnActionGate(models.Model):
     process_id = fields.Many2one('bpmn.executable.process', string='簽核流程',
                                  required=True, ondelete='cascade')
 
+    execution_mode = fields.Selection([
+        ('auto_replay', '核准後自動連動執行（預設）'),
+        ('manual_by_submitter', '核准後交回送簽人手動執行'),
+    ], string='核准後執行方式', default='auto_replay', required=True,
+        help='auto_replay：實例核准即以申請人身分自動回放原動作（含變動防護）；'
+             'manual_by_submitter：核准後通知申請人、原按鈕恢復由其手動執行（高風險動作建議）')
+    snapshot_fields = fields.Char(
+        string='變動防護欄位',
+        help='逗號分隔的欄位名；送簽時快照、回放前比對，變動則不自動執行。'
+             '留空＝以條件運算式涉及的欄位為準（無條件則不防護）')
+
     condition = fields.Text(
         string='觸發條件 (Python 運算式)',
         help="可用變數：record、user、env。留空=總是觸發。例：record.amount_total > 10000")
@@ -39,6 +51,39 @@ class BpmnActionGate(models.Model):
     # ------------------------------------------------------------------
     # 攔截匹配
     # ------------------------------------------------------------------
+    def _snapshot_field_names(self):
+        """變動防護要快照的欄位：優先 snapshot_fields；否則取條件運算式涉及的 record 欄位。"""
+        self.ensure_one()
+        if self.snapshot_fields:
+            return [f.strip() for f in self.snapshot_fields.split(',') if f.strip()]
+        if self.condition:
+            return sorted(set(re.findall(r'record\.(\w+)', self.condition)))
+        return []
+
+    def _snapshot(self, record):
+        """回傳 {field: 可序列化值} 快照（m2o→id，date→iso）。"""
+        self.ensure_one()
+        snap = {}
+        for fname in self._snapshot_field_names():
+            if fname not in record._fields:
+                continue
+            val = record[fname]
+            if hasattr(val, '_name'):           # recordset/m2o
+                val = val.id if len(val) <= 1 else val.ids
+            elif hasattr(val, 'isoformat'):     # date/datetime
+                val = val.isoformat()
+            snap[fname] = val
+        return snap
+
+    def _snapshot_changed(self, record, snapshot):
+        """回放前比對：快照欄位是否已變動（回 True＝變動，不應自動執行）。"""
+        self.ensure_one()
+        current = self._snapshot(record)
+        for k, v in (snapshot or {}).items():
+            if current.get(k) != v:
+                return True
+        return False
+
     @api.model
     def _match(self, model, method, records):
         """回傳第一個符合（model, method）且 condition 成立的 active gate。

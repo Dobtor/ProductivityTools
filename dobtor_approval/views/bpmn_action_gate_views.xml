@@ -31,10 +31,13 @@
                             <field name="method_name" widget="bpmn_method_select"
                                    options="{'model_field': 'model_name'}"/>
                             <field name="process_id"/>
+                            <field name="execution_mode"/>
                         </group>
                         <group>
                             <field name="active"/>
                             <field name="sequence"/>
+                            <field name="snapshot_fields"
+                                   invisible="execution_mode != 'auto_replay'"/>
                         </group>
                     </group>
                     <group string="觸發條件 (Python 運算式)">

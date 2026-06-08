@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Approval (BPM 簽核引擎)',
-    'version': '18.0.1.2.0',
+    'version': '18.0.1.3.0',
     'category': 'Productivity',
     'summary': '台灣 BPM 簽核引擎：角色解析、Action 介入、token 執行、mail.activity 橋接、加簽/代理（T0–T6 能力開關）',
     'description': """
@@ -56,7 +56,12 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
             'dobtor_approval/static/lib/dmn-io/assets/dmn.css',
             'dobtor_approval/static/src/registry/node_type_registry.js',
             'dobtor_approval/static/src/registry/approval_node_types.js',
+            'dobtor_approval/static/src/gate/approval_store.js',
             'dobtor_approval/static/src/gate/form_gate_patch.js',
+            'dobtor_approval/static/src/gate/approval_bar.js',
+            'dobtor_approval/static/src/gate/approval_bar.xml',
+            'dobtor_approval/static/src/gate/approval_bar.scss',
+            'dobtor_approval/static/src/gate/form_patches.js',
             'dobtor_approval/static/src/designer/odoo_properties_provider.js',
             'dobtor_approval/static/src/editor/process_editor.js',
             'dobtor_approval/static/src/editor/process_editor.xml',
