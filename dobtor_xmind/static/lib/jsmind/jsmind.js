@@ -606,13 +606,12 @@
             walk(node);
         }
 
-        // Number of expansion levels below a node (leaf = 0).
-        _fishDepth(node) {
+        // Total number of descendant topics (the branch's expansion size).
+        _fishSize(node) {
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
-            if (!kids.length) return 0;
-            let m = 0;
-            for (const c of kids) m = Math.max(m, this._fishDepth(c));
-            return m + 1;
+            let n = 0;
+            for (const c of kids) n += 1 + this._fishSize(c);
+            return n;
         }
 
         // Footprint {w,h} of a fishbone subtree (over-reserved to avoid overlap).
@@ -649,9 +648,9 @@
                 node._boneEnd = { x: node._x + bux * 30, y: node._y + buy * 30 };
                 return;
             }
-            // Deeper branches sit closer to the spine (near the bone root);
-            // shallower branches sit toward the outer tip.
-            kids.sort((a, b) => this._fishDepth(b) - this._fishDepth(a));
+            // Larger branches (more descendants) sit closer to the spine (near the
+            // bone root); smaller branches sit toward the outer tip.
+            kids.sort((a, b) => this._fishSize(b) - this._fishSize(a));
             const childAxis = axis === 'diag' ? 'horiz' : 'diag';
             const blocks = kids.map(c => this._fishBlock(c, childAxis));
             const GAP = 10;
