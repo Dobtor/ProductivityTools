@@ -613,26 +613,25 @@
             if (kids.length === 0) return { w: node._w, h: node._h };
             const childAxis = boneAxis === 'diag' ? 'horiz' : 'diag';
             const cb = kids.map(c => this._fishBlock(c, childAxis));
-            const GAP = 14;
+            const GAP = 8;
             if (boneAxis === 'diag') {
                 // children (horizontal bones) stack vertically
                 const h = cb.reduce((s, b) => s + b.h, 0) + GAP * (kids.length - 1);
-                const w = node._w + 55 + Math.max(...cb.map(b => b.w));
+                const w = node._w + 30 + Math.max(...cb.map(b => b.w));
                 return { w, h: Math.max(node._h, h) };
             }
             // boneAxis === 'horiz' → children (diagonal bones) stack horizontally
             const w = cb.reduce((s, b) => s + b.w, 0) + GAP * (kids.length - 1);
-            const h = node._h + 50 + Math.max(...cb.map(b => b.h));
+            const h = node._h + 30 + Math.max(...cb.map(b => b.h));
             return { w: Math.max(node._w, w), h };
         }
 
         // Lay out node's bone (extending toward the tail) and its children along
         // it. axis = node's own bone direction; children alternate to the other.
         _fishBoneLayout(node, axis, up, tailDir, DX, DY) {
-            // Diagonal bones (L2/L4/…) extend toward the tail (up/down); horizontal
-            // bones (L3/L5/…) fold back toward the HEAD so the subtree stays compact
-            // (classic Ishikawa) instead of running away toward the tail.
-            const bux = axis === 'diag' ? tailDir * DX : -tailDir;
+            // All bones run toward the tail: diagonal (L2/L4/…) at the fixed angle
+            // up/down, horizontal (L3/L5/…) straight toward the tail.
+            const bux = axis === 'diag' ? tailDir * DX : tailDir;
             const buy = axis === 'diag' ? (up ? -1 : 1) * DY : 0;
             node._fishBux = bux;
             node._fishBuy = buy;
@@ -643,10 +642,10 @@
             }
             const childAxis = axis === 'diag' ? 'horiz' : 'diag';
             const blocks = kids.map(c => this._fishBlock(c, childAxis));
-            const GAP = 14;
+            const GAP = 10;
             // Children start past the topic's text (which now lies along the bone
             // from the root), not from the node centre.
-            let along = node._w + 22;
+            let along = node._w + 16;
             for (let j = 0; j < kids.length; j++) {
                 const kid = kids[j], b = blocks[j];
                 // spacing along the bone = the child's perpendicular footprint
@@ -1806,7 +1805,7 @@
             const color = root._branchColor || children[0]._branchColor || '#558ED5';
             const cx = root._x, cy = root._y;
             const hw = root._w / 2;
-            const hh = root._h * 0.63;                 // fish-head half height
+            const hh = root._h * 0.72;                 // fish-head half height
 
             // Spine/tail must extend past the tail-most point of ALL content.
             let extreme = cx;
@@ -1821,16 +1820,17 @@
             walk(root);
             const endX = extreme + dir * 60;
             const backX = cx + dir * (hw + 8);         // spine emerges from head back
-            const noseX = cx - dir * (hw + 42);        // head nose points outward
+            const noseX = cx - dir * (hw + 54);        // head nose points outward
 
-            // Fish head wrapping the central topic
+            // Fish head wrapping the central topic: sharp nose (outward) tapering
+            // to a tall rounded back where the spine emerges.
             const head = document.createElementNS(NS, 'path');
             head.setAttribute('d',
                 `M ${noseX},${cy} `
-              + `C ${noseX},${cy - hh * 0.55} ${cx - dir * hw},${cy - hh} ${cx},${cy - hh} `
-              + `C ${cx + dir * hw * 0.6},${cy - hh} ${backX},${cy - hh * 0.7} ${backX},${cy} `
-              + `C ${backX},${cy + hh * 0.7} ${cx + dir * hw * 0.6},${cy + hh} ${cx},${cy + hh} `
-              + `C ${cx - dir * hw},${cy + hh} ${noseX},${cy + hh * 0.55} ${noseX},${cy} Z`);
+              + `C ${noseX + dir * hw * 0.5},${cy - hh * 0.32} ${cx - dir * hw * 0.4},${cy - hh} ${cx},${cy - hh} `
+              + `C ${cx + dir * hw * 0.7},${cy - hh} ${backX},${cy - hh * 0.62} ${backX},${cy} `
+              + `C ${backX},${cy + hh * 0.62} ${cx + dir * hw * 0.7},${cy + hh} ${cx},${cy + hh} `
+              + `C ${cx - dir * hw * 0.4},${cy + hh} ${noseX + dir * hw * 0.5},${cy + hh * 0.32} ${noseX},${cy} Z`);
             head.setAttribute('fill', color);
             head.setAttribute('fill-opacity', '0.15');
             head.setAttribute('stroke', color);
