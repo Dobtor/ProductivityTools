@@ -543,7 +543,7 @@
             root._x = 0;
             root._y = 0;
             const tailDir = dir;          // horizontal direction toward the tail
-            const DX = 0.5, DY = 0.87;    // diagonal unit vector (~60°)
+            const DX = 0.64, DY = 0.77;   // diagonal unit vector (~50°, shallower)
             const GAP = 30;               // spine gap between pairs
             const ribs = root.children.filter(c => !(_isLayoutExcluded(c)));
             // Tail-ward edge already consumed (head box, then each placed pair).
@@ -1820,17 +1820,21 @@
             walk(root);
             const endX = extreme + dir * 60;
             const backX = cx + dir * (hw + 8);         // spine emerges from head back
-            const noseX = cx - dir * (hw + 54);        // head nose points outward
+            const noseX = cx - dir * (hw + 50);        // bullet nose points outward
+            const botY = cy + hh;                       // flat bottom
+            const topY = cy - hh;                       // top
+            const nlen = hw * 0.7;                      // nose length
 
-            // Fish head wrapping the central topic: sharp nose (outward) tapering
-            // to a tall rounded back where the spine emerges.
+            // Fish head = bullet: flat bottom, arched top, rounded nose outward,
+            // spine emerges from the rounded back.
             const head = document.createElementNS(NS, 'path');
             head.setAttribute('d',
-                `M ${noseX},${cy} `
-              + `C ${noseX + dir * hw * 0.5},${cy - hh * 0.32} ${cx - dir * hw * 0.4},${cy - hh} ${cx},${cy - hh} `
-              + `C ${cx + dir * hw * 0.7},${cy - hh} ${backX},${cy - hh * 0.62} ${backX},${cy} `
-              + `C ${backX},${cy + hh * 0.62} ${cx + dir * hw * 0.7},${cy + hh} ${cx},${cy + hh} `
-              + `C ${cx - dir * hw * 0.4},${cy + hh} ${noseX + dir * hw * 0.5},${cy + hh * 0.32} ${noseX},${cy} Z`);
+                `M ${backX},${botY} `
+              + `L ${noseX + dir * nlen},${botY} `                                        // flat bottom toward nose
+              + `Q ${noseX},${botY} ${noseX},${cy} `                                       // round bottom into nose tip
+              + `Q ${noseX},${topY} ${noseX + dir * nlen},${topY} `                        // nose tip up to top
+              + `Q ${cx + dir * hw * 0.3},${topY - hh * 0.18} ${backX},${topY} `           // arched top to back
+              + `Q ${backX + dir * 10},${cy} ${backX},${botY} Z`);                         // rounded back to bottom
             head.setAttribute('fill', color);
             head.setAttribute('fill-opacity', '0.15');
             head.setAttribute('stroke', color);
