@@ -1016,49 +1016,43 @@
         // direction = 5 (timeline-h) for spine connection lines.
         // =================================================================
 
+        // Translate a subtree's node positions by (dx,dy).
+        _translateTree(node, dx, dy) {
+            node._x += dx; node._y += dy;
+            for (const c of node.children) this._translateTree(c, dx, dy);
+        }
+
+        // Timeline horizontal — central topic on the left, top-level topics along a
+        // horizontal axis to the right, alternating above/below. Each topic's
+        // subtree is a plain logic-right tree, placed along the axis by its real
+        // bounding box (no collision).
         _layoutTimelineH(root) {
             root._x = 0;
             root._y = 0;
-
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
-
-            const majorGap = 50;
-            const spineY = 0; // spine runs through root's y
-
-            // Track x positions for upper and lower rows independently to avoid overlap
-            let xUp = root._w / 2 + majorGap;
-            let xDown = root._w / 2 + majorGap;
-
+            const savedMode = this._currentMode;
+            this._currentMode = 'logic_right';     // sub-levels are plain logic-right
+            let xUp = root._w / 2 + 55, xDown = root._w / 2 + 55;
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-
+                child.direction = 5;               // timeline-h connector to the axis
                 const above = (i % 2 === 0);
-                child.direction = 5; // timeline-h marker
-
-                // Pick x: use the further of the two tracks to avoid overlap
-                const curX = above
-                    ? Math.max(xUp, xDown > xUp ? xDown : xUp)
-                    : Math.max(xDown, xUp > xDown ? xUp : xDown);
-
-                child._x = curX + child._w / 2;
-                // Reserve the item's full subtree width (descendants extend right).
-                const itemRight = child._x - child._w / 2 + this._subtreeWidthHorizontal(child);
-                if (above) {
-                    child._y = spineY - child._h / 2 - 30;
-                    xUp = itemRight + majorGap;
-                } else {
-                    child._y = spineY + child._h / 2 + 30;
-                    xDown = itemRight + majorGap;
-                }
-
-                // Children of each timeline item extend vertically (tree-like)
+                child._x = 0; child._y = 0;
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutTreeChildren(child, 1);
+                    this._layoutBranch(child, child.children, 1);
                 }
+                const bb = this._subtreeBBox(child);
+                const w = bb.maxX - bb.minX;
+                const curX = above ? xUp : xDown;
+                const dx = curX - bb.minX;
+                const dy = above ? (-28 - bb.maxY) : (28 - bb.minY);
+                this._translateTree(child, dx, dy);
+                if (above) xUp = curX + w + 50; else xDown = curX + w + 50;
             }
+            this._currentMode = savedMode;
         }
 
         _layoutTimelineHChildren(parent) {
@@ -1096,36 +1090,33 @@
         // direction = 6 (timeline-v) for spine connection lines.
         // =================================================================
 
+        // Timeline vertical — central topic on top, top-level topics stacked
+        // down a vertical axis, each subtree a plain logic-right tree to the
+        // right, stacked by its real bounding box (no collision).
         _layoutTimelineV(root) {
             root._x = 0;
             root._y = 0;
-
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
-
-            const majorGap = 35;
-            const spineX = 0;
-            let curY = root._h / 2 + majorGap;
-
+            const savedMode = this._currentMode;
+            this._currentMode = 'logic_right';     // sub-levels are plain logic-right
+            let curY = root._h / 2 + 45;
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-
-                const goRight = (i % 2 === 0);
-                child.direction = 6; // timeline-v marker
-
-                const offset = child._w / 2 + 50;
-                // Reserve the item's full subtree height (descendants stack vertically).
-                const itemH = this._subtreeHeight(child);
-                child._x = spineX + (goRight ? offset : -offset);
-                child._y = curY + itemH / 2;
-                curY += itemH + majorGap;
-
+                child.direction = 6;               // timeline-v connector to the axis
+                child._x = 0; child._y = 0;
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutChildrenWithStructure(child, goRight ? 1 : -1);
+                    this._layoutBranch(child, child.children, 1);
                 }
+                const bb = this._subtreeBBox(child);
+                const dx = child._w / 2 + 14;      // topic just right of the vertical axis
+                const dy = curY - bb.minY;
+                this._translateTree(child, dx, dy);
+                curY += (bb.maxY - bb.minY) + 30;
             }
+            this._currentMode = savedMode;
         }
 
         _layoutTimelineVChildren(parent) {
