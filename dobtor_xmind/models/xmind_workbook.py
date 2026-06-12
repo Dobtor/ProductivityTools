@@ -902,6 +902,8 @@ class XMindWorkbook(models.Model):
                     'style': {'properties': {
                         'svg:fill': b.fill_color or '',
                         'border-line-color': b.border_color or '',
+                        'border-line-width': '%spt' % (b.border_width or 2),
+                        'border-line-pattern': b.border_style or 'solid',
                         'shape-class': 'org.xmind.boundaryShape.%s' % (b.shape or 'rounded'),
                     }},
                 })
@@ -918,6 +920,16 @@ class XMindWorkbook(models.Model):
                 entry = {
                     'id': s.component_id or str(uuid.uuid4()),
                     'range': '(%d,%d)' % rng,
+                    'title': s.title or '',
+                    'style': {'properties': {
+                        'svg:fill': s.fill_color or '',
+                        'fo:color': s.text_color or '',
+                        'fo:font-size': '%spt' % (s.font_size or 10),
+                        'fo:font-style': 'italic' if s.font_italic else 'normal',
+                        'line-color': s.line_color or '',
+                        'line-width': '%spt' % (s.line_width or 2),
+                        'shape-class': 'org.xmind.summaryShape.%s' % (s.line_type or 'square'),
+                    }},
                 }
                 if s.summary_topic_id and s.summary_topic_id.component_id:
                     entry['topicId'] = s.summary_topic_id.component_id
@@ -2051,14 +2063,23 @@ class XMindWorkbook(models.Model):
             if not members:
                 continue
             props = (b.get('style') or {}).get('properties', {})
-            self.env['xmind.boundary'].create({
+            bvals = {
                 'sheet_id': sheet.id,
                 'component_id': b.get('id') or str(uuid.uuid4()),
                 'title': b.get('title', ''),
                 'fill_color': props.get('svg:fill') or 'rgba(195,214,155,0.2)',
                 'border_color': props.get('border-line-color') or '#77933C',
                 'topic_ids': [Command.set([t.id for t in members])],
-            })
+            }
+            if props.get('border-line-width'):
+                bvals['border_width'] = self._safe_int(props['border-line-width'], 2)
+            pat = props.get('border-line-pattern')
+            if pat in ('solid', 'dashed', 'dotted'):
+                bvals['border_style'] = pat
+            bshape = props.get('shape-class', '').rsplit('.', 1)[-1]
+            if bshape in ('rect', 'rounded', 'wave', 'scallops'):
+                bvals['shape'] = bshape
+            self.env['xmind.boundary'].create(bvals)
 
     def _import_json_summaries(self, summaries, sheet, attached_children):
         """Create summary records from JSON ``summaries`` entries."""
@@ -2074,12 +2095,30 @@ class XMindWorkbook(models.Model):
                 summary_topic = self.env['xmind.topic'].search([
                     ('sheet_id', '=', sheet.id), ('component_id', '=', s['topicId'])
                 ], limit=1)
-            self.env['xmind.summary'].create({
+            props = (s.get('style') or {}).get('properties', {})
+            svals = {
                 'sheet_id': sheet.id,
                 'component_id': s.get('id') or str(uuid.uuid4()),
                 'summary_topic_id': summary_topic.id if summary_topic else False,
                 'topic_ids': [Command.set([t.id for t in members])],
-            })
+            }
+            if s.get('title'):
+                svals['title'] = s['title']
+            if props.get('svg:fill'):
+                svals['fill_color'] = props['svg:fill']
+            if props.get('fo:color'):
+                svals['text_color'] = props['fo:color']
+            if props.get('fo:font-size'):
+                svals['font_size'] = self._safe_int(props['fo:font-size'], 10)
+            if props.get('fo:font-style'):
+                svals['font_italic'] = 'italic' in str(props['fo:font-style']).lower()
+            if props.get('line-color'):
+                svals['line_color'] = props['line-color']
+            if props.get('line-width'):
+                svals['line_width'] = self._safe_int(props['line-width'], 2)
+            if props.get('shape-class'):
+                svals['line_type'] = props['shape-class'].rsplit('.', 1)[-1]
+            self.env['xmind.summary'].create(svals)
 
     def _import_relationship(self, rel_data, sheet, topic_map=None):
         """Import relationship data. Pass topic_map to avoid per-rel N+1 search."""
