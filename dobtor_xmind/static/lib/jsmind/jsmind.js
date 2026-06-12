@@ -620,7 +620,22 @@
             const GAP = 12;
             let along = node._w + 16;
             for (const kid of kids) {
-                const cb = this._fishLayout(kid, childAxis, up, tailDir, DX, DY);  // kid at origin
+                let cb;
+                if (kid.data && kid.data.childStructure) {
+                    // Opt-in per-topic structure inside fishbone: lay the kid's subtree
+                    // out with that structure at origin and measure its true bbox so the
+                    // bone placement below stays collision-free. The kid still sits on
+                    // the parent bone (its own bone collapses to a point).
+                    kid._x = 0; kid._y = 0;
+                    kid._fishBux = bux; kid._fishBuy = buy; kid._fishUp = up;
+                    kid.direction = 7;
+                    kid._boneEnd = { x: 0, y: 0 };
+                    this._applyExplicitChildStructure(kid, tailDir > 0 ? 1 : -1);
+                    const bb = this._subtreeBBox(kid);
+                    cb = { minX: bb.minX, maxX: bb.maxX, minY: bb.minY, maxY: bb.maxY };
+                } else {
+                    cb = this._fishLayout(kid, childAxis, up, tailDir, DX, DY);  // kid at origin
+                }
                 const px = bux * along, py = buy * along;        // kid origin sits on this bone
                 this._fishTranslate(kid, px, py);
                 minX = Math.min(minX, cb.minX + px); maxX = Math.max(maxX, cb.maxX + px);
