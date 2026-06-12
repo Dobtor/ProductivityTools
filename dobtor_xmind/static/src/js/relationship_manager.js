@@ -19,9 +19,19 @@ export class RelationshipManager {
         this.controlPointsVisible = false;
         this.isDraggingControlPoint = false;
         this.activeControlPoint = null;
+        // Set by the editor: invoked after a control-point/endpoint drag so the
+        // map can be marked dirty (otherwise manual curve adjustments are not saved).
+        this.onControlPointChange = null;
 
         this._createSVG();
         this._attachEvents();
+    }
+
+    /** Notify the host (editor) that a relationship's geometry was edited. */
+    _notifyChange(relData) {
+        if (typeof this.onControlPointChange === 'function') {
+            this.onControlPointChange(relData);
+        }
     }
 
     _createSVG() {
@@ -145,8 +155,21 @@ export class RelationshipManager {
             }
         });
 
-        document.addEventListener('mousemove', this._onMouseMove.bind(this));
-        document.addEventListener('mouseup', this._onMouseUp.bind(this));
+        // Store bound handlers so they can actually be removed in destroy()
+        // (inline .bind() created un-removable references and leaked on every mount).
+        this._boundMouseMove = this._onMouseMove.bind(this);
+        this._boundMouseUp = this._onMouseUp.bind(this);
+        document.addEventListener('mousemove', this._boundMouseMove);
+        document.addEventListener('mouseup', this._boundMouseUp);
+    }
+
+    /** Tear down document-level listeners + SVG. Call on editor onWillUnmount. */
+    destroy() {
+        if (this._boundMouseMove) document.removeEventListener('mousemove', this._boundMouseMove);
+        if (this._boundMouseUp) document.removeEventListener('mouseup', this._boundMouseUp);
+        if (this.svg && this.svg.parentNode) this.svg.parentNode.removeChild(this.svg);
+        this.relationships = [];
+        this.onControlPointChange = null;
     }
 
     _onMouseMove(e) {
@@ -719,6 +742,8 @@ export class RelationshipManager {
             const onUp = () => {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
+                // Persist the manual curve adjustment.
+                self._notifyChange(relData);
             };
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);

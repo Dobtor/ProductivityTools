@@ -163,6 +163,9 @@ export class MindmapEditor extends Component {
             if (this.dragDropManager) {
                 this.dragDropManager.destroy();
             }
+            if (this.advancedRelationshipManager && this.advancedRelationshipManager.destroy) {
+                this.advancedRelationshipManager.destroy();
+            }
             document.removeEventListener('keydown', this._boundKeydownHandler);
             // Remove every tracked document-level listener (space-pan, rectangle
             // select, relationship drag previews…) to avoid leaking the whole
@@ -1380,18 +1383,15 @@ export class MindmapEditor extends Component {
             }
         });
 
-        // Track when control point drag ends → mark dirty + sync data
-        const origMouseUp = this.advancedRelationshipManager._onMouseUp.bind(this.advancedRelationshipManager);
-        this.advancedRelationshipManager._onMouseUp = (e) => {
-            const wasDragging = this.advancedRelationshipManager.isDraggingControlPoint;
-            origMouseUp(e);
-            if (wasDragging) {
-                // Sync control point data back to our stored relationships
-                this._syncRelationshipControlPoints();
-                this.commandStack.isDirty = true;
-                this.commandStack._notifyListeners();
-                this._updateStatus(_t('Curve adjusted'));
-            }
+        // When a control-point/endpoint drag ends → sync CPs back + mark dirty.
+        // (Previously this monkey-patched _onMouseUp, but the document listener was
+        //  bound to the ORIGINAL method so the patch never ran and curve edits were
+        //  silently lost. The manager now invokes this callback directly on drag end.)
+        this.advancedRelationshipManager.onControlPointChange = () => {
+            this._syncRelationshipControlPoints();
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
+            this._updateStatus(_t('Curve adjusted'));
         };
     }
 
