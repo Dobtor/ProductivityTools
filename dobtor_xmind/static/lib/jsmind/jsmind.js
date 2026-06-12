@@ -1060,7 +1060,7 @@
             const branchX = node._x + node._w / 2 + 42;   // level-3 to the right of the trunk
             let edge = node._y + dirY * (node._h / 2 + 24);  // first level-3 edge
             for (const kid of kids) {
-                kid.direction = 6;            // horizontal stub to the sub-trunk at node._x
+                kid.direction = 8;            // underline at bottom edge → sub-trunk at node._x
                 kid._x = 0; kid._y = 0;
                 if (kid.expanded && kid.children.length > 0) {
                     this._layoutBranch(kid, kid.children, 1);   // level-4+ logic-right
@@ -1769,8 +1769,8 @@
                     const up = l2._tlhUp;
                     const tx = l2._x;
                     const startY = up ? (l2._y - l2._h / 2) : (l2._y + l2._h / 2);
-                    const ys = l3.map(c => c._y);
-                    const farY = up ? Math.min(...ys) : Math.max(...ys);
+                    const bottoms = l3.map(c => c._y + c._h / 2);   // level-3 underline Y
+                    const farY = up ? Math.min(...bottoms) : Math.max(...bottoms);
                     const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     trunk.setAttribute('stroke', l2._branchColor || '#558ED5');
                     trunk.setAttribute('stroke-width', '2');
@@ -2103,6 +2103,13 @@
                 sy = child._y;
                 ex = child._x > sx ? child._x - child._w / 2 : child._x + child._w / 2;
                 ey = child._y;
+            } else if (dir === 8) {
+                // Timeline horizontal level-3: underline at the child's bottom edge,
+                // running from the vertical sub-trunk (parent._x) under the topic.
+                sx = parent._x;                       // sub-trunk X
+                sy = child._y + child._h / 2;         // child bottom edge
+                ex = child._x + child._w / 2;         // child right edge
+                ey = child._y + child._h / 2;
             } else if (dir === 3 || dir === 4) {
                 // Tree layout: vertical trunk from parent bottom, horizontal branch to child
                 sx = parent._x;
@@ -2173,7 +2180,7 @@
             }
 
             // --- Timeline: straight stub + circle dot at spine ---
-            if (dir === 5 || dir === 6) {
+            if (dir === 5 || dir === 6 || dir === 8) {
                 d = `M${sx},${sy} L${ex},${ey}`;
                 path.setAttribute('d', d);
                 path.setAttribute('stroke', lineColor);
