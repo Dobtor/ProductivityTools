@@ -1031,42 +1031,43 @@
             root._y = 0;
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
-            let xUp = root._w / 2 + 55, xDown = root._w / 2 + 55;
+            let curX = root._w / 2 + 55;
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-                child.direction = 5;               // level-2 sits on the axis
-                const above = (i % 2 === 0);
-                const curX = above ? xUp : xDown;
-                child._x = curX + child._w / 2;    // on the axis (y = 0)
+                child.direction = 5;               // level-2 sits on the axis (y = 0)
+                child._x = curX + child._w / 2;
                 child._y = 0;
-                this._layoutTimelineHSub(child, above ? -1 : 1);
+                this._layoutTimelineHSub(child);
                 const bb = this._subtreeBBox(child);
-                if (above) xUp = bb.maxX + 45; else xDown = bb.maxX + 45;
+                curX = bb.maxX + 45;               // next level-2 past this subtree
             }
         }
 
-        // Lay out a level-2 topic's subtree for timeline-horizontal: level-3 topics
-        // stacked vertically away from the axis (dirY = -1 up / +1 down), each with
-        // its level-4+ as a logic-right tree.
-        _layoutTimelineHSub(node, dirY) {
+        // Lay out a level-2 topic's level-3 children for timeline-horizontal: the
+        // level-3 alternate above/below the axis (timeline style, connected by
+        // vertical stubs to the axis); each level-3's level-4+ is a logic-right tree.
+        _layoutTimelineHSub(node) {
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (kids.length === 0) return;
-            const branchLeft = node._x + node._w / 2 + 45;   // level-3 sit to the right
-            let edge = node._y + dirY * (node._h / 2 + 26);   // first level-3 edge
-            for (const kid of kids) {
-                kid.direction = 1;            // logic-right (elbow) connector from level-2
+            let xUp = node._x + node._w / 2 + 30;
+            let xDown = node._x + node._w / 2 + 30;
+            for (let i = 0; i < kids.length; i++) {
+                const kid = kids[i];
+                const up = (i % 2 === 0);          // level-3 alternate up/down
+                kid.direction = 5;                 // vertical stub to the axis (y = 0)
                 kid._x = 0; kid._y = 0;
                 if (kid.expanded && kid.children.length > 0) {
                     this._layoutBranch(kid, kid.children, 1);   // level-4+ logic-right
                 }
                 const bb = this._subtreeBBox(kid);
-                const h = bb.maxY - bb.minY;
-                const px = branchLeft + kid._w / 2;
-                const py = (dirY < 0) ? (edge - bb.maxY) : (edge - bb.minY);
-                this._translateTree(kid, px, py);
-                edge += dirY * (h + 14);
+                const w = bb.maxX - bb.minX;
+                const cur = up ? xUp : xDown;
+                const dx = cur - bb.minX;
+                const dy = up ? (-30 - bb.maxY) : (30 - bb.minY);
+                this._translateTree(kid, dx, dy);
+                if (up) xUp = cur + w + 28; else xDown = cur + w + 28;
             }
         }
 
@@ -1751,8 +1752,14 @@
             spine.setAttribute('opacity', '0.5');
 
             if (mode === 'timeline_horizontal') {
-                // Horizontal spine from root right edge to last child x
-                const lastX = Math.max(...children.map(c => c._x + c._w / 2));
+                // Horizontal spine from root edge to the rightmost content (so the
+                // level-3 vertical stubs all meet the axis).
+                let lastX = root._x + root._w / 2;
+                const walk = (n) => {
+                    if (n._el && n._el.style.display !== 'none') lastX = Math.max(lastX, n._x + n._w / 2);
+                    for (const c of n.children) walk(c);
+                };
+                walk(root);
                 const y = root._y;
                 spine.setAttribute('d', `M${root._x + root._w / 2},${y} L${lastX + 20},${y}`);
             } else {
