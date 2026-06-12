@@ -802,6 +802,21 @@ class XMindWorkbook(models.Model):
             props['border-line-color'] = topic.border_color
         if topic.border_width:
             props['border-line-width'] = '%spt' % topic.border_width
+        # Topic shape (was dropped on .xmind export → shape lost on round-trip)
+        if topic.shape and topic.shape != 'rounded':
+            rev_shape = {v: k for k, v in self._XMIND_SHAPE_MAP.items()}
+            sc = rev_shape.get(topic.shape)
+            if sc:
+                props['shape-class'] = sc
+        # Branch connection line (was dropped on .xmind export)
+        if topic.line_type:
+            props['line-class'] = topic.line_type
+        if topic.line_color:
+            props['line-color'] = topic.line_color
+        if topic.line_width:
+            props['line-width'] = '%spt' % topic.line_width
+        if topic.line_style:
+            props['line-pattern'] = topic.line_style
         return props
 
     def _topic_to_xmind(self, topic, ctx):
@@ -827,6 +842,14 @@ class XMindWorkbook(models.Model):
 
         if topic.hyperlink:
             xmind_topic['href'] = topic.hyperlink
+        if topic.hyperlink_title:
+            xmind_topic['hrefTitle'] = topic.hyperlink_title
+        if topic.numbering and topic.numbering != 'none':
+            xmind_topic['numbering'] = topic.numbering
+        if topic.is_summary_node:
+            xmind_topic['isSummaryNode'] = True
+        if topic.right_number != -2:
+            xmind_topic['rightNumber'] = topic.right_number
 
         if topic.task_start_date or topic.task_end_date or topic.task_progress or topic.task_assignee:
             xmind_topic['taskInfo'] = {
@@ -928,6 +951,9 @@ class XMindWorkbook(models.Model):
                     'line-width': '%spt' % (rel.line_width or 1),
                     'line-pattern': rel.line_style or 'solid',
                     'shape-class': 'org.xmind.relationshipShape.%s' % (rel.line_type or 'curved'),
+                    # Arrow heads (were dropped on .xmind export)
+                    'arrow-begin-class': self._ARROW_EXPORT_MAP.get(rel.arrow_begin or 'none', ''),
+                    'arrow-end-class': self._ARROW_EXPORT_MAP.get(rel.arrow_end or 'arrow', 'org.xmind.arrowShape.triangle'),
                 }},
             }
             cps = []
@@ -1225,6 +1251,16 @@ class XMindWorkbook(models.Model):
         'org.xmind.arrowShape.diamond': 'diamond-filled',
         'org.xmind.arrowShape.herringbone': 'arrow',
         'org.xmind.arrowShape.none': 'none',
+    }
+
+    # Internal arrow value → canonical XMind arrow class (for .xmind export).
+    _ARROW_EXPORT_MAP = {
+        'none': '',
+        'arrow': 'org.xmind.arrowShape.triangle',
+        'arrow-open': 'org.xmind.arrowShape.spearhead',
+        'circle-filled': 'org.xmind.arrowShape.dot',
+        'square': 'org.xmind.arrowShape.square',
+        'diamond-filled': 'org.xmind.arrowShape.diamond',
     }
 
     _XMIND_LINE_PATTERN_MAP = {
@@ -1899,13 +1935,33 @@ class XMindWorkbook(models.Model):
             topic_vals['border_color'] = style_props['border-line-color']
         if style_props.get('border-line-width'):
             topic_vals['border_width'] = self._safe_int(style_props['border-line-width'], 1)
+        # Topic shape + branch line (now exported → read back for symmetry)
+        mapped_shape = self._XMIND_SHAPE_MAP.get(style_props.get('shape-class', ''))
+        if mapped_shape:
+            topic_vals['shape'] = mapped_shape
+        if style_props.get('line-class'):
+            topic_vals['line_type'] = style_props['line-class']
+        if style_props.get('line-color'):
+            topic_vals['line_color'] = style_props['line-color']
+        if style_props.get('line-width'):
+            topic_vals['line_width'] = self._safe_int(style_props['line-width'], 0)
+        if style_props.get('line-pattern'):
+            topic_vals['line_style'] = style_props['line-pattern']
 
         if parent:
             topic_vals['parent_id'] = parent.id
 
-        # Hyperlink
+        # Hyperlink + numbering + summary/right-number flags
         if topic_data.get('href'):
             topic_vals['hyperlink'] = topic_data['href']
+        if topic_data.get('hrefTitle'):
+            topic_vals['hyperlink_title'] = topic_data['hrefTitle']
+        if topic_data.get('numbering'):
+            topic_vals['numbering'] = topic_data['numbering']
+        if topic_data.get('isSummaryNode'):
+            topic_vals['is_summary_node'] = True
+        if 'rightNumber' in topic_data:
+            topic_vals['right_number'] = self._safe_int(topic_data['rightNumber'], -2)
 
         # Task Info (XMind 8)
         task = topic_data.get('taskInfo') or {}
@@ -2063,6 +2119,11 @@ class XMindWorkbook(models.Model):
             shape_class = props.get('shape-class', '')
             if shape_class:
                 vals['line_type'] = shape_class.rsplit('.', 1)[-1]
+            # Arrow heads (now exported → read back for symmetry)
+            if 'arrow-begin-class' in props:
+                vals['arrow_begin'] = self._XMIND_ARROW_MAP.get(props['arrow-begin-class'], 'none')
+            if props.get('arrow-end-class'):
+                vals['arrow_end'] = self._XMIND_ARROW_MAP.get(props['arrow-end-class'], 'arrow')
             self.env['xmind.relationship'].create(vals)
 
     # -------------------------------------------------------------------------
