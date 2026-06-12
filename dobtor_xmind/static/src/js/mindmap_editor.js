@@ -269,13 +269,24 @@ export class MindmapEditor extends Component {
                 }
             }
         } catch (e) {
+            // A load failure must NOT masquerade as a new empty map — otherwise a
+            // subsequent save would overwrite the real (un-loaded) data. Flag it,
+            // surface it, and block saving until a successful reload.
+            console.error('[MindmapEditor] Failed to load mindmap data:', e);
+            this._loadFailed = true;
+            if (this.notification) {
+                this.notification.add(
+                    _t('Failed to load mind map. Editing is disabled to protect your data — please reload.'),
+                    { type: 'danger', sticky: true });
+            }
             this.mindmapData = this._getDefaultData();
         }
     }
 
     async _loadMarkers() {
         try {
-            this.markers = await rpc('/xmind/markers', {});
+            const m = await rpc('/xmind/markers', {});
+            this.markers = Array.isArray(m) ? m : [];
         } catch (e) {
             this.markers = [];
         }
@@ -2093,6 +2104,8 @@ export class MindmapEditor extends Component {
             siblings.splice(idx, 1);
             siblings.splice(idx - 1, 0, node);
             this.jm.view.refresh();
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
             this._updateStatus(_t('Moved up'));
         }
     }
@@ -2117,6 +2130,8 @@ export class MindmapEditor extends Component {
             siblings.splice(idx, 1);
             siblings.splice(idx + 1, 0, node);
             this.jm.view.refresh();
+            this.commandStack.isDirty = true;
+            this.commandStack._notifyListeners();
             this._updateStatus(_t('Moved down'));
         }
     }
@@ -3492,7 +3507,7 @@ export class MindmapEditor extends Component {
                 this._loadSheets();
                 this._updateStatus(_t('Sheet created: ') + name);
             }
-        });
+        }).catch(() => this._showError(_t('Failed to create sheet.')));
     }
 
     onSwitchSheet(sheetId) {
@@ -3504,6 +3519,7 @@ export class MindmapEditor extends Component {
                 this._showError(_t('Could not save the current sheet — staying here to avoid losing changes.'));
                 return;
             }
+            const prevSheetId = this._currentSheetId;
             this._currentSheetId = sheetId;
             rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}).then(result => {
                 if (result.mindmap_data) {
@@ -3512,8 +3528,12 @@ export class MindmapEditor extends Component {
                     this._updateSheetTabs();
                     this._updateStatus(_t('Switched to sheet: ') + result.name);
                 }
+            }).catch(() => {
+                // Revert so the UI doesn't sit on a sheet whose data never loaded.
+                this._currentSheetId = prevSheetId;
+                this._showError(_t('Failed to load sheet.'));
             });
-        });
+        }).catch(() => this._showError(_t('Failed to switch sheet.')));
     }
 
     onRenameSheet(sheetId) {
@@ -3521,7 +3541,7 @@ export class MindmapEditor extends Component {
         if (!name) return;
         rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/rename', { name }).then(result => {
             if (result.success) this._loadSheets();
-        });
+        }).catch(() => this._showError(_t('Failed to rename sheet.')));
     }
 
     onDeleteSheet(sheetId) {
@@ -3537,7 +3557,7 @@ export class MindmapEditor extends Component {
                     }
                     this._loadSheets();
                 }
-            });
+            }).catch(() => this._showError(_t('Failed to delete sheet.')));
         }
     }
 
@@ -4821,6 +4841,11 @@ export class MindmapEditor extends Component {
 
     async _saveData() {
         if (!this.workbookId) return;
+        // Never overwrite the server copy with default data after a failed load.
+        if (this._loadFailed) {
+            console.warn('[MindmapEditor] Save blocked: initial load failed.');
+            return;
+        }
 
         // Build the full payload: tree + every feature layer in ONE request so
         // the backend writes them in a single transaction. This removes the
