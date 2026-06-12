@@ -1022,37 +1022,52 @@
             for (const c of node.children) this._translateTree(c, dx, dy);
         }
 
-        // Timeline horizontal — central topic on the left, top-level topics along a
-        // horizontal axis to the right, alternating above/below. Each topic's
-        // subtree is a plain logic-right tree, placed along the axis by its real
-        // bounding box (no collision).
+        // Timeline horizontal — central topic on the left; level-2 topics sit ON
+        // the horizontal axis to the right; each level-2 subtree extends up/down
+        // (alternating). Level-3 are stacked away from the axis, each with its
+        // level-4+ as a logic-right tree. Placed by real bounding box (no collision).
         _layoutTimelineH(root) {
             root._x = 0;
             root._y = 0;
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
-            const savedMode = this._currentMode;
-            this._currentMode = 'logic_right';     // sub-levels are plain logic-right
             let xUp = root._w / 2 + 55, xDown = root._w / 2 + 55;
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
-                child.direction = 5;               // timeline-h connector to the axis
+                child.direction = 5;               // level-2 sits on the axis
                 const above = (i % 2 === 0);
-                child._x = 0; child._y = 0;
-                if (child.expanded && child.children.length > 0) {
-                    this._layoutBranch(child, child.children, 1);
-                }
-                const bb = this._subtreeBBox(child);
-                const w = bb.maxX - bb.minX;
                 const curX = above ? xUp : xDown;
-                const dx = curX - bb.minX;
-                const dy = above ? (-28 - bb.maxY) : (28 - bb.minY);
-                this._translateTree(child, dx, dy);
-                if (above) xUp = curX + w + 50; else xDown = curX + w + 50;
+                child._x = curX + child._w / 2;    // on the axis (y = 0)
+                child._y = 0;
+                this._layoutTimelineHSub(child, above ? -1 : 1);
+                const bb = this._subtreeBBox(child);
+                if (above) xUp = bb.maxX + 45; else xDown = bb.maxX + 45;
             }
-            this._currentMode = savedMode;
+        }
+
+        // Lay out a level-2 topic's subtree for timeline-horizontal: level-3 topics
+        // stacked vertically away from the axis (dirY = -1 up / +1 down), each with
+        // its level-4+ as a logic-right tree.
+        _layoutTimelineHSub(node, dirY) {
+            const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
+            if (kids.length === 0) return;
+            const branchLeft = node._x + node._w / 2 + 45;   // level-3 sit to the right
+            let edge = node._y + dirY * (node._h / 2 + 26);   // first level-3 edge
+            for (const kid of kids) {
+                kid.direction = 1;            // logic-right (elbow) connector from level-2
+                kid._x = 0; kid._y = 0;
+                if (kid.expanded && kid.children.length > 0) {
+                    this._layoutBranch(kid, kid.children, 1);   // level-4+ logic-right
+                }
+                const bb = this._subtreeBBox(kid);
+                const h = bb.maxY - bb.minY;
+                const px = branchLeft + kid._w / 2;
+                const py = (dirY < 0) ? (edge - bb.maxY) : (edge - bb.minY);
+                this._translateTree(kid, px, py);
+                edge += dirY * (h + 14);
+            }
         }
 
         _layoutTimelineHChildren(parent) {
@@ -2012,6 +2027,10 @@
             const _fbMode = this.options.layout && this.options.layout.mode;
             if (!bs.lineType && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {
                 lineClass = 'straight';
+            }
+            // Timeline-horizontal sub-tree uses right-angle elbow connectors.
+            if (!bs.lineType && _fbMode === 'timeline_horizontal') {
+                lineClass = 'roundedElbow';
             }
             // Line corner for rounded elbow
             const lineCorner = s.lineCorner || 4;
