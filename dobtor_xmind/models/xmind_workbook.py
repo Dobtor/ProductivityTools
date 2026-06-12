@@ -149,6 +149,10 @@ class XMindWorkbook(models.Model):
         if branch_style:
             data['branchStyle'] = branch_style
 
+        # Per-topic child numbering format
+        if topic.numbering and topic.numbering != 'none':
+            data['numbering'] = topic.numbering
+
         # Per-topic child structure (layout override for children)
         # Only set childStructure for explicit overrides, not for default/map structures
         if topic.structure_class and not topic.structure_class.startswith('org.xmind.ui.map'):
@@ -218,8 +222,13 @@ class XMindWorkbook(models.Model):
             style['bold'] = topic.font_weight == 'bold'
         if topic.font_style and topic.font_style != 'normal':
             style['italic'] = topic.font_style == 'italic'
+            style['font-style'] = topic.font_style
         if topic.font_family:
             style['fontFamily'] = topic.font_family
+        if topic.text_decoration:
+            style['text-decoration'] = topic.text_decoration
+        if topic.text_align and topic.text_align != 'left':
+            style['text-align'] = topic.text_align
         if topic.border_color:
             style['border-color'] = topic.border_color
         if topic.border_width:
@@ -258,6 +267,10 @@ class XMindWorkbook(models.Model):
             style['lineColor'] = topic.line_color
         if topic.line_width and topic.line_width > 0:
             style['lineWidth'] = topic.line_width
+        if topic.line_style:
+            style['lineStyle'] = topic.line_style
+        if topic.line_type_explicit:
+            style['lineTypeExplicit'] = True
         return style
 
     def _reverse_structure_map(self, layout_type):
@@ -523,6 +536,11 @@ class XMindWorkbook(models.Model):
             'line_type': node_data.get('branchStyle', {}).get('lineType', ''),
             'line_color': node_data.get('branchStyle', {}).get('lineColor', ''),
             'line_width': node_data.get('branchStyle', {}).get('lineWidth', 0),
+            'line_style': node_data.get('branchStyle', {}).get('lineStyle', ''),
+            'line_type_explicit': bool(node_data.get('branchStyle', {}).get('lineTypeExplicit')),
+            'numbering': node_data.get('numbering', ''),
+            'text_decoration': style_data.get('textDecoration') or style_data.get('text-decoration', ''),
+            'text_align': style_data.get('textAlign') or style_data.get('text-align') or 'left',
             'structure_class': self._reverse_structure_map(node_data.get('childStructure', '')),
             'right_number': node_data.get('_rightNumber', -2),
         }

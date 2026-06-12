@@ -93,6 +93,13 @@ class XMindTopic(models.Model):
     line_type = fields.Char('Connection Line Type')  # curved, straight, roundedElbow, angular, none
     line_color = fields.Char('Connection Line Color')
     line_width = fields.Integer('Connection Line Width', default=0)  # 0 = inherit from theme
+    line_style = fields.Char('Connection Line Pattern')  # solid, dashed, dotted
+    # True when the user deliberately picked a branch line type in the panel, so the
+    # renderer honours it over the layout-mode default (even when chosen type == default).
+    line_type_explicit = fields.Boolean('Line Type Explicitly Set', default=False)
+
+    # Per-topic child numbering format (none / 1 / a / A / i / I / 1.1)
+    numbering = fields.Char('Numbering Format')
 
     # Structure
     structure_class = fields.Char('Structure Class', default='')
