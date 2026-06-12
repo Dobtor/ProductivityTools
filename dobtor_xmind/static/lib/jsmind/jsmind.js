@@ -1106,12 +1106,13 @@
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
                 child.direction = 6;               // timeline-v connector to the axis
+                const goRight = (i % 2 === 0);      // topics alternate right/left of the axis
                 child._x = 0; child._y = 0;
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutBranch(child, child.children, 1);
+                    this._layoutBranch(child, child.children, goRight ? 1 : -1);
                 }
                 const bb = this._subtreeBBox(child);
-                const dx = child._w / 2 + 14;      // topic just right of the vertical axis
+                const dx = goRight ? (child._w / 2 + 14) : -(child._w / 2 + 14);
                 const dy = curY - bb.minY;
                 this._translateTree(child, dx, dy);
                 curY += (bb.maxY - bb.minY) + 30;
