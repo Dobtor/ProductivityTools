@@ -1433,6 +1433,11 @@
                 else el.style.border = `${w} solid ${c}`;
             }
 
+            // Per-topic shape (rectangle/rounded/ellipse/circle/diamond/hexagon/
+            // parallelogram/cloud/noBorder/underline). Previously unimplemented →
+            // the shape dropdown had no visible effect for non-default shapes.
+            if (dshape.type) this._applyNodeShape(el, dshape.type);
+
             // Events
             el.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1453,6 +1458,59 @@
             // Expander
             if (node.children.length > 0 && !node.isroot) {
                 this._createExpander(node);
+            }
+        }
+
+        /**
+         * Apply a per-topic node shape. Border-radius shapes keep their border;
+         * polygon shapes use clip-path (CSS clips the border, so they render as a
+         * filled silhouette) with extra padding so the text stays inside.
+         */
+        _applyNodeShape(el, type) {
+            switch (type) {
+                case 'rectangle':
+                    el.style.borderRadius = '0';
+                    break;
+                case 'rounded':
+                    el.style.borderRadius = '6px';
+                    break;
+                case 'ellipse':
+                    el.style.borderRadius = '50%';
+                    el.style.padding = '10px 22px';
+                    break;
+                case 'circle':
+                    el.style.borderRadius = '50%';
+                    el.style.padding = '18px';
+                    el.style.textAlign = 'center';
+                    break;
+                case 'diamond':
+                    el.style.clipPath = 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)';
+                    el.style.padding = '16px 28px';
+                    break;
+                case 'hexagon':
+                    el.style.clipPath = 'polygon(14% 0, 86% 0, 100% 50%, 86% 100%, 14% 100%, 0 50%)';
+                    el.style.padding = '8px 22px';
+                    break;
+                case 'parallelogram':
+                    el.style.clipPath = 'polygon(14% 0, 100% 0, 86% 100%, 0 100%)';
+                    el.style.padding = '6px 22px';
+                    break;
+                case 'cloud':
+                    // No clean CSS cloud; a pill is the closest border-preserving look.
+                    el.style.borderRadius = '50% / 70%';
+                    el.style.padding = '10px 22px';
+                    break;
+                case 'noBorder':
+                    el.style.border = 'none';
+                    el.style.boxShadow = 'none';
+                    break;
+                case 'underline':
+                    el.style.border = 'none';
+                    el.style.borderRadius = '0';
+                    el.style.boxShadow = 'none';
+                    break;
+                default:
+                    break;
             }
         }
 
