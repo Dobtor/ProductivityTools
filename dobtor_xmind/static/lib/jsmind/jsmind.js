@@ -2048,14 +2048,17 @@
             const lineWidth = bs.lineWidth || s.lineWidth || 1;
             // Line class: per-node override → depth default
             let lineClass = bs.lineType || s.lineClass || 'curve';
-            // Fishbone sub-bones use straight lines (logic-tree off the diagonal
-            // rib), matching XMind — unless the user set an explicit line style.
+            // Layout-driven connector style. A baked-in default line type
+            // ('curve'/'curved') is NOT a deliberate per-node choice, so it must not
+            // block the layout style; only a genuine non-default override wins.
+            const _userLine = bs.lineType && bs.lineType !== 'curve' && bs.lineType !== 'curved';
             const _fbMode = this.options.layout && this.options.layout.mode;
-            if (!bs.lineType && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {
+            // Fishbone sub-bones use straight lines (logic-tree off the diagonal rib).
+            if (!_userLine && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {
                 lineClass = 'straight';
             }
             // Timeline-horizontal sub-tree uses sharp right-angle elbow connectors.
-            if (!bs.lineType && _fbMode === 'timeline_horizontal') {
+            if (!_userLine && _fbMode === 'timeline_horizontal') {
                 lineClass = 'angular';
             }
             // Line corner for rounded elbow
