@@ -1378,13 +1378,33 @@
                 }
             }
 
-            // Custom data styles override defaults
-            if (node.data && node.data.style) {
-                const ds = node.data.style;
-                if (ds.background) el.style.backgroundColor = ds.background;
-                if (ds.color) el.style.color = ds.color;
-                if (ds['font-size']) el.style.fontSize = ds['font-size'];
-                if (ds['font-weight']) el.style.fontWeight = ds['font-weight'];
+            // Custom data styles override defaults (per-topic). Accept both kebab
+            // ('font-size') and camelCase ('fontFamily') keys, since the format panel
+            // and the sidebar write a mix of both.
+            const ds = (node.data && node.data.style) || {};
+            const dshape = (node.data && node.data.shape) || {};
+            const pick = (a, b) => (ds[a] != null ? ds[a] : ds[b]);
+            if (ds.background) el.style.backgroundColor = ds.background;
+            if (ds.color) el.style.color = ds.color;
+            if (pick('font-size', 'fontSize')) el.style.fontSize = pick('font-size', 'fontSize');
+            if (pick('font-weight', 'fontWeight')) el.style.fontWeight = pick('font-weight', 'fontWeight');
+            if (pick('font-family', 'fontFamily')) el.style.fontFamily = pick('font-family', 'fontFamily');
+            if (pick('font-style', 'fontStyle')) el.style.fontStyle = pick('font-style', 'fontStyle');
+            if (pick('text-decoration', 'textDecoration')) el.style.textDecoration = pick('text-decoration', 'textDecoration');
+            if (pick('text-align', 'textAlign')) el.style.textAlign = pick('text-align', 'textAlign');
+            // Per-topic border: width from shape.borderWidth (sidebar) or style
+            // border-width (format panel); colour from shape.borderColor or style.
+            let bWid = (dshape.borderWidth != null) ? dshape.borderWidth : null;
+            if (bWid == null) {
+                const sw = pick('border-width', 'borderWidth');
+                if (sw != null) bWid = parseInt(sw);
+            }
+            const bCol = dshape.borderColor || pick('border-color', 'borderColor');
+            if ((bWid != null && !isNaN(bWid)) || bCol) {
+                const w = (bWid != null && !isNaN(bWid) ? bWid : bw) + 'px';
+                const c = bCol || s.borderColor || s.border || branchColor || '#558ED5';
+                if (s.shape === 'underline') el.style.borderBottom = `${w} solid ${c}`;
+                else el.style.border = `${w} solid ${c}`;
             }
 
             // Events
@@ -2048,10 +2068,13 @@
             const lineWidth = bs.lineWidth || s.lineWidth || 1;
             // Line class: per-node override → depth default
             let lineClass = bs.lineType || s.lineClass || 'curve';
-            // Layout-driven connector style. A baked-in default line type
-            // ('curve'/'curved') is NOT a deliberate per-node choice, so it must not
-            // block the layout style; only a genuine non-default override wins.
-            const _userLine = bs.lineType && bs.lineType !== 'curve' && bs.lineType !== 'curved';
+            // Layout-driven connector style. A genuine per-topic choice wins over the
+            // layout default; a baked-in default line type ('curve'/'curved') with no
+            // explicit flag does NOT, so the layout style (e.g. timeline → angular)
+            // still applies. `lineTypeExplicit` is set when the user picks a type in
+            // the panel (incl. deliberately choosing 'curved').
+            const _userLine = bs.lineTypeExplicit
+                || (bs.lineType && bs.lineType !== 'curve' && bs.lineType !== 'curved');
             const _fbMode = this.options.layout && this.options.layout.mode;
             // Fishbone sub-bones use straight lines (logic-tree off the diagonal rib).
             if (!_userLine && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {

@@ -1756,7 +1756,10 @@ export class MindmapEditor extends Component {
         setVal('.o_topic_child_structure', data.childStructure || '');
         const shape = data.shape || {};
         setVal('.o_topic_shape_type', shape.type || 'rounded');
-        setVal('.o_topic_border_width', shape.borderWidth || '2');
+        // Border width may live on shape.borderWidth (sidebar) or style['border-width']
+        // (format panel) — read back from either so the control reflects reality.
+        const bwVal = (shape.borderWidth != null) ? shape.borderWidth : (parseInt(style['border-width']) || '2');
+        setVal('.o_topic_border_width', bwVal);
         const branch = data.branchStyle || {};
         setVal('.o_topic_line_type', branch.lineType || 'curved');
         setVal('.o_topic_line_width', branch.lineWidth || '1');
@@ -3738,6 +3741,9 @@ export class MindmapEditor extends Component {
             ...(node.data.branchStyle || {}),
             lineType: lineType,
             lineWidth: lineWidth,
+            // Mark this as a deliberate per-topic choice so the renderer honours it
+            // over the layout-mode default — even when the chosen type is 'curved'.
+            lineTypeExplicit: true,
         };
 
         this.jm.view.draw_lines();
