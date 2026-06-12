@@ -377,8 +377,11 @@ export class MindmapEditor extends Component {
             }
 
             this.jm.show(this.mindmapData, () => {
-                // Called after DOM is fully rendered + layout complete
-                this._renderAllXMindFeatures();
+                // Called after DOM is fully rendered + layout complete.
+                // resetRelationships=true → on initial load, re-optimise relationship
+                // control points for the current layout (matches layout-switch behaviour),
+                // so a page refresh also lands the green connectors at optimal positions.
+                this._renderAllXMindFeatures(true);
             });
         } catch (error) {
             console.error('[MindmapEditor] Failed to initialize jsMind:', error);
@@ -5384,7 +5387,7 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Re-render All Features =====
-    _renderAllXMindFeatures() {
+    _renderAllXMindFeatures(resetRelationships = false) {
         const nodes = this.jm.mind.nodes;
 
         // Phase 1: Apply all visual features (shapes, styles, markers, labels, etc.)
@@ -5442,8 +5445,9 @@ export class MindmapEditor extends Component {
             this.jm.view.draw_lines();
         }
 
-        // Rebuild all relationships
-        this._rebuildRelationships();
+        // Rebuild all relationships. On initial load (resetRelationships=true) we
+        // re-optimise control points for the current layout, same as a layout switch.
+        this._rebuildRelationships(resetRelationships);
 
         // Apply per-topic numbering
         this._applyAllPerTopicNumbering();
@@ -5457,7 +5461,7 @@ export class MindmapEditor extends Component {
                 this._rebuildBoundaries();
                 this._rebuildSummaries();
                 if (this.jm && this.jm.view) this.jm.view.draw_lines();
-                this._rebuildRelationships();
+                this._rebuildRelationships(resetRelationships);
             });
         }
     }
