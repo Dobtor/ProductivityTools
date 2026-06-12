@@ -1039,38 +1039,38 @@
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
                 child.direction = 5;               // level-2 sits on the axis (y = 0)
+                const up = (i % 2 === 0);           // level-2 subtree alternates up/down
+                child._tlhUp = up;
                 child._x = curX + child._w / 2;
                 child._y = 0;
-                this._layoutTimelineHSub(child);
+                this._layoutTimelineHSub(child, up ? -1 : 1);
                 const bb = this._subtreeBBox(child);
                 curX = bb.maxX + 45;               // next level-2 past this subtree
             }
             this._currentMode = savedMode;
         }
 
-        // Lay out a level-2 topic's level-3 children for timeline-horizontal: the
-        // level-3 alternate above/below the axis (timeline style, connected by
-        // vertical stubs to the axis); each level-3's level-4+ is a logic-right tree.
-        _layoutTimelineHSub(node) {
+        // Lay out a level-2 topic's level-3 children for timeline-horizontal. The
+        // level-3 form a timeline going up/down (dirY): stacked vertically, each
+        // hanging off a vertical sub-trunk from the level-2's top/bottom centre via
+        // a horizontal stub (dir 6); each level-3's level-4+ is a logic-right tree.
+        _layoutTimelineHSub(node, dirY) {
             const kids = node.children.filter(c => !(_isLayoutExcluded(c)));
             if (kids.length === 0) return;
-            let xUp = node._x + node._w / 2 + 30;
-            let xDown = node._x + node._w / 2 + 30;
-            for (let i = 0; i < kids.length; i++) {
-                const kid = kids[i];
-                const up = (i % 2 === 0);          // level-3 alternate up/down
-                kid.direction = 5;                 // vertical stub to the axis (y = 0)
+            const branchX = node._x + node._w / 2 + 42;   // level-3 to the right of the trunk
+            let edge = node._y + dirY * (node._h / 2 + 24);  // first level-3 edge
+            for (const kid of kids) {
+                kid.direction = 6;            // horizontal stub to the sub-trunk at node._x
                 kid._x = 0; kid._y = 0;
                 if (kid.expanded && kid.children.length > 0) {
                     this._layoutBranch(kid, kid.children, 1);   // level-4+ logic-right
                 }
                 const bb = this._subtreeBBox(kid);
-                const w = bb.maxX - bb.minX;
-                const cur = up ? xUp : xDown;
-                const dx = cur - bb.minX;
-                const dy = up ? (-30 - bb.maxY) : (30 - bb.minY);
-                this._translateTree(kid, dx, dy);
-                if (up) xUp = cur + w + 28; else xDown = cur + w + 28;
+                const h = bb.maxY - bb.minY;
+                const px = branchX + kid._w / 2;
+                const py = (dirY < 0) ? (edge - bb.maxY) : (edge - bb.minY);
+                this._translateTree(kid, px, py);
+                edge += dirY * (h + 14);
             }
         }
 
@@ -1755,16 +1755,32 @@
             spine.setAttribute('opacity', '0.5');
 
             if (mode === 'timeline_horizontal') {
-                // Horizontal spine from root edge to the rightmost content (so the
-                // level-3 vertical stubs all meet the axis).
-                let lastX = root._x + root._w / 2;
-                const walk = (n) => {
-                    if (n._el && n._el.style.display !== 'none') lastX = Math.max(lastX, n._x + n._w / 2);
-                    for (const c of n.children) walk(c);
-                };
-                walk(root);
+                // Horizontal main axis from root edge to the last level-2 topic.
+                const lastX = Math.max(...children.map(c => c._x + c._w / 2));
                 const y = root._y;
                 spine.setAttribute('d', `M${root._x + root._w / 2},${y} L${lastX + 20},${y}`);
+                this.svg.appendChild(spine);
+                // Per level-2: a vertical sub-trunk from its top/bottom centre to the
+                // farthest level-3, so the level-3 horizontal stubs all meet it.
+                for (const l2 of children) {
+                    const l3 = l2.children.filter(c =>
+                        !(_isLayoutExcluded(c)) && c._el && c._el.style.display !== 'none');
+                    if (l3.length === 0) continue;
+                    const up = l2._tlhUp;
+                    const tx = l2._x;
+                    const startY = up ? (l2._y - l2._h / 2) : (l2._y + l2._h / 2);
+                    const ys = l3.map(c => c._y);
+                    const farY = up ? Math.min(...ys) : Math.max(...ys);
+                    const trunk = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    trunk.setAttribute('stroke', l2._branchColor || '#558ED5');
+                    trunk.setAttribute('stroke-width', '2');
+                    trunk.setAttribute('fill', 'none');
+                    trunk.setAttribute('stroke-linecap', 'round');
+                    trunk.setAttribute('opacity', '0.5');
+                    trunk.setAttribute('d', `M${tx},${startY} L${tx},${farY}`);
+                    this.svg.appendChild(trunk);
+                }
+                return;
             } else {
                 // Vertical spine from root bottom to last child y
                 const lastY = Math.max(...children.map(c => c._y + c._h / 2));
