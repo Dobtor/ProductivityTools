@@ -231,13 +231,13 @@ class XMindController(http.Controller):
         return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/save', type='json', auth='user')
-    def save_workbook_data(self, workbook_id, data, **kwargs):
+    def save_workbook_data(self, workbook_id, data, is_auto=False, **kwargs):
         """Save mindmap data from visual editor"""
         workbook = self._check_workbook_access(workbook_id, 'write')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
-        workbook.save_mindmap_data(data)
+        workbook.save_mindmap_data(data, is_auto=bool(is_auto))
         return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/thumbnail', type='json', auth='user')

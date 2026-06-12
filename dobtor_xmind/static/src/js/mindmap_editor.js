@@ -654,7 +654,7 @@ export class MindmapEditor extends Component {
         const indicator = this._el('.o_mindmap_autosave_indicator');
         if (indicator) indicator.textContent = _t('Saving...');
 
-        await this._saveData();
+        await this._saveData(true);
         this._saveThumbnail();
 
         if (indicator) {
@@ -4839,7 +4839,7 @@ export class MindmapEditor extends Component {
         reader.readAsDataURL(file);
     }
 
-    async _saveData() {
+    async _saveData(isAuto = false) {
         if (!this.workbookId) return;
         // Never overwrite the server copy with default data after a failed load.
         if (this._loadFailed) {
@@ -4893,7 +4893,7 @@ export class MindmapEditor extends Component {
         });
 
         try {
-            const result = await rpc('/xmind/workbook/' + this.workbookId + '/save', { data });
+            const result = await rpc('/xmind/workbook/' + this.workbookId + '/save', { data, is_auto: isAuto });
             if (result && result.error) {
                 this._showError(result.error);
                 return false;

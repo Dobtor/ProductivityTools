@@ -278,7 +278,7 @@ class XMindWorkbook(models.Model):
         reverse = {v: k for k, v in self._XMIND_STRUCTURE_MAP.items()}
         return reverse.get(layout_type, '')
 
-    def save_mindmap_data(self, data):
+    def save_mindmap_data(self, data, is_auto=False):
         """Save mindmap data from jsMind editor with command history"""
         self.ensure_one()
 
@@ -325,7 +325,7 @@ class XMindWorkbook(models.Model):
         self.modified_time = fields.Datetime.now()
 
         # Create revision snapshot (captures the full payload incl. features)
-        self._create_revision(data, is_auto=False)
+        self._create_revision(data, is_auto=is_auto)
 
         return True
 
@@ -489,13 +489,22 @@ class XMindWorkbook(models.Model):
             'topic_count': self.topic_count,
             'is_auto': is_auto,
         })
-        # Keep max 50 revisions per workbook
-        revisions = self.revision_ids.sorted('create_date', reverse=True)
+        # Keep max 50 revisions per workbook. Order by id desc (monotonic, fresh from
+        # DB) rather than the in-transaction create_date, which can be equal/unset for
+        # the just-created record and make pruning drop the wrong row.
+        revisions = self.env['xmind.revision'].search(
+            [('workbook_id', '=', self.id)], order='id desc')
         if len(revisions) > 50:
             revisions[50:].unlink()
 
-    def _import_jsmind_node(self, node, sheet, parent=False):
+    # Defensive cap on tree nesting — a hand-crafted/corrupt payload with extreme
+    # depth would otherwise blow the Python recursion limit (uncaught 500).
+    _MAX_IMPORT_DEPTH = 200
+
+    def _import_jsmind_node(self, node, sheet, parent=False, _depth=0):
         """Import node from jsMind data with styling"""
+        if _depth > self._MAX_IMPORT_DEPTH:
+            raise UserError(_("Mind map is nested too deeply (max %d levels).") % self._MAX_IMPORT_DEPTH)
         style_data = node.get('data', {}).get('style', {})
         shape_data = node.get('data', {}).get('shape', {})
 
@@ -571,7 +580,7 @@ class XMindWorkbook(models.Model):
         # Import children
         seq = 0
         for child_node in node.get('children', []):
-            child = self._import_jsmind_node(child_node, sheet, topic)
+            child = self._import_jsmind_node(child_node, sheet, topic, _depth + 1)
             if child:
                 child.sequence = seq
                 seq += 1
@@ -1406,12 +1415,14 @@ class XMindWorkbook(models.Model):
                         root_topic.structure_class, 'map')
                     sheet.write({'layout_type': layout})
 
-            # Import relationships
+            # Import relationships — build the component_id→topic map once (no N+1).
             rels_elem = sheet_elem.find('xmap:relationships', ns)
             if rels_elem is not None:
-                for rel_elem in rels_elem.findall('xmap:relationship', ns):
+                rel_elems = rels_elem.findall('xmap:relationship', ns)
+                rel_topic_map = self._topic_map(sheet) if rel_elems else {}
+                for rel_elem in rel_elems:
                     self._import_xmind_xml_relationship(
-                        rel_elem, sheet, ns, style_map=style_map)
+                        rel_elem, sheet, ns, style_map=style_map, topic_map=rel_topic_map)
 
     def _import_xmind_xml_topic(self, topic_elem, sheet, ns, parent=False,
                                  style_map=None, theme_defaults=None):
@@ -1656,8 +1667,9 @@ class XMindWorkbook(models.Model):
 
         return topic
 
-    def _import_xmind_xml_relationship(self, rel_elem, sheet, ns, style_map=None):
-        """Import relationship from XML format with control points and styling"""
+    def _import_xmind_xml_relationship(self, rel_elem, sheet, ns, style_map=None, topic_map=None):
+        """Import relationship from XML format with control points and styling.
+        Pass topic_map to avoid per-relationship N+1 search."""
         rel_id = rel_elem.get('id', str(uuid.uuid4()))
         end1_id = rel_elem.get('end1', '')
         end2_id = rel_elem.get('end2', '')
@@ -1715,14 +1727,18 @@ class XMindWorkbook(models.Model):
         arrow_begin = self._XMIND_ARROW_MAP.get(arrow_begin_class, 'none')
 
         if end1_id and end2_id:
-            source = self.env['xmind.topic'].search([
-                ('sheet_id', '=', sheet.id),
-                ('component_id', '=', end1_id)
-            ], limit=1)
-            target = self.env['xmind.topic'].search([
-                ('sheet_id', '=', sheet.id),
-                ('component_id', '=', end2_id)
-            ], limit=1)
+            if topic_map is not None:
+                source = topic_map.get(end1_id)
+                target = topic_map.get(end2_id)
+            else:
+                source = self.env['xmind.topic'].search([
+                    ('sheet_id', '=', sheet.id),
+                    ('component_id', '=', end1_id)
+                ], limit=1)
+                target = self.env['xmind.topic'].search([
+                    ('sheet_id', '=', sheet.id),
+                    ('component_id', '=', end2_id)
+                ], limit=1)
 
             if source and target:
                 self.env['xmind.relationship'].create({
@@ -1754,9 +1770,12 @@ class XMindWorkbook(models.Model):
         if 'rootTopic' in sheet_data:
             self._import_xmind_topic(sheet_data['rootTopic'], sheet)
 
-        # Import relationships
-        for rel_data in sheet_data.get('relationships', []):
-            self._import_relationship(rel_data, sheet)
+        # Import relationships — build the component_id→topic map once (no N+1).
+        rels = sheet_data.get('relationships', [])
+        if rels:
+            topic_map = self._topic_map(sheet)
+            for rel_data in rels:
+                self._import_relationship(rel_data, sheet, topic_map)
 
         return sheet
 
@@ -1913,16 +1932,20 @@ class XMindWorkbook(models.Model):
                 'topic_ids': [Command.set([t.id for t in members])],
             })
 
-    def _import_relationship(self, rel_data, sheet):
-        """Import relationship data"""
-        source = self.env['xmind.topic'].search([
-            ('sheet_id', '=', sheet.id),
-            ('component_id', '=', rel_data.get('end1Id'))
-        ], limit=1)
-        target = self.env['xmind.topic'].search([
-            ('sheet_id', '=', sheet.id),
-            ('component_id', '=', rel_data.get('end2Id'))
-        ], limit=1)
+    def _import_relationship(self, rel_data, sheet, topic_map=None):
+        """Import relationship data. Pass topic_map to avoid per-rel N+1 search."""
+        if topic_map is not None:
+            source = topic_map.get(rel_data.get('end1Id'))
+            target = topic_map.get(rel_data.get('end2Id'))
+        else:
+            source = self.env['xmind.topic'].search([
+                ('sheet_id', '=', sheet.id),
+                ('component_id', '=', rel_data.get('end1Id'))
+            ], limit=1)
+            target = self.env['xmind.topic'].search([
+                ('sheet_id', '=', sheet.id),
+                ('component_id', '=', rel_data.get('end2Id'))
+            ], limit=1)
 
         if source and target and source.id != target.id:
             props = (rel_data.get('style') or {}).get('properties', {})
