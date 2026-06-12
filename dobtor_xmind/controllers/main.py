@@ -248,8 +248,19 @@ class XMindController(http.Controller):
             return {'error': 'Workbook not found or access denied'}
         # thumbnail is base64 data URL: "data:image/png;base64,..."
         import base64
-        if thumbnail and ',' in thumbnail:
+        import binascii
+        if not thumbnail or not isinstance(thumbnail, str):
+            return {'error': 'Invalid thumbnail'}
+        if ',' in thumbnail:
             thumbnail = thumbnail.split(',', 1)[1]
+        # Reject oversized payloads (~4 MB of base64) and non-base64 content so a
+        # malformed/huge client value can't raise an uncaught 500 or bloat the row.
+        if len(thumbnail) > 4 * 1024 * 1024:
+            return {'error': 'Thumbnail too large'}
+        try:
+            base64.b64decode(thumbnail, validate=True)
+        except (binascii.Error, ValueError):
+            return {'error': 'Invalid thumbnail encoding'}
         workbook.write({'thumbnail': thumbnail})
         return {'success': True}
 
