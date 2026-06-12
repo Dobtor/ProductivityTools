@@ -1031,6 +1031,8 @@
             root._y = 0;
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
+            const savedMode = this._currentMode;
+            this._currentMode = 'logic_right';     // level-4+ are plain logic-right
             let curX = root._w / 2 + 55;
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
@@ -1043,6 +1045,7 @@
                 const bb = this._subtreeBBox(child);
                 curX = bb.maxX + 45;               // next level-2 past this subtree
             }
+            this._currentMode = savedMode;
         }
 
         // Lay out a level-2 topic's level-3 children for timeline-horizontal: the
