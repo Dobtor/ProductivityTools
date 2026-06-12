@@ -2054,9 +2054,9 @@
             if (!bs.lineType && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {
                 lineClass = 'straight';
             }
-            // Timeline-horizontal sub-tree uses right-angle elbow connectors.
+            // Timeline-horizontal sub-tree uses sharp right-angle elbow connectors.
             if (!bs.lineType && _fbMode === 'timeline_horizontal') {
-                lineClass = 'roundedElbow';
+                lineClass = 'angular';
             }
             // Line corner for rounded elbow
             const lineCorner = s.lineCorner || 4;
