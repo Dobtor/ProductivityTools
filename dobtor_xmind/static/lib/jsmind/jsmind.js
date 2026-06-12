@@ -346,6 +346,9 @@
                 for (const c of node.children) {
                     if (c.data && c.data._isSummaryNode) { summaries.push(c); continue; }
                     if (_isLayoutExcluded(c)) continue;
+                    // Skip collapsed/hidden subtrees so sizing matches the drawn grid
+                    // (kept identical to the View._subtreeBBox copy).
+                    if (c._el && c._el.style.display === 'none') continue;
                     const b = this._subtreeBBox(c);
                     minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
                     minY = Math.min(minY, b.minY); maxY = Math.max(maxY, b.maxY);
