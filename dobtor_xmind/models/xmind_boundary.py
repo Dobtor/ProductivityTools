@@ -146,6 +146,12 @@ class XMindAttachment(models.Model):
 
     file = fields.Binary('File', attachment=True)
     filename = fields.Char('Filename')
+    # Lossless round-trip of the editor's data-URL: the MIME prefix and any extra
+    # client-side options (image display options, original type/size) so the exact
+    # {data, options} / {name,type,size,data} object can be reconstructed on load.
+    mimetype = fields.Char('MIME Type')
+    meta = fields.Text('Extra Metadata (JSON)')
+    sequence = fields.Integer('Sequence', default=0)
 
     # For stickers/images - display properties
     width = fields.Integer('Width', default=100)

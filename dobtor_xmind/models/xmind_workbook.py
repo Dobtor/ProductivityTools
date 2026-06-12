@@ -176,6 +176,13 @@ class XMindWorkbook(models.Model):
                 'assignee': topic.task_assignee or '',
             }
 
+        # Embedded image + file attachments
+        att_data = self._get_topic_attachments(topic)
+        if att_data.get('image'):
+            data['image'] = att_data['image']
+        if att_data.get('attachments'):
+            data['attachments'] = att_data['attachments']
+
         # Summary node flag
         if topic.is_summary_node:
             data['_isSummaryNode'] = True
@@ -272,6 +279,89 @@ class XMindWorkbook(models.Model):
         if topic.line_type_explicit:
             style['lineTypeExplicit'] = True
         return style
+
+    @staticmethod
+    def _split_data_url(data_url):
+        """Split 'data:<mime>;base64,<payload>' → (mime, payload). Tolerates raw base64."""
+        if isinstance(data_url, str) and data_url.startswith('data:') and ',' in data_url:
+            header, payload = data_url.split(',', 1)
+            mime = header[5:].split(';', 1)[0]   # strip leading 'data:' and trailing ';base64'
+            return mime, payload
+        return '', (data_url or '')
+
+    @staticmethod
+    def _build_data_url(mime, payload):
+        """Rebuild a base64 data URL from a stored attachment payload."""
+        if not payload:
+            return ''
+        if isinstance(payload, bytes):
+            payload = payload.decode()
+        return 'data:%s;base64,%s' % (mime or 'application/octet-stream', payload)
+
+    def _save_topic_attachments(self, topic, node_data):
+        """Persist node.data.image + node.data.attachments as xmind.attachment rows."""
+        Attachment = self.env['xmind.attachment']
+        img = node_data.get('image')
+        if img and img.get('data'):
+            mime, payload = self._split_data_url(img['data'])
+            Attachment.create({
+                'topic_id': topic.id,
+                'attachment_type': 'image',
+                'name': 'image',
+                'filename': 'image',
+                'file': payload,
+                'mimetype': mime,
+                'meta': json.dumps({'options': img.get('options') or {}}),
+                'sequence': -1,
+            })
+        for i, att in enumerate(node_data.get('attachments') or []):
+            if not att.get('data'):
+                continue
+            mime, payload = self._split_data_url(att['data'])
+            Attachment.create({
+                'topic_id': topic.id,
+                'attachment_type': 'file',
+                'name': att.get('name') or 'attachment',
+                'filename': att.get('name') or 'attachment',
+                'file': payload,
+                'mimetype': mime or att.get('type', ''),
+                'meta': json.dumps({'type': att.get('type', ''), 'size': att.get('size', 0)}),
+                'sequence': i,
+            })
+
+    def _get_topic_attachments(self, topic):
+        """Reconstruct {image, attachments} from a topic's xmind.attachment rows."""
+        result = {}
+        atts = topic.attachment_ids
+        if not atts:
+            return result
+        images = atts.filtered(lambda a: a.attachment_type == 'image')
+        if images:
+            a = images[0]
+            try:
+                meta = json.loads(a.meta) if a.meta else {}
+            except (TypeError, ValueError):
+                meta = {}
+            result['image'] = {
+                'data': self._build_data_url(a.mimetype, a.file),
+                'options': meta.get('options') or {},
+            }
+        files = atts.filtered(lambda a: a.attachment_type != 'image').sorted('sequence')
+        if files:
+            out = []
+            for a in files:
+                try:
+                    meta = json.loads(a.meta) if a.meta else {}
+                except (TypeError, ValueError):
+                    meta = {}
+                out.append({
+                    'name': a.name,
+                    'type': meta.get('type', a.mimetype or ''),
+                    'size': meta.get('size', 0),
+                    'data': self._build_data_url(a.mimetype, a.file),
+                })
+            result['attachments'] = out
+        return result
 
     def _reverse_structure_map(self, layout_type):
         """Convert frontend layout type back to XMind structure-class for storage"""
@@ -576,6 +666,9 @@ class XMindWorkbook(models.Model):
                     'topic_id': topic.id,
                     'marker_id': marker.id,
                 })
+
+        # Persist embedded image + file attachments (previously dropped on save).
+        self._save_topic_attachments(topic, node_data)
 
         # Import children
         seq = 0
