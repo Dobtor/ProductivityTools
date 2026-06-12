@@ -670,7 +670,9 @@
                     l3._x = colLeft + l3._w / 2;
                     l3._y = curY + subH / 2;
                     if (l3.expanded && l3.children.length > 0) {
-                        this._layoutBranch(l3, l3.children, 1);
+                        if (!this._applyExplicitChildStructure(l3, 1)) {
+                            this._layoutBranch(l3, l3.children, 1);
+                        }
                     }
                     const bb = this._subtreeBBox(l3);
                     colRight = Math.max(colRight, bb.maxX);
@@ -723,7 +725,9 @@
                     l3._x = contentLeft + l3._w / 2;
                     l3._y = curY + subH / 2;
                     if (l3.expanded && l3.children.length > 0) {
-                        this._layoutBranch(l3, l3.children, 1);
+                        if (!this._applyExplicitChildStructure(l3, 1)) {
+                            this._layoutBranch(l3, l3.children, 1);
+                        }
                     }
                     const bb = this._subtreeBBox(l3);
                     tableRight = Math.max(tableRight, bb.maxX);
@@ -834,6 +838,19 @@
                     this._layoutBranch(node, node.children, defaultDir);
                     break;
             }
+        }
+
+        // Honour an explicit per-topic childStructure INSIDE a hardcoded layout
+        // (matrix/timeline/tree). Lays the node's children out with that structure
+        // (descendants inherit it) and returns true so the caller skips its own
+        // hardcoded sub-layout. Returns false when the node has no explicit override.
+        _applyExplicitChildStructure(node, dir) {
+            if (!(node.data && node.data.childStructure)) return false;
+            const saved = this._currentMode;
+            this._currentMode = node.data.childStructure;
+            this._layoutChildrenWithStructure(node, dir);
+            this._currentMode = saved;
+            return true;
         }
 
         _layoutVerticalChildren(parent) {
@@ -991,7 +1008,9 @@
                 curY += subH + minorGap;
 
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutTreeChildren(child, dir);
+                    if (!this._applyExplicitChildStructure(child, dir)) {
+                        this._layoutTreeChildren(child, dir);
+                    }
                 }
             }
         }
@@ -1063,7 +1082,9 @@
                 kid.direction = 8;            // underline at bottom edge → sub-trunk at node._x
                 kid._x = 0; kid._y = 0;
                 if (kid.expanded && kid.children.length > 0) {
-                    this._layoutBranch(kid, kid.children, 1);   // level-4+ logic-right
+                    if (!this._applyExplicitChildStructure(kid, 1)) {
+                        this._layoutBranch(kid, kid.children, 1);   // level-4+ logic-right
+                    }
                 }
                 const bb = this._subtreeBBox(kid);
                 const h = bb.maxY - bb.minY;
@@ -1128,7 +1149,9 @@
                 child._x = 0; child._y = 0;
                 // level-3+ : vertical tree cascading to the same side (no alternation)
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutTreeChildren(child, goRight ? 1 : -1);
+                    if (!this._applyExplicitChildStructure(child, goRight ? 1 : -1)) {
+                        this._layoutTreeChildren(child, goRight ? 1 : -1);
+                    }
                 }
                 const bb = this._subtreeBBox(child);
                 const dx = goRight ? (child._w / 2 + 14) : -(child._w / 2 + 14);
