@@ -1090,26 +1090,26 @@
         // direction = 6 (timeline-v) for spine connection lines.
         // =================================================================
 
-        // Timeline vertical — central topic on top, top-level topics stacked
-        // down a vertical axis, each subtree a plain logic-right tree to the
-        // right, stacked by its real bounding box (no collision).
+        // Timeline vertical — central topic on top, top-level topics stacked down
+        // a vertical axis, ALTERNATING left/right. From level-3 down it stays a
+        // (non-alternating) vertical tree cascading toward the SAME side as its
+        // level-2 ancestor. Stacked by real bounding box (no collision).
         _layoutTimelineV(root) {
             root._x = 0;
             root._y = 0;
             const children = root.children.filter(c => !(_isLayoutExcluded(c)));
             if (children.length === 0) return;
-            const savedMode = this._currentMode;
-            this._currentMode = 'logic_right';     // sub-levels are plain logic-right
             let curY = root._h / 2 + 45;
             for (let i = 0; i < children.length; i++) {
                 const child = children[i];
                 child._branchColor = BRANCH_COLORS[i % BRANCH_COLORS.length];
                 this._propagateBranchColor(child);
                 child.direction = 6;               // timeline-v connector to the axis
-                const goRight = (i % 2 === 0);      // topics alternate right/left of the axis
+                const goRight = (i % 2 === 0);      // level-2 alternates right/left of the axis
                 child._x = 0; child._y = 0;
+                // level-3+ : vertical tree cascading to the same side (no alternation)
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutBranch(child, child.children, goRight ? 1 : -1);
+                    this._layoutTreeChildren(child, goRight ? 1 : -1);
                 }
                 const bb = this._subtreeBBox(child);
                 const dx = goRight ? (child._w / 2 + 14) : -(child._w / 2 + 14);
@@ -1117,7 +1117,6 @@
                 this._translateTree(child, dx, dy);
                 curY += (bb.maxY - bb.minY) + 30;
             }
-            this._currentMode = savedMode;
         }
 
         _layoutTimelineVChildren(parent) {
