@@ -41,6 +41,8 @@ export class MindmapEditor extends Component {
         // rpc is imported directly from @web/core/network/rpc (not a service in Odoo 18)
         this.dialog = useService("dialog");
         this.notification = useService("notification");
+        this.action = useService("action");
+        this.orm = useService("orm");
 
         this.canvasRef = useRef("canvas");
         this.containerRef = useRef("jsmindContainer");
@@ -4050,10 +4052,24 @@ export class MindmapEditor extends Component {
     }
 
     _openActivityDialog(nodeId, taskId) {
-        rpc('/xmind/task/' + taskId + '/activity_meta', {}).then((meta) => {
-            if (meta && meta.error) { this._showError(meta.error); return; }
-            this._buildActivityDialog(nodeId, taskId, meta);
-        }).catch(() => this._showError(_t('Could not load activity options.')));
+        // Open Odoo's built-in "Schedule Activity" wizard (mail.activity form dialog)
+        // for the linked task; refresh the clock count when it closes.
+        this.orm.call('project.task', 'action_xmind_schedule_activity', [[taskId]])
+            .then((action) => {
+                this.action.doAction(action, {
+                    onClose: () => this._refreshActivityClock(nodeId, taskId),
+                });
+            })
+            .catch(() => this._showError(_t('Could not open the activity dialog.')));
+    }
+
+    _refreshActivityClock(nodeId, taskId) {
+        rpc('/xmind/task/' + taskId + '/activity_meta', {}).then((r) => {
+            if (r && !r.error) {
+                const el = this.jm.view.get_node_element(nodeId);
+                if (el) this._renderActivityClock(el, nodeId, taskId, r.activity_count || 0);
+            }
+        }).catch(() => {});
     }
 
     _buildActivityDialog(nodeId, taskId, meta) {

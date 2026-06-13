@@ -3946,3 +3946,9 @@ msgstr "尚無活動。"
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Action failed."
 msgstr "操作失敗。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Could not open the activity dialog."
+msgstr "無法開啟活動對話框。"
