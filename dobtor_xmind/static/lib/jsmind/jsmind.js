@@ -264,6 +264,11 @@
         layout(root, mode) {
             if (!root) return;
             this._currentMode = mode;  // 記錄當前 layout mode 供子節點 fallback
+            // Does any topic override its children's structure? When so, the height
+            // estimates (_subtreeHeight/_treeSubtreeHeight) can't predict the real
+            // size, so centred layouts must re-measure (slower, accurate). When not,
+            // keep the proven fast path → zero behaviour change for normal maps.
+            this._sheetHasExplicit = this._subtreeHasExplicitStructure(root);
             this._measureAll(root);
 
             if (mode === 'org_chart_down') {
@@ -687,16 +692,16 @@
                     const subH = this._subtreeHeight(l3);
                     l3._x = colLeft + l3._w / 2;
                     l3._y = curY + subH / 2;
-                    let usedExplicit = false;
                     if (l3.expanded && l3.children.length > 0) {
-                        usedExplicit = this._applyExplicitChildStructure(l3, 1);
-                        if (!usedExplicit) this._layoutBranch(l3, l3.children, 1);
+                        if (!this._applyExplicitChildStructure(l3, 1)) {
+                            this._layoutBranch(l3, l3.children, 1);
+                        }
                     }
-                    if (usedExplicit) this._fitExplicitSubtreeVertically(l3, curY);
+                    // Top-align + advance by the REAL bottom (covers per-topic
+                    // structures at any depth) so columns never overlap their neighbour.
+                    this._fitSubtreeVertically(l3, curY);
                     const bb = this._subtreeBBox(l3);
                     colRight = Math.max(colRight, bb.maxX);
-                    // Advance by the REAL bottom (covers explicit per-topic structures
-                    // whose height differs from the logic-tree estimate) → no overlap.
                     curY = Math.max(curY + subH, bb.maxY) + ivgap;
                 }
                 const colWidth = colRight - colLeft;
@@ -745,17 +750,17 @@
                     const subH = this._subtreeHeight(l3);
                     l3._x = contentLeft + l3._w / 2;
                     l3._y = curY + subH / 2;
-                    let usedExplicit = false;
                     if (l3.expanded && l3.children.length > 0) {
-                        usedExplicit = this._applyExplicitChildStructure(l3, 1);
-                        if (!usedExplicit) this._layoutBranch(l3, l3.children, 1);
+                        if (!this._applyExplicitChildStructure(l3, 1)) {
+                            this._layoutBranch(l3, l3.children, 1);
+                        }
                     }
-                    if (usedExplicit) this._fitExplicitSubtreeVertically(l3, curY);
+                    // Top-align + advance by the REAL bottom (covers per-topic
+                    // structures at any depth) so stacked rows never overlap.
+                    this._fitSubtreeVertically(l3, curY);
                     const bb = this._subtreeBBox(l3);
                     tableRight = Math.max(tableRight, bb.maxX);
                     rowBottom = Math.max(rowBottom, bb.maxY);
-                    // Advance by the REAL bottom (covers explicit per-topic structures)
-                    // so stacked level-3 items in a row never overlap.
                     curY = Math.max(curY + subH, bb.maxY) + ivgap;
                 }
                 const rowHeight = rowBottom - curTop;
@@ -767,6 +772,15 @@
             root._x = (labelLeft + tableRight) / 2;
         }
 
+        // True if `node` or any descendant overrides its children's structure.
+        _subtreeHasExplicitStructure(node) {
+            if (node.data && node.data.childStructure) return true;
+            for (const c of node.children) {
+                if (this._subtreeHasExplicitStructure(c)) return true;
+            }
+            return false;
+        }
+
         _layoutBranch(parent, children, dir) {
             // Filter out summary nodes — they are positioned by SummaryRenderer
             const layoutChildren = children.filter(c => !(_isLayoutExcluded(c)));
@@ -776,19 +790,45 @@
             const ps = getStyleForDepth(parent._depth);
             const hgap = ps.spacingMajor || this.hgap;
             const vgap = ps.spacingMinor || this.vgap;
-
-            const totalH = layoutChildren.reduce((sum, c) => sum + this._subtreeHeight(c), 0)
-                + vgap * (layoutChildren.length - 1);
-
-            let curY = parent._y - totalH / 2;
-
             // Extra gap for expander button (11px wide + 3px offset from node edge)
             const expanderGap = (!parent.isroot && layoutChildren.length > 0) ? 14 : 0;
+            const childX = (child) => parent._x + (parent._w / 2 + expanderGap + hgap + child._w / 2) * dir;
 
+            if (this._sheetHasExplicit) {
+                // Accurate path: lay out each child's subtree first, measure its REAL
+                // height, then centre by those — so a per-topic structure at ANY depth
+                // reserves real space and never overlaps siblings or other branches.
+                const info = [];
+                for (const child of layoutChildren) {
+                    child._x = childX(child);
+                    child._y = 0;
+                    child.direction = dir;
+                    if (child.expanded && child.children.length > 0) {
+                        this._layoutChildrenWithStructure(child, dir);
+                    }
+                    const bb = this._subtreeBBox(child);
+                    info.push({ child, h: bb.maxY - bb.minY, top: bb.minY });
+                }
+                const totalH = info.reduce((s, x) => s + x.h, 0) + vgap * (layoutChildren.length - 1);
+                let curY = parent._y - totalH / 2;
+                for (const x of info) {
+                    // subtree top (bb.minY) currently at x.top (child._y was 0) → shift
+                    // it down so the top sits at curY.
+                    this._translateTree(x.child, 0, curY - x.top);
+                    curY += x.h + vgap;
+                }
+                return;
+            }
+
+            // Fast path (no per-topic structure on the sheet): height estimates are
+            // exact, so centre by them without an extra measure pass.
+            const totalH = layoutChildren.reduce((sum, c) => sum + this._subtreeHeight(c), 0)
+                + vgap * (layoutChildren.length - 1);
+            let curY = parent._y - totalH / 2;
             for (const child of layoutChildren) {
                 const subH = this._subtreeHeight(child);
                 child._y = curY + subH / 2;
-                child._x = parent._x + (parent._w / 2 + expanderGap + hgap + child._w / 2) * dir;
+                child._x = childX(child);
                 child.direction = dir;
                 curY += subH + vgap;
 
@@ -877,12 +917,14 @@
             return true;
         }
 
-        // After an explicit per-topic structure lays out `node`'s subtree, fit it into
-        // a clean vertical slot whose top is `topY`: a centred structure (logic/map)
-        // bulges ABOVE its anchor, so shift the whole subtree down until its top edge
-        // sits at topY. Returns the Y just past the subtree's real bottom — the caller
-        // uses it to place the next sibling, so nothing ever collides.
-        _fitExplicitSubtreeVertically(node, topY) {
+        // Fit an already-laid-out subtree into a clean vertical slot whose top is
+        // `topY`: if the subtree bulges ABOVE topY (centred structures like logic/map
+        // do, and a deep per-topic structure can too), shift the whole subtree down so
+        // its top edge sits at topY. Returns the Y just past the subtree's REAL bottom.
+        // Callers use the real bottom to place the next sibling, so a per-topic layout
+        // change at ANY depth propagates up and never collides with sibling OR other
+        // branches' topics.
+        _fitSubtreeVertically(node, topY) {
             let bb = this._subtreeBBox(node);
             if (bb.minY < topY) {
                 this._translateTree(node, 0, topY - bb.minY);
@@ -901,32 +943,54 @@
 
             // Extra gap for expander (dir=2: below node)
             const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
-
-            // Use subtree width to prevent overlapping
-            const childWidths = children.map(c => this._subtreeWidthVertical(c));
-            const totalW = childWidths.reduce((sum, w) => sum + w, 0)
-                + hgap * (children.length - 1);
-
-            let curX = parent._x - totalW / 2;
-
-            for (let i = 0; i < children.length; i++) {
-                const child = children[i];
-                const sw = childWidths[i];
-                child._x = curX + sw / 2;
-                child._y = parent._y + parent._h / 2 + expanderGap + vgap + child._h / 2;
-                child.direction = 2;
-                curX += sw + hgap;
-
+            const childTopY = (child) => parent._y + parent._h / 2 + expanderGap + vgap + child._h / 2;
+            const layoutSub = (child) => {
                 if (child.expanded && child.children.length > 0) {
-                    // Keep descending vertically (down) unless the node overrides
-                    // its own child structure — so the whole subtree stays an
-                    // org-chart even when the sheet mode isn't org_chart_down.
+                    // Keep descending vertically (down) unless the node overrides its
+                    // own child structure — so the subtree stays an org-chart.
                     if (child.data && child.data.childStructure) {
                         this._layoutChildrenWithStructure(child, 2);
                     } else {
                         this._layoutVerticalChildren(child);
                     }
                 }
+            };
+
+            if (this._sheetHasExplicit) {
+                // Accurate path: lay out each subtree, measure its REAL width, then
+                // centre by those so a per-topic structure at any depth never overlaps
+                // a neighbouring branch horizontally.
+                const info = [];
+                for (const child of children) {
+                    child._x = 0;
+                    child._y = childTopY(child);
+                    child.direction = 2;
+                    layoutSub(child);
+                    const bb = this._subtreeBBox(child);
+                    info.push({ child, w: bb.maxX - bb.minX, left: bb.minX });
+                }
+                const totalW = info.reduce((s, x) => s + x.w, 0) + hgap * (children.length - 1);
+                let curX = parent._x - totalW / 2;
+                for (const x of info) {
+                    this._translateTree(x.child, curX - x.left, 0);
+                    curX += x.w + hgap;
+                }
+                return;
+            }
+
+            // Fast path: width estimates are exact for plain org-charts.
+            const childWidths = children.map(c => this._subtreeWidthVertical(c));
+            const totalW = childWidths.reduce((sum, w) => sum + w, 0)
+                + hgap * (children.length - 1);
+            let curX = parent._x - totalW / 2;
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const sw = childWidths[i];
+                child._x = curX + sw / 2;
+                child._y = childTopY(child);
+                child.direction = 2;
+                curX += sw + hgap;
+                layoutSub(child);
             }
         }
 
@@ -943,27 +1007,47 @@
 
             // Extra gap for expander button (above node for org_chart_up)
             const expanderGap = (!parent.isroot && children.length > 0) ? 14 : 0;
-
-            // Use subtree width to prevent overlapping
-            const childWidths = children.map(c => this._subtreeWidthVertical(c));
-            const totalW = childWidths.reduce((sum, w) => sum + w, 0) + hgap * (children.length - 1);
-            let curX = parent._x - totalW / 2;
-
-            for (let i = 0; i < children.length; i++) {
-                const child = children[i];
-                const sw = childWidths[i];
-                child._x = curX + sw / 2;
-                child._y = parent._y - parent._h / 2 - expanderGap - vgap - child._h / 2;
-                child.direction = 2;
-                curX += sw + hgap;
+            const childTopY = (child) => parent._y - parent._h / 2 - expanderGap - vgap - child._h / 2;
+            const layoutSub = (child) => {
                 if (child.expanded && child.children.length > 0) {
-                    // Keep descending vertically (up) unless the node overrides.
                     if (child.data && child.data.childStructure) {
                         this._layoutChildrenWithStructure(child, 2);
                     } else {
                         this._layoutVerticalUpChildren(child);
                     }
                 }
+            };
+
+            if (this._sheetHasExplicit) {
+                const info = [];
+                for (const child of children) {
+                    child._x = 0;
+                    child._y = childTopY(child);
+                    child.direction = 2;
+                    layoutSub(child);
+                    const bb = this._subtreeBBox(child);
+                    info.push({ child, w: bb.maxX - bb.minX, left: bb.minX });
+                }
+                const totalW = info.reduce((s, x) => s + x.w, 0) + hgap * (children.length - 1);
+                let curX = parent._x - totalW / 2;
+                for (const x of info) {
+                    this._translateTree(x.child, curX - x.left, 0);
+                    curX += x.w + hgap;
+                }
+                return;
+            }
+
+            const childWidths = children.map(c => this._subtreeWidthVertical(c));
+            const totalW = childWidths.reduce((sum, w) => sum + w, 0) + hgap * (children.length - 1);
+            let curX = parent._x - totalW / 2;
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                const sw = childWidths[i];
+                child._x = curX + sw / 2;
+                child._y = childTopY(child);
+                child.direction = 2;
+                curX += sw + hgap;
+                layoutSub(child);
             }
         }
 
@@ -1044,19 +1128,17 @@
                 child._y = curY + child._h / 2;
                 child.direction = dir > 0 ? 3 : 4;
 
-                if (child.expanded && child.children.length > 0
-                        && this._applyExplicitChildStructure(child, dir)) {
-                    // Child uses a DIFFERENT structure than the tree → top-align it to
-                    // this slot and advance past its REAL bottom so it never collides
-                    // with the previous or next sibling.
-                    const bottom = this._fitExplicitSubtreeVertically(child, curY);
-                    curY = Math.max(curY + subH, bottom) + minorGap;
-                    continue;
-                }
-                curY += subH + minorGap;
                 if (child.expanded && child.children.length > 0) {
-                    this._layoutTreeChildren(child, dir);
+                    if (!this._applyExplicitChildStructure(child, dir)) {
+                        this._layoutTreeChildren(child, dir);
+                    }
                 }
+                // Advance by the child's REAL laid-out extent (top-aligned to this
+                // slot), not the tree height estimate. This way a per-topic structure
+                // at ANY depth grows the slot here and recursively up every ancestor,
+                // so it never overlaps siblings OR topics in other branches.
+                const bottom = this._fitSubtreeVertically(child, curY);
+                curY = Math.max(curY + subH, bottom) + minorGap;
             }
         }
 
