@@ -165,6 +165,11 @@ class XMindWorkbook(models.Model):
         if topic.numbering and topic.numbering != 'none':
             data['numbering'] = topic.numbering
 
+        # Linked project task — carried so the link survives the save round-trip
+        # (save fully recreates topics; without this the topic↔task link is lost).
+        if topic.task_id:
+            data['taskId'] = topic.task_id.id
+
         # Per-topic child structure (layout override for children)
         # Only set childStructure for explicit overrides, not for default/map structures
         if topic.structure_class and not topic.structure_class.startswith('org.xmind.ui.map'):
@@ -790,6 +795,16 @@ class XMindWorkbook(models.Model):
 
         # Persist embedded image + file attachments (previously dropped on save).
         self._save_topic_attachments(topic, node_data)
+
+        # Restore the project-task link (validated) so the map↔project mapping
+        # survives the full-recreate save, and re-point the task back to this topic.
+        task_id = node_data.get('taskId')
+        if task_id:
+            task = self.env['project.task'].browse(int(task_id)).exists()
+            if task:
+                topic.task_id = task.id
+                if task.xmind_topic_id.id != topic.id:
+                    task.xmind_topic_id = topic.id
 
         # Import children
         seq = 0

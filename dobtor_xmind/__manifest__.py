@@ -25,6 +25,7 @@
         'wizard/xmind_import_wizard_views.xml',
         'views/xmind_topic_views.xml',
         'views/xmind_workbook_views.xml',
+        'views/project_views.xml',
         'views/menu_views.xml',
     ],
     'assets': {
