@@ -6,10 +6,13 @@ import zipfile
 import io
 import uuid
 import html
+import logging
 import pytz
 from datetime import datetime, time
 from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class XMindWorkbook(models.Model):
@@ -2425,6 +2428,22 @@ class XMindWorkbook(models.Model):
             'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',
             'target': 'self',
         }
+
+    def _update_svg_thumbnail(self):
+        """Render a server-side SVG preview of the first sheet into ``thumbnail``.
+
+        Used when a mind map is created/synced from a project (no editor render
+        exists yet), so the kanban card isn't blank. ``thumbnail`` is an
+        ``attachment=True`` Binary, so Odoo stores the SVG with an
+        ``image/svg+xml`` mimetype and the image widget renders it directly.
+        Best-effort: a render error must never break the caller."""
+        for wb in self:
+            try:
+                svg = wb._generate_svg()
+                wb.thumbnail = base64.b64encode(svg.encode('utf-8'))
+            except Exception:
+                _logger.exception('Mind map preview generation failed for workbook %s', wb.id)
+        return True
 
     def _generate_svg(self):
         """Generate a complete SVG string for the first sheet's mind map."""

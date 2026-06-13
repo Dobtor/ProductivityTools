@@ -66,6 +66,7 @@ class ProjectProject(models.Model):
         Topic = self.env['xmind.topic']
 
         workbook = self.xmind_workbook_ids[:1]
+        created = False
         if not workbook:
             if not create_if_missing:
                 raise UserError(_("This project has no linked mind map yet."))
@@ -73,6 +74,7 @@ class ProjectProject(models.Model):
                 'name': self.name,
                 'project_id': self.id,
             })
+            created = True
         sheet = workbook.sheet_ids[:1]
         if not sheet:
             sheet = self.env['xmind.sheet'].create({
@@ -160,5 +162,10 @@ class ProjectProject(models.Model):
             'xmind_last_sync': fields.Datetime.now(),
             'xmind_last_sync_direction': 'to_mindmap',
         })
+        # Generate a server-side preview when the map was just created (or still
+        # has no preview) so its kanban card isn't blank before anyone opens the
+        # editor. An existing (editor-rendered) thumbnail is preserved.
+        if created or not workbook.thumbnail:
+            workbook._update_svg_thumbnail()
         stats['workbook_id'] = workbook.id
         return stats
