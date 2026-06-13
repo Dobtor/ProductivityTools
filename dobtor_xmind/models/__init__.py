@@ -8,3 +8,4 @@ from . import xmind_relationship
 from . import xmind_boundary
 from . import xmind_revision
 from . import project_project
+from . import project_task

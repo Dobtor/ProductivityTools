@@ -2817,6 +2817,30 @@ export class MindmapEditor extends Component {
             '&field=xmind_file&filename_field=xmind_filename&download=true';
     }
 
+    // ===== Project integration (mind map → project) =====
+    onCreateProject() { this._doProjectSync(true); }
+    onSyncProject() { this._doProjectSync(false); }
+
+    _doProjectSync(create) {
+        if (!this.workbookId) return;
+        // Save first so the backend syncs from the persisted topic tree.
+        this._saveData().then((ok) => {
+            if (ok === false) {
+                this._showError(_t('Could not save before syncing the project.'));
+                return;
+            }
+            this._updateStatus(create ? _t('Creating project...') : _t('Syncing project...'));
+            rpc('/xmind/workbook/' + this.workbookId + '/project_sync', { create }).then((r) => {
+                if (r && r.error) { this._showError(r.error); return; }
+                const name = (r && r.project_name) || '';
+                this._updateStatus(_t('Project synced: ') + name);
+                if (this.notification) {
+                    this.notification.add(_t('Project synced: ') + name, { type: 'success' });
+                }
+            }).catch(() => this._showError(_t('Project sync failed.')));
+        });
+    }
+
     // ===== Feature 5: Export as Image =====
     onExportImage() {
         if (!this.jm || !this.jm.view) return;

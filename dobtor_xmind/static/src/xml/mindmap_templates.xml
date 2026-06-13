@@ -435,6 +435,16 @@
                     </div>
                 </div>
 
+                <!-- Group 7b: Project integration (map → project) -->
+                <div class="btn-group me-2">
+                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_create_project" title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
+                        <i class="fa fa-folder-open"/> 建立專案
+                    </button>
+                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_sync_project" title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject">
+                        <i class="fa fa-refresh"/> 同步專案
+                    </button>
+                </div>
+
                 <!-- Group 8: Structure / Theme selectors (XMind 2: Window > Properties panels) -->
                 <div class="btn-group me-2">
                     <select class="form-control form-control-sm o_mindmap_layout_select" title="結構" t-on-change="onLayoutChange">

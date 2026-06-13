@@ -101,6 +101,10 @@ class XMindTopic(models.Model):
     # Per-topic child numbering format (none / 1 / a / A / i / I / 1.1)
     numbering = fields.Char('Numbering Format')
 
+    # Stable link to the project.task this topic syncs with (1:1, map ⇄ project).
+    task_id = fields.Many2one('project.task', string='Project Task',
+                              ondelete='set null', index=True, copy=False)
+
     # Structure
     structure_class = fields.Char('Structure Class', default='')
     right_number = fields.Integer('Right Number', default=-2)  # -2=not set, -1=all right, N=first N go right

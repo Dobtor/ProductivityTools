@@ -3812,3 +3812,33 @@ msgstr "已略過重複的檔案名稱：%s"
 #: code:addons/dobtor_xmind/static/src/fields/xmind_multi_file_field.js:0
 msgid "Multi-file Upload"
 msgstr "多檔案上傳"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Could not save before syncing the project."
+msgstr "同步專案前無法儲存。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Creating project..."
+msgstr "建立專案中..."
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Syncing project..."
+msgstr "同步專案中..."
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Project synced: "
+msgstr "已同步專案："
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Project sync failed."
+msgstr "專案同步失敗。"

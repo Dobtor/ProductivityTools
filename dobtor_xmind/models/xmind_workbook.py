@@ -5,6 +5,7 @@ import zipfile
 import io
 import uuid
 import html
+from datetime import datetime, time
 from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
@@ -429,6 +430,115 @@ class XMindWorkbook(models.Model):
         self._create_revision(data, is_auto=is_auto)
 
         return True
+
+    # -------------------------------------------------------------------------
+    # Project integration — forward sync (mind map → project / tasks)
+    # -------------------------------------------------------------------------
+    def action_create_project(self):
+        """Create a project from this mind map (if not linked) and sync its tasks."""
+        self.ensure_one()
+        return self._sync_to_project(create_if_missing=True)
+
+    def action_sync_project(self):
+        """Sync this mind map into its linked project (create/update/archive tasks)."""
+        self.ensure_one()
+        return self._sync_to_project(create_if_missing=not self.project_id)
+
+    def _sync_to_project(self, create_if_missing=False):
+        """Diff-sync the FIRST sheet's topic tree into a project:
+        central topic → project; every topic below → task (hierarchy → parent_id).
+        Links are kept via topic.task_id so re-sync updates instead of duplicating;
+        tasks whose source topic was removed are archived (not deleted)."""
+        self.ensure_one()
+        sheet = self.sheet_ids[:1]
+        if not sheet:
+            raise UserError(_("This mind map has no sheet to sync."))
+        root = sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1]
+        if not root:
+            raise UserError(_("This mind map has no central topic."))
+
+        project = self.project_id
+        if not project:
+            if not create_if_missing:
+                raise UserError(_("This mind map is not linked to a project yet."))
+            project = self.env['project.project'].create({
+                'name': root.title or self.name or _('Mind Map'),
+            })
+            self.project_id = project.id
+        elif root.title and project.name != root.title:
+            project.name = root.title
+
+        synced = set()
+
+        def walk(topic, parent_task):
+            task = self._sync_topic_to_task(topic, project, parent_task)
+            synced.add(task.id)
+            for child in topic.child_ids.sorted('sequence'):
+                if child.is_summary_node:
+                    continue
+                walk(child, task)
+
+        for child in root.child_ids.sorted('sequence'):
+            if child.is_summary_node:
+                continue
+            walk(child, False)
+
+        # Archive tasks whose source topic was removed from the map (never hard-delete).
+        orphans = self.env['project.task'].search([
+            ('project_id', '=', project.id),
+            ('xmind_topic_id', '!=', False),
+            ('id', 'not in', list(synced)),
+        ])
+        if orphans:
+            orphans.write({'active': False})
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'project.project',
+            'res_id': project.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def _sync_topic_to_task(self, topic, project, parent_task):
+        """Create or update the project.task mirroring `topic`."""
+        vals = {
+            'name': topic.title or _('Task'),
+            'project_id': project.id,
+            'parent_id': parent_task.id if parent_task else False,
+            'sequence': topic.sequence or 10,
+        }
+        if topic.note:
+            vals['description'] = '<p>%s</p>' % html.escape(topic.note).replace('\n', '<br/>')
+        if topic.task_end_date:
+            vals['date_deadline'] = datetime.combine(topic.task_end_date, time(17, 0))
+        users = self._resolve_assignee(topic.task_assignee)
+        if users:
+            vals['user_ids'] = [Command.set(users.ids)]
+        if topic.task_progress and topic.task_progress >= 100:
+            vals['state'] = '1_done'
+
+        task = topic.task_id
+        if task and task.exists():
+            task.write(vals)
+        else:
+            task = self.env['project.task'].create(vals)
+            topic.task_id = task.id
+        if task.xmind_topic_id.id != topic.id:
+            task.xmind_topic_id = topic.id
+        return task
+
+    def _resolve_assignee(self, text):
+        """Best-effort resolve a free-text assignee to a res.users (login/email/name)."""
+        if not text or not text.strip():
+            return self.env['res.users']
+        text = text.strip()
+        Users = self.env['res.users']
+        user = Users.search(
+            ['|', ('login', '=ilike', text), ('email', '=ilike', text)], limit=1)
+        if not user:
+            user = Users.search([('name', '=ilike', text)], limit=1)
+        return user
 
     def _topic_map(self, sheet):
         """Return {component_id: topic_record} for a sheet in a single query.
