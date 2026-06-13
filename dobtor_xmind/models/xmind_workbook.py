@@ -5,6 +5,7 @@ import zipfile
 import io
 import uuid
 import html
+import pytz
 from datetime import datetime, time
 from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
@@ -15,6 +16,13 @@ class XMindWorkbook(models.Model):
     _inherit = ['mail.thread']
     _description = 'XMind Workbook'
     _order = 'write_date desc'
+
+    # 1:1 with project — at most one mind map per project. NULL project_id is exempt
+    # from the UNIQUE constraint (Postgres), so standalone mind maps are unaffected.
+    _sql_constraints = [
+        ('project_id_uniq', 'unique(project_id)',
+         'A project can have at most one mind map.'),
+    ]
 
     active = fields.Boolean('Active', default=True, tracking=True)
     name = fields.Char('Name', required=True, default='New Mind Map')
@@ -541,7 +549,11 @@ class XMindWorkbook(models.Model):
             # its DATE differs from the topic's; default new deadlines to 17:00.
             keep = task and task.date_deadline and task.date_deadline.date() == topic.task_end_date
             if not keep:
-                vals['date_deadline'] = datetime.combine(topic.task_end_date, time(17, 0))
+                # Store 17:00 in the user's timezone (Datetime fields are UTC-naive),
+                # so a TW (UTC+8) user sees 17:00, not 01:00 next day.
+                tz = pytz.timezone(self.env.user.tz or 'UTC')
+                local_dt = tz.localize(datetime.combine(topic.task_end_date, time(17, 0)))
+                vals['date_deadline'] = local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
         users = self._resolve_assignee(topic.task_assignee)
         if users:
             vals['user_ids'] = [Command.set(users.ids)]
@@ -827,7 +839,9 @@ class XMindWorkbook(models.Model):
         task_id = node_data.get('taskId')
         if task_id:
             task = self.env['project.task'].browse(int(task_id)).exists()
-            if task:
+            # Only re-link to a task the saving user may actually read (browse+exists
+            # bypasses record/company rules — never link to a foreign/other-company task).
+            if task and task.has_access('read'):
                 topic.task_id = task.id
                 if task.xmind_topic_id.id != topic.id:
                     task.xmind_topic_id = topic.id

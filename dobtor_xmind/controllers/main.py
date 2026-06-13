@@ -3,7 +3,7 @@ import json
 import uuid
 from odoo import http
 from odoo.http import request
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, AccessError
 
 
 class XMindController(http.Controller):
@@ -249,6 +249,8 @@ class XMindController(http.Controller):
             return {'error': 'Workbook not found or access denied'}
         try:
             stats = workbook._sync_to_project(create_if_missing=bool(create) or not workbook.project_id)
+        except AccessError:
+            return {'error': "You don't have the rights to create or edit projects/tasks."}
         except UserError as e:
             return {'error': e.args[0] if e.args else str(e)}
         stats['success'] = True

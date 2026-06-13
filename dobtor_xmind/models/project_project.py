@@ -133,6 +133,14 @@ class ProjectProject(models.Model):
             lambda t: t.task_id and t.id not in synced)
         if orphans:
             stats['removed'] = len(orphans)
+            # topic.parent_id is ondelete='cascade' — reparent any surviving
+            # (map-only) children of orphans up to the root BEFORE unlinking, so the
+            # cascade never deletes user-added content.
+            orphan_ids = set(orphans.ids)
+            survivors = sheet.topic_ids.filtered(
+                lambda t: t.parent_id.id in orphan_ids and t.id not in orphan_ids)
+            if survivors:
+                survivors.write({'parent_id': root.id})
             orphans.unlink()
 
         workbook.write({
