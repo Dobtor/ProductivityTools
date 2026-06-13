@@ -687,14 +687,17 @@
                     const subH = this._subtreeHeight(l3);
                     l3._x = colLeft + l3._w / 2;
                     l3._y = curY + subH / 2;
+                    let usedExplicit = false;
                     if (l3.expanded && l3.children.length > 0) {
-                        if (!this._applyExplicitChildStructure(l3, 1)) {
-                            this._layoutBranch(l3, l3.children, 1);
-                        }
+                        usedExplicit = this._applyExplicitChildStructure(l3, 1);
+                        if (!usedExplicit) this._layoutBranch(l3, l3.children, 1);
                     }
+                    if (usedExplicit) this._fitExplicitSubtreeVertically(l3, curY);
                     const bb = this._subtreeBBox(l3);
                     colRight = Math.max(colRight, bb.maxX);
-                    curY += subH + ivgap;
+                    // Advance by the REAL bottom (covers explicit per-topic structures
+                    // whose height differs from the logic-tree estimate) → no overlap.
+                    curY = Math.max(curY + subH, bb.maxY) + ivgap;
                 }
                 const colWidth = colRight - colLeft;
                 topic._x = colLeft + colWidth / 2;   // header centred over column
@@ -742,15 +745,18 @@
                     const subH = this._subtreeHeight(l3);
                     l3._x = contentLeft + l3._w / 2;
                     l3._y = curY + subH / 2;
+                    let usedExplicit = false;
                     if (l3.expanded && l3.children.length > 0) {
-                        if (!this._applyExplicitChildStructure(l3, 1)) {
-                            this._layoutBranch(l3, l3.children, 1);
-                        }
+                        usedExplicit = this._applyExplicitChildStructure(l3, 1);
+                        if (!usedExplicit) this._layoutBranch(l3, l3.children, 1);
                     }
+                    if (usedExplicit) this._fitExplicitSubtreeVertically(l3, curY);
                     const bb = this._subtreeBBox(l3);
                     tableRight = Math.max(tableRight, bb.maxX);
                     rowBottom = Math.max(rowBottom, bb.maxY);
-                    curY += subH + ivgap;
+                    // Advance by the REAL bottom (covers explicit per-topic structures)
+                    // so stacked level-3 items in a row never overlap.
+                    curY = Math.max(curY + subH, bb.maxY) + ivgap;
                 }
                 const rowHeight = rowBottom - curTop;
                 topic._x = labelLeft + labelW / 2;   // label in the left column
@@ -869,6 +875,20 @@
             this._layoutChildrenWithStructure(node, dir);
             this._currentMode = saved;
             return true;
+        }
+
+        // After an explicit per-topic structure lays out `node`'s subtree, fit it into
+        // a clean vertical slot whose top is `topY`: a centred structure (logic/map)
+        // bulges ABOVE its anchor, so shift the whole subtree down until its top edge
+        // sits at topY. Returns the Y just past the subtree's real bottom — the caller
+        // uses it to place the next sibling, so nothing ever collides.
+        _fitExplicitSubtreeVertically(node, topY) {
+            let bb = this._subtreeBBox(node);
+            if (bb.minY < topY) {
+                this._translateTree(node, 0, topY - bb.minY);
+                bb = this._subtreeBBox(node);
+            }
+            return bb.maxY;
         }
 
         _layoutVerticalChildren(parent) {
@@ -1023,12 +1043,19 @@
                 child._x = indentX + (child._w / 2) * dir;
                 child._y = curY + child._h / 2;
                 child.direction = dir > 0 ? 3 : 4;
-                curY += subH + minorGap;
 
+                if (child.expanded && child.children.length > 0
+                        && this._applyExplicitChildStructure(child, dir)) {
+                    // Child uses a DIFFERENT structure than the tree → top-align it to
+                    // this slot and advance past its REAL bottom so it never collides
+                    // with the previous or next sibling.
+                    const bottom = this._fitExplicitSubtreeVertically(child, curY);
+                    curY = Math.max(curY + subH, bottom) + minorGap;
+                    continue;
+                }
+                curY += subH + minorGap;
                 if (child.expanded && child.children.length > 0) {
-                    if (!this._applyExplicitChildStructure(child, dir)) {
-                        this._layoutTreeChildren(child, dir);
-                    }
+                    this._layoutTreeChildren(child, dir);
                 }
             }
         }
