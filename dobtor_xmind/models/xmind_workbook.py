@@ -34,6 +34,17 @@ class XMindWorkbook(models.Model):
     # Customer
     partner_id = fields.Many2one('res.partner', string='Customer', tracking=True)
 
+    # Project integration (1:1). When linked, this mind map's access is governed by
+    # the project's privacy_visibility — see security/xmind_security.xml.
+    project_id = fields.Many2one(
+        'project.project', string='Project', ondelete='set null', tracking=True,
+        help="Project this mind map belongs to. When set, the mind map is visible "
+             "to exactly the people who can access the project.")
+    # Mirror of the linked project's visibility (the authority stays on the project).
+    privacy_visibility = fields.Selection(
+        related='project_id.privacy_visibility', string='Visibility',
+        store=True, readonly=True)
+
     # Tags
     tag_ids = fields.Many2many('xmind.tag', string='Tags')
 

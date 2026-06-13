@@ -77,6 +77,9 @@
                     <group>
                         <group>
                             <field name="partner_id"/>
+                            <field name="project_id"/>
+                            <field name="privacy_visibility" readonly="1"
+                                   invisible="not project_id"/>
                             <field name="description"/>
                             <field name="creator"/>
                             <field name="create_uid" readonly="1"/>

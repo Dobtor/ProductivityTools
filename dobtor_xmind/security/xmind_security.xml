@@ -12,78 +12,108 @@
 
     <!-- ============================================================ -->
     <!-- Record Rules                                                  -->
+    <!--                                                               -->
+    <!-- Access model (additive OR):                                   -->
+    <!--   1. Standalone mind maps  → owner or follower (original).    -->
+    <!--   2. Project-linked maps   → governed by the project's        -->
+    <!--      privacy_visibility, identical to project's own rules:    -->
+    <!--      visible when privacy != 'followers' OR the user follows  -->
+    <!--      the project.                                             -->
+    <!--   3. Mind Map Manager      → all mind maps.                   -->
+    <!--   4. Project Administrator  → all PROJECT-LINKED mind maps.    -->
     <!-- ============================================================ -->
 
-    <!-- Regular users: see own workbooks + workbooks they follow -->
+    <!-- ===== Workbook ===== -->
     <record id="rule_xmind_workbook_user" model="ir.rule">
-        <field name="name">Mind Map: own or follower</field>
+        <field name="name">Mind Map: own/follower or via project visibility</field>
         <field name="model_id" ref="model_xmind_workbook"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('create_uid', '=', user.id),
-            ('message_partner_ids', 'in', [user.partner_id.id])
+            ('message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('project_id', '!=', False),
+                 '|', ('project_id.privacy_visibility', '!=', 'followers'),
+                      ('project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
-
-    <!-- Managers: see all workbooks (no domain restriction) -->
     <record id="rule_xmind_workbook_manager" model="ir.rule">
         <field name="name">Mind Map: manager sees all</field>
         <field name="model_id" ref="model_xmind_workbook"/>
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_workbook_project_manager" model="ir.rule">
+        <field name="name">Mind Map: project admin sees project-linked maps</field>
+        <field name="model_id" ref="model_xmind_workbook"/>
+        <field name="domain_force">[('project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
-    <!-- Sheets/Topics/etc follow workbook access (user can access if they can access the workbook) -->
+    <!-- ===== Sheet (via workbook_id) ===== -->
     <record id="rule_xmind_sheet_user" model="ir.rule">
         <field name="name">Sheet: follows workbook access</field>
         <field name="model_id" ref="model_xmind_sheet"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('workbook_id.create_uid', '=', user.id),
-            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('workbook_id.project_id', '!=', False),
+                 '|', ('workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
-
     <record id="rule_xmind_sheet_manager" model="ir.rule">
         <field name="name">Sheet: manager sees all</field>
         <field name="model_id" ref="model_xmind_sheet"/>
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_sheet_project_manager" model="ir.rule">
+        <field name="name">Sheet: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_sheet"/>
+        <field name="domain_force">[('workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
+    <!-- ===== Topic (via sheet_id.workbook_id) ===== -->
     <record id="rule_xmind_topic_user" model="ir.rule">
         <field name="name">Topic: follows workbook access</field>
         <field name="model_id" ref="model_xmind_topic"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
-
     <record id="rule_xmind_topic_manager" model="ir.rule">
         <field name="name">Topic: manager sees all</field>
         <field name="model_id" ref="model_xmind_topic"/>
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_topic_project_manager" model="ir.rule">
+        <field name="name">Topic: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_topic"/>
+        <field name="domain_force">[('sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
     <!-- ============================================================ -->
     <!-- Feature-layer records follow workbook access via sheet_id     -->
     <!-- (relationship / boundary / summary / floating topic)          -->
-    <!-- Without these rules any internal user could read/write the    -->
-    <!-- feature rows of another user's workbook directly.             -->
     <!-- ============================================================ -->
     <record id="rule_xmind_relationship_user" model="ir.rule">
         <field name="name">Relationship: follows workbook access</field>
         <field name="model_id" ref="model_xmind_relationship"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -93,14 +123,22 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_relationship_project_manager" model="ir.rule">
+        <field name="name">Relationship: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_relationship"/>
+        <field name="domain_force">[('sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
     <record id="rule_xmind_boundary_user" model="ir.rule">
         <field name="name">Boundary: follows workbook access</field>
         <field name="model_id" ref="model_xmind_boundary"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -110,14 +148,22 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_boundary_project_manager" model="ir.rule">
+        <field name="name">Boundary: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_boundary"/>
+        <field name="domain_force">[('sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
     <record id="rule_xmind_summary_user" model="ir.rule">
         <field name="name">Summary: follows workbook access</field>
         <field name="model_id" ref="model_xmind_summary"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -127,14 +173,22 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_summary_project_manager" model="ir.rule">
+        <field name="name">Summary: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_summary"/>
+        <field name="domain_force">[('sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
     <record id="rule_xmind_floating_topic_user" model="ir.rule">
         <field name="name">Floating Topic: follows workbook access</field>
         <field name="model_id" ref="model_xmind_floating_topic"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -144,15 +198,23 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_floating_topic_project_manager" model="ir.rule">
+        <field name="name">Floating Topic: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_floating_topic"/>
+        <field name="domain_force">[('sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
-    <!-- Callout follows access via its topic_id → sheet → workbook -->
+    <!-- ===== Callout (via topic_id.sheet_id.workbook_id) ===== -->
     <record id="rule_xmind_callout_user" model="ir.rule">
         <field name="name">Callout: follows workbook access</field>
         <field name="model_id" ref="model_xmind_callout"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id),
-            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('topic_id.sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('topic_id.sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('topic_id.sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -162,15 +224,23 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_callout_project_manager" model="ir.rule">
+        <field name="name">Callout: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_callout"/>
+        <field name="domain_force">[('topic_id.sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
-    <!-- Revision follows access via its workbook_id -->
+    <!-- ===== Revision (via workbook_id) ===== -->
     <record id="rule_xmind_revision_user" model="ir.rule">
         <field name="name">Revision: follows workbook access</field>
         <field name="model_id" ref="model_xmind_revision"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('workbook_id.create_uid', '=', user.id),
-            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('workbook_id.project_id', '!=', False),
+                 '|', ('workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -180,15 +250,23 @@
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
     </record>
+    <record id="rule_xmind_revision_project_manager" model="ir.rule">
+        <field name="name">Revision: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_revision"/>
+        <field name="domain_force">[('workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
+    </record>
 
-    <!-- Attachment follows access via its topic_id → sheet → workbook -->
+    <!-- ===== Attachment (via topic_id.sheet_id.workbook_id) ===== -->
     <record id="rule_xmind_attachment_user" model="ir.rule">
         <field name="name">Attachment: follows workbook access</field>
         <field name="model_id" ref="model_xmind_attachment"/>
-        <field name="domain_force">[
-            '|',
+        <field name="domain_force">['|', '|',
             ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id),
-            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id])
+            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
+            '&amp;', ('topic_id.sheet_id.workbook_id.project_id', '!=', False),
+                 '|', ('topic_id.sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
+                      ('topic_id.sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
         ]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
@@ -197,5 +275,11 @@
         <field name="model_id" ref="model_xmind_attachment"/>
         <field name="domain_force">[(1, '=', 1)]</field>
         <field name="groups" eval="[(4, ref('group_xmind_manager'))]"/>
+    </record>
+    <record id="rule_xmind_attachment_project_manager" model="ir.rule">
+        <field name="name">Attachment: project admin sees project-linked</field>
+        <field name="model_id" ref="model_xmind_attachment"/>
+        <field name="domain_force">[('topic_id.sheet_id.workbook_id.project_id', '!=', False)]</field>
+        <field name="groups" eval="[(4, ref('project.group_project_manager'))]"/>
     </record>
 </odoo>

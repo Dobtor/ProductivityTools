@@ -17,7 +17,7 @@
     ''',
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
-    'depends': ['base', 'web', 'mail'],
+    'depends': ['base', 'web', 'mail', 'project'],
     'data': [
         'security/ir.model.access.csv',
         'security/xmind_security.xml',
