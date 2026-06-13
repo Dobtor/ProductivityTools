@@ -217,6 +217,8 @@ export class MindmapEditor extends Component {
             } else {
                 this.mindmapData = result.mindmap_data;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
+                this.projectInfo = result.project || null;
+                setTimeout(() => this._updateProjectButtons(), 0);
 
                 // Load relationships
                 if (result.relationships && result.relationships.length > 0) {
@@ -2821,8 +2823,23 @@ export class MindmapEditor extends Component {
     onCreateProject() { this._doProjectSync(true); }
     onSyncProject() { this._doProjectSync(false); }
 
+    _updateProjectButtons() {
+        const createBtn = this._el('.o_mindmap_btn_create_project');
+        if (createBtn) createBtn.style.display = this.projectInfo ? 'none' : '';
+        const syncBtn = this._el('.o_mindmap_btn_sync_project');
+        if (syncBtn && this.projectInfo && this.projectInfo.name) {
+            syncBtn.title = _t('Sync to project: ') + this.projectInfo.name;
+        }
+    }
+
     _doProjectSync(create, confirmed = false) {
         if (!this.workbookId) return;
+        // Warn if the last sync was the OTHER direction (this one overwrites it).
+        if (!confirmed && this.projectInfo && this.projectInfo.last_sync_direction === 'to_mindmap') {
+            if (!window.confirm(_t('The last sync was Project → Mind Map. Syncing now overwrites the project with this mind map. Continue?'))) {
+                return;
+            }
+        }
         // Save first so the backend syncs from the persisted topic tree.
         this._saveData().then((ok) => {
             if (ok === false) {
@@ -2845,6 +2862,8 @@ export class MindmapEditor extends Component {
                     return;
                 }
                 const name = (r && r.project_name) || '';
+                this.projectInfo = { id: r.project_id, name, last_sync_direction: 'to_project' };
+                this._updateProjectButtons();
                 this._updateStatus(_t('Project synced: ') + name);
                 if (this.notification) {
                     const detail = _t('Created %s, updated %s, archived %s.')

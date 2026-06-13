@@ -3866,3 +3866,17 @@ msgstr "是否繼續？"
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Project sync cancelled."
 msgstr "已取消專案同步。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Sync to project: "
+msgstr "同步到專案："
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid ""
+"The last sync was Project → Mind Map. Syncing now overwrites the project "
+"with this mind map. Continue?"
+msgstr "上次是「專案 → 心智圖」同步。現在同步會以這張心智圖覆寫專案，是否繼續？"

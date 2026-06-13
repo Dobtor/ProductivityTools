@@ -39,6 +39,11 @@ class XMindController(http.Controller):
             'boundaries': self._get_boundaries(workbook),
             'callouts': self._get_callouts(workbook),
             'floating_topics': self._get_floating_topics(workbook),
+            'project': {
+                'id': workbook.project_id.id,
+                'name': workbook.project_id.name,
+                'last_sync_direction': workbook.xmind_last_sync_direction,
+            } if workbook.project_id else False,
         }
 
     def _get_relationships(self, workbook):
