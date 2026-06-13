@@ -6,7 +6,7 @@ from odoo.http import request
 from odoo.exceptions import UserError, AccessError
 
 
-class XMindController(http.Controller):
+class MindMapController(http.Controller):
 
     def _check_workbook_access(self, workbook_id, mode='read'):
         """Validate workbook exists and the current user has ``mode`` access.

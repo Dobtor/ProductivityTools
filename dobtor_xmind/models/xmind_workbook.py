@@ -15,7 +15,7 @@ from odoo.exceptions import UserError
 class XMindWorkbook(models.Model):
     _name = 'xmind.workbook'
     _inherit = ['mail.thread']
-    _description = 'XMind Workbook'
+    _description = 'Mind Map Workbook'
     _order = 'write_date desc'
 
     # 1:1 with project — at most one mind map per project. NULL project_id is exempt
@@ -35,7 +35,7 @@ class XMindWorkbook(models.Model):
     sheet_ids = fields.One2many('xmind.sheet', 'workbook_id', string='Sheets')
 
     # File import/export
-    xmind_file = fields.Binary('XMind File', attachment=True)
+    xmind_file = fields.Binary('Mind Map File', attachment=True)
     xmind_filename = fields.Char('Filename')
 
     # Thumbnail
@@ -921,59 +921,6 @@ class XMindWorkbook(models.Model):
                 seq += 1
 
         return topic
-
-    def export_xmind_file(self):
-        """Export workbook as a real, round-trippable ``.xmind`` archive.
-
-        Produces the modern XMind 8 / Zen JSON package:
-          - content.json   (sheets, full topic tree, features, relationships)
-          - metadata.json  (creator info)
-          - manifest.json  (file-entries, incl. thumbnail when present)
-          - Thumbnails/thumbnail.png  (optional, from stored thumbnail)
-
-        Topic style ``properties`` carry BOTH the simplified keys this module's
-        importer reads (``background``/``color``) AND the canonical XMind keys
-        (``svg:fill``/``fo:color``/``fo:font-size``…) so the file renders in a
-        real XMind client and re-imports here without loss.
-        """
-        self.ensure_one()
-
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            content = self._generate_xmind_content()
-            zf.writestr('content.json', json.dumps(content, ensure_ascii=False, indent=2))
-
-            metadata = {
-                'creator': {'name': 'Dobtor XMind Editor', 'version': '18.0.1.0.0'},
-            }
-            zf.writestr('metadata.json', json.dumps(metadata, ensure_ascii=False, indent=2))
-
-            file_entries = {
-                'content.json': {},
-                'metadata.json': {},
-            }
-
-            # Embed the stored thumbnail (if any) so XMind shows a preview.
-            thumb_b64 = self.thumbnail
-            if thumb_b64:
-                try:
-                    zf.writestr('Thumbnails/thumbnail.png', base64.b64decode(thumb_b64))
-                    file_entries['Thumbnails/thumbnail.png'] = {'media-type': 'image/png'}
-                except Exception:
-                    pass
-
-            manifest = {'file-entries': file_entries}
-            zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
-
-        zip_buffer.seek(0)
-        self.xmind_file = base64.b64encode(zip_buffer.read())
-        self.xmind_filename = f'{self.name}.xmind'
-
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',
-            'target': 'self',
-        }
 
     def _generate_xmind_content(self):
         """Generate the XMind content.json structure (list of sheets)."""
@@ -2458,49 +2405,6 @@ class XMindWorkbook(models.Model):
         svg_content = self._generate_svg()
         self.xmind_file = base64.b64encode(svg_content.encode('utf-8'))
         self.xmind_filename = f'{self.name}.svg'
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',
-            'target': 'self',
-        }
-
-    def export_png(self):
-        """Export workbook as PNG file (requires cairosvg)"""
-        self.ensure_one()
-        svg_content = self._generate_svg()
-        try:
-            import cairosvg
-            png_data = cairosvg.svg2png(
-                bytestring=svg_content.encode('utf-8'),
-                output_width=1920,
-            )
-        except ImportError:
-            raise UserError(_(
-                'PNG export requires the cairosvg library. '
-                'Install with: pip install cairosvg'
-            ))
-        self.xmind_file = base64.b64encode(png_data)
-        self.xmind_filename = f'{self.name}.png'
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',
-            'target': 'self',
-        }
-
-    def export_pdf(self):
-        """Export workbook as PDF file (requires cairosvg)"""
-        self.ensure_one()
-        svg_content = self._generate_svg()
-        try:
-            import cairosvg
-            pdf_data = cairosvg.svg2pdf(bytestring=svg_content.encode('utf-8'))
-        except ImportError:
-            raise UserError(_(
-                'PDF export requires the cairosvg library. '
-                'Install with: pip install cairosvg'
-            ))
-        self.xmind_file = base64.b64encode(pdf_data)
-        self.xmind_filename = f'{self.name}.pdf'
         return {
             'type': 'ir.actions.act_url',
             'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',

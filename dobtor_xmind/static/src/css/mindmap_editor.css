@@ -1,5 +1,5 @@
 /**
- * XMind 2 Professional Theme — Mind Map Editor CSS
+ * Professional Theme — Mind Map Editor CSS
  * All rules scoped under .o_mindmap_editor_container to avoid polluting other Odoo views
  */
 
@@ -190,7 +190,7 @@
     margin-bottom: 4px;
 }
 
-/* Canvas — XMind 2 Professional theme: white background */
+/* Canvas — Professional theme: white background */
 .o_mindmap_canvas {
     flex: 1;
     overflow: hidden;
@@ -267,7 +267,7 @@
     color: #4a9eff;
 }
 
-/* Task Info on-node progress badge (XMind 8) */
+/* Task Info on-node progress badge (8) */
 .xmind-task-badge {
     display: inline-block;
     margin-left: 6px;
@@ -327,10 +327,10 @@
 }
 
 /* ================================================================
-   XMind 2 Default Styles — Custom renderer
+   Default Styles — Custom renderer
    ================================================================ */
 
-/* Selection — XMind-style outer blue border with gap */
+/* Selection — mind-map-style outer blue border with gap */
 .xmind-node.xmind-selected {
     outline: 2.5px solid #4a90d9 !important;
     outline-offset: 3px !important;
@@ -394,7 +394,7 @@
     font-family: inherit;
 }
 
-/* Expander — XMind 2 PlusMinusFigure */
+/* Expander — expander figure */
 .xmind-expander {
     transition: background 0.15s, border-color 0.15s;
 }
@@ -440,7 +440,7 @@
     animation: o-xmind-pulse 2s infinite;
 }
 
-/* Canvas Grid Background — removed for XMind 2 Professional clean look */
+/* Canvas Grid Background — removed for Professional clean look */
 
 /* Node Markers Display (inline before text) */
 .xmind-node .xmind-markers {

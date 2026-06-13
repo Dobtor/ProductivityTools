@@ -2,7 +2,7 @@
 
 /**
  * Advanced Relationship Manager
- * XMind 2 dual control point system:
+ * dual control point system:
  * - Cubic bezier: M source C cp0 cp1 target
  * - CP0 controls curvature near source, CP1 near target
  * - Dragging CP moves endpoint along topic border based on CP direction

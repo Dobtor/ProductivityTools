@@ -5,7 +5,7 @@ from odoo import models, fields, api
 
 class XMindSheet(models.Model):
     _name = 'xmind.sheet'
-    _description = 'XMind Sheet'
+    _description = 'Mind Map Sheet'
     _order = 'sequence, id'
 
     name = fields.Char('Sheet Name', required=True, default='Sheet 1')

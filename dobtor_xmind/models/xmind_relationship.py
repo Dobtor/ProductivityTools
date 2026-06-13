@@ -6,7 +6,7 @@ from odoo.exceptions import ValidationError
 
 class XMindRelationship(models.Model):
     _name = 'xmind.relationship'
-    _description = 'XMind Relationship'
+    _description = 'Mind Map Relationship'
 
     sheet_id = fields.Many2one('xmind.sheet', string='Sheet', ondelete='cascade', required=True)
     component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))

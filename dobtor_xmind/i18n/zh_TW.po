@@ -44,9 +44,8 @@ msgstr "找不到心智圖容器，請重新整理頁面。"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
-msgid ""
-"Mind map library (OdooXMind) not loaded. Please clear cache and refresh."
-msgstr "心智圖程式庫 (OdooXMind) 未載入，請清除快取後重新整理。"
+msgid "Mind map library not loaded. Please clear cache and refresh."
+msgstr "心智圖程式庫未載入，請清除快取後重新整理。"
 
 #. module: dobtor_xmind
 #. odoo-javascript

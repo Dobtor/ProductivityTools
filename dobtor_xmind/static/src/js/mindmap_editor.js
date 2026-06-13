@@ -32,7 +32,7 @@ import { DragDropManager } from "@dobtor_xmind/js/drag_drop_manager";
 import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
 
 /**
- * XMind 2 Style Mind Map Editor for Odoo 18
+ * Style Mind Map Editor for Odoo 18
  * OWL Component with Command Pattern
  */
 export class MindmapEditor extends Component {
@@ -67,7 +67,7 @@ export class MindmapEditor extends Component {
         this.relationshipMode = false;
         this.relationshipSource = null;
 
-        // XMind 2 Feature Renderers
+        // Feature Renderers
         this.boundaryRenderer = null;
         this.summaryRenderer = null;
         this.calloutRenderer = null;
@@ -141,7 +141,7 @@ export class MindmapEditor extends Component {
                 this._updateStatus(_t('Initialization failed'));
                 return;
             }
-            this._initXMindFeatures();
+            this._initFeatures();
             this._setupCommandStackListener();
             this._setupContextMenu();
             document.addEventListener('keydown', this._boundKeydownHandler);
@@ -233,7 +233,7 @@ export class MindmapEditor extends Component {
                         targetId: r.targetId,
                         options: r.options || {},
                         controlPoints: r.controlPoints || [],
-                        // If CPs came from XMind import, they are relative offsets from midpoint
+                        // If CPs came from import, they are relative offsets from midpoint
                         _cpIsRelativeOffset: r.cpIsRelativeOffset || false,
                     }));
                     this._hadRelationshipsOnLoad = true;
@@ -325,7 +325,7 @@ export class MindmapEditor extends Component {
         };
     }
 
-    // ===== jsMind Initialization =====
+    // ===== render-engine Initialization =====
     _initJsMind() {
         const container = this.containerRef.el;
 
@@ -335,13 +335,13 @@ export class MindmapEditor extends Component {
             return false;
         }
 
-        if (!window.OdooXMind) {
-            console.error('[MindmapEditor] OdooXMind library not loaded.');
-            this.notification.add(_t('Mind map library (OdooXMind) not loaded. Please clear cache and refresh.'), { type: 'danger' });
+        if (!window.OdooMindMap) {
+            console.error('[MindmapEditor] Mind map render library not loaded.');
+            this.notification.add(_t('Mind map library not loaded. Please clear cache and refresh.'), { type: 'danger' });
             return false;
         }
 
-        const MindMapClass = window.OdooXMind;
+        const MindMapClass = window.OdooMindMap;
 
         const options = {
             container: container,
@@ -406,10 +406,10 @@ export class MindmapEditor extends Component {
                 // resetRelationships=true → on initial load, re-optimise relationship
                 // control points for the current layout (matches layout-switch behaviour),
                 // so a page refresh also lands the green connectors at optimal positions.
-                this._renderAllXMindFeatures(true);
+                this._renderAllFeatures(true);
             });
         } catch (error) {
-            console.error('[MindmapEditor] Failed to initialize jsMind:', error);
+            console.error('[MindmapEditor] Failed to initialize render-engine:', error);
             this.notification.add(_t('Failed to initialize mind map: ') + error.message, { type: 'danger' });
             return false;
         }
@@ -431,7 +431,7 @@ export class MindmapEditor extends Component {
     _applyLayoutSettings(options) {
         const layout = this.sheetSettings.layout || 'map';
 
-        // XMind 2 spacing: tight layout, offset_x already accounts for node width
+        // spacing: tight layout, offset_x already accounts for node width
         switch (layout) {
             case 'tree_right':
             case 'tree_left':
@@ -600,14 +600,14 @@ export class MindmapEditor extends Component {
     _isInputFocused() {
         const activeElement = document.activeElement;
         if (!activeElement) return false;
-        // Block shortcuts when any input, textarea, or jsMind edit input is active
+        // Block shortcuts when any input, textarea, or render-engine edit input is active
         if (activeElement.tagName === 'INPUT' ||
             activeElement.tagName === 'TEXTAREA' ||
             activeElement.contentEditable === 'true' ||
             activeElement.classList.contains('xmind-edit-input')) {
             return true;
         }
-        // Also check if jsMind is in editing mode
+        // Also check if render-engine is in editing mode
         if (this.jm && this.jm.view && this.jm.view.editing_node) {
             return true;
         }
@@ -674,7 +674,7 @@ export class MindmapEditor extends Component {
         }
     }
 
-    // ===== jsMind Events =====
+    // ===== render-engine Events =====
     _onJsMindEvent(type, data) {
         if (type === 1 && (data.evt === 'expand' || data.evt === 'collapse')) {
             // Expand/collapse: reposition floating subtrees, rebuild features
@@ -744,7 +744,7 @@ export class MindmapEditor extends Component {
         // 1. Rebuild summaries (positions summary nodes + their children)
         this._rebuildSummaries();
 
-        // 2. Redraw all jsMind branch lines
+        // 2. Redraw all render-engine branch lines
         if (this.jm && this.jm.view) {
             this.jm.view.draw_lines();
         }
@@ -779,7 +779,7 @@ export class MindmapEditor extends Component {
                     rel.controlPoints = null;
                     delete rel._cpIsRelativeOffset;
                 } else if (rel.controlPoints && rel.controlPoints.length > 0) {
-                    // Convert XMind relative offsets to absolute on first load
+                    // Convert relative offsets to absolute on first load
                     if (rel._cpIsRelativeOffset) {
                         const scx = sourceElement.offsetLeft + sourceElement.offsetWidth / 2;
                         const scy = sourceElement.offsetTop + sourceElement.offsetHeight / 2;
@@ -875,7 +875,7 @@ export class MindmapEditor extends Component {
                 continue;
             }
 
-            // 1. Position summary jsMind node at bracket endpoint
+            // 1. Position summary render-engine node at bracket endpoint
             if (summary.summaryNodeId) {
                 this._positionSummaryNode(summary.summaryNodeId, summary.topicIds);
             }
@@ -889,7 +889,7 @@ export class MindmapEditor extends Component {
                 ? this.jm.view.get_node_element(summary.summaryNodeId) : null;
 
             const currentLayout = (this.jm && this.jm.view && this.jm.view.layout && this.jm.view.layout._currentMode) || '';
-            // XMind 2: nested summaries follow the SAME direction as parent layout
+            // nested summaries follow the SAME direction as parent layout
             const effectiveLayout = currentLayout;
             this.summaryRenderer.addSummary(freshElements, summaryEl, {
                 lineType: summary.options.lineType || 'square',
@@ -1059,11 +1059,11 @@ export class MindmapEditor extends Component {
         if (topicElements.length === 0) return;
 
         const layoutMode = (this.jm.view.layout && this.jm.view.layout._currentMode) || '';
-        // XMind 2: ALL summaries in org_chart layouts follow the same vertical direction
+        // ALL summaries in org_chart layouts follow the same vertical direction
         const isVertical = layoutMode === 'org_chart_up' || layoutMode === 'org_chart_down';
 
         if (isVertical) {
-            // XMind 2 algorithm: summary positioned in same direction as parent layout
+            // algorithm: summary positioned in same direction as parent layout
             // org_chart_down → summary SOUTH (below children)
             // org_chart_up → summary NORTH (above children)
 
@@ -1095,7 +1095,7 @@ export class MindmapEditor extends Component {
             node._y = nodeY + el.offsetHeight / 2;
             node.direction = 2; // vertical (same as parent org_chart direction)
 
-            // Summary children use the SAME org_chart layout (XMind 2 behavior)
+            // Summary children use the SAME org_chart layout (behavior)
             if (node.children && node.children.length > 0) {
                 if (!node.expanded) {
                     this.jm.view._hideDescendants(node);
@@ -1336,8 +1336,8 @@ export class MindmapEditor extends Component {
         return elements;
     }
 
-    // ===== XMind Features Init =====
-    _initXMindFeatures() {
+    // ===== Features Init =====
+    _initFeatures() {
         if (!this.jm) return;
 
         const canvas = this.canvasRef.el;
@@ -1374,7 +1374,7 @@ export class MindmapEditor extends Component {
                     this._editSelectedNode();
                 }
             }
-        }, true); // capture phase to run before jsMind's own dblclick
+        }, true); // capture phase to run before render-engine's own dblclick
 
         // Hook relationship click → show control points; double-click → edit dialog
         this._setupRelationshipInteraction();
@@ -1583,7 +1583,7 @@ export class MindmapEditor extends Component {
                 this._clearMultiSelection();
                 this._deselectRelationship();
                 isSelecting = true;
-                e.stopPropagation(); // Prevent jsMind panel drag
+                e.stopPropagation(); // Prevent render-engine panel drag
                 const rect = canvas.getBoundingClientRect();
                 startX = e.clientX - rect.left;
                 startY = e.clientY - rect.top;
@@ -1902,7 +1902,7 @@ export class MindmapEditor extends Component {
     }
 
     _getDefaultsForDepth(depth) {
-        // Match XMind Professional theme (styles.xml)
+        // Match Professional theme (style table)
         if (depth === 0) {
             return {
                 shape: { type: 'rounded', borderWidth: 5 },
@@ -2056,7 +2056,7 @@ export class MindmapEditor extends Component {
         // Move it before the selected node
         try {
             this.jm.move_node(nodeId, this.selectedNode, parentId);
-        } catch (e) { /* jsMind may not support beforeId in all layouts */ }
+        } catch (e) { /* render-engine may not support beforeId in all layouts */ }
 
         this.jm.select_node(nodeId);
         this._updateStatus(_t('Added topic before'));
@@ -2165,7 +2165,7 @@ export class MindmapEditor extends Component {
         const parentNode = this.selectedNode ? this.jm.get_node(this.selectedNode) : this.jm.get_root();
         this._deserializeNode(this._clipboardTopic, parentNode.id);
         this.jm.view.refresh();
-        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        setTimeout(() => this._renderAllFeatures(), 100);
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
         this._updateStatus(_t('Topic pasted'));
@@ -2193,7 +2193,7 @@ export class MindmapEditor extends Component {
         const serialized = this._serializeNode(node);
         this._deserializeNode(serialized, node.parent.id);
         this.jm.view.refresh();
-        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        setTimeout(() => this._renderAllFeatures(), 100);
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
         this._updateStatus(_t('Topic duplicated'));
@@ -2217,7 +2217,7 @@ export class MindmapEditor extends Component {
             if (node.isroot) element.classList.add('xmind-root');
         }
         this.jm.view.refresh();
-        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        setTimeout(() => this._renderAllFeatures(), 100);
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
         this._updateStatus(_t('Style reset to default'));
@@ -2286,7 +2286,7 @@ export class MindmapEditor extends Component {
             data: this._serializeNodeForJsMind(node),
         };
 
-        this.jm.show(subData, () => this._renderAllXMindFeatures());
+        this.jm.show(subData, () => this._renderAllFeatures());
         this._updateStatus(_t('Drill down: ') + node.topic);
     }
 
@@ -2296,7 +2296,7 @@ export class MindmapEditor extends Component {
             return;
         }
         const prevData = this._drillStack.pop();
-        this.jm.show(prevData, () => this._renderAllXMindFeatures());
+        this.jm.show(prevData, () => this._renderAllFeatures());
         this._updateStatus(_t('Drill up'));
     }
 
@@ -2350,7 +2350,7 @@ export class MindmapEditor extends Component {
         const miniCanvas = document.createElement('div');
         miniCanvas.style.cssText = 'width:100%;height:100%;transform:scale(0.15);transform-origin:top left;pointer-events:none;';
 
-        // Clone the jsMind panel content
+        // Clone the render-engine panel content
         const panel = this.jm.view.e_panel;
         if (panel) {
             const clone = panel.cloneNode(true);
@@ -2522,7 +2522,7 @@ export class MindmapEditor extends Component {
 
         // Refresh view
         this.jm.view.refresh();
-        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        setTimeout(() => this._renderAllFeatures(), 100);
 
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
@@ -2665,7 +2665,7 @@ export class MindmapEditor extends Component {
                             await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
                             // Reload mindmap
                             await this._loadWorkbookData();
-                            this.jm.show(this.mindmapData, () => this._renderAllXMindFeatures());
+                            this.jm.show(this.mindmapData, () => this._renderAllFeatures());
                             this._updateStatus(_t('Revision restored: ') + rev.name);
                         },
                     });
@@ -2676,7 +2676,7 @@ export class MindmapEditor extends Component {
                     const result = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/preview', {});
                     if (result && result.data) {
                         // Temporarily show the revision data
-                        this.jm.show(result.data, () => this._renderAllXMindFeatures());
+                        this.jm.show(result.data, () => this._renderAllFeatures());
                         this._updateStatus(_t('Previewing: ') + rev.name + _t(' (not saved)'));
                     }
                 });
@@ -2819,12 +2819,6 @@ export class MindmapEditor extends Component {
         });
     }
 
-    onExport() {
-        if (!this.workbookId) return;
-        window.location.href = '/web/content?model=xmind.workbook&id=' + this.workbookId +
-            '&field=xmind_file&filename_field=xmind_filename&download=true';
-    }
-
     // ===== Project integration (mind map → project) =====
     onCreateProject() { this._doProjectSync(true); }
     onSyncProject() { this._doProjectSync(false); }
@@ -2878,88 +2872,6 @@ export class MindmapEditor extends Component {
                 }
             }).catch(() => this._showError(_t('Project sync failed.')));
         });
-    }
-
-    // ===== Feature 5: Export as Image =====
-    onExportImage() {
-        if (!this.jm || !this.jm.view) return;
-        const panel = this.jm.view.e_panel;
-        if (!panel) return;
-
-        // Save current zoom and temporarily reset to 1:1
-        const savedZoom = this._zoomLevel || 1;
-        this._zoomLevel = 1;
-        this._applyZoom();
-
-        setTimeout(() => {
-            // Get bounding box of all nodes
-            const nodes = panel.querySelectorAll('.xmind-node');
-            if (nodes.length === 0) return;
-
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            nodes.forEach(n => {
-                const l = parseInt(n.style.left) || 0;
-                const t = parseInt(n.style.top) || 0;
-                minX = Math.min(minX, l);
-                minY = Math.min(minY, t);
-                maxX = Math.max(maxX, l + n.offsetWidth);
-                maxY = Math.max(maxY, t + n.offsetHeight);
-            });
-
-            const padding = 40;
-            const w = maxX - minX + padding * 2;
-            const h = maxY - minY + padding * 2;
-
-            // Create off-screen canvas
-            const canvas = document.createElement('canvas');
-            const scale = 2; // retina
-            canvas.width = w * scale;
-            canvas.height = h * scale;
-            const ctx = canvas.getContext('2d');
-            ctx.scale(scale, scale);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, w, h);
-
-            // Draw SVG lines
-            const svgEl = this.jm.view.e_lines;
-            if (svgEl) {
-                const svgData = new XMLSerializer().serializeToString(svgEl);
-                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                const url = URL.createObjectURL(svgBlob);
-                const img = new Image();
-                img.onload = () => {
-                    ctx.drawImage(img, -minX + padding, -minY + padding, panel.scrollWidth, panel.scrollHeight);
-                    URL.revokeObjectURL(url);
-                    this._drawNodesOnCanvas(ctx, nodes, minX, minY, padding, () => {
-                        canvas.toBlob(blob => {
-                            const a = document.createElement('a');
-                            a.href = URL.createObjectURL(blob);
-                            a.download = (this.workbookName || 'mindmap') + '.png';
-                            a.click();
-                            URL.revokeObjectURL(a.href);
-                            // Restore zoom
-                            this._zoomLevel = savedZoom;
-                            this._applyZoom();
-                            this._updateStatus(_t('Image exported'));
-                        }, 'image/png');
-                    });
-                };
-                img.onerror = () => {
-                    // Fallback: draw nodes without SVG
-                    this._drawNodesOnCanvas(ctx, nodes, minX, minY, padding, () => {
-                        canvas.toBlob(blob => {
-                            const a = document.createElement('a');
-                            a.href = URL.createObjectURL(blob);
-                            a.download = (this.workbookName || 'mindmap') + '.png';
-                            a.click();
-                            this._zoomLevel = savedZoom;
-                            this._applyZoom();
-                        }, 'image/png');
-                    });
-                };
-                img.src = url;
-            }
-        }, 100);
     }
 
     _drawNodesOnCanvas(ctx, nodes, minX, minY, padding, callback) {
@@ -3074,82 +2986,6 @@ export class MindmapEditor extends Component {
 
     _escapeXml(str) {
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    // ===== Feature 8: Export PDF (via SVG → Canvas → PDF) =====
-    onExportPDF() {
-        if (!this.jm || !this.jm.view) return;
-
-        // Use the SVG export as intermediate, then convert to a printable page
-        const panel = this.jm.view.e_panel;
-        if (!panel) return;
-
-        const nodes = panel.querySelectorAll('.xmind-node');
-        if (nodes.length === 0) return;
-
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        nodes.forEach(n => {
-            const l = parseInt(n.style.left) || 0;
-            const t = parseInt(n.style.top) || 0;
-            minX = Math.min(minX, l);
-            minY = Math.min(minY, t);
-            maxX = Math.max(maxX, l + n.offsetWidth);
-            maxY = Math.max(maxY, t + n.offsetHeight);
-        });
-
-        const pad = 40;
-        const w = maxX - minX + pad * 2;
-        const h = maxY - minY + pad * 2;
-
-        // Open print window with canvas rendering
-        const printWin = window.open('', '_blank', `width=${Math.min(w, 1200)},height=${Math.min(h, 900)}`);
-        if (!printWin) {
-            this._showWarning(_t('Please allow popups to export PDF'));
-            return;
-        }
-        printWin.document.write(`<!DOCTYPE html><html><head><title>${this.workbookName || 'MindMap'}</title>
-            <style>@media print { body { margin: 0; } } body { margin: 20px; font-family: 'Open Sans', sans-serif; }</style>
-        </head><body>`);
-
-        // Render a simplified HTML version of the mindmap
-        printWin.document.write(`<h3 style="text-align:center;color:#376092;">${this.workbookName || 'Mind Map'}</h3>`);
-
-        // Render as outline tree for clean PDF output
-        const root = this.jm.get_root();
-        if (root) {
-            printWin.document.write('<div style="padding:20px;">');
-            this._renderPdfNode(printWin.document, root, 0);
-            printWin.document.write('</div>');
-        }
-
-        printWin.document.write('</body></html>');
-        printWin.document.close();
-        setTimeout(() => {
-            printWin.print();
-            this._updateStatus(_t('PDF export ready'));
-        }, 500);
-    }
-
-    _renderPdfNode(doc, node, depth) {
-        const indent = depth * 24;
-        const fs = Math.max(18 - depth * 2, 10);
-        const fw = depth === 0 ? 'bold' : 'normal';
-        const color = depth === 0 ? '#376092' : (depth === 1 ? '#17375E' : '#333');
-        const markers = (node.data && node.data.markers) || [];
-        const markerStr = markers.length > 0 ? markers.map(m => {
-            const mk = this.markers.find(x => x.code === m);
-            return mk ? `<span style="font-size:10px;color:${mk.color};">●</span>` : '';
-        }).join(' ') + ' ' : '';
-
-        doc.write(`<div style="margin-left:${indent}px;margin-bottom:4px;font-size:${fs}px;font-weight:${fw};color:${color};">`);
-        if (depth > 0) doc.write(`<span style="color:#999;margin-right:6px;">•</span>`);
-        doc.write(`${markerStr}${this._escapeXml(node.topic)}</div>`);
-
-        if (node.expanded && node.children) {
-            for (const c of node.children) {
-                this._renderPdfNode(doc, c, depth + 1);
-            }
-        }
     }
 
     // ===== Feature 9: Toggle Line Tapering =====
@@ -3592,7 +3428,7 @@ export class MindmapEditor extends Component {
                 if (result.mindmap_data) {
                     this._loadFailed = false;   // a good sheet load re-enables saving
                     this.mindmapData = result.mindmap_data;
-                    this.jm.show(this.mindmapData, () => this._renderAllXMindFeatures());
+                    this.jm.show(this.mindmapData, () => this._renderAllFeatures());
                     this._updateSheetTabs();
                     this._updateStatus(_t('Switched to sheet: ') + result.name);
                 }
@@ -3978,7 +3814,7 @@ export class MindmapEditor extends Component {
         );
     }
 
-    /** Task Info (XMind 8) — write start/end/progress/assignee into node data. */
+    /** Task Info — write start/end/progress/assignee into node data. */
     onTopicTaskChange() {
         if (!this.selectedNode) return;
         const node = this.jm.get_node(this.selectedNode);
@@ -4403,7 +4239,7 @@ export class MindmapEditor extends Component {
         const node0 = this.jm.get_node(topicIds[0]);
         if (!node0 || !node0.parent) return;
 
-        // Create summary node IN the jsMind tree (as sibling, with _isSummaryNode flag)
+        // Create summary node IN the render-engine tree (as sibling, with _isSummaryNode flag)
         // This allows Tab/Enter to add child/sibling topics, dblclick to inline edit
         // The layout engine skips it; SummaryRenderer positions it at the bracket endpoint
         const parentId = node0.parent.id;
@@ -4456,7 +4292,7 @@ export class MindmapEditor extends Component {
                 options: summaryOptions,
             });
 
-            // Position the jsMind node at the bracket endpoint
+            // Position the render-engine node at the bracket endpoint
             this._positionSummaryNode(summaryNodeId, topicIds);
 
             this._updateStatus(_t('Summary created'));
@@ -4601,13 +4437,13 @@ export class MindmapEditor extends Component {
                     editElement.setSelectionRange(initialChar.length, initialChar.length);
                 }
 
-                // Listen for Escape to cancel (jsMind resets value, we flag it)
+                // Listen for Escape to cancel (render-engine resets value, we flag it)
                 editElement.addEventListener('keydown', (e) => {
                     if (e.key === 'Escape') cancelled = true;
                 });
 
                 editElement.addEventListener('blur', () => {
-                    if (cancelled) return; // Escape pressed — jsMind already restored original text
+                    if (cancelled) return; // Escape pressed — render-engine already restored original text
                     const newTopic = editElement.value;
                     if (newTopic !== oldTopic) {
                         const cmd = new UpdateNodeCommand(this.jm, this.selectedNode, newTopic, oldTopic);
@@ -5069,7 +4905,7 @@ export class MindmapEditor extends Component {
             options: c.options || {},
         }));
 
-        // Floating topics — sync positions from jsMind node data
+        // Floating topics — sync positions from render-engine node data
         data.floating_topics = this.floatingTopics.map(ft => {
             const node = this.jm.get_node(ft.id);
             const nd = (node && node.data) || {};
@@ -5255,7 +5091,7 @@ export class MindmapEditor extends Component {
                 element.classList.add('shape-ellipse');
                 break;
             case 'circle':
-                // XMind 2 circle: perfect circle that fits content (aspect-ratio 1:1)
+                // circle: perfect circle that fits content (aspect-ratio 1:1)
                 element.style.borderRadius = '50%';
                 element.style.aspectRatio = '1';
                 element.style.display = 'flex';
@@ -5293,7 +5129,7 @@ export class MindmapEditor extends Component {
                 element.style.borderRadius = '0';
                 return;
             case 'stroke':
-                // XMind 2 StrokeCircle: double-ring circle (inner border + outer outline)
+                // double-ring circle: double-ring circle (inner border + outer outline)
                 element.style.borderRadius = '50%';
                 element.style.aspectRatio = '1';
                 element.style.display = 'flex';
@@ -5405,7 +5241,7 @@ export class MindmapEditor extends Component {
             this.jm.view.layout.vgap = layoutSettings.vSpace;
             this.jm.view.relayout();
             setTimeout(() => {
-                this._renderAllXMindFeatures();
+                this._renderAllFeatures();
             }, 100);
         }
     }
@@ -5415,7 +5251,7 @@ export class MindmapEditor extends Component {
             this.jm.layout.setLayoutMode(layoutType);
             this.jm.view.refresh();
             setTimeout(() => {
-                this._renderAllXMindFeatures();
+                this._renderAllFeatures();
                 // reset=true → relationship connectors re-optimise for new layout
                 this._updateFeaturePositions(true);
             }, 100);
@@ -5603,7 +5439,7 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Re-render All Features =====
-    _renderAllXMindFeatures(resetRelationships = false) {
+    _renderAllFeatures(resetRelationships = false) {
         const nodes = this.jm.mind.nodes;
 
         // Phase 1: Apply all visual features (shapes, styles, markers, labels, etc.)
@@ -5856,7 +5692,7 @@ export class MindmapEditor extends Component {
             // Edit group
             { icon: 'fa-pencil', label: _t('Edit (F2)'), action: 'edit', disabled: false },
             { divider: true },
-            // Topic creation group (XMind 2: Insert submenu)
+            // Topic creation group (Insert submenu)
             { icon: 'fa-plus', label: _t('Topic (Enter)'), action: 'addSibling', disabled: isRoot },
             { icon: 'fa-level-down', label: _t('Subtopic (Tab)'), action: 'addChild', disabled: false },
             { icon: 'fa-level-up', label: _t('Topic Before (Shift+Enter)'), action: 'addBefore', disabled: isRoot },
@@ -5875,7 +5711,7 @@ export class MindmapEditor extends Component {
             { icon: 'fa-link', label: _t('Hyperlink'), action: 'hyperlink', disabled: false },
             { icon: 'fa-image', label: _t('Image'), action: 'image', disabled: false },
             { divider: true },
-            // Clipboard (XMind 2: Cut/Copy/Paste/Duplicate)
+            // Clipboard (Cut/Copy/Paste/Duplicate)
             { icon: 'fa-scissors', label: _t('Cut (Ctrl+X)'), action: 'cutTopic', disabled: isRoot },
             { icon: 'fa-copy', label: _t('Copy (Ctrl+C)'), action: 'copyTopic', disabled: false },
             { icon: 'fa-paste', label: _t('Paste (Ctrl+V)'), action: 'pasteTopic', disabled: !this._clipboardTopic },
@@ -5886,7 +5722,7 @@ export class MindmapEditor extends Component {
             { icon: 'fa-paint-brush', label: _t('Paste Style'), action: 'pasteStyle', disabled: !this._copiedStyle },
             { icon: 'fa-eraser', label: _t('Reset Style'), action: 'resetStyle', disabled: false },
             { divider: true },
-            // Visibility (XMind 2: Extend/Collapse/ExtendAll/CollapseAll)
+            // Visibility (Extend/Collapse/ExtendAll/CollapseAll)
             { icon: node.expanded ? 'fa-compress' : 'fa-expand', label: node.expanded ? _t('Collapse') : _t('Expand'), action: 'toggle', disabled: !hasChildren },
             { icon: 'fa-expand', label: _t('Expand All'), action: 'expandAllFromNode', disabled: !hasChildren },
             { icon: 'fa-compress', label: _t('Collapse All'), action: 'collapseAllFromNode', disabled: !hasChildren },
@@ -5895,7 +5731,7 @@ export class MindmapEditor extends Component {
             { icon: 'fa-arrow-circle-down', label: _t('Drill Down'), action: 'drillDown', disabled: !hasChildren },
             { icon: 'fa-arrow-circle-up', label: _t('Drill Up'), action: 'drillUp', disabled: !this._drillStack || this._drillStack.length === 0 },
             { divider: true },
-            // Position (XMind 2: Move/Sort)
+            // Position (Move/Sort)
             { icon: 'fa-arrow-up', label: _t('Move Up (Alt+↑)'), action: 'moveUp', disabled: isRoot },
             { icon: 'fa-arrow-down', label: _t('Move Down (Alt+↓)'), action: 'moveDown', disabled: isRoot },
             { icon: 'fa-sort-alpha-asc', label: _t('Sort A→Z'), action: 'sortAsc', disabled: !hasChildren || node.children.length < 2 },
@@ -6359,7 +6195,7 @@ export class MindmapEditor extends Component {
             shape: { type: 'rounded', fillColor: '#FFFFFF', borderColor: '#558ED5', borderWidth: 2 },
         };
 
-        // Add as real jsMind node (child of root, excluded from layout)
+        // Add as real render-engine node (child of root, excluded from layout)
         const cmd = new AddNodeCommand(this.jm, rootId, nodeId, title || _t('Floating Topic'), nodeData);
         this.commandStack.execute(cmd);
 
@@ -6452,7 +6288,7 @@ export class MindmapEditor extends Component {
         if (idx > -1) this.floatingTopics.splice(idx, 1);
         // Refresh layout so it joins the main tree
         this.jm.view.refresh();
-        setTimeout(() => this._renderAllXMindFeatures(), 100);
+        setTimeout(() => this._renderAllFeatures(), 100);
         this._updateStatus(_t('Converted to regular topic'));
     }
 
@@ -6460,7 +6296,7 @@ export class MindmapEditor extends Component {
         // Remove from tracking array
         const idx = this.floatingTopics.findIndex(f => f.id === ftId);
         if (idx > -1) this.floatingTopics.splice(idx, 1);
-        // Remove the jsMind node (and its children)
+        // Remove the render-engine node (and its children)
         this.jm.remove_node(ftId);
         this.commandStack.isDirty = true;
         this.commandStack._notifyListeners();
@@ -6970,7 +6806,7 @@ export class MindmapEditor extends Component {
             confirm: () => {
                 this.mindmapData = template.data;
                 this.jm.show(template.data, () => {
-                    this._renderAllXMindFeatures();
+                    this._renderAllFeatures();
                     this._updateStatus(_t('Template applied: ') + template.name);
                 });
                 this.commandStack.clear();

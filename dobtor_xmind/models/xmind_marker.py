@@ -4,7 +4,7 @@ from odoo import models, fields
 
 class XMindMarker(models.Model):
     _name = 'xmind.marker'
-    _description = 'XMind Marker'
+    _description = 'Mind Map Marker'
     _order = 'category, sequence'
 
     _sql_constraints = [

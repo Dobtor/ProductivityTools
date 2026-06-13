@@ -1,15 +1,16 @@
 /**
- * XMind Renderer — Custom mind map engine matching XMind 2 visual design
- * Replaces jsMind with pixel-perfect XMind 2 rendering
- * Exposed as window.OdooXMind for compatibility
+ * Mind Map Renderer — Custom mind map layout & rendering engine.
+ * Original implementation (LayoutEngine + view classes); no third-party
+ * mind-map library code is used.
+ * Exposed as window.OdooMindMap.
  */
 (function () {
     'use strict';
 
     // =========================================================================
-    // XMind 2 Default Styles (from defaultStyles.xml)
+    // Default Styles (from internal style table)
     // =========================================================================
-    // Theme → root fill color mapping (XMind 2 theme-properties)
+    // Theme → root fill color mapping (theme-properties)
     const THEME_COLORS = {
         'default': '#97cbff', 'primary': '#428bca', 'warning': '#f0ad4e',
         'danger': '#d9534f', 'success': '#5cb85c', 'info': '#5bc0de',
@@ -19,7 +20,7 @@
         'asbestos': '#7f8c8d',
     };
 
-    // XMind 2 Professional Theme — exact values from themes.xml
+    // Professional Theme — exact values from theme table
     const STYLES = {
         central: {
             fontSize: 18, fontWeight: 'bold', color: '#376092', fill: '#DCE6F2',
@@ -54,7 +55,7 @@
             spacingMajor: 8, spacingMinor: 1,
             fontFamily: "'Open Sans', 'Microsoft YaHei', sans-serif",
         },
-        // Special topic styles (XMind 2 defaultStyles.xml)
+        // Special topic styles (internal style table)
         callout: {
             fontSize: 13, fontWeight: 'normal', color: '#000000', fill: '#ffe866',
             shape: 'balloon', corner: 5, textAlign: 'left',
@@ -88,7 +89,7 @@
         summary: { lineColor: '#C3D69B', lineWidth: 5, linePattern: 'solid', lineCorner: 5 },
     };
 
-    // XMind 2 rainbow branch palette — each root child gets a unique color
+    // rainbow branch palette — each root child gets a unique color
     const BRANCH_COLORS = [
         '#4A90D9', // blue
         '#F5A623', // orange
@@ -437,7 +438,7 @@
             root._x = 0;
             root._y = 0;
 
-            // XMind 2 unbalanced layout: right-number controls how many go right
+            // unbalanced layout: right-number controls how many go right
             // Only use _rightNumber when the topic's original structure is map-related
             // (ignore for org_chart, tree, fishbone etc. where right-number is irrelevant)
             const dataRN = root.data && root.data._rightNumber;
@@ -653,7 +654,7 @@
             return { minX, maxX, minY, maxY };
         }
 
-        // 表格圖 (直行 / columns): XMind table semantics.
+        // 表格圖 (直行 / columns): table semantics.
         //   Row 1 = central topic (title, spans the table)
         //   Row 2 = level-2 topics (column headers)
         //   Row 3+ = each column holds that topic's level-3+ subtree as an
@@ -714,7 +715,7 @@
             root._x = tableRight / 2;
         }
 
-        // 表格圖 (橫列 / rows): XMind table semantics, transpose of 直行.
+        // 表格圖 (橫列 / rows): table semantics, transpose of 直行.
         //   Row 1 = central topic (title, spans the table)
         //   Each level-2 topic is a ROW: its label sits in the left column and
         //   its level-3+ subtree fills the row to the right as a logic-right tree.
@@ -786,7 +787,7 @@
             const layoutChildren = children.filter(c => !(_isLayoutExcluded(c)));
             if (layoutChildren.length === 0) return;
 
-            // Per-depth spacing from STYLES (XMind 2: spacingMajor/spacingMinor)
+            // Per-depth spacing from STYLES (spacingMajor/spacingMinor)
             const ps = getStyleForDepth(parent._depth);
             const hgap = ps.spacingMajor || this.hgap;
             const vgap = ps.spacingMinor || this.vgap;
@@ -1090,7 +1091,7 @@
 
         // =================================================================
         // Tree layout — children drop down vertically, then extend in dir
-        // XMind Tree: parent → vertical drop → children stacked vertically
+        // Tree: parent → vertical drop → children stacked vertically
         // Connection line: parent bottom → vertical → horizontal → child left
         // =================================================================
 
@@ -1107,7 +1108,7 @@
         /**
          * Tree layout for children: each child is positioned below the parent,
          * indented from parent's reference point. Children stack vertically.
-         * XMind Tree: x = parent.x + majorSpacing, y = parent.bottom + majorSpacing
+         * Tree: x = parent.x + majorSpacing, y = parent.bottom + majorSpacing
          * direction = 3 (tree-right) or 4 (tree-left)
          */
         _layoutTreeChildren(parent, dir) {
@@ -1118,7 +1119,7 @@
             const majorGap = ps.spacingMajor || this.hgap;
             const minorGap = ps.spacingMinor || this.vgap;
 
-            // XMind Tree: children indent from parent's center x, drop below parent's bottom
+            // Tree: children indent from parent's center x, drop below parent's bottom
             const indentX = parent._x + majorGap * dir;
             let curY = parent._y + parent._h / 2 + majorGap;
 
@@ -1156,7 +1157,7 @@
         }
 
         // =================================================================
-        // Timeline Horizontal — XMind style: head topic on left, children
+        // Timeline Horizontal — style: head topic on left, children
         // along horizontal spine alternating above/below, each child's own
         // children extend vertically (tree-like).
         // direction = 5 (timeline-h) for spine connection lines.
@@ -1252,7 +1253,7 @@
         }
 
         // =================================================================
-        // Timeline Vertical — XMind style: head topic on top, children along
+        // Timeline Vertical — style: head topic on top, children along
         // vertical spine alternating left/right.
         // direction = 6 (timeline-v) for spine connection lines.
         // =================================================================
@@ -1311,12 +1312,12 @@
     // =========================================================================
     // View — DOM Nodes + SVG Lines
     // =========================================================================
-    class XMindView {
+    class MindMapView {
         constructor(container, options) {
             this.container = container;
             this.options = options || {};
             this.mind = null;
-            this._tapered = false; // Line tapering mode (XMind 2 tapered branches)
+            this._tapered = false; // Line tapering mode (tapered branches)
             this.layout = new LayoutEngine(
                 this.options.layout?.hspace || 30,
                 this.options.layout?.vspace || 15,
@@ -1340,7 +1341,7 @@
         _buildDOM() {
             this.container.style.overflow = 'hidden';
             this.container.style.position = 'relative';
-            // XMind 2: #f3f4f9 at 60% opacity → blended with white = #f7f8fb
+            // #f3f4f9 at 60% opacity → blended with white = #f7f8fb
             this.container.style.background = '#f7f8fb';
             this.container.style.cursor = 'grab';
 
@@ -1485,7 +1486,7 @@
             span.textContent = node.topic;
             el.appendChild(span);
 
-            // Apply style — XMind 2 Professional theme
+            // Apply style — Professional theme
             el.style.fontSize = s.fontSize + 'px';
             el.style.fontWeight = s.fontWeight;
             el.style.color = s.color;
@@ -1644,7 +1645,7 @@
             btn.className = 'xmind-expander';
             const isPlus = !node.expanded;
             btn.textContent = isPlus ? '+' : '−';
-            // XMind 2 PlusMinusFigure exact colors
+            // expander figure exact colors
             const fillColor = isPlus ? 'rgb(250,250,250)' : 'rgb(160,196,234)';
             const borderColor = isPlus ? 'rgb(180,200,240)' : 'rgb(120,136,162)';
             const contentColor = isPlus ? 'rgb(150,160,200)' : 'rgb(48,64,96)';
@@ -1731,7 +1732,7 @@
             }
             node._el.style.display = '';
 
-            // Position expander (11px circle, XMind 2 style)
+            // Position expander (11px circle, style)
             if (node._expander) {
                 const dir = node.direction || 1;
                 let ex, ey;
@@ -2497,7 +2498,7 @@
                 if (Math.abs(ey - sy) < 1) {
                     d = `M${sx},${sy} L${ex},${ey}`;
                 } else if (dir === 2) {
-                    // XMind 2 Elbow for org_chart: horizontal first, then vertical
+                    // Elbow for org_chart: horizontal first, then vertical
                     // Elbow point at (child.x, parent.y) — same Y as source, same X as target
                     const c = lineClass === 'angular' ? 0 : Math.min(lineCorner, Math.abs(ex - sx) / 2, Math.abs(ey - sy) / 2);
                     const sgnX = ex > sx ? 1 : -1;
@@ -2520,12 +2521,12 @@
                 return;
             } else {
                 // ======================================================
-                // XMind 2 Quadratic Bezier — CPRatio = 1/3
+                // Quadratic Bezier — CPRatio = 1/3
                 // Control point = source * (1 - 1/3) + target * (1/3)
                 //   Horizontal target: cp.x = lerp(sx, ex, 1/3), cp.y = ey
                 //   Vertical target:   cp.x = ex,                cp.y = lerp(sy, ey, 1/3)
                 // ======================================================
-                const R = 1 / 3; // XMind 2 CurveBranchConnection.CPRatio
+                const R = 1 / 3; // curve control-point ratio
                 let cpx, cpy;
                 if (dir === 2) {
                     // Vertical: target is below/above → targetHorizontal=false
@@ -2547,7 +2548,7 @@
             path.setAttribute('data-parent-id', parent.id);
             path.setAttribute('data-child-id', child.id);
 
-            // XMind 2 Tapered mode: filled quadratic outline (source thick → target thin)
+            // Tapered mode: filled quadratic outline (source thick → target thin)
             if (this._tapered && (lineClass === 'curve' || lineClass === 'curved')) {
                 const startW = lineWidth * 2;
                 const endW = Math.max(lineWidth * 0.5, 0.5);
@@ -2560,7 +2561,7 @@
                     cpx = sx * (1 - R) + ex * R;
                     cpy = ey;
                 }
-                // XMind 2: two quadratic outlines forming a filled shape
+                // two quadratic outlines forming a filled shape
                 // Upper edge: (sx, sy-startW/2) → Q(cpx, cpy-midW/2) → (ex, ey-endW/2)
                 // Lower edge: (ex, ey+endW/2) → Q(cpx, cpy+midW/2) → (sx, sy+startW/2)
                 const midW = (startW + endW) / 2;
@@ -2693,9 +2694,9 @@
     }
 
     // =========================================================================
-    // Main XMind Class (API compatible with jsMind interface used by editor)
+    // Main mind map class (public API used by the editor)
     // =========================================================================
-    class OdooXMind {
+    class OdooMindMap {
         constructor(options) {
             this.options = Object.assign({
                 container: null,
@@ -2707,7 +2708,7 @@
             }, options);
 
             this.mind = null;
-            this.view = new XMindView(this.options.container, this.options);
+            this.view = new MindMapView(this.options.container, this.options);
             this.layout = {
                 mode: this.options.layout.mode || 'map',
                 layout: () => { /* called by view.refresh */ },
@@ -2858,6 +2859,6 @@
     }
 
     // Expose globally
-    window.OdooXMind = OdooXMind;
+    window.OdooMindMap = OdooMindMap;
 
 })();

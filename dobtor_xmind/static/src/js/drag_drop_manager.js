@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * Drag and Drop Manager for XMind 2 Style Topic Reorganization
+ * Drag and Drop Manager for Style Topic Reorganization
  * Supports: Detach, Reparent, Visual Feedback
  */
 import { _t } from "@web/core/l10n/translation";
@@ -23,8 +23,8 @@ export class DragDropManager {
         this.dragThreshold = 10;
         this.dropProximity = 80; // pixels to detect drop target
 
-        // XMind-style drag and drop
-        this.freePositioningMode = false; // Default to XMind behavior (attach to parent)
+        // mind-map-style drag and drop
+        this.freePositioningMode = false; // Default to behavior (attach to parent)
         this.shiftPressed = false; // Track Shift key
         this.draggedChildren = []; // Store child nodes being dragged with parent
         this.childrenOffsets = []; // Store relative offsets of children
@@ -40,7 +40,7 @@ export class DragDropManager {
     init() {
         // Defensive check
         if (!this.jm || !this.jm.view) {
-            console.error('[DragDropManager] Cannot initialize: jsMind instance or view not available');
+            console.error('[DragDropManager] Cannot initialize: render-engine instance or view not available');
             return;
         }
         this._createDropIndicator();
@@ -484,7 +484,7 @@ export class DragDropManager {
         // Hide drop indicator
         this._hideDropIndicator();
 
-        // XMind behavior: if Shift is pressed, create floating topic
+        // behavior: if Shift is pressed, create floating topic
         // Otherwise, try to attach to nearby node
         if (this.shiftPressed) {
             this._createFloatingTopic(e);
@@ -534,7 +534,7 @@ export class DragDropManager {
 
         // Refresh
         this.jm.view.refresh();
-        setTimeout(() => this.editor._renderAllXMindFeatures(), 100);
+        setTimeout(() => this.editor._renderAllFeatures(), 100);
         this.editor.commandStack.isDirty = true;
         this.editor.commandStack._notifyListeners();
         this.editor._updateStatus(_t('Moved ') + position + ': ' + refNode.topic);

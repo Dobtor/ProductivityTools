@@ -5,7 +5,7 @@ from odoo import models, fields, api
 
 class XMindRevision(models.Model):
     _name = 'xmind.revision'
-    _description = 'XMind Workbook Revision'
+    _description = 'Mind Map Workbook Revision'
     _order = 'create_date desc'
 
     workbook_id = fields.Many2one(

@@ -4,7 +4,7 @@ from odoo import models, fields
 
 class XMindTagCategory(models.Model):
     _name = 'xmind.tag.category'
-    _description = 'XMind Tag Category'
+    _description = 'Mind Map Tag Category'
     _order = 'sequence, id'
 
     name = fields.Char('Name', required=True, translate=True)
@@ -15,7 +15,7 @@ class XMindTagCategory(models.Model):
 
 class XMindTag(models.Model):
     _name = 'xmind.tag'
-    _description = 'XMind Tag'
+    _description = 'Mind Map Tag'
     _order = 'sequence, id'
 
     name = fields.Char('Name', required=True, translate=True)

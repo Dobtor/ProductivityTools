@@ -9,7 +9,7 @@ class XMindBoundary(models.Model):
     Like XMind 2's BoundaryPart
     """
     _name = 'xmind.boundary'
-    _description = 'XMind Boundary'
+    _description = 'Mind Map Boundary'
 
     sheet_id = fields.Many2one('xmind.sheet', string='Sheet', ondelete='cascade', required=True)
     component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
@@ -44,7 +44,7 @@ class XMindSummary(models.Model):
     Like XMind 2's SummaryPart
     """
     _name = 'xmind.summary'
-    _description = 'XMind Summary'
+    _description = 'Mind Map Summary'
 
     sheet_id = fields.Many2one('xmind.sheet', string='Sheet', ondelete='cascade', required=True)
     component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
@@ -76,7 +76,7 @@ class XMindCallout(models.Model):
     Like XMind 2's floating topics with special connection
     """
     _name = 'xmind.callout'
-    _description = 'XMind Callout'
+    _description = 'Mind Map Callout'
 
     topic_id = fields.Many2one('xmind.topic', string='Parent Topic', ondelete='cascade', required=True)
     component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
@@ -105,7 +105,7 @@ class XMindFloatingTopic(models.Model):
     Like XMind 2's detached topics
     """
     _name = 'xmind.floating.topic'
-    _description = 'XMind Floating Topic'
+    _description = 'Mind Map Floating Topic'
 
     sheet_id = fields.Many2one('xmind.sheet', string='Sheet', ondelete='cascade', required=True)
     component_id = fields.Char('Component ID', default=lambda self: str(uuid.uuid4()))
@@ -133,7 +133,7 @@ class XMindAttachment(models.Model):
     Like XMind 2's attachments and images
     """
     _name = 'xmind.attachment'
-    _description = 'XMind Attachment'
+    _description = 'Mind Map Attachment'
 
     topic_id = fields.Many2one('xmind.topic', string='Topic', ondelete='cascade', required=True)
 

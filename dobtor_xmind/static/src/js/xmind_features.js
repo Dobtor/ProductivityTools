@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 /**
- * XMind 2 Advanced Features - Visual Rendering
+ * Advanced Features - Visual Rendering
  * Implements: Boundaries, Summaries, Relationships, Markers, Callouts
  */
 import { _t } from "@web/core/l10n/translation";
@@ -262,7 +262,7 @@ export class BoundaryRenderer {
                 const pillW = bbox.width + padH * 2;
                 const pillH = bbox.height + padV * 2;
                 const pillX = minX + insetX;
-                // Pill centered on the border line (XMind style)
+                // Pill centered on the border line (style)
                 const pillY = minY - pillH / 2;
 
                 const pill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -645,7 +645,7 @@ export class SummaryRenderer {
 
         this.svg.appendChild(group);
 
-        // Don't store jsMind node in summaryNodeEl — clear() would remove it from DOM
+        // Don't store render-engine node in summaryNodeEl — clear() would remove it from DOM
         // summaryNodeEl is only for standalone DOM elements created by the renderer
         let summaryNodeEl = null;
 

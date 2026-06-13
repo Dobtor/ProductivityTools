@@ -2,10 +2,10 @@
 <templates id="template" xml:space="preserve">
     <t t-name="dobtor_xmind.MindmapEditor">
         <div class="o_mindmap_editor_container">
-            <!-- Toolbar: XMind 2 layout -->
+            <!-- Toolbar: Mind map layout -->
             <div class="o_mindmap_toolbar">
 
-                <!-- Group 1: Home / Save / Undo / Redo (XMind 2: Dashboard toolbar) -->
+                <!-- Group 1: Home / Save / Undo / Redo (Mind map: Dashboard toolbar) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-success o_mindmap_btn_save" title="儲存 (Ctrl+S)" t-on-click="onSave">
                         <i class="fa fa-save"/>
@@ -18,7 +18,7 @@
                     </button>
                 </div>
 
-                <!-- Group 2: Topic dropdown (XMind 2: Topic + Subtopic + Before + Parent) -->
+                <!-- Group 2: Topic dropdown (Mind map: Topic + Subtopic + Before + Parent) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-primary o_mindmap_btn_add_child" title="新增子主題 (Tab)" t-on-click="onAddChild">
                         <i class="fa fa-plus"/>
@@ -47,7 +47,7 @@
                     </div>
                 </div>
 
-                <!-- Group 3: Relationship / Boundary / Summary (XMind 2: mindmap toolbar group) -->
+                <!-- Group 3: Relationship / Boundary / Summary (Mind map: mindmap toolbar group) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_relationship" title="關連線：點選來源 → 點選目標" t-on-click="onAddRelationship">
                         <i class="fa fa-long-arrow-right"/> 關連線
@@ -60,7 +60,7 @@
                     </button>
                 </div>
 
-                <!-- Group 4: Insert dropdown (XMind 2: Markers + Notes + Label + Hyperlink + Image + Attachment) -->
+                <!-- Group 4: Insert dropdown (Mind map: Markers + Notes + Label + Hyperlink + Image + Attachment) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="插入">
                         <i class="fa fa-plus"/> 插入
@@ -91,7 +91,7 @@
                     </div>
                 </div>
 
-                <!-- Group 5: Format dropdown (XMind 2: Properties panel - Shape/Text/Branch) -->
+                <!-- Group 5: Format dropdown (Mind map: Properties panel - Shape/Text/Branch) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="格式">
                         <i class="fa fa-paint-brush"/> 格式
@@ -297,7 +297,7 @@
                     </div>
                 </div>
 
-                <!-- Group 6: View dropdown (XMind 2: View menu — Zoom / Drill / Expand / Overview / Outline) -->
+                <!-- Group 6: View dropdown (Mind map: View menu — Zoom / Drill / Expand / Overview / Outline) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="檢視">
                         <i class="fa fa-eye"/> 檢視
@@ -367,7 +367,7 @@
                     </div>
                 </div>
 
-                <!-- Group 7: Modify dropdown (XMind 2: Modify menu — Edit/Sort/Align/Delete) -->
+                <!-- Group 7: Modify dropdown (Mind map: Modify menu — Edit/Sort/Align/Delete) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="修改">
                         <i class="fa fa-pencil"/> 修改
@@ -445,7 +445,7 @@
                     </button>
                 </div>
 
-                <!-- Group 8: Structure / Theme selectors (XMind 2: Window > Properties panels) -->
+                <!-- Group 8: Structure / Theme selectors (Mind map: Window > Properties panels) -->
                 <div class="btn-group me-2">
                     <select class="form-control form-control-sm o_mindmap_layout_select" title="結構" t-on-change="onLayoutChange">
                         <option value="map">心智圖</option>
@@ -482,27 +482,13 @@
                     </select>
                 </div>
 
-                <!-- Group 9: Zoom indicator + Export (XMind 2: Export toolbar) -->
+                <!-- Group 9: Zoom indicator + Export (Mind map: Export toolbar) -->
                 <div class="ms-auto d-flex align-items-center">
                     <span class="btn btn-sm btn-outline-secondary disabled o_mindmap_zoom_level me-1">100%</span>
                     <div class="btn-group me-2">
-                        <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_export dropdown-toggle" data-bs-toggle="dropdown" title="匯出">
-                            <i class="fa fa-download"/>
+                        <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_export" t-on-click="onExportSVG" title="匯出 SVG">
+                            <i class="fa fa-download"/> 匯出 SVG
                         </button>
-                        <div class="dropdown-menu dropdown-menu-end">
-                            <a class="dropdown-item" href="#" t-on-click="onExport">
-                                <i class="fa fa-file-archive-o text-primary"/> 匯出 .xmind
-                            </a>
-                            <a class="dropdown-item" href="#" t-on-click="onExportImage">
-                                <i class="fa fa-image text-success"/> 匯出 PNG
-                            </a>
-                            <a class="dropdown-item" href="#" t-on-click="onExportSVG">
-                                <i class="fa fa-code text-info"/> 匯出 SVG
-                            </a>
-                            <a class="dropdown-item" href="#" t-on-click="onExportPDF">
-                                <i class="fa fa-file-pdf-o text-danger"/> 匯出 PDF
-                            </a>
-                        </div>
                     </div>
                     <span class="badge text-bg-info me-1 o_mindmap_selection_count" style="display:none;">
                         <i class="fa fa-check-square"/> <span class="count">0</span>
@@ -555,7 +541,7 @@
                         <input type="text" class="form-control form-control-sm o_topic_hyperlink_title mt-1" placeholder="連結標題 (選填)" t-on-change="onTopicHyperlinkChange"/>
                     </div>
 
-                    <!-- Task Info (XMind 8) -->
+                    <!-- Task Info -->
                     <div class="mb-3 o_topic_task_section">
                         <label>
                             <i class="fa fa-tasks text-warning"/> 任務資訊
@@ -721,7 +707,7 @@
                 <div id="jsmind_container" t-ref="jsmindContainer" style="width:100%;height:100%;"/>
             </div>
 
-            <!-- Status Bar (XMind 8 style: message · counts · zoom control) -->
+            <!-- Status Bar -->
             <div class="o_mindmap_statusbar">
                 <span class="o_mindmap_status_text">就緒</span>
                 <span class="o_mindmap_autosave_indicator"></span>

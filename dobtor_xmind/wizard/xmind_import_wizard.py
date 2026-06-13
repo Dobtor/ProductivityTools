@@ -12,7 +12,7 @@ from odoo.exceptions import UserError
 
 class XMindImportLine(models.TransientModel):
     _name = 'xmind.import.line'
-    _description = 'XMind Import Line'
+    _description = 'Mind Map Import Line'
 
     wizard_id = fields.Many2one('xmind.import.wizard', ondelete='cascade')
     file = fields.Binary('File', required=True, attachment=False)
@@ -28,7 +28,7 @@ class XMindImportLine(models.TransientModel):
 
 class XMindImportWizard(models.TransientModel):
     _name = 'xmind.import.wizard'
-    _description = 'Import XMind Files'
+    _description = 'Import Mind Map Files'
 
     # JSON payload from the custom xmind_multi_file widget: [{name, data(base64)}].
     # Self-contained multi-file upload — no ir.attachment dependency / residue.

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 {
-    'name': 'Dobtor XMind Editor',
+    'name': 'Dobtor Mind Map',
     'version': '18.0.1.0.0',
     'category': 'Productivity',
-    'summary': 'Visual Mind Map Editor with XMind 2 Features',
+    'summary': 'Visual Mind Map Editor',
     'description': '''
         Complete mind mapping solution with advanced editing features:
         - Undo/Redo system (Command Pattern)

@@ -5,7 +5,7 @@ from odoo import models, fields, api
 
 class XMindTopic(models.Model):
     _name = 'xmind.topic'
-    _description = 'XMind Topic'
+    _description = 'Mind Map Topic'
     _parent_name = 'parent_id'
     _parent_store = True
     _order = 'parent_path, sequence'

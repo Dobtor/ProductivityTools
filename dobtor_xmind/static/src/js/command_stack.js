@@ -1,8 +1,8 @@
 /** @odoo-module **/
 
 /**
- * Command Pattern Implementation for XMind 2 Style Undo/Redo
- * Based on XMind 2's org.xmind.gef.command.CommandStack
+ * Command Pattern Implementation for Style Undo/Redo
+ * Based on 's org.xmind.gef.command.CommandStack
  */
 
 /**
@@ -277,7 +277,7 @@ export class ToggleExpandCommand extends Command {
 }
 
 /**
- * Command Stack - Manages command history (like XMind 2)
+ * Command Stack - Manages command history (like )
  * Supports up to 200 undo steps (configurable)
  */
 export class CommandStack {
