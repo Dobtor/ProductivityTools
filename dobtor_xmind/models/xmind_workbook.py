@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import base64
 import json
+import re
 import zipfile
 import io
 import uuid
@@ -501,9 +502,10 @@ class XMindWorkbook(models.Model):
 
         synced = set()
         stats = {'created': 0, 'updated': 0, 'removed': 0}
+        assignee_cache = {}
 
         def walk(topic, parent_task):
-            task, created = self._sync_topic_to_task(topic, project, parent_task)
+            task, created = self._sync_topic_to_task(topic, project, parent_task, assignee_cache)
             synced.add(task.id)
             stats['created' if created else 'updated'] += 1
             for child in topic.child_ids.sorted('sequence'):
@@ -533,7 +535,7 @@ class XMindWorkbook(models.Model):
         stats.update({'project_id': project.id, 'project_name': project.name})
         return stats
 
-    def _sync_topic_to_task(self, topic, project, parent_task):
+    def _sync_topic_to_task(self, topic, project, parent_task, assignee_cache=None):
         """Create or update the project.task mirroring `topic`. Returns (task, created)."""
         task = topic.task_id if (topic.task_id and topic.task_id.exists()) else None
         vals = {
@@ -541,24 +543,22 @@ class XMindWorkbook(models.Model):
             'project_id': project.id,
             'parent_id': parent_task.id if parent_task else False,
             'sequence': topic.sequence or 10,
+            # Map authoritative on a forward sync: derive state from progress.
+            'state': '1_done' if (topic.task_progress or 0) >= 100 else '01_in_progress',
         }
         if topic.note:
             vals['description'] = '<p>%s</p>' % html.escape(topic.note).replace('\n', '<br/>')
         if topic.task_end_date:
             # Preserve a manually-set time on re-sync: only rewrite the deadline when
-            # its DATE differs from the topic's; default new deadlines to 17:00.
+            # its DATE differs from the topic's; default new deadlines to 17:00 in the
+            # user's timezone (Datetime fields are UTC-naive).
             keep = task and task.date_deadline and task.date_deadline.date() == topic.task_end_date
             if not keep:
-                # Store 17:00 in the user's timezone (Datetime fields are UTC-naive),
-                # so a TW (UTC+8) user sees 17:00, not 01:00 next day.
                 tz = pytz.timezone(self.env.user.tz or 'UTC')
                 local_dt = tz.localize(datetime.combine(topic.task_end_date, time(17, 0)))
                 vals['date_deadline'] = local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
-        users = self._resolve_assignee(topic.task_assignee)
-        if users:
-            vals['user_ids'] = [Command.set(users.ids)]
-        if topic.task_progress and topic.task_progress >= 100:
-            vals['state'] = '1_done'
+        users = self._resolve_assignee(topic.task_assignee, assignee_cache)
+        vals['user_ids'] = [Command.set(users.ids)]   # also clears when emptied
 
         created = False
         if task:
@@ -571,17 +571,29 @@ class XMindWorkbook(models.Model):
             task.xmind_topic_id = topic.id
         return task, created
 
-    def _resolve_assignee(self, text):
-        """Best-effort resolve a free-text assignee to a res.users (login/email/name)."""
-        if not text or not text.strip():
-            return self.env['res.users']
-        text = text.strip()
+    def _resolve_assignee(self, text, cache=None):
+        """Resolve a free-text assignee to res.users. Supports multiple names split
+        by , ; or 、 (login/email/name match). `cache` (dict token→users) avoids the
+        N+1 search across a sync."""
         Users = self.env['res.users']
-        user = Users.search(
-            ['|', ('login', '=ilike', text), ('email', '=ilike', text)], limit=1)
-        if not user:
-            user = Users.search([('name', '=ilike', text)], limit=1)
-        return user
+        if not text or not text.strip():
+            return Users
+        result = Users
+        for raw in re.split(r'[,;、]', text):
+            token = raw.strip()
+            if not token:
+                continue
+            if cache is not None and token in cache:
+                result |= cache[token]
+                continue
+            user = Users.search(
+                ['|', ('login', '=ilike', token), ('email', '=ilike', token)], limit=1)
+            if not user:
+                user = Users.search([('name', '=ilike', token)], limit=1)
+            if cache is not None:
+                cache[token] = user
+            result |= user
+        return result
 
     def _topic_map(self, sheet):
         """Return {component_id: topic_record} for a sheet in a single query.

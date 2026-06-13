@@ -107,7 +107,7 @@ class ProjectProject(models.Model):
                 'sequence': task.sequence or 0,
                 'note': html2plaintext(task.description) if task.description else '',
                 'task_end_date': task.date_deadline.date() if task.date_deadline else False,
-                'task_assignee': task.user_ids[:1].name if task.user_ids else '',
+                'task_assignee': ', '.join(task.user_ids.mapped('name')) if task.user_ids else '',
                 'task_progress': 100 if task.state == '1_done' else 0,
             }
             topic = task.xmind_topic_id
