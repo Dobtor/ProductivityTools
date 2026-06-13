@@ -199,6 +199,9 @@ export class MindmapEditor extends Component {
     }
 
     async _loadWorkbookData() {
+        // Reset the load-failure guard on every (re)load attempt; a later success
+        // re-enables saving that a prior failed load had blocked.
+        this._loadFailed = false;
         if (!this.workbookId) {
             this.mindmapData = this._getDefaultData();
             this.sheetSettings = { layout: 'map', theme: 'primary' };
@@ -3523,6 +3526,7 @@ export class MindmapEditor extends Component {
             this._currentSheetId = sheetId;
             rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}).then(result => {
                 if (result.mindmap_data) {
+                    this._loadFailed = false;   // a good sheet load re-enables saving
                     this.mindmapData = result.mindmap_data;
                     this.jm.show(this.mindmapData, () => this._renderAllXMindFeatures());
                     this._updateSheetTabs();
@@ -4844,7 +4848,7 @@ export class MindmapEditor extends Component {
         // Never overwrite the server copy with default data after a failed load.
         if (this._loadFailed) {
             console.warn('[MindmapEditor] Save blocked: initial load failed.');
-            return;
+            return false;
         }
 
         // Build the full payload: tree + every feature layer in ONE request so

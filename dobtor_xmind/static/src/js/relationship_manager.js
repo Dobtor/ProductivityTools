@@ -829,6 +829,8 @@ export class RelationshipManager {
                 self._updateRelationshipPath(relData);
                 self._hideControlPoints(relData);
                 self._showControlPoints(relData);
+                // Persist the re-target / endpoint move.
+                self._notifyChange(relData);
             };
 
             document.addEventListener('mousemove', onMove);

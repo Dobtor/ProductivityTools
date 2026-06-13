@@ -798,6 +798,10 @@ class XMindWorkbook(models.Model):
             props['fo:font-style'] = topic.font_style
         if topic.font_family:
             props['fo:font-family'] = topic.font_family
+        if topic.text_decoration:
+            props['fo:text-decoration'] = topic.text_decoration
+        if topic.text_align and topic.text_align != 'left':
+            props['fo:text-align'] = topic.text_align
         if topic.border_color:
             props['border-line-color'] = topic.border_color
         if topic.border_width:
@@ -817,6 +821,8 @@ class XMindWorkbook(models.Model):
             props['line-width'] = '%spt' % topic.line_width
         if topic.line_style:
             props['line-pattern'] = topic.line_style
+        if topic.line_type_explicit:
+            props['line-explicit'] = 'true'
         return props
 
     def _topic_to_xmind(self, topic, ctx):
@@ -862,6 +868,13 @@ class XMindWorkbook(models.Model):
         props = self._topic_style_properties(topic)
         if props:
             xmind_topic['style'] = {'id': topic.component_id, 'properties': props}
+
+        # Embedded image + file attachments (round-trips via .xmind too)
+        att_data = self._get_topic_attachments(topic)
+        if att_data.get('image'):
+            xmind_topic['image'] = att_data['image']
+        if att_data.get('attachments'):
+            xmind_topic['attachments'] = att_data['attachments']
 
         # Children — split into attached vs detached (floating) preserving order.
         attached, detached = [], []
@@ -1271,8 +1284,10 @@ class XMindWorkbook(models.Model):
         'arrow': 'org.xmind.arrowShape.triangle',
         'arrow-open': 'org.xmind.arrowShape.spearhead',
         'circle-filled': 'org.xmind.arrowShape.dot',
+        'circle': 'org.xmind.arrowShape.dot',
         'square': 'org.xmind.arrowShape.square',
         'diamond-filled': 'org.xmind.arrowShape.diamond',
+        'diamond': 'org.xmind.arrowShape.diamond',
     }
 
     _XMIND_LINE_PATTERN_MAP = {
@@ -1943,6 +1958,10 @@ class XMindWorkbook(models.Model):
             topic_vals['font_style'] = 'italic' if 'italic' in str(style_props['fo:font-style']).lower() else 'normal'
         if style_props.get('fo:font-family'):
             topic_vals['font_family'] = style_props['fo:font-family']
+        if style_props.get('fo:text-decoration'):
+            topic_vals['text_decoration'] = style_props['fo:text-decoration']
+        if style_props.get('fo:text-align') in ('left', 'center', 'right'):
+            topic_vals['text_align'] = style_props['fo:text-align']
         if style_props.get('border-line-color'):
             topic_vals['border_color'] = style_props['border-line-color']
         if style_props.get('border-line-width'):
@@ -1959,6 +1978,8 @@ class XMindWorkbook(models.Model):
             topic_vals['line_width'] = self._safe_int(style_props['line-width'], 0)
         if style_props.get('line-pattern'):
             topic_vals['line_style'] = style_props['line-pattern']
+        if style_props.get('line-explicit'):
+            topic_vals['line_type_explicit'] = True
 
         if parent:
             topic_vals['parent_id'] = parent.id
@@ -2004,6 +2025,9 @@ class XMindWorkbook(models.Model):
                         'topic_id': topic.id,
                         'marker_id': marker.id,
                     })
+
+        # Embedded image + file attachments (.xmind round-trip)
+        self._save_topic_attachments(topic, topic_data)
 
         # Import children
         children_data = topic_data.get('children', {})
