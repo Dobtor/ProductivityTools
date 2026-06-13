@@ -184,6 +184,8 @@ class XMindWorkbook(models.Model):
         # (save fully recreates topics; without this the topic↔task link is lost).
         if topic.task_id:
             data['taskId'] = topic.task_id.id
+        if topic.project_managed:
+            data['projectManaged'] = True
 
         # Per-topic child structure (layout override for children)
         # Only set childStructure for explicit overrides, not for default/map structures
@@ -468,15 +470,28 @@ class XMindWorkbook(models.Model):
 
     def _plan_project_orphans(self):
         """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to
-        ask the user for confirmation before any destructive change."""
+        ask the user for confirmation before any destructive change. Computed exactly
+        like the real sync: read-only walk of the topic tree to collect the tasks that
+        WOULD stay synced, then any other map-managed task is an orphan."""
         self.ensure_one()
         if not self.project_id:
             return self.env['project.task']
         sheet = self.sheet_ids[:1]
-        topic_ids = set(sheet.topic_ids.ids) if sheet else set()
+        root = sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1] if sheet else None
+        synced = set()
+        if root:
+            def collect(topic):
+                if topic.task_id:
+                    synced.add(topic.task_id.id)
+                for child in topic.child_ids:
+                    if not child.is_summary_node:
+                        collect(child)
+            for child in root.child_ids:
+                if not child.is_summary_node:
+                    collect(child)
         tasks = self.env['project.task'].search([
-            ('project_id', '=', self.project_id.id), ('xmind_topic_id', '!=', False)])
-        return tasks.filtered(lambda t: t.xmind_topic_id.id not in topic_ids)
+            ('project_id', '=', self.project_id.id), ('xmind_managed', '=', True)])
+        return tasks.filtered(lambda t: t.id not in synced)
 
     def _sync_notification(self, stats, title):
         msg = _("Created %(c)s, updated %(u)s, archived/removed %(a)s.") % {
@@ -530,10 +545,12 @@ class XMindWorkbook(models.Model):
                 continue
             walk(child, False)
 
-        # Archive tasks whose source topic was removed from the map (never hard-delete).
+        # Archive map-managed tasks whose source topic was removed (never hard-delete).
+        # Uses xmind_managed (not xmind_topic_id) because deleting a topic nulls the
+        # task's xmind_topic_id, which would otherwise hide the orphan.
         orphans = self.env['project.task'].search([
             ('project_id', '=', project.id),
-            ('xmind_topic_id', '!=', False),
+            ('xmind_managed', '=', True),
             ('id', 'not in', list(synced)),
         ])
         if orphans:
@@ -555,6 +572,7 @@ class XMindWorkbook(models.Model):
             'project_id': project.id,
             'parent_id': parent_task.id if parent_task else False,
             'sequence': topic.sequence or 10,
+            'xmind_managed': True,
             # Map authoritative on a forward sync: derive state from progress.
             'state': '1_done' if (topic.task_progress or 0) >= 100 else '01_in_progress',
         }
@@ -860,6 +878,8 @@ class XMindWorkbook(models.Model):
 
         # Restore the project-task link (validated) so the map↔project mapping
         # survives the full-recreate save, and re-point the task back to this topic.
+        if node_data.get('projectManaged'):
+            topic.project_managed = True
         task_id = node_data.get('taskId')
         if task_id:
             task = self.env['project.task'].browse(int(task_id)).exists()

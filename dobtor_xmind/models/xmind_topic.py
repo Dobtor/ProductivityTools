@@ -104,6 +104,10 @@ class XMindTopic(models.Model):
     # Stable link to the project.task this topic syncs with (1:1, map ⇄ project).
     task_id = fields.Many2one('project.task', string='Project Task',
                               ondelete='set null', index=True, copy=False)
+    # True once a topic was created/managed by a project→map sync. Survives the task
+    # being deleted (which nulls task_id), so a re-sync can detect "its source task is
+    # gone" and remove it (without affecting purely map-authored topics).
+    project_managed = fields.Boolean('Managed by Project', default=False, copy=False)
 
     # Structure
     structure_class = fields.Char('Structure Class', default='')

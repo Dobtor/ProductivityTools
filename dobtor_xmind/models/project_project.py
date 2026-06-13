@@ -105,6 +105,7 @@ class ProjectProject(models.Model):
                 'parent_id': parent_topic.id,
                 'title': task.name or _('Task'),
                 'sequence': task.sequence or 0,
+                'project_managed': True,
                 'note': html2plaintext(task.description) if task.description else '',
                 'task_end_date': task.date_deadline.date() if task.date_deadline else False,
                 'task_assignee': ', '.join(task.user_ids.mapped('name')) if task.user_ids else '',
@@ -129,8 +130,10 @@ class ProjectProject(models.Model):
 
         # Remove topics whose source task is gone (only task-linked ones — map-only
         # content is preserved).
+        # project-managed topics whose source task is gone (task deletion nulls
+        # task_id, so we rely on the persistent project_managed flag, not task_id).
         orphans = sheet.topic_ids.filtered(
-            lambda t: t.task_id and t.id not in synced)
+            lambda t: t.project_managed and t.id not in synced)
         if orphans:
             stats['removed'] = len(orphans)
             # topic.parent_id is ondelete='cascade' — reparent any surviving
