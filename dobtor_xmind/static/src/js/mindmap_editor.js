@@ -4056,10 +4056,24 @@ export class MindmapEditor extends Component {
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;';
         const opt = (list, sel) => list.map(o =>
             `<option value="${o.id}"${o.id === sel ? ' selected' : ''}>${this._esc(o.name)}</option>`).join('');
+        const acts = (meta.activities || []).map(a =>
+            `<div class="d-flex align-items-center justify-content-between py-1" style="border-bottom:1px solid #eee;" data-act="${a.id}">
+                <div class="small text-truncate" style="max-width:240px;" title="${this._esc(a.summary)}">
+                    <i class="fa fa-clock-o text-muted"/> ${this._esc(a.summary)}
+                    <span class="text-muted">· ${this._esc(a.user_name)}${a.date_deadline ? ' · ' + this._esc(a.date_deadline) : ''}</span>
+                </div>
+                <div style="white-space:nowrap;">
+                    <button class="btn btn-sm btn-link p-0 me-2 o_act_done" title="${_t('Mark done')}"><i class="fa fa-check text-success"/></button>
+                    <button class="btn btn-sm btn-link p-0 o_act_del" title="${_t('Delete')}"><i class="fa fa-trash text-danger"/></button>
+                </div>
+            </div>`).join('');
         const box = document.createElement('div');
-        box.style.cssText = 'background:#fff;border-radius:6px;min-width:340px;max-width:420px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.3);';
+        box.style.cssText = 'background:#fff;border-radius:6px;min-width:360px;max-width:440px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.3);';
         box.innerHTML = `
-            <h5 class="mb-3">${_t('Schedule Activity')} — ${this._esc(meta.task_name || '')}</h5>
+            <h5 class="mb-2">${_t('Activities')} — ${this._esc(meta.task_name || '')}</h5>
+            <div class="o_act_list mb-3" style="max-height:160px;overflow-y:auto;">${acts || ('<div class="small text-muted">' + _t('No activities yet.') + '</div>')}</div>
+            <hr class="my-2"/>
+            <div class="small fw-bold mb-2">${_t('Schedule Activity')}</div>
             <div class="mb-2"><label class="small">${_t('Activity Type')}</label>
                 <select class="form-control form-control-sm o_act_type"><option value="">—</option>${opt(meta.activity_types || [], 0)}</select></div>
             <div class="mb-2"><label class="small">${_t('Assigned to')}</label>
@@ -4077,6 +4091,26 @@ export class MindmapEditor extends Component {
         const close = () => overlay.remove();
         overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
         box.querySelector('.o_act_cancel').addEventListener('click', close);
+        const refreshCount = (r) => {
+            const el = this.jm.view.get_node_element(nodeId);
+            if (el) this._renderActivityClock(el, nodeId, (r && r.activity_count) || 0);
+        };
+        // Done / delete on existing activities (event delegation).
+        box.querySelector('.o_act_list').addEventListener('click', (e) => {
+            const row = e.target.closest('[data-act]');
+            if (!row) return;
+            const actId = row.getAttribute('data-act');
+            const done = e.target.closest('.o_act_done');
+            const del = e.target.closest('.o_act_del');
+            if (!done && !del) return;
+            const url = '/xmind/topic/' + nodeId + (done ? '/activity_done' : '/activity_delete');
+            rpc(url, { activity_id: parseInt(actId) }).then((r) => {
+                if (r && r.error) { this._showError(r.error); return; }
+                refreshCount(r);
+                close();
+                this._openActivityDialog(nodeId);   // reopen refreshed
+            }).catch(() => this._showError(_t('Action failed.')));
+        });
         box.querySelector('.o_act_save').addEventListener('click', () => {
             const payload = {
                 activity_type_id: box.querySelector('.o_act_type').value || false,

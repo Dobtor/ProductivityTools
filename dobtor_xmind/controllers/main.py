@@ -266,14 +266,52 @@ class XMindController(http.Controller):
         types = request.env['mail.activity.type'].search_read(
             ['|', ('res_model', '=', False), ('res_model', '=', 'project.task')],
             ['id', 'name'])
+        activities = [{
+            'id': a.id,
+            'summary': a.summary or (a.activity_type_id.name or ''),
+            'type_name': a.activity_type_id.name or '',
+            'user_name': a.user_id.name or '',
+            'date_deadline': a.date_deadline and str(a.date_deadline) or '',
+        } for a in topic.task_id.activity_ids.sorted('date_deadline')]
         return {
             'task_id': topic.task_id.id,
             'task_name': topic.task_id.name,
             'activity_count': len(topic.task_id.activity_ids),
+            'activities': activities,
             'users': users,
             'activity_types': types,
             'default_user_id': request.env.uid,
         }
+
+    @http.route('/xmind/topic/<int:topic_id>/activity_done', type='json', auth='user')
+    def activity_done(self, topic_id, activity_id, **kwargs):
+        """Mark a linked task's activity as done (logs it on the task chatter)."""
+        topic = self._get_topic_for_activity(topic_id, 'read')
+        if not topic or not topic.task_id:
+            return {'error': 'Topic not found or access denied'}
+        act = topic.task_id.activity_ids.filtered(lambda a: a.id == int(activity_id))
+        if not act:
+            return {'error': 'Activity not found'}
+        try:
+            act.action_feedback()
+        except (UserError, AccessError) as e:
+            return {'error': e.args[0] if e.args else str(e)}
+        return {'success': True, 'activity_count': len(topic.task_id.activity_ids)}
+
+    @http.route('/xmind/topic/<int:topic_id>/activity_delete', type='json', auth='user')
+    def activity_delete(self, topic_id, activity_id, **kwargs):
+        """Delete (cancel) a linked task's activity."""
+        topic = self._get_topic_for_activity(topic_id, 'read')
+        if not topic or not topic.task_id:
+            return {'error': 'Topic not found or access denied'}
+        act = topic.task_id.activity_ids.filtered(lambda a: a.id == int(activity_id))
+        if not act:
+            return {'error': 'Activity not found'}
+        try:
+            act.unlink()
+        except (UserError, AccessError) as e:
+            return {'error': e.args[0] if e.args else str(e)}
+        return {'success': True, 'activity_count': len(topic.task_id.activity_ids)}
 
     @http.route('/xmind/topic/<int:topic_id>/schedule_activity', type='json', auth='user')
     def schedule_activity(self, topic_id, activity_type_id=False, user_id=False,
