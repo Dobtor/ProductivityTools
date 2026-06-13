@@ -22,4 +22,22 @@
             </xpath>
         </field>
     </record>
+
+    <!-- Add an "open mind map" jump box to the project kanban card. -->
+    <record id="view_project_kanban_xmind" model="ir.ui.view">
+        <field name="name">project.project.kanban.xmind</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="project.view_project_kanban"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('o_project_kanban_boxes')]" position="inside">
+                <a class="o_project_kanban_box me-1" name="action_open_mindmaps" type="object"
+                   t-if="record.xmind_workbook_count.raw_value &gt; 0" title="開啟心智圖">
+                    <div>
+                        <field name="xmind_workbook_count" class="o_value"/>
+                        <span class="ms-1">心智圖</span>
+                    </div>
+                </a>
+            </xpath>
+        </field>
+    </record>
 </odoo>

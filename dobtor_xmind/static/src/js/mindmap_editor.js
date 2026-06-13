@@ -44,6 +44,7 @@ export class MindmapEditor extends Component {
         this.dialog = useService("dialog");
         this.notification = useService("notification");
         this.orm = useService("orm");
+        this.action = useService("action");
         // Official Odoo activity list popover (same UI as the chatter clock button).
         this.activityPopover = usePopover(ActivityListPopover, { position: "bottom-start" });
 
@@ -2823,12 +2824,31 @@ export class MindmapEditor extends Component {
     onCreateProject() { this._doProjectSync(true); }
     onSyncProject() { this._doProjectSync(false); }
 
+    onOpenProject() {
+        if (!this.projectInfo || !this.projectInfo.id) return;
+        this.action.doAction({
+            type: 'ir.actions.act_window',
+            res_model: 'project.project',
+            res_id: this.projectInfo.id,
+            views: [[false, 'form']],
+            target: 'current',
+        });
+    }
+
     _updateProjectButtons() {
         const createBtn = this._el('.o_mindmap_btn_create_project');
         if (createBtn) createBtn.style.display = this.projectInfo ? 'none' : '';
         const syncBtn = this._el('.o_mindmap_btn_sync_project');
         if (syncBtn && this.projectInfo && this.projectInfo.name) {
             syncBtn.title = _t('Sync to project: ') + this.projectInfo.name;
+        }
+        // "Open project" jumps to the linked project — only meaningful once linked.
+        const openBtn = this._el('.o_mindmap_btn_open_project');
+        if (openBtn) {
+            openBtn.style.display = this.projectInfo ? '' : 'none';
+            if (this.projectInfo && this.projectInfo.name) {
+                openBtn.title = _t('Open project: ') + this.projectInfo.name;
+            }
         }
     }
 

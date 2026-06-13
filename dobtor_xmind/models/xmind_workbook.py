@@ -478,6 +478,21 @@ class XMindWorkbook(models.Model):
         stats = self._sync_to_project(create_if_missing=not self.project_id)
         return self._sync_notification(stats, _("Project synced"))
 
+    def action_open_project(self):
+        """Jump to the linked project's form view."""
+        self.ensure_one()
+        if not self.project_id:
+            raise UserError(_("This mind map is not linked to a project yet."))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.project_id.name,
+            'res_model': 'project.project',
+            'res_id': self.project_id.id,
+            'view_mode': 'form',
+            'views': [[False, 'form']],
+            'target': 'current',
+        }
+
     def _plan_project_orphans(self):
         """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to
         ask the user for confirmation before any destructive change. Computed exactly

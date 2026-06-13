@@ -3875,6 +3875,12 @@ msgstr "同步到專案："
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Open project: "
+msgstr "開啟專案："
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid ""
 "The last sync was Project → Mind Map. Syncing now overwrites the project "
 "with this mind map. Continue?"

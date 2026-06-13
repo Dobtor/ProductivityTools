@@ -127,6 +127,7 @@
                 <field name="topic_count"/>
                 <field name="modified_time"/>
                 <field name="thumbnail"/>
+                <field name="project_id"/>
                 <templates>
                     <t t-name="menu">
                         <a role="menuitem" type="open" class="dropdown-item">Settings</a>
@@ -141,7 +142,14 @@
                             <span class="badge text-bg-info">
                                 <field name="topic_count"/> topics
                             </span>
-                            <field name="create_uid" widget="many2one_avatar_user"/>
+                            <div class="d-flex align-items-center">
+                                <a name="action_open_project" type="object"
+                                   class="btn btn-sm btn-link p-0 me-2 text-info"
+                                   t-if="record.project_id.raw_value" title="開啟專案">
+                                    <i class="fa fa-folder-open me-1"/>專案
+                                </a>
+                                <field name="create_uid" widget="many2one_avatar_user"/>
+                            </div>
                         </div>
                         <div class="text-muted small mt-1">
                             <field name="modified_time"/>

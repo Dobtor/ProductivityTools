@@ -443,6 +443,9 @@
                     <button class="btn btn-sm btn-outline-info o_mindmap_btn_sync_project" title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject">
                         <i class="fa fa-refresh"/> 同步專案
                     </button>
+                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_open_project" title="開啟連結的專案" t-on-click="onOpenProject" style="display:none;">
+                        <i class="fa fa-external-link"/> 開啟專案
+                    </button>
                 </div>
 
                 <!-- Group 8: Structure / Theme selectors (Mind map: Window > Properties panels) -->
