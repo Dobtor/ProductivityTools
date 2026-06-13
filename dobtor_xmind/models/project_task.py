@@ -7,14 +7,15 @@ class ProjectTask(models.Model):
 
     def action_xmind_schedule_activity(self):
         """Return Odoo's built-in 'Schedule Activity' form (mail.activity) for this
-        task, opened in a dialog. Called from the mind-map clock icon."""
+        task, opened in a dialog. Called from the mind-map clock icon. Uses the
+        dialog-optimised popup form view (with the Schedule/Done buttons)."""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': _('Schedule Activity'),
             'res_model': 'mail.activity',
             'view_mode': 'form',
-            'views': [[False, 'form']],
+            'views': [[self.env.ref('mail.mail_activity_view_form_popup').id, 'form']],
             'target': 'new',
             'context': {
                 'default_res_model_id': self.env['ir.model']._get_id('project.task'),

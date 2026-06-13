@@ -283,60 +283,6 @@ class XMindController(http.Controller):
             'default_user_id': request.env.uid,
         }
 
-    @http.route('/xmind/task/<int:task_id>/activity_done', type='json', auth='user')
-    def activity_done(self, task_id, activity_id, **kwargs):
-        """Mark a task's activity as done (logs it on the task chatter)."""
-        task = self._get_task_for_activity(task_id, 'read')
-        if not task:
-            return {'error': 'Task not found or access denied'}
-        act = task.activity_ids.filtered(lambda a: a.id == int(activity_id))
-        if not act:
-            return {'error': 'Activity not found'}
-        try:
-            act.action_feedback()
-        except (UserError, AccessError) as e:
-            return {'error': e.args[0] if e.args else str(e)}
-        return {'success': True, 'activity_count': len(task.activity_ids)}
-
-    @http.route('/xmind/task/<int:task_id>/activity_delete', type='json', auth='user')
-    def activity_delete(self, task_id, activity_id, **kwargs):
-        """Delete (cancel) a task's activity."""
-        task = self._get_task_for_activity(task_id, 'read')
-        if not task:
-            return {'error': 'Task not found or access denied'}
-        act = task.activity_ids.filtered(lambda a: a.id == int(activity_id))
-        if not act:
-            return {'error': 'Activity not found'}
-        try:
-            act.unlink()
-        except (UserError, AccessError) as e:
-            return {'error': e.args[0] if e.args else str(e)}
-        return {'success': True, 'activity_count': len(task.activity_ids)}
-
-    @http.route('/xmind/task/<int:task_id>/schedule_activity', type='json', auth='user')
-    def schedule_activity(self, task_id, activity_type_id=False, user_id=False,
-                          summary='', note='', date_deadline=False, **kwargs):
-        """Schedule a mail.activity on the project.task."""
-        task = self._get_task_for_activity(task_id, 'read')
-        if not task:
-            return {'error': 'Task not found or access denied'}
-        try:
-            vals = {
-                'res_model_id': request.env['ir.model']._get_id('project.task'),
-                'res_id': task.id,
-                'summary': summary or '',
-                'note': note or '',
-                'user_id': int(user_id) if user_id else request.env.uid,
-            }
-            if activity_type_id:
-                vals['activity_type_id'] = int(activity_type_id)
-            if date_deadline:
-                vals['date_deadline'] = date_deadline
-            request.env['mail.activity'].create(vals)
-        except (UserError, AccessError) as e:
-            return {'error': e.args[0] if e.args else str(e)}
-        return {'success': True, 'activity_count': len(task.activity_ids)}
-
     @http.route('/xmind/workbook/<int:workbook_id>/project_sync', type='json', auth='user')
     def project_sync(self, workbook_id, create=False, confirmed=False, **kwargs):
         """Create (if needed) and sync this mind map into a project + its tasks.
