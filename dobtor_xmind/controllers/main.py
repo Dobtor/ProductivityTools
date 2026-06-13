@@ -242,11 +242,23 @@ class XMindController(http.Controller):
         return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/project_sync', type='json', auth='user')
-    def project_sync(self, workbook_id, create=False, **kwargs):
-        """Create (if needed) and sync this mind map into a project + its tasks."""
+    def project_sync(self, workbook_id, create=False, confirmed=False, **kwargs):
+        """Create (if needed) and sync this mind map into a project + its tasks.
+        When the sync would archive tasks, ask the client to confirm first."""
         workbook = self._check_workbook_access(workbook_id, 'write')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
+        if not confirmed:
+            try:
+                orphans = workbook._plan_project_orphans()
+            except AccessError:
+                orphans = None
+            if orphans:
+                return {
+                    'needs_confirm': True,
+                    'archive_count': len(orphans),
+                    'archive_names': orphans.mapped('name')[:20],
+                }
         try:
             stats = workbook._sync_to_project(create_if_missing=bool(create) or not workbook.project_id)
         except AccessError:

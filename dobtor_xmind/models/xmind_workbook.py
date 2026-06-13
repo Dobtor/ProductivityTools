@@ -466,6 +466,18 @@ class XMindWorkbook(models.Model):
         stats = self._sync_to_project(create_if_missing=not self.project_id)
         return self._sync_notification(stats, _("Project synced"))
 
+    def _plan_project_orphans(self):
+        """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to
+        ask the user for confirmation before any destructive change."""
+        self.ensure_one()
+        if not self.project_id:
+            return self.env['project.task']
+        sheet = self.sheet_ids[:1]
+        topic_ids = set(sheet.topic_ids.ids) if sheet else set()
+        tasks = self.env['project.task'].search([
+            ('project_id', '=', self.project_id.id), ('xmind_topic_id', '!=', False)])
+        return tasks.filtered(lambda t: t.xmind_topic_id.id not in topic_ids)
+
     def _sync_notification(self, stats, title):
         msg = _("Created %(c)s, updated %(u)s, archived/removed %(a)s.") % {
             'c': stats.get('created', 0), 'u': stats.get('updated', 0),

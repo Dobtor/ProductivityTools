@@ -3848,3 +3848,21 @@ msgstr "專案同步失敗。"
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Created %s, updated %s, archived %s."
 msgstr "新增 %s 筆、更新 %s 筆、封存 %s 筆。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s task(s) will be archived (their topic was removed):"
+msgstr "將封存 %s 個任務（其主題已被移除）："
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Continue?"
+msgstr "是否繼續？"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Project sync cancelled."
+msgstr "已取消專案同步。"

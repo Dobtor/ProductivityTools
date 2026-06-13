@@ -2821,7 +2821,7 @@ export class MindmapEditor extends Component {
     onCreateProject() { this._doProjectSync(true); }
     onSyncProject() { this._doProjectSync(false); }
 
-    _doProjectSync(create) {
+    _doProjectSync(create, confirmed = false) {
         if (!this.workbookId) return;
         // Save first so the backend syncs from the persisted topic tree.
         this._saveData().then((ok) => {
@@ -2830,8 +2830,20 @@ export class MindmapEditor extends Component {
                 return;
             }
             this._updateStatus(create ? _t('Creating project...') : _t('Syncing project...'));
-            rpc('/xmind/workbook/' + this.workbookId + '/project_sync', { create }).then((r) => {
+            rpc('/xmind/workbook/' + this.workbookId + '/project_sync', { create, confirmed }).then((r) => {
                 if (r && r.error) { this._showError(r.error); return; }
+                if (r && r.needs_confirm) {
+                    // Removed topics → their tasks would be archived. Ask first.
+                    const names = (r.archive_names || []).join('\n  • ');
+                    const msg = _t('%s task(s) will be archived (their topic was removed):')
+                        .replace('%s', r.archive_count) + '\n  • ' + names + '\n\n' + _t('Continue?');
+                    if (window.confirm(msg)) {
+                        this._doProjectSync(create, true);
+                    } else {
+                        this._updateStatus(_t('Project sync cancelled.'));
+                    }
+                    return;
+                }
                 const name = (r && r.project_name) || '';
                 this._updateStatus(_t('Project synced: ') + name);
                 if (this.notification) {
