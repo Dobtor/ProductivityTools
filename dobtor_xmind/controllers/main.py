@@ -246,43 +246,6 @@ class XMindController(http.Controller):
         workbook.save_mindmap_data(data, is_auto=bool(is_auto))
         return {'success': True}
 
-    def _get_task_for_activity(self, task_id, mode='read'):
-        """Return the linked project.task if the current user may access it. Routed by
-        TASK id (the node carries data.taskId, a DB id) — the jsMind node id is a UUID
-        component_id, so a /topic/<int:...> route would never match it."""
-        task = request.env['project.task'].browse(int(task_id)).exists()
-        if not task or not task.has_access(mode):
-            return None
-        return task
-
-    @http.route('/xmind/task/<int:task_id>/activity_meta', type='json', auth='user')
-    def activity_meta(self, task_id, **kwargs):
-        """Options for the schedule-activity dialog: assignable users + activity types."""
-        task = self._get_task_for_activity(task_id, 'read')
-        if not task:
-            return {'error': 'Task not found or access denied'}
-        users = request.env['res.users'].search_read(
-            [('share', '=', False), ('active', '=', True)], ['id', 'name'], limit=200)
-        types = request.env['mail.activity.type'].search_read(
-            ['|', ('res_model', '=', False), ('res_model', '=', 'project.task')],
-            ['id', 'name'])
-        activities = [{
-            'id': a.id,
-            'summary': a.summary or (a.activity_type_id.name or ''),
-            'type_name': a.activity_type_id.name or '',
-            'user_name': a.user_id.name or '',
-            'date_deadline': a.date_deadline and str(a.date_deadline) or '',
-        } for a in task.activity_ids.sorted('date_deadline')]
-        return {
-            'task_id': task.id,
-            'task_name': task.name,
-            'activity_count': len(task.activity_ids),
-            'activities': activities,
-            'users': users,
-            'activity_types': types,
-            'default_user_id': request.env.uid,
-        }
-
     @http.route('/xmind/workbook/<int:workbook_id>/project_sync', type='json', auth='user')
     def project_sync(self, workbook_id, create=False, confirmed=False, **kwargs):
         """Create (if needed) and sync this mind map into a project + its tasks.

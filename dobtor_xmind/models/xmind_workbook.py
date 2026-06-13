@@ -183,8 +183,16 @@ class XMindWorkbook(models.Model):
         # Linked project task — carried so the link survives the save round-trip
         # (save fully recreates topics; without this the topic↔task link is lost).
         if topic.task_id:
-            data['taskId'] = topic.task_id.id
-            data['activityCount'] = topic.task_id.activity_ids and len(topic.task_id.activity_ids) or 0
+            task = topic.task_id
+            data['taskId'] = task.id
+            # Activity decoration (mirrors mail.ActivityButton: state colour + icon).
+            data['activity'] = {
+                'ids': task.activity_ids.ids,
+                'state': task.activity_state or '',
+                'exception_decoration': task.activity_exception_decoration or '',
+                'exception_icon': task.activity_exception_icon or '',
+                'type_icon': task.activity_type_icon or '',
+            }
         if topic.project_managed:
             data['projectManaged'] = True
 

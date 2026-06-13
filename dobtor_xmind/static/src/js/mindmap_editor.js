@@ -7,6 +7,8 @@ import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { router } from "@web/core/browser/router";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { usePopover } from "@web/core/popover/popover_hook";
+import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import {
     CommandStack,
     AddNodeCommand,
@@ -41,8 +43,9 @@ export class MindmapEditor extends Component {
         // rpc is imported directly from @web/core/network/rpc (not a service in Odoo 18)
         this.dialog = useService("dialog");
         this.notification = useService("notification");
-        this.action = useService("action");
         this.orm = useService("orm");
+        // Official Odoo activity list popover (same UI as the chatter clock button).
+        this.activityPopover = usePopover(ActivityListPopover, { position: "bottom-start" });
 
         this.canvasRef = useRef("canvas");
         this.containerRef = useRef("jsmindContainer");
@@ -4029,46 +4032,87 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Activity clock (schedule a mail.activity on the linked task) =====
-    /** Show a clickable clock on task-linked topics; badge shows the activity count. */
-    _renderActivityClock(element, nodeId, taskId, count) {
+    /** FA icon classes mirroring the official mail.ActivityButton (state colour +
+     *  exception icon / activity type icon / clock). Matches dobtor_project's gantt. */
+    getActivityButtonClass(activity) {
+        const classes = [];
+        switch (activity.state) {
+            case 'overdue': classes.push('text-danger'); break;
+            case 'today': classes.push('text-warning'); break;
+            case 'planned': classes.push('text-success'); break;
+        }
+        switch (activity.exception_decoration) {
+            case 'warning':
+                classes.push('text-warning', activity.exception_icon || 'fa-clock-o'); break;
+            case 'danger':
+                classes.push('text-danger', activity.exception_icon || 'fa-clock-o'); break;
+            default:
+                if (activity.ids && activity.ids.length) {
+                    classes.push(activity.type_icon || 'fa-tasks');
+                } else {
+                    classes.push('fa-clock-o');
+                }
+        }
+        return classes.join(' ');
+    }
+
+    /** Activity clock on task-linked topics: same icon + popover UI as the chatter. */
+    _renderActivityClock(element, nodeId, taskId, activity) {
         if (!element) return;
         let clock = element.querySelector('.xmind-activity-clock');
         if (!clock) {
             clock = document.createElement('span');
             clock.className = 'xmind-activity-clock';
-            clock.style.cssText = 'cursor:pointer;margin-right:5px;color:#714B67;';
-            clock.title = _t('Schedule activity');
+            clock.style.cssText = 'cursor:pointer;margin-right:5px;';
+            clock.title = _t('Activities');
             clock.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this._openActivityDialog(nodeId, taskId);
+                this._onActivityClick(clock, nodeId, taskId);
             });
             // Place the clock BEFORE the topic title text.
             const titleEl = element.querySelector('.xmind-topic-text');
             if (titleEl) element.insertBefore(clock, titleEl);
             else element.insertBefore(clock, element.firstChild);
         }
-        clock.innerHTML = '<i class="fa fa-clock-o"/>' +
-            (count > 0 ? ' <span class="badge text-bg-secondary">' + count + '</span>' : '');
+        clock._activity = activity || {};
+        clock.innerHTML = '<i class="fa fa-fw ' + this.getActivityButtonClass(clock._activity) + '"/>';
     }
 
-    _openActivityDialog(nodeId, taskId) {
-        // Open Odoo's built-in "Schedule Activity" wizard (mail.activity form dialog)
-        // for the linked task; refresh the clock count when it closes.
-        this.orm.call('project.task', 'action_xmind_schedule_activity', [[taskId]])
-            .then((action) => {
-                this.action.doAction(action, {
-                    onClose: () => this._refreshActivityClock(nodeId, taskId),
-                });
-            })
-            .catch(() => this._showError(_t('Could not open the activity dialog.')));
+    _onActivityClick(clockEl, nodeId, taskId) {
+        if (this.activityPopover.isOpen) {
+            this.activityPopover.close();
+            return;
+        }
+        const activity = clockEl._activity || {};
+        this.activityPopover.open(clockEl, {
+            activityIds: activity.ids || [],
+            resId: taskId,
+            resModel: 'project.task',
+            onActivityChanged: () => {
+                this.activityPopover.close();
+                this._refreshActivityClock(nodeId, taskId);
+            },
+        });
     }
 
     _refreshActivityClock(nodeId, taskId) {
-        rpc('/xmind/task/' + taskId + '/activity_meta', {}).then((r) => {
-            if (r && !r.error) {
-                const el = this.jm.view.get_node_element(nodeId);
-                if (el) this._renderActivityClock(el, nodeId, taskId, r.activity_count || 0);
-            }
+        // Re-read the task's activity decoration fields and repaint the clock icon.
+        this.orm.read('project.task', [taskId],
+            ['activity_ids', 'activity_state', 'activity_exception_decoration',
+             'activity_exception_icon', 'activity_type_icon']).then((recs) => {
+            const r = recs && recs[0];
+            if (!r) return;
+            const activity = {
+                ids: r.activity_ids || [],
+                state: r.activity_state || '',
+                exception_decoration: r.activity_exception_decoration || '',
+                exception_icon: r.activity_exception_icon || '',
+                type_icon: r.activity_type_icon || '',
+            };
+            const node = this.jm.get_node(nodeId);
+            if (node) { node.data = node.data || {}; node.data.activity = activity; }
+            const el = this.jm.view.get_node_element(nodeId);
+            if (el) this._renderActivityClock(el, nodeId, taskId, activity);
         }).catch(() => {});
     }
 
@@ -5584,7 +5628,7 @@ export class MindmapEditor extends Component {
                     this._watchImageLoad(element);
                 }
                 if (node.data.taskInfo) this._renderTaskIndicator(element, node.data.taskInfo);
-                if (node.data.taskId) this._renderActivityClock(element, id, node.data.taskId, node.data.activityCount || 0);
+                if (node.data.taskId) this._renderActivityClock(element, id, node.data.taskId, node.data.activity || {});
             }
         }
 
