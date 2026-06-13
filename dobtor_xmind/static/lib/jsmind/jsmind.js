@@ -2125,8 +2125,14 @@
 
             const s = getStyleForDepth(treeChildren[0]._depth);
             const bs = (treeChildren[0].data && treeChildren[0].data.branchStyle) || {};
+            // Width follows the nearest deliberate ancestor (subtree-wide), matching _drawLine.
+            let _ancBs = null;
+            for (let anc = parent; anc; anc = anc.parent) {
+                const abs = anc.data && anc.data.branchStyle;
+                if (abs && abs.lineTypeExplicit) { _ancBs = abs; break; }
+            }
             const lineColor = bs.lineColor || treeChildren[0]._branchColor || s.lineColor;
-            const lineWidth = bs.lineWidth || s.lineWidth || 1;
+            const lineWidth = (_ancBs && _ancBs.lineWidth) || bs.lineWidth || s.lineWidth || 1;
 
             const trunkX = parent._x;
             const trunkStartY = parent._y + parent._h / 2;
@@ -2161,19 +2167,26 @@
             // Per-node branch style override (stored in child.data.branchStyle)
             const bs = (child.data && child.data.branchStyle) || {};
 
+            // A topic's DELIBERATE line type styles its WHOLE outgoing subtree (every
+            // connector below it), NOT the single line coming into it. So for the line
+            // parent→child, walk up from `parent` (inclusive) to the nearest ancestor
+            // whose line type was explicitly set in the panel, and use that. The line
+            // INTO a topic is governed by its parent's chain, so setting a topic's line
+            // type never restyles its own incoming line.
+            let _ancBs = null;
+            for (let anc = parent; anc; anc = anc.parent) {
+                const abs = anc.data && anc.data.branchStyle;
+                if (abs && abs.lineTypeExplicit && abs.lineType) { _ancBs = abs; break; }
+            }
             // Rainbow branch color → per-node override → style default
             const lineColor = bs.lineColor || child._branchColor || s.lineColor;
-            // Line width: per-node override → depth default
-            const lineWidth = bs.lineWidth || s.lineWidth || 1;
-            // Line class: per-node override → depth default
-            let lineClass = bs.lineType || s.lineClass || 'curve';
-            // Layout-driven connector style. A genuine per-topic choice wins over the
-            // layout default; a baked-in default line type ('curve'/'curved') with no
-            // explicit flag does NOT, so the layout style (e.g. timeline → angular)
-            // still applies. `lineTypeExplicit` is set when the user picks a type in
-            // the panel (incl. deliberately choosing 'curved').
-            const _userLine = bs.lineTypeExplicit
-                || (bs.lineType && bs.lineType !== 'curve' && bs.lineType !== 'curved');
+            // Line width: deliberate ancestor → per-node override → depth default
+            const lineWidth = (_ancBs && _ancBs.lineWidth) || bs.lineWidth || s.lineWidth || 1;
+            // Line class: deliberate ancestor (whole subtree) → per-node baked default.
+            // A baked-in default ('curve'/'curved') is not deliberate, so the layout
+            // style (e.g. timeline → angular) still applies below.
+            const _userLine = !!_ancBs;
+            let lineClass = _ancBs ? _ancBs.lineType : (bs.lineType || s.lineClass || 'curve');
             const _fbMode = this.options.layout && this.options.layout.mode;
             // Fishbone sub-bones use straight lines (logic-tree off the diagonal rib).
             if (!_userLine && (_fbMode === 'fishbone_left' || _fbMode === 'fishbone_right')) {
