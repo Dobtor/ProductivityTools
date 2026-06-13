@@ -2835,7 +2835,9 @@ export class MindmapEditor extends Component {
                 const name = (r && r.project_name) || '';
                 this._updateStatus(_t('Project synced: ') + name);
                 if (this.notification) {
-                    this.notification.add(_t('Project synced: ') + name, { type: 'success' });
+                    const detail = _t('Created %s, updated %s, archived %s.')
+                        .replace('%s', r.created || 0).replace('%s', r.updated || 0).replace('%s', r.removed || 0);
+                    this.notification.add(_t('Project synced: ') + name + ' — ' + detail, { type: 'success' });
                 }
             }).catch(() => this._showError(_t('Project sync failed.')));
         });

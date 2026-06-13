@@ -23,14 +23,23 @@ class ProjectProject(models.Model):
     # Reverse sync — project / tasks → mind map
     # -------------------------------------------------------------------------
     def action_create_mindmap(self):
-        """Create a mind map from this project (if none) and sync its topics."""
+        """Create a mind map from this project (if none), sync, and open the editor."""
         self.ensure_one()
-        return self._sync_to_mindmap(create_if_missing=True)
+        stats = self._sync_to_mindmap(create_if_missing=True)
+        return self.env['xmind.workbook'].browse(stats['workbook_id']).action_open_editor()
 
     def action_sync_mindmap(self):
         """Sync this project's tasks into its linked mind map (project → map)."""
         self.ensure_one()
-        return self._sync_to_mindmap(create_if_missing=not self.xmind_workbook_ids)
+        stats = self._sync_to_mindmap(create_if_missing=not self.xmind_workbook_ids)
+        msg = _("Created %(c)s, updated %(u)s, removed %(a)s.") % {
+            'c': stats['created'], 'u': stats['updated'], 'a': stats['removed']}
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {'title': _("Mind map synced"), 'message': msg,
+                       'type': 'success', 'sticky': False},
+        }
 
     def action_open_mindmaps(self):
         """Smart button: open the linked mind map(s)."""
@@ -82,6 +91,7 @@ class ProjectProject(models.Model):
 
         task_topic = {}
         synced = set()
+        stats = {'created': 0, 'updated': 0, 'removed': 0}
 
         def topic_for(task):
             if task.id in task_topic:
@@ -103,9 +113,11 @@ class ProjectProject(models.Model):
             topic = task.xmind_topic_id
             if topic and topic.exists() and topic.sheet_id.id == sheet.id:
                 topic.write(vals)
+                stats['updated'] += 1
             else:
                 topic = Topic.create(vals)
                 task.xmind_topic_id = topic.id
+                stats['created'] += 1
             if topic.task_id.id != task.id:
                 topic.task_id = task.id
             task_topic[task.id] = topic
@@ -120,7 +132,13 @@ class ProjectProject(models.Model):
         orphans = sheet.topic_ids.filtered(
             lambda t: t.task_id and t.id not in synced)
         if orphans:
+            stats['removed'] = len(orphans)
             orphans.unlink()
 
-        workbook.modified_time = fields.Datetime.now()
-        return workbook.action_open_editor()
+        workbook.write({
+            'modified_time': fields.Datetime.now(),
+            'xmind_last_sync': fields.Datetime.now(),
+            'xmind_last_sync_direction': 'to_mindmap',
+        })
+        stats['workbook_id'] = workbook.id
+        return stats

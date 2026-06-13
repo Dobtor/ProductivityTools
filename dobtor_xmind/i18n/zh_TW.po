@@ -3842,3 +3842,9 @@ msgstr "已同步專案："
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Project sync failed."
 msgstr "專案同步失敗。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Created %s, updated %s, archived %s."
+msgstr "新增 %s 筆、更新 %s 筆、封存 %s 筆。"

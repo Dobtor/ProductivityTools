@@ -45,6 +45,12 @@ class XMindWorkbook(models.Model):
     privacy_visibility = fields.Selection(
         related='project_id.privacy_visibility', string='Visibility',
         store=True, readonly=True)
+    # Last project sync (for visibility into when/which direction it last ran).
+    xmind_last_sync = fields.Datetime('Last Project Sync', readonly=True, copy=False)
+    xmind_last_sync_direction = fields.Selection([
+        ('to_project', 'Mind Map → Project'),
+        ('to_mindmap', 'Project → Mind Map'),
+    ], string='Last Sync Direction', readonly=True, copy=False)
 
     # Tags
     tag_ids = fields.Many2many('xmind.tag', string='Tags')
@@ -442,12 +448,24 @@ class XMindWorkbook(models.Model):
     def action_create_project(self):
         """Create a project from this mind map (if not linked) and sync its tasks."""
         self.ensure_one()
-        return self._sync_to_project(create_if_missing=True)
+        stats = self._sync_to_project(create_if_missing=True)
+        return self._sync_notification(stats, _("Project synced"))
 
     def action_sync_project(self):
         """Sync this mind map into its linked project (create/update/archive tasks)."""
         self.ensure_one()
-        return self._sync_to_project(create_if_missing=not self.project_id)
+        stats = self._sync_to_project(create_if_missing=not self.project_id)
+        return self._sync_notification(stats, _("Project synced"))
+
+    def _sync_notification(self, stats, title):
+        msg = _("Created %(c)s, updated %(u)s, archived/removed %(a)s.") % {
+            'c': stats.get('created', 0), 'u': stats.get('updated', 0),
+            'a': stats.get('removed', 0)}
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {'title': title, 'message': msg, 'type': 'success', 'sticky': False},
+        }
 
     def _sync_to_project(self, create_if_missing=False):
         """Diff-sync the FIRST sheet's topic tree into a project:
@@ -474,10 +492,12 @@ class XMindWorkbook(models.Model):
             project.name = root.title
 
         synced = set()
+        stats = {'created': 0, 'updated': 0, 'removed': 0}
 
         def walk(topic, parent_task):
-            task = self._sync_topic_to_task(topic, project, parent_task)
+            task, created = self._sync_topic_to_task(topic, project, parent_task)
             synced.add(task.id)
+            stats['created' if created else 'updated'] += 1
             for child in topic.child_ids.sorted('sequence'):
                 if child.is_summary_node:
                     continue
@@ -496,17 +516,18 @@ class XMindWorkbook(models.Model):
         ])
         if orphans:
             orphans.write({'active': False})
+            stats['removed'] = len(orphans)
 
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'project.project',
-            'res_id': project.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
+        self.write({
+            'xmind_last_sync': fields.Datetime.now(),
+            'xmind_last_sync_direction': 'to_project',
+        })
+        stats.update({'project_id': project.id, 'project_name': project.name})
+        return stats
 
     def _sync_topic_to_task(self, topic, project, parent_task):
-        """Create or update the project.task mirroring `topic`."""
+        """Create or update the project.task mirroring `topic`. Returns (task, created)."""
+        task = topic.task_id if (topic.task_id and topic.task_id.exists()) else None
         vals = {
             'name': topic.title or _('Task'),
             'project_id': project.id,
@@ -516,22 +537,27 @@ class XMindWorkbook(models.Model):
         if topic.note:
             vals['description'] = '<p>%s</p>' % html.escape(topic.note).replace('\n', '<br/>')
         if topic.task_end_date:
-            vals['date_deadline'] = datetime.combine(topic.task_end_date, time(17, 0))
+            # Preserve a manually-set time on re-sync: only rewrite the deadline when
+            # its DATE differs from the topic's; default new deadlines to 17:00.
+            keep = task and task.date_deadline and task.date_deadline.date() == topic.task_end_date
+            if not keep:
+                vals['date_deadline'] = datetime.combine(topic.task_end_date, time(17, 0))
         users = self._resolve_assignee(topic.task_assignee)
         if users:
             vals['user_ids'] = [Command.set(users.ids)]
         if topic.task_progress and topic.task_progress >= 100:
             vals['state'] = '1_done'
 
-        task = topic.task_id
-        if task and task.exists():
+        created = False
+        if task:
             task.write(vals)
         else:
             task = self.env['project.task'].create(vals)
             topic.task_id = task.id
+            created = True
         if task.xmind_topic_id.id != topic.id:
             task.xmind_topic_id = topic.id
-        return task
+        return task, created
 
     def _resolve_assignee(self, text):
         """Best-effort resolve a free-text assignee to a res.users (login/email/name)."""

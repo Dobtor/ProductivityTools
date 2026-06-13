@@ -248,14 +248,11 @@ class XMindController(http.Controller):
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
         try:
-            workbook._sync_to_project(create_if_missing=bool(create) or not workbook.project_id)
+            stats = workbook._sync_to_project(create_if_missing=bool(create) or not workbook.project_id)
         except UserError as e:
             return {'error': e.args[0] if e.args else str(e)}
-        return {
-            'success': True,
-            'project_id': workbook.project_id.id,
-            'project_name': workbook.project_id.name,
-        }
+        stats['success'] = True
+        return stats
 
     @http.route('/xmind/workbook/<int:workbook_id>/thumbnail', type='json', auth='user')
     def save_thumbnail(self, workbook_id, thumbnail, **kwargs):
