@@ -767,6 +767,7 @@ export class DragDropManager {
             }
             if (node.data.image) {
                 this.editor.imageRenderer.renderImage(element, node.data.image.data, node.data.image.options);
+                if (this.editor._watchImageLoad) this.editor._watchImageLoad(element);
             }
         }
 

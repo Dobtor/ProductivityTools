@@ -156,6 +156,7 @@ export class MindmapEditor extends Component {
             if (this.autoSaveTimer) {
                 clearInterval(this.autoSaveTimer);
             }
+            clearTimeout(this._featureRelayoutTimer);
             // Auto-save + thumbnail on exit if dirty
             if (this.commandStack && this.commandStack.isDirty && this.workbookId) {
                 this._saveData().then(() => this._saveThumbnail()).catch(() => {});
@@ -4385,10 +4386,47 @@ export class MindmapEditor extends Component {
             node.data = node.data || {};
             node.data.image = { data: imageData, options };
             this._updateImagePreview(node.data.image);
+            // Re-layout once the image loads so neighbours/lines never collide.
+            this._watchImageLoad(nodeElement);
             this.commandStack.isDirty = true;
             this.commandStack._notifyListeners();
             this._updateStatus(_t('Image added to topic'));
         }
+    }
+
+    /** Re-layout when a node's image finishes loading (its real height is only
+     *  known then). Debounced so many images loading at once trigger one relayout. */
+    _watchImageLoad(element) {
+        const img = element && element.querySelector('.xmind-image img');
+        if (!img) return;
+        if (img.complete && img.naturalHeight > 0) {
+            this._relayoutForFeatureSizes();
+        } else {
+            img.addEventListener('load', () => this._relayoutForFeatureSizes(), { once: true });
+        }
+    }
+
+    /** Re-measure every node and re-layout if any grew (image/marker/badge), so
+     *  topic boxes and connection lines auto-space and never overlap. */
+    _relayoutForFeatureSizes() {
+        clearTimeout(this._featureRelayoutTimer);
+        this._featureRelayoutTimer = setTimeout(() => {
+            if (!this.jm || !this.jm.view || !this.jm.mind) return;
+            const nodes = this.jm.mind.nodes;
+            let changed = false;
+            for (const id in nodes) {
+                const node = nodes[id];
+                const el = this.jm.view.get_node_element(id);
+                if (el) {
+                    const ow = el.offsetWidth, oh = el.offsetHeight;
+                    if (ow !== node._w || oh !== node._h) { node._w = ow; node._h = oh; changed = true; }
+                }
+            }
+            if (changed) {
+                this.jm.view.refresh();
+                this._updateFeaturePositions();
+            }
+        }, 60);
     }
 
     // ===== Internal Methods =====
@@ -5433,7 +5471,13 @@ export class MindmapEditor extends Component {
                 if (node.data.note) this.noteIndicator.addIndicator(element, true);
                 if (node.data.hyperlink) this.hyperlinkIndicator.addIndicator(element, node.data.hyperlink, node.data.hyperlinkTitle);
                 if (node.data.attachments && node.data.attachments.length > 0) this.attachmentIndicator.addIndicator(element, node.data.attachments.length);
-                if (node.data.image) this.imageRenderer.renderImage(element, node.data.image.data, node.data.image.options);
+                if (node.data.image) {
+                    this.imageRenderer.renderImage(element, node.data.image.data, node.data.image.options);
+                    // Image loads async → its height isn't counted by the Phase 2
+                    // re-measure below; re-layout once it loads so spacing/lines never
+                    // collide with the grown node.
+                    this._watchImageLoad(element);
+                }
                 if (node.data.taskInfo) this._renderTaskIndicator(element, node.data.taskInfo);
             }
         }
