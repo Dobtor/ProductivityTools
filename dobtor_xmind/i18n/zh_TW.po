@@ -3880,3 +3880,51 @@ msgid ""
 "The last sync was Project → Mind Map. Syncing now overwrites the project "
 "with this mind map. Continue?"
 msgstr "上次是「專案 → 心智圖」同步。現在同步會以這張心智圖覆寫專案，是否繼續？"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Schedule activity"
+msgstr "排定活動"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Could not load activity options."
+msgstr "無法載入活動選項。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Schedule Activity"
+msgstr "排定活動"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Activity Type"
+msgstr "活動類型"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Assigned to"
+msgstr "負責人"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Due Date"
+msgstr "到期日"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Activity scheduled."
+msgstr "活動已排定。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Could not schedule activity."
+msgstr "無法排定活動。"

@@ -246,6 +246,62 @@ class XMindController(http.Controller):
         workbook.save_mindmap_data(data, is_auto=bool(is_auto))
         return {'success': True}
 
+    def _get_topic_for_activity(self, topic_id, mode='read'):
+        """Return the topic if the current user may access its workbook + its task."""
+        topic = request.env['xmind.topic'].browse(int(topic_id)).exists()
+        if not topic or not topic.has_access(mode):
+            return None
+        return topic
+
+    @http.route('/xmind/topic/<int:topic_id>/activity_meta', type='json', auth='user')
+    def activity_meta(self, topic_id, **kwargs):
+        """Options for the schedule-activity dialog: assignable users + activity types."""
+        topic = self._get_topic_for_activity(topic_id, 'read')
+        if not topic:
+            return {'error': 'Topic not found or access denied'}
+        if not topic.task_id:
+            return {'error': 'This topic is not linked to a task. Create the project first.'}
+        users = request.env['res.users'].search_read(
+            [('share', '=', False), ('active', '=', True)], ['id', 'name'], limit=200)
+        types = request.env['mail.activity.type'].search_read(
+            ['|', ('res_model', '=', False), ('res_model', '=', 'project.task')],
+            ['id', 'name'])
+        return {
+            'task_id': topic.task_id.id,
+            'task_name': topic.task_id.name,
+            'activity_count': len(topic.task_id.activity_ids),
+            'users': users,
+            'activity_types': types,
+            'default_user_id': request.env.uid,
+        }
+
+    @http.route('/xmind/topic/<int:topic_id>/schedule_activity', type='json', auth='user')
+    def schedule_activity(self, topic_id, activity_type_id=False, user_id=False,
+                          summary='', note='', date_deadline=False, **kwargs):
+        """Schedule a mail.activity on the topic's linked project.task."""
+        topic = self._get_topic_for_activity(topic_id, 'read')
+        if not topic:
+            return {'error': 'Topic not found or access denied'}
+        if not topic.task_id:
+            return {'error': 'This topic is not linked to a task.'}
+        task = topic.task_id
+        try:
+            vals = {
+                'res_model_id': request.env['ir.model']._get_id('project.task'),
+                'res_id': task.id,
+                'summary': summary or '',
+                'note': note or '',
+                'user_id': int(user_id) if user_id else request.env.uid,
+            }
+            if activity_type_id:
+                vals['activity_type_id'] = int(activity_type_id)
+            if date_deadline:
+                vals['date_deadline'] = date_deadline
+            request.env['mail.activity'].create(vals)
+        except (UserError, AccessError) as e:
+            return {'error': e.args[0] if e.args else str(e)}
+        return {'success': True, 'activity_count': len(task.activity_ids)}
+
     @http.route('/xmind/workbook/<int:workbook_id>/project_sync', type='json', auth='user')
     def project_sync(self, workbook_id, create=False, confirmed=False, **kwargs):
         """Create (if needed) and sync this mind map into a project + its tasks.

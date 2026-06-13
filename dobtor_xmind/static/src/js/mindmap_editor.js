@@ -4024,6 +4024,81 @@ export class MindmapEditor extends Component {
         ].filter(Boolean).join('\n');
     }
 
+    // ===== Activity clock (schedule a mail.activity on the linked task) =====
+    /** Show a clickable clock on task-linked topics; badge shows the activity count. */
+    _renderActivityClock(element, nodeId, count) {
+        if (!element) return;
+        let clock = element.querySelector('.xmind-activity-clock');
+        if (!clock) {
+            clock = document.createElement('span');
+            clock.className = 'xmind-activity-clock';
+            clock.style.cssText = 'cursor:pointer;margin-left:5px;color:#714B67;';
+            clock.title = _t('Schedule activity');
+            clock.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._openActivityDialog(nodeId);
+            });
+            element.appendChild(clock);
+        }
+        clock.innerHTML = '<i class="fa fa-clock-o"/>' +
+            (count > 0 ? ' <span class="badge text-bg-secondary">' + count + '</span>' : '');
+    }
+
+    _openActivityDialog(nodeId) {
+        rpc('/xmind/topic/' + nodeId + '/activity_meta', {}).then((meta) => {
+            if (meta && meta.error) { this._showError(meta.error); return; }
+            this._buildActivityDialog(nodeId, meta);
+        }).catch(() => this._showError(_t('Could not load activity options.')));
+    }
+
+    _buildActivityDialog(nodeId, meta) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;';
+        const opt = (list, sel) => list.map(o =>
+            `<option value="${o.id}"${o.id === sel ? ' selected' : ''}>${this._esc(o.name)}</option>`).join('');
+        const box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:6px;min-width:340px;max-width:420px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.3);';
+        box.innerHTML = `
+            <h5 class="mb-3">${_t('Schedule Activity')} — ${this._esc(meta.task_name || '')}</h5>
+            <div class="mb-2"><label class="small">${_t('Activity Type')}</label>
+                <select class="form-control form-control-sm o_act_type"><option value="">—</option>${opt(meta.activity_types || [], 0)}</select></div>
+            <div class="mb-2"><label class="small">${_t('Assigned to')}</label>
+                <select class="form-control form-control-sm o_act_user">${opt(meta.users || [], meta.default_user_id)}</select></div>
+            <div class="mb-2"><label class="small">${_t('Summary')}</label>
+                <input type="text" class="form-control form-control-sm o_act_summary"/></div>
+            <div class="mb-3"><label class="small">${_t('Due Date')}</label>
+                <input type="date" class="form-control form-control-sm o_act_date"/></div>
+            <div class="d-flex justify-content-end" style="gap:6px;">
+                <button class="btn btn-sm btn-secondary o_act_cancel">${_t('Cancel')}</button>
+                <button class="btn btn-sm btn-primary o_act_save">${_t('Schedule')}</button>
+            </div>`;
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        const close = () => overlay.remove();
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+        box.querySelector('.o_act_cancel').addEventListener('click', close);
+        box.querySelector('.o_act_save').addEventListener('click', () => {
+            const payload = {
+                activity_type_id: box.querySelector('.o_act_type').value || false,
+                user_id: box.querySelector('.o_act_user').value || false,
+                summary: box.querySelector('.o_act_summary').value || '',
+                date_deadline: box.querySelector('.o_act_date').value || false,
+            };
+            rpc('/xmind/topic/' + nodeId + '/schedule_activity', payload).then((r) => {
+                if (r && r.error) { this._showError(r.error); return; }
+                close();
+                const el = this.jm.view.get_node_element(nodeId);
+                if (el) this._renderActivityClock(el, nodeId, (r && r.activity_count) || 0);
+                if (this.notification) this.notification.add(_t('Activity scheduled.'), { type: 'success' });
+            }).catch(() => this._showError(_t('Could not schedule activity.')));
+        });
+    }
+
+    _esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     onOpenHyperlink() {
         const urlEl = this._el('.o_topic_hyperlink');
         if (urlEl && urlEl.value.trim()) {
@@ -5536,6 +5611,7 @@ export class MindmapEditor extends Component {
                     this._watchImageLoad(element);
                 }
                 if (node.data.taskInfo) this._renderTaskIndicator(element, node.data.taskInfo);
+                if (node.data.taskId) this._renderActivityClock(element, id, node.data.activityCount || 0);
             }
         }
 

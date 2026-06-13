@@ -184,6 +184,7 @@ class XMindWorkbook(models.Model):
         # (save fully recreates topics; without this the topic↔task link is lost).
         if topic.task_id:
             data['taskId'] = topic.task_id.id
+            data['activityCount'] = topic.task_id.activity_ids and len(topic.task_id.activity_ids) or 0
         if topic.project_managed:
             data['projectManaged'] = True
 
