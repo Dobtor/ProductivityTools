@@ -1,0 +1,1909 @@
+# Traditional Chinese (Taiwan) translation for dobtor_xmind.
+msgid ""
+msgstr ""
+"Project-Id-Version: dobtor_xmind 18.0\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_TW\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+
+msgid "Initialization failed"
+msgstr "初始化失敗"
+
+msgid "Ready"
+msgstr "就緒"
+
+msgid "Failed to load mind map. Editing is disabled to protect your data — please reload."
+msgstr "心智圖載入失敗。為保護您的資料已停用編輯功能，請重新載入。"
+
+msgid "Central Topic"
+msgstr "中心主題"
+
+msgid "Mind map container not found. Please refresh the page."
+msgstr "找不到心智圖容器，請重新整理頁面。"
+
+msgid "Mind map library (OdooXMind) not loaded. Please clear cache and refresh."
+msgstr "心智圖程式庫 (OdooXMind) 未載入，請清除快取後重新整理。"
+
+msgid "Failed to initialize mind map: "
+msgstr "心智圖初始化失敗："
+
+msgid "Modified"
+msgstr "已修改"
+
+msgid "Undo: "
+msgstr "復原："
+
+msgid "Redo: "
+msgstr "取消復原："
+
+msgid "commands"
+msgstr "個指令"
+
+msgid "Auto-saving..."
+msgstr "自動儲存中..."
+
+msgid "Saving..."
+msgstr "儲存中..."
+
+msgid "Auto-saved"
+msgstr "已自動儲存"
+
+msgid "Now click target topic... (Esc/Right-click to cancel)"
+msgstr "現在點選目標主題...（Esc／右鍵取消）"
+
+msgid "Summary selected: "
+msgstr "已選取總結："
+
+msgid "Curve adjusted"
+msgstr "曲線已調整"
+
+msgid "Drag to target topic to create relationship..."
+msgstr "拖曳至目標主題以建立關連線..."
+
+msgid "Summary"
+msgstr "括弧總結"
+
+msgid "characters"
+msgstr "個字元"
+
+msgid "Position: "
+msgstr "位置："
+
+msgid "No image attached"
+msgstr "未附加圖片"
+
+msgid "No attachments"
+msgstr "無附件"
+
+msgid "Undone: "
+msgstr "已復原："
+
+msgid "Redone: "
+msgstr "已取消復原："
+
+msgid "New Topic"
+msgstr "新主題"
+
+msgid "Added child node"
+msgstr "已新增子節點"
+
+msgid "Added sibling node"
+msgstr "已新增同層節點"
+
+msgid "Cannot delete root node"
+msgstr "無法刪除根節點"
+
+msgid "Deleted node"
+msgstr "已刪除節點"
+
+msgid "Expanded all nodes"
+msgstr "已展開所有節點"
+
+msgid "Collapsed all nodes"
+msgstr "已收合所有節點"
+
+msgid "Added topic before"
+msgstr "已在前方新增主題"
+
+msgid "Added parent topic"
+msgstr "已新增上層主題"
+
+msgid "Moved up"
+msgstr "已上移"
+
+msgid "Moved down"
+msgstr "已下移"
+
+msgid "Topic copied"
+msgstr "已複製主題"
+
+msgid "Nothing to paste"
+msgstr "沒有可貼上的內容"
+
+msgid "Topic pasted"
+msgstr "已貼上主題"
+
+msgid "Cannot cut root node"
+msgstr "無法剪下根節點"
+
+msgid "Topic cut"
+msgstr "已剪下主題"
+
+msgid "Topic duplicated"
+msgstr "已複製主題"
+
+msgid "Style reset to default"
+msgstr "樣式已重設為預設"
+
+msgid "Expanded all from selected"
+msgstr "已從選取項目展開全部"
+
+msgid "Collapsed all from selected"
+msgstr "已從選取項目收合全部"
+
+msgid "Drill down: "
+msgstr "鑽研："
+
+msgid "Already at top level"
+msgstr "已在最上層"
+
+msgid "Drill up"
+msgstr "返回上層"
+
+msgid "Text align: "
+msgstr "文字對齊："
+
+msgid "Outline"
+msgstr "大綱"
+
+msgid "Theme Manager"
+msgstr "主題管理員"
+
+msgid "Active"
+msgstr "使用中"
+
+msgid "Theme changed to: "
+msgstr "主題已變更為："
+
+msgid "Close"
+msgstr "關閉"
+
+msgid "Select a topic with 2+ children to sort"
+msgstr "請選取含 2 個以上子項目的主題以排序"
+
+msgid "Children sorted"
+msgstr "子項目已排序"
+
+msgid "Selected "
+msgstr "已選取 "
+
+msgid " siblings"
+msgstr " 個同層項目"
+
+msgid " children"
+msgstr " 個子項目"
+
+msgid "Select one or more topics first"
+msgstr "請先選取一個或多個主題"
+
+msgid "Fit selection: "
+msgstr "符合選取範圍："
+
+msgid "Revisions"
+msgstr "版本"
+
+msgid "No revisions yet"
+msgstr "尚無版本"
+
+msgid "No revisions yet. Revisions are created when you save."
+msgstr "尚無版本。儲存時會建立版本。"
+
+msgid "Restore"
+msgstr "還原"
+
+msgid "Preview"
+msgstr "預覽"
+
+msgid "Restore this revision? Current changes will be lost."
+msgstr "要還原此版本嗎？目前的變更將會遺失。"
+
+msgid "Revision restored: "
+msgstr "版本已還原："
+
+msgid "Previewing: "
+msgstr "預覽中："
+
+msgid " (not saved)"
+msgstr "（未儲存）"
+
+msgid "Error loading revisions"
+msgstr "載入版本時發生錯誤"
+
+msgid "Please select a topic first"
+msgstr "請先選取一個主題"
+
+msgid "Click source topic... (Esc/Right-click to cancel)"
+msgstr "點選來源主題...（Esc／右鍵取消）"
+
+msgid "Save failed"
+msgstr "儲存失敗"
+
+msgid "Saved successfully"
+msgstr "已成功儲存"
+
+msgid "Save failed: "
+msgstr "儲存失敗："
+
+msgid "Image exported"
+msgstr "已匯出圖片"
+
+msgid "SVG exported"
+msgstr "已匯出 SVG"
+
+msgid "Please allow popups to export PDF"
+msgstr "請允許彈出視窗以匯出 PDF"
+
+msgid "PDF export ready"
+msgstr "PDF 匯出已就緒"
+
+msgid "Tapered lines ON"
+msgstr "漸細線條開啟"
+
+msgid "Tapered lines OFF"
+msgstr "漸細線條關閉"
+
+msgid "Resource Manager"
+msgstr "資源管理員"
+
+msgid "Themes"
+msgstr "主題樣式"
+
+msgid "Markers"
+msgstr "標記"
+
+msgid "Styles"
+msgstr "樣式"
+
+msgid "Templates"
+msgstr "範本"
+
+msgid "Custom style presets"
+msgstr "自訂樣式預設集"
+
+msgid "Use Format menu to customize styles per topic. Copy Style / Paste Style to reuse."
+msgstr "使用「格式」選單可為各主題自訂樣式。以「複製樣式／貼上樣式」重複套用。"
+
+msgid "Find & Replace"
+msgstr "尋找與取代"
+
+msgid "Find..."
+msgstr "尋找..."
+
+msgid "Replace with..."
+msgstr "取代為..."
+
+msgid "Prev"
+msgstr "上一個"
+
+msgid "Next"
+msgstr "下一個"
+
+msgid "Replace"
+msgstr "取代"
+
+msgid "All"
+msgstr "全部"
+
+msgid " found"
+msgstr " 個符合項目"
+
+msgid " replaced"
+msgstr " 個已取代"
+
+msgid "No markers used in this map"
+msgstr "此圖中未使用任何標記"
+
+msgid "Legend"
+msgstr "圖例"
+
+msgid "Numbering enabled"
+msgstr "已啟用編號"
+
+msgid "Numbering disabled"
+msgstr "已停用編號"
+
+msgid "New sheet name:"
+msgstr "新工作表名稱："
+
+msgid "Sheet "
+msgstr "工作表 "
+
+msgid "Sheet created: "
+msgstr "已建立工作表："
+
+msgid "Failed to create sheet."
+msgstr "建立工作表失敗。"
+
+msgid "Could not save the current sheet — staying here to avoid losing changes."
+msgstr "無法儲存目前的工作表 — 為避免遺失變更而停留在此。"
+
+msgid "Switched to sheet: "
+msgstr "已切換至工作表："
+
+msgid "Failed to load sheet."
+msgstr "載入工作表失敗。"
+
+msgid "Failed to switch sheet."
+msgstr "切換工作表失敗。"
+
+msgid "Rename sheet:"
+msgstr "重新命名工作表："
+
+msgid "Failed to rename sheet."
+msgstr "重新命名工作表失敗。"
+
+msgid "Cannot delete the last sheet"
+msgstr "無法刪除最後一個工作表"
+
+msgid "Delete this sheet?"
+msgstr "要刪除此工作表嗎？"
+
+msgid "Failed to delete sheet."
+msgstr "刪除工作表失敗。"
+
+msgid "Delete sheet \""
+msgstr "刪除工作表「"
+
+msgid "New Sheet"
+msgstr "新工作表"
+
+msgid "Layout changed to: "
+msgstr "版面配置已變更為："
+
+msgid "Updated style"
+msgstr "已更新樣式"
+
+msgid "Shape updated"
+msgstr "形狀已更新"
+
+msgid "Child structure: "
+msgstr "子項目結構："
+
+msgid "Child structure reset to default"
+msgstr "子項目結構已重設為預設"
+
+msgid "Branch line style updated"
+msgstr "分支線條樣式已更新"
+
+msgid "Numbering: "
+msgstr "編號："
+
+msgid "Task info updated"
+msgstr "任務資訊已更新"
+
+msgid "Assignee: "
+msgstr "負責人："
+
+msgid "Image removed"
+msgstr "已移除圖片"
+
+msgid "Enter URL:"
+msgstr "輸入網址："
+
+msgid "Enter title (optional):"
+msgstr "輸入標題（選填）："
+
+msgid "Comments feature coming soon"
+msgstr "留言功能即將推出"
+
+msgid "Added %s attachments"
+msgstr "已新增 %s 個附件"
+
+msgid "Style applied to "
+msgstr "樣式已套用至 "
+
+msgid " topics"
+msgstr " 個主題"
+
+msgid "Style applied"
+msgstr "已套用樣式"
+
+msgid "Please select at least one topic first"
+msgstr "請先選擇至少一個主題"
+
+msgid "Style applied to all topics"
+msgstr "樣式已套用至所有主題"
+
+msgid "Format settings reset to default"
+msgstr "格式設定已重設為預設值"
+
+msgid "Multi-select mode enabled"
+msgstr "已啟用多選模式"
+
+msgid "Multi-select mode disabled"
+msgstr "已停用多選模式"
+
+msgid "Selection cleared"
+msgstr "已清除選取"
+
+msgid "Drag to select topics for boundary... (Esc to cancel)"
+msgstr "拖曳以選取主題建立外框…（Esc 取消）"
+
+msgid "Boundary created"
+msgstr "已建立外框"
+
+msgid "Cannot create summary for root node"
+msgstr "無法為根節點建立總結"
+
+msgid "Drag to select topics for summary... (Esc to cancel)"
+msgstr "拖曳以選取主題建立總結…（Esc 取消）"
+
+msgid "Summary created"
+msgstr "已建立總結"
+
+msgid "Please select a topic to add callout"
+msgstr "請選擇要新增標註的主題"
+
+msgid "Note"
+msgstr "備註"
+
+msgid "Callout added"
+msgstr "已新增標註"
+
+msgid "Topic Text:"
+msgstr "主題文字："
+
+msgid "Floating Topic"
+msgstr "浮動主題"
+
+msgid "Please select a topic to add image"
+msgstr "請選擇要新增圖片的主題"
+
+msgid "Image added to topic"
+msgstr "圖片已新增至主題"
+
+msgid "Branch Style"
+msgstr "分支樣式"
+
+msgid "Line Type"
+msgstr "線條類型"
+
+msgid "Width"
+msgstr "寬度"
+
+msgid "Color"
+msgstr "顏色"
+
+msgid "Pattern"
+msgstr "圖樣"
+
+msgid "Apply"
+msgstr "套用"
+
+msgid "Reset"
+msgstr "重設"
+
+msgid "Curve"
+msgstr "曲線"
+
+msgid "Straight"
+msgstr "直線"
+
+msgid "Rounded"
+msgstr "圓角"
+
+msgid "Angular"
+msgstr "折角"
+
+msgid "None"
+msgstr "無"
+
+msgid "Select Marker"
+msgstr "選擇標記"
+
+msgid "Added marker: "
+msgstr "已新增標記："
+
+msgid "Removed marker"
+msgstr "已移除標記"
+
+msgid "Cannot create relationship to self"
+msgstr "無法建立指向自身的關連線"
+
+msgid "Edit Relationship"
+msgstr "編輯關連線"
+
+msgid "Create Relationship"
+msgstr "建立關連線"
+
+msgid "Shape Type"
+msgstr "形狀類型"
+
+msgid "Line Style"
+msgstr "線條樣式"
+
+msgid "Start Marker"
+msgstr "起點標記"
+
+msgid "End Marker"
+msgstr "終點標記"
+
+msgid "Marker Size"
+msgstr "標記大小"
+
+msgid "Label"
+msgstr "標籤"
+
+msgid "Optional label"
+msgstr "選填標籤"
+
+msgid "Font Size"
+msgstr "字型大小"
+
+msgid "Label Background"
+msgstr "標籤背景"
+
+msgid "Update"
+msgstr "更新"
+
+msgid "Create"
+msgstr "建立"
+
+msgid "Delete"
+msgstr "刪除"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Relationship updated"
+msgstr "已更新關連線"
+
+msgid "Relationship deleted"
+msgstr "已刪除關連線"
+
+msgid "Relationship created"
+msgstr "已建立關連線"
+
+msgid "Hyperlink added"
+msgstr "已新增超連結"
+
+msgid "Hyperlink removed"
+msgstr "已移除超連結"
+
+msgid "Note updated"
+msgstr "已更新備註"
+
+msgid "Attachment added: "
+msgstr "已新增附件："
+
+msgid "Save failed — your changes may not be stored. Please retry."
+msgstr "儲存失敗 — 您的變更可能尚未儲存。請重試。"
+
+msgid "Delete Summary"
+msgstr "刪除總結"
+
+msgid "Summary deleted"
+msgstr "已刪除總結"
+
+msgid "Fit to view: "
+msgstr "符合檢視："
+
+msgid "Edit (F2)"
+msgstr "編輯 (F2)"
+
+msgid "Topic (Enter)"
+msgstr "主題 (Enter)"
+
+msgid "Subtopic (Tab)"
+msgstr "子主題 (Tab)"
+
+msgid "Topic Before (Shift+Enter)"
+msgstr "前置主題 (Shift+Enter)"
+
+msgid "Parent Topic (Ctrl+Enter)"
+msgstr "父主題 (Ctrl+Enter)"
+
+msgid "Callout"
+msgstr "標註"
+
+msgid "Relationship"
+msgstr "關連線"
+
+msgid "Boundary"
+msgstr "外框"
+
+msgid "Marker"
+msgstr "標記"
+
+msgid "Notes"
+msgstr "備註"
+
+msgid "Hyperlink"
+msgstr "超連結"
+
+msgid "Image"
+msgstr "圖片"
+
+msgid "Cut (Ctrl+X)"
+msgstr "剪下 (Ctrl+X)"
+
+msgid "Copy (Ctrl+C)"
+msgstr "複製 (Ctrl+C)"
+
+msgid "Paste (Ctrl+V)"
+msgstr "貼上 (Ctrl+V)"
+
+msgid "Duplicate (Ctrl+D)"
+msgstr "複製 (Ctrl+D)"
+
+msgid "Copy Style"
+msgstr "複製樣式"
+
+msgid "Paste Style"
+msgstr "貼上樣式"
+
+msgid "Reset Style"
+msgstr "重設樣式"
+
+msgid "Collapse"
+msgstr "收合"
+
+msgid "Expand"
+msgstr "展開"
+
+msgid "Expand All"
+msgstr "全部展開"
+
+msgid "Collapse All"
+msgstr "全部收合"
+
+msgid "Drill Down"
+msgstr "深入檢視"
+
+msgid "Drill Up"
+msgstr "返回上層"
+
+msgid "Move Up (Alt+↑)"
+msgstr "上移 (Alt+↑)"
+
+msgid "Move Down (Alt+↓)"
+msgstr "下移 (Alt+↓)"
+
+msgid "Sort A→Z"
+msgstr "排序 A→Z"
+
+msgid "Sort Z→A"
+msgstr "排序 Z→A"
+
+msgid "Sort by Priority"
+msgstr "依優先順序排序"
+
+msgid "Select Siblings"
+msgstr "選取同層主題"
+
+msgid "Select Children"
+msgstr "選取子主題"
+
+msgid "Branch Style..."
+msgstr "分支樣式…"
+
+msgid "Properties"
+msgstr "屬性"
+
+msgid "Convert to Regular Topic"
+msgstr "轉換為一般主題"
+
+msgid "Delete (Del)"
+msgstr "刪除 (Del)"
+
+msgid "Remove Marker"
+msgstr "移除標記"
+
+msgid "Add Floating Topic"
+msgstr "新增浮動主題"
+
+msgid "Zoom In"
+msgstr "放大"
+
+msgid "Zoom Out"
+msgstr "縮小"
+
+msgid "Fit to View"
+msgstr "符合檢視"
+
+msgid "Actual Size"
+msgstr "實際大小"
+
+msgid "Fit Selection"
+msgstr "符合選取範圍"
+
+msgid "Save (Ctrl+S)"
+msgstr "儲存 (Ctrl+S)"
+
+msgid "Overview Panel"
+msgstr "總覽面板"
+
+msgid "Outline Panel"
+msgstr "大綱面板"
+
+msgid "Load Template"
+msgstr "載入範本"
+
+msgid "Edit Properties"
+msgstr "編輯屬性"
+
+msgid "Show Control Points"
+msgstr "顯示控制點"
+
+msgid "Delete Relationship"
+msgstr "刪除關連線"
+
+msgid "Drag green points to adjust curve, blue/red to move endpoints"
+msgstr "拖曳綠色控制點調整曲線，藍／紅色控制點移動端點"
+
+msgid "Style copied"
+msgstr "已複製樣式"
+
+msgid "Style pasted"
+msgstr "已貼上樣式"
+
+msgid "Floating topic added"
+msgstr "已新增浮動主題"
+
+msgid "Converted to regular topic"
+msgstr "已轉換為一般主題"
+
+msgid "Floating topic removed"
+msgstr "已移除浮動主題"
+
+msgid "Blank Mind Map"
+msgstr "空白心智圖"
+
+msgid "Business Plan"
+msgstr "商業計畫"
+
+msgid "Market Analysis"
+msgstr "市場分析"
+
+msgid "Target Market"
+msgstr "目標市場"
+
+msgid "Competitors"
+msgstr "競爭對手"
+
+msgid "Market Size"
+msgstr "市場規模"
+
+msgid "Products & Services"
+msgstr "產品與服務"
+
+msgid "Core Product"
+msgstr "核心產品"
+
+msgid "Value Proposition"
+msgstr "價值主張"
+
+msgid "Pricing"
+msgstr "定價"
+
+msgid "Marketing Strategy"
+msgstr "行銷策略"
+
+msgid "Channels"
+msgstr "通路"
+
+msgid "Campaigns"
+msgstr "行銷活動"
+
+msgid "Budget"
+msgstr "預算"
+
+msgid "Financial Plan"
+msgstr "財務計畫"
+
+msgid "Revenue Model"
+msgstr "營收模式"
+
+msgid "Cost Structure"
+msgstr "成本結構"
+
+msgid "Projections"
+msgstr "財務預估"
+
+msgid "Team"
+msgstr "團隊"
+
+msgid "Key Roles"
+msgstr "關鍵職位"
+
+msgid "Hiring Plan"
+msgstr "招募計畫"
+
+msgid "Advisors"
+msgstr "顧問"
+
+msgid "SWOT Analysis"
+msgstr "SWOT 分析"
+
+msgid "Strengths"
+msgstr "優勢"
+
+msgid "Strength 1"
+msgstr "優勢 1"
+
+msgid "Strength 2"
+msgstr "優勢 2"
+
+msgid "Strength 3"
+msgstr "優勢 3"
+
+msgid "Weaknesses"
+msgstr "劣勢"
+
+msgid "Weakness 1"
+msgstr "劣勢 1"
+
+msgid "Weakness 2"
+msgstr "劣勢 2"
+
+msgid "Weakness 3"
+msgstr "劣勢 3"
+
+msgid "Opportunities"
+msgstr "機會"
+
+msgid "Opportunity 1"
+msgstr "機會 1"
+
+msgid "Opportunity 2"
+msgstr "機會 2"
+
+msgid "Opportunity 3"
+msgstr "機會 3"
+
+msgid "Threats"
+msgstr "威脅"
+
+msgid "Threat 1"
+msgstr "威脅 1"
+
+msgid "Threat 2"
+msgstr "威脅 2"
+
+msgid "Threat 3"
+msgstr "威脅 3"
+
+msgid "Meeting Notes"
+msgstr "會議記錄"
+
+msgid "Attendees"
+msgstr "出席者"
+
+msgid "Person 1"
+msgstr "人員 1"
+
+msgid "Person 2"
+msgstr "人員 2"
+
+msgid "Agenda"
+msgstr "議程"
+
+msgid "Item 1"
+msgstr "項目 1"
+
+msgid "Item 2"
+msgstr "項目 2"
+
+msgid "Item 3"
+msgstr "項目 3"
+
+msgid "Discussion"
+msgstr "討論"
+
+msgid "Point 1"
+msgstr "要點 1"
+
+msgid "Point 2"
+msgstr "要點 2"
+
+msgid "Action Items"
+msgstr "行動項目"
+
+msgid "Task 1"
+msgstr "任務 1"
+
+msgid "Task 2"
+msgstr "任務 2"
+
+msgid "Next Meeting"
+msgstr "下次會議"
+
+msgid "Date"
+msgstr "日期"
+
+msgid "Topics"
+msgstr "主題"
+
+msgid "Project Dashboard"
+msgstr "專案儀表板"
+
+msgid "Goals"
+msgstr "目標"
+
+msgid "Goal 1"
+msgstr "目標 1"
+
+msgid "Goal 2"
+msgstr "目標 2"
+
+msgid "Milestones"
+msgstr "里程碑"
+
+msgid "Phase 1"
+msgstr "階段 1"
+
+msgid "Phase 2"
+msgstr "階段 2"
+
+msgid "Phase 3"
+msgstr "階段 3"
+
+msgid "Resources"
+msgstr "資源"
+
+msgid "Tools"
+msgstr "工具"
+
+msgid "Risks"
+msgstr "風險"
+
+msgid "Risk 1"
+msgstr "風險 1"
+
+msgid "Risk 2"
+msgstr "風險 2"
+
+msgid "Timeline"
+msgstr "時間軸"
+
+msgid "Start"
+msgstr "開始"
+
+msgid "Checkpoints"
+msgstr "檢查點"
+
+msgid "Deadline"
+msgstr "截止日期"
+
+msgid "Cause & Effect (Fishbone)"
+msgstr "因果分析（魚骨圖）"
+
+msgid "People"
+msgstr "人員"
+
+msgid "Training"
+msgstr "訓練"
+
+msgid "Communication"
+msgstr "溝通"
+
+msgid "Process"
+msgstr "流程"
+
+msgid "Workflow"
+msgstr "工作流程"
+
+msgid "Standards"
+msgstr "標準"
+
+msgid "Technology"
+msgstr "技術"
+
+msgid "Systems"
+msgstr "系統"
+
+msgid "Environment"
+msgstr "環境"
+
+msgid "Culture"
+msgstr "文化"
+
+msgid "Book Report"
+msgstr "讀書報告"
+
+msgid "Author"
+msgstr "作者"
+
+msgid "Background"
+msgstr "背景"
+
+msgid "Other Works"
+msgstr "其他著作"
+
+msgid "Characters"
+msgstr "角色"
+
+msgid "Protagonist"
+msgstr "主角"
+
+msgid "Antagonist"
+msgstr "反派"
+
+msgid "Supporting"
+msgstr "配角"
+
+msgid "Plot"
+msgstr "情節"
+
+msgid "Beginning"
+msgstr "開端"
+
+msgid "Climax"
+msgstr "高潮"
+
+msgid "Resolution"
+msgstr "結局"
+
+msgid "Theme 1"
+msgstr "主題 1"
+
+msgid "Theme 2"
+msgstr "主題 2"
+
+msgid "My Opinion"
+msgstr "我的看法"
+
+msgid "Liked"
+msgstr "喜歡的部分"
+
+msgid "Disliked"
+msgstr "不喜歡的部分"
+
+msgid "Rating"
+msgstr "評分"
+
+msgid "Study Plan"
+msgstr "讀書計畫"
+
+msgid "Subjects"
+msgstr "科目"
+
+msgid "Subject 1"
+msgstr "科目 1"
+
+msgid "Subject 2"
+msgstr "科目 2"
+
+msgid "Subject 3"
+msgstr "科目 3"
+
+msgid "Schedule"
+msgstr "時程"
+
+msgid "Morning"
+msgstr "上午"
+
+msgid "Afternoon"
+msgstr "下午"
+
+msgid "Evening"
+msgstr "晚上"
+
+msgid "Textbooks"
+msgstr "教科書"
+
+msgid "Online"
+msgstr "線上資源"
+
+msgid "Short-term"
+msgstr "短期"
+
+msgid "Long-term"
+msgstr "長期"
+
+msgid "Travel Plan"
+msgstr "旅遊計畫"
+
+msgid "Destination"
+msgstr "目的地"
+
+msgid "Places to Visit"
+msgstr "造訪景點"
+
+msgid "Activities"
+msgstr "活動"
+
+msgid "Logistics"
+msgstr "行程安排"
+
+msgid "Flights"
+msgstr "航班"
+
+msgid "Hotels"
+msgstr "飯店"
+
+msgid "Transport"
+msgstr "交通"
+
+msgid "Transportation"
+msgstr "交通方式"
+
+msgid "Accommodation"
+msgstr "住宿"
+
+msgid "Food"
+msgstr "餐飲"
+
+msgid "Packing"
+msgstr "行李打包"
+
+msgid "Essentials"
+msgstr "必需品"
+
+msgid "Clothing"
+msgstr "衣物"
+
+msgid "Documents"
+msgstr "文件"
+
+msgid "Weekly Plan"
+msgstr "週計畫"
+
+msgid "Monday"
+msgstr "星期一"
+
+msgid "Tuesday"
+msgstr "星期二"
+
+msgid "Wednesday"
+msgstr "星期三"
+
+msgid "Thursday"
+msgstr "星期四"
+
+msgid "Friday"
+msgstr "星期五"
+
+msgid "Resume / CV"
+msgstr "履歷表"
+
+msgid "Contact Info"
+msgstr "聯絡資訊"
+
+msgid "Email"
+msgstr "電子郵件"
+
+msgid "Phone"
+msgstr "電話"
+
+msgid "Location"
+msgstr "地點"
+
+msgid "Experience"
+msgstr "工作經歷"
+
+msgid "Company 1"
+msgstr "公司一"
+
+msgid "Company 2"
+msgstr "公司二"
+
+msgid "Education"
+msgstr "學歷"
+
+msgid "Degree 1"
+msgstr "學位一"
+
+msgid "Degree 2"
+msgstr "學位二"
+
+msgid "Skills"
+msgstr "技能"
+
+msgid "Technical"
+msgstr "技術能力"
+
+msgid "Soft Skills"
+msgstr "軟實力"
+
+msgid "Languages"
+msgstr "語言"
+
+msgid "Projects"
+msgstr "專案"
+
+msgid "Project 1"
+msgstr "專案一"
+
+msgid "Project 2"
+msgstr "專案二"
+
+msgid "Annual Report"
+msgstr "年度報告"
+
+msgid "Executive Summary"
+msgstr "執行摘要"
+
+msgid "Highlights"
+msgstr "重點摘要"
+
+msgid "KPIs"
+msgstr "關鍵績效指標"
+
+msgid "Financial Results"
+msgstr "財務成果"
+
+msgid "Revenue"
+msgstr "營收"
+
+msgid "Expenses"
+msgstr "費用"
+
+msgid "Profit"
+msgstr "利潤"
+
+msgid "Operations"
+msgstr "營運"
+
+msgid "Production"
+msgstr "生產"
+
+msgid "Quality"
+msgstr "品質"
+
+msgid "Efficiency"
+msgstr "效率"
+
+msgid "Market Overview"
+msgstr "市場概況"
+
+msgid "Market Share"
+msgstr "市場佔有率"
+
+msgid "Growth"
+msgstr "成長"
+
+msgid "Trends"
+msgstr "趨勢"
+
+msgid "Outlook"
+msgstr "展望"
+
+msgid "Investments"
+msgstr "投資"
+
+msgid "Balance Sheet"
+msgstr "資產負債表"
+
+msgid "Assets"
+msgstr "資產"
+
+msgid "Current Assets"
+msgstr "流動資產"
+
+msgid "Fixed Assets"
+msgstr "固定資產"
+
+msgid "Intangible"
+msgstr "無形資產"
+
+msgid "Liabilities"
+msgstr "負債"
+
+msgid "Current"
+msgstr "流動負債"
+
+msgid "Provisions"
+msgstr "準備金"
+
+msgid "Equity"
+msgstr "權益"
+
+msgid "Share Capital"
+msgstr "股本"
+
+msgid "Retained Earnings"
+msgstr "保留盈餘"
+
+msgid "Business Timeline"
+msgstr "業務時間軸"
+
+msgid "Q1"
+msgstr "第一季"
+
+msgid "Jan"
+msgstr "一月"
+
+msgid "Feb"
+msgstr "二月"
+
+msgid "Mar"
+msgstr "三月"
+
+msgid "Q2"
+msgstr "第二季"
+
+msgid "Apr"
+msgstr "四月"
+
+msgid "May"
+msgstr "五月"
+
+msgid "Jun"
+msgstr "六月"
+
+msgid "Q3"
+msgstr "第三季"
+
+msgid "Jul"
+msgstr "七月"
+
+msgid "Aug"
+msgstr "八月"
+
+msgid "Sep"
+msgstr "九月"
+
+msgid "Q4"
+msgstr "第四季"
+
+msgid "Oct"
+msgstr "十月"
+
+msgid "Nov"
+msgstr "十一月"
+
+msgid "Dec"
+msgstr "十二月"
+
+msgid "Company Hierarchy"
+msgstr "公司組織架構"
+
+msgid "CTO"
+msgstr "技術長"
+
+msgid "Engineering"
+msgstr "工程"
+
+msgid "Product"
+msgstr "產品"
+
+msgid "QA"
+msgstr "品保"
+
+msgid "CFO"
+msgstr "財務長"
+
+msgid "Accounting"
+msgstr "會計"
+
+msgid "Finance"
+msgstr "財務"
+
+msgid "Legal"
+msgstr "法務"
+
+msgid "COO"
+msgstr "營運長"
+
+msgid "HR"
+msgstr "人力資源"
+
+msgid "Admin"
+msgstr "行政"
+
+msgid "CMO"
+msgstr "行銷長"
+
+msgid "Marketing"
+msgstr "行銷"
+
+msgid "Sales"
+msgstr "銷售"
+
+msgid "PR"
+msgstr "公關"
+
+msgid "Manufacturing Flow"
+msgstr "製造流程"
+
+msgid "Raw Materials"
+msgstr "原物料"
+
+msgid "Sourcing"
+msgstr "採購"
+
+msgid "Inventory"
+msgstr "庫存"
+
+msgid "Quality Check"
+msgstr "品質檢驗"
+
+msgid "Assembly"
+msgstr "組裝"
+
+msgid "Testing"
+msgstr "測試"
+
+msgid "Packaging"
+msgstr "包裝"
+
+msgid "Distribution"
+msgstr "配送"
+
+msgid "Warehouse"
+msgstr "倉儲"
+
+msgid "Shipping"
+msgstr "出貨"
+
+msgid "Delivery"
+msgstr "交貨"
+
+msgid "Sales Management"
+msgstr "銷售管理"
+
+msgid "Pipeline"
+msgstr "銷售管道"
+
+msgid "Leads"
+msgstr "潛在客戶"
+
+msgid "Deals"
+msgstr "交易"
+
+msgid "Direct"
+msgstr "直接銷售"
+
+msgid "Partners"
+msgstr "合作夥伴"
+
+msgid "Targets"
+msgstr "目標"
+
+msgid "Monthly"
+msgstr "每月"
+
+msgid "Quarterly"
+msgstr "每季"
+
+msgid "Annual"
+msgstr "每年"
+
+msgid "Reps"
+msgstr "業務代表"
+
+msgid "Managers"
+msgstr "主管"
+
+msgid "Problem Solving"
+msgstr "問題解決"
+
+msgid "Root Causes"
+msgstr "根本原因"
+
+msgid "Cause 1"
+msgstr "原因一"
+
+msgid "Cause 2"
+msgstr "原因二"
+
+msgid "Cause 3"
+msgstr "原因三"
+
+msgid "Impact"
+msgstr "影響"
+
+msgid "Cost"
+msgstr "成本"
+
+msgid "Time"
+msgstr "時間"
+
+msgid "Solutions"
+msgstr "解決方案"
+
+msgid "Option A"
+msgstr "方案 A"
+
+msgid "Option B"
+msgstr "方案 B"
+
+msgid "Option C"
+msgstr "方案 C"
+
+msgid "Action Plan"
+msgstr "行動計畫"
+
+msgid "Step 1"
+msgstr "步驟一"
+
+msgid "Step 2"
+msgstr "步驟二"
+
+msgid "Step 3"
+msgstr "步驟三"
+
+msgid "Class Schedule"
+msgstr "課程表"
+
+msgid "Math"
+msgstr "數學"
+
+msgid "Science"
+msgstr "自然科學"
+
+msgid "English"
+msgstr "英文"
+
+msgid "History"
+msgstr "歷史"
+
+msgid "Art"
+msgstr "美術"
+
+msgid "PE"
+msgstr "體育"
+
+msgid "Music"
+msgstr "音樂"
+
+msgid "Lab"
+msgstr "實驗課"
+
+msgid "Review"
+msgstr "複習"
+
+msgid "Club"
+msgstr "社團"
+
+msgid "Compare & Contrast"
+msgstr "比較與對比"
+
+msgid "Subject A"
+msgstr "主題 A"
+
+msgid "Feature 1"
+msgstr "特點 1"
+
+msgid "Feature 2"
+msgstr "特點 2"
+
+msgid "Feature 3"
+msgstr "特點 3"
+
+msgid "Similarities"
+msgstr "相似處"
+
+msgid "Common 1"
+msgstr "共同點 1"
+
+msgid "Common 2"
+msgstr "共同點 2"
+
+msgid "Subject B"
+msgstr "主題 B"
+
+msgid "Paper Outline"
+msgstr "論文大綱"
+
+msgid "Introduction"
+msgstr "引言"
+
+msgid "Hook"
+msgstr "開場引言"
+
+msgid "Thesis"
+msgstr "論點"
+
+msgid "Body"
+msgstr "本文"
+
+msgid "Argument 1"
+msgstr "論點 1"
+
+msgid "Argument 2"
+msgstr "論點 2"
+
+msgid "Argument 3"
+msgstr "論點 3"
+
+msgid "Counter-arguments"
+msgstr "反方論點"
+
+msgid "Objection 1"
+msgstr "反對意見 1"
+
+msgid "Rebuttal"
+msgstr "反駁"
+
+msgid "Conclusion"
+msgstr "結論"
+
+msgid "Implications"
+msgstr "意涵"
+
+msgid "Call to Action"
+msgstr "行動呼籲"
+
+msgid "References"
+msgstr "參考資料"
+
+msgid "Source 1"
+msgstr "來源 1"
+
+msgid "Source 2"
+msgstr "來源 2"
+
+msgid "Exam Review"
+msgstr "考試複習"
+
+msgid "Chapter 1"
+msgstr "第 1 章"
+
+msgid "Key Concepts"
+msgstr "重點概念"
+
+msgid "Formulas"
+msgstr "公式"
+
+msgid "Practice"
+msgstr "練習"
+
+msgid "Chapter 2"
+msgstr "第 2 章"
+
+msgid "Chapter 3"
+msgstr "第 3 章"
+
+msgid "Study Tips"
+msgstr "讀書技巧"
+
+msgid "Flash Cards"
+msgstr "字卡"
+
+msgid "Group Study"
+msgstr "小組學習"
+
+msgid "Past Papers"
+msgstr "考古題"
+
+msgid "Syllabus"
+msgstr "課程綱要"
+
+msgid "Instructor"
+msgstr "授課老師"
+
+msgid "Name"
+msgstr "姓名"
+
+msgid "Office Hours"
+msgstr "辦公時間"
+
+msgid "Contact"
+msgstr "聯絡方式"
+
+msgid "Week 1-4"
+msgstr "第 1-4 週"
+
+msgid "Week 5-8"
+msgstr "第 5-8 週"
+
+msgid "Week 9-12"
+msgstr "第 9-12 週"
+
+msgid "Grading"
+msgstr "評分方式"
+
+msgid "Homework 30%"
+msgstr "作業 30%"
+
+msgid "Midterm 30%"
+msgstr "期中考 30%"
+
+msgid "Final 40%"
+msgstr "期末考 40%"
+
+msgid "Textbook"
+msgstr "教科書"
+
+msgid "Library"
+msgstr "圖書館"
+
+msgid "Diet Plan"
+msgstr "飲食計畫"
+
+msgid "Breakfast"
+msgstr "早餐"
+
+msgid "Option 1"
+msgstr "選項 1"
+
+msgid "Option 2"
+msgstr "選項 2"
+
+msgid "Lunch"
+msgstr "午餐"
+
+msgid "Dinner"
+msgstr "晚餐"
+
+msgid "Snacks"
+msgstr "點心"
+
+msgid "Healthy"
+msgstr "健康"
+
+msgid "Treats"
+msgstr "零食"
+
+msgid "Calories"
+msgstr "卡路里"
+
+msgid "Nutrition"
+msgstr "營養"
+
+msgid "Exercise"
+msgstr "運動"
+
+msgid "Party Preparation"
+msgstr "派對準備"
+
+msgid "Guest List"
+msgstr "賓客名單"
+
+msgid "Friends"
+msgstr "朋友"
+
+msgid "Family"
+msgstr "家人"
+
+msgid "Colleagues"
+msgstr "同事"
+
+msgid "Venue"
+msgstr "場地"
+
+msgid "Decoration"
+msgstr "佈置"
+
+msgid "Setup"
+msgstr "場地佈置"
+
+msgid "Food & Drinks"
+msgstr "餐飲"
+
+msgid "Menu"
+msgstr "菜單"
+
+msgid "Beverages"
+msgstr "飲料"
+
+msgid "Desserts"
+msgstr "甜點"
+
+msgid "Entertainment"
+msgstr "娛樂"
+
+msgid "Games"
+msgstr "遊戲"
+
+msgid "Other"
+msgstr "其他"
+
+msgid "Shopping List"
+msgstr "購物清單"
+
+msgid "Groceries"
+msgstr "雜貨"
+
+msgid "Fruits"
+msgstr "水果"
+
+msgid "Vegetables"
+msgstr "蔬菜"
+
+msgid "Dairy"
+msgstr "乳製品"
+
+msgid "Meat"
+msgstr "肉類"
+
+msgid "Household"
+msgstr "家庭用品"
+
+msgid "Cleaning"
+msgstr "清潔用品"
+
+msgid "Kitchen"
+msgstr "廚房"
+
+msgid "Bathroom"
+msgstr "衛浴"
+
+msgid "Electronics"
+msgstr "電子產品"
+
+msgid "Accessories"
+msgstr "配件"
+
+msgid "Cables"
+msgstr "線材"
+
+msgid "Tops"
+msgstr "上衣"
+
+msgid "Bottoms"
+msgstr "下身"
+
+msgid "Shoes"
+msgstr "鞋子"
+
+msgid "Choose a Template"
+msgstr "選擇範本"
+
+msgid "Basic"
+msgstr "基本"
+
+msgid "Business"
+msgstr "商務"
+
+msgid "Personal"
+msgstr "個人"
+
+msgid "This will replace the current mind map. Continue?"
+msgstr "這將取代目前的心智圖。是否繼續？"
+
+msgid "Template applied: "
+msgstr "已套用範本："
+
+msgid "Drop here to attach"
+msgstr "拖放到此處以附加"
+
+msgid "Shift: Create floating topic"
+msgstr "Shift：建立浮動主題"
+
+msgid "Dragging: "
+msgstr "拖曳中："
+
+msgid "Insert before: "
+msgstr "插入於前："
+
+msgid "Insert after: "
+msgstr "插入於後："
+
+msgid "children"
+msgstr "子主題"
+
+msgid "Attach to: "
+msgstr "附加至："
+
+msgid "Attached to: "
+msgstr "已附加至："
+
+msgid "Moved "
+msgstr "已移動 "
+
+msgid "Created floating topic: "
+msgstr "已建立浮動主題："
+
+msgid "Created floating topic (auto-positioned)"
+msgstr "已建立浮動主題（自動定位）"
+
+msgid "Moved \""
+msgstr "已移動「"
+
+msgid "\" to \""
+msgstr "」至「"
+
+msgid "Has Note"
+msgstr "有備註"
+
+msgid "Skipped duplicate file name(s): %s"
+msgstr "已略過重複的檔案名稱：%s"
+
+msgid "Multi-file Upload"
+msgstr "多檔案上傳"
