@@ -1797,6 +1797,7 @@ export class MindmapEditor extends Component {
         const task = data.taskInfo || {};
         setVal('.o_topic_task_start', task.start || '');
         setVal('.o_topic_task_end', task.end || '');
+        setVal('.o_topic_task_end_time', task.endTime || '');
         setVal('.o_topic_task_progress', task.progress || 0);
         setVal('.o_topic_task_assignee', task.assignee || '');
         const tpv = this._el('.o_topic_task_progress_val');
@@ -3980,6 +3981,7 @@ export class MindmapEditor extends Component {
 
         const start = (this._el('.o_topic_task_start') || {}).value || '';
         const end = (this._el('.o_topic_task_end') || {}).value || '';
+        const endTime = (this._el('.o_topic_task_end_time') || {}).value || '';
         const progEl = this._el('.o_topic_task_progress');
         const progress = progEl ? (parseInt(progEl.value, 10) || 0) : 0;
         const assigneeEl = this._el('.o_topic_task_assignee');
@@ -3989,8 +3991,8 @@ export class MindmapEditor extends Component {
         if (tpv) tpv.textContent = progress + '%';
 
         node.data = node.data || {};
-        if (start || end || progress || assignee) {
-            node.data.taskInfo = { start, end, progress, assignee };
+        if (start || end || endTime || progress || assignee) {
+            node.data.taskInfo = { start, end, endTime, progress, assignee };
         } else {
             delete node.data.taskInfo;
         }

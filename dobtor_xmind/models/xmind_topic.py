@@ -122,6 +122,8 @@ class XMindTopic(models.Model):
     task_end_date = fields.Date('Task End')
     task_progress = fields.Integer('Progress %', default=0)  # 0..100
     task_assignee = fields.Char('Assignee')
+    # Optional time-of-day for the deadline ("HH:MM"); when empty the sync uses 17:00.
+    task_deadline_time = fields.Char('Deadline Time')
     has_task = fields.Boolean('Has Task Info', compute='_compute_has_task', store=True)
 
     # Computed fields

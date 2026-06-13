@@ -569,6 +569,10 @@
                                 <span class="small text-muted">結束</span>
                                 <input type="date" class="form-control form-control-sm o_topic_task_end" t-on-change="onTopicTaskChange"/>
                             </div>
+                            <div style="flex:1;">
+                                <span class="small text-muted">時間</span>
+                                <input type="time" class="form-control form-control-sm o_topic_task_end_time" t-on-change="onTopicTaskChange"/>
+                            </div>
                         </div>
                         <div class="mt-1">
                             <span class="small text-muted">進度：<span class="o_topic_task_progress_val">0%</span></span>

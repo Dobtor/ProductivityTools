@@ -207,6 +207,7 @@ class XMindWorkbook(models.Model):
             data['taskInfo'] = {
                 'start': topic.task_start_date.isoformat() if topic.task_start_date else '',
                 'end': topic.task_end_date.isoformat() if topic.task_end_date else '',
+                'endTime': topic.task_deadline_time or '',
                 'progress': topic.task_progress or 0,
                 'assignee': topic.task_assignee or '',
             }
@@ -583,10 +584,21 @@ class XMindWorkbook(models.Model):
             # Preserve a manually-set time on re-sync: only rewrite the deadline when
             # its DATE differs from the topic's; default new deadlines to 17:00 in the
             # user's timezone (Datetime fields are UTC-naive).
-            keep = task and task.date_deadline and task.date_deadline.date() == topic.task_end_date
+            # Use the topic's explicit time if set ("HH:MM"), else keep the task's
+            # existing time when the date is unchanged, else default to 17:00.
+            hh, mm = 17, 0
+            has_time = False
+            if topic.task_deadline_time and ':' in topic.task_deadline_time:
+                try:
+                    hh, mm = (int(x) for x in topic.task_deadline_time.split(':')[:2])
+                    has_time = True
+                except (ValueError, TypeError):
+                    hh, mm = 17, 0
+            keep = (task and task.date_deadline and not has_time
+                    and task.date_deadline.date() == topic.task_end_date)
             if not keep:
                 tz = pytz.timezone(self.env.user.tz or 'UTC')
-                local_dt = tz.localize(datetime.combine(topic.task_end_date, time(17, 0)))
+                local_dt = tz.localize(datetime.combine(topic.task_end_date, time(hh, mm)))
                 vals['date_deadline'] = local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
         users = self._resolve_assignee(topic.task_assignee, assignee_cache)
         vals['user_ids'] = [Command.set(users.ids)]   # also clears when emptied
@@ -856,6 +868,7 @@ class XMindWorkbook(models.Model):
         if task:
             topic_vals['task_start_date'] = task.get('start') or False
             topic_vals['task_end_date'] = task.get('end') or False
+            topic_vals['task_deadline_time'] = task.get('endTime') or ''
             topic_vals['task_progress'] = self._safe_int(task.get('progress', 0), 0)
             topic_vals['task_assignee'] = task.get('assignee') or ''
 
@@ -2222,6 +2235,7 @@ class XMindWorkbook(models.Model):
         if task:
             topic_vals['task_start_date'] = task.get('start') or False
             topic_vals['task_end_date'] = task.get('end') or False
+            topic_vals['task_deadline_time'] = task.get('endTime') or ''
             topic_vals['task_progress'] = self._safe_int(task.get('progress', 0), 0)
             topic_vals['task_assignee'] = task.get('assignee') or ''
 

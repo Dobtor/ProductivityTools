@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import pytz
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 from odoo.tools import html2plaintext
@@ -107,10 +108,18 @@ class ProjectProject(models.Model):
                 'sequence': task.sequence or 0,
                 'project_managed': True,
                 'note': html2plaintext(task.description) if task.description else '',
-                'task_end_date': task.date_deadline.date() if task.date_deadline else False,
                 'task_assignee': ', '.join(task.user_ids.mapped('name')) if task.user_ids else '',
                 'task_progress': 100 if task.state == '1_done' else 0,
             }
+            # Deadline → date + time-of-day, converted from UTC to the user's tz.
+            if task.date_deadline:
+                tz = pytz.timezone(self.env.user.tz or 'UTC')
+                local = pytz.UTC.localize(task.date_deadline).astimezone(tz)
+                vals['task_end_date'] = local.date()
+                vals['task_deadline_time'] = local.strftime('%H:%M')
+            else:
+                vals['task_end_date'] = False
+                vals['task_deadline_time'] = ''
             topic = task.xmind_topic_id
             if topic and topic.exists() and topic.sheet_id.id == sheet.id:
                 topic.write(vals)
