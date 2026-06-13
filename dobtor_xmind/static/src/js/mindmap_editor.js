@@ -4028,32 +4028,35 @@ export class MindmapEditor extends Component {
 
     // ===== Activity clock (schedule a mail.activity on the linked task) =====
     /** Show a clickable clock on task-linked topics; badge shows the activity count. */
-    _renderActivityClock(element, nodeId, count) {
+    _renderActivityClock(element, nodeId, taskId, count) {
         if (!element) return;
         let clock = element.querySelector('.xmind-activity-clock');
         if (!clock) {
             clock = document.createElement('span');
             clock.className = 'xmind-activity-clock';
-            clock.style.cssText = 'cursor:pointer;margin-left:5px;color:#714B67;';
+            clock.style.cssText = 'cursor:pointer;margin-right:5px;color:#714B67;';
             clock.title = _t('Schedule activity');
             clock.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this._openActivityDialog(nodeId);
+                this._openActivityDialog(nodeId, taskId);
             });
-            element.appendChild(clock);
+            // Place the clock BEFORE the topic title text.
+            const titleEl = element.querySelector('.xmind-topic-text');
+            if (titleEl) element.insertBefore(clock, titleEl);
+            else element.insertBefore(clock, element.firstChild);
         }
         clock.innerHTML = '<i class="fa fa-clock-o"/>' +
             (count > 0 ? ' <span class="badge text-bg-secondary">' + count + '</span>' : '');
     }
 
-    _openActivityDialog(nodeId) {
-        rpc('/xmind/topic/' + nodeId + '/activity_meta', {}).then((meta) => {
+    _openActivityDialog(nodeId, taskId) {
+        rpc('/xmind/task/' + taskId + '/activity_meta', {}).then((meta) => {
             if (meta && meta.error) { this._showError(meta.error); return; }
-            this._buildActivityDialog(nodeId, meta);
+            this._buildActivityDialog(nodeId, taskId, meta);
         }).catch(() => this._showError(_t('Could not load activity options.')));
     }
 
-    _buildActivityDialog(nodeId, meta) {
+    _buildActivityDialog(nodeId, taskId, meta) {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;';
         const opt = (list, sel) => list.map(o =>
@@ -4095,7 +4098,7 @@ export class MindmapEditor extends Component {
         box.querySelector('.o_act_cancel').addEventListener('click', close);
         const refreshCount = (r) => {
             const el = this.jm.view.get_node_element(nodeId);
-            if (el) this._renderActivityClock(el, nodeId, (r && r.activity_count) || 0);
+            if (el) this._renderActivityClock(el, nodeId, taskId, (r && r.activity_count) || 0);
         };
         // Done / delete on existing activities (event delegation).
         box.querySelector('.o_act_list').addEventListener('click', (e) => {
@@ -4105,12 +4108,12 @@ export class MindmapEditor extends Component {
             const done = e.target.closest('.o_act_done');
             const del = e.target.closest('.o_act_del');
             if (!done && !del) return;
-            const url = '/xmind/topic/' + nodeId + (done ? '/activity_done' : '/activity_delete');
+            const url = '/xmind/task/' + taskId + (done ? '/activity_done' : '/activity_delete');
             rpc(url, { activity_id: parseInt(actId) }).then((r) => {
                 if (r && r.error) { this._showError(r.error); return; }
                 refreshCount(r);
                 close();
-                this._openActivityDialog(nodeId);   // reopen refreshed
+                this._openActivityDialog(nodeId, taskId);   // reopen refreshed
             }).catch(() => this._showError(_t('Action failed.')));
         });
         box.querySelector('.o_act_save').addEventListener('click', () => {
@@ -4120,11 +4123,11 @@ export class MindmapEditor extends Component {
                 summary: box.querySelector('.o_act_summary').value || '',
                 date_deadline: box.querySelector('.o_act_date').value || false,
             };
-            rpc('/xmind/topic/' + nodeId + '/schedule_activity', payload).then((r) => {
+            rpc('/xmind/task/' + taskId + '/schedule_activity', payload).then((r) => {
                 if (r && r.error) { this._showError(r.error); return; }
                 close();
                 const el = this.jm.view.get_node_element(nodeId);
-                if (el) this._renderActivityClock(el, nodeId, (r && r.activity_count) || 0);
+                if (el) this._renderActivityClock(el, nodeId, taskId, (r && r.activity_count) || 0);
                 if (this.notification) this.notification.add(_t('Activity scheduled.'), { type: 'success' });
             }).catch(() => this._showError(_t('Could not schedule activity.')));
         });
@@ -5647,7 +5650,7 @@ export class MindmapEditor extends Component {
                     this._watchImageLoad(element);
                 }
                 if (node.data.taskInfo) this._renderTaskIndicator(element, node.data.taskInfo);
-                if (node.data.taskId) this._renderActivityClock(element, id, node.data.activityCount || 0);
+                if (node.data.taskId) this._renderActivityClock(element, id, node.data.taskId, node.data.activityCount || 0);
             }
         }
 

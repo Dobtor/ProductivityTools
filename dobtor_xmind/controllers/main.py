@@ -246,21 +246,21 @@ class XMindController(http.Controller):
         workbook.save_mindmap_data(data, is_auto=bool(is_auto))
         return {'success': True}
 
-    def _get_topic_for_activity(self, topic_id, mode='read'):
-        """Return the topic if the current user may access its workbook + its task."""
-        topic = request.env['xmind.topic'].browse(int(topic_id)).exists()
-        if not topic or not topic.has_access(mode):
+    def _get_task_for_activity(self, task_id, mode='read'):
+        """Return the linked project.task if the current user may access it. Routed by
+        TASK id (the node carries data.taskId, a DB id) — the jsMind node id is a UUID
+        component_id, so a /topic/<int:...> route would never match it."""
+        task = request.env['project.task'].browse(int(task_id)).exists()
+        if not task or not task.has_access(mode):
             return None
-        return topic
+        return task
 
-    @http.route('/xmind/topic/<int:topic_id>/activity_meta', type='json', auth='user')
-    def activity_meta(self, topic_id, **kwargs):
+    @http.route('/xmind/task/<int:task_id>/activity_meta', type='json', auth='user')
+    def activity_meta(self, task_id, **kwargs):
         """Options for the schedule-activity dialog: assignable users + activity types."""
-        topic = self._get_topic_for_activity(topic_id, 'read')
-        if not topic:
-            return {'error': 'Topic not found or access denied'}
-        if not topic.task_id:
-            return {'error': 'This topic is not linked to a task. Create the project first.'}
+        task = self._get_task_for_activity(task_id, 'read')
+        if not task:
+            return {'error': 'Task not found or access denied'}
         users = request.env['res.users'].search_read(
             [('share', '=', False), ('active', '=', True)], ['id', 'name'], limit=200)
         types = request.env['mail.activity.type'].search_read(
@@ -272,57 +272,54 @@ class XMindController(http.Controller):
             'type_name': a.activity_type_id.name or '',
             'user_name': a.user_id.name or '',
             'date_deadline': a.date_deadline and str(a.date_deadline) or '',
-        } for a in topic.task_id.activity_ids.sorted('date_deadline')]
+        } for a in task.activity_ids.sorted('date_deadline')]
         return {
-            'task_id': topic.task_id.id,
-            'task_name': topic.task_id.name,
-            'activity_count': len(topic.task_id.activity_ids),
+            'task_id': task.id,
+            'task_name': task.name,
+            'activity_count': len(task.activity_ids),
             'activities': activities,
             'users': users,
             'activity_types': types,
             'default_user_id': request.env.uid,
         }
 
-    @http.route('/xmind/topic/<int:topic_id>/activity_done', type='json', auth='user')
-    def activity_done(self, topic_id, activity_id, **kwargs):
-        """Mark a linked task's activity as done (logs it on the task chatter)."""
-        topic = self._get_topic_for_activity(topic_id, 'read')
-        if not topic or not topic.task_id:
-            return {'error': 'Topic not found or access denied'}
-        act = topic.task_id.activity_ids.filtered(lambda a: a.id == int(activity_id))
+    @http.route('/xmind/task/<int:task_id>/activity_done', type='json', auth='user')
+    def activity_done(self, task_id, activity_id, **kwargs):
+        """Mark a task's activity as done (logs it on the task chatter)."""
+        task = self._get_task_for_activity(task_id, 'read')
+        if not task:
+            return {'error': 'Task not found or access denied'}
+        act = task.activity_ids.filtered(lambda a: a.id == int(activity_id))
         if not act:
             return {'error': 'Activity not found'}
         try:
             act.action_feedback()
         except (UserError, AccessError) as e:
             return {'error': e.args[0] if e.args else str(e)}
-        return {'success': True, 'activity_count': len(topic.task_id.activity_ids)}
+        return {'success': True, 'activity_count': len(task.activity_ids)}
 
-    @http.route('/xmind/topic/<int:topic_id>/activity_delete', type='json', auth='user')
-    def activity_delete(self, topic_id, activity_id, **kwargs):
-        """Delete (cancel) a linked task's activity."""
-        topic = self._get_topic_for_activity(topic_id, 'read')
-        if not topic or not topic.task_id:
-            return {'error': 'Topic not found or access denied'}
-        act = topic.task_id.activity_ids.filtered(lambda a: a.id == int(activity_id))
+    @http.route('/xmind/task/<int:task_id>/activity_delete', type='json', auth='user')
+    def activity_delete(self, task_id, activity_id, **kwargs):
+        """Delete (cancel) a task's activity."""
+        task = self._get_task_for_activity(task_id, 'read')
+        if not task:
+            return {'error': 'Task not found or access denied'}
+        act = task.activity_ids.filtered(lambda a: a.id == int(activity_id))
         if not act:
             return {'error': 'Activity not found'}
         try:
             act.unlink()
         except (UserError, AccessError) as e:
             return {'error': e.args[0] if e.args else str(e)}
-        return {'success': True, 'activity_count': len(topic.task_id.activity_ids)}
+        return {'success': True, 'activity_count': len(task.activity_ids)}
 
-    @http.route('/xmind/topic/<int:topic_id>/schedule_activity', type='json', auth='user')
-    def schedule_activity(self, topic_id, activity_type_id=False, user_id=False,
+    @http.route('/xmind/task/<int:task_id>/schedule_activity', type='json', auth='user')
+    def schedule_activity(self, task_id, activity_type_id=False, user_id=False,
                           summary='', note='', date_deadline=False, **kwargs):
-        """Schedule a mail.activity on the topic's linked project.task."""
-        topic = self._get_topic_for_activity(topic_id, 'read')
-        if not topic:
-            return {'error': 'Topic not found or access denied'}
-        if not topic.task_id:
-            return {'error': 'This topic is not linked to a task.'}
-        task = topic.task_id
+        """Schedule a mail.activity on the project.task."""
+        task = self._get_task_for_activity(task_id, 'read')
+        if not task:
+            return {'error': 'Task not found or access denied'}
         try:
             vals = {
                 'res_model_id': request.env['ir.model']._get_id('project.task'),
