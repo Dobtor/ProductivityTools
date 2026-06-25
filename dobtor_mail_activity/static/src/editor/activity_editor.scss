@@ -1,0 +1,57 @@
+.o_dobtor_activity_list {
+    // 內嵌活動清單區塊：與內文區隔但不喧賓奪主
+    font-size: 0.9rem;
+
+    .o_dobtor_activity_row {
+        border-top: 1px solid var(--border-color, #dee2e6);
+
+        &:first-of-type {
+            border-top: none;
+        }
+    }
+
+    .o_dobtor_activity_summary {
+        min-width: 0; // 讓 text-truncate 生效
+    }
+
+    .o_dobtor_activity_done {
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+    }
+
+    .o_dobtor_activity_row:hover .o_dobtor_activity_done {
+        opacity: 1;
+    }
+}
+
+// Inline 活動膠囊（建立後就地回饋）
+.o_dobtor_activity_chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0 0.4em;
+    margin: 0 0.15em;
+    font-size: 0.85em;
+    line-height: 1.5;
+    border: 1px solid;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+    vertical-align: baseline;
+    white-space: nowrap;
+
+    .o_dobtor_chip_label {
+        max-width: 18em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &.o_dobtor_chip_done .o_dobtor_chip_label {
+        text-decoration: line-through;
+    }
+}
+
+// 工具列時鐘
+.o_dobtor_activity_clock {
+    line-height: 1;
+}

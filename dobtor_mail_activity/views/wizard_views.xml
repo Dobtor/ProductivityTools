@@ -275,4 +275,75 @@
         <field name="target">new</field>
     </record>
 
+    <!-- =====================================================
+         從富文字編輯器斜線選單建立待辦 Wizard
+         (mail.activity.from.editor.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_from_editor_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.from.editor.wizard.form</field>
+        <field name="model">mail.activity.from.editor.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create To-do">
+                <!-- 編輯器來源記錄（隱藏，但必須在視圖內才會被載入/送出）-->
+                <field name="editor_res_model" invisible="1"/>
+                <field name="editor_res_id" invisible="1"/>
+
+                <!-- 摘要 - 置頂明顯（由編輯器「/」之前整段文字帶入）-->
+                <group>
+                    <field name="summary" placeholder="Enter activity summary..."
+                           nolabel="1" colspan="2"
+                           style="font-size: 1.2em; font-weight: 500;"/>
+                </group>
+
+                <!-- 4列資訊排版 -->
+                <group col="4">
+                    <!-- 基本：目標文件 + 關聯筆記（兩個獨立關聯）-->
+                    <group string="Basic">
+                        <field name="activity_type_id" string="Type"
+                               options="{'no_create': True}" required="1"/>
+                        <field name="target_ref" string="Target Document"
+                               options="{'no_create': True}"/>
+                        <field name="note_id" string="Related Note"
+                               options="{'no_create': True}"/>
+                    </group>
+
+                    <!-- 優先 -->
+                    <group string="Priority">
+                        <field name="urgency" string="Urgency" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <field name="importance" string="Importance" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <field name="estimated_hours" string="Estimated Hours"
+                               widget="float_time"/>
+                    </group>
+
+                    <!-- 指派 -->
+                    <group string="Assignment">
+                        <field name="user_id" string="Assign To"
+                               widget="many2one_avatar_user"
+                               options="{'no_create': True}"/>
+                    </group>
+
+                    <!-- 時程 -->
+                    <group string="Schedule">
+                        <field name="date_deadline" string="Due Date" required="1"/>
+                    </group>
+                </group>
+
+                <!-- 備註 -->
+                <group string="Note">
+                    <field name="note" placeholder="Activity note (optional)..."
+                           nolabel="1" colspan="2"/>
+                </group>
+
+                <footer>
+                    <button string="Create To-do" name="action_create_activity"
+                            type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
 </odoo>

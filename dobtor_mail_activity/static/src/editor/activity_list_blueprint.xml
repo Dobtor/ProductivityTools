@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- 插入編輯器內容的「藍圖」：僅保留 data-embedded 與綁定 props，
+         實際清單由 EmbeddedActivityList 即時渲染。 -->
+    <t t-name="dobtor_mail_activity.ActivityListBlueprint">
+        <div t-att-data-embedded-props="embeddedProps"
+             data-embedded="activityList"
+             data-oe-protected="true"
+             contenteditable="false"
+             class="o_dobtor_activity_embed"/>
+    </t>
+
+</templates>

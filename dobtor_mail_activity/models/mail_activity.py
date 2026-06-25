@@ -342,6 +342,79 @@ class MailActivity(models.Model):
         """取得允許的目標模型選項（使用共用方法）"""
         return self.env['mail.activity.transfer.config'].get_target_model_selection()
 
+    @api.model
+    def get_editor_default_note_id(self):
+        """回傳目前使用者的個人待辦筆記 id（供富文字編輯器內嵌清單在「無對應記錄」
+        情境下綁定 note_id 使用；無則建立）。
+
+        註：因可能觸發 _get_or_create_default_activity_note 的建立寫入，
+        故不可標記 @api.readonly。"""
+        note = self.env.user._get_or_create_default_activity_note()
+        return note.id if note else False
+
+    @api.model
+    def _editor_activity_domain(self, bind, res_model=False, res_id=False, note_id=False):
+        """編輯器內嵌清單/時鐘共用的綁定 domain。
+
+        :param bind: 'note' 綁 note_id、'res' 綁 res_model/res_id、其他綁個人筆記
+        """
+        if bind == 'note' and note_id:
+            return [('note_id', '=', int(note_id))]
+        if bind == 'res' and res_model and res_id:
+            return [('res_model', '=', res_model), ('res_id', '=', int(res_id))]
+        note = self.env.user._get_or_create_default_activity_note()
+        return [('note_id', '=', note.id)] if note else [('id', '=', False)]
+
+    @api.model
+    def get_editor_activities(self, bind, res_model=False, res_id=False, note_id=False, limit=0):
+        """供富文字編輯器內嵌清單即時抓取活動（含已封存的完成/取消以便顯示歷史）。
+
+        :param limit: 0 表示不限；>0 時多取 1 筆以判斷是否還有更多
+        :return: {'activities': list[dict], 'has_more': bool}
+        """
+        domain = self._editor_activity_domain(bind, res_model, res_id, note_id)
+        fetch = (limit + 1) if limit else None
+        activities = self.with_context(active_test=False).search(
+            domain, order='active desc, date_deadline asc, id asc', limit=fetch)
+        has_more = bool(limit) and len(activities) > limit
+        if limit:
+            activities = activities[:limit]
+        result = []
+        for act in activities:
+            result.append({
+                'id': act.id,
+                'summary': act.summary or (act.activity_type_id.name or ''),
+                'date_deadline': act.date_deadline and str(act.date_deadline) or False,
+                'state': act.state or 'planned',
+                'activity_status': act.activity_status,
+                'active': act.active,
+                'user_id': act.user_id.id,
+                'user_name': act.user_id.name or '',
+                'res_name': act.res_name or '',
+                'activity_type_name': act.activity_type_id.name or '',
+            })
+        return {'activities': result, 'has_more': has_more}
+
+    @api.model
+    def get_editor_activity_summary(self, bind, res_model=False, res_id=False, note_id=False):
+        """供工具列時鐘輕量查詢：只回進行中活動的 ids 與最嚴重狀態（不組完整 dict）。
+
+        :return: {'ids': list[int], 'worst': 'overdue'|'today'|'planned'|'none'}
+        """
+        domain = self._editor_activity_domain(bind, res_model, res_id, note_id)
+        domain = [('active', '=', True)] + domain
+        activities = self.search(domain, order='date_deadline asc, id asc')
+        states = set(activities.mapped('state'))
+        if 'overdue' in states:
+            worst = 'overdue'
+        elif 'today' in states:
+            worst = 'today'
+        elif activities:
+            worst = 'planned'
+        else:
+            worst = 'none'
+        return {'ids': activities.ids, 'worst': worst}
+
     @api.depends('res_model', 'res_id')
     def _compute_target_ref(self):
         """計算 target_ref Reference 欄位"""

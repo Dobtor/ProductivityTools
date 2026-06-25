@@ -3,6 +3,7 @@ access_mail_activity_done_wizard,mail.activity.done.wizard,model_mail_activity_d
 access_mail_activity_postpone_wizard,mail.activity.postpone.wizard,model_mail_activity_postpone_wizard,base.group_user,1,1,1,1
 access_mail_activity_transfer_wizard,mail.activity.transfer.wizard,model_mail_activity_transfer_wizard,base.group_user,1,1,1,1
 access_mail_activity_from_message_wizard,mail.activity.from.message.wizard,model_mail_activity_from_message_wizard,base.group_user,1,1,1,1
+access_mail_activity_from_editor_wizard,mail.activity.from.editor.wizard,model_mail_activity_from_editor_wizard,base.group_user,1,1,1,1
 access_mail_activity_reassign_wizard,mail.activity.reassign.wizard,model_mail_activity_reassign_wizard,base.group_user,1,1,1,1
 access_note_note,note.note,model_note_note,base.group_user,1,1,1,1
 access_note_stage,note.stage,model_note_stage,base.group_user,1,1,1,1

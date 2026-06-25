@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_mail_activity.ActivityClockToolbarButton">
+        <button t-ref="root" type="button"
+                class="btn btn-link p-0 px-1 o_dobtor_activity_clock"
+                t-att-title="title" t-on-click="onClick">
+            <i class="fa fa-clock-o" t-att-class="iconClass"/>
+            <span t-if="state.activityIds.length" class="badge rounded-pill bg-secondary ms-1"
+                  t-esc="state.activityIds.length"/>
+        </button>
+    </t>
+
+</templates>

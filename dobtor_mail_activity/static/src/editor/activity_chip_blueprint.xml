@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- Inline 膠囊藍圖：span（行內），僅保留 data-embedded 與 activityId。 -->
+    <t t-name="dobtor_mail_activity.ActivityChipBlueprint">
+        <span t-att-data-embedded-props="embeddedProps"
+              data-embedded="activityChip"
+              data-oe-protected="true"
+              contenteditable="false"
+              class="o_dobtor_activity_chip_host"/>
+    </t>
+
+</templates>

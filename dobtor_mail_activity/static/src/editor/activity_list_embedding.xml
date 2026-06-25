@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_mail_activity.EmbeddedActivityList">
+        <div class="o_dobtor_activity_list border rounded p-2 my-2 bg-100">
+            <div class="d-flex align-items-center mb-1 text-muted small fw-bold">
+                <i class="fa fa-list-ul me-2"/>
+                <span>To-do</span>
+                <span class="ms-auto" t-if="state.loading">
+                    <i class="fa fa-spinner fa-spin"/>
+                </span>
+            </div>
+
+            <!-- 進行中 -->
+            <div t-foreach="activeActivities" t-as="act" t-key="act.id"
+                 class="o_dobtor_activity_row d-flex align-items-center py-1">
+                <i class="fa fa-clock-o fa-fw me-2" t-att-class="stateClass(act)"/>
+                <span class="o_dobtor_activity_summary flex-grow-1 text-truncate"
+                      t-att-title="act.summary" t-esc="act.summary"/>
+                <span class="text-muted small mx-2" t-if="act.user_name" t-esc="act.user_name"/>
+                <span class="text-muted small mx-2" t-if="act.date_deadline" t-esc="act.date_deadline"/>
+                <button type="button"
+                        class="btn btn-sm btn-link text-success p-0 o_dobtor_activity_done"
+                        title="Mark as done" t-on-click="() => this.onMarkDone(act)">
+                    <i class="fa fa-check"/>
+                </button>
+            </div>
+
+            <!-- 空狀態 -->
+            <div t-if="!state.loading and !activeActivities.length"
+                 class="text-muted small fst-italic py-1">
+                No to-do yet. Type "/Create To-do" or click below to add one.
+            </div>
+
+            <!-- 已完成 / 取消（淡化顯示，可追溯）-->
+            <div t-foreach="doneActivities" t-as="act" t-key="act.id"
+                 class="o_dobtor_activity_row o_dobtor_activity_done_row d-flex align-items-center py-1 text-muted">
+                <i class="fa fa-check fa-fw me-2"/>
+                <span class="flex-grow-1 text-truncate text-decoration-line-through"
+                      t-att-title="act.summary" t-esc="act.summary"/>
+                <span class="small mx-2"
+                      t-esc="act.activity_status === 'cancelled' ? 'Cancelled' : 'Done'"/>
+            </div>
+
+            <!-- 顯示更多 -->
+            <div t-if="state.hasMore" class="mt-1">
+                <button type="button" class="btn btn-sm btn-link p-0 text-muted"
+                        t-on-click="showMore">
+                    <i class="fa fa-angle-down me-1"/>Show more
+                </button>
+            </div>
+
+            <!-- 新增 -->
+            <div class="mt-1">
+                <button type="button" class="btn btn-sm btn-link p-0 text-primary"
+                        t-on-click="onAddTodo">
+                    <i class="fa fa-plus me-1"/>Add to-do
+                </button>
+            </div>
+        </div>
+    </t>
+
+</templates>

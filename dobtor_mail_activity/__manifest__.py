@@ -101,6 +101,8 @@ Main Features:
             'dobtor_mail_activity/static/src/views/**/*',
             # System integration (patches)
             'dobtor_mail_activity/static/src/web/**/*',
+            # Rich text editor integration (powerbox / embedded activity list)
+            'dobtor_mail_activity/static/src/editor/**/*',
             # Styles
             'dobtor_mail_activity/static/src/scss/**/*',
         ],
