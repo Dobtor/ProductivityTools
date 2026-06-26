@@ -3206,7 +3206,7 @@ msgstr "此次分派變更的原因"
 #: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_created
 msgid "Reassign"
-msgstr "變更分派"
+msgstr "改派"
 
 #. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_reassign_wizard
@@ -5633,3 +5633,49 @@ msgstr "此活動掛載的業務文件（其討論串會顯示時鐘）。"
 #: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_from_editor_wizard__note_id
 msgid "Note whose to-do list will show this activity (independent of the target document)."
 msgstr "會在待辦清單顯示此活動的筆記（與目標文件獨立）。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+msgid "Link To-do"
+msgstr "關聯待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+msgid "Re-insert a chip for an existing to-do of this document"
+msgstr "為此文件既有的待辦重新插入膠囊"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_picker_dialog.js:0
+msgid "Link a To-do"
+msgstr "關聯待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_picker_dialog.xml:0
+msgid "No to-do found for this document."
+msgstr "此文件尚無可關聯的待辦。"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_unassigned
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_created
+msgid "Document"
+msgstr "文件"
+
+#. module: dobtor_mail_activity
+#: model:ir.model,name:dobtor_mail_activity.model_mail_activity_create_wizard
+msgid "Create To-do Wizard"
+msgstr "建立待辦精靈"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_create_wizard__res_known
+msgid "Target Known"
+msgstr "目標已知"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_create_wizard__target_ref
+msgid "Business document this activity is attached to. Leave empty to use your personal to-do note."
+msgstr "此活動掛載的業務文件；留空則使用您的個人待辦筆記。"

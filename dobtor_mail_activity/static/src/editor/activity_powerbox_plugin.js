@@ -18,6 +18,7 @@ import { withSequence } from "@html_editor/utils/resource";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { renderToElement } from "@web/core/utils/render";
 import { ActivityClockToolbarButton } from "@dobtor_mail_activity/editor/activity_clock_toolbar";
+import { ActivityPickerDialog } from "@dobtor_mail_activity/editor/activity_picker_dialog";
 import { notifyActivityChanged } from "@dobtor_mail_activity/editor/activity_signal";
 
 export class ActivityPowerboxPlugin extends Plugin {
@@ -40,6 +41,13 @@ export class ActivityPowerboxPlugin extends Plugin {
                 icon: "fa-clock-o",
                 run: this.insertActivityList.bind(this),
             },
+            {
+                id: "dobtorLinkTodo",
+                title: _t("Link To-do"),
+                description: _t("Re-insert a chip for an existing to-do of this document"),
+                icon: "fa-link",
+                run: this.openLinkTodoPicker.bind(this),
+            },
         ],
         // sequence < 10 → 排在原生「頁面結構(structure=10)」之上，置於選單最頂。
         powerbox_categories: withSequence(5, {
@@ -49,6 +57,7 @@ export class ActivityPowerboxPlugin extends Plugin {
         powerbox_items: [
             { categoryId: "dobtor_activity", commandId: "dobtorCreateTodo" },
             { categoryId: "dobtor_activity", commandId: "dobtorInsertActivityList" },
+            { categoryId: "dobtor_activity", commandId: "dobtorLinkTodo" },
         ],
         // 工具列時鐘：選取文字時於浮動工具列出現，顏色依最近 deadline 著色，
         // 點開原生活動清單 popover（時鐘清單 + 打勾完成）。
@@ -70,6 +79,23 @@ export class ActivityPowerboxPlugin extends Plugin {
         return (this.config.getRecordInfo && this.config.getRecordInfo()) || {};
     }
 
+    /**
+     * 依目前所在記錄推導綁定參數（與後端 wizard / get_editor_activities 預設一致）：
+     *   - note.note      → bind=note，綁本筆記
+     *   - 其他業務記錄   → bind=res，綁該記錄
+     *   - 無對應記錄     → bind=personal（個人待辦筆記，由後端解析）
+     */
+    bindParams() {
+        const { resModel, resId } = this.getRecordInfo();
+        if (resModel === "note.note" && resId) {
+            return { bind: "note", noteId: resId };
+        }
+        if (resModel && resId) {
+            return { bind: "res", resModel, resId };
+        }
+        return { bind: "personal" };
+    }
+
     /** 此編輯器是否位於 chatter 訊息編輯框（composer）內。 */
     isInComposer() {
         return !!(this.editable && this.editable.closest && this.editable.closest(".o-mail-Composer"));
@@ -80,25 +106,23 @@ export class ActivityPowerboxPlugin extends Plugin {
         notifyActivityChanged();
     }
 
-    /** 指令①：建立待辦 —— 摘要取自「/」之前整段文字。 */
+    /** 指令①：建立待辦 —— 摘要取自「/」之前整段文字。
+     *  依需求：powerbox 一律顯示 target 輸入、不帶入當前 res（不傳 active_model）。 */
     openCreateTodoWizard() {
         const selection = this.dependencies.selection.getEditableSelection();
         const block = closestBlock(selection.anchorNode);
         const summary = (block ? block.textContent : "").trim();
-        const { resModel, resId } = this.getRecordInfo();
 
         this.services.action.doAction(
             {
                 type: "ir.actions.act_window",
                 name: _t("Create To-do"),
-                res_model: "mail.activity.from.editor.wizard",
+                res_model: "mail.activity.create.wizard",
                 view_mode: "form",
                 views: [[false, "form"]],
                 target: "new",
                 context: {
                     default_summary: summary,
-                    default_editor_res_model: resModel || false,
-                    default_editor_res_id: resId || false,
                 },
             },
             {
@@ -131,26 +155,26 @@ export class ActivityPowerboxPlugin extends Plugin {
 
     /** 指令②：在頁面插入即時內嵌活動清單區塊。 */
     insertActivityList() {
-        const { resModel, resId } = this.getRecordInfo();
-        const props = {};
-        if (resModel === "note.note" && resId) {
-            props.bind = "note";
-            props.noteId = resId;
-        } else if (resModel && resId) {
-            props.bind = "res";
-            props.resModel = resModel;
-            props.resId = resId;
-        } else {
-            // 無對應記錄：綁「個人待辦筆記」。實際 note 由後端
-            // get_editor_activities('personal') 解析當前使用者的預設筆記，
-            // 不需在此 await，避免插入前游標位置遺失。
-            props.bind = "personal";
-        }
-
+        // 無對應記錄時 bind=personal，實際 note 由後端
+        // get_editor_activities('personal') 解析當前使用者的預設筆記，
+        // 不需在此 await，避免插入前游標位置遺失。
         const block = renderToElement("dobtor_mail_activity.ActivityListBlueprint", {
-            embeddedProps: JSON.stringify(props),
+            embeddedProps: JSON.stringify(this.bindParams()),
         });
         this.dependencies.dom.insert(block);
         this.dependencies.history.addStep();
+    }
+
+    /**
+     * 指令③：關聯待辦 —— 列出本文件既有活動，挑一筆把膠囊重新插回游標處。
+     * 用於膠囊在編輯器中被誤刪後，想將已建立的待辦加回文字後方。
+     */
+    openLinkTodoPicker() {
+        // 先記住目前游標：對話框互動會移走焦點，選定後需還原插入點。
+        const selection = this.dependencies.selection.getEditableSelection();
+        this.services.dialog.add(ActivityPickerDialog, {
+            ...this.bindParams(),
+            onSelect: (activityId) => this.insertActivityChip(activityId, selection),
+        });
     }
 }

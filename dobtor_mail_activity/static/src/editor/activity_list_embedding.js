@@ -126,22 +126,27 @@ export class EmbeddedActivityList extends Component {
         });
     }
 
-    /** 原地新增待辦：依綁定情境帶入 wizard 預設關聯。 */
+    /** 原地新增待辦：依綁定情境帶入統一 wizard 的關聯。
+     *  綁 note/res → 視為已知目標（active_model/active_id，唯讀顯示）；
+     *  綁 personal → 未知目標（顯示 target 輸入，留空 fallback 個人筆記）。 */
     async onAddTodo() {
         const p = this.bindParams;
-        const ctx = { default_summary: "" };
-        if (p.bind === "res") {
-            ctx.default_editor_res_model = p.res_model;
-            ctx.default_editor_res_id = p.res_id;
+        const ctx = {};
+        if (p.bind === "res" && p.res_model && p.res_id) {
+            ctx.active_model = p.res_model;
+            ctx.active_id = p.res_id;
+        } else if (p.bind === "note" && p.note_id) {
+            ctx.active_model = "note.note";
+            ctx.active_id = p.note_id;
+            ctx.default_note_id = p.note_id;
         } else if (p.note_id) {
-            ctx.default_editor_res_model = "note.note";
-            ctx.default_editor_res_id = p.note_id;
+            ctx.default_note_id = p.note_id;
         }
         await this.action.doAction(
             {
                 type: "ir.actions.act_window",
                 name: _t("Create To-do"),
-                res_model: "mail.activity.from.editor.wizard",
+                res_model: "mail.activity.create.wizard",
                 view_mode: "form",
                 views: [[false, "form"]],
                 target: "new",

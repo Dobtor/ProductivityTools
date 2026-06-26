@@ -89,15 +89,19 @@ export class ActivityKanbanController extends KanbanController {
     }
 
     async onCreateActivity() {
-        await this.actionService.doAction({
-            type: 'ir.actions.act_window',
-            name: _t('New Activity'),
-            res_model: 'mail.activity',
-            view_mode: 'form',
-            views: [[false, 'form']],
-            target: 'new',
-            context: this.props.context,
-        });
+        // 統一走「建立待辦」wizard（無目標文件 → 顯示 target 輸入）
+        await this.actionService.doAction(
+            {
+                type: 'ir.actions.act_window',
+                name: _t('Create To-do'),
+                res_model: 'mail.activity.create.wizard',
+                view_mode: 'form',
+                views: [[false, 'form']],
+                target: 'new',
+                context: this.props.context,
+            },
+            { onClose: () => this.model.root.load() }
+        );
     }
 }
 

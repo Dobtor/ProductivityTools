@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models, _
+from odoo.tools import html2plaintext
 
 
 class MailMessage(models.Model):
@@ -161,17 +162,33 @@ class MailMessage(models.Model):
             }
 
     def action_create_activity_from_message(self):
-        """從訊息建立待辦（開啟 wizard）"""
+        """從訊息建立待辦（開啟統一 wizard）
+
+        - 摘要 / 備註由訊息內容帶入
+        - 訊息掛在文件上 → 視為已知目標（active_model/active_id，唯讀顯示）；
+          頻道訊息（無文件）→ 未知目標，顯示 target 輸入
+        - 保留來源訊息追蹤（source_message_id）
+        """
         self.ensure_one()
+        plain = html2plaintext(self.body or '').strip()
+        summary = (plain[:120] + '…') if len(plain) > 120 else plain
+
+        ctx = {
+            'default_summary': summary,
+            'default_note': self.body or False,
+            'default_source_message_id': self.id,
+        }
+        # 訊息所在文件（頻道訊息無 model/res_id）
+        if self.model and self.res_id and self.model not in ('mail.channel', 'discuss.channel'):
+            ctx['active_model'] = self.model
+            ctx['active_id'] = self.res_id
 
         return {
             'type': 'ir.actions.act_window',
             'name': _('Create Activity from Message'),
-            'res_model': 'mail.activity.from.message.wizard',
+            'res_model': 'mail.activity.create.wizard',
             'view_mode': 'form',
             'views': [[False, 'form']],
             'target': 'new',
-            'context': {
-                'default_message_id': self.id,
-            }
+            'context': ctx,
         }

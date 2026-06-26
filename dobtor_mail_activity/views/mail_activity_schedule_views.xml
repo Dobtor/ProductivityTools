@@ -122,6 +122,20 @@
         <field name="priority">25</field>
         <field name="arch" type="xml">
             <form string="My Created Activities">
+                <header>
+                    <!-- 操作按鈕置於 header 最左（Odoo 標準位置；此表單無排程 statusbar） -->
+                    <button name="action_transfer_activity" type="object"
+                            string="Transfer"
+                            invisible="not active"/>
+                    <button name="action_reassign_activity" type="object"
+                            string="Reassign"
+                            invisible="not active"/>
+                    <button name="action_open_document" type="object"
+                            string="Document"/>
+                    <button name="action_cancel" type="object"
+                            string="Cancel" class="btn-secondary"
+                            invisible="not active"/>
+                </header>
                 <sheet>
                     <!-- 隱藏欄位 -->
                     <field name="active" invisible="1"/>
@@ -130,28 +144,6 @@
                     <field name="assignment_history_ids" invisible="1"/>
                     <field name="source_message_id" invisible="1"/>
                     <field name="user_id" invisible="1"/>
-
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_open_document" type="object"
-                                class="oe_stat_button" icon="fa-external-link">
-                            <span>Open Document</span>
-                        </button>
-                        <button name="action_reassign_activity" type="object"
-                                class="oe_stat_button" icon="fa-user-plus"
-                                invisible="not active">
-                            <span>Reassign</span>
-                        </button>
-                        <button name="action_transfer_activity" type="object"
-                                class="oe_stat_button" icon="fa-exchange"
-                                invisible="not active">
-                            <span>Transfer</span>
-                        </button>
-                        <button name="action_cancel" type="object"
-                                class="oe_stat_button" icon="fa-times"
-                                invisible="not active">
-                            <span>Cancel</span>
-                        </button>
-                    </div>
 
                     <!-- 提示訊息 -->
                     <div class="alert alert-info" role="alert">
@@ -499,6 +491,14 @@
         <field name="arch" type="xml">
             <form string="Unassigned Activity">
                 <header>
+                    <!-- 操作按鈕置於 header 最左（與 statusbar 同排，Odoo 標準位置） -->
+                    <button name="action_transfer_activity" type="object"
+                            string="Transfer"/>
+                    <button name="action_claim_activity" type="object"
+                            string="Claim" class="btn-primary"
+                            invisible="not active"/>
+                    <button name="action_open_document" type="object"
+                            string="Document"/>
                     <field name="schedule_status" widget="statusbar" clickable="1"
                            options="{'clickable': '1'}"/>
                 </header>
@@ -513,22 +513,6 @@
                     <field name="schedule_warning" invisible="1"/>
                     <field name="user_id" invisible="1"/>
                     <field name="source_message_id" invisible="1"/>
-
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_open_document" type="object"
-                                class="oe_stat_button" icon="fa-external-link">
-                            <span>Open Document</span>
-                        </button>
-                        <button name="action_claim_activity" type="object"
-                                class="oe_stat_button" icon="fa-hand-paper-o"
-                                invisible="not active">
-                            <span>Claim</span>
-                        </button>
-                        <button name="action_transfer_activity" type="object"
-                                class="oe_stat_button" icon="fa-exchange">
-                            <span>Transfer</span>
-                        </button>
-                    </div>
 
                     <!-- 摘要 - 置頂明顯 -->
                     <div class="oe_title">

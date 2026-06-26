@@ -57,17 +57,16 @@ patch(ActivityMenu.prototype, {
      * Create a new activity via quick action
      */
     async createActivity() {
+        // 統一走「建立待辦」wizard（無目標文件 → 顯示 target 輸入）
         await this.actionService.doAction({
             type: "ir.actions.act_window",
-            name: _t("New Activity"),
-            res_model: "mail.activity",
+            name: _t("Create To-do"),
+            res_model: "mail.activity.create.wizard",
             view_mode: "form",
             views: [[false, "form"]],
             target: "new",
             context: {
-                default_user_id: user.userId,
-                // Use module's custom form view if available
-                form_view_ref: "dobtor_mail_activity.mail_activity_view_form_quick",
+                default_activity_user_id: user.userId,
             },
         });
     },
