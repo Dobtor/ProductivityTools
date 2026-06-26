@@ -46,6 +46,18 @@
         text-overflow: ellipsis;
     }
 
+    .o_dobtor_chip_avatar {
+        width: 1.2em;
+        height: 1.2em;
+        border-radius: 50%;
+        object-fit: cover;
+        vertical-align: text-bottom;
+    }
+
+    .o_dobtor_chip_due {
+        font-variant-numeric: tabular-nums;
+    }
+
     &.o_dobtor_chip_done .o_dobtor_chip_label {
         text-decoration: line-through;
     }

@@ -41,7 +41,8 @@ export class ActivityPowerboxPlugin extends Plugin {
                 run: this.insertActivityList.bind(this),
             },
         ],
-        powerbox_categories: withSequence(45, {
+        // sequence < 10 → 排在原生「頁面結構(structure=10)」之上，置於選單最頂。
+        powerbox_categories: withSequence(5, {
             id: "dobtor_activity",
             name: _t("To-do / Activity"),
         }),

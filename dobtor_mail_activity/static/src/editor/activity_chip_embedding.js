@@ -16,12 +16,22 @@ import {
     notifyActivityChanged,
     subscribeActivityChanged,
 } from "@dobtor_mail_activity/editor/activity_signal";
+import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
 
 /**
  * 膠囊批次讀取器：同一頁多顆膠囊掛載時，將 50ms 內的單筆 read 合併成一次 RPC，
  * 避免 N 顆膠囊 = N 次往返。回傳該活動的精簡 dict（找不到則 null）。
  */
-const CHIP_BATCH_FIELDS = ["summary", "state", "active", "activity_status"];
+const CHIP_BATCH_FIELDS = [
+    "summary",
+    "state",
+    "active",
+    "activity_status",
+    "user_id",
+    "urgency",
+    "importance",
+    "date_deadline",
+];
 let _chipPending = new Map(); // id -> [resolve, ...]
 let _chipTimer = null;
 let _chipOrm = null;
@@ -76,6 +86,10 @@ export class EmbeddedActivityChip extends Component {
             state: "planned",
             active: true,
             status: "active",
+            userId: false,
+            urgency: false,
+            importance: false,
+            dateDeadline: false,
             loaded: false,
             missing: false,
         });
@@ -109,11 +123,38 @@ export class EmbeddedActivityChip extends Component {
             this.state.state = rec.state || "planned";
             this.state.active = rec.active;
             this.state.status = rec.activity_status;
+            this.state.userId = rec.user_id ? rec.user_id[0] : false;
+            this.state.urgency = rec.urgency;
+            this.state.importance = rec.importance;
+            this.state.dateDeadline = rec.date_deadline || false;
             this.state.missing = false;
         } else {
             this.state.missing = true;
         }
         this.state.loaded = true;
+    }
+
+    get avatarUrl() {
+        return this.state.userId
+            ? `/web/image/res.users/${this.state.userId}/avatar_128`
+            : false;
+    }
+
+    get urgencyClass() {
+        switch (this.state.urgency) {
+            case "urgent":
+                return "fa-angle-double-up text-danger";
+            case "flexible":
+                return "fa-angle-double-down text-muted";
+            default:
+                return "fa-minus text-secondary";
+        }
+    }
+
+    get importanceClass() {
+        return this.state.importance === "important"
+            ? "fa-star text-warning"
+            : "fa-star-o text-muted";
     }
 
     get chipClass() {
@@ -133,13 +174,6 @@ export class EmbeddedActivityChip extends Component {
         }
     }
 
-    get iconClass() {
-        if (this.state.missing) {
-            return "fa-exclamation-circle";
-        }
-        return this.state.active ? "fa-clock-o" : "fa-check";
-    }
-
     get label() {
         if (this.state.missing) {
             return _t("(deleted)");
@@ -154,7 +188,7 @@ export class EmbeddedActivityChip extends Component {
         const action = await this.orm.call("mail.activity", "action_done", [
             [this.props.activityId],
         ]);
-        await this.action.doAction(action, {
+        await this.action.doAction(ensureActionViews(action), {
             onClose: () => notifyActivityChanged(),
         });
     }

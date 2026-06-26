@@ -16,6 +16,7 @@ import {
     notifyActivityChanged,
     subscribeActivityChanged,
 } from "@dobtor_mail_activity/editor/activity_signal";
+import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
 
 export class EmbeddedActivityList extends Component {
     static template = "dobtor_mail_activity.EmbeddedActivityList";
@@ -120,7 +121,7 @@ export class EmbeddedActivityList extends Component {
     /** 勾選完成：沿用模組標準完成 wizard（可填工時/回饋）。 */
     async onMarkDone(act) {
         const action = await this.orm.call("mail.activity", "action_done", [[act.id]]);
-        await this.action.doAction(action, {
+        await this.action.doAction(ensureActionViews(action), {
             onClose: () => this._broadcastReload(),
         });
     }

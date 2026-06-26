@@ -1,11 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates xml:space="preserve">
 
+    <!-- 摘要移到滑鼠 hover（title）；膠囊只顯示頭像 / 急迫 / 重要 / 截止日。 -->
     <t t-name="dobtor_mail_activity.EmbeddedActivityChip">
         <span class="o_dobtor_activity_chip" t-att-class="chipClass"
-              t-att-title="label" t-on-click="onClick">
-            <i class="fa fa-fw" t-att-class="iconClass"/>
-            <span class="o_dobtor_chip_label" t-esc="label"/>
+              t-att-title="state.summary" t-on-click="onClick">
+            <t t-if="state.missing">
+                <i class="fa fa-fw fa-exclamation-circle"/>
+                <span class="o_dobtor_chip_label" t-esc="label"/>
+            </t>
+            <t t-elif="!state.active">
+                <i class="fa fa-fw fa-check"/>
+            </t>
+            <t t-else="">
+                <img t-if="avatarUrl" class="o_dobtor_chip_avatar" t-att-src="avatarUrl" alt=""/>
+                <i class="fa fa-fw" t-att-class="urgencyClass"/>
+                <i class="fa fa-fw" t-att-class="importanceClass"/>
+                <span t-if="state.dateDeadline" class="o_dobtor_chip_due"
+                      t-esc="state.dateDeadline"/>
+            </t>
         </span>
     </t>
 
