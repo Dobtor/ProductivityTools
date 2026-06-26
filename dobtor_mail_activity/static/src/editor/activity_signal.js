@@ -43,3 +43,19 @@ export function subscribeActivityChanged(callback) {
     bus.addEventListener("changed", callback);
     return () => bus.removeEventListener("changed", callback);
 }
+
+/**
+ * 廣播「活動已刪除」：攜帶被刪除的活動 id，供編輯器移除對應膠囊。
+ * （刪除同時也算一種變更，故一併觸發 changed 讓清單/時鐘重載。）
+ */
+export function notifyActivityDeleted(activityId) {
+    bus.trigger("deleted", activityId);
+    notifyActivityChanged();
+}
+
+/** 訂閱刪除；callback 收到被刪除的活動 id。回傳取消訂閱函式。 */
+export function subscribeActivityDeleted(callback) {
+    const handler = (ev) => callback(ev.detail);
+    bus.addEventListener("deleted", handler);
+    return () => bus.removeEventListener("deleted", handler);
+}

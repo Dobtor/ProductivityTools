@@ -17,9 +17,13 @@ import { _t } from "@web/core/l10n/translation";
 import { withSequence } from "@html_editor/utils/resource";
 import { closestBlock } from "@html_editor/utils/blocks";
 import { renderToElement } from "@web/core/utils/render";
+import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { ActivityClockToolbarButton } from "@dobtor_mail_activity/editor/activity_clock_toolbar";
 import { ActivityPickerDialog } from "@dobtor_mail_activity/editor/activity_picker_dialog";
-import { notifyActivityChanged } from "@dobtor_mail_activity/editor/activity_signal";
+import {
+    notifyActivityChanged,
+    subscribeActivityDeleted,
+} from "@dobtor_mail_activity/editor/activity_signal";
 
 export class ActivityPowerboxPlugin extends Plugin {
     static id = "dobtorMailActivity";
@@ -73,6 +77,37 @@ export class ActivityPowerboxPlugin extends Plugin {
             },
         ],
     };
+
+    setup() {
+        super.setup();
+        // 活動被刪除時（完成 wizard 的刪除鈕），移除本編輯器內對應的膠囊。
+        this._unsubDeleted = subscribeActivityDeleted((id) => this.removeChipHosts(id));
+    }
+
+    destroy() {
+        if (this._unsubDeleted) {
+            this._unsubDeleted();
+        }
+        super.destroy();
+    }
+
+    /** 移除本編輯器內 activityId 相符的膠囊（host），並記錄歷史步驟。 */
+    removeChipHosts(activityId) {
+        if (!this.editable) {
+            return;
+        }
+        let removed = false;
+        for (const host of this.editable.querySelectorAll('[data-embedded="activityChip"]')) {
+            const props = getEmbeddedProps(host);
+            if (props && props.activityId === activityId) {
+                host.remove();
+                removed = true;
+            }
+        }
+        if (removed) {
+            this.dependencies.history.addStep();
+        }
+    }
 
     /** 取得編輯器目前所在記錄（可能為空）。 */
     getRecordInfo() {

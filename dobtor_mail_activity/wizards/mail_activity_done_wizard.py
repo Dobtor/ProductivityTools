@@ -92,6 +92,13 @@ class MailActivityDoneWizard(models.TransientModel):
         default=lambda self: self.env.user,
     )
 
+    # ===== 刪除權限 =====
+    can_delete = fields.Boolean(
+        string='Can Delete',
+        compute='_compute_can_delete',
+        help='Only the activity creator or a system administrator may delete it.',
+    )
+
     # ===== 計算方法 =====
 
     @api.depends('activity_id', 'activity_id.actual_hours')
@@ -99,6 +106,16 @@ class MailActivityDoneWizard(models.TransientModel):
         """計算已累計工時（activity.actual_hours）"""
         for wizard in self:
             wizard.accumulated_hours = wizard.activity_id.actual_hours or 0.0
+
+    @api.depends('activity_id')
+    def _compute_can_delete(self):
+        """建立者或最高管理者（base.group_system）才可刪除該待辦。"""
+        is_admin = self.env.user.has_group('base.group_system')
+        for wizard in self:
+            activity = wizard.activity_id
+            wizard.can_delete = bool(activity) and (
+                is_admin or activity.create_uid.id == self.env.uid
+            )
 
     @api.model
     def default_get(self, fields_list):
@@ -245,3 +262,25 @@ class MailActivityDoneWizard(models.TransientModel):
         """延至下週（開啟延期 wizard）"""
         self.ensure_one()
         return self.activity_id.action_postpone_wizard()
+
+    def action_delete_activity(self):
+        """刪除該待辦（建立者或最高管理者限定）。
+
+        回傳 act_window_close 並帶回 deleted_activity_id，供編輯器同步移除
+        對應的內嵌膠囊；其他開啟情境（清單/看板）則由父視圖自動刷新。
+        """
+        self.ensure_one()
+        activity = self.activity_id
+        if not activity:
+            return {'type': 'ir.actions.act_window_close'}
+        if not (self.env.user.has_group('base.group_system')
+                or activity.create_uid.id == self.env.uid):
+            raise UserError(_('Only the activity creator or an administrator can delete this to-do.'))
+        activity_id = activity.id
+        # 權限已於上方依「建立者/最高管理者」把關；用 sudo 執行 unlink，
+        # 避免建立者非指派人時被預設記錄規則擋下。
+        activity.sudo().unlink()
+        return {
+            'type': 'ir.actions.act_window_close',
+            'infos': {'deleted_activity_id': activity_id},
+        }

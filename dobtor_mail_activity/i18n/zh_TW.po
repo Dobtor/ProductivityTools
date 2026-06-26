@@ -5679,3 +5679,24 @@ msgstr "目標已知"
 #: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_create_wizard__target_ref
 msgid "Business document this activity is attached to. Leave empty to use your personal to-do note."
 msgstr "此活動掛載的業務文件；留空則使用您的個人待辦筆記。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_done_wizard__can_delete
+msgid "Can Delete"
+msgstr "可刪除"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
+msgid "Delete this to-do permanently? This cannot be undone."
+msgstr "永久刪除此待辦？此動作無法復原。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Only the activity creator or an administrator can delete this to-do."
+msgstr "只有待辦的建立者或最高管理者才能刪除。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_done_wizard__can_delete
+msgid "Only the activity creator or a system administrator may delete it."
+msgstr "只有待辦的建立者或系統管理者可刪除。"

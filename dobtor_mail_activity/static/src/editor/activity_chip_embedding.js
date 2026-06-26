@@ -14,6 +14,7 @@ import { _t } from "@web/core/l10n/translation";
 import { browser } from "@web/core/browser/browser";
 import {
     notifyActivityChanged,
+    notifyActivityDeleted,
     subscribeActivityChanged,
 } from "@dobtor_mail_activity/editor/activity_signal";
 import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
@@ -189,7 +190,15 @@ export class EmbeddedActivityChip extends Component {
             [this.props.activityId],
         ]);
         await this.action.doAction(ensureActionViews(action), {
-            onClose: () => notifyActivityChanged(),
+            // 完成 wizard 內按「刪除」會回傳 deleted_activity_id：
+            // 廣播刪除訊號讓所有編輯器移除對應膠囊；否則僅一般重載。
+            onClose: (infos) => {
+                if (infos && infos.deleted_activity_id) {
+                    notifyActivityDeleted(infos.deleted_activity_id);
+                } else {
+                    notifyActivityChanged();
+                }
+            },
         });
     }
 }
