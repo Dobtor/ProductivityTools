@@ -14,6 +14,7 @@ import { Component, useState, onWillStart } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
+import { activityStateClass } from "@dobtor_mail_activity/utils/activity_state";
 
 export class ActivityPickerDialog extends Component {
     static template = "dobtor_mail_activity.ActivityPickerDialog";
@@ -54,17 +55,7 @@ export class ActivityPickerDialog extends Component {
 
     /** 依狀態回傳時鐘色點 class（比照內嵌清單 / 原生列表視圖著色）。 */
     stateClass(act) {
-        if (!act.active) {
-            return "text-muted";
-        }
-        switch (act.state) {
-            case "overdue":
-                return "text-danger";
-            case "today":
-                return "text-warning";
-            default:
-                return "text-success";
-        }
+        return activityStateClass(act.state, { active: act.active });
     }
 
     onSelect(act) {

@@ -112,6 +112,38 @@ class TestActivityPostponeWizard(TransactionCase):
         self.assertEqual(activity.schedule_status, 'waiting')
         self.assertFalse(activity.planned_date)
 
+    def test_02_batch_postpone_wizard(self):
+        """測試批次延期 Wizard（多選）"""
+        def _make(summary):
+            return self.env['mail.activity'].create({
+                'summary': summary,
+                'activity_type_id': self.activity_type.id,
+                'res_model_id': self.env['ir.model']._get('note.note').id,
+                'res_id': self.note.id,
+                'date_deadline': date.today(),
+                'user_id': self.user.id,
+                'planned_date': date.today(),
+                'schedule_status': 'monday',
+            })
+
+        a1 = _make('批次延期1')
+        a2 = _make('批次延期2')
+
+        # 模擬清單多選入口：以 default_activity_ids 帶入
+        wizard = self.env['mail.activity.postpone.wizard'].with_context(
+            default_activity_ids=[a1.id, a2.id],
+        ).create({'reason': '批次延期原因'})
+
+        self.assertTrue(wizard.is_batch)
+        self.assertEqual(wizard.activity_count, 2)
+
+        wizard.action_postpone()
+
+        for activity in (a1, a2):
+            activity.invalidate_recordset()
+            self.assertEqual(activity.schedule_status, 'waiting')
+            self.assertFalse(activity.planned_date)
+
 
 @tagged('post_install', '-at_install')
 class TestActivityTransferWizard(TransactionCase):
@@ -150,15 +182,12 @@ class TestActivityTransferWizard(TransactionCase):
 
         wizard = self.env['mail.activity.transfer.wizard'].create({
             'activity_id': activity.id,
-            'target_model': 'note.note',
-            'target_id': self.note2.id,
+            'target_ref': f'note.note,{self.note2.id}',
         })
 
-        # 執行轉移（如果有此方法）
-        if hasattr(wizard, 'action_transfer'):
-            wizard.action_transfer()
-            activity.invalidate_recordset()
-            self.assertEqual(activity.res_id, self.note2.id)
+        wizard.action_transfer()
+        activity.invalidate_recordset()
+        self.assertEqual(activity.res_id, self.note2.id)
 
 
 @tagged('post_install', '-at_install')
@@ -200,8 +229,16 @@ class TestActivityReassignWizard(TransactionCase):
             'new_user_id': self.user2.id,
         })
 
-        # 執行重新指派（如果有此方法）
-        if hasattr(wizard, 'action_reassign'):
-            wizard.action_reassign()
-            activity.invalidate_recordset()
-            self.assertEqual(activity.user_id.id, self.user2.id)
+        wizard.action_confirm()
+        activity.invalidate_recordset()
+
+        # 改派會取消原待辦並為新負責人建立一筆新待辦
+        self.assertFalse(activity.active)
+        new_activity = self.env['mail.activity'].search([
+            ('res_model', '=', 'note.note'),
+            ('res_id', '=', self.note.id),
+            ('user_id', '=', self.user2.id),
+            ('active', '=', True),
+        ])
+        self.assertEqual(len(new_activity), 1)
+        self.assertEqual(new_activity.transferred_from_id, activity.id)

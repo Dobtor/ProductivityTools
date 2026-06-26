@@ -115,21 +115,6 @@ class MailActivityTransferConfig(models.Model):
         return configs.mapped('model')
 
     @api.model
-    def is_model_allowed(self, model_name):
-        """檢查模型是否在允許列表中
-
-        Args:
-            model_name: 模型的技術名稱（如 'res.partner'）
-
-        Returns:
-            bool: 是否允許
-        """
-        return bool(self.search_count([
-            ('model', '=', model_name),
-            ('active', '=', True),
-        ]))
-
-    @api.model
     def create_default_configs(self):
         """建立預設配置（供模組安裝時使用）
 

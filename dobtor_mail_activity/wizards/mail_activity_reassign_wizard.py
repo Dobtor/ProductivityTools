@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import api, fields, models, Command, _
+from odoo import fields, models, _
 from odoo.exceptions import UserError
 
 
@@ -15,60 +15,23 @@ class MailActivityReassignWizard(models.TransientModel):
     - 發送通知給新負責人
     """
     _name = 'mail.activity.reassign.wizard'
+    _inherit = 'mail.activity.action.wizard.mixin'
     _description = 'Reassign Activity Wizard'
 
-    # ===== 待辦資訊（唯讀）=====
-    activity_id = fields.Many2one(
-        'mail.activity',
-        string='Activity',
-        required=True,
-        readonly=True,
-        ondelete='cascade',
-    )
-    current_user_id = fields.Many2one(
-        'res.users',
-        string='Current Assignee',
-        related='activity_id.user_id',
-        readonly=True,
-    )
-    activity_summary = fields.Char(
-        string='Activity Summary',
-        related='activity_id.summary',
-        readonly=True,
-    )
-    activity_deadline = fields.Date(
-        string='Deadline',
-        related='activity_id.date_deadline',
-        readonly=True,
-    )
-    activity_type_name = fields.Char(
-        string='Activity Type',
-        related='activity_id.activity_type_id.name',
-        readonly=True,
-    )
+    # 待辦資訊（含 assignee_id = 目前指派人）由
+    # mail.activity.action.wizard.mixin 提供。
 
     # ===== 變更資訊 =====
     new_user_id = fields.Many2one(
         'res.users',
         string='New Assignee',
         required=True,
-        domain="[('id', '!=', current_user_id)]",
+        domain="[('id', '!=', assignee_id)]",
     )
     reason = fields.Text(
         string='Change Reason',
         help='Explain the reason for reassignment',
     )
-
-    @api.model
-    def default_get(self, fields_list):
-        """預設值處理：從 context 取得 activity_id"""
-        res = super().default_get(fields_list)
-
-        # 從 context 取得 activity_id
-        if 'activity_id' not in res and self.env.context.get('default_activity_id'):
-            res['activity_id'] = self.env.context.get('default_activity_id')
-
-        return res
 
     def _validate_reassign(self):
         """驗證變更指派操作"""
@@ -77,7 +40,7 @@ class MailActivityReassignWizard(models.TransientModel):
         if not self.new_user_id:
             raise UserError(_('Please select a new assignee.'))
 
-        if self.new_user_id == self.current_user_id:
+        if self.new_user_id == self.assignee_id:
             raise UserError(_('New assignee cannot be the same as current assignee.'))
 
         if not self.activity_id.exists():
@@ -93,7 +56,7 @@ class MailActivityReassignWizard(models.TransientModel):
         note = _(
             '\n\n--- %(date)s Reassigned ---\nFrom %(from_user)s to %(to_user)s',
             date=now_str,
-            from_user=self.current_user_id.name if self.current_user_id else _('Unassigned'),
+            from_user=self.assignee_id.name if self.assignee_id else _('Unassigned'),
             to_user=self.new_user_id.name,
         )
         if self.reason:
@@ -143,7 +106,7 @@ class MailActivityReassignWizard(models.TransientModel):
         self.ensure_one()
         return self.env['mail.activity.assignment.history'].sudo().create({
             'activity_id': new_activity.id,
-            'previous_user_id': self.current_user_id.id if self.current_user_id else False,
+            'previous_user_id': self.assignee_id.id if self.assignee_id else False,
             'new_user_id': self.new_user_id.id,
             'reason': self.reason or _('Reassignment'),
         })

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Advanced Activity Management',
-    'version': '18.0.1.3.0',
+    'version': '18.0.1.3.6',
     'category': 'Productivity',
     'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
     'description': """
@@ -96,6 +96,8 @@ Main Features:
         'web.assets_backend': [
             # Core (mail extensions)
             'dobtor_mail_activity/static/src/core/**/*',
+            # Shared utilities
+            'dobtor_mail_activity/static/src/utils/**/*',
             # Components
             'dobtor_mail_activity/static/src/components/**/*',
             # Views

@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import logging
-
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
-
-_logger = logging.getLogger(__name__)
 
 
 class MailActivityTransferWizard(models.TransientModel):
@@ -18,31 +14,19 @@ class MailActivityTransferWizard(models.TransientModel):
     - 標記待辦來源為「轉移」
     """
     _name = 'mail.activity.transfer.wizard'
+    _inherit = 'mail.activity.action.wizard.mixin'
     _description = 'Transfer Activity Wizard'
 
-    # ===== 待辦資訊（唯讀）=====
-    activity_id = fields.Many2one(
-        'mail.activity',
-        string='Activity',
-        required=True,
-        readonly=True,
-        ondelete='cascade',
-    )
+    # 待辦資訊（含 res_display = 來源文件）由
+    # mail.activity.action.wizard.mixin 提供。
+
+    # ===== 來源（轉移用，隱藏；res_display 已供顯示）=====
     source_model = fields.Char(
         string='Source Model',
         readonly=True,
     )
     source_id = fields.Integer(
         string='Source Record ID',
-        readonly=True,
-    )
-    source_display = fields.Char(
-        string='Source',
-        compute='_compute_source_display',
-    )
-    activity_summary = fields.Char(
-        string='Activity Summary',
-        related='activity_id.summary',
         readonly=True,
     )
 
@@ -60,12 +44,8 @@ class MailActivityTransferWizard(models.TransientModel):
 
     @api.model
     def default_get(self, fields_list):
-        """預設值處理：從 context 取得待辦和來源資訊"""
+        """預設值處理：取得 activity_id（mixin）後補來源資訊"""
         res = super().default_get(fields_list)
-
-        # 從 context 取得 activity_id
-        if 'activity_id' not in res and self.env.context.get('default_activity_id'):
-            res['activity_id'] = self.env.context.get('default_activity_id')
 
         # 從 context 取得來源資訊
         if self.env.context.get('default_source_model'):
@@ -81,24 +61,6 @@ class MailActivityTransferWizard(models.TransientModel):
                 res['source_id'] = activity.res_id
 
         return res
-
-    @api.depends('source_model', 'source_id')
-    def _compute_source_display(self):
-        """計算來源顯示名稱"""
-        for wizard in self:
-            if wizard.source_model and wizard.source_id:
-                try:
-                    record = self.env[wizard.source_model].browse(wizard.source_id)
-                    if record.exists():
-                        model_name = self.env['ir.model']._get(wizard.source_model).name
-                        wizard.source_display = f'{record.display_name} ({model_name})'
-                    else:
-                        wizard.source_display = _('(Record deleted)')
-                except Exception as e:
-                    _logger.debug('Failed to compute source_display: %s', str(e))
-                    wizard.source_display = f'ID {wizard.source_id} ({wizard.source_model})'
-            else:
-                wizard.source_display = False
 
     def _validate_transfer(self):
         """驗證轉移操作"""

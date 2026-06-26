@@ -14,6 +14,7 @@ export class RelatedNotes extends Component {
     setup() {
         this.orm = useService("orm");
         this.actionService = useService("action");
+        this.notification = useService("notification");
 
         this.state = useState({
             isExpanded: true,
@@ -47,8 +48,8 @@ export class RelatedNotes extends Component {
             );
             this.state.notes = notes;
         } catch (e) {
-            console.error('Failed to load related notes:', e);
             this.state.notes = [];
+            this.notification.add(_t("Failed to load related notes."), { type: "danger" });
         }
         this.state.isLoading = false;
     }

@@ -5700,3 +5700,52 @@ msgstr "只有待辦的建立者或最高管理者才能刪除。"
 #: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_done_wizard__can_delete
 msgid "Only the activity creator or a system administrator may delete it."
 msgstr "只有待辦的建立者或系統管理者可刪除。"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_create_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_reassign_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
+msgid "Priority & Assignment"
+msgstr "優先級與指派"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
+msgid "Transfer Target"
+msgstr "轉移目標"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/static/src/views/activity_list/activity_list_controller.xml:0
+msgid "Batch Complete"
+msgstr "批次完成"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_postpone_wizard__is_batch
+msgid "Batch Mode"
+msgstr "批次模式"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
+msgid "The selected activities will be postponed to next week. Only scheduled and active activities will be affected."
+msgstr "選取的待辦將延期至下週。僅排程中且作用中的待辦會被影響。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_postpone_wizard.py:0
+msgid "None of the selected activities can be postponed (already done, cancelled, or not scheduled)."
+msgstr "選取的待辦皆無法延期（已完成、已取消或尚未排程）。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/static/src/core/message_created_activities.js:0
+msgid "Failed to open the activity."
+msgstr "無法開啟待辦。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/static/src/core/message_created_activities.js:0
+msgid "Failed to open the transfer wizard."
+msgstr "無法開啟轉移精靈。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/static/src/components/related_notes/related_notes.js:0
+msgid "Failed to load related notes."
+msgstr "無法載入關聯筆記。"

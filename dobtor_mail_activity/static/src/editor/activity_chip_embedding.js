@@ -11,13 +11,14 @@ import { Component, useState, onWillStart, onWillUnmount } from "@odoo/owl";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { browser } from "@web/core/browser/browser";
 import {
     notifyActivityChanged,
     notifyActivityDeleted,
     subscribeActivityChanged,
 } from "@dobtor_mail_activity/editor/activity_signal";
 import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
+import { createBatchLoader } from "@dobtor_mail_activity/utils/batch_loader";
+import { activityStateClass } from "@dobtor_mail_activity/utils/activity_state";
 
 /**
  * 膠囊批次讀取器：同一頁多顆膠囊掛載時，將 50ms 內的單筆 read 合併成一次 RPC，
@@ -33,44 +34,19 @@ const CHIP_BATCH_FIELDS = [
     "importance",
     "date_deadline",
 ];
-let _chipPending = new Map(); // id -> [resolve, ...]
-let _chipTimer = null;
-let _chipOrm = null;
-
-function fetchActivityBrief(orm, id) {
-    _chipOrm = orm;
-    return new Promise((resolve) => {
-        if (!_chipPending.has(id)) {
-            _chipPending.set(id, []);
-        }
-        _chipPending.get(id).push(resolve);
-        if (!_chipTimer) {
-            _chipTimer = browser.setTimeout(_flushChipBatch, 50);
-        }
-    });
-}
-
-async function _flushChipBatch() {
-    const waiters = _chipPending;
-    const orm = _chipOrm;
-    _chipPending = new Map();
-    _chipTimer = null;
-    const ids = [...waiters.keys()];
-    const byId = {};
-    try {
+const fetchActivityBrief = createBatchLoader(
+    async (orm, ids) => {
         const recs = await orm.read("mail.activity", ids, CHIP_BATCH_FIELDS, {
             context: { active_test: false },
         });
+        const byId = {};
         for (const r of recs) {
             byId[r.id] = r;
         }
-    } catch (e) {
-        // 失敗則全部視為缺失（null）
-    }
-    for (const [id, resolvers] of waiters) {
-        resolvers.forEach((resolve) => resolve(byId[id] || null));
-    }
-}
+        return byId;
+    },
+    { fallback: null }
+);
 
 export class EmbeddedActivityChip extends Component {
     static template = "dobtor_mail_activity.EmbeddedActivityChip";
@@ -162,17 +138,11 @@ export class EmbeddedActivityChip extends Component {
         if (this.state.missing) {
             return "text-muted border-secondary";
         }
-        if (!this.state.active) {
-            return "o_dobtor_chip_done text-muted border-secondary";
-        }
-        switch (this.state.state) {
-            case "overdue":
-                return "text-danger border-danger";
-            case "today":
-                return "text-warning border-warning";
-            default:
-                return "text-success border-success";
-        }
+        const cls = activityStateClass(this.state.state, {
+            active: this.state.active,
+            withBorder: true,
+        });
+        return this.state.active ? cls : `o_dobtor_chip_done ${cls}`;
     }
 
     get label() {

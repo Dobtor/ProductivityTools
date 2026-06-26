@@ -41,7 +41,7 @@ export class ActivityFormController extends FormController {
                         views: [[false, "form"]],
                         target: "new",
                         context: {
-                            default_activity_ids: [this.model.root.resId],
+                            default_activity_id: this.model.root.resId,
                         },
                     });
                 },

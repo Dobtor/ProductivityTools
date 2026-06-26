@@ -4,6 +4,18 @@
     <!-- Activity List View with Week Selector -->
     <t t-name="dobtor_mail_activity.ActivityListView" t-inherit="web.ListView" t-inherit-mode="primary">
         <xpath expr="//t[@t-set-slot='control-panel-additional-actions']" position="inside">
+            <!-- Batch actions (shown when records are selected) -->
+            <div t-if="model.root.selection.length"
+                 class="o_activity_batch_actions ms-2 d-flex align-items-center">
+                <button class="btn btn-sm btn-secondary me-1"
+                        t-on-click="() => this.onBatchDone()">
+                    <i class="fa fa-check me-1"/>Batch Complete
+                </button>
+                <button class="btn btn-sm btn-secondary"
+                        t-on-click="() => this.onBatchPostpone()">
+                    <i class="fa fa-clock-o me-1"/>Batch Postpone
+                </button>
+            </div>
             <!-- Week Selector -->
             <div class="o_activity_week_selector ms-2 d-flex align-items-center">
                 <select class="form-select form-select-sm"

@@ -15,36 +15,12 @@ class MailActivityDoneWizard(models.TransientModel):
     - 觸發工時表記錄建立
     """
     _name = 'mail.activity.done.wizard'
+    _inherit = 'mail.activity.action.wizard.mixin'
     _description = 'Complete Activity Wizard'
 
-    # ===== 待辦資訊（唯讀）=====
-    activity_id = fields.Many2one(
-        'mail.activity',
-        string='Activity',
-        required=True,
-        readonly=True,
-        ondelete='cascade',
-    )
-    summary = fields.Char(
-        string='Activity Summary',
-        related='activity_id.summary',
-        readonly=True,
-    )
-    planned_date = fields.Date(
-        string='Planned Date',
-        related='activity_id.planned_date',
-        readonly=True,
-    )
-    estimated_hours = fields.Float(
-        string='Estimated Hours',
-        related='activity_id.estimated_hours',
-        readonly=True,
-    )
-    activity_type_name = fields.Char(
-        string='Activity Type',
-        related='activity_id.activity_type_id.name',
-        readonly=True,
-    )
+    # 待辦資訊（activity_id / summary / activity_type_name / date_deadline /
+    # planned_date / estimated_hours / urgency / importance / assignee_id /
+    # res_display / note_id）由 mail.activity.action.wizard.mixin 提供。
 
     # ===== 工時資訊 =====
     accumulated_hours = fields.Float(
@@ -119,12 +95,8 @@ class MailActivityDoneWizard(models.TransientModel):
 
     @api.model
     def default_get(self, fields_list):
-        """預設值處理：從 context 取得 activity_id 並預填執行工時"""
+        """預設值處理：取得 activity_id（mixin）後預填執行工時"""
         res = super().default_get(fields_list)
-
-        # 從 context 取得 activity_id
-        if 'activity_id' not in res and self.env.context.get('default_activity_id'):
-            res['activity_id'] = self.env.context.get('default_activity_id')
 
         # 預填執行工時：預估工時減去已累計工時
         if res.get('activity_id'):

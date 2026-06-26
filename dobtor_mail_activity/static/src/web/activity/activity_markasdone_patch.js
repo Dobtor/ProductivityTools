@@ -3,6 +3,7 @@
 import { ActivityMarkAsDone } from "@mail/core/web/activity_markasdone_popover";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
+import { _t } from "@web/core/l10n/translation";
 import { useState } from "@odoo/owl";
 
 /**
@@ -34,7 +35,7 @@ patch(ActivityMarkAsDone.prototype, {
             this.actionService.doAction(
                 {
                     type: "ir.actions.act_window",
-                    name: "Log and Continue",
+                    name: _t("Log and Continue"),
                     res_model: "mail.activity.done.wizard",
                     view_mode: "form",
                     views: [[false, "form"]],
@@ -70,7 +71,7 @@ patch(ActivityMarkAsDone.prototype, {
             this.actionService.doAction(
                 {
                     type: "ir.actions.act_window",
-                    name: "Postpone to Next Week",
+                    name: _t("Postpone to Next Week"),
                     res_model: "mail.activity.postpone.wizard",
                     view_mode: "form",
                     views: [[false, "form"]],
@@ -106,7 +107,7 @@ patch(ActivityMarkAsDone.prototype, {
             this.actionService.doAction(
                 {
                     type: "ir.actions.act_window",
-                    name: "Transfer",
+                    name: _t("Transfer"),
                     res_model: "mail.activity.transfer.wizard",
                     view_mode: "form",
                     views: [[false, "form"]],
@@ -142,7 +143,7 @@ patch(ActivityMarkAsDone.prototype, {
             this.actionService.doAction(
                 {
                     type: "ir.actions.act_window",
-                    name: "Reassign",
+                    name: _t("Reassign"),
                     res_model: "mail.activity.reassign.wizard",
                     view_mode: "form",
                     views: [[false, "form"]],

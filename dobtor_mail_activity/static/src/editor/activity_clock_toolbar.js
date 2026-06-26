@@ -21,6 +21,7 @@ import {
     notifyActivityChanged,
     subscribeActivityChanged,
 } from "@dobtor_mail_activity/editor/activity_signal";
+import { activityStateClass } from "@dobtor_mail_activity/utils/activity_state";
 
 export class ActivityClockToolbarButton extends Component {
     static template = "dobtor_mail_activity.ActivityClockToolbarButton";
@@ -95,16 +96,7 @@ export class ActivityClockToolbarButton extends Component {
     }
 
     get iconClass() {
-        switch (this.state.worst) {
-            case "overdue":
-                return "text-danger";
-            case "today":
-                return "text-warning";
-            case "planned":
-                return "text-success";
-            default:
-                return "text-muted";
-        }
+        return activityStateClass(this.state.worst, { mutedDefault: true });
     }
 
     get title() {

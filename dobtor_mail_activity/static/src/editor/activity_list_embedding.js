@@ -17,6 +17,7 @@ import {
     subscribeActivityChanged,
 } from "@dobtor_mail_activity/editor/activity_signal";
 import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
+import { activityStateClass } from "@dobtor_mail_activity/utils/activity_state";
 
 export class EmbeddedActivityList extends Component {
     static template = "dobtor_mail_activity.EmbeddedActivityList";
@@ -105,17 +106,7 @@ export class EmbeddedActivityList extends Component {
 
     /** 依狀態回傳時鐘色點 class（比照原生列表視圖著色）。 */
     stateClass(act) {
-        if (!act.active) {
-            return "text-muted";
-        }
-        switch (act.state) {
-            case "overdue":
-                return "text-danger";
-            case "today":
-                return "text-warning";
-            default:
-                return "text-success";
-        }
+        return activityStateClass(act.state, { active: act.active });
     }
 
     /** 勾選完成：沿用模組標準完成 wizard（可填工時/回饋）。 */

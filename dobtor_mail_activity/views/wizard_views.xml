@@ -2,6 +2,13 @@
 <odoo>
 
     <!-- =====================================================
+         動作型待辦 Wizard 共用「待辦資訊」區塊
+         四個 wizard（完成/延期/轉移/改派）皆顯示同一套唯讀待辦資訊，
+         欄位由 mail.activity.action.wizard.mixin 提供，確保資訊完整對齊。
+         以下每個 form 都重複同一段 group 區塊。
+         ===================================================== -->
+
+    <!-- =====================================================
          完成待辦 Wizard (mail.activity.done.wizard)
          ===================================================== -->
 
@@ -18,32 +25,57 @@
                             invisible="not can_delete"
                             confirm="Delete this to-do permanently? This cannot be undone."/>
                 </header>
+                <field name="activity_id" invisible="1"/>
+                <field name="schedule_next" invisible="1"/>
+
+                <!-- 摘要 -->
+                <div class="oe_title">
+                    <h1>
+                        <field name="summary" readonly="1" placeholder="Activity summary"/>
+                    </h1>
+                </div>
+
+                <!-- 待辦資訊（統一區塊）-->
                 <group>
                     <group string="Activity Information">
-                        <field name="activity_id" invisible="1"/>
-                        <field name="summary" readonly="1"/>
-                        <field name="activity_type_name" readonly="1"/>
-                        <field name="planned_date" readonly="1"/>
-                        <field name="estimated_hours" widget="float_time" readonly="1"/>
+                        <field name="activity_type_name"/>
+                        <field name="date_deadline"/>
+                        <field name="planned_date"/>
+                        <field name="estimated_hours" widget="float_time"/>
                     </group>
-                    <group string="Time Information">
-                        <field name="accumulated_hours" widget="float_time" readonly="1"/>
-                        <field name="actual_hours" widget="float_time"/>
+                    <group string="Priority &amp; Assignment">
+                        <field name="urgency"/>
+                        <field name="importance"/>
+                        <field name="assignee_id" widget="many2one_avatar_user"/>
                     </group>
                 </group>
-                <group string="Feedback/Description">
-                    <field name="feedback" nolabel="1" placeholder="Enter completion feedback or description..."/>
+                <group string="Related Information">
+                    <field name="res_display"/>
+                    <field name="note_id"/>
                 </group>
-                <group string="Attachments">
-                    <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+
+                <!-- 完成專屬：工時 -->
+                <group string="Time Information">
+                    <field name="accumulated_hours" widget="float_time" readonly="1"/>
+                    <field name="actual_hours" widget="float_time"/>
                 </group>
-                <field name="schedule_next" invisible="1"/>
-                <group string="Schedule Next Activity" invisible="not schedule_next">
-                    <field name="next_activity_type_id" invisible="not schedule_next"/>
-                    <field name="next_date_deadline" invisible="not schedule_next"/>
-                    <field name="next_summary" invisible="not schedule_next"/>
-                    <field name="next_user_id" widget="many2one_avatar_user" invisible="not schedule_next"/>
-                </group>
+
+                <notebook>
+                    <page string="Feedback" name="feedback">
+                        <field name="feedback" nolabel="1" placeholder="Enter completion feedback or description..."/>
+                    </page>
+                    <page string="Attachments" name="attachments">
+                        <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                    </page>
+                    <page string="Schedule Next Activity" name="schedule_next" invisible="not schedule_next">
+                        <group>
+                            <field name="next_activity_type_id" invisible="not schedule_next"/>
+                            <field name="next_date_deadline" invisible="not schedule_next"/>
+                            <field name="next_summary" invisible="not schedule_next"/>
+                            <field name="next_user_id" widget="many2one_avatar_user" invisible="not schedule_next"/>
+                        </group>
+                    </page>
+                </notebook>
                 <footer>
                     <button string="Complete" name="action_done" type="object" class="btn-primary"/>
                     <button string="Log and Continue" name="action_log_and_continue" type="object"
@@ -74,22 +106,58 @@
         <field name="model">mail.activity.postpone.wizard</field>
         <field name="arch" type="xml">
             <form string="Postpone to Next Week">
-                <group>
+                <field name="activity_id" invisible="1"/>
+                <field name="activity_ids" invisible="1"/>
+                <field name="activity_count" invisible="1"/>
+                <field name="is_batch" invisible="1"/>
+
+                <!-- 摘要（單筆）-->
+                <div class="oe_title" invisible="is_batch">
+                    <h1>
+                        <field name="summary" readonly="1" placeholder="Activity summary"/>
+                    </h1>
+                </div>
+
+                <!-- 批次橫幅 -->
+                <div class="alert alert-warning" role="alert" invisible="not is_batch">
+                    <i class="fa fa-clock-o me-1"/>
+                    <span>The selected activities will be postponed to next week. Only scheduled and active activities will be affected.</span>
+                </div>
+
+                <!-- 待辦資訊（統一區塊，單筆顯示）-->
+                <group invisible="is_batch">
                     <group string="Activity Information">
-                        <field name="activity_id" invisible="1"/>
-                        <field name="summary" readonly="1"/>
-                        <field name="planned_date" readonly="1"/>
-                        <field name="date_deadline" readonly="1"/>
-                        <field name="postpone_count" readonly="1"/>
+                        <field name="activity_type_name"/>
+                        <field name="date_deadline"/>
+                        <field name="planned_date"/>
+                        <field name="estimated_hours" widget="float_time"/>
+                    </group>
+                    <group string="Priority &amp; Assignment">
+                        <field name="urgency"/>
+                        <field name="importance"/>
+                        <field name="assignee_id" widget="many2one_avatar_user"/>
                     </group>
                 </group>
-                <group string="Postpone Reason">
-                    <field name="reason" nolabel="1" placeholder="Please explain the reason for postponement..." required="1"/>
+                <group string="Related Information" invisible="is_batch">
+                    <field name="res_display"/>
+                    <field name="note_id"/>
                 </group>
-                <div class="alert alert-info" role="alert" invisible="postpone_count == 0">
+
+                <!-- 延期專屬（單筆）-->
+                <group string="Postpone" invisible="is_batch">
+                    <field name="postpone_count" readonly="1"/>
+                </group>
+
+                <div class="alert alert-info" role="alert" invisible="is_batch or postpone_count == 0">
                     <i class="fa fa-info-circle"/>
                     This activity has been postponed <field name="postpone_count" readonly="1" nolabel="1" class="d-inline"/> times.
                 </div>
+
+                <notebook>
+                    <page string="Postpone Reason" name="reason">
+                        <field name="reason" nolabel="1" placeholder="Please explain the reason for postponement..." required="1"/>
+                    </page>
+                </notebook>
                 <footer>
                     <button string="Confirm Postpone" name="action_postpone" type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
@@ -114,20 +182,41 @@
         <field name="model">mail.activity.transfer.wizard</field>
         <field name="arch" type="xml">
             <form string="Transfer Activity">
+                <field name="activity_id" invisible="1"/>
+                <field name="source_model" invisible="1"/>
+                <field name="source_id" invisible="1"/>
+
+                <!-- 摘要 -->
+                <div class="oe_title">
+                    <h1>
+                        <field name="summary" readonly="1" placeholder="Activity summary"/>
+                    </h1>
+                </div>
+
+                <!-- 待辦資訊（統一區塊）-->
                 <group>
                     <group string="Activity Information">
-                        <field name="activity_id" invisible="1"/>
-                        <field name="activity_summary" readonly="1" string="Summary"/>
+                        <field name="activity_type_name"/>
+                        <field name="date_deadline"/>
+                        <field name="planned_date"/>
+                        <field name="estimated_hours" widget="float_time"/>
                     </group>
-                    <group string="Source">
-                        <field name="source_model" invisible="1"/>
-                        <field name="source_id" invisible="1"/>
-                        <field name="source_display" readonly="1" string="Source Document"/>
+                    <group string="Priority &amp; Assignment">
+                        <field name="urgency"/>
+                        <field name="importance"/>
+                        <field name="assignee_id" widget="many2one_avatar_user"/>
                     </group>
                 </group>
-                <group string="Target">
+                <group string="Related Information">
+                    <field name="res_display" string="Source Document"/>
+                    <field name="note_id"/>
+                </group>
+
+                <!-- 轉移專屬：目標 -->
+                <group string="Transfer Target">
                     <field name="target_ref" string="Target Record" options="{'no_create': True}" required="1"/>
                 </group>
+
                 <div class="alert alert-info" role="alert">
                     <i class="fa fa-info-circle"/>
                     After transfer, the activity will be linked to the selected target record. The original source will be recorded for tracking.
@@ -156,23 +245,43 @@
         <field name="model">mail.activity.reassign.wizard</field>
         <field name="arch" type="xml">
             <form string="Reassign Activity">
+                <field name="activity_id" invisible="1"/>
+
+                <!-- 摘要 -->
+                <div class="oe_title">
+                    <h1>
+                        <field name="summary" readonly="1" placeholder="Activity summary"/>
+                    </h1>
+                </div>
+
+                <!-- 待辦資訊（統一區塊）-->
                 <group>
-                    <group string="Original Activity Information">
-                        <field name="activity_id" invisible="1"/>
-                        <field name="activity_summary" readonly="1" string="Summary"/>
-                        <field name="activity_type_name" readonly="1" string="Type"/>
-                        <field name="activity_deadline" readonly="1" string="Due Date"/>
-                        <field name="current_user_id" readonly="1"
-                               widget="many2one_avatar_user" string="Current Assignee"/>
+                    <group string="Activity Information">
+                        <field name="activity_type_name"/>
+                        <field name="date_deadline"/>
+                        <field name="planned_date"/>
+                        <field name="estimated_hours" widget="float_time"/>
                     </group>
-                    <group string="New Assignment">
-                        <field name="new_user_id"
-                               widget="many2one_avatar_user"
-                               options="{'no_create': True}"
-                               required="1"/>
-                        <field name="reason" placeholder="Explain reason for change (optional)..."/>
+                    <group string="Priority &amp; Assignment">
+                        <field name="urgency"/>
+                        <field name="importance"/>
+                        <field name="assignee_id" widget="many2one_avatar_user" string="Current Assignee"/>
                     </group>
                 </group>
+                <group string="Related Information">
+                    <field name="res_display"/>
+                    <field name="note_id"/>
+                </group>
+
+                <!-- 改派專屬：新指派 -->
+                <group string="New Assignment">
+                    <field name="new_user_id"
+                           widget="many2one_avatar_user"
+                           options="{'no_create': True}"
+                           required="1"/>
+                    <field name="reason" placeholder="Explain reason for change (optional)..."/>
+                </group>
+
                 <div class="alert alert-warning" role="alert">
                     <i class="fa fa-exclamation-triangle me-1"/>
                     After confirmation, the original activity will be cancelled and a new activity will be created for the selected assignee.

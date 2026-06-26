@@ -103,65 +103,6 @@
     </record>
 
     <!-- ============================================================ -->
-    <!-- mail.activity Form View (Quick Create)                        -->
-    <!-- 快速建立表單，供系統欄快捷鍵使用                                -->
-    <!-- ============================================================ -->
-    <record id="mail_activity_view_form_quick" model="ir.ui.view">
-        <field name="name">mail.activity.view.form.quick</field>
-        <field name="model">mail.activity</field>
-        <field name="priority">5</field>
-        <field name="arch" type="xml">
-            <form string="New Activity">
-                <sheet>
-                    <!-- 摘要 - 置頂明顯 -->
-                    <group>
-                        <field name="summary" placeholder="Enter activity summary..."
-                               nolabel="1" colspan="2"
-                               style="font-size: 1.2em; font-weight: 500;"/>
-                    </group>
-
-                    <!-- 目標文件 -->
-                    <group>
-                        <field name="res_model_id" invisible="1"/>
-                        <field name="res_id" invisible="1"/>
-                        <field name="target_ref" string="Target Document"
-                               readonly="id"
-                               options="{'no_create': True}"/>
-                    </group>
-
-                    <group>
-                        <!-- 左側：基本資訊 -->
-                        <group>
-                            <field name="activity_type_id" string="Activity Type"
-                                   required="1" options="{'no_create': True, 'no_open': True}"/>
-                            <field name="date_deadline" string="Due Date"
-                                   readonly="id and create_uid != uid"/>
-                            <field name="estimated_hours" string="Estimated Hours" widget="float_time"/>
-                        </group>
-
-                        <!-- 右側：優先級 + 指派 -->
-                        <group>
-                            <field name="urgency" string="Urgency" widget="radio" options="{'horizontal': true}"/>
-                            <field name="importance" string="Importance" widget="radio" options="{'horizontal': true}"/>
-                            <field name="user_id" string="Assign To" widget="many2one_avatar_user"
-                                   readonly="id"/>
-                        </group>
-                    </group>
-
-                    <!-- 備註 -->
-                    <group>
-                        <field name="note" placeholder="Activity note (optional)..." nolabel="1" colspan="2"/>
-                    </group>
-                </sheet>
-                <footer>
-                    <button string="Save" special="save" data-hotkey="s" class="btn-primary"/>
-                    <button string="Cancel" special="cancel" data-hotkey="c"/>
-                </footer>
-            </form>
-        </field>
-    </record>
-
-    <!-- ============================================================ -->
     <!-- mail.activity Form View (Schedule)                            -->
     <!-- 完整的待辦表單，含狀態列和所有詳細資訊                          -->
     <!-- ============================================================ -->
@@ -215,40 +156,29 @@
                         </h1>
                     </div>
 
-                    <!-- 4列資訊排版 -->
-                    <group col="4">
-                        <!-- 基本 -->
-                        <group string="Basic">
-                            <field name="state" string="Status" widget="badge"
-                                   decoration-info="state == 'planned'"
-                                   decoration-warning="state == 'today'"
-                                   decoration-danger="state == 'overdue'"/>
-                            <field name="activity_type_id" string="Type"
+                    <group>
+                        <!-- 左側 -->
+                        <group>
+                            <field name="activity_type_id" string="Activity Type"
                                    options="{'no_create': True}"/>
-                            <field name="res_name" string="Related Document" readonly="1"
-                                   invisible="not res_name"/>
-                            <field name="note_id" string="Note" readonly="1"
-                                   invisible="not note_id"/>
-                            <field name="target_ref" string="Target Document"
-                                   readonly="id"
-                                   options="{'no_create': True}"
-                                   placeholder="Leave empty to use default note"/>
-                        </group>
-
-                        <!-- 優先 -->
-                        <group string="Priority">
-                            <field name="urgency" string="Urgency" widget="radio"
-                                   options="{'horizontal': true}"/>
-                            <field name="importance" string="Importance" widget="radio"
-                                   options="{'horizontal': true}"/>
+                            <field name="date_deadline" string="Due Date"
+                                   readonly="id and create_uid != uid"/>
                             <field name="estimated_hours" string="Estimated Hours"
                                    widget="float_time"/>
                             <field name="actual_hours" string="Actual Hours"
                                    widget="float_time" readonly="1"/>
+                            <field name="state" string="Status" widget="badge"
+                                   decoration-info="state == 'planned'"
+                                   decoration-warning="state == 'today'"
+                                   decoration-danger="state == 'overdue'"/>
                         </group>
 
-                        <!-- 指派 -->
-                        <group string="Assignment">
+                        <!-- 右側 -->
+                        <group>
+                            <field name="urgency" string="Urgency" widget="radio"
+                                   options="{'horizontal': true}"/>
+                            <field name="importance" string="Importance" widget="radio"
+                                   options="{'horizontal': true}"/>
                             <field name="user_id" string="Assign To"
                                    widget="many2one_avatar_user"
                                    options="{'no_create': True}"
@@ -256,13 +186,26 @@
                             <field name="create_uid" string="Created By"
                                    widget="many2one_avatar_user" readonly="1"/>
                             <field name="create_date" string="Created Date" readonly="1"/>
-                            <field name="partner_id" string="Related Customer" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <!-- 關聯資訊 -->
+                        <group string="Related Information">
+                            <field name="target_ref" string="Target Document"
+                                   readonly="id"
+                                   options="{'no_create': True}"
+                                   placeholder="Leave empty to use default note"/>
+                            <field name="res_name" string="Related Document" readonly="1"
+                                   invisible="not res_name"/>
+                            <field name="note_id" string="Note" readonly="1"
+                                   invisible="not note_id"/>
+                            <field name="partner_id" string="Related Customer" readonly="1"
+                                   invisible="not partner_id"/>
                         </group>
 
-                        <!-- 時程 -->
-                        <group string="Schedule">
-                            <field name="date_deadline" string="Due Date"
-                                   readonly="id and create_uid != uid"/>
+                        <!-- 排程資訊 -->
+                        <group string="Schedule Info">
                             <field name="planned_date" string="Planned Date"
                                    readonly="1"/>
                             <field name="schedule_week" string="Schedule Week" readonly="1"/>

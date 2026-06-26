@@ -18,19 +18,38 @@
                 <field name="res_ids" invisible="1"/>
                 <field name="source_message_id" invisible="1"/>
 
-                <!-- 摘要 - 置頂明顯 -->
+                <!-- 摘要 -->
+                <div class="oe_title">
+                    <h1>
+                        <field name="summary" placeholder="Enter activity summary..."/>
+                    </h1>
+                </div>
+
                 <group>
-                    <field name="summary" placeholder="Enter activity summary..."
-                           nolabel="1" colspan="2"
-                           style="font-size: 1.2em; font-weight: 500;"/>
+                    <!-- 左側 -->
+                    <group string="Activity Information">
+                        <field name="activity_type_id" string="Activity Type"
+                               options="{'no_create': True}" required="1"/>
+                        <field name="date_deadline" string="Due Date" required="1"/>
+                        <field name="estimated_hours" string="Estimated Hours"
+                               widget="float_time"/>
+                    </group>
+
+                    <!-- 右側 -->
+                    <group string="Priority &amp; Assignment">
+                        <field name="urgency" string="Urgency" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <field name="importance" string="Importance" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <field name="activity_user_id" string="Assign To"
+                               widget="many2one_avatar_user"
+                               options="{'no_create': True}"/>
+                    </group>
                 </group>
 
-                <!-- 分區群組（4 欄 = 左右各兩區）-->
-                <group col="4">
-                    <!-- 基本：類型 + 目標文件 + 關聯筆記 -->
-                    <group string="Basic">
-                        <field name="activity_type_id" string="Type"
-                               options="{'no_create': True}" required="1"/>
+                <group>
+                    <!-- 關聯資訊 -->
+                    <group string="Related Information">
                         <!-- res 已知 → 唯讀顯示；未知 → 可輸入 target -->
                         <field name="res_display" string="Target Document"
                                readonly="1" invisible="not res_known"/>
@@ -39,35 +58,13 @@
                         <field name="note_id" string="Related Note"
                                options="{'no_create': True}"/>
                     </group>
-
-                    <!-- 優先 -->
-                    <group string="Priority">
-                        <field name="urgency" string="Urgency" widget="radio"
-                               options="{'horizontal': true}"/>
-                        <field name="importance" string="Importance" widget="radio"
-                               options="{'horizontal': true}"/>
-                        <field name="estimated_hours" string="Estimated Hours"
-                               widget="float_time"/>
-                    </group>
-
-                    <!-- 指派 -->
-                    <group string="Assignment">
-                        <field name="activity_user_id" string="Assign To"
-                               widget="many2one_avatar_user"
-                               options="{'no_create': True}"/>
-                    </group>
-
-                    <!-- 時程 -->
-                    <group string="Schedule">
-                        <field name="date_deadline" string="Due Date" required="1"/>
-                    </group>
                 </group>
 
-                <!-- 備註 -->
-                <group string="Note">
-                    <field name="note" placeholder="Activity note (optional)..."
-                           nolabel="1" colspan="2"/>
-                </group>
+                <notebook>
+                    <page string="Note" name="note">
+                        <field name="note" placeholder="Activity note (optional)..."/>
+                    </page>
+                </notebook>
 
                 <footer>
                     <button string="Create To-do" name="action_create_todo"
