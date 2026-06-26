@@ -4,6 +4,7 @@ import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { setupActivityWeek, ActivityWeekMethods } from "../activity_week_controller_mixin";
+import { ActivityScheduleFormDialog } from "./activity_kanban_schedule_dialog";
 
 export class ActivityKanbanController extends KanbanController {
     static template = "dobtor_mail_activity.ActivityKanbanView";
@@ -11,7 +12,40 @@ export class ActivityKanbanController extends KanbanController {
     setup() {
         super.setup();
         this.actionService = useService("action");
+        this.dialogService = useService("dialog");
         setupActivityWeek(this);
+    }
+
+    /** 左上角「New」改開統一建立待辦 wizard（取代 inline 建立）。 */
+    createRecord() {
+        return this.actionService.doAction(
+            {
+                type: "ir.actions.act_window",
+                name: _t("Create To-do"),
+                res_model: "mail.activity.create.wizard",
+                view_mode: "form",
+                views: [[false, "form"]],
+                target: "new",
+                context: this.props.context || {},
+            },
+            { onClose: () => this.model.root.load() }
+        );
+    }
+
+    /**
+     * 點卡片改開 schedule 表單彈窗（取代整頁導航）。
+     * 彈窗自帶官方展開鈕，已覆寫為導向當前 kanban action 的全畫面。
+     */
+    openRecord(record) {
+        const formView = (this.env.config.views || []).find((v) => v[1] === "form");
+        this.dialogService.add(ActivityScheduleFormDialog, {
+            resModel: this.props.resModel,
+            resId: record.resId,
+            viewId: formView ? formView[0] : false,
+            context: this.props.context,
+            expandActionId: this.env.config.actionId,
+            onRecordSaved: () => this.model.root.load(),
+        });
     }
 
     /**
@@ -86,22 +120,6 @@ export class ActivityKanbanController extends KanbanController {
 
     async scheduleToWeek3() {
         await this.scheduleToWeek(3);
-    }
-
-    async onCreateActivity() {
-        // 統一走「建立待辦」wizard（無目標文件 → 顯示 target 輸入）
-        await this.actionService.doAction(
-            {
-                type: 'ir.actions.act_window',
-                name: _t('Create To-do'),
-                res_model: 'mail.activity.create.wizard',
-                view_mode: 'form',
-                views: [[false, 'form']],
-                target: 'new',
-                context: this.props.context,
-            },
-            { onClose: () => this.model.root.load() }
-        );
     }
 }
 

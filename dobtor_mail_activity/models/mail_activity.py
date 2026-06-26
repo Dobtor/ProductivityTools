@@ -359,7 +359,14 @@ class MailActivity(models.Model):
         :param bind: 'note' 綁 note_id、'res' 綁 res_model/res_id、其他綁個人筆記
         """
         if bind == 'note' and note_id:
-            return [('note_id', '=', int(note_id))]
+            note_id = int(note_id)
+            # note.note 編輯器：除了 res 指向本筆記，也以 note_id 關聯顯示
+            # （即使活動 res 指向其他文件，只要 note_id 是本筆記也納入）。
+            return [
+                '|',
+                '&', ('res_model', '=', 'note.note'), ('res_id', '=', note_id),
+                ('note_id', '=', note_id),
+            ]
         if bind == 'res' and res_model and res_id:
             return [('res_model', '=', res_model), ('res_id', '=', int(res_id))]
         note = self.env.user._get_or_create_default_activity_note()

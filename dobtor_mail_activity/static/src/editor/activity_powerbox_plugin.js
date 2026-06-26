@@ -142,11 +142,18 @@ export class ActivityPowerboxPlugin extends Plugin {
     }
 
     /** 指令①：建立待辦 —— 摘要取自「/」之前整段文字。
-     *  依需求：powerbox 一律顯示 target 輸入、不帶入當前 res（不傳 active_model）。 */
+     *  依需求：powerbox 一律顯示 target 輸入、不帶入當前 res（不傳 active_model）；
+     *  但若在 note.note 內，帶入當前 note_id（活動以 note_id 關聯本筆記）。 */
     openCreateTodoWizard() {
         const selection = this.dependencies.selection.getEditableSelection();
         const block = closestBlock(selection.anchorNode);
         const summary = (block ? block.textContent : "").trim();
+        const { resModel, resId } = this.getRecordInfo();
+
+        const context = { default_summary: summary };
+        if (resModel === "note.note" && resId) {
+            context.default_note_id = resId;
+        }
 
         this.services.action.doAction(
             {
@@ -156,9 +163,7 @@ export class ActivityPowerboxPlugin extends Plugin {
                 view_mode: "form",
                 views: [[false, "form"]],
                 target: "new",
-                context: {
-                    default_summary: summary,
-                },
+                context,
             },
             {
                 // wizard.action_create_activity 回傳 infos.activity_id；
