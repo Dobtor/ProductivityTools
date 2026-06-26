@@ -97,6 +97,11 @@ export class EmbeddedActivityList extends Component {
         return this.state.activities.filter((a) => !a.active);
     }
 
+    /** 已完成/取消的顯示文字（可翻譯）。 */
+    doneLabel(act) {
+        return act.activity_status === "cancelled" ? _t("Cancelled") : _t("Done");
+    }
+
     /** 依狀態回傳時鐘色點 class（比照原生列表視圖著色）。 */
     stateClass(act) {
         if (!act.active) {

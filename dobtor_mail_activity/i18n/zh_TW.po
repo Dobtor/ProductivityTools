@@ -5548,3 +5548,88 @@ msgstr "簽名"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.view_note_note_form
 msgid "Link notes..."
 msgstr "關聯筆記..."
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_list_embedding.js:0
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_from_editor_wizard_view_form
+msgid "Create To-do"
+msgstr "建立待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+msgid "Turn this line into a to-do activity"
+msgstr "將這一行變成待辦活動"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+msgid "Activity List"
+msgstr "活動清單"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+msgid "Insert a live to-do list for this document"
+msgstr "為此文件插入即時待辦清單"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_powerbox_plugin.js:0
+msgid "To-do / Activity"
+msgstr "待辦 / 活動"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_clock_toolbar.js:0
+msgid "%s activities"
+msgstr "%s 筆活動"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_clock_toolbar.js:0
+msgid "Show activities"
+msgstr "顯示活動"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_chip_embedding.js:0
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_list_embedding.xml:0
+msgid "To-do"
+msgstr "待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_chip_embedding.js:0
+msgid "(deleted)"
+msgstr "（已刪除）"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_list_embedding.xml:0
+msgid "Show more"
+msgstr "顯示更多"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_list_embedding.xml:0
+msgid "Add to-do"
+msgstr "新增待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_list_embedding.xml:0
+msgid "No to-do yet. Type \"/Create To-do\" or click below to add one."
+msgstr "尚無待辦。輸入「/建立待辦」或點下方新增。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_from_editor_wizard__target_ref
+msgid "Business document this activity is attached to (its chatter shows the clock)."
+msgstr "此活動掛載的業務文件（其討論串會顯示時鐘）。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_from_editor_wizard__note_id
+msgid "Note whose to-do list will show this activity (independent of the target document)."
+msgstr "會在待辦清單顯示此活動的筆記（與目標文件獨立）。"

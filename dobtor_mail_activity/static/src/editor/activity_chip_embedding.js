@@ -10,6 +10,7 @@
 import { Component, useState, onWillStart, onWillUnmount } from "@odoo/owl";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { useService } from "@web/core/utils/hooks";
+import { _t } from "@web/core/l10n/translation";
 import { browser } from "@web/core/browser/browser";
 import {
     notifyActivityChanged,
@@ -141,9 +142,9 @@ export class EmbeddedActivityChip extends Component {
 
     get label() {
         if (this.state.missing) {
-            return "(deleted)";
+            return _t("(deleted)");
         }
-        return this.state.summary || "To-do";
+        return this.state.summary || _t("To-do");
     }
 
     async onClick() {

@@ -9,4 +9,10 @@
         </record>
 
     </data>
+
+    <!-- 安裝/升級時補齊預設可作為「目標文件」的模型（含 project.task / project.project /
+         res.partner / crm.lead / sale.order ... 未安裝的模組自動略過、已存在者略過）。
+         置於非 noupdate 區塊，使每次 -u 升級都會補上新近安裝模組的設定。 -->
+    <function model="mail.activity.transfer.config" name="create_default_configs"/>
+
 </odoo>

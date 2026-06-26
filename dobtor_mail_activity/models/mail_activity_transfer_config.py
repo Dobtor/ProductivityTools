@@ -163,8 +163,8 @@ class MailActivityTransferConfig(models.Model):
             if not model:
                 continue
 
-            # 檢查是否已有配置
-            existing = self.search([('model', '=', model_name)])
+            # 檢查是否已有配置（含已停用者，避免升級時重複建立）
+            existing = self.with_context(active_test=False).search([('model', '=', model_name)])
             if existing:
                 continue
 

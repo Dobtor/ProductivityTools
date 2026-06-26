@@ -38,8 +38,7 @@
                 <i class="fa fa-check fa-fw me-2"/>
                 <span class="flex-grow-1 text-truncate text-decoration-line-through"
                       t-att-title="act.summary" t-esc="act.summary"/>
-                <span class="small mx-2"
-                      t-esc="act.activity_status === 'cancelled' ? 'Cancelled' : 'Done'"/>
+                <span class="small mx-2" t-esc="doneLabel(act)"/>
             </div>
 
             <!-- 顯示更多 -->

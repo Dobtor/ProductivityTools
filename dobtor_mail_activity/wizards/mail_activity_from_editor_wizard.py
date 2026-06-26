@@ -41,12 +41,6 @@ class MailActivityFromEditorWizard(models.TransientModel):
         help='Note whose to-do list will show this activity (independent of the target document).',
     )
 
-    # ===== 編輯器來源記錄（隱藏）=====
-    # 當編輯器所在模型不在 target_ref 可選清單（transfer.config）時，仍可用這對
-    # 欄位把待辦掛到該記錄上，不必先把模型加進設定。
-    editor_res_model = fields.Char(string='Editor Model')
-    editor_res_id = fields.Integer(string='Editor Record Id')
-
     # ===== 待辦設定 =====
     activity_type_id = fields.Many2one(
         'mail.activity.type',
@@ -108,24 +102,18 @@ class MailActivityFromEditorWizard(models.TransientModel):
 
         allowed_models = {m for m, _n in self._selection_target_model()}
 
-        if res_model and res_id:
-            # 確認記錄存在再帶入，避免指向不存在記錄
+        if res_model and res_id and res_model in allowed_models:
+            # 確認記錄存在再帶入，避免 Reference 指向不存在記錄
             target = self.env[res_model].browse(res_id)
             if target.exists():
-                # 一律保留來源記錄（即使不在允許清單，_prepare 仍可掛上）
-                if 'editor_res_model' in fields_list:
-                    res['editor_res_model'] = res_model
-                if 'editor_res_id' in fields_list:
-                    res['editor_res_id'] = res_id
-                # 在允許清單者，順帶填 target_ref 供使用者檢視/改選
-                if res_model in allowed_models and 'target_ref' in fields_list:
+                if 'target_ref' in fields_list:
                     res['target_ref'] = '%s,%s' % (res_model, res_id)
                 # 關聯筆記預設：A 情境=本筆記、B 情境=個人筆記
                 if 'note_id' in fields_list and not res.get('note_id'):
                     res['note_id'] = res_id if res_model == 'note.note' \
                         else self._default_personal_note_id()
 
-        # 情境 C 或無來源：關聯筆記退回個人待辦筆記
+        # 情境 C、無來源、或來源模型不在允許清單：關聯筆記退回個人待辦筆記
         if 'note_id' in fields_list and not res.get('note_id'):
             res['note_id'] = self._default_personal_note_id()
 
@@ -148,11 +136,13 @@ class MailActivityFromEditorWizard(models.TransientModel):
             raise UserError(_('Target record does not exist.'))
 
     def _prepare_activity_values(self):
-        """準備建立待辦的值（同時寫入 res_* 目標與 note_id 關聯）
+        """準備建立待辦的值（資料關聯與既有設計一致：target_ref→res + note_id）
 
         - 有選 target_ref → res_model/res_id = 該文件，note_id = 所選筆記
         - 未選 target_ref 但有 note_id → res = 該筆記（避免 create() fallback 蓋掉所選筆記）
         - 兩者皆空 → 不設 res，交由 mail.activity.create() 自動掛個人待辦筆記
+
+        partner_id / res_name 由 mail.activity 依 res 自動衍生，不在此設定。
         """
         self.ensure_one()
         vals = {
@@ -170,16 +160,10 @@ class MailActivityFromEditorWizard(models.TransientModel):
         if self.note_id:
             vals['note_id'] = self.note_id.id
 
-        allowed_models = {m for m, _n in self._selection_target_model()}
         if self.target_ref:
             model_id = self.env['ir.model']._get(self.target_ref._name)
             vals['res_model_id'] = model_id.id
             vals['res_id'] = self.target_ref.id
-        elif (self.editor_res_model and self.editor_res_id
-              and self.editor_res_model not in allowed_models):
-            # 來源模型不在 target_ref 可選清單，仍掛到該記錄上
-            vals['res_model_id'] = self.env['ir.model']._get(self.editor_res_model).id
-            vals['res_id'] = self.editor_res_id
         elif self.note_id:
             # 僅有筆記、無目標文件：把目標也設為該筆記，避免 create() 自動 fallback
             vals['res_model_id'] = self.env['ir.model']._get('note.note').id

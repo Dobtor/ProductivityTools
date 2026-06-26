@@ -285,10 +285,6 @@
         <field name="model">mail.activity.from.editor.wizard</field>
         <field name="arch" type="xml">
             <form string="Create To-do">
-                <!-- 編輯器來源記錄（隱藏，但必須在視圖內才會被載入/送出）-->
-                <field name="editor_res_model" invisible="1"/>
-                <field name="editor_res_id" invisible="1"/>
-
                 <!-- 摘要 - 置頂明顯（由編輯器「/」之前整段文字帶入）-->
                 <group>
                     <field name="summary" placeholder="Enter activity summary..."
