@@ -143,18 +143,18 @@ export class EmbeddedActivityChip extends Component {
     get urgencyClass() {
         switch (this.state.urgency) {
             case "urgent":
-                return "fa-angle-double-up text-danger";
+                return "fa-bolt text-danger"; // ⚡
             case "flexible":
-                return "fa-angle-double-down text-muted";
+                return "fa-leaf text-muted"; // 🌱 (FA4.7 等義，原指定 fa-seedling 不存在)
             default:
-                return "fa-minus text-secondary";
+                return "fa-tasks text-secondary"; // 📋 (FA4.7 等義，原指定 fa-list-check 不存在)
         }
     }
 
     get importanceClass() {
         return this.state.importance === "important"
-            ? "fa-star text-warning"
-            : "fa-star-o text-muted";
+            ? "fa-fire text-warning" // 🔥
+            : "fa-hourglass-end text-muted"; // ⏳
     }
 
     get chipClass() {
