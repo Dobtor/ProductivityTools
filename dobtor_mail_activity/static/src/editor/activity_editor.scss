@@ -29,13 +29,13 @@
 .o_dobtor_activity_chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.15rem 0.55rem;
+    gap: 0.3em;
+    padding: 0.1em 0.5em;
     margin: 0 0.15em;
-    font-size: 0.85em;
-    line-height: 1.5;
+    font-size: 1em;        // 跟隨編輯器原生字級 → 日期文字＝原生大小
+    line-height: 1;
     border: 1px solid;
-    border-radius: 50rem; // 全圓角藥丸，撐住標準頭像仍維持比例
+    border-radius: 50rem;  // 全圓角藥丸
     cursor: pointer;
     user-select: none;
     vertical-align: middle;
@@ -47,25 +47,21 @@
         text-overflow: ellipsis;
     }
 
-    // 頭像維持標準大小（24px），膠囊已放大容納
+    // 頭像、圖示、日期等比例（皆 1em）；日期文字＝編輯器原生字級。
     .o_dobtor_chip_avatar {
-        width: 24px;
-        height: 24px;
+        width: 1em;
+        height: 1em;
         border-radius: 50%;
         object-fit: cover;
         flex: 0 0 auto;
     }
 
-    // 圖示與日期文字放大到頭像高度（24px）：line-height:1 使行框=字級，
-    // 不超過頭像高度，膠囊不再變高。
+    // 圖示繼承膠囊字級（1em＝原生）
     .fa {
-        font-size: 24px;
         line-height: 1;
     }
 
     .o_dobtor_chip_due {
-        font-size: 24px;
-        line-height: 1;
         font-variant-numeric: tabular-nums;
     }
 
