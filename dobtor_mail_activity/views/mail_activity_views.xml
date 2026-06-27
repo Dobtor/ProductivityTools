@@ -16,6 +16,7 @@
                 <!-- 隱藏欄位 -->
                 <field name="res_model_id" invisible="1"/>
                 <field name="res_id" invisible="1"/>
+                <field name="can_edit_as_assignee" invisible="1"/>
 
                 <!-- 摘要 - 置頂明顯 -->
                 <group>
@@ -61,7 +62,7 @@
                         <field name="date_deadline" string="Due Date"
                                readonly="id and create_uid != uid"/>
                         <field name="planned_date" string="Planned Date"
-                               readonly="1"/>
+                               readonly="planned_date or not can_edit_as_assignee"/>
                     </group>
                 </group>
             </xpath>
@@ -148,6 +149,9 @@
                     <!-- 隱藏欄位 -->
                     <field name="id" invisible="1"/>
                     <field name="res_model_id" invisible="1"/>
+                    <!-- 欄位層級編輯權限（建立者 / 被指派者）-->
+                    <field name="can_edit_as_creator" invisible="1"/>
+                    <field name="can_edit_as_assignee" invisible="1"/>
 
                     <!-- 摘要 - 置頂明顯 -->
                     <div class="oe_title">
@@ -160,11 +164,13 @@
                         <!-- 左側 -->
                         <group>
                             <field name="activity_type_id" string="Activity Type"
-                                   options="{'no_create': True}"/>
+                                   options="{'no_create': True}"
+                                   readonly="not can_edit_as_creator"/>
                             <field name="date_deadline" string="Due Date"
-                                   readonly="id and create_uid != uid"/>
+                                   readonly="not can_edit_as_creator"/>
                             <field name="estimated_hours" string="Estimated Hours"
-                                   widget="float_time"/>
+                                   widget="float_time"
+                                   readonly="not can_edit_as_assignee"/>
                             <field name="actual_hours" string="Actual Hours"
                                    widget="float_time" readonly="1"/>
                             <field name="state" string="Status" widget="badge"
@@ -176,9 +182,11 @@
                         <!-- 右側 -->
                         <group>
                             <field name="urgency" string="Urgency" widget="radio"
-                                   options="{'horizontal': true}"/>
+                                   options="{'horizontal': true}"
+                                   readonly="not can_edit_as_creator"/>
                             <field name="importance" string="Importance" widget="radio"
-                                   options="{'horizontal': true}"/>
+                                   options="{'horizontal': true}"
+                                   readonly="not can_edit_as_creator"/>
                             <field name="user_id" string="Assign To"
                                    widget="many2one_avatar_user"
                                    options="{'no_create': True}"
@@ -193,21 +201,23 @@
                         <!-- 關聯資訊 -->
                         <group string="Related Information">
                             <field name="target_ref" string="Target Document"
-                                   readonly="id"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"
                                    placeholder="Leave empty to use default note"/>
                             <field name="res_name" string="Related Document" readonly="1"
                                    invisible="not res_name"/>
-                            <field name="note_id" string="Note" readonly="1"
-                                   invisible="not note_id"/>
+                            <field name="note_id" string="Note"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                                   options="{'no_create': True}"/>
                             <field name="partner_id" string="Related Customer" readonly="1"
                                    invisible="not partner_id"/>
                         </group>
 
                         <!-- 排程資訊 -->
                         <group string="Schedule Info">
+                            <!-- 空值 + 被指派者：可直接挑日期；一旦有值即唯讀（改期走狀態列/延期）。 -->
                             <field name="planned_date" string="Planned Date"
-                                   readonly="1"/>
+                                   readonly="planned_date or not can_edit_as_assignee"/>
                             <field name="schedule_week" string="Schedule Week" readonly="1"/>
                             <field name="schedule_origin" string="Schedule Origin" readonly="1"/>
                             <field name="schedule_warning" string="Warning"
@@ -352,6 +362,7 @@
                 <field name="schedule_week"/>
                 <field name="schedule_week_number"/>
                 <field name="active"/>
+                <field name="can_edit_as_assignee"/>
 
                 <!-- 進度條：依時間性顯示 -->
                 <progressbar field="urgency" colors='{"urgent": "danger", "standard": "warning", "flexible": "success"}'
@@ -380,6 +391,11 @@
                                  class="alert alert-warning d-flex align-items-center py-1 px-2 mb-1 small"
                                  role="alert">
                                 <i class="fa fa-exclamation-triangle me-1" title="Warning"/><span t-esc="record.schedule_warning.value"/>
+                            </div>
+
+                            <!-- 排定列：空值卡可直接挑日期；有值卡顯示唯讀 badge -->
+                            <div class="mb-1">
+                                <field name="planned_date" widget="planned_date_picker"/>
                             </div>
 
                             <!-- 第二列：截止日期(左) + [緊急][類型](右) -->
@@ -516,8 +532,9 @@
                 <field name="importance" string="Importance"/>
                 <field name="estimated_hours" string="Estimated Hours" widget="float_time" sum="Total"/>
                 <field name="actual_hours" string="Actual Hours" widget="float_time" sum="Total" optional="show"/>
+                <field name="can_edit_as_assignee" column_invisible="1"/>
                 <field name="planned_date" string="Planned Date" optional="show"
-                       readonly="1"/>
+                       widget="planned_date_picker"/>
                 <field name="date_deadline" string="Due Date" widget="remaining_days"
                        readonly="id and create_uid != uid"/>
                 <field name="schedule_status" string="Schedule" widget="schedule_day"/>
@@ -625,10 +642,13 @@
         <field name="name">mail.activity.view.calendar.schedule</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
+            <!-- 只顯示已排 planned_date 的待辦（無 planned_date 者 calendar 原生即不顯示）；
+                 事件橫跨 planned_date(起) → date_deadline(迄)。唯讀展示：停用拖曳/縮放
+                 （改期一律走排程 form / 拖曳卡 / 延期，避免跨週與改 deadline 後門）。 -->
             <calendar string="Activity Calendar"
                       js_class="activity_calendar"
                       date_start="planned_date"
-                      date_stop="planned_date"
+                      date_stop="date_deadline"
                       color="user_id"
                       mode="month"
                       event_open_popup="true"

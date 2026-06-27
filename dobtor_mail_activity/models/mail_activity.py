@@ -238,6 +238,18 @@ class MailActivity(models.Model):
         string='Completion Feedback',
     )
 
+    # ===== 欄位層級編輯權限（依當前使用者與待辦的關係，非儲存）=====
+    # 供表單以 readonly 綁定：建立者可編輯類型/急迫/重要/截止日，被指派者可編輯
+    # 預估工時；相關文件/筆記兩者皆可。系統管理員與新記錄一律視為可編輯。
+    can_edit_as_creator = fields.Boolean(
+        string='Editable by Creator',
+        compute='_compute_edit_roles',
+    )
+    can_edit_as_assignee = fields.Boolean(
+        string='Editable by Assignee',
+        compute='_compute_edit_roles',
+    )
+
     # ===== 關聯顯示（設定驅動，不綁定特定模組）=====
     # partner_id 由 mail.activity.transfer.config 指定的 partner 欄位
     #（或自動探測模型上的 'partner_id'）派生；「關聯文件」顯示沿用既有的
@@ -853,10 +865,60 @@ class MailActivity(models.Model):
                 activity.needs_schedule_by = weekday_map.get(weekday)
                 activity.schedule_warning = _('Needs to be scheduled by %(weekday)s', weekday=weekday_names.get(weekday, ''))
 
+    @api.depends('create_uid', 'user_id')
+    def _compute_edit_roles(self):
+        """計算當前使用者對此待辦的編輯角色（建立者 / 被指派者）。
+
+        非儲存計算，每次讀取以當前 env.user 求值。系統管理員與尚未建立的
+        新記錄一律視為可編輯，避免擋住管理與建立流程。
+        """
+        uid = self.env.uid
+        is_admin = self.env.user.has_group('base.group_system')
+        for activity in self:
+            is_new = not activity.id
+            activity.can_edit_as_creator = (
+                is_new or is_admin or activity.create_uid.id == uid
+            )
+            activity.can_edit_as_assignee = (
+                is_new or is_admin
+                or (bool(activity.user_id) and activity.user_id.id == uid)
+            )
+
     # ========== Override Methods ==========
 
     def write(self, vals):
         """覆寫 write 方法以記錄指派變更"""
+        # 驗證：欄位層級編輯權限（建立者 vs 被指派者）。
+        # 建立者可改：類型/急迫/重要（截止日另有專屬守衛）；
+        # 被指派者可改：預估工時；相關文件/筆記兩者皆可。
+        # 豁免：su、系統管理員、轉移作業（帶 transferred_from_model）。
+        if not self.env.su and not self.env.user.has_group('base.group_system'):
+            creator_only = {'urgency', 'importance', 'activity_type_id'}
+            assignee_only = {'estimated_hours'}
+            # target_ref（computed Reference，inverse 寫 res_model_id/res_id）一併納入
+            related_fields = {'res_model_id', 'res_id', 'note_id', 'target_ref'}
+            changed = set(vals.keys())
+            is_transfer = 'transferred_from_model' in vals
+            uid = self.env.uid
+            for activity in self:
+                if not activity.id:
+                    continue
+                is_creator = activity.create_uid.id == uid
+                is_assignee = bool(activity.user_id) and activity.user_id.id == uid
+                if (creator_only & changed) and not is_creator:
+                    raise UserError(_(
+                        'Only the creator can edit the activity type, urgency or importance.'
+                    ))
+                if (assignee_only & changed) and not is_assignee:
+                    raise UserError(_(
+                        'Only the assignee can edit the estimated hours.'
+                    ))
+                if (related_fields & changed) and not is_transfer \
+                        and not (is_creator or is_assignee):
+                    raise UserError(_(
+                        'Only the creator or assignee can change the related document or note.'
+                    ))
+
         # 驗證：date_deadline 只有建立者或系統管理員可以修改
         if 'date_deadline' in vals and not self.env.su:
             for activity in self:
@@ -869,13 +931,33 @@ class MailActivity(models.Model):
                             creator=activity.create_uid.name,
                         ))
 
-        # 驗證：planned_date 只能透過排程操作更新（拖曳/延期/週轉換）
+        # 驗證：planned_date 直接寫入（無 schedule_status）的新規則
+        #   - 空值卡：可直接挑日期 → 放行，並由日期反推 schedule_status（擋過去）。
+        #   - 有值卡：禁止直接改日期 → 只能同週換天（拖曳/狀態列）或延期清空。
         if 'planned_date' in vals and 'schedule_status' not in vals:
-            if not self.env.context.get('skip_schedule_check', False) and not self.env.su:
-                raise UserError(_(
-                    'Planned date cannot be modified directly.\n'
-                    'Please use drag-and-drop on the Kanban board or the schedule bar to update it.'
-                ))
+            new_planned = vals.get('planned_date')
+            is_internal = self.env.context.get('skip_schedule_check', False)
+            if new_planned and not is_internal and not self.env.su:
+                # 有值卡不可直接改日期
+                for activity in self:
+                    if activity.planned_date:
+                        raise UserError(_(
+                            'Planned date cannot be changed directly once set.\n'
+                            'Use same-week drag-and-drop or the schedule bar to change the '
+                            'day, or use "Postpone" to clear it first.'
+                        ))
+                # 擋過去：直接挑的日期不可早於今天
+                new_planned_date = fields.Date.to_date(new_planned)
+                if new_planned_date < fields.Date.today():
+                    raise UserError(_('Planned date cannot be earlier than today.'))
+                # 空值首次設定：由日期星期幾反推 schedule_status
+                weekday_status_map = {
+                    0: 'monday', 1: 'tuesday', 2: 'wednesday', 3: 'thursday',
+                    4: 'friday', 5: 'saturday', 6: 'sunday',
+                }
+                vals['schedule_status'] = weekday_status_map[new_planned_date.weekday()]
+                if 'schedule_origin' not in vals:
+                    vals['schedule_origin'] = 'inserted'
 
         # 驗證：user_id 建立後只能透過領取或變更指派操作修改
         # 豁免：calendar.event._sync_activities() 同步日曆事件時會連帶寫入 user_id
@@ -935,38 +1017,104 @@ class MailActivity(models.Model):
                     })
 
         # 處理排程狀態變更時自動設定計畫日期和來源標記
+        per_record_planned = None
         if 'schedule_status' in vals and vals['schedule_status'] != 'waiting':
             weekday_map = {
                 'monday': 0, 'tuesday': 1, 'wednesday': 2,
                 'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6
             }
             target_weekday = weekday_map.get(vals['schedule_status'])
-            if target_weekday is not None:
-                # 自動設定計畫日期
-                if 'planned_date' not in vals:
-                    # 優先使用前端傳遞的週次日期對應表（拖曳時傳入）
-                    week_dates = self.env.context.get('schedule_week_dates')
-                    target_day_key = vals['schedule_status']
-                    if week_dates and target_day_key in week_dates:
-                        try:
-                            vals['planned_date'] = fields.Date.to_date(week_dates[target_day_key])
-                        except (ValueError, TypeError):
-                            week_dates = None  # 格式錯誤，回退到計算方式
+            if target_weekday is not None and 'planned_date' not in vals:
+                # 換天（無明確 planned_date）：逐筆推導日期
+                #   - 有值卡：鎖該筆「自身週」內換天，不跨週。
+                #   - 空值卡：依檢視 context（拖曳日期 / 當前週）放置。
+                per_record_planned = {}
+                for activity in self:
+                    if activity.planned_date:
+                        wk_start = activity.planned_date - timedelta(
+                            days=activity.planned_date.weekday())
+                        per_record_planned[activity.id] = \
+                            wk_start + timedelta(days=target_weekday)
+                    else:
+                        per_record_planned[activity.id] = \
+                            self._derive_planned_date_from_context(
+                                vals['schedule_status'], target_weekday)
 
-                    if 'planned_date' not in vals:
-                        # 回退：根據目前週次計算日期
-                        schedule_week_number = self.env.context.get('schedule_current_week', 0)
-                        today = fields.Date.today()
-                        current_week_start = today - timedelta(days=today.weekday())
-                        target_week_start = current_week_start + timedelta(days=7 * schedule_week_number)
-                        vals['planned_date'] = target_week_start + timedelta(days=target_weekday)
+            # 如果來源尚未設定，標記為臨時插入（僅當所有記錄均無 origin 時）
+            if 'schedule_origin' not in vals:
+                if all(not act.schedule_origin for act in self):
+                    vals['schedule_origin'] = 'inserted'
 
-                # 如果來源尚未設定，標記為臨時插入（僅當所有記錄均無 origin 時）
-                if 'schedule_origin' not in vals:
-                    if all(not act.schedule_origin for act in self):
-                        vals['schedule_origin'] = 'inserted'
+        # 寫入：若各筆推導出不同日期，逐筆寫入；否則單次寫入。
+        if per_record_planned is not None:
+            distinct_dates = set(per_record_planned.values())
+            if len(distinct_dates) <= 1:
+                if distinct_dates:
+                    vals['planned_date'] = distinct_dates.pop()
+                result = super().write(vals)
+            else:
+                result = True
+                for activity in self:
+                    rec_vals = dict(vals, planned_date=per_record_planned[activity.id])
+                    result = super(MailActivity, activity).write(rec_vals)
+        else:
+            result = super().write(vals)
 
-        return super().write(vals)
+        # 維持不變式 planned_date <= date_deadline：逾期則順延截止日並留 log。
+        self._enforce_deadline_invariant()
+
+        return result
+
+    def _derive_planned_date_from_context(self, status_key, target_weekday):
+        """空值卡換天時，依前端檢視 context 推導計畫日期。
+
+        優先採用拖曳帶入的當週日期對應表（schedule_week_dates）；否則依
+        目前檢視週次（schedule_current_week）計算。「全部」檢視無單一週次
+        （非整數）時 fallback 為本週。
+        """
+        week_dates = self.env.context.get('schedule_week_dates')
+        if week_dates and status_key in week_dates:
+            try:
+                return fields.Date.to_date(week_dates[status_key])
+            except (ValueError, TypeError):
+                pass
+        schedule_week_number = self.env.context.get('schedule_current_week', 0)
+        if not isinstance(schedule_week_number, int):
+            schedule_week_number = 0  # 「全部」檢視 → 預設本週
+        today = fields.Date.today()
+        current_week_start = today - timedelta(days=today.weekday())
+        target_week_start = current_week_start + timedelta(days=7 * schedule_week_number)
+        return target_week_start + timedelta(days=target_weekday)
+
+    def _enforce_deadline_invariant(self):
+        """維持 planned_date <= date_deadline 不變式。
+
+        計畫日期晚於截止日（直接挑遠期、或建立者把截止日縮短到計畫日之前）時，
+        以系統權限把截止日順延/拉回到計畫日（繞過「建立者限定」守門），並留下
+        notification log。skip_deadline_invariant 防遞迴（自然停止點為兩者相等）。
+        """
+        if self.env.context.get('skip_deadline_invariant'):
+            return
+        log_bodies = {}
+        for activity in self:
+            planned = activity.planned_date
+            deadline = activity.date_deadline
+            if planned and deadline and planned > deadline:
+                activity.sudo().with_context(
+                    skip_schedule_check=True,
+                    skip_deadline_invariant=True,
+                    tracking_disable=True,  # 避免與下方明確 log 重複的自動追蹤訊息
+                ).write({'date_deadline': planned})
+                log_bodies[activity.id] = _(
+                    'Due date adjusted to keep it on/after the planned date: '
+                    '%(old)s → %(new)s (planned date %(planned)s).',
+                    old=deadline.strftime('%Y-%m-%d'),
+                    new=planned.strftime('%Y-%m-%d'),
+                    planned=planned.strftime('%Y-%m-%d'),
+                )
+        # 純記錄（不發通知給 follower），多筆一次寫入。
+        if log_bodies:
+            self._message_log_batch(bodies=log_bodies)
 
     # ===== 覆寫完成邏輯 =====
     def _action_done(self, feedback=False, attachment_ids=None):
@@ -1463,10 +1611,11 @@ class MailActivity(models.Model):
     # ========== 週次排程方法 ==========
 
     def action_schedule_to_week(self, week_number):
-        """將待辦排程至指定週次
+        """將待辦排程至指定週次（保持原星期幾，移動到目標週）。
 
         Args:
-            week_number: -1=上週, 0=本週, 1=下週, 2=第三週, 3=第四週
+            week_number: 相對週次偏移（-1=上週, 0=本週, 1=下週；正數為未來週，
+                走 scheduled_date 預排）。
         Returns:
             重新載入視圖的 action
         """
@@ -1522,19 +1671,12 @@ class MailActivity(models.Model):
         """排程至下週"""
         return self.action_schedule_to_week(1)
 
-    def action_schedule_to_week2(self):
-        """排程至第三週"""
-        return self.action_schedule_to_week(2)
-
-    def action_schedule_to_week3(self):
-        """排程至第四週"""
-        return self.action_schedule_to_week(3)
-
     @api.model
     def get_week_info(self):
-        """取得五週的日期資訊（供前端使用）：上週、本週、下週、第三週、第四週
+        """取得週次選單資訊（供前端使用）：上週、本週、下週、全部。
 
-        使用單次 read_group 查詢所有 5 週的統計資料，取代原本 5 次獨立查詢。
+        以單次 read_group 統計上/本/下週的數量與工時，另對「全部」做一次無
+        週次過濾的彙總（含 waiting / 遠期 / 無日期）。
         """
         today = fields.Date.today()
         current_week_start = today - timedelta(days=today.weekday())
@@ -1547,11 +1689,9 @@ class MailActivity(models.Model):
             (-1, selection_labels.get('week_prev', 'Previous Week'), 'week_prev'),
             (0, selection_labels.get('week0', 'This Week'), 'week0'),
             (1, selection_labels.get('week1', 'Next Week'), 'week1'),
-            (2, selection_labels.get('week2', 'Week 3'), 'week2'),
-            (3, selection_labels.get('week3', 'Week 4'), 'week3'),
         ]
 
-        # 單次查詢：以 schedule_week_number 分組統計所有 5 週的待辦數量和工時
+        # 單次查詢：以 schedule_week_number 分組統計上/本/下週的待辦數量和工時
         all_week_numbers = [wc[0] for wc in week_configs]
         activities_data = self.read_group(
             domain=[
@@ -1602,6 +1742,27 @@ class MailActivity(models.Model):
                 'total_hours': stats['total_hours'],
                 'dates': dates,
             })
+
+        # 「全部」：無週次過濾的整體彙總（含 waiting / 遠期 / 無日期）
+        all_data = self.read_group(
+            domain=[('active', '=', True), ('user_id', '=', self.env.uid)],
+            fields=['estimated_hours:sum'],
+            groupby=[],
+        )
+        all_count = all_data[0]['__count'] if all_data else 0
+        all_hours = (all_data[0]['estimated_hours'] or 0) if all_data else 0
+        all_name = _('All')
+        weeks.append({
+            'number': 'all',
+            'name': all_name,
+            'display_name': '%s[%d]' % (all_name, all_count),
+            'key': 'all',
+            'start_date': False,
+            'end_date': False,
+            'count': all_count,
+            'total_hours': all_hours,
+            'dates': {},
+        })
 
         return weeks
 

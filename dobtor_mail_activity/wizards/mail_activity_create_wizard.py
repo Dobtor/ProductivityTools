@@ -40,6 +40,12 @@ class MailActivityCreateWizard(models.TransientModel):
         help='Business document this activity is attached to. '
              'Leave empty to use your personal to-do note.',
     )
+    # 由 note.note 編輯器建立時：不自動帶入 res，但要求必選目標文件（res_id 必填）。
+    target_required = fields.Boolean(
+        string='Target Required',
+        help='When set (e.g. created from a note editor), a target document '
+             'must be chosen instead of falling back to the personal note.',
+    )
 
     # ===== 獨立關聯筆記 =====
     note_id = fields.Many2one(
@@ -171,6 +177,8 @@ class MailActivityCreateWizard(models.TransientModel):
             raise UserError(_('Please select an activity type.'))
         if not self.date_deadline:
             raise UserError(_('Please select a deadline.'))
+        if self.target_required and not self.res_known and not self.target_ref:
+            raise UserError(_('Please select a target document.'))
         if not self.res_known and self.target_ref and not self.target_ref.exists():
             raise UserError(_('Target record does not exist.'))
 

@@ -4954,3 +4954,83 @@ msgstr "週報排程"
 #: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
 msgid "預排下週重要工作"
 msgstr "預排下週重要工作"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "Only the creator can edit the activity type, urgency or importance."
+msgstr "只有建立者可編輯待辦類型、急迫程度或重要性。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "Only the assignee can edit the estimated hours."
+msgstr "只有被指派者可編輯預估工時。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "Only the creator or assignee can change the related document or note."
+msgstr "只有建立者或被指派者可變更相關文件或筆記。"
+
+#. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_create_wizard.py:0
+msgid "Please select a target document."
+msgstr "請選擇目標文件。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__can_edit_as_creator
+msgid "Editable by Creator"
+msgstr "建立者可編輯"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__can_edit_as_assignee
+msgid "Editable by Assignee"
+msgstr "被指派者可編輯"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_create_wizard__target_required
+msgid "Target Required"
+msgstr "必選目標文件"
+
+msgid "Set date"
+msgstr "排定日期"
+
+msgid "Planned date cannot be earlier than today."
+msgstr "計畫日期不可早於今天。"
+
+msgid ""
+"Planned date cannot be changed directly once set.\n"
+"Use same-week drag-and-drop or the schedule bar to change the day, or use \"Postpone\" to clear it first."
+msgstr ""
+"計畫日期一旦設定即不可直接修改。\n"
+"請以同週內拖曳或狀態列換天，或先用「延期」清空後再重設。"
+
+msgid ""
+"Due date adjusted to keep it on/after the planned date: %(old)s → %(new)s "
+"(planned date %(planned)s)."
+msgstr "截止日期已調整以不早於計畫日期：%(old)s → %(new)s（計畫日期 %(planned)s）。"
+
+msgid "Planned Date Picker"
+msgstr "計畫日期挑選器"
+
+msgid "Mon"
+msgstr "週一"
+
+msgid "Tue"
+msgstr "週二"
+
+msgid "Wed"
+msgstr "週三"
+
+msgid "Thu"
+msgstr "週四"
+
+msgid "Fri"
+msgstr "週五"
+
+msgid "Sat"
+msgstr "週六"
+
+msgid "Sun"
+msgstr "週日"
+
+msgid "Planned date set to %s (visible in the All view)."
+msgstr "已排定計畫日期 %s（於「全部」檢視可見）。"

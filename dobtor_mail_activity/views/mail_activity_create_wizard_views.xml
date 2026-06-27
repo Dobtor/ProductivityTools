@@ -16,6 +16,7 @@
                 <field name="res_known" invisible="1"/>
                 <field name="res_model" invisible="1"/>
                 <field name="res_ids" invisible="1"/>
+                <field name="target_required" invisible="1"/>
                 <field name="source_message_id" invisible="1"/>
 
                 <!-- 摘要 -->
@@ -54,7 +55,8 @@
                         <field name="res_display" string="Target Document"
                                readonly="1" invisible="not res_known"/>
                         <field name="target_ref" string="Target Document"
-                               options="{'no_create': True}" invisible="res_known"/>
+                               options="{'no_create': True}" invisible="res_known"
+                               required="target_required and not res_known"/>
                         <field name="note_id" string="Related Note"
                                options="{'no_create': True}"/>
                     </group>

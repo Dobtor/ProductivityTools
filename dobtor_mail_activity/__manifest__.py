@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Advanced Activity Management',
-    'version': '18.0.1.3.6',
+    'version': '18.0.1.5.0',
     'category': 'Productivity',
     'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
     'description': """

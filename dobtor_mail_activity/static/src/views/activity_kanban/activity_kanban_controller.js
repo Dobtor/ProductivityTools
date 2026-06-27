@@ -113,14 +113,6 @@ export class ActivityKanbanController extends KanbanController {
     async scheduleToNextWeek() {
         await this.scheduleToWeek(1);
     }
-
-    async scheduleToWeek2() {
-        await this.scheduleToWeek(2);
-    }
-
-    async scheduleToWeek3() {
-        await this.scheduleToWeek(3);
-    }
 }
 
 Object.assign(ActivityKanbanController.prototype, ActivityWeekMethods);

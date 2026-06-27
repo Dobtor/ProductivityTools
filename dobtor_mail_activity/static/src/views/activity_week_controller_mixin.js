@@ -72,8 +72,7 @@ export const ActivityWeekMethods = {
                 { number: -1, name: _t('Previous Week'), display_name: _t('Previous Week'), key: 'week_prev', count: 0, total_hours: 0, dates: {} },
                 { number: 0, name: _t('This Week'), display_name: _t('This Week'), key: 'week0', count: 0, total_hours: 0, dates: {} },
                 { number: 1, name: _t('Next Week'), display_name: _t('Next Week'), key: 'week1', count: 0, total_hours: 0, dates: {} },
-                { number: 2, name: _t('Week 3'), display_name: _t('Week 3'), key: 'week2', count: 0, total_hours: 0, dates: {} },
-                { number: 3, name: _t('Week 4'), display_name: _t('Week 4'), key: 'week3', count: 0, total_hours: 0, dates: {} },
+                { number: 'all', name: _t('All'), display_name: _t('All'), key: 'all', count: 0, total_hours: 0, dates: {} },
             ];
         }
         this.weekState.isLoading = false;
@@ -163,13 +162,19 @@ export const ActivityWeekMethods = {
     },
 
     _buildWeekDomain(weekNumber) {
+        const baseDomain = this._baseDomain || this._filterWeekDomain(this.props.domain || []);
+
+        // 「全部」：不加任何週次過濾，顯示所有（含 waiting / 遠期 / 無日期）
+        if (weekNumber === 'all') {
+            return baseDomain && baseDomain.length ? [...baseDomain] : [];
+        }
+
         const weekFilter = [
             '|',
             ['schedule_status', '=', 'waiting'],
             ['schedule_week_number', '=', weekNumber]
         ];
 
-        const baseDomain = this._baseDomain || this._filterWeekDomain(this.props.domain || []);
         if (baseDomain && baseDomain.length) {
             return [...baseDomain, ...weekFilter];
         }
@@ -182,7 +187,8 @@ export const ActivityWeekMethods = {
     },
 
     async onWeekSelectChange(ev) {
-        const weekNumber = parseInt(ev.target.value, 10);
+        const raw = ev.target.value;
+        const weekNumber = raw === 'all' ? 'all' : parseInt(raw, 10);
         await this.selectWeek(weekNumber);
     },
 

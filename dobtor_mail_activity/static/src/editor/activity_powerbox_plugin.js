@@ -152,7 +152,9 @@ export class ActivityPowerboxPlugin extends Plugin {
 
         const context = { default_summary: summary };
         if (resModel === "note.note" && resId) {
+            // note.note 編輯器：不自動帶入 res，但要求必選目標文件（res_id 必填）。
             context.default_note_id = resId;
+            context.default_target_required = true;
         }
 
         this.services.action.doAction(

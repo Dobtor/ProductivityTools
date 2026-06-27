@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_mail_activity.PlannedDatePickerField">
+        <t t-if="hasValue">
+            <span class="badge text-bg-info o_planned_date_badge" title="Planned Date">
+                <i class="fa fa-calendar me-1"/><t t-esc="displayLabel"/>
+            </span>
+        </t>
+        <t t-elif="isEditable">
+            <button type="button" t-ref="root"
+                    class="btn btn-sm btn-outline-primary o_planned_date_pick"
+                    t-on-click.stop="() => this.openPicker(0)">
+                <i class="fa fa-calendar-plus-o me-1"/><span t-esc="setDateLabel"/>
+            </button>
+        </t>
+        <t t-else="">
+            <span class="text-muted small o_planned_date_unscheduled" t-esc="unscheduledLabel"/>
+        </t>
+    </t>
+
+</templates>
