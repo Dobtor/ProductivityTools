@@ -25,19 +25,20 @@
 }
 
 // Inline 活動膠囊（建立後就地回饋）
+// 風格：外框線 + 淡色底；顏色語意由 o_chip_* 決定（優先狀態 > 緊急程度）。
 .o_dobtor_activity_chip {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0 0.4em;
+    gap: 0.35rem;
+    padding: 0.15rem 0.55rem;
     margin: 0 0.15em;
     font-size: 0.85em;
     line-height: 1.5;
     border: 1px solid;
-    border-radius: 0.75rem;
+    border-radius: 50rem; // 全圓角藥丸，撐住標準頭像仍維持比例
     cursor: pointer;
     user-select: none;
-    vertical-align: baseline;
+    vertical-align: middle;
     white-space: nowrap;
 
     .o_dobtor_chip_label {
@@ -46,20 +47,41 @@
         text-overflow: ellipsis;
     }
 
+    // 頭像維持標準大小（24px），膠囊已放大容納
     .o_dobtor_chip_avatar {
-        width: 1.2em;
-        height: 1.2em;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         object-fit: cover;
-        vertical-align: text-bottom;
+        flex: 0 0 auto;
     }
 
     .o_dobtor_chip_due {
         font-variant-numeric: tabular-nums;
     }
 
-    &.o_dobtor_chip_done .o_dobtor_chip_label {
-        text-decoration: line-through;
+    // 重要性：深紫三角（淡色底上對比良好）
+    .o_dobtor_chip_important {
+        color: #6b21a8;
+    }
+
+    // ===== 語意配色：邊框/文字=深色，底=淡色 =====
+    $chip-colors: (
+        "urgent":    (#c2410c, #fdeee5), // 緊急 深橘
+        "standard":  (#1e40af, #e9edfb), // 標準 深藍
+        "flexible":  (#15803d, #e7f4ec), // 彈性 深綠
+        "overdue":   (#b91c1c, #fbe9e9), // 逾期 深紅
+        "done":      (#16a34a, #e8f6ee), // 完成 綠
+        "cancelled": (#6b7280, #f1f2f4), // 取消 灰
+        "deleted":   (#6b7280, #f1f2f4), // 刪除 灰
+    );
+
+    @each $name, $pair in $chip-colors {
+        &.o_chip_#{$name} {
+            color: nth($pair, 1);
+            border-color: nth($pair, 1);
+            background-color: nth($pair, 2);
+        }
     }
 }
 

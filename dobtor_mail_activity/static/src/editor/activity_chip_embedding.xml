@@ -10,12 +10,14 @@
                 <span class="o_dobtor_chip_label" t-esc="label"/>
             </t>
             <t t-elif="!state.active">
-                <i class="fa fa-fw fa-check"/>
+                <!-- 完成 → 打勾；取消 → 叉 -->
+                <i class="fa fa-fw" t-att-class="state.status === 'cancelled' ? 'fa-times' : 'fa-check'"/>
             </t>
             <t t-else="">
                 <img t-if="avatarUrl" class="o_dobtor_chip_avatar" t-att-src="avatarUrl" alt=""/>
-                <i class="fa fa-fw" t-att-class="urgencyClass"/>
-                <i class="fa fa-fw" t-att-class="importanceClass"/>
+                <!-- 緊急程度由膠囊底色表達，不再放圖示；重要才顯示深紫三角 -->
+                <i t-if="state.importance === 'important'"
+                   class="fa fa-fw fa-exclamation-triangle o_dobtor_chip_important"/>
                 <span t-if="state.dateDeadline" class="o_dobtor_chip_due"
                       t-esc="state.dateDeadline"/>
             </t>

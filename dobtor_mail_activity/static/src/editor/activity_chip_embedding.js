@@ -18,7 +18,6 @@ import {
 } from "@dobtor_mail_activity/editor/activity_signal";
 import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
 import { createBatchLoader } from "@dobtor_mail_activity/utils/batch_loader";
-import { activityStateClass } from "@dobtor_mail_activity/utils/activity_state";
 
 /**
  * 膠囊批次讀取器：同一頁多顆膠囊掛載時，將 50ms 內的單筆 read 合併成一次 RPC，
@@ -117,32 +116,30 @@ export class EmbeddedActivityChip extends Component {
             : false;
     }
 
-    get urgencyClass() {
-        switch (this.state.urgency) {
-            case "urgent":
-                return "fa-bolt text-danger"; // ⚡
-            case "flexible":
-                return "fa-leaf text-muted"; // 🌱 (FA4.7 等義，原指定 fa-seedling 不存在)
-            default:
-                return "fa-tasks text-secondary"; // 📋 (FA4.7 等義，原指定 fa-list-check 不存在)
-        }
-    }
-
-    get importanceClass() {
-        return this.state.importance === "important"
-            ? "fa-fire text-warning" // 🔥
-            : "fa-hourglass-end text-muted"; // ⏳
-    }
-
+    /**
+     * 膠囊語意配色 class（外框線＋淡色底）。優先序：優先狀態 > 緊急程度。
+     *   刪除/取消 → 灰；完成 → 綠；逾期 → 深紅；
+     *   其餘依緊急程度：緊急 → 深橘、標準 → 深藍、彈性 → 深綠。
+     * （颜色定義集中在 activity_editor.scss 的 o_chip_* class）
+     */
     get chipClass() {
         if (this.state.missing) {
-            return "text-muted border-secondary";
+            return "o_chip_deleted";
         }
-        const cls = activityStateClass(this.state.state, {
-            active: this.state.active,
-            withBorder: true,
-        });
-        return this.state.active ? cls : `o_dobtor_chip_done ${cls}`;
+        if (!this.state.active) {
+            return this.state.status === "cancelled" ? "o_chip_cancelled" : "o_chip_done";
+        }
+        if (this.state.state === "overdue") {
+            return "o_chip_overdue";
+        }
+        switch (this.state.urgency) {
+            case "urgent":
+                return "o_chip_urgent";
+            case "flexible":
+                return "o_chip_flexible";
+            default: // standard 或未設定
+                return "o_chip_standard";
+        }
     }
 
     get label() {
