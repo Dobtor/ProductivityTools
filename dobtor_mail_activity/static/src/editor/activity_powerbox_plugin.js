@@ -105,6 +105,12 @@ export class ActivityPowerboxPlugin extends Plugin {
             }
         }
         if (removed) {
+            // 移除節點後，編輯器先前儲存的 activeSelection offset 可能失效（指向已不存在
+            // 的子節點）。因刪除時焦點在 wizard、瀏覽器選取不在 editable 內，
+            // SelectionPlugin 只在 anchorNode「斷線」時才重置，但此處 anchorNode 仍連著、
+            // 只是子節點變少 → 後續更新工具列/powerbox 時 setStart 會丟 IndexSizeError。
+            // 先把選取重置到安全位置（editable 起點）再記錄歷史步驟。
+            this.dependencies.selection.resetSelection();
             this.dependencies.history.addStep();
         }
     }
