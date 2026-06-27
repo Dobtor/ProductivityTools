@@ -56,13 +56,22 @@
         flex: 0 0 auto;
     }
 
+    // 圖示與日期文字放大到頭像高度（24px）：line-height:1 使行框=字級，
+    // 不超過頭像高度，膠囊不再變高。
+    .fa {
+        font-size: 24px;
+        line-height: 1;
+    }
+
     .o_dobtor_chip_due {
+        font-size: 24px;
+        line-height: 1;
         font-variant-numeric: tabular-nums;
     }
 
-    // 重要性：深紫三角（淡色底上對比良好）
+    // 重要性：鮮紅三角
     .o_dobtor_chip_important {
-        color: #6b21a8;
+        color: #e60000;
     }
 
     // ===== 語意配色：邊框/文字=深色，底=淡色 =====
