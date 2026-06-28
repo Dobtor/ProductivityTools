@@ -217,17 +217,8 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
-        <!-- 工時管理員可查看所有效率指標 -->
-        <record id="efficiency_metrics_rule_timesheet_manager" model="ir.rule">
-            <field name="name">Efficiency Metrics: Timesheet Manager Access All Metrics</field>
-            <field name="model_id" ref="model_activity_efficiency_metrics"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('hr_timesheet.group_timesheet_manager'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="True"/>
-        </record>
+        <!-- 工時管理員可查看所有效率指標 → 移至 dobtor_mail_activity_timesheet 橋接模組
+             （核心不依賴 hr_timesheet，群組 group_timesheet_manager 僅在橋接堆疊存在）。 -->
 
         <!-- 待辦管理者可查看所有效率指標 -->
         <record id="efficiency_metrics_rule_activity_manager" model="ir.rule">

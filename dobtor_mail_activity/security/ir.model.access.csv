@@ -19,7 +19,6 @@ access_weekly_report_manager,weekly.report.manager,model_weekly_report,dobtor_ma
 access_weekly_report_snapshot_line,weekly.report.snapshot.line,model_weekly_report_snapshot_line,base.group_user,1,1,1,1
 access_weekly_report_review_line,weekly.report.review.line,model_weekly_report_review_line,base.group_user,1,1,1,1
 access_activity_efficiency_metrics_user,activity.efficiency.metrics.user,model_activity_efficiency_metrics,base.group_user,1,0,0,0
-access_activity_efficiency_metrics_timesheet_manager,activity.efficiency.metrics.timesheet.manager,model_activity_efficiency_metrics,hr_timesheet.group_timesheet_manager,1,1,1,1
 access_activity_efficiency_metrics_activity_manager,activity.efficiency.metrics.activity.manager,model_activity_efficiency_metrics,dobtor_mail_activity.group_activity_manager,1,1,1,1
 access_weekly_schedule_config_user,weekly.schedule.config.user,model_weekly_schedule_config,base.group_user,1,1,1,0
 access_weekly_schedule_config_admin,weekly.schedule.config.admin,model_weekly_schedule_config,base.group_system,1,1,1,1
