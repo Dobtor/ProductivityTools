@@ -28,12 +28,6 @@
                                 </div>
                             </group>
                         </group>
-                        <group string="Summary Settings">
-                            <group>
-                                <field name="meeting_summary_chatbot_id"/>
-                                <field name="summary_prompt_preset"/>
-                            </group>
-                        </group>
                     </page>
                 </notebook>
             </xpath>

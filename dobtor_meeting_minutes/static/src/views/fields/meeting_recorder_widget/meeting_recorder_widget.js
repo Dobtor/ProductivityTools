@@ -28,8 +28,6 @@ export class MeetingRecorderWidget extends Component {
 
         this.busService.subscribe("note_recording/transcription_update",
             (payload) => this._onTranscriptionUpdate(payload));
-        this.busService.subscribe("note_recording/summary_update",
-            (payload) => this._onSummaryUpdate(payload));
     }
 
     get noteId() {
@@ -91,26 +89,6 @@ export class MeetingRecorderWidget extends Component {
             this.notification.add(
                 _t("All transcriptions completed successfully."),
                 { type: "success" }
-            );
-        }
-
-        await this.props.record.model.root.load();
-    }
-
-    async _onSummaryUpdate(payload) {
-        if (payload.note_id !== this.noteId) {
-            return;
-        }
-
-        if (payload.summary_state === "done") {
-            this.notification.add(
-                _t("Meeting summary generated successfully."),
-                { type: "success" }
-            );
-        } else if (payload.summary_state === "error") {
-            this.notification.add(
-                _t("Summary generation failed."),
-                { type: "danger", sticky: true }
             );
         }
 

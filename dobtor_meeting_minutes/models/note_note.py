@@ -12,73 +12,7 @@ from odoo.exceptions import UserError, ValidationError
 
 from ..utils.constants import (
     TRANSCRIPT_STATE_SELECTION,
-    SUMMARY_STATE_SELECTION,
 )
-
-SUMMARY_PROMPT_PRESETS = {
-    'formal': {
-        'name': 'Formal Meeting Minutes',
-        'name_zh': '正式會議記錄',
-        'prompt': (
-            '你是專業的會議記錄助理。請根據以下逐字稿產生結構化的會議摘要。\n\n'
-            '## 輸出格式（使用 HTML 標籤）\n'
-            '1. <h4>會議主題</h4>：一句話概述\n'
-            '2. <h4>出席者</h4>：列出所有發言者\n'
-            '3. <h4>討論要點</h4>：分點列出主要討論內容\n'
-            '4. <h4>決議事項</h4>：明確的決定，含負責人\n'
-            '5. <h4>待辦事項</h4>：具體的 action items，含負責人與期限\n\n'
-            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
-            '## 逐字稿\n{transcript}'
-        ),
-    },
-    'brainstorm': {
-        'name': 'Brainstorming Session',
-        'name_zh': '腦力激盪紀要',
-        'prompt': (
-            '你是創意會議的記錄助理。請根據以下逐字稿整理出腦力激盪的結果。\n\n'
-            '## 輸出格式（使用 HTML 標籤）\n'
-            '1. <h4>主題</h4>：討論的核心問題\n'
-            '2. <h4>提出的想法</h4>：列出所有被提及的想法或方案，標注提出者\n'
-            '3. <h4>篩選結果</h4>：哪些想法被認可、哪些被排除，附原因\n'
-            '4. <h4>下一步行動</h4>：後續要做的事\n\n'
-            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
-            '## 逐字稿\n{transcript}'
-        ),
-    },
-    'standup': {
-        'name': 'Daily Standup / Sprint Review',
-        'name_zh': '每日站會 / Sprint 回顧',
-        'prompt': (
-            '你是敏捷開發團隊的會議記錄助理。請根據以下逐字稿整理站會或回顧會議。\n\n'
-            '## 輸出格式（使用 HTML 標籤）\n'
-            '依每位發言者分段：\n'
-            '<h4>[姓名]</h4>\n'
-            '<ul>\n'
-            '  <li><b>昨天完成</b>：...</li>\n'
-            '  <li><b>今天計畫</b>：...</li>\n'
-            '  <li><b>遇到的阻礙</b>：...</li>\n'
-            '</ul>\n\n'
-            '最後加上 <h4>需要協調的事項</h4>。\n\n'
-            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
-            '## 逐字稿\n{transcript}'
-        ),
-    },
-    'project': {
-        'name': 'Project Status Meeting',
-        'name_zh': '專案進度會議',
-        'prompt': (
-            '你是專案管理的會議記錄助理。請根據以下逐字稿產生專案進度會議摘要。\n\n'
-            '## 輸出格式（使用 HTML 標籤）\n'
-            '1. <h4>專案概況</h4>：目前整體狀態（正常/延遲/風險）\n'
-            '2. <h4>各模組進度</h4>：依負責人或模組分段報告\n'
-            '3. <h4>風險與問題</h4>：需要注意的風險和待解問題\n'
-            '4. <h4>決議事項</h4>：會議中做出的決定\n'
-            '5. <h4>下次里程碑</h4>：下一個檢查點的日期和目標\n\n'
-            '請使用繁體中文回覆，輸出為 HTML 格式。\n\n'
-            '## 逐字稿\n{transcript}'
-        ),
-    },
-}
 
 _logger = logging.getLogger(__name__)
 
@@ -88,7 +22,6 @@ class NoteNote(models.Model):
 
     在 note.note 基礎上新增會議記錄功能，包含：
     - 錄音與逐字稿（STT + 說話者辨識）
-    - AI 摘要產生（透過 ChatbotEngine）
     - 簽名流程（Portal 多方簽名）
     - PDF 報告
 
@@ -216,20 +149,6 @@ class NoteNote(models.Model):
         'note_id',
         string='Speaker Mapping',
     )
-
-    # ===== 會議摘要 =====
-    meeting_summary = fields.Html(
-        string='Meeting Summary',
-    )
-    summary_state = fields.Selection(
-        selection=SUMMARY_STATE_SELECTION,
-        string='Summary Status', default='none',
-    )
-    summary_worker_pid = fields.Integer(
-        string='Summary Worker PID',
-        help='PID of the thread currently generating summary — cleared on completion.',
-    )
-    summary_worker_started_at = fields.Datetime()
 
     # ===== 預設範本 =====
     @api.model
@@ -439,10 +358,9 @@ class NoteNote(models.Model):
             'active', 'open', 'date_done',
             # 日曆事件可以在鎖定後新增
             'calendar_event_ids',
-            # 錄音/逐字稿/摘要（鎖定後仍可操作）
+            # 錄音/逐字稿（鎖定後仍可操作）
             'recording_ids', 'transcript_ids', 'transcript_html',
             'transcript_state', 'speaker_mapping_ids',
-            'meeting_summary', 'summary_state',
         }
 
         # 檢查是否嘗試修改鎖定欄位
@@ -694,217 +612,6 @@ class NoteNote(models.Model):
             }
         return recordings.action_transcribe()
 
-    # ===== AI 摘要（透過 ChatbotEngine）=====
-    def action_generate_summary(self):
-        """從逐字稿產生會議摘要（非同步，透過 ChatbotEngine）"""
-        self.ensure_one()
-        if not self.transcript_ids:
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Warning'),
-                    'message': _('No transcript available. Please transcribe recordings first.'),
-                    'type': 'warning',
-                    'sticky': False,
-                }
-            }
-
-        chatbot = (self.company_id or self.env.company).meeting_summary_chatbot_id
-        if not chatbot:
-            raise UserError(_(
-                'Please configure a Meeting Summary AI Chatbot in Settings > Productivity Tools.'
-            ))
-
-        self.write({'summary_state': 'processing'})
-
-        # 在獨立 thread 中執行，避免阻塞
-        db_name = self.env.cr.dbname
-        note_id = self.id
-        uid = self.env.uid
-
-        thread = threading.Thread(
-            target=self._async_summary_worker,
-            args=(db_name, uid, note_id),
-            daemon=True,
-        )
-        thread.start()
-
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Summary Generation Started'),
-                'message': _('Generating summary in background. You will be notified when complete.'),
-                'type': 'info',
-                'sticky': False,
-            }
-        }
-
-    @api.model
-    def _async_summary_worker(self, db_name, uid, note_id):
-        """獨立 thread 中的摘要產生工作 — 每次執行寫一筆 note.summary.log"""
-        import odoo, os, time, traceback as tb_module
-        registry = odoo.registry(db_name)
-
-        with registry.cursor() as cr:
-            env = api.Environment(cr, uid, {})
-            note = env['note.note'].browse(note_id)
-            summary_state = 'error'
-            Log = env['note.summary.log']
-            company = note.company_id or env.company
-            chatbot = company.meeting_summary_chatbot_id
-            template = company.summary_prompt_template_id
-
-            started_at = fields.Datetime.now()
-            t0 = time.monotonic()
-            attempt_no = Log.search_count([('note_id', '=', note.id)]) + 1
-
-            log_base = {
-                'note_id': note.id,
-                'chatbot_id': chatbot.id if chatbot else False,
-                'template_id': template.id if template else False,
-                'attempt_no': attempt_no,
-                'started_at': started_at,
-            }
-
-            # 寫 worker 指紋
-            try:
-                note.write({
-                    'summary_worker_pid': os.getpid(),
-                    'summary_worker_started_at': started_at,
-                })
-                cr.commit()
-            except Exception:
-                cr.rollback()
-
-            try:
-                transcript_text = note._format_transcript_for_llm()
-                prompt = note._get_default_summary_prompt()
-                prompt = prompt.replace('{transcript}', transcript_text)
-
-                summary_html = note._generate_summary_via_chatbot(prompt)
-
-                note.write({
-                    'meeting_summary': summary_html,
-                    'summary_state': 'done',
-                    'summary_worker_pid': 0,
-                    'summary_worker_started_at': False,
-                })
-                summary_state = 'done'
-                Log.create({
-                    **log_base,
-                    'state': 'success',
-                    'prompt_length': len(prompt or ''),
-                    'transcript_length': len(transcript_text or ''),
-                    'response_length': len(summary_html or ''),
-                    'request_latency_ms': int((time.monotonic() - t0) * 1000),
-                    'ended_at': fields.Datetime.now(),
-                })
-                cr.commit()
-            except UserError as e:
-                cr.rollback()
-                env.invalidate_all()
-                msg = str(e)
-                _logger.warning('[summary] note=%s config/chatbot error: %s', note_id, msg)
-                state = 'config_error' if 'configure' in msg.lower() or 'chatbot' in msg.lower() else 'chatbot_error'
-                Log.create({
-                    **log_base,
-                    'state': state,
-                    'error_message': msg,
-                    'traceback': tb_module.format_exc(),
-                    'ended_at': fields.Datetime.now(),
-                    'request_latency_ms': int((time.monotonic() - t0) * 1000),
-                })
-                note.write({
-                    'summary_state': 'error',
-                    'summary_worker_pid': 0,
-                    'summary_worker_started_at': False,
-                })
-                cr.commit()
-            except Exception as e:
-                cr.rollback()
-                env.invalidate_all()
-                _logger.exception('[summary] note=%s unexpected error', note_id)
-                Log.create({
-                    **log_base,
-                    'state': 'internal_error',
-                    'error_message': str(e),
-                    'traceback': tb_module.format_exc(),
-                    'ended_at': fields.Datetime.now(),
-                    'request_latency_ms': int((time.monotonic() - t0) * 1000),
-                })
-                note.write({
-                    'summary_state': 'error',
-                    'summary_worker_pid': 0,
-                    'summary_worker_started_at': False,
-                })
-                cr.commit()
-
-            # 發送 bus.bus 通知（送給 note 擁有者，支援 cron 重試路徑）
-            try:
-                target_partner = note.user_id.partner_id or env.user.partner_id
-                env['bus.bus']._sendone(
-                    target_partner,
-                    'note_recording/summary_update',
-                    {
-                        'note_id': note_id,
-                        'summary_state': summary_state,
-                    },
-                )
-                cr.commit()
-            except Exception:
-                cr.rollback()
-                _logger.exception('Failed to send bus notification for summary %s', note_id)
-
-    def _generate_summary_via_chatbot(self, prompt):
-        """使用 ChatbotEngine 產生會議摘要
-
-        Args:
-            prompt: 完整的 prompt 文字（含逐字稿）
-
-        Returns:
-            str: AI 回覆的 HTML 摘要文字
-
-        Raises:
-            UserError: 當 chatbot 未設定或 API 呼叫失敗時
-        """
-        self.ensure_one()
-        chatbot = (self.company_id or self.env.company).meeting_summary_chatbot_id
-        if not chatbot:
-            raise UserError(_(
-                'Please configure a Meeting Summary AI Chatbot in Settings > Productivity Tools.'
-            ))
-
-        from odoo.addons.dobtor_ai_chatbot.services.chatbot_engine import ChatbotEngine
-
-        engine = ChatbotEngine(self.env, chatbot)
-        result = engine.chat(
-            message=prompt,
-            enable_tools=False,
-            save_conversation=False,
-        )
-
-        if not result.get('success'):
-            error_msg = result.get('error', 'Unknown error')
-            raise UserError(_('AI summary generation failed: %s', error_msg))
-
-        content = result.get('content', '')
-        if not content:
-            raise UserError(_('AI returned empty summary.'))
-
-        return content
-
-    def action_apply_summary_to_memo(self):
-        """將摘要寫入 memo 欄位"""
-        self.ensure_one()
-        if self.is_locked:
-            raise UserError(_('Meeting minutes is locked. Cannot modify content.'))
-        if not self.meeting_summary:
-            raise UserError(_('No summary available to apply.'))
-        self.memo = (self.memo or '') + '<hr/>' + self.meeting_summary
-        return True
-
     # ===== 逐字稿匯出 =====
     def action_export_transcript_txt(self):
         """匯出逐字稿為 TXT 檔"""
@@ -983,44 +690,3 @@ class NoteNote(models.Model):
             time_str = f'{minutes:02d}:{seconds:02d}'
             lines.append(f'[{time_str}] {name}：{seg.text}')
         return '\n'.join(lines)
-
-    def _get_default_summary_prompt(self):
-        """取得摘要 Prompt — 優先順序：
-        1. company.summary_prompt_template_id（管理員自定的範本）
-        2. 依 preset code 在 note.summary.template 查詢（seed 資料）
-        3. 降級到硬編 SUMMARY_PROMPT_PRESETS
-        """
-        # 優先取 note 所屬公司，fallback 當前 env.company（cron/thread 場景）
-        company = (self.company_id if self else False) or self.env.company
-
-        # 1. 自定範本優先
-        tmpl = company.summary_prompt_template_id
-        if tmpl and tmpl.active and tmpl.prompt:
-            return tmpl.prompt
-
-        # 2. 依 preset 查資料表
-        preset_key = company.summary_prompt_preset or 'formal'
-        tmpl = self.env['note.summary.template'].search(
-            [('code', '=', preset_key), ('active', '=', True)], limit=1,
-        )
-        if tmpl and tmpl.prompt:
-            return tmpl.prompt
-
-        # 3. Fallback：硬編常數（只在資料未載入時觸發）
-        if preset_key in SUMMARY_PROMPT_PRESETS:
-            return SUMMARY_PROMPT_PRESETS[preset_key]['prompt']
-        return SUMMARY_PROMPT_PRESETS['formal']['prompt']
-
-    @api.model
-    def get_summary_prompt_presets(self):
-        """回傳可用的 prompt 範本清單（優先從資料表讀，fallback 到常數）"""
-        templates = self.env['note.summary.template'].search([('active', '=', True)])
-        if templates:
-            return [
-                {'key': t.code, 'name': t.name, 'name_zh': t.name, 'description': t.description or ''}
-                for t in templates
-            ]
-        return [
-            {'key': k, 'name': v['name'], 'name_zh': v['name_zh']}
-            for k, v in SUMMARY_PROMPT_PRESETS.items()
-        ]

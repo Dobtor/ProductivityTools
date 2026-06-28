@@ -93,13 +93,6 @@
                             <div t-field="doc.memo" class="o_report_memo"/>
                         </div>
 
-                        <!-- 會議摘要 -->
-                        <div t-if="doc.meeting_summary" class="mb-4">
-                            <h5>會議摘要</h5>
-                            <hr class="mt-1 mb-2"/>
-                            <div t-field="doc.meeting_summary"/>
-                        </div>
-
                         <!-- 逐字稿 -->
                         <div t-if="doc.transcript_ids" class="mb-4">
                             <h5>會議逐字稿</h5>
@@ -238,13 +231,6 @@
             <h5 class="mb-1">會議內容</h5>
             <hr class="mt-1 mb-2"/>
             <div t-field="note.memo" class="o_portal_meeting_memo"/>
-        </section>
-
-        <!-- 會議摘要 -->
-        <section t-if="note.meeting_summary" id="meeting_summary" class="mb-4">
-            <h5 class="mb-1">會議摘要</h5>
-            <hr class="mt-1 mb-2"/>
-            <div t-field="note.meeting_summary"/>
         </section>
 
         <!-- 逐字稿 -->

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Meeting Minutes',
-    'version': '18.0.1.0.0',
+    'version': '18.0.2.0.0',
     'category': 'Productivity',
-    'summary': 'Meeting minutes with recording, transcription, speaker diarization and AI summary',
+    'summary': 'Meeting minutes with recording, transcription and speaker diarization',
     'description': """
 Meeting Minutes
 ===============
@@ -15,10 +15,12 @@ Complete meeting minutes management system:
   - Multi-segment recording with automatic time offset merging
   - Inline audio player and transcript editing
 
-* AI Summary
-  - Generate structured summaries via AI Chatbot platform
-  - 4 preset prompt templates (formal, brainstorm, standup, project)
+* Transcript Export
   - Export transcript as TXT or SRT
+
+  Note: AI meeting summary (via the AI Chatbot platform) is provided by the
+  optional bridge module *dobtor_ai_chatbot_meeting_minutes*, which
+  auto-installs when both this module and *dobtor_ai_chatbot* are present.
 
 * Signature Workflow
   - Portal-based multi-party signature
@@ -33,7 +35,6 @@ Complete meeting minutes management system:
     'website': 'https://www.dobtor.com',
     'depends': [
         'dobtor_mail_activity',
-        'dobtor_ai_chatbot',
         'calendar',
         'portal',
     ],
@@ -45,9 +46,7 @@ Complete meeting minutes management system:
         'report/ir_actions_report.xml',
         'report/report_meeting_minutes_templates.xml',
         # Data
-        'data/ai_chatbot_data.xml',
         'data/mail_template_data.xml',
-        'data/summary_template_data.xml',
         'data/cron_data.xml',
         # Views
         'views/calendar_event_views.xml',
@@ -55,8 +54,6 @@ Complete meeting minutes management system:
         'views/note_recording_views.xml',
         'views/note_transcribe_log_views.xml',
         'views/note_transcribe_job_views.xml',
-        'views/note_summary_log_views.xml',
-        'views/note_summary_template_views.xml',
         'views/note_signature_views.xml',
         'views/res_company_views.xml',
         'views/res_config_settings_views.xml',

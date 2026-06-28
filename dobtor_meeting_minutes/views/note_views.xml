@@ -48,7 +48,6 @@
                 <field name="recording_count" invisible="1"/>
                 <field name="transcript_state" invisible="1"/>
                 <field name="last_transcript_error" invisible="1"/>
-                <field name="summary_state" invisible="1"/>
             </xpath>
 
             <!-- ===== Ribbons ===== -->
@@ -246,41 +245,6 @@
                             </list>
                         </field>
                     </group>
-                </page>
-
-                <!-- Summary page -->
-                <page string="Summary" name="summary"
-                      invisible="note_type != 'meeting' or (transcript_state != 'done' and summary_state == 'none')">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <span class="badge text-bg-warning"
-                                  invisible="summary_state != 'processing'">
-                                <i class="fa fa-spinner fa-spin me-1"/>Generating...
-                            </span>
-                            <span class="badge text-bg-success"
-                                  invisible="summary_state != 'done'">
-                                <i class="fa fa-check me-1"/>Summary Ready
-                            </span>
-                            <span class="badge text-bg-danger"
-                                  invisible="summary_state != 'error'">
-                                <i class="fa fa-exclamation-triangle me-1"/>Error
-                            </span>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button name="action_generate_summary" type="object"
-                                    string="Generate Summary" class="btn-primary btn-sm"
-                                    icon="fa-magic"
-                                    invisible="summary_state == 'processing'"/>
-                            <button name="action_apply_summary_to_memo" type="object"
-                                    string="Apply to Content" class="btn-secondary btn-sm"
-                                    icon="fa-arrow-up"
-                                    invisible="summary_state != 'done' or is_locked"
-                                    confirm="This will append the summary to the meeting content. Continue?"/>
-                        </div>
-                    </div>
-                    <field name="meeting_summary"
-                           placeholder="Click 'Generate Summary' to create a meeting summary from the transcript..."
-                           readonly="summary_state == 'processing'"/>
                 </page>
 
                 <!-- Signatures page -->

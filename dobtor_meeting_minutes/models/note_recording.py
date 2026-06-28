@@ -964,30 +964,6 @@ class NoteRecording(models.Model):
             for note in stale_recordings.mapped('note_id'):
                 note._recompute_transcript_state()
 
-        # Summary stale 偵測 — 同樣走時間 + PID 雙路徑
-        Note = self.env['note.note']
-        time_stale_notes = Note.search([
-            ('summary_state', '=', 'processing'),
-            ('write_date', '<', timeout),
-        ])
-        pid_candidates = Note.search([
-            ('summary_state', '=', 'processing'),
-            ('summary_worker_pid', '>', 0),
-            ('summary_worker_started_at', '<',
-             fields.Datetime.subtract(now, seconds=60)),
-        ])
-        pid_dead_notes = pid_candidates.filtered(
-            lambda n: not self._is_pid_alive(n.summary_worker_pid)
-        )
-        stale_notes = time_stale_notes | pid_dead_notes
-        if stale_notes:
-            _logger.info('Cleaning up %d stale processing summaries', len(stale_notes))
-            stale_notes.write({
-                'summary_state': 'error',
-                'summary_worker_pid': 0,
-                'summary_worker_started_at': False,
-            })
-
     @api.model
     def _cron_auto_retry_transcription(self):
         """自動重試：retriable 且未達次數上限 + 已過退避時間"""

@@ -54,16 +54,6 @@ TRANSCRIPT_STATE_SELECTION = [
 ]
 
 # ============================================================
-# Selection: Summary state
-# ============================================================
-SUMMARY_STATE_SELECTION = [
-    ('none', 'None'),
-    ('processing', 'Processing'),
-    ('done', 'Done'),
-    ('error', 'Error'),
-]
-
-# ============================================================
 # Selection: Transcribe log state (error classification)
 # ============================================================
 TRANSCRIBE_LOG_STATE_SELECTION = [

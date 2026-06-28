@@ -63,24 +63,6 @@
                                 icon="fa-plug"/>
                     </setting>
                 </block>
-
-                <block title="Meeting Summary Settings" name="meeting_summary_settings">
-                    <setting id="meeting_summary_chatbot_setting"
-                             string="AI Chatbot"
-                             help="Select the AI Chatbot to use for generating meeting summaries.">
-                        <field name="meeting_summary_chatbot_id"/>
-                    </setting>
-                    <setting id="meeting_summary_prompt_preset_setting"
-                             string="Prompt Preset"
-                             help="Default preset. Override with a custom template below.">
-                        <field name="summary_prompt_preset"/>
-                    </setting>
-                    <setting id="meeting_summary_prompt_template_setting"
-                             string="Custom Template"
-                             help="Optional: pick or create a custom template. Overrides the preset.">
-                        <field name="summary_prompt_template_id"/>
-                    </setting>
-                </block>
             </xpath>
 
         </field>

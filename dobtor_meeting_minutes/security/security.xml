@@ -176,30 +176,5 @@
             <field name="perm_unlink" eval="True"/>
         </record>
 
-        <!-- ============================================================ -->
-        <!-- note.summary.log Record Rules                                 -->
-        <!-- ============================================================ -->
-        <record id="note_summary_log_rule_user" model="ir.rule">
-            <field name="name">note.summary.log: user own notes</field>
-            <field name="model_id" ref="model_note_summary_log"/>
-            <field name="domain_force">[('note_id.user_id', '=', user.id)]</field>
-            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="False"/>
-        </record>
-
-        <record id="note_summary_log_rule_manager" model="ir.rule">
-            <field name="name">note.summary.log: manager all</field>
-            <field name="model_id" ref="model_note_summary_log"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="True"/>
-        </record>
-
     </data>
 </odoo>

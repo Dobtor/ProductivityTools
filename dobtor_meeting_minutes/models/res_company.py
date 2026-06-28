@@ -26,8 +26,8 @@ _MASK_CHAR = '●'
 class ResCompany(models.Model):
     """公司擴展 -- 會議記錄設定
 
-    新增語音辨識與 AI 摘要設定。
-    摘要產生改用 ai.chatbot 平台，不再直接設定 API key/URL/model。
+    新增語音辨識設定。AI 摘要設定由選用的 bridge 模組
+    dobtor_ai_chatbot_meeting_minutes 提供，核心不依賴 ai.chatbot。
     """
     _inherit = 'res.company'
 
@@ -56,27 +56,6 @@ class ResCompany(models.Model):
         string='Language',
         default='zh',
         help='Language code for transcription (e.g. zh, en, ja)',
-    )
-
-    # ===== 摘要設定（透過 AI Chatbot 平台）=====
-    meeting_summary_chatbot_id = fields.Many2one(
-        'ai.chatbot',
-        string='Meeting Summary AI Chatbot',
-        help='Select the AI Chatbot to use for generating meeting summaries.',
-    )
-    summary_prompt_preset = fields.Selection([
-        ('formal', 'Formal Meeting Minutes'),
-        ('brainstorm', 'Brainstorming Session'),
-        ('standup', 'Daily Standup / Sprint Review'),
-        ('project', 'Project Status Meeting'),
-    ], string='Prompt Preset', default='formal',
-       help='Fallback preset — used when no custom template is selected.')
-    summary_prompt_template_id = fields.Many2one(
-        'note.summary.template',
-        string='Custom Summary Template',
-        help='Override the preset with a custom template. '
-             'Managers can add/edit templates under Meeting Minutes > Summary Templates.',
-        domain="[('active', '=', True)]",
     )
 
 
@@ -322,19 +301,5 @@ class ResConfigSettings(models.TransientModel):
     )
     transcription_language = fields.Char(
         related='company_id.transcription_language',
-        readonly=False,
-    )
-
-    # ===== 摘要設定 =====
-    meeting_summary_chatbot_id = fields.Many2one(
-        related='company_id.meeting_summary_chatbot_id',
-        readonly=False,
-    )
-    summary_prompt_preset = fields.Selection(
-        related='company_id.summary_prompt_preset',
-        readonly=False,
-    )
-    summary_prompt_template_id = fields.Many2one(
-        related='company_id.summary_prompt_template_id',
         readonly=False,
     )
