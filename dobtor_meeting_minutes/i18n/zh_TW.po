@@ -1,0 +1,2653 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* dobtor_meeting_minutes
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0-20250428\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-28 15:08+0000\n"
+"PO-Revision-Date: 2026-06-28 15:08+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "%(prefix)s HTTP %(status)s: %(body)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "%(prefix)s cannot connect: %(err)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "%(prefix)s request error: %(err)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "%(prefix)s timed out: %(err)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "%(provider)s returned HTTP %(status)s: %(body)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_transcribe_log.py:0
+msgid "%(rec)s / attempt %(n)s / %(state)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.report,print_report_name:dobtor_meeting_minutes.action_report_meeting_minutes
+msgid "'Meeting Minutes - %s' % object.name"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_calendar_event_form_inherit
+msgid "(No Title)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:mail.template,body_html:dobtor_meeting_minutes.mail_template_meeting_minutes
+msgid ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"        Dear {{ ctx.get('signer_name', 'Participant') }},\n"
+"        <br/><br/>\n"
+"        The meeting minutes for <strong>{{ object.name }}</strong> is ready for your review and signature.\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n"
+"        <strong>Meeting Details:</strong>\n"
+"    </p>\n"
+"\n"
+"    {% set first_event = object.calendar_event_ids[:1] %}\n"
+"    <table style=\"border-collapse: collapse; font-size: 13px;\">\n"
+"        {% if first_event %}\n"
+"        <tr>\n"
+"            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>Date:</strong></td>\n"
+"            <td style=\"padding: 4px 0;\">{{ first_event.start.strftime('%Y-%m-%d %H:%M') if first_event.start else '-' }}</td>\n"
+"        </tr>\n"
+"        {% endif %}\n"
+"        {% if first_event and first_event.location %}\n"
+"        <tr>\n"
+"            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>Location:</strong></td>\n"
+"            <td style=\"padding: 4px 0;\">{{ first_event.location }}</td>\n"
+"        </tr>\n"
+"        {% endif %}\n"
+"        {% if object.available_signer_ids %}\n"
+"        <tr>\n"
+"            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>Participants:</strong></td>\n"
+"            <td style=\"padding: 4px 0;\">{{ ', '.join(object.available_signer_ids.mapped('name')) }}</td>\n"
+"        </tr>\n"
+"        {% endif %}\n"
+"        <tr>\n"
+"            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>Prepared by:</strong></td>\n"
+"            <td style=\"padding: 4px 0;\">{{ object.user_id.name }}</td>\n"
+"        </tr>\n"
+"    </table>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n"
+"        Please click the button below to review the meeting minutes and provide your signature:\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px;\">\n"
+"        <a href=\"%7B%7B%20ctx.get('signer_portal_url',%20object.get_portal_url())%20%7D%7D\" style=\"display: inline-block; padding: 10px 20px; background-color: #875A7B; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n"
+"            View &amp; Sign Meeting Minutes\n"
+"        </a>\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n"
+"        <strong>Note:</strong> If the button above doesn't work, you can copy and paste the following link into your browser:\n"
+"        <br/>\n"
+"        <a href=\"%7B%7B%20ctx.get('signer_portal_url',%20object.get_portal_url())%20%7D%7D\">{{ ctx.get('signer_portal_url', object.get_portal_url()) }}</a>\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;\">\n"
+"        Thank you for your cooperation.\n"
+"        <br/><br/>\n"
+"        Best regards,<br/>\n"
+"        {{ object.user_id.name }}\n"
+"    </p>\n"
+"</div>\n"
+"            "
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:mail.template,body_html:dobtor_meeting_minutes.mail_template_meeting_signed
+msgid ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"        Dear {{ object.user_id.name }},\n"
+"        <br/><br/>\n"
+"        All required signers have signed the meeting minutes for <strong>{{ object.name }}</strong>.\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n"
+"        <strong>Signature Summary:</strong>\n"
+"    </p>\n"
+"\n"
+"    <table style=\"border-collapse: collapse; font-size: 13px; width: 100%; max-width: 500px;\">\n"
+"        <thead>\n"
+"            <tr style=\"background-color: #f5f5f5;\">\n"
+"                <th style=\"padding: 8px; text-align: left; border: 1px solid #ddd;\">Signer</th>\n"
+"                <th style=\"padding: 8px; text-align: left; border: 1px solid #ddd;\">Signed On</th>\n"
+"            </tr>\n"
+"        </thead>\n"
+"        <tbody>\n"
+"            {% for sig in object.signature_ids.filtered('is_signed') %}\n"
+"            <tr>\n"
+"                <td style=\"padding: 8px; border: 1px solid #ddd;\">{{ sig.partner_id.name }}</td>\n"
+"                <td style=\"padding: 8px; border: 1px solid #ddd;\">{{ sig.signed_on.strftime('%Y-%m-%d %H:%M') if sig.signed_on else '-' }}</td>\n"
+"            </tr>\n"
+"            {% endfor %}\n"
+"        </tbody>\n"
+"    </table>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n"
+"        You can view the complete signed meeting minutes by clicking the button below:\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px; padding: 0px;\">\n"
+"        <a href=\"%7B%7B%20object.get_portal_url()%20%7D%7D\" style=\"display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n"
+"            View Signed Meeting Minutes\n"
+"        </a>\n"
+"    </p>\n"
+"\n"
+"    <p style=\"margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;\">\n"
+"        Best regards,<br/>\n"
+"        {{ object.company_id.name or 'The System' }}\n"
+"    </p>\n"
+"</div>\n"
+"            "
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<i class=\"fa fa-check\"/> Fully Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<i class=\"fa fa-check\"/> Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<i class=\"fa fa-clock-o\"/> Pending"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<i class=\"fa fa-download me-1\"/> Download PDF"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+msgid ""
+"<i class=\"fa fa-exclamation-triangle me-2\" title=\"Error\"/>\n"
+"                        <strong>Last error:</strong>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid ""
+"<i class=\"fa fa-exclamation-triangle me-2\" title=\"Error\"/>\n"
+"                        <strong>Latest error:</strong>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+msgid "<i class=\"fa fa-fw fa-check\"/> Fully Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid ""
+"<i class=\"fa fa-info-circle fa-fw\"/>\n"
+"                                        狀態："
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid ""
+"<i class=\"fa fa-info-circle me-2\" title=\"Information\"/>\n"
+"                    <strong>Link a calendar event to enable meeting minutes features.</strong>\n"
+"                    Use the \"Calendar Events\" tab below to link an existing event or schedule a new meeting.\n"
+"                    The meeting attendees will become available as signers."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid ""
+"<i class=\"fa fa-lock me-2\" title=\"Locked\"/>\n"
+"                    <strong>This meeting minutes is locked.</strong>\n"
+"                    Content cannot be modified after sending for signature.\n"
+"                    To make changes, please click \"Reset to Draft\" (this will clear all existing signatures)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "<i class=\"fa fa-microphone fa-2x me-3\" title=\"Recording\"/>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid ""
+"<i class=\"fa fa-pencil fa-fw\"/>\n"
+"                                        記錄者："
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<i class=\"fa fa-pencil me-1\"/> Confirm &amp; Sign"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid ""
+"<i class=\"fa fa-shield me-1\"/>\n"
+"                            Key is stored masked. Changing this field will overwrite the current key — all changes are audited."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<small class=\"text-muted\">Prepared by</small>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<small><b class=\"text-muted\">Signature Progress</b></small>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<small><b class=\"text-muted\">Status</b></small>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid ""
+"<span class=\"badge text-bg-warning\" invisible=\"transcript_state != 'processing'\">\n"
+"                                <i class=\"fa fa-spinner fa-spin me-1\"/>Processing...\n"
+"                            </span>\n"
+"                            <span class=\"badge text-bg-success\" invisible=\"transcript_state != 'done'\">\n"
+"                                <i class=\"fa fa-check me-1\"/>Transcription Complete\n"
+"                            </span>\n"
+"                            <span class=\"badge text-bg-warning\" invisible=\"transcript_state != 'partial'\">\n"
+"                                <i class=\"fa fa-exclamation-circle me-1\"/>Partially Done\n"
+"                            </span>\n"
+"                            <span class=\"badge text-bg-danger\" invisible=\"transcript_state != 'error'\">\n"
+"                                <i class=\"fa fa-exclamation-triangle me-1\"/>Error\n"
+"                            </span>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "<span class=\"o_stat_text\">Signatures</span>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "<span class=\"text-muted\">待簽名</span>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "<strong>Thank you!</strong><br/>"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "API Key"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "API key for AssemblyAI or OpenAI."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_api_key
+msgid ""
+"API key for AssemblyAI or OpenAI. Once saved, only the last 4 characters are"
+" shown. Leave unchanged (●●●●) to keep the existing key."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_company_form_meeting_minutes
+msgid "API keys are managed in Settings &gt; Productivity Tools."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__access_token
+msgid "Access Token"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+msgid "Active (pending/running)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "All"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__all_signed
+msgid "All Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "All signers have completed signing. The meeting minutes are finalized."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "All signers have signed the meeting minutes."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "All signers have signed. Final signed document attached."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "All stored API keys have been re-encrypted with the new key."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "All transcriptions completed successfully."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_transcribe_job.py:0
+msgid "Another active job already exists for this recording (job #%s)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__provider__assemblyai
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__res_company__transcription_provider__assemblyai
+msgid "AssemblyAI (Recommended)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "AssemblyAI API key is not configured."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI polling response is not valid JSON."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI submit response is not valid JSON."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI transcription error: %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI transcription timed out after %d seconds."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI unexpected status: %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI upload response is not valid JSON."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI upload returned no upload_url."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_company__transcription_provider
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_provider
+msgid ""
+"AssemblyAI: cloud API with built-in speaker diarization, no deployment needed.\n"
+"OpenAI Whisper: cloud API, no speaker diarization.\n"
+"Remote whisperX: self-hosted Docker service with GPU."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "AssemblyAI: no transcript ID returned."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Attachments"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__attempt_no
+msgid "Attempt #"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Attendees"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+msgid "Audio (s)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__audio_duration
+msgid "Audio Duration (s)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__attachment_id
+msgid "Audio File"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__audio_bytes
+msgid "Audio Size (bytes)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__audio_url
+msgid "Audio URL"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Audio file uploaded successfully."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Audio upload failed."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_speaker_mapping__speaker_label
+msgid "Auto-detected label (e.g. SPEAKER_00)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcript_segment__speaker_label
+msgid "Auto-detected speaker label (e.g. SPEAKER_00)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_auto_retry_transcription_ir_actions_server
+msgid "Auto-retry Failed Transcriptions"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__available_signer_ids
+msgid "Available Signers"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__res_company__transcription_model_size__base
+msgid "Base (Fast)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Browser recording not available."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid ""
+"By signing, you confirm that you have reviewed and agree with the content of"
+" these meeting minutes."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_calendar_event
+msgid "Calendar Event"
+msgstr "日曆活動"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__calendar_event_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Calendar Events"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__calendar_event_ids
+msgid "Calendar events linked to this note"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__can_retry
+msgid "Can Retry"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_list
+msgid "Cancel"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__cancelled
+msgid "Cancelled"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Cancelled by user."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Cannot connect: %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid ""
+"Cannot modify locked meeting minutes.\n"
+"\n"
+"The following fields are locked after sending for signature:\n"
+"- Content (memo)\n"
+"- Required Signers\n"
+"- Type\n"
+"\n"
+"To modify, please reset to draft first (this will clear all signatures)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Choose how to process speech-to-text with speaker diarization."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_cleanup_old_logs_ir_actions_server
+msgid "Cleanup Old Transcribe Logs"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_cleanup_stale_processing_ir_actions_server
+msgid "Cleanup Stale Processing Recordings"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Click to start recording"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Close"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_res_company
+msgid "Companies"
+msgstr "公司"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__company_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__company_id
+msgid "Company"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__company_id
+msgid ""
+"Company that owns this meeting minutes. Transcribe/summary workers read "
+"settings from this company instead of the executing user's company "
+"(important for cron)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__confidence
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
+msgid "Confidence"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__config_error
+msgid "Config Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_res_config_settings
+msgid "Config Settings"
+msgstr "配置設定"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Configuration issue — please check Settings."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Connection OK"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Connection test timed out."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__partner_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__partner_id
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_speaker_mapping_list
+msgid "Contact"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__text
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
+msgid "Content"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_pivot
+msgid "Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/calendar_event.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_calendar_event_form_inherit
+msgid "Create Meeting Minutes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_meeting_minutes
+msgid "Create your first meeting minutes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_list
+msgid "Created"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__create_uid
+msgid "Created by"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__create_date
+msgid "Created on"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Date"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Day"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Discussion"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Dismiss"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__display_name
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__display_name
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__display_name
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__display_name_override
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__display_name
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__display_name
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__display_name
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_speaker_mapping_list
+msgid "Display Name"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__done
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__done
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+msgid "Done"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Download PDF"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__state__draft
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+msgid "Draft"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
+msgid "Duration (s)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__duration
+msgid "Duration (seconds)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.constraint,message:dobtor_meeting_minutes.constraint_note_speaker_mapping_unique_note_speaker
+msgid "Each speaker label must be unique per meeting minutes."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
+msgid "End"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__time_end
+msgid "End (seconds)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__ended_at
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__ended_at
+msgid "Ended At"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Enter new key or leave the ●●●● to keep existing"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__error
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_recording__state__error
+msgid "Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Error Detail"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__error_message
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__error_message
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__error_message
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_form
+msgid "Error Message"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__last_transcript_error
+msgid "Error summary from the most recent failed recording on this note."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__calendar_event_count
+msgid "Event Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Events"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_transcribe_log
+msgid ""
+"Every transcription attempt is recorded here, whether it succeeded or "
+"failed."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_transcribe_job
+msgid ""
+"Every transcription request creates a job here — survives Odoo restart."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Export SRT"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Export TXT"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__failed
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+msgid "Failed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Failed to access microphone: "
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Failed to upload file: "
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Failed to upload recording: "
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Failures"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__file_format
+msgid "File Format"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__file_size
+msgid "File Size (bytes)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "File too large. Maximum is 200 MB."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__log_id
+msgid "Final Log"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_log__response_snippet
+msgid "First 2KB of HTTP response body (sensitive data masked)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
+msgid "Format"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__state__signed
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Fully Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Get your API key at"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Group By"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__http_error
+msgid "HTTP Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "History"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__http_status
+msgid "Http Status"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__http_url
+msgid "Http Url"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__id
+msgid "ID"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Information"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__internal_error
+msgid "Internal Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Internal error."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Invalid meeting minutes."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Invalid signature data."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Invalid signature request."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__is_signed
+msgid "Is Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_job__scheduled_at
+msgid "Job becomes eligible at this time (for delayed retry)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Key Rotation Completed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_company__transcription_language
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_config_settings__transcription_language
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Language"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Language code for speech recognition."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_company__transcription_language
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_language
+msgid "Language code for transcription (e.g. zh, en, ja)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__res_company__transcription_model_size__large-v3
+msgid "Large-v3 (Best Quality)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Last 7 Days"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__last_transcript_error
+msgid "Last Transcript Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__write_uid
+msgid "Last Updated by"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__write_date
+msgid "Last Updated on"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__request_latency_ms
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+msgid "Latency (ms)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__latest_log_id
+msgid "Latest Log"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_calendar_event_form_quick_create_inherit
+msgid "Link notes..."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Location"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__is_locked
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Locked"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__log_count
+msgid "Log Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+msgid "Logs"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_speaker_mapping__display_name_override
+msgid "Manual name override (used when not mapped to a contact)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_speaker_mapping__partner_id
+msgid "Map to a meeting attendee"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcript_segment__partner_id
+msgid "Mapped contact from speaker mapping"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Max 200 MB. Supported: mp3, wav, webm, m4a, ogg."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Maximum recording duration reached. Recording stopped automatically."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid ""
+"Maximum retry attempts (%d) reached. Please check Settings and try again "
+"manually."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "MediaRecorder API is not available in this browser."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__res_company__transcription_model_size__medium
+msgid "Medium (Balanced)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Meeting"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/calendar_event.py:0
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_meeting_minutes
+#: model:ir.actions.report,name:dobtor_meeting_minutes.action_report_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_calendar_event__note_ids
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__note_id
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__note_type__meeting
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_home_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_home_menu_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_calendar_event_form_inherit
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_company_form_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+msgid "Meeting Minutes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_signature
+msgid "Meeting Minutes Signature"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:mail.template,subject:dobtor_meeting_minutes.mail_template_meeting_signed
+msgid "Meeting Minutes Signed: {{ object.name }}"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:mail.template,name:dobtor_meeting_minutes.mail_template_meeting_signed
+msgid "Meeting Minutes: All Signatures Complete"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:mail.template,name:dobtor_meeting_minutes.mail_template_meeting_minutes
+msgid "Meeting Minutes: Request for Signature"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:mail.template,subject:dobtor_meeting_minutes.mail_template_meeting_minutes
+msgid "Meeting Minutes: {{ object.name }}"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_recording
+msgid "Meeting Recording"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__is_locked
+msgid "Meeting minutes is locked after being sent for signature"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_calendar_event__note_ids
+msgid "Meeting minutes linked to this calendar event"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Meeting minutes not found."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Meeting minutes sent for signature to: %(signers)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Meeting minutes sent for signature. Failed to notify: %(signers)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Meeting minutes sent to %(count)d signer(s)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Meeting minutes signed by %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Meeting minutes viewed by %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid ""
+"Microphone access denied. Please allow microphone access in your browser "
+"settings."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_calendar_event__note_count
+msgid "Minutes Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_company__transcription_model_size
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_config_settings__transcription_model_size
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Model Size"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__name
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
+msgid "Name"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_signature__signed_by
+msgid "Name entered by the signer during signing"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__network_error
+msgid "Network Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Network error."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "No compatible audio format available in this browser."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_transcribe_job
+msgid "No jobs yet"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+msgid "No meeting minutes available."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "No recordings to transcribe."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "No transcript available to export."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_transcribe_log
+msgid "No transcription logs yet"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__none
+msgid "None"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_note
+msgid "Note"
+msgstr "筆記"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__worker_pid
+msgid ""
+"OS PID of the thread currently processing this recording. Cleared on "
+"completion. Used by cleanup cron to detect dead workers."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__time_offset
+msgid ""
+"Offset relative to the first recording, for merging multi-segment "
+"transcripts."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_transcribe_job.py:0
+msgid "Only failed or cancelled jobs can be requeued."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_transcribe_job.py:0
+msgid "Only pending or running jobs can be cancelled."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Only processing recordings can be cancelled."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_company__transcription_model_size
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_model_size
+msgid "Only used for Remote whisperX mode."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+msgid "Open"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_form
+msgid "Open Recording"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "OpenAI API key is not configured."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__provider__api
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__res_company__transcription_provider__api
+msgid "OpenAI Whisper API"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "OpenAI Whisper response is not valid JSON."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Organizer"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__parse_error
+msgid "Parse Error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__partial
+msgid "Partially Done"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__state__partial
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+msgid "Partially Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__available_signer_ids
+msgid ""
+"Partners who can be selected as signers (from calendar event attendees)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__signer_ids
+msgid "Partners who must sign this meeting minutes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Pause"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Paused"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__pending
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+msgid "Pending"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__picked_at
+msgid "Picked At"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Play"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Please configure a transcription provider first."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Please configure a transcription provider in Settings."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid ""
+"Please configure the AssemblyAI API key in Settings > Productivity Tools."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Please configure the OpenAI API key in Settings."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Please configure the transcription service URL in Settings."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Please link at least one calendar event before sending for signature."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.xml:0
+msgid "Please save the record first before recording."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Please select an audio file."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Please specify at least one signer from the calendar event attendees."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_job__log_id
+msgid "Populated after execution with the resulting log entry."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Preview in Portal"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__priority
+msgid "Priority"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_process_job_queue_ir_actions_server
+msgid "Process Transcribe Job Queue"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__processing
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_recording__state__processing
+msgid "Processing"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid ""
+"Processing %d recording(s) in background. You will be notified when "
+"complete."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Processing timed out after %d minutes — worker likely died."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Processing timed out. Please try again."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Processing was interrupted."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__provider
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Provider"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Provider \"%s\" responded successfully."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Provider quota exceeded."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Provider returned an HTTP error."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Quickly verify your provider credentials without uploading audio."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__quota_exceeded
+msgid "Quota Exceeded"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_reencrypt_api_keys_ir_actions_server
+msgid "Re-encrypt API Keys After Rotation"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Re-transcribe"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_reclaim_stale_jobs_ir_actions_server
+msgid "Reclaim Stale Transcribe Jobs"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__record_end
+msgid "Record End"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__record_start
+msgid "Record Start"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_meeting_minutes
+msgid "Record meeting discussions, decisions, and action items."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__recording_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__recording_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__recording_id
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+msgid "Recording"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Recording #%s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Recording %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__recording_count
+msgid "Recording Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Recording error"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid ""
+"Recording file is too large (%(size).1f MB). Maximum allowed is %(max).0f "
+"MB."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Recording is empty. Please try again."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid ""
+"Recording is too long (%(dur).0f minutes). Maximum allowed is %(max).0f "
+"minutes."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Recording uploaded successfully."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Recording..."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__recording_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Recordings"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Related Events"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__provider__remote
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__res_company__transcription_provider__remote
+msgid "Remote whisperX Service"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Request timed out."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__user_id
+msgid "Requested By"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_list
+msgid "Requeue"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__signer_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Required Signers"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Reset to Draft"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_form
+msgid "Response Body (masked)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__response_snippet
+msgid "Response Snippet"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__state
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Result"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Resume"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__retriable
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Retriable"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+msgid "Retry"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_form
+msgid "Retry Transcription"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Run Test"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__running
+msgid "Running"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Schedule Meeting"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__scheduled_at
+msgid "Scheduled At"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+msgid "Search Signatures"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "See the Recordings tab for per-recording details and retry options."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Segment Details"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Select signers from calendar event attendees"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Send for Signature"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__state__sent
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+msgid "Sent"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Service URL"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Sign Meeting Minutes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__signature
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_list
+msgid "Signature"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__signature_count
+msgid "Signature Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Signature Settings"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Signature Status"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "Signature is missing."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__signature_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Signatures"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+msgid "Signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__signed_by
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_list
+msgid "Signed By"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__signed_count
+msgid "Signed Count"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__signed_on
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_list
+msgid "Signed On"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__partner_id
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+msgid "Signer"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
+msgid "Size"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
+msgid "Speaker"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_speaker_mapping_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
+msgid "Speaker ID"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__speaker_label
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__speaker_label
+msgid "Speaker Label"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_speaker_mapping
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__speaker_mapping_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Speaker Mapping"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__speaker_name
+msgid "Speaker Name"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__stale_worker
+msgid "Stale Worker"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
+msgid "Start"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__time_start
+msgid "Start (seconds)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Start Recording"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
+msgid "Start Time"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+msgid "Start Transcription"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__started_at
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__started_at
+msgid "Started At"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__state
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+msgid "State"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__state
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__state
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
+msgid "Status"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Stop"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__success
+msgid "Success"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Successes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__error_message
+msgid ""
+"Summary from the latest transcription attempt. See Transcription History for"
+" full detail."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Test Connection"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "The following signers are not calendar event attendees: %(signers)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid ""
+"The last %(n)d transcription attempts on this meeting minutes have all "
+"failed with code \"%(code)s\". Latest message: %(msg)s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_transcribe_log.py:0
+msgid "This failure is not retriable."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "This has already been signed."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+msgid "This is not a meeting minutes."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "This recording is already being processed."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid ""
+"This will reset the meeting minutes to draft and clear all signatures. "
+"Continue?"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__time_offset
+msgid "Time Offset (seconds)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__timeout
+msgid "Timeout"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+msgid "Title"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
+msgid "Today"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__traceback
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_form
+msgid "Traceback"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Transcribe"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_recording__state__done
+msgid "Transcribed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid "Transcript"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__transcript_html
+msgid "Transcript (Formatted)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_transcript_segment
+msgid "Transcript Segment"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__transcript_ids
+msgid "Transcript Segments"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__transcript_state
+msgid "Transcript Status"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_config_settings__transcription_api_key
+msgid "Transcription API Key"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Transcription API key updated"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_config_settings__transcription_api_key_is_set
+msgid "Transcription Api Key Is Set"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_transcribe_job
+msgid "Transcription Background Job"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_transcribe_log
+msgid "Transcription Execution Log"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__log_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+msgid "Transcription History"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_note_transcribe_job
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_meeting_minutes_jobs
+msgid "Transcription Jobs"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_form
+msgid "Transcription Log"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_note_transcribe_log
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_meeting_minutes_technical
+msgid "Transcription Logs"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_pivot
+msgid "Transcription Metrics"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_company__transcription_provider
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_config_settings__transcription_provider
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Transcription Provider"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_graph
+msgid "Transcription Results"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_company__transcription_service_url
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_res_config_settings__transcription_service_url
+msgid "Transcription Service URL"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_company_form_meeting_minutes
+msgid "Transcription Settings"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Transcription Started"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Transcription failed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Transcription partially completed. See Recordings for failed segments."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Transcription progress: %(done)s / %(total)s completed."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Transcription repeatedly failing: %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Transcription service URL is not configured."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_api_key_is_set
+msgid "True when an API key is already configured."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__can_retry
+msgid ""
+"True when state=error and latest log is retriable and under max attempts."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__note_type
+msgid "Type"
+msgstr "類型"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_company__transcription_service_url
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_service_url
+msgid ""
+"URL of the whisperX transcription service (e.g. http://gpu-server:8765)"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "URL of the whisperX transcription service."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
+msgid "Unexpected response from provider."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_signature__access_token
+msgid "Unique token for portal access without login"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Unknown"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_company.py:0
+msgid "Unknown provider: %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "Unsupported transcription provider: %s"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__upload_failed
+msgid "Upload Failed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Upload audio file"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Upload file"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_recording__state__uploaded
+msgid "Uploaded"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "Uploading recording..."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+msgid ""
+"Use the recording button below to record meeting audio directly from your browser.\n"
+"                                After uploading, click \"Start Transcription\" to convert speech to text."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
+msgid "User"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_home_meeting
+msgid "View and sign meeting minutes"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
+msgid "Warning"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
+msgid "When"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_job__picked_at
+msgid "When a worker atomically claimed this job."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__worker_started_at
+msgid "When the current worker started processing."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_log__retriable
+msgid "Whether this failure class is eligible for automatic retry."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "Whisper model size (only for Remote whisperX mode)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
+msgid "Worker Info"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__worker_pid
+msgid "Worker PID"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__worker_pid
+msgid "Worker Pid"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__worker_started_at
+msgid "Worker Started At"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_transcribe_job.py:0
+msgid "Worker died or exceeded time limit — requeued."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.xml:0
+msgid "You can still upload an existing audio file below."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid ""
+"Your browser does not expose microphone APIs (requires HTTPS and a modern "
+"browser)."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
+msgid "Your browser does not support audio recording."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "Your signature has been recorded."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "assemblyai.com"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "http://gpu-server:8765"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
+msgid "signed"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
+msgid "whisperX response is not valid JSON."
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
+msgid "zh"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "地點"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "完全簽名"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "已寄送"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "待辦事項"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "截止日期"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "會議內容"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "會議記錄"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "會議資訊"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "會議逐字稿"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "活動"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "無關聯行事曆"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "簽名"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "結束"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "與會者"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "草稿"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "記錄資訊"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "負責人"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+msgid "部分簽名"
+msgstr ""
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
+msgid "開始"
+msgstr ""
