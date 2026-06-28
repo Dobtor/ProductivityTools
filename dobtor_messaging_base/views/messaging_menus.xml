@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_messaging_root"
+              name="Messaging"
+              groups="dobtor_messaging_base.group_messaging_manager"
+              sequence="95"/>
+
+    <menuitem id="menu_messaging_accounts"
+              name="Accounts"
+              parent="menu_messaging_root"
+              action="action_messaging_account"
+              sequence="10"/>
+
+    <menuitem id="menu_messaging_partner_link"
+              name="Bind Contact"
+              parent="menu_messaging_root"
+              action="action_messaging_partner_link"
+              sequence="20"/>
+
+</odoo>

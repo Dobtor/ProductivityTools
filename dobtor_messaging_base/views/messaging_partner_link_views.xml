@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="messaging_partner_link_view_form" model="ir.ui.view">
+        <field name="name">messaging.partner.link.form</field>
+        <field name="model">messaging.partner.link</field>
+        <field name="arch" type="xml">
+            <form string="Bind Messaging Contact">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <field name="info_message" nolabel="1" readonly="1" class="mb-0"/>
+                    </div>
+
+                    <group col="2">
+                        <group string="Messaging Contact (Archive)">
+                            <field name="source_partner_id"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="source_preview" nolabel="1"/>
+                        </group>
+                        <group string="Existing Customer (Keep)">
+                            <field name="target_partner_id"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="target_preview" nolabel="1"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <field name="archive_source"/>
+                    </group>
+
+                    <div class="alert alert-warning" role="alert">
+                        <field name="warning_message" nolabel="1" readonly="1" class="mb-0"/>
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_link_partner" type="object"
+                            string="Bind Contact" class="btn-primary"
+                            confirm="Bind this contact into the selected customer? Messages and conversations will be re-assigned."/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_messaging_partner_link" model="ir.actions.act_window">
+        <field name="name">Bind Messaging Contact</field>
+        <field name="res_model">messaging.partner.link</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="messaging_partner_link_view_form"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

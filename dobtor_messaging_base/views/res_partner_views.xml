@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_form_messaging_bind" model="ir.ui.view">
+        <field name="name">res.partner.form.messaging.bind</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <field name="messaging_account_count" invisible="1"/>
+                    <button name="action_open_messaging_partner_link"
+                            type="object"
+                            string="Bind Messaging Contact"
+                            class="btn-secondary"
+                            groups="dobtor_messaging_base.group_messaging_manager"
+                            invisible="messaging_account_count == 0"/>
+                </header>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="messaging_account_view_list" model="ir.ui.view">
+        <field name="name">messaging.account.list</field>
+        <field name="model">messaging.account</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="provider"/>
+                <field name="external_display_name"/>
+                <field name="username"/>
+                <field name="external_user_id"/>
+                <field name="partner_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="messaging_account_view_form" model="ir.ui.view">
+        <field name="name">messaging.account.form</field>
+        <field name="model">messaging.account</field>
+        <field name="arch" type="xml">
+            <form string="Messaging Account">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="provider"/>
+                            <field name="external_user_id"/>
+                            <field name="username"/>
+                        </group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="external_display_name"/>
+                            <field name="status_message"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="messaging_account_view_search" model="ir.ui.view">
+        <field name="name">messaging.account.search</field>
+        <field name="model">messaging.account</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="external_user_id"/>
+                <field name="partner_id"/>
+                <field name="username"/>
+                <filter name="group_provider" string="Provider" context="{'group_by': 'provider'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_messaging_account" model="ir.actions.act_window">
+        <field name="name">Messaging Accounts</field>
+        <field name="res_model">messaging.account</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

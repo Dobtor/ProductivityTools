@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_messaging_account_user,messaging.account.user,model_messaging_account,base.group_user,1,0,0,0
+access_messaging_account_manager,messaging.account.manager,model_messaging_account,dobtor_messaging_base.group_messaging_manager,1,1,1,1
+access_messaging_account_system,messaging.account.system,model_messaging_account,base.group_system,1,1,1,1
+access_messaging_partner_link_manager,messaging.partner.link.manager,model_messaging_partner_link,dobtor_messaging_base.group_messaging_manager,1,1,1,1
+access_messaging_partner_link_system,messaging.partner.link.system,model_messaging_partner_link,base.group_system,1,1,1,1

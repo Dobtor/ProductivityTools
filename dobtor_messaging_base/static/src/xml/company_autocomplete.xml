@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_messaging_base.CompanyAutocomplete">
+        <div class="o-messaging-CompanyAutocomplete position-relative">
+            <input type="text" class="form-control form-control-sm"
+                   t-att-placeholder="placeholder"
+                   t-att-value="state.query"
+                   t-on-input="onInput"
+                   t-on-focus="onFocus"
+                   t-on-blur="onBlur"/>
+            <div t-if="state.open and (state.results.length or canCreate)"
+                 class="o-messaging-CompanyAutocomplete-menu dropdown-menu show w-100 mt-1 py-1">
+                <button t-foreach="state.results" t-as="company" t-key="company.id"
+                        type="button" class="dropdown-item text-truncate"
+                        t-on-mousedown.prevent="() => this.pick(company)">
+                    <i class="fa fa-building-o me-1 opacity-75"/><t t-esc="company.name"/>
+                </button>
+                <button t-if="canCreate" type="button"
+                        class="dropdown-item text-truncate"
+                        t-on-mousedown.prevent="() => this.create()">
+                    <i class="fa fa-plus me-1 opacity-75"/>
+                    <span>Create "<t t-esc="state.query"/>"</span>
+                </button>
+            </div>
+        </div>
+    </t>
+
+</templates>
