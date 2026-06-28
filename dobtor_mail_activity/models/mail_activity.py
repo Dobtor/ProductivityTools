@@ -1299,6 +1299,10 @@ class MailActivity(models.Model):
             'name': _('Transfer Activity'),
             'res_model': 'mail.activity.transfer.wizard',
             'view_mode': 'form',
+            # Dispatched client-side via doAction(rawDict); Odoo 18's
+            # _preprocessAction requires `views` (it won't derive it from
+            # view_mode), otherwise it throws "reading 'map' of undefined".
+            'views': [(False, 'form')],
             'target': 'new',
             'context': {
                 'default_activity_id': self.id,
@@ -1315,6 +1319,7 @@ class MailActivity(models.Model):
             'name': _('Complete Activity'),
             'res_model': 'mail.activity.done.wizard',
             'view_mode': 'form',
+            'views': [(False, 'form')],
             'target': 'new',
             'context': {
                 'default_activity_id': self.id,
@@ -1329,6 +1334,7 @@ class MailActivity(models.Model):
             'name': _('Postpone to Next Week'),
             'res_model': 'mail.activity.postpone.wizard',
             'view_mode': 'form',
+            'views': [(False, 'form')],
             'target': 'new',
             'context': {
                 'default_activity_id': self.id,
