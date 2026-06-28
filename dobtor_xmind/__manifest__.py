@@ -17,7 +17,7 @@
     ''',
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
-    'depends': ['base', 'web', 'mail', 'project'],
+    'depends': ['base', 'web', 'mail', 'project', 'dobtor_project'],
     'data': [
         'security/ir.model.access.csv',
         'security/xmind_security.xml',
@@ -41,6 +41,9 @@
             'dobtor_xmind/static/src/js/relationship_manager.js',
             'dobtor_xmind/static/src/js/mindmap_editor.js',
             'dobtor_xmind/static/src/xml/mindmap_templates.xml',
+            # Gantt toolbar integration (dobtor_project) — create/open mind map.
+            'dobtor_xmind/static/src/js/gantt_mindmap_button.js',
+            'dobtor_xmind/static/src/xml/gantt_mindmap_button.xml',
         ],
     },
     'installable': True,

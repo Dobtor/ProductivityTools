@@ -16,26 +16,30 @@
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button class="oe_stat_button" type="object" name="action_open_mindmaps"
-                        icon="fa-sitemap" invisible="xmind_workbook_count == 0">
+                        icon="fa-share-alt" invisible="xmind_workbook_count == 0">
                     <field name="xmind_workbook_count" widget="statinfo" string="Mind Maps"/>
                 </button>
             </xpath>
         </field>
     </record>
 
-    <!-- Add an "open mind map" jump box to the project kanban card. -->
+    <!-- Add a fa-share-alt "open mind map" button just left of the manager avatar
+         on the project kanban card. Only shown when this project has a mind map. -->
     <record id="view_project_kanban_xmind" model="ir.ui.view">
         <field name="name">project.project.kanban.xmind</field>
         <field name="model">project.project</field>
         <field name="inherit_id" ref="project.view_project_kanban"/>
         <field name="arch" type="xml">
-            <xpath expr="//div[hasclass('o_project_kanban_boxes')]" position="inside">
-                <a class="o_project_kanban_box me-1" name="action_open_mindmaps" type="object"
-                   t-if="record.xmind_workbook_count.raw_value &gt; 0" title="開啟心智圖">
-                    <div>
-                        <field name="xmind_workbook_count" class="o_value"/>
-                        <span class="ms-1">心智圖</span>
-                    </div>
+            <!-- Load the count so the card button can react to it. -->
+            <xpath expr="//templates" position="before">
+                <field name="xmind_workbook_count"/>
+            </xpath>
+            <xpath expr="//footer//field[@name='user_id']" position="before">
+                <a name="action_open_mindmaps" type="object"
+                   class="btn btn-sm btn-link p-0 me-1 text-info align-self-center"
+                   t-if="record.xmind_workbook_count.raw_value &gt; 0"
+                   title="開啟心智圖" aria-label="開啟心智圖">
+                    <i class="fa fa-share-alt"/>
                 </a>
             </xpath>
         </field>

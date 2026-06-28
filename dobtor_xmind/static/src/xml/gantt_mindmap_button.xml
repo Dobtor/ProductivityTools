@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Inject a mind-map button at the top-left of the Gantt toolbar.
+         "建立心智圖" when the project has none, "開啟心智圖" once it exists. -->
+    <t t-inherit="dobtor_project.GanttController" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_gantt_toolbar')]/button[1]" position="before">
+            <button class="o_gantt_tb_btn" t-if="showCreateMindmap"
+                    t-on-click="() => this.onCreateMindmap()" title="建立心智圖">
+                <i class="fa fa-share-alt"/>
+            </button>
+            <button class="o_gantt_tb_btn" t-if="showOpenMindmap"
+                    t-on-click="() => this.onOpenMindmap()" title="開啟心智圖">
+                <i class="fa fa-share-alt"/>
+            </button>
+            <div class="o_gantt_tb_sep" t-if="showMindmapButton"/>
+        </xpath>
+    </t>
+
+</templates>
