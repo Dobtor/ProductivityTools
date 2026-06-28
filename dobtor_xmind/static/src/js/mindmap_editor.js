@@ -2869,7 +2869,7 @@ export class MindmapEditor extends Component {
                 return;
             }
             this._updateStatus(create ? _t('Creating project...') : _t('Syncing project...'));
-            rpc('/xmind/workbook/' + this.workbookId + '/project_sync', { create, confirmed }).then((r) => {
+            rpc('/xmind/workbook/' + this.workbookId + '/project_sync', { create, confirmed }).then(async (r) => {
                 if (r && r.error) { this._showError(r.error); return; }
                 if (r && r.needs_confirm) {
                     // Removed topics → their tasks would be archived. Ask first.
@@ -2892,6 +2892,10 @@ export class MindmapEditor extends Component {
                         .replace('%s', r.created || 0).replace('%s', r.updated || 0).replace('%s', r.removed || 0);
                     this.notification.add(_t('Project synced: ') + name + ' — ' + detail, { type: 'success' });
                 }
+                // Refresh the current view so freshly linked tasks (activity
+                // clocks, task links) appear without a manual reload.
+                await this._loadWorkbookData();
+                this.jm.show(this.mindmapData, () => this._renderAllFeatures());
             }).catch(() => this._showError(_t('Project sync failed.')));
         });
     }
@@ -3942,10 +3946,14 @@ export class MindmapEditor extends Component {
             return;
         }
         const activity = clockEl._activity || {};
+        const node = this.jm.get_node(nodeId);
         this.activityPopover.open(clockEl, {
             activityIds: activity.ids || [],
             resId: taskId,
             resModel: 'project.task',
+            // Pre-fill the "Schedule Activity" wizard summary with the node's
+            // (task's) title. Consumed by activity_popover_summary_patch.js.
+            scheduleDefaultSummary: (node && node.topic) || '',
             onActivityChanged: () => {
                 this.activityPopover.close();
                 this._refreshActivityClock(nodeId, taskId);

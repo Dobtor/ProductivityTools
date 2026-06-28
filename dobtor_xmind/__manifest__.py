@@ -41,6 +41,8 @@
             'dobtor_xmind/static/src/js/relationship_manager.js',
             'dobtor_xmind/static/src/js/mindmap_editor.js',
             'dobtor_xmind/static/src/xml/mindmap_templates.xml',
+            # Pre-fill the "Schedule Activity" wizard summary from the clicked node.
+            'dobtor_xmind/static/src/js/activity_popover_summary_patch.js',
             # Gantt toolbar integration (dobtor_project) — create/open mind map.
             'dobtor_xmind/static/src/js/gantt_mindmap_button.js',
             'dobtor_xmind/static/src/xml/gantt_mindmap_button.xml',
