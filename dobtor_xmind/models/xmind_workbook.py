@@ -490,7 +490,22 @@ class XMindWorkbook(models.Model):
         self.ensure_one()
         if not self.project_id:
             raise UserError(_("This mind map is not linked to a project yet."))
-        return self.project_id.action_view_tasks()
+        action = self.project_id.action_view_tasks()
+        # action_view_tasks() leaves active_id in the action's DOMAIN
+        # ([('project_id', '=', active_id), ...]) to be resolved from context.
+        # We invoke it programmatically (no active record on the stack, and the
+        # clicked record here is the workbook, not the project), so inject the
+        # project's id explicitly — otherwise the domain eval fails / filters by
+        # the wrong id.
+        context = action.get('context')
+        if not isinstance(context, dict):
+            context = {}
+        action['context'] = {
+            **context,
+            'active_id': self.project_id.id,
+            'active_ids': self.project_id.ids,
+        }
+        return action
 
     def _plan_project_orphans(self):
         """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to

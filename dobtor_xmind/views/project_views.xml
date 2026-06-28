@@ -39,7 +39,7 @@
                    class="btn btn-sm btn-link p-0 me-1 text-info align-self-center"
                    t-if="record.xmind_workbook_count.raw_value &gt; 0"
                    title="開啟心智圖" aria-label="開啟心智圖">
-                    <i class="fa fa-share-alt"/>
+                    <i class="fa fa-share-alt me-1"/>心智圖
                 </a>
             </xpath>
         </field>

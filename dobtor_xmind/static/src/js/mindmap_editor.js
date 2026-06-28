@@ -2825,11 +2825,12 @@ export class MindmapEditor extends Component {
     onSyncProject() { this._doProjectSync(false); }
 
     async onOpenProject() {
-        if (!this.projectInfo || !this.projectInfo.id) return;
+        if (!this.projectInfo || !this.projectInfo.id || !this.workbookId) return;
         // Open the project's Gantt (tasks) view directly, not the project form.
-        // dobtor_project makes ganttaps the default view of action_view_tasks.
+        // Route through the workbook server method so active_id is injected into
+        // the action context (the tasks action's domain relies on active_id).
         const action = await this.orm.call(
-            'project.project', 'action_view_tasks', [[this.projectInfo.id]]
+            'xmind.workbook', 'action_open_project', [[this.workbookId]]
         );
         if (action) {
             this.action.doAction(action);
