@@ -2824,15 +2824,16 @@ export class MindmapEditor extends Component {
     onCreateProject() { this._doProjectSync(true); }
     onSyncProject() { this._doProjectSync(false); }
 
-    onOpenProject() {
+    async onOpenProject() {
         if (!this.projectInfo || !this.projectInfo.id) return;
-        this.action.doAction({
-            type: 'ir.actions.act_window',
-            res_model: 'project.project',
-            res_id: this.projectInfo.id,
-            views: [[false, 'form']],
-            target: 'current',
-        });
+        // Open the project's Gantt (tasks) view directly, not the project form.
+        // dobtor_project makes ganttaps the default view of action_view_tasks.
+        const action = await this.orm.call(
+            'project.project', 'action_view_tasks', [[this.projectInfo.id]]
+        );
+        if (action) {
+            this.action.doAction(action);
+        }
     }
 
     _updateProjectButtons() {

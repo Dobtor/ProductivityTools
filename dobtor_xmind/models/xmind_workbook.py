@@ -482,19 +482,15 @@ class XMindWorkbook(models.Model):
         return self._sync_notification(stats, _("Project synced"))
 
     def action_open_project(self):
-        """Jump to the linked project's form view."""
+        """Jump straight to the linked project's Gantt (tasks) view.
+
+        Reuses project.action_view_tasks(): dobtor_project makes ganttaps the
+        first/default view of that action, so this opens the Gantt directly
+        (scoped to this project) instead of the project form."""
         self.ensure_one()
         if not self.project_id:
             raise UserError(_("This mind map is not linked to a project yet."))
-        return {
-            'type': 'ir.actions.act_window',
-            'name': self.project_id.name,
-            'res_model': 'project.project',
-            'res_id': self.project_id.id,
-            'view_mode': 'form',
-            'views': [[False, 'form']],
-            'target': 'current',
-        }
+        return self.project_id.action_view_tasks()
 
     def _plan_project_orphans(self):
         """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to

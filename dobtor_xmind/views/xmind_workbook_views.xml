@@ -145,8 +145,8 @@
                             <div class="d-flex align-items-center">
                                 <a name="action_open_project" type="object"
                                    class="btn btn-sm btn-link p-0 me-2 text-info"
-                                   t-if="record.project_id.raw_value" title="開啟專案">
-                                    <i class="fa fa-folder-open me-1"/>專案
+                                   t-if="record.project_id.raw_value" title="開啟專案甘特圖">
+                                    <i class="fa fa-tasks me-1"/>甘特圖
                                 </a>
                                 <field name="create_uid" widget="many2one_avatar_user"/>
                             </div>
