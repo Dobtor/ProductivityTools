@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor Messaging Base',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'category': 'Productivity/Discuss',
     'summary': 'Provider-agnostic base for external messaging (LINE, Telegram, ...) '
                'plus a company-centric Discuss member panel.',

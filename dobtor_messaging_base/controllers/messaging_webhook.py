@@ -88,6 +88,7 @@ class MessagingWebhookMixin:
                     author,
                     body=item.get('body', ''),
                     attachment_ids=item.get('attachment_ids'),
+                    external_id=item.get('external_message_id'),
                 )
                 channel._messaging_touch_sync()
             except Exception as e:  # noqa: BLE001 - one bad event must not drop the batch

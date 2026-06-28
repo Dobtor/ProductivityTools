@@ -235,16 +235,31 @@ class DiscussChannel(models.Model):
         return partner
 
     def _messaging_post_inbound(self, author, body='', attachment_ids=None,
-                                message_type='comment', subtype_xmlid='mail.mt_comment'):
-        """Post an inbound message, tagged so the outbound sync won't echo it."""
+                                message_type='comment', subtype_xmlid='mail.mt_comment',
+                                external_id=None):
+        """Post an inbound message, tagged so the outbound sync won't echo it.
+
+        :param external_id: the platform message id; stored on the created
+            mail.message (with the channel's provider) so providers can later
+            match edits/deletes back to it.
+        """
         self.ensure_one()
-        return self.with_context(_from_messaging=True).message_post(
+        message = self.with_context(_from_messaging=True).message_post(
             body=body or '',
             message_type=message_type,
             subtype_xmlid=subtype_xmlid,
             author_id=author.id if author else None,
             attachment_ids=attachment_ids or [],
         )
+        if message and (external_id or self.messaging_provider):
+            vals = {}
+            if external_id:
+                vals['messaging_external_id'] = str(external_id)
+            if self.messaging_provider:
+                vals['messaging_provider'] = self.messaging_provider
+            if vals:
+                message.sudo().write(vals)
+        return message
 
     def _messaging_ensure_member(self, partner):
         """Ensure a partner is a member of this channel."""
