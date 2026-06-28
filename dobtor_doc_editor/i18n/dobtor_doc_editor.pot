@@ -1,0 +1,153 @@
+# Translations template for dobtor_doc_editor (P3-2 i18n).
+#
+# This file is the canonical translation source — do NOT edit manually unless
+# you intend to bypass the standard Odoo i18n workflow:
+#
+#   1. To regenerate, run:
+#        docker exec odoo18 odoo -c /etc/odoo/odoo.conf -d odoo18_dev \
+#               --i18n-export=/tmp/dobtor.pot --modules=dobtor_doc_editor \
+#               --stop-after-init
+#      然後從 container 複製出來覆蓋此檔。
+#
+#   2. 中文（繁體）翻譯：建立 zh_TW.po，從本檔 msgid 開始填 msgstr。
+#      Odoo 安裝時會自動載入 zh_TW.po（若使用者語系 = zh_TW）。
+#
+# 目前內容為「最小可用」骨架 — 列出主要 user-facing 字串，
+# 等 W11+ 主線完成功能後再做完整 string sweep。
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: dobtor_doc_editor 18.0.2.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-06 00:00+0000\n"
+"PO-Revision-Date: 2026-05-06 00:00+0000\n"
+"Last-Translator: chichi <chichihuang0718@gmail.com>\n"
+"Language-Team: Chinese (Traditional) <zh_TW@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,field_description:dobtor_doc_editor.field_doc_document__name
+msgid "Document Name"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,field_description:dobtor_doc_editor.field_doc_document__version_number
+msgid "Version Number"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,field_description:dobtor_doc_editor.field_doc_document__collaborator_ids
+msgid "Collaborators"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,field_description:dobtor_doc_editor.field_doc_editor_error_log__error_type
+msgid "Error Type"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,field_description:dobtor_doc_editor.field_doc_editor_perf_metric__metric_type
+msgid "Metric Type"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model,name:dobtor_doc_editor.model_doc_document
+msgid "Document"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model,name:dobtor_doc_editor.model_doc_template
+msgid "Document Template"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model,name:dobtor_doc_editor.model_doc_linked_mixin
+msgid "Mixin: Linked dobtor_doc_editor Document"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.actions.act_window,name:dobtor_doc_editor.action_doc_editor_error_log
+msgid "Editor Errors"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.actions.act_window,name:dobtor_doc_editor.action_doc_editor_perf_metric
+msgid "Performance Metrics"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_dobtor_doc_root
+msgid "Document Editor"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_doc_documents
+msgid "My Documents"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_doc_templates
+msgid "Document Templates"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_doc_telemetry
+msgid "Monitoring"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_doc_editor_error_log
+msgid "Error Log"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_doc_editor_perf_metric
+msgid "Performance Metrics"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "上傳檔案過大（%(size).1f MB），上限為 %(limit).1f MB。"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "壓縮檔內 entry 數量過多（%(n)d 個），上限為 %(limit)d。"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "解壓後總大小超過上限（>%(limit).1f MB）— 疑似 zip bomb。"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "Entry「%(name)s」壓縮比異常（%(ratio).0fx）— 疑似 zip bomb。"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "檔案不是合法的 ZIP / DOCX 格式。"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model_terms:ir.ui.view,arch_db:dobtor_doc_editor.portal_my_documents
+msgid "您目前沒有可存取的文件。"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model_terms:ir.ui.view,arch_db:dobtor_doc_editor.portal_my_documents
+msgid "Edit"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model_terms:ir.ui.view,arch_db:dobtor_doc_editor.portal_document_view
+msgid "Portal Collaborator"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model_terms:ir.ui.view,arch_db:dobtor_doc_editor.portal_document_view
+msgid "Loading editor..."
+msgstr ""

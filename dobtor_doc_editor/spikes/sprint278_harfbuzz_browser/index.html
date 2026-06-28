@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sprint 278 — HarfBuzz browser spike</title>
+<style>
+  body { font: 14px/1.5 monospace; padding: 16px; max-width: 1100px; }
+  pre { background: #f4f4f4; padding: 8px; overflow-x: auto; }
+  .ok { color: #080; }
+  .fail { color: #c00; }
+  h2 { margin-top: 24px; }
+</style>
+</head>
+<body>
+<h1>Sprint 278 — HarfBuzz WASM browser-side integration spike</h1>
+<div id="env"></div>
+<h2>Loading harfbuzzjs</h2>
+<pre id="load-log"></pre>
+<h2>Shaping result（DejaVuSans + "Hello world"）</h2>
+<pre id="shape-result"></pre>
+<h2>Verification (5 glyph fields)</h2>
+<pre id="verify"></pre>
+<h2>Feature toggle test（"AV" with kern on/off）</h2>
+<pre id="feature-result"></pre>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const log = (id, msg) => { $(id).textContent += msg + "\n"; };
+const ok = (id, msg) => { $(id).innerHTML += `<span class="ok">[OK]</span> ${msg}\n`; };
+const fail = (id, msg) => { $(id).innerHTML += `<span class="fail">[FAIL]</span> ${msg}\n`; };
+
+$('env').innerHTML = `
+  <strong>userAgent</strong>: ${navigator.userAgent}<br>
+  <strong>WebAssembly</strong>: ${typeof WebAssembly !== 'undefined' ? 'available' : 'MISSING'}<br>
+  <strong>TextDecoder/Encoder</strong>: ${typeof TextDecoder !== 'undefined' ? 'available' : 'MISSING'}<br>
+  <strong>fetch</strong>: ${typeof fetch === 'function' ? 'available' : 'MISSING'}
+`;
+
+const exitCode = { code: 0, errors: [] };
+function bail(msg, where) {
+  exitCode.code = 1;
+  exitCode.errors.push(`[${where}] ${msg}`);
+  fail(where, msg);
+}
+
+async function main() {
+  // === Step 1: load harfbuzzjs ===
+  // hb.js exports `createHarfBuzz` as a UMD-ish global; we load via <script>
+  // because the file uses `var createHarfBuzz=(()=>...)` (not ESM exports).
+  log('load-log', '[1] Loading /vendor/hb.js (Emscripten output) ...');
+  await loadScript('./vendor/hb.js');
+  if (typeof createHarfBuzz !== 'function') {
+    return bail('createHarfBuzz global not found after loading hb.js', 'load-log');
+  }
+  ok('load-log', 'hb.js loaded、createHarfBuzz global available');
+
+  log('load-log', '[2] Loading /vendor/hbjs.js (high-level wrapper) ...');
+  await loadScript('./vendor/hbjs.js');
+  if (typeof hbjs !== 'function') {
+    return bail('hbjs global not found after loading hbjs.js', 'load-log');
+  }
+  ok('load-log', 'hbjs.js loaded、hbjs global available');
+
+  log('load-log', '[3] Instantiating WebAssembly module ...');
+  const t0 = performance.now();
+  const hbModule = await createHarfBuzz({
+    locateFile: (p) => './vendor/' + p,
+  });
+  const tLoad = (performance.now() - t0).toFixed(1);
+  ok('load-log', `WebAssembly instantiated in ${tLoad}ms`);
+
+  const hb = hbjs(hbModule);
+  ok('load-log', `hbjs wrapper ready, top-level functions: ${Object.keys(hb).filter(k => typeof hb[k] === 'function').slice(0, 6).join(', ')} ...`);
+
+  // === Step 2: fetch DejaVuSans ===
+  log('load-log', '[4] Fetching DejaVuSans.ttf ...');
+  const fontResp = await fetch('./DejaVuSans.ttf');
+  if (!fontResp.ok) return bail(`font fetch ${fontResp.status}`, 'load-log');
+  const fontBuf = new Uint8Array(await fontResp.arrayBuffer());
+  ok('load-log', `DejaVuSans fetched, ${fontBuf.byteLength} bytes`);
+
+  // === Step 3: shape "Hello world" ===
+  log('shape-result', '[5] Shaping text "Hello world" at sizePt=12 ...');
+  const blob = hb.createBlob(fontBuf);
+  const face = hb.createFace(blob, 0);
+  const font = hb.createFont(face);
+  const upem = face.upem;
+  const sizePt = 12;
+  // pt scale conversion: hb output is in font units; advance_pt = advance_units / upem * sizePt
+  font.setScale(upem, upem);
+
+  const buffer = hb.createBuffer();
+  buffer.addText('Hello world');
+  buffer.guessSegmentProperties();
+  hb.shape(font, buffer);
+  const glyphsRaw = buffer.json(font);
+  buffer.destroy();
+
+  const glyphs = glyphsRaw.map((g) => ({
+    glyphId: g.g,
+    xAdvance: g.ax / upem * sizePt,
+    yAdvance: g.ay / upem * sizePt,
+    xOffset: g.dx / upem * sizePt,
+    yOffset: g.dy / upem * sizePt,
+    cluster: g.cl,
+  }));
+  $('shape-result').textContent += JSON.stringify(glyphs, null, 2) + '\n';
+
+  // === Step 4: verify 5 fields present ===
+  log('verify', '[6] Asserting glyph[] has 5 required fields per item ...');
+  const required = ['glyphId', 'xAdvance', 'yAdvance', 'xOffset', 'yOffset'];
+  for (const [i, g] of glyphs.entries()) {
+    const missing = required.filter((k) => !(k in g) || typeof g[k] !== 'number');
+    if (missing.length === 0) {
+      ok('verify', `glyph[${i}] ✓ all 5 fields numeric (id=${g.glyphId}, xAdv=${g.xAdvance.toFixed(3)}pt)`);
+    } else {
+      bail(`glyph[${i}] missing/non-numeric: ${missing.join(',')}`, 'verify');
+    }
+  }
+  // Width sanity: "Hello world" at 12pt DejaVuSans ~= 60pt（中等英文 ~5pt/字平均、11字含空白）
+  const totalWidth = glyphs.reduce((s, g) => s + g.xAdvance, 0);
+  if (totalWidth > 40 && totalWidth < 90) {
+    ok('verify', `total width ${totalWidth.toFixed(3)}pt within sane range 40-90pt`);
+  } else {
+    bail(`total width ${totalWidth.toFixed(3)}pt outside sane range`, 'verify');
+  }
+  if (glyphs.length === 11) {  // 'H','e','l','l','o',' ','w','o','r','l','d'
+    ok('verify', `glyph count = 11 (matches "Hello world" 11 chars including space)`);
+  } else {
+    bail(`glyph count = ${glyphs.length}, expected 11`, 'verify');
+  }
+
+  // === Step 5: feature toggle test ===
+  log('feature-result', '[7] Shaping "AV" twice: kern enabled vs disabled ...');
+  async function shapeFeatures(features) {
+    const b = hb.createBuffer();
+    b.addText('AV');
+    b.guessSegmentProperties();
+    hb.shape(font, b, features);
+    const out = b.json(font);
+    b.destroy();
+    return out;
+  }
+  const kernOn = await shapeFeatures('kern');
+  const kernOff = await shapeFeatures('-kern');
+  const widthOn = kernOn.reduce((s, g) => s + g.ax, 0) / upem * sizePt;
+  const widthOff = kernOff.reduce((s, g) => s + g.ax, 0) / upem * sizePt;
+  $('feature-result').textContent += `AV with kern on:  width = ${widthOn.toFixed(4)}pt\n`;
+  $('feature-result').textContent += `AV with kern off: width = ${widthOff.toFixed(4)}pt\n`;
+  $('feature-result').textContent += `delta:            ${(widthOn - widthOff).toFixed(4)}pt\n`;
+  // DejaVuSans 對 'AV' 不一定有 kerning pair；驗只在於 features 參數確實傳進 shape() 而不報錯
+  ok('feature-result', `feature toggle parameter accepted、shape() returned without error in both cases`);
+
+  // Cleanup
+  font.destroy();
+  face.destroy();
+  blob.destroy();
+
+  // === Final ===
+  window.__sprint278_result = {
+    exitCode: exitCode.code,
+    errors: exitCode.errors,
+    glyphCount: glyphs.length,
+    totalWidthPt: totalWidth,
+    sampleGlyph: glyphs[0],
+    kernDeltaPt: widthOn - widthOff,
+    wasmLoadMs: parseFloat(tLoad),
+    upem,
+    userAgent: navigator.userAgent,
+  };
+  console.log('[sprint278] FINAL', JSON.stringify(window.__sprint278_result, null, 2));
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+main().catch((e) => {
+  console.error('[sprint278] FATAL', e);
+  window.__sprint278_result = { exitCode: 99, errors: [String(e)] };
+});
+</script>
+</body>
+</html>

@@ -36,11 +36,11 @@
                         <t t-foreach="filteredFields" t-as="field" t-key="field.name">
                             <div class="doc-field-picker-row d-flex align-items-center justify-content-between py-1 px-2 border-bottom"
                                  style="cursor: pointer;"
-                                 t-on-click="() => this.insertField(field.expression, field.field_description)">
+                                 t-on-click="() => this.insertField(field.expression, field.label, field)">
                                 <div>
-                                    <span class="fw-semibold text-primary small" t-esc="field.field_description"/>
+                                    <span class="fw-semibold text-primary small" t-esc="field.label"/>
                                     <span class="text-muted ms-2 small" t-esc="field.name"/>
-                                    <span class="badge bg-light text-secondary ms-1 small" t-esc="field.ttype"/>
+                                    <span class="badge bg-light text-secondary ms-1 small" t-esc="field.type"/>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <code class="small text-success" t-esc="field.expression"/>
@@ -58,10 +58,10 @@
                                 <t t-foreach="field.sub_fields" t-as="sub" t-key="sub.name">
                                     <div class="doc-field-picker-row d-flex align-items-center justify-content-between py-1 px-4 border-bottom bg-light"
                                          style="cursor: pointer;"
-                                         t-on-click="() => this.insertSubField(field.name, sub)">
+                                         t-on-click="() => this.insertSubField(field, sub)">
                                         <div>
                                             <i class="fa fa-level-right text-muted me-1"/>
-                                            <span class="text-secondary small" t-esc="sub.field_description"/>
+                                            <span class="text-secondary small" t-esc="sub.label"/>
                                             <span class="text-muted ms-1 small" t-esc="'.' + sub.name"/>
                                         </div>
                                         <code class="small text-success">

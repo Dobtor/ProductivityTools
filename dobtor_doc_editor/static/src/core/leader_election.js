@@ -21,6 +21,13 @@ export class LeaderElection {
 
         if (this.busService) {
             this.busService.addEventListener("notification", this._bound);
+            // 必須訂閱該 channel 才會收到其他 session 廣播的 presence/leave 事件；
+            // 缺這行 _presences 永遠只有自己 → 每個 session 都自認 leader（防重存失效）。
+            try {
+                this.busService.addChannel(this.documentChannel);
+            } catch (e) {
+                // bus.bus 未啟用時靜默失敗
+            }
             this._announce();
         }
     }

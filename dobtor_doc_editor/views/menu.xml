@@ -21,4 +21,41 @@
               action="action_doc_template_list"
               sequence="20"
               groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <!-- ─── 批次匯入（action 定義於 wizards/doc_bulk_import_wizard_views.xml，
+         manifest 中先載入；此處只放 menuitem 避免根選單前向引用） ─── -->
+    <menuitem id="menu_doc_bulk_import"
+              name="批次匯入"
+              parent="menu_dobtor_doc_root"
+              action="action_doc_bulk_import_wizard"
+              sequence="30"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <!-- ─── 監控與遙測（P2-4，僅管理者可見） ─── -->
+    <menuitem id="menu_doc_telemetry"
+              name="監控"
+              parent="menu_dobtor_doc_root"
+              sequence="90"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <menuitem id="menu_doc_editor_error_log"
+              name="錯誤紀錄"
+              parent="menu_doc_telemetry"
+              action="action_doc_editor_error_log"
+              sequence="10"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <menuitem id="menu_doc_editor_perf_metric"
+              name="效能指標"
+              parent="menu_doc_telemetry"
+              action="action_doc_editor_perf_metric"
+              sequence="20"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <menuitem id="menu_doc_editor_export_log"
+              name="匯出紀錄"
+              parent="menu_doc_telemetry"
+              action="action_doc_editor_export_log"
+              sequence="30"
+              groups="dobtor_doc_editor.group_doc_manager"/>
 </odoo>

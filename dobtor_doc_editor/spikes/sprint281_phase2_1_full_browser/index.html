@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sprint 281 — Phase 2.1 full chain browser e2e</title>
+<style>
+  body { font: 14px/1.5 monospace; padding: 16px; max-width: 1200px; }
+  pre { background: #f4f4f4; padding: 8px; overflow-x: auto; }
+  h2 { margin-top: 24px; }
+  .ok { color: #080; font-weight: bold; }
+  .fail { color: #c00; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Sprint 281 — Phase 2.1 full chain browser e2e spike</h1>
+<p>鏈：<code>setHbModuleLoader</code> → <code>loadShapingFontWithChain</code> → <code>engine.measureRun</code> → <code>readFontMetrics</code> → <code>resolveOoxmlLineHeight</code></p>
+
+<h2>Stage 1: hb wasm + 字型 fetch chain</h2>
+<pre id="stage1"></pre>
+<h2>Stage 2: ShapingEngine.measureRun (HarfBuzz shape via injected loader)</h2>
+<pre id="stage2"></pre>
+<h2>Stage 3: readFontMetrics (opentype.js)</h2>
+<pre id="stage3"></pre>
+<h2>Stage 4: resolveOoxmlLineHeight (auto / exact / atLeast)</h2>
+<pre id="stage4"></pre>
+<h2>Final result global</h2>
+<pre id="final"></pre>
+
+<!-- Sprint 278 vendor binaries reused for hb wasm（gitignored、reproducible 從 node_modules） -->
+<script src="../sprint278_harfbuzz_browser/vendor/hb.js"></script>
+<script src="../sprint278_harfbuzz_browser/vendor/hbjs.js"></script>
+<!-- Sprint 281 bundle：ShapingEngine + ShapingFontChain + FontMetrics -->
+<script src="./bundle.js"></script>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const log = (id, msg) => { $(id).textContent += msg + "\n"; };
+const ok = (id, msg) => { $(id).innerHTML += `<span class="ok">[OK]</span> ${msg}\n`; };
+
+async function main() {
+  const {
+    ShapingEngine,
+    setHbModuleLoader,
+    loadShapingFontWithChain,
+    readFontMetrics,
+    resolveOoxmlLineHeight,
+  } = window.Sprint281;
+
+  // === Stage 1: hb loader inject + font fetch ===
+  log('stage1', '[1] Injecting hbModuleLoader (browser createHarfBuzz + hbjs)...');
+  setHbModuleLoader(async () => {
+    const Module = await window.createHarfBuzz({
+      locateFile: (p) => '../sprint278_harfbuzz_browser/vendor/' + p,
+    });
+    return window.hbjs(Module);
+  });
+  ok('stage1', 'hbModuleLoader injected');
+
+  log('stage1', '[2] Build engine + loadShapingFontWithChain (primary 404 → fallback 200 模擬 chain)...');
+  const engine = new ShapingEngine();
+  const fontUrl = '../sprint278_harfbuzz_browser/DejaVuSans.ttf';
+  const loadResult = await loadShapingFontWithChain({
+    engine,
+    primary: { family: 'NotExistFont', url: '/spike-404/does-not-exist.ttf' },
+    fallbacks: [
+      { family: 'DejaVuSans', url: fontUrl },
+    ],
+  });
+  ok('stage1', `chain attemptedCount=${loadResult.attemptedCount} loadedAs="${loadResult.loadedAs}" loadedFrom="${loadResult.loadedFrom.family}" bytes=${loadResult.bytes.byteLength}`);
+
+  // === Stage 2: ShapingEngine.measureRun via injected loader ===
+  log('stage2', '[3] engine.measureRun("Hello world", "NotExistFont"[chain-resolved], 12)...');
+  const t0 = performance.now();
+  const r = await engine.measureRun('Hello world', loadResult.loadedAs, 12);
+  const elapsed = (performance.now() - t0).toFixed(1);
+  ok('stage2', `glyphCount=${r.glyphCount} widthPt=${r.widthPt} elapsed=${elapsed}ms`);
+  log('stage2', `glyph[0]: ${JSON.stringify(r.glyphs[0])}`);
+  log('stage2', `advancesPt[0..2]: ${r.advancesPt.slice(0, 3).map(x => x.toFixed(4)).join(' ')}`);
+
+  // === Stage 3: readFontMetrics (opentype.js) ===
+  log('stage3', '[4] readFontMetrics(bytes)...');
+  const metrics = readFontMetrics(loadResult.bytes);
+  ok('stage3', `unitsPerEm=${metrics.unitsPerEm} ascender=${metrics.ascender} descender=${metrics.descender} lineGap=${metrics.lineGap}`);
+  log('stage3', `typoAscender=${metrics.typoAscender} typoDescender=${metrics.typoDescender} typoLineGap=${metrics.typoLineGap}`);
+  log('stage3', `winAscent=${metrics.winAscent} winDescent=${metrics.winDescent}`);
+  log('stage3', `italic=${metrics.italic} bold=${metrics.bold} weight=${metrics.weight}`);
+
+  // === Stage 4: resolveOoxmlLineHeight ===
+  // Signature: (metrics, sizePt, lineRule?, lineValue?) → { heightPt, rule, naturalHeightPt, lineValue? }
+  log('stage4', '[5] OOXML w:line auto / exact / atLeast at sizePt=12...');
+  const natural = resolveOoxmlLineHeight(metrics, 12);
+  const auto = resolveOoxmlLineHeight(metrics, 12, 'auto', 1.5);
+  const exact = resolveOoxmlLineHeight(metrics, 12, 'exact', 18);
+  const atLeast = resolveOoxmlLineHeight(metrics, 12, 'atLeast', 20);
+  ok('stage4', `natural heightPt=${natural.heightPt.toFixed(4)}`);
+  ok('stage4', `auto(1.5×) heightPt=${auto.heightPt.toFixed(4)}`);
+  ok('stage4', `exact(18pt) heightPt=${exact.heightPt.toFixed(4)}`);
+  ok('stage4', `atLeast(20pt) heightPt=${atLeast.heightPt.toFixed(4)}`);
+
+  // === Final ===
+  const final = {
+    exitCode: 0,
+    chainAttempted: loadResult.attemptedCount,
+    chainLoadedFrom: loadResult.loadedFrom.family,
+    shapeGlyphCount: r.glyphCount,
+    shapeWidthPt: r.widthPt,
+    shapeGlyph0: r.glyphs[0],
+    metrics: {
+      unitsPerEm: metrics.unitsPerEm,
+      ascender: metrics.ascender,
+      descender: metrics.descender,
+      lineGap: metrics.lineGap,
+      typoAscender: metrics.typoAscender,
+      weight: metrics.weight,
+    },
+    naturalHeightPt: natural.heightPt,
+    autoHeightPt: auto.heightPt,
+    exactHeightPt: exact.heightPt,
+    atLeastHeightPt: atLeast.heightPt,
+    userAgent: navigator.userAgent,
+    elapsedShapeMs: parseFloat(elapsed),
+  };
+  window.__sprint281_result = final;
+  $('final').textContent = JSON.stringify(final, null, 2);
+  console.log('[sprint281] FINAL', JSON.stringify(final, null, 2));
+}
+
+main().catch((e) => {
+  console.error('[sprint281] FATAL', e);
+  window.__sprint281_result = { exitCode: 99, errors: [String(e), String(e.stack)] };
+  $('final').innerHTML = `<span class="fail">FATAL</span>: ${e.message}\n${e.stack}`;
+});
+</script>
+</body>
+</html>

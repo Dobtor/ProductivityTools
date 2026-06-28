@@ -1,0 +1,935 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120210-監造會議記錄-1120801.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+  ],
+  "filename": "03.1120210-監造會議記錄-1120801.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 173,
+  "tableCount": 1,
+  "tableShapes": [
+    "34x16",
+  ],
+  "textHead": " 主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造護岸及步道整建工程(延壽橋至三合橋)會議主題：	第1次工地協調會議會議日期：112年8月1日會議地點：",
+  "textLength": 1385,
+  "textSha1": "2bf17892b87a660596905429890d1a32c821c5e7",
+  "totalElements": 1559,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120815-監造會議記錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+    495,
+  ],
+  "filename": "03.1120815-監造會議記錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 183,
+  "tableCount": 2,
+  "tableShapes": [
+    "28x16",
+    "4x5",
+  ],
+  "textHead": "主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)會議主題：	第3次工地協調會議會議日期：112年8月15日會議地",
+  "textLength": 1591,
+  "textSha1": "18c0994450d255f51a48e4f117fb786b90b3e87f",
+  "totalElements": 1776,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120822-監造會議記錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+    495,
+  ],
+  "filename": "03.1120822-監造會議記錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 166,
+  "tableCount": 2,
+  "tableShapes": [
+    "26x16",
+    "3x5",
+  ],
+  "textHead": "主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)會議主題：	第4次工地協調會議會議日期：112年8月22日會議地",
+  "textLength": 1370,
+  "textSha1": "216ef9064f3cd9838543ffddb49505ac94a6adab",
+  "totalElements": 1538,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120829-監造會議記錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+    495,
+  ],
+  "filename": "03.1120829-監造會議記錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 173,
+  "tableCount": 2,
+  "tableShapes": [
+    "27x16",
+    "3x5",
+  ],
+  "textHead": "主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)會議主題：	第5次工地協調會議會議日期：112年8月29日會議地",
+  "textLength": 1430,
+  "textSha1": "de3cfefd72d78caf2d524d12fc539c2a3a7d894d",
+  "totalElements": 1605,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120905-監造會議記錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+    495,
+  ],
+  "filename": "03.1120905-監造會議記錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 166,
+  "tableCount": 2,
+  "tableShapes": [
+    "28x16",
+    "2x5",
+  ],
+  "textHead": "主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)會議主題：	第6次工地協調會議會議日期：112年 9月5日會議地",
+  "textLength": 1319,
+  "textSha1": "02e8589bbc6d9586f1356c7cfbf05d2f826633d2",
+  "totalElements": 1487,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120912-監造會議記錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+    495,
+  ],
+  "filename": "03.1120912-監造會議記錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 176,
+  "tableCount": 2,
+  "tableShapes": [
+    "28x16",
+    "4x5",
+  ],
+  "textHead": "主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)會議主題：	第7次工地協調會議會議日期：112年 9月12日會議",
+  "textLength": 1404,
+  "textSha1": "c659db5ac18e6aead02b27cfb8a79fb83551ee97",
+  "totalElements": 1582,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 01_simple/03.1120919-監造會議記錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "01_simple",
+  "colWidthSum": [
+    494,
+    495,
+  ],
+  "filename": "03.1120919-監造會議記錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 186,
+  "tableCount": 2,
+  "tableShapes": [
+    "28x16",
+    "5x5",
+  ],
+  "textHead": "主辦機關：臺北市政府工務局水利工程處工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)會議主題：	第8次工地協調會議會議日期：112年 9月19日會議",
+  "textLength": 1509,
+  "textSha1": "2036147f81835abc01fdb166262660b5388f25a9",
+  "totalElements": 1697,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [
+    511,
+    526,
+  ],
+  "filename": "1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 64,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x6",
+    "4x2",
+  ],
+  "textHead": "工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）主辦工務所北投工務所工務所主辦監工李晏然施工廠商上溢營造股份有限公司監造廠商任泰技術顧問有限公司開工日",
+  "textLength": 343,
+  "textSha1": "4c67b9bbcb3885ad5eb9a0f26b710658e4a2a957",
+  "totalElements": 413,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [
+    512,
+    526,
+  ],
+  "filename": "1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 70,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x8",
+    "4x2",
+  ],
+  "textHead": "工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）主辦工務所北投工務所工務所主辦監工李晏然施工廠商上溢營造股份有限公司監造廠商任泰技術顧問有限公司開工日",
+  "textLength": 372,
+  "textSha1": "ca9173a6caf07b5aac210d2d0d25253963d5e2ee",
+  "totalElements": 448,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [
+    512,
+    526,
+  ],
+  "filename": "1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 65,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x8",
+    "4x2",
+  ],
+  "textHead": "工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）主辦工務所北投工務所工務所主辦監工李晏然施工廠商上溢營造股份有限公司監造廠商任泰技術顧問有限公司開工日",
+  "textLength": 378,
+  "textSha1": "1ba677d6dd8efaa37a9fa3f09924b7b0af4bd0e6",
+  "totalElements": 449,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [
+    512,
+    526,
+  ],
+  "filename": "1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 66,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x8",
+    "4x2",
+  ],
+  "textHead": "工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）主辦工務所北投工務所工務所主辦監工李晏然施工廠商上溢營造股份有限公司監造廠商任泰技術顧問有限公司開工日",
+  "textLength": 364,
+  "textSha1": "28f6a010088b0b7c3c4663260ba8a4cfda5c3960",
+  "totalElements": 436,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [
+    512,
+    526,
+  ],
+  "filename": "1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 65,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x8",
+    "4x2",
+  ],
+  "textHead": "工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）主辦工務所北投工務所工務所主辦監工李晏然施工廠商上溢營造股份有限公司監造廠商任泰技術顧問有限公司開工日",
+  "textLength": 346,
+  "textSha1": "72c13049f0ff9206f41490e38d4062438a75f147",
+  "totalElements": 417,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1131202-工地密度簽到表.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [],
+  "filename": "1131202-工地密度簽到表.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 12,
+  "tableCount": 0,
+  "tableShapes": [],
+  "textHead": "臺北市政府工務局水利工程處                       簽到表一、	取樣時間：113年12月2日  午  時  分二、	取樣地點：工地現場三、	",
+  "textLength": 131,
+  "textSha1": "0fdd07e98f784638abfcb6597d71ba8e38acdab0",
+  "totalElements": 143,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1140206-工地密度取樣紀錄.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [],
+  "filename": "1140206-工地密度取樣紀錄.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 17,
+  "tableCount": 0,
+  "tableShapes": [],
+  "textHead": "臺北市政府工務局水利工程處                       紀  錄一、	取樣時間：114年2月6日上午11時0分二、	取樣地點：工地現場三、	抽驗",
+  "textLength": 325,
+  "textSha1": "ac23649ccf07ac4afc344e1eccc990abea72f59f",
+  "totalElements": 342,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 02_std_table/1140206-工地密度簽到表.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "02_std_table",
+  "colWidthSum": [],
+  "filename": "1140206-工地密度簽到表.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 12,
+  "tableCount": 0,
+  "tableShapes": [],
+  "textHead": "臺北市政府工務局水利工程處                       簽到表一、	取樣時間：114年2月6日  午  時  分二、	取樣地點：工地現場三、	抽",
+  "textLength": 130,
+  "textSha1": "0f0e18df74dc86ca8f0090ca02078d9340f686ea",
+  "totalElements": 142,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    538,
+  ],
+  "filename": "06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 70,
+  "tableCount": 1,
+  "tableShapes": [
+    "12x5",
+  ],
+  "textHead": "臺 北 市 政 府 工 務 局 水 利 工 程 處估驗計價前履約文件查對項目一覽表工程名稱：                           契約編號：  ",
+  "textLength": 1073,
+  "textSha1": "142d2e3f4a7ace0491905a8ed6c6de3cbc04d190",
+  "totalElements": 1144,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    538,
+  ],
+  "filename": "06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 70,
+  "tableCount": 1,
+  "tableShapes": [
+    "12x5",
+  ],
+  "textHead": "臺 北 市 政 府 工 務 局 水 利 工 程 處估驗計價前履約文件查對項目一覽表工程名稱：磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）         ",
+  "textLength": 1094,
+  "textSha1": "c6f61e2ec9d915f9b6d628e037e14ed0ce56d1a9",
+  "totalElements": 1165,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/1121229-全套管基樁混凝土查驗(共1).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    441,
+  ],
+  "filename": "1121229-全套管基樁混凝土查驗(共1).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 2,
+  "paragraphTerminators": 9,
+  "tableCount": 1,
+  "tableShapes": [
+    "2x3",
+  ],
+  "textHead": "任泰技術顧問有限公司磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋) 混凝土施工抽查照片工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)說明：施工",
+  "textLength": 89,
+  "textSha1": "1906829b24d77af0c64f914003eac1f3807d4942",
+  "totalElements": 101,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/1130105-全套管基樁混凝土查驗(共2).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    441,
+  ],
+  "filename": "1130105-全套管基樁混凝土查驗(共2).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 2,
+  "paragraphTerminators": 9,
+  "tableCount": 1,
+  "tableShapes": [
+    "2x3",
+  ],
+  "textHead": "任泰技術顧問有限公司磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋) 混凝土施工抽查照片工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)說明：混凝",
+  "textLength": 96,
+  "textSha1": "4dda4d4a2ac3e4a999a83788c67e01319986c318",
+  "totalElements": 108,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/1130109-全套管基樁混凝土查驗共(4).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    441,
+  ],
+  "filename": "1130109-全套管基樁混凝土查驗共(4).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 2,
+  "paragraphTerminators": 9,
+  "tableCount": 1,
+  "tableShapes": [
+    "2x3",
+  ],
+  "textHead": "任泰技術顧問有限公司磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋) 混凝土施工抽查照片工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)說明：混凝",
+  "textLength": 96,
+  "textSha1": "4a0832a7af5447fb0a0e741273339c59cefdc1f0",
+  "totalElements": 108,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/1130112-全套管基樁混凝土查驗共(共3)(承辦).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    441,
+  ],
+  "filename": "1130112-全套管基樁混凝土查驗共(共3)(承辦).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 2,
+  "paragraphTerminators": 9,
+  "tableCount": 1,
+  "tableShapes": [
+    "2x3",
+  ],
+  "textHead": "臺北市政府工務局水利工程處磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋) 混凝土施工抽查照片工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)說明",
+  "textLength": 112,
+  "textSha1": "7ada1606c04311ac396ff85eb3cda484f12d148b",
+  "totalElements": 124,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/1130516-共月橋P3帽梁鋼筋查驗.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    441,
+  ],
+  "filename": "1130516-共月橋P3帽梁鋼筋查驗.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 2,
+  "paragraphTerminators": 9,
+  "tableCount": 1,
+  "tableShapes": [
+    "2x3",
+  ],
+  "textHead": "任泰技術顧問有限公司磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋) 鋼筋施工抽查照片工程名稱：磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)說明：共月橋",
+  "textLength": 104,
+  "textSha1": "84335f238ec127d52c3ab2c0e6db4dd4398cb593",
+  "totalElements": 116,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 03_complex_table/送審管制.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "03_complex_table",
+  "colWidthSum": [
+    538,
+  ],
+  "filename": "送審管制.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 60,
+  "tableCount": 1,
+  "tableShapes": [
+    "10x14",
+  ],
+  "textHead": "+++FOR page IN pages++++++INS contractor+++材料設備送審管制總表工程名稱：+++INS projectName+++契",
+  "textLength": 1001,
+  "textSha1": "86fffd12ea5f2d5f668ff09edec79e69993579c9",
+  "totalElements": 1062,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 04_with_image/05.112磺港溪監造會議照片.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "04_with_image",
+  "colWidthSum": [
+    461,
+    461,
+  ],
+  "filename": "05.112磺港溪監造會議照片.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 32,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x2",
+    "8x2",
+  ],
+  "textHead": "監造會議附件-近期施工相片工程名稱磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)工程地點全工區日期112.10.30112.10.31施工照片北向牽引道既有",
+  "textLength": 188,
+  "textSha1": "44d0015d6a3c925b230372c506444b4bf259ce35",
+  "totalElements": 226,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 04_with_image/05.112磺港溪監造會議照片1120923-1121001.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "04_with_image",
+  "colWidthSum": [
+    461,
+    461,
+  ],
+  "filename": "05.112磺港溪監造會議照片1120923-1121001.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 4,
+  "paragraphTerminators": 31,
+  "tableCount": 2,
+  "tableShapes": [
+    "8x2",
+    "8x2",
+  ],
+  "textHead": "監造會議附件-近期施工相片工程名稱磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)工程地點全工區日期112.10.23112.10.24施工照片磺港陸橋拆橋吊",
+  "textLength": 184,
+  "textSha1": "aa8c8ffb6788f2ae85f83ae680cd2ff8c9716a3d",
+  "totalElements": 221,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "04_with_image",
+  "colWidthSum": [
+    454,
+    454,
+    454,
+  ],
+  "filename": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 6,
+  "paragraphTerminators": 51,
+  "tableCount": 3,
+  "tableShapes": [
+    "6x5",
+    "6x5",
+    "6x5",
+  ],
+  "textHead": "任泰技術顧問有限公司安全衛生抽查照片工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）抽查地點全工區抽查時間112/10/16    +任泰技術顧問有限",
+  "textLength": 212,
+  "textSha1": "526a8d6fcd6de79d1d2d158d85aac9b6592e372f",
+  "totalElements": 272,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "04_with_image",
+  "colWidthSum": [
+    454,
+    454,
+    454,
+  ],
+  "filename": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 6,
+  "paragraphTerminators": 51,
+  "tableCount": 3,
+  "tableShapes": [
+    "6x5",
+    "6x5",
+    "6x5",
+  ],
+  "textHead": "任泰技術顧問有限公司安全衛生抽查照片工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）抽查地點全工區抽查時間112/10/23    +任泰技術顧問有限",
+  "textLength": 212,
+  "textSha1": "b48d3f2a9d409d2108810a8c763f23f7034658a5",
+  "totalElements": 272,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 04_with_image/6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "04_with_image",
+  "colWidthSum": [
+    454,
+    454,
+    454,
+  ],
+  "filename": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 6,
+  "paragraphTerminators": 51,
+  "tableCount": 3,
+  "tableShapes": [
+    "6x5",
+    "6x5",
+    "6x5",
+  ],
+  "textHead": "任泰技術顧問有限公司安全衛生抽查照片工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）抽查地點全工區抽查時間112/9/25    +任泰技術顧問有限公",
+  "textLength": 209,
+  "textSha1": "075961e7f03feff4e081ca3304bc860bfd146f7c",
+  "totalElements": 269,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 04_with_image/6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "04_with_image",
+  "colWidthSum": [
+    454,
+    454,
+    454,
+  ],
+  "filename": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 6,
+  "paragraphTerminators": 51,
+  "tableCount": 3,
+  "tableShapes": [
+    "6x5",
+    "6x5",
+    "6x5",
+  ],
+  "textHead": "任泰技術顧問有限公司安全衛生抽查照片工程名稱磺港溪再造C段護岸及步道整建工程（延壽橋至三合橋）抽查地點全工區抽查時間112/10/2    +任泰技術顧問有限公",
+  "textLength": 209,
+  "textSha1": "51434e607332d07aa59a82148cbb5710f9cf8245",
+  "totalElements": 269,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---人手孔調升降.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---人手孔調升降.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 119,
+  "tableCount": 2,
+  "tableShapes": [
+    "21x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++人手孔調升降工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectNam",
+  "textLength": 3822,
+  "textSha1": "44fc1d3479e8b7725b70a0446e5517e5efc75a29",
+  "totalElements": 3943,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---土方(整地).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---土方(整地).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 104,
+  "tableCount": 2,
+  "tableShapes": [
+    "18x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++土方(整地)工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectNam",
+  "textLength": 3223,
+  "textSha1": "159b38ea21bc57f9be276c923fb154ebe20a89f7",
+  "totalElements": 3329,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---地坪鋪面.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---地坪鋪面.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 119,
+  "tableCount": 2,
+  "tableShapes": [
+    "21x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++地坪鋪面工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName+",
+  "textLength": 3755,
+  "textSha1": "d191680604c17fcbbdceb13f2ceebd7c6938b4d8",
+  "totalElements": 3876,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---木構造.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---木構造.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 129,
+  "tableCount": 2,
+  "tableShapes": [
+    "23x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++木構造工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName++",
+  "textLength": 4163,
+  "textSha1": "676194c766cb3610d8d68711617aeeb594989edf",
+  "totalElements": 4294,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---植栽.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---植栽.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 89,
+  "tableCount": 2,
+  "tableShapes": [
+    "15x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++植栽工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName+++",
+  "textLength": 2550,
+  "textSha1": "f41d664eb2886211f879dd1d6dd61682def139b9",
+  "totalElements": 2641,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---植筋.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---植筋.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 116,
+  "tableCount": 2,
+  "tableShapes": [
+    "22x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++植筋工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName+++",
+  "textLength": 3584,
+  "textSha1": "931e36abe8bfb7cc1a9b18ae608e317e027eb43f",
+  "totalElements": 3702,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---模板.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---模板.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 99,
+  "tableCount": 2,
+  "tableShapes": [
+    "17x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++模板工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName+++",
+  "textLength": 2961,
+  "textSha1": "b917288aa32082c9454c131e68768fe66f179cd1",
+  "totalElements": 3062,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---油漆.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---油漆.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 94,
+  "tableCount": 2,
+  "tableShapes": [
+    "16x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++油漆工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName+++",
+  "textLength": 2785,
+  "textSha1": "561c2167d38ca0123709133cc14863b5b341783f",
+  "totalElements": 2881,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---洗(抿)石子.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---洗(抿)石子.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 104,
+  "tableCount": 2,
+  "tableShapes": [
+    "18x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++洗(抿)石子工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectNam",
+  "textLength": 3146,
+  "textSha1": "aacbfea52992186d68b0fe8f60557fa5d7a2b199",
+  "totalElements": 3252,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 05_header_footer/自主檢查表---混凝土.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "05_header_footer",
+  "colWidthSum": [
+    511,
+    428,
+  ],
+  "filename": "自主檢查表---混凝土.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 120,
+  "tableCount": 2,
+  "tableShapes": [
+    "21x9",
+    "2x1",
+  ],
+  "textHead": "+++INS contractor+++混凝土工程自主檢查表編號:+++INS inspection.no+++工程名稱+++INS projectName++",
+  "textLength": 3763,
+  "textSha1": "9b7a457f9164fc02d2369c9e876e574c21744704",
+  "totalElements": 3885,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 06_template/檢(試)驗管制(預設樣板).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "06_template",
+  "colWidthSum": [
+    532,
+  ],
+  "filename": "檢(試)驗管制(預設樣板).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 48,
+  "tableCount": 1,
+  "tableShapes": [
+    "11x10",
+  ],
+  "textHead": "+++FOR page IN pages++++++INS contractor+++材料設備檢（試）驗管制總表工程名稱：+++INS projectName+",
+  "textLength": 926,
+  "textSha1": "e84ab7ba9e68763a377f1ea3050a08816be00056",
+  "totalElements": 975,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 06_template/缺失改善(預設樣板).docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "06_template",
+  "colWidthSum": [
+    470,
+  ],
+  "filename": "缺失改善(預設樣板).docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 40,
+  "tableCount": 1,
+  "tableShapes": [
+    "4x7",
+  ],
+  "textHead": "+++FOR page IN pages+++缺失矯正紀錄管制表+++INS title+++工程名稱：+++INS projectName+++       ",
+  "textLength": 443,
+  "textSha1": "0133addfc02a1a5f860a406c9ee8089b980041ad",
+  "totalElements": 484,
+}
+`;
+
+exports[`Sprint 1 — AST 結構快照（42 fixtures） > 06_template/缺失改善.docx 結構指紋符合 snapshot 1`] = `
+{
+  "category": "06_template",
+  "colWidthSum": [
+    496,
+    453,
+  ],
+  "filename": "缺失改善.docx",
+  "hyperlinkCount": 0,
+  "imageCount": 0,
+  "paragraphTerminators": 72,
+  "tableCount": 2,
+  "tableShapes": [
+    "7x5",
+    "7x2",
+  ],
+  "textHead": "+++FOR record IN errorRecords++++++INS projectContractor+++缺失矯正改善追蹤回報表+++INS $re",
+  "textLength": 1391,
+  "textSha1": "59da10fbf934b2bd7e6e7845f5b0725ca6684bde",
+  "totalElements": 1465,
+}
+`;

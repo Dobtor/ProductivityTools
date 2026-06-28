@@ -31,12 +31,32 @@
             <list string="文件" default_order="write_date desc">
                 <field name="name"/>
                 <field name="model_id" optional="show"/>
+                <field name="res_id" optional="hide"/>
                 <field name="page_format" optional="show"/>
                 <field name="company_id" groups="base.group_multi_company" optional="show"/>
                 <field name="create_uid" optional="show"/>
                 <field name="write_date" string="最後修改"/>
+                <button name="action_quick_preview"
+                        type="object"
+                        icon="fa-eye"
+                        title="快速預覽（自動帶入關聯記錄）"
+                        invisible="not model_id or not res_id"/>
+                <button name="action_open_editor"
+                        type="object"
+                        icon="fa-edit"
+                        title="開啟編輯器"/>
             </list>
         </field>
+    </record>
+
+    <!-- ─── 批次匯出 PDF（zip）：list view「動作」選單 ─── -->
+    <record id="action_batch_export_pdf_zip" model="ir.actions.server">
+        <field name="name">批次匯出 PDF（zip）</field>
+        <field name="model_id" ref="model_doc_document"/>
+        <field name="binding_model_id" ref="model_doc_document"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_export_pdf_zip()</field>
     </record>
 
     <!-- ─── 文件表單 View ─── -->
@@ -51,6 +71,12 @@
                             type="object"
                             class="btn-primary"
                             icon="fa-edit"/>
+                    <button name="action_quick_preview"
+                            string="快速預覽"
+                            type="object"
+                            icon="fa-eye"
+                            invisible="not model_id or not res_id"
+                            help="不進編輯器直接看渲染結果（自動帶入關聯記錄資料）"/>
                     <button name="action_export_pdf"
                             string="匯出 PDF"
                             type="object"
@@ -61,6 +87,13 @@
                             icon="fa-file-word-o"/>
                 </header>
                 <sheet>
+                    <!-- Sprint 16：content_html 必須在 form view 中宣告（即使隱藏），
+                         否則 @api.onchange('template_id') 對 content_html 的修改
+                         會被 Odoo 18 web client 視為「不在 view 的欄位」直接丟棄，
+                         導致使用者切換 template_id 後 content_html 不更新，編輯器
+                         仍顯示舊範本內容。 -->
+                    <field name="content_html" invisible="1"/>
+                    <field name="content_json" invisible="1"/>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="文件名稱" required="1"/>

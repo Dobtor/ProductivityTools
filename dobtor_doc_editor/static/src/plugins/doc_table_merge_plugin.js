@@ -16,7 +16,7 @@ import { _t } from "@web/core/l10n/translation";
  */
 export class DocTableMergePlugin extends Plugin {
     static id = "docTableMerge";
-    static dependencies = ["selection"];
+    static dependencies = ["selection", "history"];
 
     get resources() {
         return {
@@ -114,7 +114,7 @@ export class DocTableMergePlugin extends Plugin {
             td.innerHTML += "<br>" + next.innerHTML;
         }
         next.remove();
-        this.dispatch("ADD_STEP");
+        this.dependencies.history.addStep();
     }
 
     // ── 向下合併：合併下方儲存格（rowspan++） ──
@@ -155,7 +155,7 @@ export class DocTableMergePlugin extends Plugin {
             td.innerHTML += "<br>" + targetTd.innerHTML;
         }
         targetTd.remove();
-        this.dispatch("ADD_STEP");
+        this.dependencies.history.addStep();
     }
 
     // ── 拆分儲存格：移除 colspan/rowspan ──
@@ -164,6 +164,6 @@ export class DocTableMergePlugin extends Plugin {
         if (!td) return;
         td.removeAttribute("colspan");
         td.removeAttribute("rowspan");
-        this.dispatch("ADD_STEP");
+        this.dependencies.history.addStep();
     }
 }

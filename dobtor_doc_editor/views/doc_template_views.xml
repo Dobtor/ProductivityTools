@@ -22,6 +22,9 @@
                 <field name="category"/>
                 <field name="model_id" optional="show"/>
                 <field name="page_format" optional="show"/>
+                <field name="signer_count" optional="show"/>
+                <field name="field_count" optional="show"/>
+                <field name="alias_count" optional="show" string="對映數"/>
                 <field name="active" optional="show"/>
             </list>
         </field>
@@ -33,6 +36,21 @@
         <field name="model">doc.template</field>
         <field name="arch" type="xml">
             <form string="文件範本">
+                <header>
+                    <button name="action_auto_init_aliases"
+                            type="object"
+                            string="從關聯模型生成對映"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="not model_id"
+                            help="掃描 model_id 所有欄位，自動建立中文 token + 變數名兩種 alias key（保留既有不覆寫）"/>
+                    <button name="action_clear_aliases"
+                            type="object"
+                            string="清空對映"
+                            icon="fa-trash"
+                            confirm="確定清空所有對映？此操作不可復原。"
+                            invisible="alias_count == 0"/>
+                </header>
                 <sheet>
                     <div class="oe_title">
                         <h1>
@@ -52,10 +70,75 @@
                     </group>
                     <notebook>
                         <page string="範本內容">
+                            <div class="alert alert-info mb-2" role="alert">
+                                <strong>DOCX 模板語法說明</strong>
+                                <ul class="mb-0 mt-1 small">
+                                    <li>一般變數：<code>{{ 變數名稱 }}</code>（例：<code>{{ project_name }}</code>）</li>
+                                    <li>表格列迴圈：<code>{% tr for item in items %}</code> … <code>{% tr endfor %}</code></li>
+                                    <li>條件顯示：<code>{% if 條件 %}</code> … <code>{% endif %}</code></li>
+                                    <li>⚠️ 舊語法 <code>+++INS 變數名稱+++</code> 上傳時自動轉換，無需手動修改</li>
+                                    <li>⚠️ 在 Word 中輸入 <code>{{</code> 前，請關閉「自動更正彎引號」</li>
+                                </ul>
+                            </div>
                             <field name="content_html"
                                    widget="html"
                                    options="{'resizable': true}"
                                    style="min-height: 400px;"/>
+                        </page>
+                        <page string="簽約人角色 (Phase 8)">
+                            <div class="alert alert-light mb-2" role="alert">
+                                <i class="fa fa-info-circle me-1"/>
+                                簽約人是「範本欄位」的填寫對象。在文件編輯器拖入欄位前，請先在此定義角色（例：房東 / 業務 / 見證人）。
+                            </div>
+                            <field name="signer_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="color" widget="color_picker"/>
+                                    <field name="field_count" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="範本欄位 (Phase 8)">
+                            <div class="alert alert-light mb-2" role="alert">
+                                <i class="fa fa-info-circle me-1"/>
+                                範本欄位通常在文件編輯器（後台 client action）以拖曳方式新增；此處列出僅供檢視 / 微調。
+                            </div>
+                            <field name="field_ids">
+                                <list>
+                                    <field name="signer_id"/>
+                                    <field name="field_type"/>
+                                    <field name="placeholder_text" optional="show"/>
+                                    <field name="required"/>
+                                    <field name="page_no"/>
+                                    <field name="font_size" optional="hide"/>
+                                    <field name="odoo_field_name" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="欄位別名對映" name="aliases">
+                            <div class="alert alert-info mb-2" role="alert">
+                                <strong>L2-v2 alias map（範本級）</strong>
+                                <ul class="mb-0 mt-1 small">
+                                    <li>所有使用此範本的 doc.document 預覽渲染時自動繼承這組對映。</li>
+                                    <li>支援兩種 key：中文 <code>《工程名稱》</code> 與變數名 <code>{{ project_name }}</code>。</li>
+                                    <li>下方為唯讀分組預覽；要直接編輯展開「JSON 編輯」摺疊區。</li>
+                                </ul>
+                            </div>
+                            <group>
+                                <field name="alias_count" readonly="1"/>
+                            </group>
+                            <field name="field_aliases_display" nolabel="1" readonly="1"/>
+                            <separator string="進階：JSON 直接編輯"/>
+                            <field name="field_aliases" nolabel="1" widget="ace" options="{'mode': 'json'}"/>
+                        </page>
+                        <page string="Selection 欄位速查" name="selection_lookup">
+                            <div class="alert alert-light mb-2" role="alert">
+                                <i class="fa fa-info-circle me-1"/>
+                                列出「適用模型」中所有 Selection 欄位的可能值。alias expression 用
+                                <code>selection_label('欄位名')</code> 可取得對應中文 label。
+                            </div>
+                            <field name="selection_fields_display" nolabel="1" readonly="1"/>
                         </page>
                     </notebook>
                 </sheet>

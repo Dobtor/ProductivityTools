@@ -22,5 +22,18 @@
             <field name="implied_ids" eval="[(4, ref('dobtor_doc_editor.group_doc_editor'))]"/>
             <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
         </record>
+
+        <!--
+            Portal 文件協作者（W2-3 P0-1）
+            - 隸屬 base.group_portal，不繼承 internal user 權限
+            - 配對 ir.rule rule_doc_document_portal：只能看 collaborator_ids 包含自己的文件
+            - 不可建立新文件（perm_create=0）、不可刪除（perm_unlink=0）
+            - 設計目的：讓 ChienYi 承包商 / 業主代表能線上編輯被授權的文件
+        -->
+        <record id="group_doc_portal" model="res.groups">
+            <field name="name">文件 Portal 協作者</field>
+            <field name="category_id" ref="module_category_doc_editor"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
+        </record>
     </data>
 </odoo>

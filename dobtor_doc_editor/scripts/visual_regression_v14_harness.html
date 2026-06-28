@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>Sprint 14 — Dobtor Pipeline Visual Regression Harness</title>
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Microsoft JhengHei', 'Noto Sans CJK TC', sans-serif; background: #eee; }
+    #editor { padding: 16px; min-height: 100vh; }
+    #status { position: fixed; top: 4px; right: 4px; padding: 4px 8px; font-size: 11px; background: #333; color: #fff; border-radius: 3px; opacity: 0.7; }
+    .ce-page { background: #fff; }
+  </style>
+</head>
+<body>
+  <div id="editor"></div>
+  <div id="status">idle</div>
+  <!-- Sprint 14 visual regression IIFE bundle（攜帶完整 OOXML+Layout+Render pipeline） -->
+  <script src="../tools/dist/visual_regression_pipeline.iife.js"></script>
+  <script>
+    /**
+     * Sprint 14 visual regression harness — boot 我們自家 pipeline。
+     *
+     * Puppeteer 流程：
+     *   1. 開瀏覽器、navigate 到 file://harness.html
+     *   2. evaluate(() => fetch base64 docx → ArrayBuffer)
+     *   3. evaluate(buf => window.__bootDobtorPipeline(buf))
+     *   4. waitForSelector('.ce-page')
+     *   5. page.$$('.ce-page') 列舉、逐個 screenshot
+     *
+     * 輸入：base64 字串（puppeteer evaluate 不能傳 ArrayBuffer，base64 是最方便的）
+     * 輸出：window.__lastPipelineResult = { pageCount, pages, warnings, errorMsg? }
+     */
+    function base64ToArrayBuffer(b64) {
+      var bin = atob(b64);
+      var len = bin.length;
+      var bytes = new Uint8Array(len);
+      for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes.buffer;
+    }
+
+    window.__bootDobtorPipeline = async function (docxBase64, options) {
+      var statusEl = document.getElementById('status');
+      var container = document.getElementById('editor');
+      var pipeline = window.__dobtorPipeline;
+      if (!pipeline) {
+        var msg = 'pipeline IIFE 未載入：window.__dobtorPipeline missing';
+        statusEl.textContent = '✗ ' + msg;
+        window.__lastPipelineResult = { pageCount: 0, pages: [], warnings: [], errorMsg: msg };
+        return window.__lastPipelineResult;
+      }
+      try {
+        statusEl.textContent = '… decoding';
+        var buf = base64ToArrayBuffer(docxBase64);
+        statusEl.textContent = '… rendering (' + Math.round(buf.byteLength / 1024) + 'KB)';
+        // Sprint 51-52：cache 控制
+        //   options.useCache=true → 取/建 window 上的 cache singleton 並當作 pipeline 參數
+        //   options.cacheBackend='memory'（預設）→ AstCache（process-lifetime）
+        //   options.cacheBackend='idb' → IdbAstCache（跨 page reload）
+        //   options.clearCacheFirst=true → 先 clear（用於 cold run）
+        //   未指定 → 維持原行為（無 cache，VR 預設）
+        var renderOptions = Object.assign({}, options || {});
+        if (renderOptions.useCache) {
+          var backend = renderOptions.cacheBackend || 'memory';
+          var key = backend === 'idb' ? '__dobtorIdbAstCache' : '__dobtorAstCache';
+          if (!window[key]) {
+            window[key] = backend === 'idb'
+              ? new pipeline.IdbAstCache({ maxMemoryEntries: 64, maxIdbEntries: 128 })
+              : new pipeline.AstCache({ maxEntries: 64 });
+          }
+          if (renderOptions.clearCacheFirst) {
+            // IDB 是 async；await 確保 cold run 真乾淨
+            await window[key].clear();
+          }
+          renderOptions.cache = window[key];
+        }
+        delete renderOptions.useCache;
+        delete renderOptions.clearCacheFirst;
+        delete renderOptions.cacheBackend;
+        // Sprint 53：virtualize 控制（passthrough；useVirtualize=true → 帶預設 prerender=2）
+        if (renderOptions.useVirtualize === true && !renderOptions.virtualize) {
+          renderOptions.virtualize = { prerenderPages: renderOptions.prerenderPages ?? 2 };
+        }
+        delete renderOptions.useVirtualize;
+        delete renderOptions.prerenderPages;
+        // Sprint 54：image cache 控制
+        //   options.useImageCache=true → 取/建 window.__dobtorImageCache 並當作 pipeline 參數
+        //   options.clearImageCacheFirst=true → 先 clear（用於 cold run）
+        //   未指定 → 維持原行為（無 imageCache，VR 預設）
+        if (renderOptions.useImageCache) {
+          if (!window.__dobtorImageCache) {
+            window.__dobtorImageCache = new pipeline.ImageDecodeCache({ maxEntries: 500 });
+          }
+          if (renderOptions.clearImageCacheFirst) {
+            window.__dobtorImageCache.clear();
+          }
+          renderOptions.imageCache = window.__dobtorImageCache;
+        }
+        delete renderOptions.useImageCache;
+        delete renderOptions.clearImageCacheFirst;
+        // Sprint 62：FontMetricsAdapter 開關（opentype.js 真實字型 metric）
+        //   options.useFontMetrics=true → 取/建 window.__dobtorFontAdapter 並 register fonts
+        //   options.fontBytes={family: base64} → registerFont 對應 family
+        if (renderOptions.useFontMetrics && renderOptions.fontBytes) {
+          if (!window.__dobtorFontAdapter) {
+            window.__dobtorFontAdapter = new pipeline.FontMetricsAdapter();
+            for (var family in renderOptions.fontBytes) {
+              try {
+                var b64 = renderOptions.fontBytes[family];
+                var bin = atob(b64);
+                var bytes = new Uint8Array(bin.length);
+                for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                window.__dobtorFontAdapter.registerFont(family, bytes);
+              } catch (e) {
+                console.warn('registerFont failed for ' + family + ':', e);
+              }
+            }
+          }
+          renderOptions.fontAdapter = window.__dobtorFontAdapter;
+        }
+        delete renderOptions.useFontMetrics;
+        delete renderOptions.fontBytes;
+        // Sprint 61：BrowserTextMetrics 開關（用 canvas.measureText 真實字寬）
+        //   options.useBrowserMetrics=true → 取/建 window.__dobtorBrowserMetrics 並注入
+        //   未指定 → 維持 EstimateMetrics（VR baseline 不變）
+        if (renderOptions.useBrowserMetrics) {
+          if (!window.__dobtorBrowserMetrics) {
+            window.__dobtorBrowserMetrics = new pipeline.BrowserTextMetrics();
+          }
+          renderOptions.browserTextMetrics = window.__dobtorBrowserMetrics;
+        }
+        delete renderOptions.useBrowserMetrics;
+        // Sprint 58：layout cache 控制
+        //   options.useLayoutCache=true → 取/建 window.__dobtorLayoutCache（in-memory L1）
+        //   options.clearLayoutCacheFirst=true → 先 clear（cold run）
+        //   注意：layoutCache 命中需要 AST cache 也 ON（要 docx hash）；本 harness 連動開啟
+        if (renderOptions.useLayoutCache) {
+          if (!window.__dobtorLayoutCache) {
+            window.__dobtorLayoutCache = new pipeline.LayoutCache({ maxEntries: 64 });
+          }
+          if (renderOptions.clearLayoutCacheFirst) {
+            window.__dobtorLayoutCache.clear();
+          }
+          renderOptions.layoutCache = window.__dobtorLayoutCache;
+        }
+        delete renderOptions.useLayoutCache;
+        delete renderOptions.clearLayoutCacheFirst;
+        // Sprint 56：image bitmap + IDB cache 控制
+        //   options.useImageBitmapCache=true → 取/建 window.__dobtorImageBitmapCache（IDB-backed）
+        //   options.clearImageBitmapCacheFirst=true → await clear（cold run）
+        //   未指定 → 維持原行為
+        if (renderOptions.useImageBitmapCache) {
+          if (!window.__dobtorImageBitmapCache) {
+            window.__dobtorImageBitmapCache = new pipeline.ImageBitmapIdbCache({
+              maxMemoryEntries: 200,
+              maxIdbEntries: 500,
+            });
+          }
+          if (renderOptions.clearImageBitmapCacheFirst) {
+            await window.__dobtorImageBitmapCache.clear();
+          }
+          renderOptions.imageBitmapCache = window.__dobtorImageBitmapCache;
+        }
+        delete renderOptions.useImageBitmapCache;
+        delete renderOptions.clearImageBitmapCacheFirst;
+        // Sprint 15：render 是 async（image pre-load）
+        var result = await pipeline.render(buf, container, renderOptions);
+        statusEl.textContent = '✓ ' + result.pageCount + ' page(s), ' + (result.imagesLoaded || 0) + ' image(s)' +
+          (result.timing && result.timing.cacheHit ? ' [cache HIT]' : '');
+        window.__lastPipelineResult = result;
+        return result;
+      } catch (err) {
+        var errMsg = String(err && err.stack || err && err.message || err);
+        statusEl.textContent = '✗ ' + errMsg.slice(0, 80);
+        container.innerHTML = '<pre style="color:red;white-space:pre-wrap;font-size:11px;padding:12px;background:#fff">' + errMsg + '</pre>';
+        window.__lastPipelineResult = { pageCount: 0, pages: [], warnings: [], errorMsg: errMsg };
+        return window.__lastPipelineResult;
+      }
+    };
+
+    // 標誌 harness 已就緒，CLI 可 evaluate(() => !!window.__bootDobtorPipeline) poll
+    window.__harnessReady = true;
+  </script>
+</body>
+</html>

@@ -57,7 +57,7 @@ export class DocFieldPickerDialog extends Component {
         if (!q) return this.state.fields;
         return this.state.fields.filter(f =>
             f.name.toLowerCase().includes(q) ||
-            f.field_description.toLowerCase().includes(q)
+            (f.label || "").toLowerCase().includes(q)
         );
     }
 
@@ -75,14 +75,22 @@ export class DocFieldPickerDialog extends Component {
         this.state.expanded = new Set(this.state.expanded);
     }
 
-    insertField(expression, label) {
-        this.props.onInsert(expression, label);
+    insertField(expression, label, fieldInfo) {
+        // 第三個參數 fieldInfo 對新 caller 提供完整欄位資訊（含中文 label/type/relation）。
+        // 既有 caller 只看前兩個參數，向下相容。
+        this.props.onInsert(expression, label, fieldInfo);
         this.props.close();
     }
 
-    insertSubField(parentName, field) {
-        const expr = `{{ object.${parentName}.${field.name} }}`;
-        const label = `${parentName}.${field.name}`;
-        this.insertField(expr, label);
+    insertSubField(parentField, sub) {
+        const expr = `{{ object.${parentField.name}.${sub.name} }}`;
+        const label = `${parentField.name}.${sub.name}`;
+        // 子欄位 fieldInfo 帶上父欄位中文 label 串接，便於 alias token 使用
+        const fieldInfo = {
+            ...sub,
+            path: label,
+            displayLabel: `${parentField.label}-${sub.label || sub.name}`,
+        };
+        this.insertField(expr, label, fieldInfo);
     }
 }

@@ -1,0 +1,1751 @@
+{
+  "source_repo": "LibreOffice/core",
+  "pinned_sha": "52d51655e3cdfe92893a823545f596f33f1731db",
+  "source_dirs": [
+    "sw/qa/extras/ooxmlimport/data",
+    "sw/qa/extras/ooxmlexport/data"
+  ],
+  "license": "MPL-2.0 (LibreOffice project)",
+  "files": [
+    {
+      "category": "misc",
+      "local_path": "misc/105975.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/105975.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/WordArt.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/WordArt.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/__RefNumPara__.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/__RefNumPara__.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/bnc773061.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/bnc773061.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/bnc779620.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/bnc779620.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/bnc821804.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/bnc821804.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/btlr-frame-vml.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/btlr-frame-vml.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/dml-groupshape-paraadjust.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/dml-groupshape-paraadjust.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/fdo43641.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/fdo43641.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/fdo75722-dml.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/fdo75722-dml.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/fdo75722-vml.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/fdo75722-vml.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/fdo76583.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/fdo76583.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/fdo87488.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/fdo87488.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/floating-table-section-columns.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/floating-table-section-columns.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/groupshape-child-rotation.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/groupshape-child-rotation.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/groupshape-fontname.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/groupshape-fontname.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/groupshape-line.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/groupshape-line.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/groupshape-relsize.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/groupshape-relsize.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/groupshape-sdt.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/groupshape-sdt.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/image-hyperlink.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/image-hyperlink.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/image-lazy-read.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/image-lazy-read.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/ink.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/ink.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/line-rotation.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/line-rotation.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/line-wps-only.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/line-wps-only.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-malformed_xml.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/math-malformed_xml.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n751017.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n751017.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n751077.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n751077.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n757890.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n757890.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n758883.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n758883.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n760764.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n760764.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n764745-alignment.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n764745-alignment.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n766477.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n766477.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n773061.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n773061.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n775899.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n775899.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n777345.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n777345.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n778140.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n778140.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n779627.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n779627.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n779627b.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n779627b.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n780645.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n780645.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n782061.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n782061.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n820504.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n820504.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/n820788.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/n820788.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/numbering-circle.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/numbering-circle.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/ole-anchor.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/ole-anchor.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/strict-lockedcanvas.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/strict-lockedcanvas.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/table_width.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/table_width.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf100072.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf100072.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf100830.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf100830.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf101626.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf101626.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf101627.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf101627.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf103664.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf103664.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf103931.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf103931.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf104167.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf104167.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf105127.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf105127.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf105143.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf105143.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf105975.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf105975.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf106606.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf106606.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf107784.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf107784.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf108350.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf108350.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf108408.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf108408.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf108545_embeddedDocxIcon.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf108545_embeddedDocxIcon.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf108714.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf108714.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf108806.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf108806.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf108849.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf108849.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf109053.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf109053.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf109316_dropCaps.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf109316_dropCaps.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf109524.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf109524.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf111550.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf111550.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf112443.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf112443.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf113182.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf113182.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf113946.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf113946.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf114212.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf114212.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf114217.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf114217.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf115094.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf115094.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf115094v2.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf115094v2.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf115719b.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf115719b.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf115883.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf115883.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf117843.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf117843.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf118693.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf118693.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf119039_bad_embedded_compound.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf119039_bad_embedded_compound.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf119200.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf119200.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf120547.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf120547.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf120548.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf120548.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf120551.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf120551.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf121203.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf121203.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf121440.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf121440.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf121664.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf121664.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf121804.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf121804.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf122224.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf122224.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf122717.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf122717.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf123386.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf123386.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf123389.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf123389.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf124398.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf124398.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf124600.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf124600.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf124670.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf124670.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf124754.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf124754.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf125038.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf125038.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf125038b.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf125038b.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf125038c.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf125038c.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf126114.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf126114.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf126426.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf126426.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf127825.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf127825.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf128076.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf128076.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf129237.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf129237.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf129659.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf129659.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf129912.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf129912.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf130214.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf130214.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf130804.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf130804.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/tdf131841_HighlightColorGroupedShape.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf131841_HighlightColorGroupedShape.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf133448.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf133448.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf133647.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf133647.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf133647_unicode.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf133647_unicode.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf134572.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf134572.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf134902.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf134902.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/tdf136952_pgBreak3.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf136952_pgBreak3.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/tdf141969-font_in_table_with_style.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf141969-font_in_table_with_style.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/tdf143219_ContourWrap_rotate.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf143219_ContourWrap_rotate.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/tdf143475_rotatedWord2007image.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf143475_rotatedWord2007image.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/tdf143475_rotatedWord2007imageInline.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf143475_rotatedWord2007imageInline.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/tdf143476_lockedCanvas_image_line.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf143476_lockedCanvas_image_line.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf143476_lockedCanvas_position.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf143476_lockedCanvas_position.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/tdf143476_lockedCanvas_twoShapes.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf143476_lockedCanvas_twoShapes.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf152200-bad_fldChar_end.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf152200-bad_fldChar_end.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/tdf153791-shd_overrides_fontRef.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf153791-shd_overrides_fontRef.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/tdf154319-ToC_with_s_and_d.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf154319-ToC_with_s_and_d.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf154370.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf154370.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/tdf154695-ToC_no_numbers.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf154695-ToC_no_numbers.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf156078_rightTabOutsideParaRightIndent.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf156078_rightTabOutsideParaRightIndent.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf158023_import.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf158023_import.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf159897_broken_link.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf159897_broken_link.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf165348_broken_package.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf165348_broken_package.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf168567.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf168567.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf169173.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf169173.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf169843.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf169843.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf170171.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf170171.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf171762.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf171762.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf43017.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf43017.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/tdf48658_transparentOLEheader.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf48658_transparentOLEheader.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf60351.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf60351.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/tdf74367_MarginsZeroed.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf74367_MarginsZeroed.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/tdf75573_lostTable.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf75573_lostTable.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf75573_page1frame.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf75573_page1frame.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf76446.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf76446.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf82824.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf82824.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf85232.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf85232.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf85523.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf85523.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf87533_bidi.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf87533_bidi.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf95755.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf95755.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf95970.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf95970.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf96218.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf96218.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf96674.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf96674.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf97038.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf97038.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf98882.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf98882.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/tdf99135.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/tdf99135.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/testfdo90720.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/testfdo90720.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/text-copy.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/text-copy.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/textbox-wps-only.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/textbox-wps-only.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/unbalanced-columns-compat.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/unbalanced-columns-compat.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/vml-adjustments.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/vml-adjustments.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/xml_space.docx",
+      "source": "sw/qa/extras/ooxmlimport/data/xml_space.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/Chart_BorderLine_Style.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Chart_BorderLine_Style.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/99_Fields.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/99_Fields.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/2col-header.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/2col-header.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/FigureAsLabelPicture.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/FigureAsLabelPicture.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/NumberedList.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/NumberedList.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/EquationAsScientificNumbering.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/EquationAsScientificNumbering.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/090716_Studentische_Arbeit_VWS.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/090716_Studentische_Arbeit_VWS.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/CommentDone.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/CommentDone.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/SdtContent.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/SdtContent.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/clearing-break.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/clearing-break.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/AnchorId.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/AnchorId.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "smartart",
+      "local_path": "smartart/smartart.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/smartart.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/ColorOverwritten.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/ColorOverwritten.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/1-table-1-page.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/1-table-1-page.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "track",
+      "local_path": "track/UnknownStyleInRedline.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/UnknownStyleInRedline.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/Chart_Plot_BorderLine_Style.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Chart_Plot_BorderLine_Style.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/IndexFieldFlagF.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/IndexFieldFlagF.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/footer-body-distance.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/footer-body-distance.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/FileWithInvalidImageLink.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/FileWithInvalidImageLink.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/TextEffects_StylisticSets_CntxtAlts.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TextEffects_StylisticSets_CntxtAlts.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/EquationWithAboveAndBelowCaption.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/EquationWithAboveAndBelowCaption.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/128197_compat14.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/128197_compat14.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/CommentReply.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/CommentReply.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/ShapeOverlappingWithSdt.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/ShapeOverlappingWithSdt.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/columnbreak.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/columnbreak.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/LineStyle_DashType_VML.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/LineStyle_DashType_VML.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "smartart",
+      "local_path": "smartart/strict-smartart.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/strict-smartart.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/LineStyle_DashType.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/LineStyle_DashType.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/2_table_doc.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/2_table_doc.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "track",
+      "local_path": "track/cell-sdt-redline.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cell-sdt-redline.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/EmbeddedExcelChart.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/EmbeddedExcelChart.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/PreserveWfieldTOC.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/PreserveWfieldTOC.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/footer-contain-hyperlink.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/footer-contain-hyperlink.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/ImageCrop.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/ImageCrop.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/cjklist30.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cjklist30.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/floatingtbl_with_formula.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/floatingtbl_with_formula.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/128197_compat15.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/128197_compat15.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/annotation-formatting.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/annotation-formatting.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/content-control-grab-bag.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/content-control-grab-bag.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/default-sect-break-cols.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/default-sect-break-cols.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/LinkedTextBoxes.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/LinkedTextBoxes.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/StyleRef-DE.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/StyleRef-DE.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/TC-table-DnD-move.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TC-table-DnD-move.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "track",
+      "local_path": "track/groupshape-trackedchanges.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/groupshape-trackedchanges.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/chart-dupe.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/chart-dupe.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/PreserveXfieldTOC.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/PreserveXfieldTOC.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/footer-margin-lost.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/footer-margin-lost.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/NoFillAttrInImagedata.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/NoFillAttrInImagedata.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/cjklist31.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cjklist31.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-accents.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-accents.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/1_page.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/1_page.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/comment-annotationref.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/comment-annotationref.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/content-control-shape.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/content-control-shape.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/effectextent-margin.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/effectextent-margin.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/Shape.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Shape.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/Test_CharUnderlineThemeColor.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Test_CharUnderlineThemeColor.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/TC-table-Separate-Move.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TC-table-Separate-Move.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "track",
+      "local_path": "track/rprchange_closed.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/rprchange_closed.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/chart-in-footer.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/chart-in-footer.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/TOC_field_b.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TOC_field_b.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/header-border.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/header-border.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/crop-pixel.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/crop-pixel.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/cjklist34.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cjklist34.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-d.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-d.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/2-id.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/2-id.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/empty-annotation-mark.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/empty-annotation-mark.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/dml-groupshape-sdt.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/dml-groupshape-sdt.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/endingSectionProps.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/endingSectionProps.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/TestVMLData.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TestVMLData.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/Test_ThemeBorderColor.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Test_ThemeBorderColor.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/TC-table-rowDND-front.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TC-table-rowDND-front.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/chart-prop.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/chart-prop.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/TOC_field_f.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TOC_field_f.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/inheritFirstHeader.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/inheritFirstHeader.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/crop-roundtrip.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/crop-roundtrip.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/cjklist35.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cjklist35.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-escape.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-escape.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/2120112713.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/2120112713.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/footnote.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/footnote.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/inline-sdt-header.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/inline-sdt-header.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/line-break-in-ref.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/line-break-in-ref.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/TextEffects_Groupshapes.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TextEffects_Groupshapes.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/Test_ThemePortionLevel_CharColor.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Test_ThemePortionLevel_CharColor.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/TC-table-rowDND.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TC-table-rowDND.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/chart-size.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/chart-size.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/Unsupportedtextfields.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Unsupportedtextfields.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/lost-footer-style.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/lost-footer-style.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/dml-picture-in-textframe.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/dml-picture-in-textframe.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/cjklist44.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cjklist44.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-escaping.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-escaping.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/2120112713_OpenBrace.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/2120112713_OpenBrace.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/image-comment-at-char.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/image-comment-at-char.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/paragraph-sdt.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/paragraph-sdt.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/multi-column-line-separator-SAVED.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/multi-column-line-separator-SAVED.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/WPGbodyPr.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/WPGbodyPr.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/Test_ThemeTextParaBackgroundColor.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Test_ThemeTextParaBackgroundColor.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/TableWithAboveCaptions.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TableWithAboveCaptions.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/chart.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/chart.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/alphabeticalIndex_AutoColumn.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/alphabeticalIndex_AutoColumn.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "headerfooter",
+      "local_path": "headerfooter/tdf120760_ZOrderInHeader.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/tdf120760_ZOrderInHeader.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/dml-shape-fillbitmapcrop.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/dml-shape-fillbitmapcrop.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/decimal-numbering-no-leveltext.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/decimal-numbering-no-leveltext.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-lim.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-lim.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/2129393649.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/2129393649.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/paragraphWithComments.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/paragraphWithComments.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/sdt-2-para.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/sdt-2-para.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/multi-column-separator-with-line.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/multi-column-separator-with-line.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/activex_option_button_group.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/activex_option_button_group.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/TextEffects_InStyle.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/TextEffects_InStyle.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/Table_cell_auto_width_fdo69656.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/Table_cell_auto_width_fdo69656.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "chart",
+      "local_path": "chart/tdf124398_groupshapeChart.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/tdf124398_groupshapeChart.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/alphabeticalIndex_MultipleColumns.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/alphabeticalIndex_MultipleColumns.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/graphic-object-fliph.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/graphic-object-fliph.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/listWithLgl.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/listWithLgl.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-literal.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-literal.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/A019_min.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/A019_min.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/redline-range-comment.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/redline-range-comment.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/sdt-2-run.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/sdt-2-run.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/page-break-before.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/page-break-before.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "shape",
+      "local_path": "shape/activex_textbox.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/activex_textbox.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "style",
+      "local_path": "style/defaultStyle.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/defaultStyle.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "table",
+      "local_path": "table/cell-btlr.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/cell-btlr.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "field",
+      "local_path": "field/custom-styles-TOC-comma.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/custom-styles-TOC-comma.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "image",
+      "local_path": "image/groupshape-picture.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/groupshape-picture.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "list",
+      "local_path": "list/lvlPicBulletId.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/lvlPicBulletId.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "math",
+      "local_path": "math/math-matrix.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/math-matrix.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "misc",
+      "local_path": "misc/CT-with-frame.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/CT-with-frame.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "note",
+      "local_path": "note/tdf109310_endnoteStyleForMSO.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/tdf109310_endnoteStyleForMSO.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "sdt",
+      "local_path": "sdt/sdt-alias.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/sdt-alias.docx",
+      "valid_zip": true
+    },
+    {
+      "category": "section",
+      "local_path": "section/tdf103975_notPageBreakB.docx",
+      "source": "sw/qa/extras/ooxmlexport/data/tdf103975_notPageBreakB.docx",
+      "valid_zip": true
+    }
+  ]
+}

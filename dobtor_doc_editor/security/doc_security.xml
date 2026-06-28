@@ -40,5 +40,69 @@
             <field name="perm_create" eval="True"/>
             <field name="perm_unlink" eval="True"/>
         </record>
+
+        <!--
+            Portal user：只能看自己被加為協作者的文件（W2-3 P0-1）
+            - 不能 unlink（已在 ACL 鎖死）
+            - 不能 create（已在 ACL 鎖死）
+            - 只看 collaborator_ids 包含自己的紀錄；不受 group_doc_editor 規則影響
+
+            Sprint 117 — Sprint 78 Finding B 收口（cross-company 設計決策）：
+            本 rule 刻意「不加」 company_id in company_ids 過濾，與
+            rule_doc_document_company（only 給 group_doc_editor）形成不對稱。
+            理由：group_doc_portal 設計目的（見 doc_groups.xml）= 讓 ChienYi
+            承包商 / 業主代表跨公司編輯被授權的文件。承包商通常屬於自家公司、
+            被監造公司（不同公司）邀請為 collaborator 才看得到該文件。
+            若加 company 過濾、會 break 此跨公司協作流程。
+            collaborator_ids 本身就是 explicit access grant、足以承擔授權邊界。
+            測試見 tests/test_security.py 的 cross_company_invited 系列、
+            審計紀錄見 docs/sprint117_portal_company_rule_closure.md。
+        -->
+        <record id="rule_doc_document_portal" model="ir.rule">
+            <field name="name">doc.document：Portal 協作者僅限受邀文件</field>
+            <field name="model_id" ref="model_doc_document"/>
+            <field name="domain_force">[('collaborator_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('dobtor_doc_editor.group_doc_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!--
+            Sprint 79：error_log / perf_metric user-isolation
+            - Sprint 78 audit Finding A：write-only telemetry sink 沒 record rule
+              → portal user 可寫 create_uid != self 的 log（偽造 audit trail）
+            - 修：每個 user 只能寫 create_uid = self.id 的紀錄
+            - manager group 不受此 rule 限（manager 全存取）
+            - perm_read=False 對應 ACL CSV 也是 0R（write-only），rule 主要 enforce on write/create
+        -->
+        <record id="rule_doc_editor_error_log_self_create" model="ir.rule">
+            <field name="name">error_log: 只能寫 create_uid = self（防偽造）</field>
+            <field name="model_id" ref="model_doc_editor_error_log"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+            <field name="groups" eval="[
+                (4, ref('base.group_user')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="False"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_doc_editor_perf_metric_self_create" model="ir.rule">
+            <field name="name">perf_metric: 只能寫 create_uid = self（防偽造）</field>
+            <field name="model_id" ref="model_doc_editor_perf_metric"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+            <field name="groups" eval="[
+                (4, ref('base.group_user')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="False"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
     </data>
 </odoo>

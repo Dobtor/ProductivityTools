@@ -1,5 +1,5 @@
 /* ================================================================
-   Dobtor Doc Editor — 主樣式表
+   Dobtor Doc Editor — 主樣式表（Canvas 引擎版）
    ================================================================ */
 
 /* ─── 全螢幕容器 ─── */
@@ -15,15 +15,95 @@
 .doc-toolbar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 6px 16px;
     background: #fff;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid #e9ecef;
     flex-shrink: 0;
     z-index: 100;
-    min-height: 44px;
+    min-height: 48px;
+}
+
+/* 所有直接子元素不被擠壓 */
+.doc-toolbar > * {
+    flex-shrink: 0;
+}
+
+/* 「紙張 / 縮放」配對欄位：label + select 緊鄰 */
+.doc-toolbar-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.doc-toolbar-field-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin: 0;
+    user-select: none;
+}
+
+/* 工具列右區（margin-left:auto 推到最右） */
+.doc-toolbar-right {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* select 強制隨內容寬，避免 wrap 時被推成整行 */
+.doc-toolbar > .doc-toolbar-select,
+.doc-toolbar .doc-toolbar-field > .doc-toolbar-select {
+    width: auto;
+    min-width: 0;
     white-space: nowrap;
-    overflow-x: auto;
+}
+.doc-toolbar-zoom {
+    min-width: 86px;
+}
+
+/* Segmented button group（共邊框、無 gap）—— esign-style */
+.doc-btn-group {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 0 0 0 transparent;
+}
+
+.doc-btn-group > .doc-toolbar-btn {
+    border-radius: 0;
+    margin: 0;
+    border-right-width: 0;
+    white-space: nowrap;
+}
+
+.doc-btn-group > .doc-toolbar-btn:first-child {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+
+.doc-btn-group > .doc-toolbar-btn:last-child {
+    border-right-width: 1px;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.doc-btn-group > .doc-toolbar-btn:hover:not(:disabled) {
+    position: relative;
+    z-index: 1;       /* 浮起以蓋住相鄰邊框 */
+    border-color: #714B67;
+    color: #714B67;
+    background: #f8f5f8;
+}
+
+.doc-btn-group > .doc-toolbar-btn:focus-visible {
+    position: relative;
+    z-index: 2;
 }
 
 .doc-toolbar-title {
@@ -66,9 +146,14 @@
     transition: background 0.15s, border-color 0.15s;
 }
 
-.doc-toolbar-btn:hover {
+.doc-toolbar-btn:hover:not(:disabled) {
     background: #f8f9fa;
     border-color: #adb5bd;
+}
+
+.doc-toolbar-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .doc-toolbar-btn.primary {
@@ -77,7 +162,7 @@
     color: #fff;
 }
 
-.doc-toolbar-btn.primary:hover {
+.doc-toolbar-btn.primary:hover:not(:disabled) {
     background: #0b5ed7;
 }
 
@@ -95,221 +180,6 @@
     cursor: pointer;
 }
 
-/* ─── 尺規 ─── */
-/* 外層容器：灰色背景（紙張外側） */
-.doc-ruler-wrap {
-    position: relative;
-    height: 24px;
-    background: #d8d8d8;
-    border-bottom: 1px solid #bbb;
-    flex-shrink: 0;
-    overflow: hidden;
-}
-
-/* 紙張寬度的 track，置中對齊紙張（50% - paperWidth/2） */
-.doc-ruler-track {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    height: 100%;
-    background: #f5f5f5;
-    border-left: 1px solid #bbb;
-    border-right: 1px solid #bbb;
-}
-
-.doc-ruler-tick {
-    position: absolute;
-    bottom: 0;
-    width: 1px;
-    background: #999;
-}
-
-.doc-ruler-tick.major {
-    height: 12px;
-    background: #555;
-}
-
-.doc-ruler-tick.minor {
-    height: 7px;
-}
-
-.doc-ruler-label {
-    position: absolute;
-    bottom: 13px;
-    font-size: 9px;
-    color: #555;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    pointer-events: none;
-    user-select: none;
-}
-
-/* ─── 編輯器工作區（可捲動灰底） ─── */
-.doc-workspace {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: auto;
-    padding: 24px 40px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: #e8e8e8;
-    /* 不能設 overflow:hidden，否則 html_editor toolbar 會被剪裁 */
-    position: relative;
-}
-
-/* ─── 頁面紙張容器 ─── */
-.doc-page-sheet {
-    background: #fff;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
-    margin: 0 auto 24px;
-    position: relative;
-    flex-shrink: 0;
-}
-
-/* 寬度由 CSS mm 設定，高度由 JS pageStyle 動態注入 min-height px */
-.doc-page-sheet.format-A4     { width: 210mm; }
-.doc-page-sheet.format-A3     { width: 297mm; }
-.doc-page-sheet.format-A5     { width: 148mm; }
-.doc-page-sheet.format-letter,
-.doc-page-sheet.format-Letter { width: 215.9mm; }
-.doc-page-sheet.format-legal,
-.doc-page-sheet.format-Legal  { width: 215.9mm; }
-
-/* ─── 頁首區域（絕對定位至上邊距，不佔用內容空間） ─── */
-.doc-header-area {
-    border-bottom: 1px dashed #ccc;
-    overflow: hidden;
-    cursor: text;
-    background: rgba(255, 255, 255, 0.95);
-}
-
-.doc-header-area:hover {
-    background: rgba(248, 249, 250, 0.98);
-}
-
-/* ─── 頁尾區域（絕對定位至下邊距，不佔用內容空間） ─── */
-.doc-footer-area {
-    border-top: 1px dashed #ccc;
-    overflow: hidden;
-    cursor: text;
-    background: rgba(255, 255, 255, 0.95);
-}
-
-.doc-footer-area:hover {
-    background: rgba(248, 249, 250, 0.98);
-}
-
-.doc-header-label,
-.doc-footer-label {
-    position: absolute;
-    right: 4px;
-    top: 2px;
-    font-size: 10px;
-    color: #adb5bd;
-    letter-spacing: 0.5px;
-    pointer-events: none;
-    z-index: 1;
-}
-
-/* 頁首/頁尾提示文字 */
-.doc-hf-placeholder {
-    color: #adb5bd;
-    font-size: 0.8rem;
-    font-style: italic;
-    pointer-events: none;
-    user-select: none;
-}
-
-/* ─── 主要編輯內容區 ─── */
-.doc-content-area {
-    flex: 1;
-    min-height: 200px;
-    outline: none;
-    position: relative;
-}
-
-/* ─── 縮放 wrapper ─── */
-.doc-workspace-zoom {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-    transform-origin: top center;
-}
-
-/* ─── 內容容器：防止橫向溢出 ─── */
-.doc-content-wrapper {
-    position: relative;
-    flex: 1;
-    overflow: hidden;   /* 防止內容橫向撐開頁面 */
-    width: 100%;
-}
-
-/* html_editor 的 editable 樣式重置 + 自動換行 */
-.doc-content-area .odoo-editor-editable {
-    min-height: 200px;
-    padding: 0;
-    border: none;
-    outline: none;
-    box-shadow: none;
-    /* 自動換行：確保長字串/長數字在頁面寬度內折行 */
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-    max-width: 100%;
-}
-
-/* 確保 html_editor toolbar 不被自訂 toolbar 蓋掉 */
-.o-we-toolbar {
-    z-index: 1050 !important;
-}
-
-/* Powerbox 下拉 */
-.o-we-powerbox {
-    z-index: 1050 !important;
-}
-
-/* ─── 頁首/頁尾 readonly projection ─── */
-.doc-hf-readonly {
-    min-height: 20px;
-    pointer-events: none;
-}
-
-
-/* ─── 視覺分頁線（細線，不影響編輯） ─── */
-.doc-page-break-visual {
-    position: absolute;
-    left: -96px;
-    right: -96px;
-    height: 0;
-    border-top: 1.5px dashed #91caff;
-    pointer-events: none;
-    z-index: 5;
-}
-
-.doc-page-break-label {
-    position: absolute;
-    right: 100px;
-    top: -9px;
-    font-size: 9px;
-    color: #91caff;
-    background: #fff;
-    padding: 0 4px;
-    white-space: nowrap;
-}
-
-/* ─── 頁數角標 ─── */
-.doc-page-count-badge {
-    position: absolute;
-    right: 8px;
-    bottom: 8px;
-    font-size: 11px;
-    color: #adb5bd;
-    pointer-events: none;
-}
-
 /* ─── 離線提示徽章 ─── */
 .doc-toolbar-offline-badge {
     display: inline-flex;
@@ -323,136 +193,69 @@
     color: #856404;
 }
 
-/* ─── Toolbar 浮動工具列下拉按鈕（字型/行高 Selector） ─── */
-.doc-toolbar-dropdown-btn {
-    font-size: 0.8rem;
-    padding: 2px 6px;
-    min-width: 80px;
-    white-space: nowrap;
+/* ─── 編輯器工作區（Canvas 掛載容器）───
+   canvas-editor 初始化時會對 .canvas-editor-container 執行：
+     container.style.position = "relative"
+     container.style.width    = "<paperWidth>px"  (e.g. 794px A4)
+   因此 doc-workspace 需要是 flex 置中容器，
+   讓被縮為 794px 的 container 在灰色背景上水平置中。
+─── */
+.doc-workspace {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;          /* 捲動多頁內容 */
+    background: #f0f0f0;     /* 灰色背景，白色紙張置中顯示 */
+    display: flex;
+    justify-content: center; /* 水平置中紙張 */
+    align-items: flex-start; /* 從頂部開始排列 */
+    padding: 20px 40px;      /* 上下留白 */
+    box-sizing: border-box;
 }
 
-/* ─── 多欄排版 ─── */
-.doc-column-section {
-    column-gap: 24px;
-}
-.doc-column-section[data-columns="2"] { column-count: 2; }
-.doc-column-section[data-columns="3"] { column-count: 3; }
-
-.doc-column-section > p,
-.doc-column-section > h1,
-.doc-column-section > h2,
-.doc-column-section > h3,
-.doc-column-section > h4,
-.doc-column-section > h5,
-.doc-column-section > h6 {
-    break-inside: avoid;
-}
-.doc-column-section > table { break-inside: avoid; }
-.doc-column-section > img   { break-inside: avoid; }
-.doc-column-section > h1,
-.doc-column-section > h2,
-.doc-column-section > h3 { break-after: avoid; }
-
-.doc-column-section:focus-within {
-    outline: 2px dashed #7c7bad;
-    outline-offset: 4px;
-    position: relative;
+/* ─── Canvas 編輯器容器 ───
+   canvas-editor 會自行設定 position:relative 和 width:<paperWidth>px。
+   此處只需確保不壓縮、不隱藏 overflow（避免裁切內部彈出層）。
+─── */
+.canvas-editor-container {
+    flex-shrink: 0;
+    overflow: visible;
 }
 
-.doc-column-break {
-    break-before: column;
-    display: block;
-    width: 100%;
-    border-top: 1px dashed #ffc107;
-    margin: 4px 0;
-    position: relative;
-}
-.doc-column-break::after {
-    content: "── 換欄 ──";
-    position: absolute;
-    top: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 10px;
-    color: #adb5bd;
-    white-space: nowrap;
-    background: #fff;
-    padding: 0 6px;
-}
-
-/* ─── 硬分頁標記（手動 Ctrl+Enter） ─── */
-.doc-page-break-hard {
-    display: block;
-    width: 100%;
-    border-top: 2px dashed #91caff;
-    margin: 8px 0;
-    position: relative;
-    page-break-after: always;
-    break-after: page;
-}
-.doc-page-break-hard::after {
-    content: "── 分頁符號 ──";
-    position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 11px;
-    color: #91caff;
-    white-space: nowrap;
-    background: #fff;
-    padding: 0 8px;
-}
-
-/* ─── 分頁標記（舊版相容） ─── */
-.doc-page-break {
-    display: block;
-    width: 100%;
-    border-top: 2px dashed #6c757d;
-    margin: 12px 0;
-    position: relative;
-    page-break-after: always;
-    break-after: page;
-}
-
-.doc-page-break::after {
-    content: "── 分頁 ──";
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #fff;
-    padding: 0 10px;
-    font-size: 11px;
-    color: #6c757d;
-    white-space: nowrap;
-}
-
-/* ─── 欄位變數 Token ─── */
-.doc-field-token {
-    display: inline-block;
-    background: #e3f2fd;
-    border: 1px solid #90caf9;
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 0.85em;
-    color: #1565c0;
-    cursor: default;
-    user-select: none;
-    white-space: nowrap;
-}
-
-.doc-field-token:hover {
-    background: #bbdefb;
-    border-color: #64b5f6;
-}
-
-/* ─── 頁面格式選擇器（Toolbar dropdown） ─── */
-.doc-page-format-picker {
+/* ─── 模板變數面板 ─── */
+.doc-template-bar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.875rem;
+    gap: 8px;
+    padding: 4px 16px;
+    background: #e8f4e8;
+    border-top: 1px solid #c3e6cb;
+    font-size: 12px;
+    color: #155724;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.doc-template-bar-label {
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.doc-template-bar-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.doc-context-json {
+    width: 100%;
+    max-width: 800px;
+    font-size: 11px;
+    font-family: monospace;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    padding: 4px 6px;
+    background: #fff;
+    resize: vertical;
 }
 
 /* ─── 狀態列 ─── */
@@ -483,43 +286,2744 @@
 /* ─── 列印樣式 ─── */
 @media print {
     .doc-toolbar,
-    .doc-ruler-container,
     .doc-statusbar {
         display: none !important;
     }
 
     .doc-workspace {
-        padding: 0;
-        background: none;
         overflow: visible;
     }
+}
 
-    .doc-page-sheet {
-        box-shadow: none;
-        margin: 0;
-        width: 100% !important;
+/* ============================================================
+   A11y 強化（P3-2）
+   ============================================================ */
+
+/* 鍵盤焦點：所有 toolbar element focus 時顯示明顯 outline */
+.o_dobtor_doc_editor button:focus-visible,
+.o_dobtor_doc_editor input:focus-visible,
+.o_dobtor_doc_editor select:focus-visible,
+.o_dobtor_doc_editor textarea:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+}
+
+/* visually-hidden：螢幕閱讀器可讀但視覺隱藏 */
+.o_dobtor_doc_editor .visually-hidden,
+.doc-version-panel .visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* 大字級偏好：尊重使用者瀏覽器 root font-size 設定 */
+.o_dobtor_doc_editor {
+    font-size: 0.875rem;
+}
+
+.o_dobtor_doc_editor .doc-toolbar-btn {
+    font-size: 0.875rem;
+    min-height: 36px;
+    min-width: 36px;
+}
+
+.o_dobtor_doc_editor .doc-toolbar-title {
+    font-size: 1rem;
+    min-height: 36px;
+}
+
+/* 高對比模式（Windows / macOS A11y）支援 */
+@media (forced-colors: active) {
+    .o_dobtor_doc_editor button,
+    .o_dobtor_doc_editor input,
+    .o_dobtor_doc_editor select {
+        border: 1px solid CanvasText !important;
     }
+}
 
-    .doc-page-break {
-        border: none;
+/* 減少動畫偏好（prefers-reduced-motion） */
+@media (prefers-reduced-motion: reduce) {
+    .o_dobtor_doc_editor *,
+    .doc-version-panel * {
+        animation-duration: 0.001s !important;
+        transition-duration: 0.001s !important;
     }
+}
 
-    .doc-page-break::after {
+/* ================================================================
+   Phase 8 Template UI Builder（ADR-022）— esign-style 視覺
+   ================================================================
+   設計參考：dobtor esign template editor 截圖。
+   配色：以 Odoo 紫（#714B67）為主色，淺灰背景襯托紙張。
+   Layout flow：header → subnav → toolbar → field-toolbar → signer-bar → main → statusbar
+================================================================ */
+
+/* ─── Row 1：Header bar ─── */
+.doc-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    background: #714B67;
+    color: #fff;
+    flex-shrink: 0;
+    min-height: 48px;
+}
+
+.doc-header-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.doc-header-icon {
+    font-size: 1.1rem;
+    opacity: 0.85;
+}
+
+.doc-header-title {
+    flex: 1;
+    min-width: 0;
+    max-width: 400px;
+    font-size: 1rem;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 4px;
+    outline: none;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.doc-header-title:hover,
+.doc-header-title:focus {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.doc-header-title::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.doc-header-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.doc-header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.doc-header-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.doc-header-btn.primary {
+    background: #fff;
+    color: #714B67;
+    border-color: #fff;
+    font-weight: 600;
+}
+
+.doc-header-btn.primary:hover:not(:disabled) {
+    background: #f3eaf0;
+}
+
+/* L2-v2 預覽模式 active 狀態（橘色強調，提示使用者目前看到的是渲染後值不是 token 原文） */
+.doc-header-btn.doc-header-btn-preview-active {
+    background: #f97316;
+    color: #fff;
+    border-color: #f97316;
+    font-weight: 600;
+}
+.doc-header-btn.doc-header-btn-preview-active:hover:not(:disabled) {
+    background: #ea580c;
+    border-color: #ea580c;
+}
+
+.doc-header-btn.primary.saving {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* ─── Row 2：Sub-nav ─── */
+.doc-subnav {
+    display: flex;
+    gap: 0;
+    padding: 0 16px;
+    background: #fff;
+    border-bottom: 1px solid #dee2e6;
+    flex-shrink: 0;
+}
+
+.doc-subnav-btn {
+    padding: 10px 18px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #495057;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.doc-subnav-btn:hover:not(:disabled) {
+    color: #714B67;
+}
+
+.doc-subnav-btn.active {
+    color: #714B67;
+    border-bottom-color: #714B67;
+    font-weight: 600;
+}
+
+.doc-subnav-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ─── Row 4：Field toolbar ─── */
+.doc-field-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 16px;
+    background: #fafafa;
+    border-bottom: 1px solid #e9ecef;
+    flex-shrink: 0;
+}
+
+.doc-field-toolbar-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.doc-field-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fff;
+    color: #495057;
+    font-size: 0.85rem;
+    cursor: grab;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    user-select: none;
+}
+
+.doc-field-btn:hover {
+    background: #f3eaf0;
+    border-color: #714B67;
+    color: #714B67;
+}
+
+.doc-field-btn:active {
+    cursor: grabbing;
+    transform: scale(0.97);
+}
+
+.doc-field-btn-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #714B67;
+}
+
+.doc-field-toolbar-sep {
+    width: 1px;
+    height: 24px;
+    background: #dee2e6;
+    margin: 0 4px;
+}
+
+.doc-field-btn-odoo {
+    background: #e7e3eb;
+    border-color: #714B67;
+    color: #714B67;
+    font-weight: 500;
+}
+
+.doc-field-btn-odoo:hover {
+    background: #714B67;
+    color: #fff;
+}
+
+/* Sprint G：批次掃描變數按鈕，視覺次於 Odoo 欄位（藍色 vs 紫色），暗示「自動化輔助」 */
+.doc-field-btn-scan {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0369a1;
+    font-weight: 500;
+}
+
+.doc-field-btn-scan:hover {
+    background: #0284c7;
+    color: #fff;
+}
+
+/* Sprint H：掃描並替換（實驗性），警示色橙黃 (#f59e0b) 表「不可回復」操作 */
+.doc-field-btn-scan-replace {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #b45309;
+    font-weight: 500;
+}
+
+.doc-field-btn-scan-replace:hover {
+    background: #f59e0b;
+    color: #fff;
+}
+
+/* Sprint K：預覽變數（中性灰，純讀、無破壞性） */
+.doc-field-btn-preview-vars {
+    background: #f1f5f9;
+    border-color: #64748b;
+    color: #475569;
+    font-weight: 500;
+}
+
+.doc-field-btn-preview-vars:hover {
+    background: #475569;
+    color: #fff;
+}
+
+/* Sprint N：復原（只在 snapshot 存在時顯示，綠色強調可逆性） */
+.doc-field-btn-rollback {
+    background: #d1fae5;
+    border-color: #10b981;
+    color: #065f46;
+    font-weight: 500;
+}
+
+.doc-field-btn-rollback:hover {
+    background: #10b981;
+    color: #fff;
+}
+
+/* ─── Row 5：Signer bar ─── */
+.doc-signer-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: #fff;
+    border-bottom: 1px solid #dee2e6;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.doc-signer-bar-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-right: 4px;
+}
+
+.doc-signer-chip {
+    --signer-color: #2c2c2c;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 16px;
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.doc-signer-chip:hover {
+    border-color: var(--signer-color);
+}
+
+.doc-signer-chip.active {
+    background: var(--signer-color);
+    border-color: var(--signer-color);
+    color: #fff;
+}
+
+.doc-signer-chip-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--signer-color);
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.doc-signer-chip.active .doc-signer-chip-dot {
+    background: #fff;
+    border-color: transparent;
+}
+
+.doc-signer-chip-name {
+    font-weight: 500;
+}
+
+.doc-signer-chip-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.12);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.doc-signer-chip.active .doc-signer-chip-count {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.doc-signer-bar-spacer {
+    flex: 1;
+}
+
+.doc-signer-bar-sep {
+    width: 1px;
+    height: 20px;
+    background: #dee2e6;
+    margin: 0 4px;
+}
+
+.doc-pager-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #495057;
+    transition: background 0.15s;
+}
+
+.doc-pager-btn:hover:not(:disabled) {
+    background: #f8f9fa;
+}
+
+.doc-pager-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.doc-pager-label {
+    font-size: 0.85rem;
+    color: #495057;
+    min-width: 90px;
+    text-align: center;
+}
+
+/* ─── Row 6：Main grid（thumbnails / workspace / inspector） ─── */
+.doc-main {
+    display: grid;
+    grid-template-columns: 180px 1fr 280px;
+    flex: 1;
+    min-height: 0;
+    background: #f0f0f0;
+    overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+    .doc-main {
+        grid-template-columns: 140px 1fr 240px;
+    }
+}
+
+@media (max-width: 900px) {
+    .doc-main {
+        grid-template-columns: 1fr;
+    }
+    .doc-thumbnail-panel,
+    .doc-inspector-panel {
         display: none;
     }
 }
 
-/* ─── 響應式：小螢幕縮放 ─── */
-@media screen and (max-width: 900px) {
-    .doc-workspace {
-        padding: 12px;
-    }
-
-    .doc-page-sheet.format-A4,
-    .doc-page-sheet.format-A3,
-    .doc-page-sheet.format-letter,
-    .doc-page-sheet.format-legal {
-        width: 100%;
-        min-height: auto;
-    }
+/* Phase 1 之後 .doc-workspace 不再是頂層 flex 容器，
+   而是 .doc-main grid 的中央 column；保留既有 flex 置中行為。
+   Override 在 .doc-main > .doc-workspace 提升優先級。 */
+.doc-main > .doc-workspace {
+    flex: initial;
+    min-height: 0;
+    overflow: auto;
+    background: #e9ecef;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    box-sizing: border-box;
+    position: relative;          /* drop hint overlay 的定位基準 */
+    transition: background 0.15s, box-shadow 0.15s;
 }
+
+/* Phase 2.2a：拖曳新增欄位時的 drop target highlight */
+.doc-main > .doc-workspace.is-drop-target {
+    background: #f3eaf0;
+    box-shadow: inset 0 0 0 3px #714B67;
+}
+
+/* 拖曳中 drop hint overlay：浮在頂部置中，告訴 user 放開以插入 */
+.doc-workspace-drop-hint {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 24px;
+    background: #714B67;
+    color: #fff;
+    border-radius: 999px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 16px rgba(113, 75, 103, 0.35);
+    pointer-events: none;        /* 重要：不能擋滑鼠事件、否則 drop 觸發不到 canvas */
+    z-index: 50;
+    animation: doc-drop-hint-pop 0.18s ease-out;
+}
+
+.doc-workspace-drop-hint-text {
+    white-space: nowrap;
+}
+
+@keyframes doc-drop-hint-pop {
+    from { transform: translateX(-50%) translateY(-6px); opacity: 0; }
+    to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+}
+
+/* ─── 左側：頁面縮圖 panel ─── */
+.doc-thumbnail-panel {
+    background: #fff;
+    border-right: 1px solid #dee2e6;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.doc-thumbnail-panel-header {
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    color: #6c757d;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
+}
+
+.doc-thumbnail-list {
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+.doc-thumbnail-item {
+    position: relative;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.doc-thumbnail-item:hover {
+    border-color: #d0c5d0;
+}
+
+.doc-thumbnail-item.active {
+    border-color: #714B67;
+}
+
+.doc-thumbnail-page {
+    width: 100%;
+    aspect-ratio: 0.707;     /* A4 比例 */
+    background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 2px;
+}
+
+/* Sprint C：縮圖 img — canvas.toDataURL 產生的真實頁面內容 */
+.doc-thumbnail-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 2px;
+    background: #fff;
+    object-fit: contain;
+    /* 防止 img 拖曳被瀏覽器當成下載操作 */
+    -webkit-user-drag: none;
+    user-select: none;
+}
+
+.doc-thumbnail-num {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding-left: 4px;
+    font-size: 0.75rem;
+    color: #495057;
+}
+
+.doc-thumbnail-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: #714B67;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* ─── 右側：Inspector panel ─── */
+.doc-inspector-panel {
+    background: #fff;
+    border-left: 1px solid #dee2e6;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.doc-inspector-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #714B67;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+/* Sprint L：欄位列表（inspector 頂部，點 row 跳到 document 內 control） */
+.doc-inspector-fields-list {
+    background: #fafafa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.doc-inspector-fields-list-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Sprint M：清理孤兒按鈕（只在 orphan > 0 時顯示，警示橙、靠右） */
+.doc-inspector-cleanup-orphans-btn {
+    margin-left: auto;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #b45309;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.doc-inspector-cleanup-orphans-btn:hover {
+    background: #f59e0b;
+    color: #fff;
+}
+
+.doc-inspector-fields-list-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Sprint O：filter input（>5 fields 時顯示） */
+.doc-inspector-fields-list-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.doc-inspector-fields-list-filter > .fa-search {
+    color: #adb5bd;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.doc-inspector-fields-list-filter input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.85rem;
+    color: #2c2c2c;
+    min-width: 0;
+}
+
+.doc-inspector-fields-list-filter input::placeholder {
+    color: #adb5bd;
+    font-size: 0.8rem;
+}
+
+.doc-inspector-fields-list-filter-clear {
+    border: none;
+    background: transparent;
+    color: #adb5bd;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.doc-inspector-fields-list-filter-clear:hover {
+    color: #714B67;
+}
+
+.doc-inspector-fields-list-empty {
+    padding: 12px 8px;
+    text-align: center;
+    color: #adb5bd;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.doc-inspector-fields-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #2c2c2c;
+    transition: background 0.12s ease;
+}
+
+.doc-inspector-fields-list-item:hover {
+    background: #f3eaf0;
+}
+
+.doc-inspector-fields-list-item.is-selected {
+    background: #714B67;
+    color: #fff;
+}
+
+/* Sprint P：鍵盤 focused（與 selected 視覺分離；selected=紫底、focused=藍框） */
+.doc-inspector-fields-list-item.is-focused {
+    outline: 2px solid #0284c7;
+    outline-offset: -2px;
+}
+
+/* focused + selected 同時 → 藍框 + 紫底 */
+.doc-inspector-fields-list-item.is-focused.is-selected {
+    outline-color: #38bdf8;
+}
+
+/* ul 本身 focus 時的視覺提示（淡淡的邊框、不擾人） */
+.doc-inspector-fields-list-items:focus {
+    outline: 1px solid #cbd5e1;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.doc-inspector-fields-list-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.doc-inspector-fields-list-item-id {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #adb5bd;
+    background: #fff;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.doc-inspector-fields-list-item.is-selected .doc-inspector-fields-list-item-id {
+    color: #714B67;
+    background: rgba(255, 255, 255, 0.95);
+}
+
+/* Sprint M：孤兒 row — 警示橙底、文字稍灰、icon 提示 */
+.doc-inspector-fields-list-item.is-orphan {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.doc-inspector-fields-list-item.is-orphan:hover {
+    background: #fde68a;
+}
+
+.doc-inspector-fields-list-item.is-orphan.is-selected {
+    background: #b45309;
+    color: #fff;
+}
+
+.doc-inspector-fields-list-item-orphan-icon {
+    color: #f59e0b;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+}
+
+.doc-inspector-fields-list-item.is-orphan.is-selected .doc-inspector-fields-list-item-orphan-icon {
+    color: #fde68a;
+}
+
+.doc-inspector-field-id {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #adb5bd;
+    background: #f3eaf0;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.doc-inspector-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #495057;
+}
+.doc-inspector-checkbox > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.doc-inspector-actions {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.doc-inspector-delete-btn {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #f1aeb5;
+    border-radius: 4px;
+    background: #fff;
+    color: #dc3545;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.doc-inspector-delete-btn:hover {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: #fff;
+}
+
+.doc-inspector-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.doc-inspector-field > label {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.doc-inspector-field input[type="text"],
+.doc-inspector-field input[type="number"],
+.doc-inspector-field select {
+    padding: 5px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    background: #fff;
+}
+
+.doc-inspector-field input:disabled,
+.doc-inspector-field select:disabled {
+    background: #f8f9fa;
+    color: #6c757d;
+    cursor: not-allowed;
+}
+
+.doc-inspector-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px 8px;
+}
+
+/* ─── L2-v2 中文欄位對映管理面板 ─── */
+.doc-alias-panel {
+    border-top: 1px solid #e2e8f0;
+    padding: 10px 8px 8px;
+    margin-top: 8px;
+}
+.doc-alias-panel-header {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    color: #475569;
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+.doc-alias-panel-count {
+    margin-left: auto;
+    color: #94a3b8;
+    font-weight: normal;
+    margin-right: 4px;
+}
+.doc-alias-tool-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #64748b;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 2px;
+    font-size: 12px;
+}
+.doc-alias-tool-btn:hover {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
+}
+.doc-alias-panel-empty {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+}
+.doc-alias-panel-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+.doc-alias-panel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 4px;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 12px;
+}
+.doc-alias-panel-row:last-child { border-bottom: 0; }
+.doc-alias-panel-row.doc-alias-source-template { background: #fafbff; }
+.doc-alias-source-icon {
+    color: #6366f1;
+    font-size: 10px;
+    flex-shrink: 0;
+    cursor: help;
+}
+.doc-alias-token {
+    color: #1565c0;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 3px;
+    padding: 1px 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.doc-alias-token:hover { background: #bbdefb; }
+.doc-alias-arrow { color: #94a3b8; flex-shrink: 0; }
+.doc-alias-expression {
+    background: transparent;
+    color: #475569;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+}
+.doc-alias-delete-btn {
+    background: transparent;
+    border: 0;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.doc-alias-delete-btn:hover { color: #dc2626; background: #fef2f2; }
+
+/* ─── Statusbar 強化 ─── */
+.doc-statusbar-hint {
+    flex: 1;
+    color: #6c757d;
+}
+
+.doc-statusbar-counts {
+    color: #495057;
+    font-weight: 500;
+}
+
+/* ================================================================
+   Sprint A — Sub-nav 分頁殼樣式（dashboard / requests / settings）
+   設計：與 esign 風格三欄式 grid 對齊；卡片用 8px 圓角 + subtle shadow。
+   ================================================================ */
+
+.doc-subnav-panel {
+    flex: 1;
+    overflow: auto;
+    padding: 24px 32px;
+    background: #f8f9fa;
+}
+
+.doc-subnav-panel-header {
+    margin-bottom: 24px;
+}
+
+.doc-subnav-panel-header h2 {
+    margin: 0 0 4px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #212529;
+}
+
+.doc-subnav-panel-header p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.doc-subnav-panel-empty {
+    text-align: center;
+    padding: 64px 16px;
+    background: #fff;
+    border: 1px dashed #dee2e6;
+    border-radius: 8px;
+}
+
+/* Dashboard：4 張卡片 grid */
+.doc-dashboard-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.doc-dashboard-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.15s ease;
+}
+
+.doc-dashboard-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.doc-dashboard-card-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+.doc-dashboard-card-value {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+
+.doc-dashboard-card-hint {
+    font-size: 0.8rem;
+    color: #adb5bd;
+}
+
+.doc-dashboard-section {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.doc-dashboard-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #212529;
+}
+
+.doc-dashboard-table,
+.doc-requests-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.doc-dashboard-table th,
+.doc-dashboard-table td,
+.doc-requests-table th,
+.doc-requests-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e9ecef;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.doc-dashboard-table th,
+.doc-requests-table th {
+    background: #f8f9fa;
+    font-weight: 500;
+    color: #495057;
+}
+
+.doc-dashboard-table tr:last-child td,
+.doc-requests-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Requests：badge 樣式 */
+.doc-requests-table {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.doc-request-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background: #e9ecef;
+    color: #495057;
+}
+
+.doc-request-badge[data-state="completed"] {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.doc-request-badge[data-state="sent"],
+.doc-request-badge[data-state="opened"] {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.doc-request-badge[data-state="expired"] {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.doc-request-badge[data-state="draft"] {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+/* Settings：2 欄 grid */
+.doc-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.doc-settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.doc-settings-field > label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #495057;
+}
+
+.doc-settings-field select,
+.doc-settings-field input[type="text"] {
+    padding: 8px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: #fff;
+}
+
+.doc-settings-field input[readonly] {
+    background: #f8f9fa;
+    color: #6c757d;
+    cursor: default;
+}
+
+.doc-settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: #495057;
+    cursor: pointer;
+}
+
+.doc-settings-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.doc-settings-hint {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* ================================================================
+   Sprint D — Overlay 絕對定位浮動欄位
+   ================================================================ */
+
+/* 版面模式 toggle group（field-toolbar 內）*/
+.doc-layout-mode-group {
+    display: inline-flex;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-left: 4px;
+}
+
+.doc-layout-mode-btn {
+    background: #fff;
+    border: none;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: #495057;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.doc-layout-mode-btn:not(:last-child) {
+    border-right: 1px solid #e9ecef;
+}
+
+.doc-layout-mode-btn:hover {
+    background: #f1f3f5;
+}
+
+.doc-layout-mode-btn.active {
+    background: #714B67;  /* Odoo 紫，與 thumbnail active 一致 */
+    color: #fff;
+}
+
+.doc-layout-mode-btn.active:hover {
+    background: #5e3d56;
+}
+
+/* Overlay layer：疊在 canvas-editor-container 之上 */
+.doc-overlay-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;  /* 預設不擋 canvas-editor 互動，只有 .doc-overlay-field 重新啟用 */
+    z-index: 5;
+}
+
+/* overlay 模式啟用時：layer 半透明高亮，提示 user 切到浮動模式 */
+.doc-overlay-layer.is-active {
+    background: rgba(113, 75, 103, 0.04);
+    border: 2px dashed rgba(113, 75, 103, 0.25);
+    box-sizing: border-box;
+}
+
+/* 單一浮動欄位 */
+.doc-overlay-field {
+    position: absolute;
+    pointer-events: auto;
+    background: rgba(113, 75, 103, 0.10);
+    border: 1.5px solid #714B67;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: move;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #4b3148;
+    transform-origin: top left;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    min-width: 60px;
+    min-height: 24px;
+    box-sizing: border-box;
+}
+
+.doc-overlay-field:hover {
+    background: rgba(113, 75, 103, 0.18);
+    box-shadow: 0 2px 6px rgba(113, 75, 103, 0.25);
+}
+
+.doc-overlay-field.is-selected {
+    border-color: #5e3d56;
+    border-width: 2px;
+    background: rgba(113, 75, 103, 0.22);
+    box-shadow: 0 0 0 3px rgba(113, 75, 103, 0.18);
+}
+
+.doc-overlay-field.is-dragging {
+    opacity: 0.7;
+    cursor: grabbing;
+    box-shadow: 0 4px 12px rgba(113, 75, 103, 0.4);
+    z-index: 10;
+}
+
+.doc-overlay-field-grip {
+    color: #714B67;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.doc-overlay-field-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* doc-workspace 變 position:relative 才能讓 overlay layer 正確絕對定位 */
+.doc-workspace {
+    position: relative;
+}
+
+/* ─── Sprint F：Resize handle + Inspector 幾何輸入 ─── */
+
+/* 右下角 resize handle：只在 selected 時可見 */
+.doc-overlay-resize-handle {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 14px;
+    height: 14px;
+    background: #714B67;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 2;
+}
+
+.doc-overlay-field:hover .doc-overlay-resize-handle,
+.doc-overlay-field.is-selected .doc-overlay-resize-handle {
+    opacity: 1;
+}
+
+.doc-overlay-field.is-resizing {
+    opacity: 0.7;
+    box-shadow: 0 4px 12px rgba(113, 75, 103, 0.4);
+}
+
+/* Inspector：版面模式 section label */
+.doc-inspector-section-label {
+    font-size: 0.8rem;
+    color: #714B67;
+    font-weight: 600;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Inspector 2 欄 grid（X/Y/W/H）*/
+.doc-inspector-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.doc-inspector-grid-2col .doc-inspector-field {
+    margin-bottom: 0;
+}
+
+/* ================================================================
+   Phase 8 Sprint Y — Google Docs 風 skin pass
+   ================================================================
+   只新增 override 規則、不改既有 selectors / 不動 XML 結構
+   （避免破壞 E2E 用的 class names：.doc-field-btn-scan / -scan-replace
+    / -rollback / .doc-inspector-fields-list-* / .o_dobtor_doc_editor 等）
+   配色靈感：Google Docs / Material Design 3 簡潔系
+   ================================================================ */
+
+.o_dobtor_doc_editor {
+    /* --- 主色票 --- */
+    --gd-bg: #f8f9fa;              /* doc 外圍背景 */
+    --gd-paper-bg: #ffffff;        /* 紙張 */
+    --gd-toolbar-bg: #ffffff;
+    --gd-toolbar-border: #e5e7eb;
+    --gd-text: #202124;
+    --gd-text-muted: #5f6368;
+    --gd-accent: #1a73e8;           /* Google blue */
+    --gd-accent-soft: #e8f0fe;
+    --gd-hover-bg: rgba(60, 64, 67, 0.08);
+    --gd-active-bg: rgba(26, 115, 232, 0.12);
+    --gd-shadow-toolbar: 0 1px 3px 0 rgba(60, 64, 67, 0.08);
+    --gd-shadow-paper: 0 2px 8px rgba(60, 64, 67, 0.16);
+    --gd-radius: 8px;
+    --gd-radius-sm: 4px;
+    --gd-font: "Google Sans", "Noto Sans TC", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    background: var(--gd-bg);
+    font-family: var(--gd-font);
+    color: var(--gd-text);
+}
+
+/* --- Header bar：文件名稱列簡化、像 Google Docs 頂條 --- */
+.o_dobtor_doc_editor .doc-header-bar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    box-shadow: var(--gd-shadow-toolbar);
+    padding: 6px 16px;
+}
+.o_dobtor_doc_editor .doc-header-title {
+    font-family: var(--gd-font);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--gd-text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--gd-radius-sm);
+    padding: 4px 8px;
+    transition: background 120ms, border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-header-title:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-header-title:focus {
+    background: var(--gd-paper-bg);
+    border-color: var(--gd-accent);
+    outline: none;
+}
+.o_dobtor_doc_editor .doc-header-icon {
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-header-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--gd-text);
+    border-radius: var(--gd-radius-sm);
+    padding: 6px 12px;
+    font-family: var(--gd-font);
+    font-weight: 500;
+    transition: background 120ms;
+}
+.o_dobtor_doc_editor .doc-header-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-header-btn.primary {
+    background: var(--gd-accent);
+    color: #fff;
+    border-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-header-btn.primary:hover:not(:disabled) {
+    background: #1765cc;
+    border-color: #1765cc;
+}
+
+/* --- Sub-nav：chips 風 --- */
+.o_dobtor_doc_editor .doc-subnav {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 4px 12px;
+    gap: 4px;
+}
+.o_dobtor_doc_editor .doc-subnav-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--gd-text-muted);
+    font-family: var(--gd-font);
+    font-weight: 500;
+    border-radius: 16px;          /* pill chip */
+    padding: 4px 12px;
+    transition: background 120ms, color 120ms;
+}
+.o_dobtor_doc_editor .doc-subnav-btn:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-subnav-btn.active {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+
+/* --- Toolbar (Row 3：紙張/版本/匯出/縮放) --- */
+.o_dobtor_doc_editor .doc-toolbar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 4px 12px;
+    gap: 8px;
+}
+.o_dobtor_doc_editor .doc-toolbar-field-label {
+    color: var(--gd-text-muted);
+    font-size: 12px;
+}
+.o_dobtor_doc_editor .doc-toolbar-select {
+    background: transparent;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    font-family: var(--gd-font);
+    padding: 4px 8px;
+    transition: border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-toolbar-select:hover {
+    border-color: #cbd5e1;
+}
+.o_dobtor_doc_editor .doc-toolbar-select:focus {
+    border-color: var(--gd-accent);
+    outline: none;
+}
+.o_dobtor_doc_editor .doc-toolbar-btn,
+.o_dobtor_doc_editor .doc-btn-group > .doc-toolbar-btn {
+    background: transparent;
+    border-color: var(--gd-toolbar-border);
+    color: var(--gd-text);
+    font-family: var(--gd-font);
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-toolbar-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-btn-group {
+    border-radius: var(--gd-radius-sm);
+    overflow: hidden;
+}
+
+/* --- Field toolbar (Row 4) --- */
+.o_dobtor_doc_editor .doc-field-toolbar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 6px 12px;
+    gap: 6px;
+}
+.o_dobtor_doc_editor .doc-field-toolbar-label {
+    color: var(--gd-text-muted);
+    font-size: 12px;
+    margin-right: 4px;
+}
+.o_dobtor_doc_editor .doc-field-btn {
+    background: var(--gd-paper-bg);
+    border: 1px solid var(--gd-toolbar-border);
+    color: var(--gd-text);
+    font-family: var(--gd-font);
+    border-radius: var(--gd-radius-sm);
+    padding: 4px 10px;
+    font-size: 13px;
+    transition: background 120ms, border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-field-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+    border-color: #cbd5e1;
+}
+.o_dobtor_doc_editor .doc-field-btn-glyph {
+    font-weight: 600;
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-field-btn-odoo {
+    border-color: var(--gd-accent);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-field-btn-odoo:hover:not(:disabled) {
+    background: var(--gd-accent-soft);
+}
+.o_dobtor_doc_editor .doc-field-btn-scan {
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+.o_dobtor_doc_editor .doc-field-btn-scan-replace {
+    border-color: #f9ab00;
+    color: #b06000;
+}
+.o_dobtor_doc_editor .doc-field-btn-preview-vars {
+    border-color: #5f6368;
+    color: #5f6368;
+}
+.o_dobtor_doc_editor .doc-field-btn-rollback {
+    border-color: #188038;
+    color: #188038;
+}
+
+/* --- Signer bar (Row 5) --- */
+.o_dobtor_doc_editor .doc-signer-bar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 6px 12px;
+}
+.o_dobtor_doc_editor .doc-signer-chip {
+    background: var(--gd-paper-bg);
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: 16px;
+    padding: 4px 10px;
+    font-family: var(--gd-font);
+    font-size: 13px;
+    transition: background 120ms, border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-signer-chip:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-signer-chip.active {
+    background: var(--gd-accent-soft);
+    border-color: var(--gd-accent);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-pager-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text-muted);
+    transition: background 120ms;
+}
+.o_dobtor_doc_editor .doc-pager-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+
+/* --- Main grid：左 / 中 / 右 --- */
+.o_dobtor_doc_editor .doc-main {
+    background: var(--gd-bg);
+}
+.o_dobtor_doc_editor .doc-thumbnail-panel,
+.o_dobtor_doc_editor .doc-inspector-panel {
+    background: var(--gd-toolbar-bg);
+    border-color: var(--gd-toolbar-border);
+}
+
+/* --- Canvas workspace：紙張感 + 更多留白 --- */
+.o_dobtor_doc_editor .doc-workspace {
+    background: var(--gd-bg);
+    padding: 28px 0 40px;            /* 上下留白變更多 */
+}
+.o_dobtor_doc_editor .doc-main > .doc-workspace {
+    background: var(--gd-bg);
+}
+/* Sprint Y：ruler 改為 absolute positioned 在 workspace 頂部，不動 row-flex 既有 layout
+   （column flex 會破壞 canvas-editor 內部 paper rendering，已驗證） */
+.o_dobtor_doc_editor .doc-ruler {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+}
+.o_dobtor_doc_editor .canvas-editor-container {
+    /* 讓 canvas-editor 自身的 page wrapper 看起來像紙張 */
+    --paper-shadow: var(--gd-shadow-paper);
+}
+/* canvas-editor 內部的 .ce-page / .page-wrapper 加陰影（fallback selectors） */
+.o_dobtor_doc_editor .canvas-editor-container .ce-page,
+.o_dobtor_doc_editor .canvas-editor-container > div > div {
+    box-shadow: var(--gd-shadow-paper);
+    border-radius: 2px;
+}
+
+/* --- Sprint Y ruler：CSS-only 公分刻度 ---
+   width 由內部 labels content 決定（21 ticks × ruler-cm-px = ~794px ≈ A4 寬）
+   ruler 自身置中於 workspace（doc-workspace 已改 column flex + align-items:center）
+*/
+.o_dobtor_doc_editor .doc-ruler {
+    display: flex;
+    height: 22px;
+    background: var(--gd-toolbar-bg);
+    border: 1px solid var(--gd-toolbar-border);
+    border-bottom: 2px solid #d1d5db;
+    user-select: none;
+    flex-shrink: 0;
+    margin-bottom: 0;
+    /* CSS variable，JS 透過 zoom change 更新（預設 1cm ≈ 37.8px @ 100%） */
+    --ruler-cm-px: 37.8px;
+    --ruler-tick-color: #9aa0a6;
+    /* 主刻線：每公分一條（淡灰線） */
+    background-image:
+        repeating-linear-gradient(
+            to right,
+            transparent 0,
+            transparent calc(var(--ruler-cm-px) - 1px),
+            var(--ruler-tick-color) calc(var(--ruler-cm-px) - 1px),
+            var(--ruler-tick-color) var(--ruler-cm-px)
+        );
+    background-size: 100% 8px;
+    background-position: 0 14px;
+    background-repeat: no-repeat;
+}
+.o_dobtor_doc_editor .doc-ruler-labels {
+    display: flex;
+    align-items: center;
+    font-size: 9px;
+    color: var(--gd-text-muted);
+    font-family: var(--gd-font);
+    pointer-events: none;
+    height: 100%;
+}
+.o_dobtor_doc_editor .doc-ruler-tick {
+    flex: 0 0 var(--ruler-cm-px);
+    text-align: left;
+    padding-left: 3px;
+    line-height: 1;
+}
+
+/* --- Inspector：lighter border、softer header --- */
+.o_dobtor_doc_editor .doc-inspector-fields-list-header {
+    background: var(--gd-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    color: var(--gd-text);
+    font-weight: 500;
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item {
+    border-bottom: 1px solid #f1f3f4;
+    padding: 8px 12px;
+    transition: background 120ms;
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item.is-selected {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item.is-focused {
+    box-shadow: inset 3px 0 0 var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item.is-orphan {
+    background: #fef7e0;
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item-orphan-icon {
+    color: #f9ab00;
+}
+.o_dobtor_doc_editor .doc-inspector-cleanup-orphans-btn {
+    background: #fef7e0;
+    border: 1px solid #f9ab00;
+    color: #b06000;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-inspector-cleanup-orphans-btn:hover {
+    background: #fce8b2;
+}
+
+/* --- Status bar 底色淡化 --- */
+.o_dobtor_doc_editor .doc-statusbar {
+    background: var(--gd-toolbar-bg);
+    border-top: 1px solid var(--gd-toolbar-border);
+    color: var(--gd-text-muted);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y3 — Google Docs 風 功能 menu bar
+   Row 2.5：插在 sub-nav 與 toolbar 之間；零既有 selector 衝突。
+   結構：.doc-menubar > .doc-menu-wrapper > (.doc-menu-trigger + .doc-dropdown)
+                                            .doc-dropdown > .doc-menu-item / .doc-menu-separator
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor .doc-menubar {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    color: var(--gd-text);
+    user-select: none;
+    position: relative;
+    z-index: 20;
+}
+
+.o_dobtor_doc_editor .doc-menu-wrapper {
+    position: relative;
+    display: inline-flex;
+}
+
+.o_dobtor_doc_editor .doc-menu-trigger {
+    padding: 4px 10px;
+    margin: 0 1px;
+    border: none;
+    background: transparent;
+    color: var(--gd-text);
+    border-radius: var(--gd-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    line-height: 1.4;
+    transition: background 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-menu-trigger:hover,
+.o_dobtor_doc_editor .doc-menu-wrapper.is-open .doc-menu-trigger {
+    background: var(--gd-hover-bg);
+}
+
+.o_dobtor_doc_editor .doc-menu-trigger:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -2px;
+}
+
+.o_dobtor_doc_editor .doc-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    min-width: 240px;
+    padding: 6px 0;
+    background: #fff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.16),
+                0 1px 4px rgba(60, 64, 67, 0.08);
+    z-index: 100;
+    animation: doc-dropdown-fade-in 80ms ease-out;
+}
+
+@keyframes doc-dropdown-fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.o_dobtor_doc_editor .doc-menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.6;
+    cursor: pointer;
+    transition: background 80ms ease;
+}
+
+.o_dobtor_doc_editor .doc-menu-item:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+}
+
+.o_dobtor_doc_editor .doc-menu-item:focus {
+    background: var(--gd-accent-soft);
+    outline: none;
+}
+
+/* Sprint Y14：鍵盤導航焦點態（hover 同色但加左側 accent bar 區別出「鍵盤剛走到」） */
+.o_dobtor_doc_editor .doc-menu-item.is-focused:not(:disabled) {
+    background: var(--gd-hover-bg);
+    box-shadow: inset 3px 0 0 var(--gd-accent);
+}
+
+.o_dobtor_doc_editor .doc-menu-item:disabled {
+    color: #9aa0a6;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.o_dobtor_doc_editor .doc-menu-item-label {
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.o_dobtor_doc_editor .doc-menu-item-shortcut {
+    flex: 0 0 auto;
+    color: var(--gd-text-muted);
+    margin-left: 32px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.o_dobtor_doc_editor .doc-menu-item:disabled .doc-menu-item-shortcut {
+    color: #c0c5cc;
+}
+
+.o_dobtor_doc_editor .doc-menu-separator {
+    height: 1px;
+    background: var(--gd-toolbar-border);
+    margin: 4px 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y4 — 尋找／取代 floating panel
+   錨點：.doc-workspace 內絕對定位 top-right；觸發來源 = 編輯 menu / Ctrl+F / Ctrl+H
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor .doc-workspace {
+    position: relative;          /* find panel 用 absolute 浮在右上 */
+}
+
+.o_dobtor_doc_editor .doc-find-replace-panel {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    z-index: 25;                  /* 高於 ruler(5) */
+    min-width: 340px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius);
+    box-shadow: 0 4px 16px rgba(60, 64, 67, 0.16),
+                0 2px 6px rgba(60, 64, 67, 0.08);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    animation: doc-dropdown-fade-in 100ms ease-out;
+}
+
+.o_dobtor_doc_editor .doc-find-row,
+.o_dobtor_doc_editor .doc-replace-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.o_dobtor_doc_editor .doc-replace-row {
+    margin-top: 6px;
+}
+
+.o_dobtor_doc_editor .doc-find-input,
+.o_dobtor_doc_editor .doc-replace-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 10px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    color: var(--gd-text);
+    background: #fff;
+}
+
+.o_dobtor_doc_editor .doc-find-input:focus,
+.o_dobtor_doc_editor .doc-replace-input:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -1px;
+    border-color: var(--gd-accent);
+}
+
+.o_dobtor_doc_editor .doc-find-btn {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text-muted);
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-find-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+
+/* Sprint Y33：findMatchCount === 0 時 prev/next button disabled 視覺 */
+.o_dobtor_doc_editor .doc-find-btn:disabled {
+    color: var(--gd-text-muted);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.o_dobtor_doc_editor .doc-find-btn-text {
+    flex: 0 0 auto;
+    padding: 4px 12px;
+    border: 1px solid var(--gd-toolbar-border);
+    background: #fff;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-find-btn-text:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+    border-color: var(--gd-text-muted);
+}
+
+/* Sprint Y32：findMatchCount === 0 時 disabled 視覺 */
+.o_dobtor_doc_editor .doc-find-btn-text:disabled {
+    color: var(--gd-text-muted);
+    background: var(--gd-hover-bg);
+    border-color: var(--gd-toolbar-border);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Sprint Y10：find/replace match count 顯示「3 / 12」 */
+.o_dobtor_doc_editor .doc-find-count {
+    flex: 0 0 auto;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--gd-text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 56px;
+    text-align: center;
+    white-space: nowrap;
+}
+.o_dobtor_doc_editor .doc-find-count.no-match {
+    color: #d93025;   /* Google red 600，無結果時警示色 */
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-find-count.no-match {
+    color: #f28b82;   /* Google red dark 變體 */
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y5 — 格式化工具列（Row 3.5）
+   字型 / 字號 selector + B I U S + align*4 + 清除格式
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor .doc-format-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    height: 36px;
+    padding: 4px 16px;
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    color: var(--gd-text);
+}
+
+.o_dobtor_doc_editor .doc-format-select {
+    height: 28px;
+    padding: 0 6px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    background: #fff;
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-format-select:hover {
+    border-color: var(--gd-text-muted);
+}
+
+.o_dobtor_doc_editor .doc-format-select:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -1px;
+    border-color: var(--gd-accent);
+}
+
+/* Sprint Y11：縮 font select 寬度（原 140px 過寬；用 width 強制不受 longest option 撐）
+   text-overflow 在 select 上效果有限、瀏覽器自行截斷 */
+.o_dobtor_doc_editor .doc-format-font { width: 110px; min-width: 0; }
+.o_dobtor_doc_editor .doc-format-size { width: 60px; min-width: 0; }
+
+/* Sprint Y11：signer-bar 內的 zoom-fit select 縮小（原與 toolbar-select 共用樣式
+   過大、Google Docs 的 zoom selector 約 64px 高 28px、字級 12px） */
+.o_dobtor_doc_editor .doc-signer-bar .doc-toolbar-select {
+    height: 24px;
+    padding: 0 6px;
+    font-size: 12px;
+    min-width: 80px;
+    max-width: 110px;
+}
+
+.o_dobtor_doc_editor .doc-format-sep {
+    display: inline-block;
+    width: 1px;
+    height: 20px;
+    background: var(--gd-toolbar-border);
+    margin: 0 4px;
+}
+
+.o_dobtor_doc_editor .doc-format-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-format-btn:hover {
+    background: var(--gd-hover-bg);
+}
+
+/* Sprint Y7：format toolbar active state（B/I/U/S 按鈕在 caret/selection 含該格式時高亮）
+   accent-soft 底 + accent 文字 = Google Docs 風 active 樣式 */
+.o_dobtor_doc_editor .doc-format-btn.is-active {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-format-btn.is-active:hover {
+    background: var(--gd-accent-soft);   /* hover 也保持 accent，避免閃爍 */
+    filter: brightness(0.96);
+}
+
+.o_dobtor_doc_editor .doc-format-btn:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -2px;
+}
+
+.o_dobtor_doc_editor .doc-format-btn .fa {
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Sprint Y6：字色 / 背景色 picker（Google Docs 風：icon 上方 + 色條下方）
+   結構：<label class="doc-format-color-wrap">
+            <i class="fa fa-font"/>
+            <span class="doc-format-color-bar" style="background:..."/>
+            <input type="color" class="doc-format-color-hidden"/>
+          </label>
+   點 wrapper 任何位置 → 開原生 color picker（input 浮在上方 opacity:0）。 */
+.o_dobtor_doc_editor .doc-format-color-wrap {
+    position: relative;
+    display: inline-flex;
+    flex-direction: row;            /* Y12：icon | (bar/caret 直排) 排成兩欄 */
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 0 4px;
+    height: 28px;
+    border-radius: var(--gd-radius-sm);
+    cursor: pointer;
+    color: var(--gd-text);
+    transition: background 120ms ease;
+    user-select: none;
+}
+.o_dobtor_doc_editor .doc-format-color-wrap:hover,
+.o_dobtor_doc_editor .doc-format-color-wrap.is-open {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-format-color-wrap:focus-within {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -2px;
+}
+/* 主 icon（A / 油漆刷）— icon 與 bar 排成一直行靠右；caret 在最右 */
+.o_dobtor_doc_editor .doc-format-color-wrap > .fa-font,
+.o_dobtor_doc_editor .doc-format-color-wrap > .fa-paint-brush {
+    font-size: 14px;
+    line-height: 1;
+}
+.o_dobtor_doc_editor .doc-format-color-bar {
+    display: block;
+    width: 14px;
+    height: 3px;
+    border-radius: 1px;
+    border: 1px solid rgba(0, 0, 0, 0.08);  /* 白色背景時也看得見邊界 */
+}
+.o_dobtor_doc_editor .doc-format-color-caret {
+    font-size: 10px;
+    line-height: 1;
+    color: var(--gd-text-muted);
+    margin-left: 1px;
+}
+/* Sprint Y12：把 icon + bar 包成直行 group（CSS-only：用 nth-child 不夠彈性，靠 flex-direction:column）
+   實作改在 Y12：icon 與 bar 各自 inline 排，因為 Google Docs 風就是「A」上面 bar；
+   保險起見不強制 column wrap，icon 與 bar 都是直接子元素、靠 gap 微距 */
+.o_dobtor_doc_editor .doc-format-color-hidden {
+    /* Y12：native input 只當「自訂色」逃生口（onColorCustom 用 JS click()），
+       不再覆蓋整個 wrap — 否則點 trigger 會直接觸發 native picker，palette dropdown 開不了 */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    border: none;
+    padding: 0;
+    pointer-events: none;        /* 不接收 mouse；只接受 JS .click() */
+    left: 0;
+    top: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y12 — 24 色 palette dropdown（取代 Y6 native color picker）
+   結構：.doc-format-color-wrap (trigger)
+           └── .doc-color-palette (t-if state.showColorPalette === type)
+                 ├── .doc-color-palette-row × 4
+                 │     └── .doc-color-swatch × 6
+                 └── .doc-color-palette-footer (重設 | 自訂色)
+   ────────────────────────────────────────────────────────────────────── */
+.o_dobtor_doc_editor .doc-color-palette {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 110;                  /* 高於 menu dropdown 的 100 */
+    padding: 8px;
+    background: #ffffff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: default;
+}
+.o_dobtor_doc_editor .doc-color-palette-row {
+    display: flex;
+    gap: 4px;
+}
+/* Sprint Y13：最近用色區段 label + 標準色區段 label
+   Sprint Y18：label 與清除按鈕並列（flex），空 section 時清除按鈕不渲染 */
+.o_dobtor_doc_editor .doc-color-palette-section-label {
+    font-size: 11px;
+    color: var(--gd-text-muted);
+    font-family: var(--gd-font);
+    padding: 2px 2px 0;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.o_dobtor_doc_editor .doc-color-palette-clear {
+    background: transparent;
+    border: none;
+    color: var(--gd-text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 1;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-color-palette-clear:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+/* 「最近」row 不會塞滿 6 格時、靠左排齊（gap 已處理） */
+.o_dobtor_doc_editor .doc-color-palette-recent {
+    /* 與標準色 row 同 22×22 swatch + 4px gap，視覺對齊 */
+}
+.o_dobtor_doc_editor .doc-color-swatch {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: transform 80ms ease, box-shadow 80ms ease;
+}
+.o_dobtor_doc_editor .doc-color-swatch:hover {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 1px var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-color-swatch.is-selected {
+    box-shadow: 0 0 0 2px var(--gd-accent);
+    border-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-color-palette-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor .doc-color-palette-link {
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    color: var(--gd-accent);
+    font-size: 12px;
+    font-family: var(--gd-font);
+    cursor: pointer;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-color-palette-link:hover {
+    background: var(--gd-hover-bg);
+}
+/* Dark mode：palette 底白色換深灰、swatch border 變亮 */
+.o_dobtor_doc_editor.is-dark-mode .doc-color-palette {
+    background: #2a2a2a;
+    border-color: #3a3a3a;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-color-swatch {
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y9 — Dark mode（UI shell 深色化；canvas 紙張仍白色保留列印 WYSIWYG）
+   觸發：查看 menu「深色模式」toggle → state.darkMode → root class .is-dark-mode
+   持久化：localStorage 'dobtor_doc_editor_dark_mode'
+   ──────────────────────────────────────────────────────────────────────
+   策略：override Sprint Y 既有 --gd-* token；UI surface 全部跟著變
+   留白：--gd-paper-bg 不動，canvas 紙張保白；只把工作區背景 --gd-bg 改深
+        讓白紙在深色 workspace 內視覺對比
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor.is-dark-mode {
+    --gd-bg: #1f1f1f;                          /* workspace 灰底 */
+    --gd-paper-bg: #ffffff;                    /* canvas 紙張保白（列印 WYSIWYG）*/
+    --gd-toolbar-bg: #2a2a2a;                  /* header / menubar / toolbars */
+    --gd-toolbar-border: #3a3a3a;
+    --gd-text: #e8eaed;
+    --gd-text-muted: #9aa0a6;
+    --gd-accent: #8ab4f8;                      /* Google blue dark variant */
+    --gd-accent-soft: #2d3a52;                 /* accent translucent on dark */
+    --gd-hover-bg: rgba(255, 255, 255, 0.08);
+    --gd-shadow-toolbar: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    --gd-shadow-paper: 0 2px 12px rgba(0, 0, 0, 0.5);
+    background: var(--gd-bg);
+    color: var(--gd-text);
+}
+
+/* dropdown / panel / find-replace 等浮層白底需 override 為深色面板 */
+.o_dobtor_doc_editor.is-dark-mode .doc-dropdown,
+.o_dobtor_doc_editor.is-dark-mode .doc-find-replace-panel {
+    background: #2a2a2a;
+    color: var(--gd-text);
+    border-color: var(--gd-toolbar-border);
+}
+
+.o_dobtor_doc_editor.is-dark-mode .doc-find-input,
+.o_dobtor_doc_editor.is-dark-mode .doc-replace-input,
+.o_dobtor_doc_editor.is-dark-mode .doc-format-select,
+.o_dobtor_doc_editor.is-dark-mode .doc-find-btn-text {
+    background: #1f1f1f;
+    color: var(--gd-text);
+    border-color: var(--gd-toolbar-border);
+}
+
+/* select option 在某些瀏覽器繼承 select 樣式，明確指定深色 */
+.o_dobtor_doc_editor.is-dark-mode .doc-format-select option {
+    background: #1f1f1f;
+    color: var(--gd-text);
+}
+
+/* status bar / inspector 等次要區塊 */
+.o_dobtor_doc_editor.is-dark-mode .doc-statusbar,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-panel,
+.o_dobtor_doc_editor.is-dark-mode .doc-thumbnail-panel {
+    background: var(--gd-toolbar-bg);
+    color: var(--gd-text-muted);
+}
+
+/* Header bar 標題輸入框 */
+.o_dobtor_doc_editor.is-dark-mode .doc-header-title {
+    background: transparent;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-header-title:focus {
+    background: #1f1f1f;
+}
+
+/* === Sprint Y17：文件設定 modal === */
+.o_dobtor_doc_editor .doc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(32, 33, 36, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: doc-modal-fade-in 120ms ease-out;
+}
+@keyframes doc-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.o_dobtor_doc_editor .doc-modal-dialog {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(60, 64, 67, 0.28);
+    width: 440px;
+    max-width: 92vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--gd-font);
+}
+.o_dobtor_doc_editor .doc-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor .doc-modal-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--gd-text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-modal-close:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.o_dobtor_doc_editor .doc-modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.o_dobtor_doc_editor .doc-modal-field > label {
+    font-size: 13px;
+    color: var(--gd-text-muted);
+    font-weight: 500;
+}
+.o_dobtor_doc_editor .doc-modal-field select {
+    padding: 6px 8px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    color: var(--gd-text);
+    background: #fff;
+}
+.o_dobtor_doc_editor .doc-modal-radio-group {
+    display: flex;
+    gap: 16px;
+}
+.o_dobtor_doc_editor .doc-modal-radio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-margins {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+}
+.o_dobtor_doc_editor .doc-modal-margin {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.o_dobtor_doc_editor .doc-modal-margin > span {
+    width: 18px;
+    color: var(--gd-text-muted);
+    font-size: 13px;
+}
+.o_dobtor_doc_editor .doc-modal-margin > input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor .doc-modal-btn {
+    padding: 6px 16px;
+    border: 1px solid transparent;
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    cursor: pointer;
+}
+.o_dobtor_doc_editor .doc-modal-btn-secondary {
+    background: #fff;
+    border-color: var(--gd-toolbar-border);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-btn-secondary:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-modal-btn-primary {
+    background: #1a73e8;
+    color: #fff;
+}
+.o_dobtor_doc_editor .doc-modal-btn-primary:hover {
+    background: #185abc;
+}
+
+/* Dark mode */
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-dialog {
+    background: #2a2a2a;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-field select,
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-margin > input {
+    background: #1f1f1f;
+    color: var(--gd-text);
+    border-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-btn-secondary {
+    background: #2a2a2a;
+    color: var(--gd-text);
+}
+
+/* === Sprint Y18：行距 modal — 窄版 dialog + preset 按鈕 row === */
+.o_dobtor_doc_editor .doc-modal-dialog-narrow {
+    width: 360px;
+}
+.o_dobtor_doc_editor .doc-modal-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.o_dobtor_doc_editor .doc-modal-preset-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    background: #fff;
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 48px;
+}
+.o_dobtor_doc_editor .doc-modal-preset-btn:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-modal-preset-btn.is-active {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-preset-btn {
+    background: #2a2a2a;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-preset-btn.is-active {
+    background: #1a3a6f;
+    border-color: #1a73e8;
+    color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   工具列 Google Docs 化 + 表格編輯（2026-06-17）
+   - 格式列補齊後按鈕變多 → 允許換行、改 min-height（原 height:36px 會裁切）
+   - 新增：標題 select、表格網格 picker、表格工具列、欄位/簽名/掃描下拉
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 格式列：允許換行不裁切（補齊功能後一排可能放不下） */
+.o_dobtor_doc_editor .doc-format-toolbar {
+    height: auto;
+    min-height: 36px;
+    row-gap: 2px;
+}
+/* 段落樣式 select 寬度 */
+.o_dobtor_doc_editor .doc-format-title { width: 84px; min-width: 0; }
+
+/* ─── 表格網格插入 picker（Google Docs 風）─── */
+.o_dobtor_doc_editor .doc-table-picker-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.o_dobtor_doc_editor .doc-table-picker {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 110;
+    padding: 10px;
+    background: #ffffff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.18);
+    cursor: default;
+}
+.o_dobtor_doc_editor .doc-table-picker-label {
+    font-size: 12px;
+    color: var(--gd-text-muted);
+    text-align: center;
+    margin-bottom: 6px;
+    font-family: var(--gd-font);
+}
+.o_dobtor_doc_editor .doc-table-picker-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.o_dobtor_doc_editor .doc-table-picker-row {
+    display: flex;
+    gap: 3px;
+}
+.o_dobtor_doc_editor .doc-table-picker-cell {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: 2px;
+    background: #fff;
+    cursor: pointer;
+    transition: background 80ms ease, border-color 80ms ease;
+}
+.o_dobtor_doc_editor .doc-table-picker-cell.is-on {
+    background: var(--gd-accent-soft);
+    border-color: var(--gd-accent);
+}
+
+/* ─── 表格工具列（游標在表格時顯示，延續格式列視覺）─── */
+.o_dobtor_doc_editor .doc-table-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    min-height: 34px;
+    padding: 3px 16px;
+    background: var(--gd-accent-soft);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-table-toolbar-label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gd-accent);
+}
+/* 刪/插 列欄按鈕內的「列」「欄」小字 */
+.o_dobtor_doc_editor .doc-tt-glyph {
+    font-size: 10px;
+    margin-left: 1px;
+    line-height: 1;
+}
+.o_dobtor_doc_editor .doc-table-toolbar .doc-format-btn { width: auto; min-width: 28px; padding: 0 4px; }
+/* 刪除整個表格：危險色 */
+.o_dobtor_doc_editor .doc-table-toolbar-danger { color: #d93025; }
+.o_dobtor_doc_editor .doc-table-toolbar-danger:hover { background: #fce8e6; }
+
+/* ─── 工具列下拉（欄位 / 簽名 / 掃描）─── */
+.o_dobtor_doc_editor .doc-toolbar-dropdown-wrap {
+    position: relative;
+    display: inline-flex;
+}
+.o_dobtor_doc_editor .doc-field-dropdown-trigger.is-open {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+    border-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-toolbar-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 110;
+    min-width: 160px;
+    padding: 4px;
+    background: #ffffff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+.o_dobtor_doc_editor .doc-toolbar-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    background: transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 100ms ease;
+}
+.o_dobtor_doc_editor .doc-toolbar-dropdown-item:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-toolbar-dropdown-item .fa,
+.o_dobtor_doc_editor .doc-toolbar-dropdown-item .doc-field-btn-glyph {
+    width: 16px;
+    text-align: center;
+    color: var(--gd-text-muted);
+}
+
+/* 深色模式：新浮層白底改深底 */
+.o_dobtor_doc_editor.is-dark-mode .doc-table-picker,
+.o_dobtor_doc_editor.is-dark-mode .doc-toolbar-dropdown {
+    background: #2d2d30;
+    border-color: #444;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-table-picker-cell { background: #3a3a3d; border-color: #555; }
+.o_dobtor_doc_editor.is-dark-mode .doc-toolbar-dropdown-item { color: #e8e8e8; }

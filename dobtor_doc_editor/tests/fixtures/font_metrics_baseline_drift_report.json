@@ -1,0 +1,2076 @@
+{
+  "runAt": "2026-05-15T17:13:44.633Z",
+  "probe": "sprint64_font_metrics_baseline_drift",
+  "totalFixtures": 42,
+  "driftPageCount": 0,
+  "driftFingerprint": 42,
+  "driftOpsCount": 0,
+  "perCategory": {
+    "01_simple": {
+      "n": 7,
+      "pageShift": 0,
+      "fpDiff": 7,
+      "opsShift": 0,
+      "pageGain": 0,
+      "pageLoss": 0
+    },
+    "02_std_table": {
+      "n": 8,
+      "pageShift": 0,
+      "fpDiff": 8,
+      "opsShift": 0,
+      "pageGain": 0,
+      "pageLoss": 0
+    },
+    "03_complex_table": {
+      "n": 8,
+      "pageShift": 0,
+      "fpDiff": 8,
+      "opsShift": 0,
+      "pageGain": 0,
+      "pageLoss": 0
+    },
+    "04_with_image": {
+      "n": 6,
+      "pageShift": 0,
+      "fpDiff": 6,
+      "opsShift": 0,
+      "pageGain": 0,
+      "pageLoss": 0
+    },
+    "05_header_footer": {
+      "n": 10,
+      "pageShift": 0,
+      "fpDiff": 10,
+      "opsShift": 0,
+      "pageGain": 0,
+      "pageLoss": 0
+    },
+    "06_template": {
+      "n": 3,
+      "pageShift": 0,
+      "fpDiff": 3,
+      "opsShift": 0,
+      "pageGain": 0,
+      "pageLoss": 0
+    }
+  },
+  "perFixture": [
+    {
+      "rel": "01_simple/03.1120210-監造會議記錄-1120801.docx",
+      "default": {
+        "pageCount": 3,
+        "opsCount": 1800,
+        "fingerprint": {
+          "total": 1800,
+          "byKind": {
+            "beginPage": 3,
+            "endPage": 3,
+            "fillRect": 33,
+            "drawLine": 660,
+            "fillText": 1101,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1382,
+          "textHash": "91b0dab6"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 3,
+        "opsCount": 1800,
+        "fingerprint": {
+          "total": 1800,
+          "byKind": {
+            "beginPage": 3,
+            "endPage": 3,
+            "fillRect": 33,
+            "drawLine": 660,
+            "fillText": 1101,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1382,
+          "textHash": "91b0dab6"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "01_simple/03.1120815-監造會議記錄.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1953,
+        "fingerprint": {
+          "total": 1953,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 28,
+            "drawLine": 640,
+            "fillText": 1277,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1546,
+          "textHash": "b499f205"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1953,
+        "fingerprint": {
+          "total": 1953,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 28,
+            "drawLine": 640,
+            "fillText": 1277,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1546,
+          "textHash": "b499f205"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "01_simple/03.1120822-監造會議記錄.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1729,
+        "fingerprint": {
+          "total": 1729,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 26,
+            "drawLine": 580,
+            "fillText": 1115,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1318,
+          "textHash": "85378f3e"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1729,
+        "fingerprint": {
+          "total": 1729,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 26,
+            "drawLine": 580,
+            "fillText": 1115,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1318,
+          "textHash": "85378f3e"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "01_simple/03.1120829-監造會議記錄.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1785,
+        "fingerprint": {
+          "total": 1785,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 27,
+            "drawLine": 600,
+            "fillText": 1150,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1381,
+          "textHash": "36f61984"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1785,
+        "fingerprint": {
+          "total": 1785,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 27,
+            "drawLine": 600,
+            "fillText": 1150,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1381,
+          "textHash": "36f61984"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "01_simple/03.1120905-監造會議記錄.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1675,
+        "fingerprint": {
+          "total": 1675,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 26,
+            "drawLine": 576,
+            "fillText": 1065,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1264,
+          "textHash": "d9991f9e"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1675,
+        "fingerprint": {
+          "total": 1675,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 26,
+            "drawLine": 576,
+            "fillText": 1065,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1264,
+          "textHash": "d9991f9e"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "01_simple/03.1120912-監造會議記錄.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1779,
+        "fingerprint": {
+          "total": 1779,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 26,
+            "drawLine": 616,
+            "fillText": 1129,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1354,
+          "textHash": "a3d2ab6f"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1779,
+        "fingerprint": {
+          "total": 1779,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 26,
+            "drawLine": 616,
+            "fillText": 1129,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1354,
+          "textHash": "a3d2ab6f"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "01_simple/03.1120919-監造會議記錄.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1875,
+        "fingerprint": {
+          "total": 1875,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 27,
+            "drawLine": 648,
+            "fillText": 1192,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1460,
+          "textHash": "d7b25236"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1875,
+        "fingerprint": {
+          "total": 1875,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 27,
+            "drawLine": 648,
+            "fillText": 1192,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1460,
+          "textHash": "d7b25236"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 511,
+        "fingerprint": {
+          "total": 511,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 16,
+            "drawLine": 160,
+            "fillText": 327,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 369,
+          "textHash": "2bbba94b"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 511,
+        "fingerprint": {
+          "total": 511,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 16,
+            "drawLine": 160,
+            "fillText": 327,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 369,
+          "textHash": "2bbba94b"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 557,
+        "fingerprint": {
+          "total": 557,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 353,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 395,
+          "textHash": "63accb00"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 557,
+        "fingerprint": {
+          "total": 557,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 353,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 395,
+          "textHash": "63accb00"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 550,
+        "fingerprint": {
+          "total": 550,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 346,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 387,
+          "textHash": "9437e18e"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 550,
+        "fingerprint": {
+          "total": 550,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 346,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 387,
+          "textHash": "9437e18e"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 543,
+        "fingerprint": {
+          "total": 543,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 339,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 373,
+          "textHash": "dd591aa8"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 543,
+        "fingerprint": {
+          "total": 543,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 339,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 373,
+          "textHash": "dd591aa8"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 526,
+        "fingerprint": {
+          "total": 526,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 322,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 358,
+          "textHash": "3df35096"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 526,
+        "fingerprint": {
+          "total": 526,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 20,
+            "drawLine": 176,
+            "fillText": 322,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 358,
+          "textHash": "3df35096"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1131202-工地密度簽到表.docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 93,
+        "fingerprint": {
+          "total": 93,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 0,
+            "fillText": 90,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 90,
+          "textHash": "30b1f481"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 93,
+        "fingerprint": {
+          "total": 93,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 0,
+            "fillText": 90,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 90,
+          "textHash": "30b1f481"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1140206-工地密度取樣紀錄.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 261,
+        "fingerprint": {
+          "total": 261,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 0,
+            "fillText": 255,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 281,
+          "textHash": "03f00b22"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 261,
+        "fingerprint": {
+          "total": 261,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 0,
+            "fillText": 255,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 281,
+          "textHash": "03f00b22"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "02_std_table/1140206-工地密度簽到表.docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 92,
+        "fingerprint": {
+          "total": 92,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 0,
+            "fillText": 89,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 89,
+          "textHash": "189aa6d3"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 92,
+        "fingerprint": {
+          "total": 92,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 0,
+            "fillText": 89,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 89,
+          "textHash": "189aa6d3"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1).docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 1007,
+        "fingerprint": {
+          "total": 1007,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 50,
+            "drawLine": 192,
+            "fillText": 761,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 785,
+          "textHash": "27089cc6"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 1007,
+        "fingerprint": {
+          "total": 1007,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 50,
+            "drawLine": 192,
+            "fillText": 761,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 785,
+          "textHash": "27089cc6"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 985,
+        "fingerprint": {
+          "total": 985,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 192,
+            "fillText": 787,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 826,
+          "textHash": "cc0d4af1"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 985,
+        "fingerprint": {
+          "total": 985,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 192,
+            "fillText": 787,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 826,
+          "textHash": "cc0d4af1"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/1121229-全套管基樁混凝土查驗(共1).docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 126,
+        "fingerprint": {
+          "total": 126,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 102,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 106,
+          "textHash": "82973f39"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 126,
+        "fingerprint": {
+          "total": 126,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 102,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 106,
+          "textHash": "82973f39"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/1130105-全套管基樁混凝土查驗(共2).docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 130,
+        "fingerprint": {
+          "total": 130,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 106,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 113,
+          "textHash": "96d9e483"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 130,
+        "fingerprint": {
+          "total": 130,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 106,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 113,
+          "textHash": "96d9e483"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/1130109-全套管基樁混凝土查驗共(4).docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 132,
+        "fingerprint": {
+          "total": 132,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 108,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 113,
+          "textHash": "408c9d1d"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 132,
+        "fingerprint": {
+          "total": 132,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 108,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 113,
+          "textHash": "408c9d1d"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/1130112-全套管基樁混凝土查驗共(共3)(承辦).docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 146,
+        "fingerprint": {
+          "total": 146,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 122,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 129,
+          "textHash": "f1c305d1"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 146,
+        "fingerprint": {
+          "total": 146,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 122,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 129,
+          "textHash": "f1c305d1"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/1130516-共月橋P3帽梁鋼筋查驗.docx",
+      "default": {
+        "pageCount": 1,
+        "opsCount": 142,
+        "fingerprint": {
+          "total": 142,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 118,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 121,
+          "textHash": "6273877f"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 1,
+        "opsCount": 142,
+        "fingerprint": {
+          "total": 142,
+          "byKind": {
+            "beginPage": 1,
+            "endPage": 1,
+            "fillRect": 1,
+            "drawLine": 19,
+            "fillText": 118,
+            "drawImage": 2,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 121,
+          "textHash": "6273877f"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "03_complex_table/送審管制.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 458,
+        "fingerprint": {
+          "total": 458,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 29,
+            "fillText": 423,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 969,
+          "textHash": "7af71e49"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 458,
+        "fingerprint": {
+          "total": 458,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 29,
+            "fillText": 423,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 969,
+          "textHash": "7af71e49"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "04_with_image/05.112磺港溪監造會議照片.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 285,
+        "fingerprint": {
+          "total": 285,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 88,
+            "fillText": 187,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 225,
+          "textHash": "cb7d8e39"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 285,
+        "fingerprint": {
+          "total": 285,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 88,
+            "fillText": 187,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 225,
+          "textHash": "cb7d8e39"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "04_with_image/05.112磺港溪監造會議照片1120923-1121001.docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 277,
+        "fingerprint": {
+          "total": 277,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 88,
+            "fillText": 179,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 220,
+          "textHash": "3b432493"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 277,
+        "fingerprint": {
+          "total": 277,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 88,
+            "fillText": 179,
+            "drawImage": 4,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 220,
+          "textHash": "3b432493"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27).docx",
+      "default": {
+        "pageCount": 6,
+        "opsCount": 346,
+        "fingerprint": {
+          "total": 346,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 202,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 259,
+          "textHash": "bd02672d"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 6,
+        "opsCount": 346,
+        "fingerprint": {
+          "total": 346,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 202,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 259,
+          "textHash": "bd02672d"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13).docx",
+      "default": {
+        "pageCount": 6,
+        "opsCount": 349,
+        "fingerprint": {
+          "total": 349,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 205,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 259,
+          "textHash": "059ca502"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 6,
+        "opsCount": 349,
+        "fingerprint": {
+          "total": 349,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 205,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 259,
+          "textHash": "059ca502"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "04_with_image/6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6).docx",
+      "default": {
+        "pageCount": 6,
+        "opsCount": 335,
+        "fingerprint": {
+          "total": 335,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 191,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 256,
+          "textHash": "9a89ed1e"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 6,
+        "opsCount": 335,
+        "fingerprint": {
+          "total": 335,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 191,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 256,
+          "textHash": "9a89ed1e"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "04_with_image/6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29).docx",
+      "default": {
+        "pageCount": 6,
+        "opsCount": 356,
+        "fingerprint": {
+          "total": 356,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 212,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 256,
+          "textHash": "4e2b7dba"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 6,
+        "opsCount": 356,
+        "fingerprint": {
+          "total": 356,
+          "byKind": {
+            "beginPage": 6,
+            "endPage": 6,
+            "fillRect": 6,
+            "drawLine": 120,
+            "fillText": 212,
+            "drawImage": 6,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 256,
+          "textHash": "4e2b7dba"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---人手孔調升降.docx",
+      "default": {
+        "pageCount": 5,
+        "opsCount": 1438,
+        "fingerprint": {
+          "total": 1438,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 344,
+            "fillText": 1079,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3636,
+          "textHash": "bb1dab6c"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 5,
+        "opsCount": 1438,
+        "fingerprint": {
+          "total": 1438,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 344,
+            "fillText": 1079,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3636,
+          "textHash": "bb1dab6c"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---土方(整地).docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1245,
+        "fingerprint": {
+          "total": 1245,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 284,
+            "fillText": 949,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3048,
+          "textHash": "c6c77ec7"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1245,
+        "fingerprint": {
+          "total": 1245,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 284,
+            "fillText": 949,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3048,
+          "textHash": "c6c77ec7"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---地坪鋪面.docx",
+      "default": {
+        "pageCount": 5,
+        "opsCount": 1365,
+        "fingerprint": {
+          "total": 1365,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 344,
+            "fillText": 1006,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3565,
+          "textHash": "3ca5e57e"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 5,
+        "opsCount": 1365,
+        "fingerprint": {
+          "total": 1365,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 344,
+            "fillText": 1006,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3565,
+          "textHash": "3ca5e57e"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---木構造.docx",
+      "default": {
+        "pageCount": 5,
+        "opsCount": 1453,
+        "fingerprint": {
+          "total": 1453,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 384,
+            "fillText": 1054,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3971,
+          "textHash": "b51fa034"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 5,
+        "opsCount": 1453,
+        "fingerprint": {
+          "total": 1453,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 384,
+            "fillText": 1054,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3971,
+          "textHash": "b51fa034"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---植栽.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 995,
+        "fingerprint": {
+          "total": 995,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 224,
+            "fillText": 759,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2398,
+          "textHash": "d7b09e24"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 995,
+        "fingerprint": {
+          "total": 995,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 224,
+            "fillText": 759,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2398,
+          "textHash": "d7b09e24"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---植筋.docx",
+      "default": {
+        "pageCount": 5,
+        "opsCount": 1367,
+        "fingerprint": {
+          "total": 1367,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 332,
+            "fillText": 1020,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3407,
+          "textHash": "7014359c"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 5,
+        "opsCount": 1367,
+        "fingerprint": {
+          "total": 1367,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 332,
+            "fillText": 1020,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3407,
+          "textHash": "7014359c"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---模板.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1116,
+        "fingerprint": {
+          "total": 1116,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 264,
+            "fillText": 840,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2791,
+          "textHash": "7739e2cf"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1116,
+        "fingerprint": {
+          "total": 1116,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 264,
+            "fillText": 840,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2791,
+          "textHash": "7739e2cf"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---油漆.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1069,
+        "fingerprint": {
+          "total": 1069,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 244,
+            "fillText": 813,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2612,
+          "textHash": "720ca217"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1069,
+        "fingerprint": {
+          "total": 1069,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 244,
+            "fillText": 813,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2612,
+          "textHash": "720ca217"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---洗(抿)石子.docx",
+      "default": {
+        "pageCount": 4,
+        "opsCount": 1200,
+        "fingerprint": {
+          "total": 1200,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 284,
+            "fillText": 904,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2979,
+          "textHash": "9631bb62"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 4,
+        "opsCount": 1200,
+        "fingerprint": {
+          "total": 1200,
+          "byKind": {
+            "beginPage": 4,
+            "endPage": 4,
+            "fillRect": 4,
+            "drawLine": 284,
+            "fillText": 904,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 2979,
+          "textHash": "9631bb62"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "05_header_footer/自主檢查表---混凝土.docx",
+      "default": {
+        "pageCount": 5,
+        "opsCount": 1405,
+        "fingerprint": {
+          "total": 1405,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 344,
+            "fillText": 1046,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3581,
+          "textHash": "3ba40f3e"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 5,
+        "opsCount": 1405,
+        "fingerprint": {
+          "total": 1405,
+          "byKind": {
+            "beginPage": 5,
+            "endPage": 5,
+            "fillRect": 5,
+            "drawLine": 344,
+            "fillText": 1046,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 3581,
+          "textHash": "3ba40f3e"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "06_template/檢(試)驗管制(預設樣板).docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 450,
+        "fingerprint": {
+          "total": 450,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 19,
+            "fillText": 425,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 895,
+          "textHash": "4e73712c"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 450,
+        "fingerprint": {
+          "total": 450,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 19,
+            "fillText": 425,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 895,
+          "textHash": "4e73712c"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "06_template/缺失改善(預設樣板).docx",
+      "default": {
+        "pageCount": 2,
+        "opsCount": 230,
+        "fingerprint": {
+          "total": 230,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 112,
+            "fillText": 112,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 374,
+          "textHash": "31a86374"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 2,
+        "opsCount": 230,
+        "fingerprint": {
+          "total": 230,
+          "byKind": {
+            "beginPage": 2,
+            "endPage": 2,
+            "fillRect": 2,
+            "drawLine": 112,
+            "fillText": 112,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 374,
+          "textHash": "31a86374"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    },
+    {
+      "rel": "06_template/缺失改善.docx",
+      "default": {
+        "pageCount": 3,
+        "opsCount": 611,
+        "fingerprint": {
+          "total": 611,
+          "byKind": {
+            "beginPage": 3,
+            "endPage": 3,
+            "fillRect": 3,
+            "drawLine": 112,
+            "fillText": 490,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1249,
+          "textHash": "3d549fe5"
+        }
+      },
+      "fontMetrics": {
+        "pageCount": 3,
+        "opsCount": 611,
+        "fingerprint": {
+          "total": 611,
+          "byKind": {
+            "beginPage": 3,
+            "endPage": 3,
+            "fillRect": 3,
+            "drawLine": 112,
+            "fillText": 490,
+            "drawImage": 0,
+            "save": 0,
+            "restore": 0,
+            "translate": 0,
+            "rotate": 0
+          },
+          "textCharCount": 1249,
+          "textHash": "3d549fe5"
+        }
+      },
+      "pageDelta": 0,
+      "opsDelta": 0,
+      "fingerprintSame": false
+    }
+  ]
+}

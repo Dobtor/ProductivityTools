@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- P2-4：每天清 30 天前的錯誤紀錄 -->
+        <record id="cron_gc_error_log" model="ir.cron">
+            <field name="name">dobtor_doc_editor: GC 錯誤紀錄（>30 天）</field>
+            <field name="model_id" ref="model_doc_editor_error_log"/>
+            <field name="state">code</field>
+            <field name="code">model.gc_old_logs(days=30)</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">20</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+        <!-- P2-4：每天清 14 天前的效能紀錄（量大，保留期短） -->
+        <record id="cron_gc_perf_metric" model="ir.cron">
+            <field name="name">dobtor_doc_editor: GC 效能指標（>14 天）</field>
+            <field name="model_id" ref="model_doc_editor_perf_metric"/>
+            <field name="state">code</field>
+            <field name="code">model.gc_old_metrics(days=14)</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">20</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+        <!-- 每天清 180 天前的匯出紀錄（稽核資料，保留半年） -->
+        <record id="cron_gc_export_log" model="ir.cron">
+            <field name="name">dobtor_doc_editor: GC 匯出紀錄（>180 天）</field>
+            <field name="model_id" ref="model_doc_editor_export_log"/>
+            <field name="state">code</field>
+            <field name="code">model.gc_old_logs(days=180)</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">20</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+        <!-- 每天 health-check：匯出 token 原文（文件漏綁定）就記 warning -->
+        <record id="cron_health_check_no_alias" model="ir.cron">
+            <field name="name">dobtor_doc_editor: 匯出健康度檢查（未帶入實際值）</field>
+            <field name="model_id" ref="model_doc_editor_export_log"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_health_check_no_alias(hours=24)</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">25</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+    </data>
+</odoo>

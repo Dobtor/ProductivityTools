@@ -1,0 +1,126 @@
+# Traditional Chinese translations for dobtor_doc_editor module.
+# 由於本模組設計上預設語系即為 zh_TW（許多字串是中文 hardcode），
+# 此 .po 主要作用是：
+#   1. 讓 Odoo 把中文標記為「已翻譯」狀態（避免後台跳警告）
+#   2. 為未來 en_US 翻譯做準備（屆時 msgid 改英文，msgstr 維持中文）
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: dobtor_doc_editor 18.0.2.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: 2026-05-06 00:00+0000\n"
+"Last-Translator: chichi <chichihuang0718@gmail.com>\n"
+"Language-Team: Chinese (Traditional) <zh_TW@li.org>\n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#. module: dobtor_doc_editor
+msgid "Document Name"
+msgstr "文件名稱"
+
+#. module: dobtor_doc_editor
+msgid "Version Number"
+msgstr "版本號"
+
+#. module: dobtor_doc_editor
+msgid "Collaborators"
+msgstr "協作者"
+
+#. module: dobtor_doc_editor
+msgid "Error Type"
+msgstr "錯誤類別"
+
+#. module: dobtor_doc_editor
+msgid "Metric Type"
+msgstr "指標類型"
+
+#. module: dobtor_doc_editor
+msgid "Document"
+msgstr "文件"
+
+#. module: dobtor_doc_editor
+msgid "Document Template"
+msgstr "文件範本"
+
+#. module: dobtor_doc_editor
+msgid "Mixin: Linked dobtor_doc_editor Document"
+msgstr "Mixin：連結 dobtor_doc_editor 文件"
+
+#. module: dobtor_doc_editor
+msgid "Editor Errors"
+msgstr "編輯器錯誤"
+
+#. module: dobtor_doc_editor
+msgid "Performance Metrics"
+msgstr "效能指標"
+
+#. module: dobtor_doc_editor
+msgid "Document Editor"
+msgstr "文件編輯器"
+
+#. module: dobtor_doc_editor
+msgid "My Documents"
+msgstr "我的文件"
+
+#. module: dobtor_doc_editor
+msgid "Document Templates"
+msgstr "文件範本"
+
+#. module: dobtor_doc_editor
+msgid "Monitoring"
+msgstr "監控"
+
+#. module: dobtor_doc_editor
+msgid "Error Log"
+msgstr "錯誤紀錄"
+
+#. module: dobtor_doc_editor
+msgid "Edit"
+msgstr "編輯"
+
+#. module: dobtor_doc_editor
+msgid "Portal Collaborator"
+msgstr "Portal 協作者"
+
+#. module: dobtor_doc_editor
+msgid "Loading editor..."
+msgstr "載入編輯器..."
+
+#. module: dobtor_doc_editor
+#: model:ir.actions.act_window,name:dobtor_doc_editor.action_doc_editor_perf_metric
+#: model:ir.ui.menu,name:dobtor_doc_editor.menu_doc_editor_perf_metric
+msgid "Performance Metrics"
+msgstr "效能指標"
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "上傳檔案過大（%(size).1f MB），上限為 %(limit).1f MB。"
+msgstr "上傳檔案過大（%(size).1f MB），上限為 %(limit).1f MB。"
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "壓縮檔內 entry 數量過多（%(n)d 個），上限為 %(limit)d。"
+msgstr "壓縮檔內 entry 數量過多（%(n)d 個），上限為 %(limit)d。"
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "解壓後總大小超過上限（>%(limit).1f MB）— 疑似 zip bomb。"
+msgstr "解壓後總大小超過上限（>%(limit).1f MB）— 疑似 zip bomb。"
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "Entry「%(name)s」壓縮比異常（%(ratio).0fx）— 疑似 zip bomb。"
+msgstr "Entry「%(name)s」壓縮比異常（%(ratio).0fx）— 疑似 zip bomb。"
+
+#. module: dobtor_doc_editor
+#: code:addons/dobtor_doc_editor/models/doc_zip_guard.py:0
+msgid "檔案不是合法的 ZIP / DOCX 格式。"
+msgstr "檔案不是合法的 ZIP / DOCX 格式。"
+
+#. module: dobtor_doc_editor
+#: model_terms:ir.ui.view,arch_db:dobtor_doc_editor.portal_my_documents
+msgid "您目前沒有可存取的文件。"
+msgstr "您目前沒有可存取的文件。"

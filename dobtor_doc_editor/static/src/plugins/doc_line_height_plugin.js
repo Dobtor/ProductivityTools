@@ -109,7 +109,7 @@ export class DocLineHeightPlugin extends Plugin {
                 }
             }
         }
-        this.dispatch("ADD_STEP");
+        // DOM mutation 自動被 MutationObserver 記錄，不需要手動 addStep
         this._updateDisplay();
     }
 }

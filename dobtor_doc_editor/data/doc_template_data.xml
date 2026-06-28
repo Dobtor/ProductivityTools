@@ -9,5 +9,524 @@
             <field name="description">空白 A4 文件範本</field>
             <field name="content_html"><![CDATA[<p><br></p>]]></field>
         </record>
+
+        <!--
+            ChienYi 整合範本（W5-6 P1-2）
+            ============================================
+            為 doc.linked.mixin 整合提供典型台灣監造文件骨架。
+            填充欄位以 Jinja {{ var }} 語法，搭配 model 的 _doc_render_context() 帶入。
+        -->
+
+        <!-- 範本 1：監造會議記錄 -->
+        <record id="template_meeting_record" model="doc.template">
+            <field name="name">監造會議記錄樣板</field>
+            <field name="category">report</field>
+            <field name="page_format">A4</field>
+            <field name="description">用於監造會議記錄的文件範本，含會議資訊、出席者、議題、結論等段落。可由 construction.meeting.record 透過 doc.linked.mixin 自動建立並填充。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">監造會議記錄</h1>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:25%"><b>會議名稱</b></td><td style="border:1px solid #000;padding:6px">{{ subject }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>會議日期</b></td><td style="border:1px solid #000;padding:6px">{{ meeting_date }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>會議地點</b></td><td style="border:1px solid #000;padding:6px">{{ location }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>主席</b></td><td style="border:1px solid #000;padding:6px">{{ chairperson }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>記錄人</b></td><td style="border:1px solid #000;padding:6px">{{ recorder }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>出席人員</b></td><td style="border:1px solid #000;padding:6px">{{ attendees|join(', ') if attendees else '' }}</td></tr>
+</table>
+<h2>一、會議議題</h2><p><br></p>
+<h2>二、討論內容</h2><p><br></p>
+<h2>三、決議事項</h2><p><br></p>
+<h2>四、追蹤事項</h2><p><br></p>
+<p style="text-align:right;margin-top:32px">主席簽名：________________</p>
+            ]]></field>
+        </record>
+
+        <!-- 範本 2：自主檢查表 -->
+        <record id="template_self_inspection" model="doc.template">
+            <field name="name">自主檢查表樣板</field>
+            <field name="category">report</field>
+            <field name="page_format">A4</field>
+            <field name="description">承包商自主檢查表，可由 general.self.inspection 或 reservation.self.inspection 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">自主檢查表</h1>
+<table style="width:100%;border-collapse:collapse">
+  <tr>
+    <td style="border:1px solid #000;padding:6px;width:20%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px;width:30%">{{ project_name }}</td>
+    <td style="border:1px solid #000;padding:6px;width:20%"><b>檢查日期</b></td><td style="border:1px solid #000;padding:6px;width:30%">{{ inspection_date }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>檢查項目</b></td><td style="border:1px solid #000;padding:6px">{{ inspection_type }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>檢查時機</b></td><td style="border:1px solid #000;padding:6px">{{ timing }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>檢查人員</b></td><td style="border:1px solid #000;padding:6px">{{ inspector }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>承包商</b></td><td style="border:1px solid #000;padding:6px">{{ contractor }}</td>
+  </tr>
+</table>
+<h3>檢查項目清單</h3>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f0f0f0">
+      <th style="border:1px solid #000;padding:6px;width:8%">編號</th>
+      <th style="border:1px solid #000;padding:6px">檢查項目</th>
+      <th style="border:1px solid #000;padding:6px;width:15%">合格/不合格</th>
+      <th style="border:1px solid #000;padding:6px">備註</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="border:1px solid #000;padding:6px">1</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">{{ result_1 }}</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">2</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">{{ result_2 }}</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">3</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">{{ result_3 }}</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+  </tbody>
+</table>
+<h3>整體結果</h3>
+<p>{{ overall_result }}</p>
+<p>說明：</p><p><br></p>
+<table style="width:100%;margin-top:32px">
+  <tr><td style="text-align:left">檢查人員：________________</td><td style="text-align:right">日期：____ 年 ____ 月 ____ 日</td></tr>
+</table>
+            ]]></field>
+        </record>
+
+        <!-- 自主檢查表：互動式變數 control（階段 1 示範）
+             timing → 下拉選單，選項來自 general.self.inspection 的 inspection_timing
+             Selection 欄位（查驗停留點/施工前/中/完成檢查），並允許自行填寫。
+             content_html 不動；前端開啟文件時依此設定把 {{ timing }} 升級成 select chip。 -->
+        <record id="signer_self_inspection_default" model="doc.template.signer">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="field_self_inspection_timing" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">select</field>
+            <field name="placeholder_text">timing</field>
+            <field name="option_source">odoo</field>
+            <field name="selection_field_name">inspection_timing</field>
+            <field name="input_able" eval="True"/>
+        </record>
+
+        <!-- 自主檢查表：整體結果 → 單選組 radio，選項來自 general.self.inspection 的
+             overall_result Selection（合格/條件合格/不合格）。綁定 record 開啟時自動帶
+             當前值（odoo 來源；模型取自 record._name，與 timing 同模式）。
+             範本內 {{ overall_result }} 由前端升級成 radio chip。 -->
+        <record id="field_self_inspection_overall" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">overall_result</field>
+            <field name="option_source">odoo</field>
+            <field name="selection_field_name">overall_result</field>
+        </record>
+
+        <!-- 自主檢查表：檢查項目清單 3 列「合格/不合格」→ 單選組 radio（custom 固定清單）。
+             清單列為手動填寫（範本內無項目 token），故逐列獨立 token {{ result_1/2/3 }}，
+             各自接 custom radio（合格/不合格），不綁 record。 -->
+        <record id="field_self_inspection_result_1" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">result_1</field>
+            <field name="option_source">custom</field>
+        </record>
+        <record id="opt_si_result_1_pass" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_1"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+        </record>
+        <record id="opt_si_result_1_fail" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_1"/>
+            <field name="sequence">20</field>
+            <field name="value">不合格</field>
+        </record>
+        <record id="field_self_inspection_result_2" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">result_2</field>
+            <field name="option_source">custom</field>
+        </record>
+        <record id="opt_si_result_2_pass" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_2"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+        </record>
+        <record id="opt_si_result_2_fail" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_2"/>
+            <field name="sequence">20</field>
+            <field name="value">不合格</field>
+        </record>
+        <record id="field_self_inspection_result_3" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">result_3</field>
+            <field name="option_source">custom</field>
+        </record>
+        <record id="opt_si_result_3_pass" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_3"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+        </record>
+        <record id="opt_si_result_3_fail" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_3"/>
+            <field name="sequence">20</field>
+            <field name="value">不合格</field>
+        </record>
+
+        <!-- 監造會議記錄：location → 自訂下拉（常用地點）+ 可自填。
+             construction.meeting.record 無對應 Selection 欄位、範本也未綁 model_id，
+             故用 custom 來源（選項來自下方 option_ids），不需 model_id。 -->
+        <record id="signer_meeting_default" model="doc.template.signer">
+            <field name="template_id" ref="template_meeting_record"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="field_meeting_location" model="doc.template.field">
+            <field name="template_id" ref="template_meeting_record"/>
+            <field name="signer_id" ref="signer_meeting_default"/>
+            <field name="field_type">select</field>
+            <field name="placeholder_text">location</field>
+            <field name="option_source">custom</field>
+            <field name="input_able" eval="True"/>
+        </record>
+        <record id="opt_meeting_loc_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">10</field>
+            <field name="value">工地會議室</field>
+        </record>
+        <record id="opt_meeting_loc_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">20</field>
+            <field name="value">監造辦公室</field>
+        </record>
+        <record id="opt_meeting_loc_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">30</field>
+            <field name="value">業主辦公室</field>
+        </record>
+        <record id="opt_meeting_loc_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">40</field>
+            <field name="value">施工現場</field>
+        </record>
+
+        <!-- 範本 3：缺失改善通知 -->
+        <record id="template_defect_improvement" model="doc.template">
+            <field name="name">缺失改善通知樣板</field>
+            <field name="category">letter</field>
+            <field name="page_format">A4</field>
+            <field name="description">缺失改善通知書，可由 supervision.defect 或 reservation.defect.improvement 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">缺失改善通知書</h1>
+<p style="text-align:right">通知編號：{{ notice_no }}</p>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:25%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px" colspan="3">{{ project_name }}</td></tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>發現日期</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ found_date }}</td>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>嚴重度</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ severity }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>負責廠商</b></td><td style="border:1px solid #000;padding:6px">{{ responsible_company }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>改善期限</b></td><td style="border:1px solid #000;padding:6px">{{ deadline }}</td>
+  </tr>
+</table>
+<p>缺失類別（可複選）：{{ defect_categories }}</p>
+<h3>缺失說明</h3>
+<p>{{ description }}</p>
+<h3>改善要求</h3>
+<p>　　請於上述「改善期限」前完成改善作業並回報，逾期未改善者依契約規定處理。</p>
+<h3>回覆欄</h3>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:20%"><b>改善日期</b></td><td style="border:1px solid #000;padding:6px"></td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>改善內容</b></td><td style="border:1px solid #000;padding:6px;height:60px"></td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>承辦人</b></td><td style="border:1px solid #000;padding:6px"></td></tr>
+</table>
+<p style="margin-top:32px;text-align:right">監造單位：________________　承包商：________________</p>
+            ]]></field>
+        </record>
+
+        <!-- 缺失改善通知：severity → 下拉選單（嚴重程度）。
+             本部署實際缺失資料為 supervision.defect（157 筆），該 model 無 severity 欄位
+             （只有 defect_type/source/responsible_party）；有 severity 的 *.defect.improvement
+             目前 0 筆、未使用。故 severity 走 custom 固定清單（輕微/中等/重大/嚴重，code 與
+             *.defect.improvement 的 Selection 一致）+ inputAble 自填，不依賴綁定 model，
+             任何綁定（含 supervision.defect / 未綁）皆穩定顯示 4 選項。與會議地點同模式。 -->
+        <record id="signer_defect_default" model="doc.template.signer">
+            <field name="template_id" ref="template_defect_improvement"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="field_defect_severity" model="doc.template.field">
+            <field name="template_id" ref="template_defect_improvement"/>
+            <field name="signer_id" ref="signer_defect_default"/>
+            <field name="field_type">select</field>
+            <field name="placeholder_text">severity</field>
+            <field name="option_source">custom</field>
+            <field name="input_able" eval="True"/>
+        </record>
+        <record id="opt_defect_sev_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">10</field>
+            <field name="value">輕微</field>
+            <field name="code">minor</field>
+        </record>
+        <record id="opt_defect_sev_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">20</field>
+            <field name="value">中等</field>
+            <field name="code">moderate</field>
+        </record>
+        <record id="opt_defect_sev_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">30</field>
+            <field name="value">重大</field>
+            <field name="code">major</field>
+        </record>
+        <record id="opt_defect_sev_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">40</field>
+            <field name="value">嚴重</field>
+            <field name="code">critical</field>
+        </record>
+
+        <!-- 缺失改善通知：缺失類別 → 勾選組 checkbox（custom 多選）。一筆缺失可同時
+             屬多個類別，故用 checkbox（可複選）而非 radio。範本內 {{ defect_categories }}
+             由前端升級成 checkbox chip；不綁 record（custom 固定清單）。 -->
+        <record id="field_defect_categories" model="doc.template.field">
+            <field name="template_id" ref="template_defect_improvement"/>
+            <field name="signer_id" ref="signer_defect_default"/>
+            <field name="field_type">checkbox</field>
+            <field name="placeholder_text">defect_categories</field>
+            <field name="option_source">custom</field>
+            <field name="is_multi_select" eval="True"/>
+        </record>
+        <record id="opt_defect_cat_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">10</field>
+            <field name="value">品質缺失</field>
+        </record>
+        <record id="opt_defect_cat_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">20</field>
+            <field name="value">安全缺失</field>
+        </record>
+        <record id="opt_defect_cat_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">30</field>
+            <field name="value">環境缺失</field>
+        </record>
+        <record id="opt_defect_cat_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">40</field>
+            <field name="value">文件缺失</field>
+        </record>
+
+        <!-- 範本 4：估驗計價單 -->
+        <record id="template_payment_estimate" model="doc.template">
+            <field name="name">估驗計價單樣板</field>
+            <field name="category">contract</field>
+            <field name="page_format">A4</field>
+            <field name="description">估驗計價單線上協作版本（補充既有 QWeb 報表，供協商階段使用）。範本內 {{ var }} 預先建為 doc.template.field text placeholder；要綁實際資料，請在後台 doc.template 設 model_id = payment.estimate（需裝 construction_payment 模組），再把對應欄位 field_type 改 odoo_field 並填 odoo_field_name（如 estimate_no / project_id.name / subtotal）。可由 payment.estimate 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">估驗計價單</h1>
+<!-- Sprint Y12.2：所有 row 統一 4 欄、不用 colspan
+     原本第 1 row 用 colspan="3" 跨欄、與其他 4 欄 row 混雜，會觸發
+     canvas-editor 內部 getTablePositionList undefined[1] mousedown bug -->
+<table style="width:100%;border-collapse:collapse">
+  <tr>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>工程名稱</b></td>
+    <td style="border:1px solid #000;padding:6px;width:25%">{{ project_name }}</td>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>估驗日期</b></td>
+    <td style="border:1px solid #000;padding:6px;width:25%">{{ estimate_date }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>承包商</b></td>
+    <td style="border:1px solid #000;padding:6px">{{ contractor }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>估驗期</b></td>
+    <td style="border:1px solid #000;padding:6px">第 {{ estimate_no }} 期</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>本期估驗金額</b></td>
+    <td style="border:1px solid #000;padding:6px">{{ current_amount }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>累計金額</b></td>
+    <td style="border:1px solid #000;padding:6px">{{ cumulative_amount }}</td>
+  </tr>
+</table>
+<h3>本期完成工項</h3>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f0f0f0">
+      <th style="border:1px solid #000;padding:6px;width:6%">項次</th>
+      <th style="border:1px solid #000;padding:6px">工項名稱</th>
+      <th style="border:1px solid #000;padding:6px;width:10%">單位</th>
+      <th style="border:1px solid #000;padding:6px;width:14%">本期數量</th>
+      <th style="border:1px solid #000;padding:6px;width:14%">單價</th>
+      <th style="border:1px solid #000;padding:6px;width:14%">小計</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+  </tbody>
+</table>
+<h3>備註</h3>
+<p><br></p>
+<p style="margin-top:32px;text-align:right">承包商簽核：________________　監造單位簽核：________________　業主簽核：________________</p>
+            ]]></field>
+        </record>
+
+        <!-- Sprint Y12.1：估驗計價單樣板的 signer + 6 個變數 placeholder field
+             type 設 'text' + placeholder_text 字串 = 變數名稱，user 開啟 inspector
+             即可看見 6 個欄位、知道每個 {{ var }} 都是「等待 binding」的位置。
+             實際 binding 時：把 field_type 改 'odoo_field' + 填 odoo_field_name。 -->
+        <record id="signer_payment_estimate_default" model="doc.template.signer">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="field_payment_estimate_no" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">estimate_no</field>
+            <field name="required" eval="True"/>
+        </record>
+        <record id="field_payment_estimate_project_name" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">project_name</field>
+            <field name="required" eval="True"/>
+        </record>
+        <record id="field_payment_estimate_contractor" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">contractor</field>
+        </record>
+        <record id="field_payment_estimate_date" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">date</field>
+            <field name="placeholder_text">estimate_date</field>
+        </record>
+        <record id="field_payment_estimate_current_amount" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">current_amount</field>
+        </record>
+        <record id="field_payment_estimate_cumulative_amount" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">cumulative_amount</field>
+        </record>
+
+        <!-- 範本 5：材料／設備送審管制表
+             可由 supervision.review.application 透過 doc.linked.mixin 整合。
+             審查結果走 radio（custom，合格/條件式通過/不合格，code 對齊
+             final_review_result 的 Selection）；送審內容走 checkbox（custom 多選）。 -->
+        <record id="template_review_control" model="doc.template">
+            <field name="name">材料／設備送審管制表樣板</field>
+            <field name="category">report</field>
+            <field name="page_format">A4</field>
+            <field name="description">材料／設備送審文件審核表，可由 supervision.review.application 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">材料／設備送審管制表</h1>
+<p style="text-align:right">送審編號：{{ review_no }}</p>
+<table style="width:100%;border-collapse:collapse">
+  <tr>
+    <td style="border:1px solid #000;padding:6px;width:20%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px" colspan="3">{{ project_name }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>材料／設備名稱</b></td><td style="border:1px solid #000;padding:6px" colspan="3">{{ material_name }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>契約項次</b></td><td style="border:1px solid #000;padding:6px;width:30%">{{ item_no }}</td>
+    <td style="border:1px solid #000;padding:6px;width:20%"><b>契約數量</b></td><td style="border:1px solid #000;padding:6px;width:30%">{{ quantity }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>預定送審日</b></td><td style="border:1px solid #000;padding:6px">{{ expected_date }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>實際送審日</b></td><td style="border:1px solid #000;padding:6px">{{ final_date }}</td>
+  </tr>
+</table>
+<p>送審內容（可複選）：{{ review_items }}</p>
+<h3>審查結果</h3>
+<p>{{ review_result }}</p>
+<h3>審查意見</h3>
+<p><br></p><p><br></p>
+<table style="width:100%;margin-top:32px">
+  <tr>
+    <td style="text-align:left">承包商：________________</td>
+    <td style="text-align:center">監造單位：________________</td>
+    <td style="text-align:right">業主：________________</td>
+  </tr>
+</table>
+            ]]></field>
+        </record>
+        <record id="signer_review_default" model="doc.template.signer">
+            <field name="template_id" ref="template_review_control"/>
+            <field name="name">審查者</field>
+            <field name="sequence">10</field>
+        </record>
+        <!-- 審查結果 radio（custom 單選，code 對齊 final_review_result：pass/conditional/fail） -->
+        <record id="field_review_result" model="doc.template.field">
+            <field name="template_id" ref="template_review_control"/>
+            <field name="signer_id" ref="signer_review_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">review_result</field>
+            <field name="option_source">custom</field>
+            <field name="input_able" eval="True"/>
+        </record>
+        <record id="opt_review_result_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_result"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+            <field name="code">pass</field>
+        </record>
+        <record id="opt_review_result_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_result"/>
+            <field name="sequence">20</field>
+            <field name="value">條件式通過</field>
+            <field name="code">conditional</field>
+        </record>
+        <record id="opt_review_result_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_result"/>
+            <field name="sequence">30</field>
+            <field name="value">不合格</field>
+            <field name="code">fail</field>
+        </record>
+        <!-- 送審內容 checkbox（custom 多選，對齊 has_catalog/has_demo/...） -->
+        <record id="field_review_items" model="doc.template.field">
+            <field name="template_id" ref="template_review_control"/>
+            <field name="signer_id" ref="signer_review_default"/>
+            <field name="field_type">checkbox</field>
+            <field name="placeholder_text">review_items</field>
+            <field name="option_source">custom</field>
+            <field name="is_multi_select" eval="True"/>
+        </record>
+        <record id="opt_review_item_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_items"/>
+            <field name="sequence">10</field>
+            <field name="value">型錄</field>
+        </record>
+        <record id="opt_review_item_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_items"/>
+            <field name="sequence">20</field>
+            <field name="value">樣品</field>
+        </record>
+        <record id="opt_review_item_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_items"/>
+            <field name="sequence">30</field>
+            <field name="value">相關測試報告</field>
+        </record>
+        <record id="opt_review_item_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_review_items"/>
+            <field name="sequence">40</field>
+            <field name="value">協力廠商資料</field>
+        </record>
     </data>
 </odoo>

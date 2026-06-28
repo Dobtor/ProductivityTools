@@ -14,6 +14,11 @@ export class DocOdooFieldPlugin extends Plugin {
     static id = "docOdooField";
     static dependencies = ["history", "selection"];
 
+    // Odoo 18 html_editor Plugin 透過 this.getService() 存取 service
+    get _dialogService() {
+        return this.getService?.("dialog") ?? this.services?.dialog ?? null;
+    }
+
     get resources() {
         return {
             powerbox_categories: [
@@ -60,10 +65,9 @@ export class DocOdooFieldPlugin extends Plugin {
     }
 
     _openFieldPickerDialog() {
-        // 透過 env.services.dialog 開啟 OWL Dialog
-        const dialogService = this.services?.dialog;
+        const dialogService = this._dialogService;
         if (!dialogService) {
-            // fallback：若無法取得 dialog service，改用 prompt
+            // fallback：dialog service 不可用時改用 prompt
             this._promptAndInsertField();
             return;
         }

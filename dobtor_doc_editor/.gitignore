@@ -1,0 +1,50 @@
+# =========================
+# 1. 前端開發與編譯暫存 (Node.js / TS)
+# =========================
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# CI 輸出（Sprint 20 補入）
+tests/vitest-junit.xml
+tests/fixtures/sprint18_ratio_grid_report.json
+test-results/
+
+# VR run 暫存（Sprint 158 補入）
+tests/fixtures/.visual_regression_tmp/
+tests/fixtures/**/golden/*_diff.png
+
+# Autopilot Y 本機設定（Sprint 158 補入；per-machine、不進 git）
+.antigravity/
+
+# =========================
+# 2. Odoo 後端與 Python 暫存
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# 3. 資安防護 (絕對不可進版控！)
+# =========================
+.env
+.env.*
+*.pem
+*.key
+
+# =========================
+# 4. 作業系統與編輯器垃圾
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# 以下項目「必須」進 Git，不可忽略！
+# =========================
+!patches/
+!static/src/lib/canvas_editor/canvas-editor-custom.umd.js

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!--
+        Portal templates for dobtor_doc_editor (W2-3 P0-1)
+        ====================================================
+        - portal_my_home_documents：在 /my 首頁加「文件」入口卡
+        - portal_breadcrumbs_documents：列表 / 編輯頁的麵包屑
+        - portal_my_documents：列表頁
+        - portal_document_view：單份文件檢視 / 編輯頁
+
+        所有模板都繼承標準 Odoo portal.portal_layout，
+        不依賴 construction_portal — 保持模組通用性。
+    -->
+
+    <!-- /my 首頁加「文件」入口 -->
+    <template id="portal_my_home_documents" name="Portal My Home: Documents"
+              inherit_id="portal.portal_my_home" customize_show="True"
+              priority="40">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="title">文件</t>
+                <t t-set="url" t-value="'/my/documents'"/>
+                <t t-set="placeholder_count" t-value="'doc_count'"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- 麵包屑：列表頁 -->
+    <template id="portal_breadcrumbs_documents" name="Portal Breadcrumbs: Documents"
+              inherit_id="portal.portal_breadcrumbs" priority="30">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'documents'"
+                t-attf-class="breadcrumb-item #{'active ' if not doc else ''}">
+                <a t-if="doc" href="/my/documents">文件</a>
+                <t t-else="">文件</t>
+            </li>
+            <li t-if="doc" class="breadcrumb-item active">
+                <t t-esc="doc.name"/>
+            </li>
+        </xpath>
+    </template>
+
+    <!-- 文件列表頁 -->
+    <template id="portal_my_documents" name="Portal: My Documents">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">文件</t>
+            </t>
+
+            <t t-if="not documents">
+                <p class="alert alert-warning" role="alert">您目前沒有可存取的文件。</p>
+            </t>
+
+            <t t-if="documents" t-call="portal.portal_table">
+                <caption class="visually-hidden">您可存取的文件列表</caption>
+                <thead>
+                    <tr class="active">
+                        <th scope="col">名稱</th>
+                        <th scope="col" class="text-end">最後更新</th>
+                        <th scope="col" class="text-end">公司</th>
+                        <th scope="col" class="text-end">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="documents" t-as="doc_row">
+                        <td>
+                            <a t-attf-href="/my/documents/#{doc_row.id}"
+                               t-attf-aria-label="開啟文件 #{doc_row.name}">
+                                <t t-esc="doc_row.name"/>
+                            </a>
+                        </td>
+                        <td class="text-end">
+                            <span t-field="doc_row.write_date"/>
+                        </td>
+                        <td class="text-end">
+                            <span t-field="doc_row.company_id"/>
+                        </td>
+                        <td class="text-end">
+                            <a t-attf-href="/my/documents/#{doc_row.id}"
+                               class="btn btn-sm btn-primary"
+                               t-attf-aria-label="編輯 #{doc_row.name}">
+                                <i class="fa fa-pencil me-1" aria-hidden="true"/>編輯
+                            </a>
+                        </td>
+                    </tr>
+                </tbody>
+            </t>
+        </t>
+    </template>
+
+    <!-- 單份文件檢視 / 編輯頁 -->
+    <template id="portal_document_view" name="Portal: Document View">
+        <t t-call="portal.portal_layout">
+            <t t-set="no_breadcrumbs" t-value="False"/>
+
+            <!--
+                Bundle 載入：所有 dobtor_doc_editor 前端 JS / CSS 已透過 manifest
+                掛在 `web.assets_frontend` 上，portal_layout 會自動 inject。
+                不能用自訂 bundle + t-call-assets — odoo.define 啟動順序會壞掉。
+            -->
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h3>
+                        <t t-esc="doc.name"/>
+                        <small class="text-muted ms-2" t-if="is_portal_user">
+                            <i class="fa fa-user-circle"/> Portal 協作者
+                        </small>
+                        <small class="text-warning ms-2" t-if="editor_readonly">
+                            <i class="fa fa-lock"/> 唯讀
+                        </small>
+                    </h3>
+                    <p class="text-muted small">
+                        最後更新：<span t-field="doc.write_date"/>
+                        <t t-if="doc.version_number">
+                            · 版本 v<span t-esc="doc.version_number"/>
+                        </t>
+                    </p>
+                </div>
+            </div>
+
+            <!--
+                Canvas-editor 掛載點：用 Odoo 18 標準 <owl-component> 自訂元素。
+                public_component_service 啟動時會掃 DOM、JSON.parse props，
+                把 DocEditor OWL Component mount 到此元素上。
+                註冊在 static/src/components/portal_doc_editor_loader.js。
+            -->
+            <div class="row mt-3">
+                <div class="col-12">
+                    <owl-component name="dobtor_doc_editor.DocEditor"
+                                   t-att-props="editor_props_json"
+                                   class="d-block border rounded"
+                                   style="min-height: 600px;">
+                        <!-- public_component_service mount 完成前的 fallback 內容 -->
+                        <div class="text-center text-muted py-5">
+                            <i class="fa fa-spinner fa-spin fa-3x"/>
+                            <p class="mt-3">載入文件編輯器…</p>
+                            <p class="small">
+                                如未顯示，請確認瀏覽器支援 Canvas
+                                並重新整理頁面。
+                            </p>
+                        </div>
+                    </owl-component>
+                </div>
+            </div>
+
+            <div class="row mt-3 mb-5">
+                <div class="col-12">
+                    <a href="/my/documents" class="btn btn-outline-secondary">
+                        <i class="fa fa-arrow-left me-1"/>返回列表
+                    </a>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

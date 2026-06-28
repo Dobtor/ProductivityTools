@@ -23,6 +23,7 @@ export class AutoSaveManager {
         this._firstChangeTime = null;
         this._saving = false;
         this._pendingSave = null;
+        this._latestHtml = null;
         this._lastSavedHtml = null;
         this._destroyed = false;
     }
@@ -31,6 +32,8 @@ export class AutoSaveManager {
         if (this._destroyed) return;
         if (html === this._lastSavedHtml) return;
 
+        // 記錄最新內容，讓 flush()（卸載時）即使 debounce 尚未觸發也存得到最後編輯
+        this._latestHtml = html;
         this.onStatusChange("unsaved");
 
         // Layer 1: Debounce
@@ -90,15 +93,29 @@ export class AutoSaveManager {
 
     /** 強制立即儲存（元件卸載前呼叫） */
     async flush() {
-        if (this._destroyed || !this._pendingSave) return;
+        if (this._destroyed) return;
         clearTimeout(this._debounceTimer);
         clearTimeout(this._idleTimer);
         clearTimeout(this._maxWaitTimer);
-        const pending = this._pendingSave;
+        // _pendingSave 只在「存檔中又有新變更」時才有值；一般情境（打字後 debounce
+        // 尚未觸發即卸載）最新內容只在 _latestHtml。兩者取較新者，避免卸載丟失最後編輯。
+        const html = this._pendingSave ?? this._latestHtml;
         this._pendingSave = null;
-        if (pending && this.isLeaderFn()) {
-            await this.saveFn(pending).catch(() => {});
+        if (html != null && html !== this._lastSavedHtml && this.isLeaderFn()) {
+            await this.saveFn(html).catch(() => {});
+            this._lastSavedHtml = html;
         }
+    }
+
+    /** 取消所有待執行的計時器（匯入時呼叫，清除舊內容的存檔任務） */
+    cancel() {
+        clearTimeout(this._debounceTimer);
+        clearTimeout(this._idleTimer);
+        clearTimeout(this._maxWaitTimer);
+        this._firstChangeTime = null;
+        this._debounceTimer = null;
+        this._idleTimer = null;
+        this._maxWaitTimer = null;
     }
 
     destroy() {

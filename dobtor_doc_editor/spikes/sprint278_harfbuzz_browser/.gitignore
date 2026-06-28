@@ -1,0 +1,5 @@
+# Heavy binaries reproducible from node_modules + system fonts
+vendor/
+*.ttf
+*.otf
+*.wasm

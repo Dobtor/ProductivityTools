@@ -1,0 +1,75 @@
+{
+  "runAt": "2026-05-06T16:07:56.292Z",
+  "maxDiffThreshold": 0.02,
+  "totalFixtures": 8,
+  "parsed": 8,
+  "renderedPages": 0,
+  "comparedPages": 0,
+  "failedPages": 0,
+  "fixtures": [
+    {
+      "path": "02_std_table/1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "parseOk": true,
+      "elementCount": 42,
+      "pages": 0,
+      "goldens": 2,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "parseOk": true,
+      "elementCount": 42,
+      "pages": 0,
+      "goldens": 2,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "parseOk": true,
+      "elementCount": 40,
+      "pages": 0,
+      "goldens": 2,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "parseOk": true,
+      "elementCount": 40,
+      "pages": 0,
+      "goldens": 2,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "parseOk": true,
+      "elementCount": 40,
+      "pages": 0,
+      "goldens": 2,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1131202-工地密度簽到表.docx",
+      "parseOk": true,
+      "elementCount": 132,
+      "pages": 0,
+      "goldens": 1,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1140206-工地密度取樣紀錄.docx",
+      "parseOk": true,
+      "elementCount": 324,
+      "pages": 0,
+      "goldens": 2,
+      "pageResults": []
+    },
+    {
+      "path": "02_std_table/1140206-工地密度簽到表.docx",
+      "parseOk": true,
+      "elementCount": 131,
+      "pages": 0,
+      "goldens": 1,
+      "pageResults": []
+    }
+  ]
+}

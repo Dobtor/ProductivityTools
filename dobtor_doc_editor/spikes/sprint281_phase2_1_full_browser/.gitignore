@@ -1,0 +1,3 @@
+# Heavy build output reproducible via esbuild
+bundle.js
+bundle.js.map

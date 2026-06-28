@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="dobtor_doc_editor.DocVersionPanel">
+    <div class="doc-version-panel-overlay"
+         t-on-click.self="onClose"
+         role="presentation">
+        <div class="doc-version-panel"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="doc-version-panel-title">
+            <header class="doc-version-panel-header">
+                <h3 id="doc-version-panel-title">版本歷史</h3>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            t-on-click="toggleCompareMode"
+                            t-att-aria-pressed="state.compareMode ? 'true' : 'false'">
+                        <t t-if="state.compareMode">取消比對</t>
+                        <t t-else="">比對版本</t>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ms-2"
+                            t-on-click="onClose"
+                            aria-label="關閉版本歷史對話框">關閉</button>
+                </div>
+            </header>
+
+            <t t-if="state.error">
+                <div class="alert alert-danger m-2">
+                    <t t-esc="state.error"/>
+                </div>
+            </t>
+
+            <t t-if="state.loading">
+                <p class="text-center p-3">載入中…</p>
+            </t>
+
+            <div class="doc-version-panel-body" t-else="">
+                <!-- 版本列表 -->
+                <ul class="doc-version-list">
+                    <t t-if="!state.versions.length">
+                        <li class="text-muted p-2">尚未有版本快照。</li>
+                    </t>
+                    <t t-foreach="state.versions" t-as="v" t-key="v.version_id">
+                        <li t-attf-class="doc-version-item #{state.previewMessageId === v.version_id ? 'active' : ''}">
+                            <t t-if="state.compareMode">
+                                <input type="checkbox"
+                                       t-att-checked="state.compareA === v.version_id || state.compareB === v.version_id"
+                                       t-on-change="() => this.pickForCompare(v.version_id)"/>
+                            </t>
+                            <span class="doc-version-no">v<t t-esc="v.version_number"/></span>
+                            <span class="doc-version-date" t-esc="v.date"/>
+                            <span class="doc-version-author" t-esc="v.author_name"/>
+                            <t t-if="v.label">
+                                <span class="doc-version-label">— <t t-esc="v.label"/></span>
+                            </t>
+                            <div class="doc-version-actions">
+                                <button class="btn btn-sm btn-outline-info"
+                                        t-on-click="() => this.previewVersion(v.version_id)">
+                                    預覽
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning ms-1"
+                                        t-on-click="() => this.restoreVersion(v.version_id)">
+                                    還原
+                                </button>
+                            </div>
+                        </li>
+                    </t>
+                </ul>
+
+                <!-- Diff 結果 -->
+                <t t-if="state.diffResult">
+                    <hr/>
+                    <div class="doc-version-diff">
+                        <h4>
+                            v<t t-esc="state.diffResult.a_version"/> ↔ v<t t-esc="state.diffResult.b_version"/>
+                        </h4>
+                        <ul class="diff-opcodes">
+                            <t t-foreach="state.diffResult.opcodes" t-as="op" t-key="op_index">
+                                <li t-attf-class="diff-op #{getDiffOpClass(op.op)}">
+                                    <strong t-esc="getDiffOpLabel(op.op)"/>:
+                                    <t t-if="op.op === 'equal'">
+                                        <span class="text-muted">
+                                            （<t t-esc="op.a_lines.length"/> 行未變動）
+                                        </span>
+                                    </t>
+                                    <t t-elif="op.op === 'delete'">
+                                        <ul>
+                                            <t t-foreach="op.a_lines" t-as="line" t-key="line_index">
+                                                <li>- <t t-esc="line"/></li>
+                                            </t>
+                                        </ul>
+                                    </t>
+                                    <t t-elif="op.op === 'insert'">
+                                        <ul>
+                                            <t t-foreach="op.b_lines" t-as="line" t-key="line_index">
+                                                <li>+ <t t-esc="line"/></li>
+                                            </t>
+                                        </ul>
+                                    </t>
+                                    <t t-else="">
+                                        <ul>
+                                            <t t-foreach="op.a_lines" t-as="line" t-key="line_index">
+                                                <li class="text-danger">- <t t-esc="line"/></li>
+                                            </t>
+                                            <t t-foreach="op.b_lines" t-as="line" t-key="line_index">
+                                                <li class="text-success">+ <t t-esc="line"/></li>
+                                            </t>
+                                        </ul>
+                                    </t>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+                </t>
+
+                <!-- 單版本預覽 -->
+                <t t-elif="state.previewContent">
+                    <hr/>
+                    <div class="doc-version-preview">
+                        <h4>v<t t-esc="state.previewContent.version_number"/> 預覽</h4>
+                        <div class="doc-version-preview-html"
+                             t-out="state.previewContent.content_html"/>
+                    </div>
+                </t>
+            </div>
+        </div>
+    </div>
+</t>
+
+</templates>

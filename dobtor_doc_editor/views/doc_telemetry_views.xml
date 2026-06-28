@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ====================================================================
+         監控與遙測（P2-4）
+         僅 doc_manager 群組可看到（ACL 已限制）
+         ==================================================================== -->
+
+    <!-- doc.editor.error.log : 錯誤紀錄 list -->
+    <record id="view_doc_editor_error_log_list" model="ir.ui.view">
+        <field name="name">doc.editor.error.log.list</field>
+        <field name="model">doc.editor.error.log</field>
+        <field name="arch" type="xml">
+            <list string="文件編輯器錯誤" default_order="create_date desc"
+                  decoration-danger="error_type in ('canvas_error','save_failure')"
+                  decoration-warning="error_type in ('import_failure','export_failure')">
+                <field name="create_date" string="時間"/>
+                <field name="error_type"/>
+                <field name="message"/>
+                <field name="user_id"/>
+                <field name="doc_id"/>
+                <field name="company_id" optional="hide"/>
+                <field name="user_agent" optional="hide"/>
+                <field name="url" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_doc_editor_error_log_form" model="ir.ui.view">
+        <field name="name">doc.editor.error.log.form</field>
+        <field name="model">doc.editor.error.log</field>
+        <field name="arch" type="xml">
+            <form string="錯誤紀錄" create="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="create_date" readonly="1"/>
+                            <field name="user_id" readonly="1"/>
+                            <field name="company_id" readonly="1"/>
+                            <field name="error_type" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="doc_id" readonly="1"/>
+                            <field name="url" readonly="1"/>
+                            <field name="user_agent" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="訊息">
+                        <field name="message" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Stack trace">
+                        <field name="stack_trace" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="額外資料">
+                        <field name="extra" nolabel="1" readonly="1" widget="json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_doc_editor_error_log" model="ir.actions.act_window">
+        <field name="name">編輯器錯誤</field>
+        <field name="res_model">doc.editor.error.log</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_recent': 1}</field>
+    </record>
+
+    <!-- doc.editor.perf.metric : 效能指標 list -->
+    <record id="view_doc_editor_perf_metric_list" model="ir.ui.view">
+        <field name="name">doc.editor.perf.metric.list</field>
+        <field name="model">doc.editor.perf.metric</field>
+        <field name="arch" type="xml">
+            <list string="文件編輯器效能指標" default_order="create_date desc">
+                <field name="create_date" string="時間"/>
+                <field name="metric_type"/>
+                <field name="value"/>
+                <field name="user_id"/>
+                <field name="doc_id"/>
+                <field name="page_count" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_doc_editor_perf_metric" model="ir.actions.act_window">
+        <field name="name">效能指標</field>
+        <field name="res_model">doc.editor.perf.metric</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- doc.editor.export.log : 匯出紀錄（稽核） -->
+    <record id="view_doc_editor_export_log_list" model="ir.ui.view">
+        <field name="name">doc.editor.export.log.list</field>
+        <field name="model">doc.editor.export.log</field>
+        <field name="arch" type="xml">
+            <list string="文件匯出紀錄" default_order="create_date desc"
+                  decoration-muted="not with_alias">
+                <field name="create_date" string="時間"/>
+                <field name="doc_id"/>
+                <field name="file_format"/>
+                <field name="with_alias" string="實際值"/>
+                <field name="source"/>
+                <field name="user_id"/>
+                <field name="record_ref" optional="show"/>
+                <field name="file_size" string="大小(B)" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_doc_editor_export_log_search" model="ir.ui.view">
+        <field name="name">doc.editor.export.log.search</field>
+        <field name="model">doc.editor.export.log</field>
+        <field name="arch" type="xml">
+            <search string="搜尋匯出紀錄">
+                <field name="doc_id"/>
+                <field name="user_id"/>
+                <field name="record_ref"/>
+                <filter name="fmt_pdf" string="PDF" domain="[('file_format','=','pdf')]"/>
+                <filter name="fmt_docx" string="DOCX" domain="[('file_format','=','docx')]"/>
+                <separator/>
+                <filter name="with_alias" string="已帶入實際值"
+                        domain="[('with_alias','=',True)]"/>
+                <filter name="no_alias" string="未帶入（token 原文）"
+                        domain="[('with_alias','=',False)]"/>
+                <group expand="0" string="分組依據">
+                    <filter name="grp_format" string="格式"
+                            context="{'group_by': 'file_format'}"/>
+                    <filter name="grp_source" string="來源"
+                            context="{'group_by': 'source'}"/>
+                    <filter name="grp_user" string="匯出者"
+                            context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_doc_editor_export_log" model="ir.actions.act_window">
+        <field name="name">匯出紀錄</field>
+        <field name="res_model">doc.editor.export.log</field>
+        <field name="view_mode">list</field>
+    </record>
+
+</odoo>

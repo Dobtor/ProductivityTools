@@ -1,150 +1,1569 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="dobtor_doc_editor.DocEditor">
-        <div class="o_action o_dobtor_doc_editor">
+        <!--
+            Phase 8 Template UI Builder（ADR-022）— Phase 1 視覺風格靠攏。
+            布局對照（圖：dobtor esign template editor）：
+              row 1  doc-header-bar     檔名 + 預覽/儲存/關閉
+              row 2  doc-subnav         儀表板/請求/範本/設定（Phase 1 只啟用「範本」）
+              row 3  doc-toolbar        既有頁面格式/縮放/版本/匯入/匯出/離線（合併進工具列）
+              row 4  doc-field-toolbar  欄位類型按鈕 + Odoo 欄位（Phase 1 點擊只彈 toast）
+              row 5  doc-signer-bar     簽約人 chip + 頁碼 + zoom-fit
+              row 6  doc-main           三欄式：thumbnails / canvas-workspace / inspector
+              row 7  doc-statusbar      頁碼/欄位計數/hint
+            Phase 1 不動 _initCanvasEditor 邏輯（仍掛在 .canvas-editor-container ref）。
+        -->
+        <div class="o_action o_dobtor_doc_editor"
+             t-att-class="{ 'is-dark-mode': state.darkMode }"
+             role="application"
+             aria-label="文件編輯器">
 
-            <!-- ── 頂部工具列 ── -->
-            <div class="doc-toolbar">
-                <!-- 文件標題 -->
-                <input class="doc-toolbar-title"
-                       t-att-value="state.docName"
-                       t-on-change="onTitleChange"
-                       placeholder="未命名文件"/>
+            <!-- ═══ Row 1：Header bar（檔名 + 主操作）═══ -->
+            <div class="doc-header-bar">
+                <div class="doc-header-bar-left">
+                    <i class="fa fa-file-text-o doc-header-icon" aria-hidden="true"/>
+                    <input class="doc-header-title"
+                           t-att-value="state.docName"
+                           t-on-change="onTitleChange"
+                           placeholder="未命名文件"
+                           aria-label="文件標題"/>
+                </div>
+                <div class="doc-header-bar-right">
+                    <button class="doc-header-btn"
+                            t-att-class="state.previewMode ? 'doc-header-btn-preview-active' : ''"
+                            t-on-click="onTogglePreviewMode"
+                            t-attf-title="#{state.previewMode ? '目前顯示實際值（可直接編輯）— 按此回到範本模式看 《token》 原文' : '切到實際值模式（可直接編輯）；改動會凍結為純文字，不影響範本'}"
+                            aria-label="切換預覽模式">
+                        <i t-attf-class="fa #{state.previewMode ? 'fa-tags' : 'fa-eye'}" aria-hidden="true"/>
+                        <span class="d-none d-md-inline">
+                            <t t-if="state.previewMode">範本模式</t>
+                            <t t-else="">顯示實際值</t>
+                        </span>
+                    </button>
+                    <button class="doc-header-btn"
+                            t-on-click="onPreviewClick"
+                            title="開新分頁預覽填值結果"
+                            aria-label="預覽">
+                        <i class="fa fa-external-link" aria-hidden="true"/>
+                        <span class="d-none d-md-inline">預覽</span>
+                    </button>
+                    <button class="doc-header-btn primary"
+                            t-att-class="state.isSaving ? 'saving' : ''"
+                            t-on-click="onSave"
+                            t-att-disabled="state.isSaving"
+                            title="儲存文件 (Ctrl+S)"
+                            aria-label="儲存文件"
+                            aria-keyshortcuts="Control+S">
+                        <i class="fa fa-save" aria-hidden="true"/>
+                        <span t-if="state.isSaving">儲存中...</span>
+                        <span t-else="">儲存</span>
+                    </button>
+                    <button class="doc-header-btn"
+                            t-on-click="onClose"
+                            title="關閉並返回"
+                            aria-label="關閉並返回上一頁">
+                        <i class="fa fa-times" aria-hidden="true"/>
+                        <span class="d-none d-md-inline">關閉</span>
+                    </button>
+                </div>
+            </div>
 
-                <div class="doc-toolbar-sep"/>
+            <!-- ═══ Row 2：Sub-nav 已移除（改收進 menubar「面板 ▾」下拉）═══
+                 編輯器預設停在「範本（編輯）」主畫面；儀表板/請求/設定改由
+                 menubar 面板 menu 切換，省一整列高度、更像 Google Docs。
+                 分頁內容（見 Row 6 後方）與 onSubNavClick 邏輯不變。 -->
 
-                <!-- 頁面格式 -->
-                <select class="doc-toolbar-select"
-                        t-att-value="state.pageFormat"
-                        t-on-change="onPageFormatChange">
-                    <option value="A4">A4</option>
-                    <option value="A3">A3</option>
-                    <option value="A5">A5</option>
-                    <option value="letter">Letter</option>
-                    <option value="legal">Legal</option>
-                </select>
+            <!-- ═══ Row 2.5：Google Docs 風 功能 menu bar（Sprint Y3） ═══
+                 6 個下拉 menu：檔案 / 編輯 / 查看 / 插入 / 格式 / 工具
+                 已實作項目接既有 handler，未實作項目用 disabled 占位。
+                 互動：點 trigger 開／關；開著時 hover 其他 trigger 切換；
+                       點外或按 Escape 關閉（listener 在 setup 註冊）。
+            ═══ -->
+            <div class="doc-menubar" role="menubar" aria-label="文件功能選單">
+                <t t-foreach="menuConfig" t-as="menu" t-key="menu.name">
+                    <div class="doc-menu-wrapper"
+                         t-att-class="state.openMenu === menu.name ? 'is-open' : ''">
+                        <button class="doc-menu-trigger"
+                                t-on-click="() => this.onMenuTriggerClick(menu.name)"
+                                t-on-mouseenter="() => this.onMenuTriggerHover(menu.name)"
+                                t-att-aria-expanded="state.openMenu === menu.name"
+                                aria-haspopup="true">
+                            <t t-esc="menu.label"/>
+                        </button>
+                        <div class="doc-dropdown" t-if="state.openMenu === menu.name" role="menu">
+                            <t t-foreach="menu.items" t-as="item" t-key="item_index">
+                                <t t-if="item.type === 'separator'">
+                                    <div class="doc-menu-separator" role="separator"/>
+                                </t>
+                                <t t-else="">
+                                    <button class="doc-menu-item"
+                                            role="menuitem"
+                                            t-att-class="state.menuFocusIndex === item_index ? 'is-focused' : ''"
+                                            t-att-disabled="item.disabled or false"
+                                            t-on-click="() => this.onMenuItemClick(item.action)"
+                                            t-on-mouseenter="() => this.onMenuItemHover(item_index)">
+                                        <span class="doc-menu-item-label" t-esc="item.label"/>
+                                        <span class="doc-menu-item-shortcut"
+                                              t-if="item.shortcut"
+                                              t-esc="item.shortcut"/>
+                                    </button>
+                                </t>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+            </div>
 
-                <div class="doc-toolbar-sep"/>
+            <!-- ═══ Row 3：工具列（紙張 / 版本 / 匯入匯出 ‧ 右側縮放）═══
+                 Sprint Y11：整列收合進 menubar — 紙張/版本/匯入匯出/縮放 都已在
+                 menubar「檔案」「查看」「工具」內可達。default hide。
+                 Sprint Y23：改成 state.showLegacyToolbar 由 user 經查看 menu opt-in、
+                 localStorage 持久化。default 仍 false（同 Y11 預期）。
+                 詳見 docs/phase8_sprint_y23_2026-05-26.md
+            ═══ -->
+            <div class="doc-toolbar"
+                 t-if="state.showLegacyToolbar"
+                 role="toolbar"
+                 aria-label="文件編輯器工具列">
 
-                <!-- 儲存 -->
-                <button class="doc-toolbar-btn primary"
-                        t-att-class="state.isSaving ? 'saving' : ''"
-                        t-on-click="onSave"
-                        t-att-disabled="state.isSaving">
-                    <i class="fa fa-save"/>
-                    <span t-if="state.isSaving">儲存中...</span>
-                    <span t-else="">儲存</span>
-                </button>
+                <!-- 紙張規格 -->
+                <div class="doc-toolbar-field">
+                    <label class="doc-toolbar-field-label">紙張</label>
+                    <select class="doc-toolbar-select"
+                            t-on-change="onPageFormatChange"
+                            aria-label="頁面格式">
+                        <option value="A4">A4</option>
+                        <option value="A3">A3</option>
+                        <option value="A5">A5</option>
+                        <option value="letter">Letter</option>
+                        <option value="legal">Legal</option>
+                    </select>
+                </div>
 
-                <!-- 版本快照 -->
-                <button class="doc-toolbar-btn"
-                        t-on-click="onSaveVersion"
-                        title="儲存版本快照">
-                    <i class="fa fa-history"/>
-                </button>
+                <!-- 版本群組（segmented） -->
+                <div class="doc-btn-group" role="group" aria-label="版本管理">
+                    <button class="doc-toolbar-btn"
+                            t-on-click="onSaveVersion"
+                            title="儲存目前內容為版本快照"
+                            aria-label="儲存版本快照">
+                        <i class="fa fa-bookmark" aria-hidden="true"/>
+                        <span class="ms-1">存版本</span>
+                    </button>
+                    <button class="doc-toolbar-btn"
+                            t-on-click="onShowVersionPanel"
+                            title="查看版本歷史 (Alt+H)"
+                            aria-label="查看版本歷史"
+                            aria-keyshortcuts="Alt+H"
+                            aria-haspopup="dialog">
+                        <i class="fa fa-history" aria-hidden="true"/>
+                        <span class="ms-1">歷史</span>
+                    </button>
+                </div>
 
-                <div class="doc-toolbar-sep"/>
+                <!-- 匯入匯出群組（segmented） -->
+                <div class="doc-btn-group" role="group" aria-label="匯入匯出">
+                    <button class="doc-toolbar-btn"
+                            t-on-click="onExportPdf"
+                            title="匯出為 PDF"
+                            aria-label="匯出為 PDF">
+                        <i class="fa fa-file-pdf-o text-danger" aria-hidden="true"/>
+                        <span class="ms-1">PDF</span>
+                    </button>
+                    <button class="doc-toolbar-btn"
+                            t-on-click="onExportDocx"
+                            title="匯出為 DOCX"
+                            aria-label="匯出為 DOCX">
+                        <i class="fa fa-file-word-o text-primary" aria-hidden="true"/>
+                        <span class="ms-1">DOCX</span>
+                    </button>
+                    <button class="doc-toolbar-btn"
+                            t-on-click="onImportClick"
+                            title="從 DOCX 或 ODT 匯入"
+                            aria-label="匯入 DOCX 或 ODT 檔案">
+                        <i class="fa fa-upload" aria-hidden="true"/>
+                        <span class="ms-1">匯入</span>
+                    </button>
+                </div>
 
-                <!-- PDF -->
-                <button class="doc-toolbar-btn"
-                        t-on-click="() => this.onExport('pdf')">
-                    <i class="fa fa-file-pdf-o"/>
-                    PDF
-                </button>
-
-                <!-- DOCX 高品質 -->
-                <button class="doc-toolbar-btn"
-                        t-on-click="() => this.onExport('docx', 'high')">
-                    <i class="fa fa-file-word-o"/>
-                    DOCX
-                </button>
-
-                <div class="doc-toolbar-sep"/>
-
-                <!-- 匯入 -->
-                <button class="doc-toolbar-btn"
-                        t-on-click="onImportClick"
-                        title="匯入 DOCX / ODT">
-                    <i class="fa fa-upload"/>
-                    匯入
-                </button>
-
-                <div class="doc-toolbar-sep"/>
-
-                <!-- 縮放 -->
-                <select class="doc-toolbar-select"
-                        title="縮放比例"
-                        t-on-change="onZoomChange">
-                    <option value="0.5">50%</option>
-                    <option value="0.75">75%</option>
-                    <option value="1" selected="">100%</option>
-                    <option value="1.25">125%</option>
-                    <option value="1.5">150%</option>
-                    <option value="2">200%</option>
-                </select>
-
-                <div class="doc-toolbar-sep"/>
-
-                <!-- 離線提示 -->
+                <!-- 離線徽章（在線時自動隱藏） -->
                 <t t-if="offlineBadge">
                     <span class="doc-toolbar-offline-badge">
                         <i class="fa fa-wifi"/> 離線
                     </span>
-                    <div class="doc-toolbar-sep"/>
                 </t>
 
-                <!-- 關閉 -->
-                <button class="doc-toolbar-btn"
-                        t-on-click="onClose">
-                    <i class="fa fa-times"/>
-                    關閉
+                <!-- 右側：縮放（margin-left:auto 推到最右） -->
+                <div class="doc-toolbar-right">
+                    <div class="doc-toolbar-field">
+                        <label class="doc-toolbar-field-label">縮放</label>
+                        <select class="doc-toolbar-select doc-toolbar-zoom"
+                                title="縮放比例"
+                                aria-label="縮放比例"
+                                t-on-change="onZoomChange">
+                            <option value="0.5">50%</option>
+                            <option value="0.75">75%</option>
+                            <option value="1" selected="">100%</option>
+                            <option value="1.25">125%</option>
+                            <option value="1.5">150%</option>
+                            <option value="2">200%</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══ Row 3.5：Format toolbar（Sprint Y5）═══
+                 Google Docs 風格式化工具列：字型 / 字號 / B I U S / align*4 / 清除格式
+                 menubar 格式 menu 已可達同樣操作，本工具列提供視覺直接觸發。
+                 button click 直接呼叫 _executeCmd 包裝、不用獨立 handler。
+            ═══ -->
+            <div class="doc-format-toolbar"
+                 editor-component="format-toolbar"
+                 role="toolbar"
+                 aria-label="格式化工具列">
+                <!-- 復原 / 重做（Google Docs 標配，置於最前） -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeUndo')"
+                        title="復原 (Ctrl+Z)" aria-label="復原">
+                    <i class="fa fa-undo" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeRedo')"
+                        title="重做 (Ctrl+Y)" aria-label="重做">
+                    <i class="fa fa-repeat" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 標題樣式 -->
+                <select class="doc-format-select doc-format-title"
+                        t-att-value="state.activeTitle"
+                        t-on-change="onTitleChange"
+                        title="段落樣式" aria-label="段落樣式">
+                    <option value="" t-att-selected="state.activeTitle === ''">內文</option>
+                    <option value="first" t-att-selected="state.activeTitle === 'first'">標題 1</option>
+                    <option value="second" t-att-selected="state.activeTitle === 'second'">標題 2</option>
+                    <option value="third" t-att-selected="state.activeTitle === 'third'">標題 3</option>
+                </select>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <select class="doc-format-select doc-format-font"
+                        t-att-value="state.activeFontFamily"
+                        t-on-change="onFontFamilyChange"
+                        aria-label="字型">
+                    <t t-foreach="FONT_OPTIONS" t-as="f" t-key="f.value">
+                        <option t-att-value="f.value"
+                                t-att-selected="state.activeFontFamily === f.value">
+                            <t t-esc="f.label"/>
+                        </option>
+                    </t>
+                </select>
+                <select class="doc-format-select doc-format-size"
+                        t-att-value="state.activeFontSize"
+                        t-on-change="onFontSizeChange"
+                        aria-label="字號">
+                    <t t-foreach="FONT_SIZE_OPTIONS" t-as="s" t-key="s">
+                        <option t-att-value="s"
+                                t-att-selected="state.activeFontSize === ('' + s)">
+                            <t t-esc="s"/>
+                        </option>
+                    </t>
+                </select>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeBold }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeBold')"
+                        title="粗體 (Ctrl+B)" aria-label="粗體" t-att-aria-pressed="state.activeBold ? 'true' : 'false'">
+                    <i class="fa fa-bold" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeItalic }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeItalic')"
+                        title="斜體 (Ctrl+I)" aria-label="斜體" t-att-aria-pressed="state.activeItalic ? 'true' : 'false'">
+                    <i class="fa fa-italic" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeUnderline }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeUnderline')"
+                        title="底線 (Ctrl+U)" aria-label="底線" t-att-aria-pressed="state.activeUnderline ? 'true' : 'false'">
+                    <i class="fa fa-underline" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeStrikeout }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeStrikeout')"
+                        title="刪除線" aria-label="刪除線" t-att-aria-pressed="state.activeStrikeout ? 'true' : 'false'">
+                    <i class="fa fa-strikethrough" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'left' }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'left')"
+                        title="靠左對齊" aria-label="靠左對齊"
+                        t-att-aria-pressed="state.activeRowFlex === 'left' ? 'true' : 'false'">
+                    <i class="fa fa-align-left" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'center' }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'center')"
+                        title="置中對齊" aria-label="置中對齊"
+                        t-att-aria-pressed="state.activeRowFlex === 'center' ? 'true' : 'false'">
+                    <i class="fa fa-align-center" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'right' }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'right')"
+                        title="靠右對齊" aria-label="靠右對齊"
+                        t-att-aria-pressed="state.activeRowFlex === 'right' ? 'true' : 'false'">
+                    <i class="fa fa-align-right" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'alignment' }"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'alignment')"
+                        title="兩端對齊" aria-label="兩端對齊"
+                        t-att-aria-pressed="state.activeRowFlex === 'alignment' ? 'true' : 'false'">
+                    <i class="fa fa-align-justify" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 項目符號 / 編號清單 + 行距 -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this.onInsertList('ul')"
+                        title="項目符號清單" aria-label="項目符號清單">
+                    <i class="fa fa-list-ul" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this.onInsertList('ol')"
+                        title="編號清單" aria-label="編號清單">
+                    <i class="fa fa-list-ol" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="onOpenLineSpacing"
+                        title="行距" aria-label="行距">
+                    <i class="fa fa-arrows-v" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 上標 / 下標 -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeSuperscript')"
+                        title="上標" aria-label="上標">
+                    <i class="fa fa-superscript" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeSubscript')"
+                        title="下標" aria-label="下標">
+                    <i class="fa fa-subscript" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 超連結 -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="onInsertHyperlink"
+                        title="插入連結" aria-label="插入連結">
+                    <i class="fa fa-link" aria-hidden="true"/>
+                </button>
+                <!-- 插入表格（Google Docs 風網格選擇器） -->
+                <span class="doc-table-picker-wrap">
+                    <button class="doc-format-btn"
+                            t-att-class="{ 'is-active': state.showTablePicker }"
+                            t-on-mousedown.prevent="() => {}"
+                            t-on-click="(ev) => this.onTablePickerToggle(ev)"
+                            title="插入表格" aria-label="插入表格" aria-haspopup="true">
+                        <i class="fa fa-table" aria-hidden="true"/>
+                        <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    </button>
+                    <div class="doc-table-picker" t-if="state.showTablePicker">
+                        <div class="doc-table-picker-label">
+                            <t t-if="state.tablePickerRows > 0">
+                                <t t-esc="state.tablePickerRows"/> × <t t-esc="state.tablePickerCols"/>
+                            </t>
+                            <t t-else="">插入表格</t>
+                        </div>
+                        <div class="doc-table-picker-grid"
+                             t-on-mouseleave="() => this.onTablePickerHover(0, 0)">
+                            <t t-foreach="tablePickerRowRange" t-as="r" t-key="r">
+                                <div class="doc-table-picker-row">
+                                    <t t-foreach="tablePickerColRange" t-as="c" t-key="c">
+                                        <span class="doc-table-picker-cell"
+                                              t-att-class="{ 'is-on': r &lt;= state.tablePickerRows and c &lt;= state.tablePickerCols }"
+                                              t-on-mouseover="() => this.onTablePickerHover(r, c)"
+                                              t-on-click="(ev) => this.onTablePickerPick(r, c, ev)"/>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </span>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- Sprint Y12：字色 24-color palette dropdown（取代 Y6 native picker；保留自訂色逃生口）-->
+                <span class="doc-format-color-wrap"
+                      t-att-class="{ 'is-open': state.showColorPalette === 'text' }"
+                      title="字色" aria-label="文字顏色"
+                      t-on-click="(ev) => this.onColorTriggerClick('text', ev)">
+                    <i class="fa fa-font" aria-hidden="true"/>
+                    <span class="doc-format-color-bar"
+                          t-attf-style="background: #{state.textColor};"/>
+                    <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    <!-- 隱藏 native input：「自訂色」link 用 JS click() 觸發 -->
+                    <input type="color"
+                           class="doc-format-color-hidden doc-color-custom-text"
+                           t-att-value="state.textColor"
+                           t-on-input="onTextColorChange"
+                           tabindex="-1"
+                           aria-hidden="true"/>
+                    <!-- Palette dropdown -->
+                    <div class="doc-color-palette" t-if="state.showColorPalette === 'text'">
+                        <!-- Sprint Y13：最近用色（最多 6 個、t-if 空陣列不渲染） -->
+                        <t t-if="state.recentColors and state.recentColors.text.length > 0">
+                            <div class="doc-color-palette-section-label">
+                                <span>最近</span>
+                                <!-- Sprint Y18：清除最近用色 -->
+                                <button class="doc-color-palette-clear"
+                                        type="button"
+                                        title="清除最近用色"
+                                        aria-label="清除最近字色"
+                                        t-on-click.stop="() => this.onClearRecentColors('text')">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
+                            <div class="doc-color-palette-row doc-color-palette-recent">
+                                <t t-foreach="state.recentColors.text" t-as="rc" t-key="rc">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.textColor === rc }"
+                                            t-attf-style="background: #{rc};"
+                                            t-attf-aria-label="最近字色 #{rc}"
+                                            t-att-title="rc"
+                                            t-on-click="(ev) => this.onColorSwatchPick('text', rc, ev)"/>
+                                </t>
+                            </div>
+                            <div class="doc-color-palette-section-label">標準</div>
+                        </t>
+                        <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
+                            <div class="doc-color-palette-row">
+                                <t t-foreach="row" t-as="color" t-key="color">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.textColor === color }"
+                                            t-attf-style="background: #{color};"
+                                            t-attf-aria-label="字色 #{color}"
+                                            t-att-title="color"
+                                            t-on-click="(ev) => this.onColorSwatchPick('text', color, ev)"/>
+                                </t>
+                            </div>
+                        </t>
+                        <div class="doc-color-palette-footer">
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorReset('text', ev)">重設</button>
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorCustom('text', ev)">自訂色...</button>
+                        </div>
+                    </div>
+                </span>
+                <!-- Sprint Y12：背景色 24-color palette dropdown -->
+                <span class="doc-format-color-wrap"
+                      t-att-class="{ 'is-open': state.showColorPalette === 'highlight' }"
+                      title="背景色（highlight）" aria-label="背景顏色"
+                      t-on-click="(ev) => this.onColorTriggerClick('highlight', ev)">
+                    <i class="fa fa-paint-brush" aria-hidden="true"/>
+                    <span class="doc-format-color-bar"
+                          t-attf-style="background: #{state.highlightColor};"/>
+                    <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    <input type="color"
+                           class="doc-format-color-hidden doc-color-custom-highlight"
+                           t-att-value="state.highlightColor"
+                           t-on-input="onHighlightColorChange"
+                           tabindex="-1"
+                           aria-hidden="true"/>
+                    <div class="doc-color-palette" t-if="state.showColorPalette === 'highlight'">
+                        <!-- Sprint Y13：最近用色（背景） -->
+                        <t t-if="state.recentColors and state.recentColors.highlight.length > 0">
+                            <div class="doc-color-palette-section-label">
+                                <span>最近</span>
+                                <!-- Sprint Y18：清除最近用色 -->
+                                <button class="doc-color-palette-clear"
+                                        type="button"
+                                        title="清除最近用色"
+                                        aria-label="清除最近背景色"
+                                        t-on-click.stop="() => this.onClearRecentColors('highlight')">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
+                            <div class="doc-color-palette-row doc-color-palette-recent">
+                                <t t-foreach="state.recentColors.highlight" t-as="rc" t-key="rc">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.highlightColor === rc }"
+                                            t-attf-style="background: #{rc};"
+                                            t-attf-aria-label="最近背景色 #{rc}"
+                                            t-att-title="rc"
+                                            t-on-click="(ev) => this.onColorSwatchPick('highlight', rc, ev)"/>
+                                </t>
+                            </div>
+                            <div class="doc-color-palette-section-label">標準</div>
+                        </t>
+                        <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
+                            <div class="doc-color-palette-row">
+                                <t t-foreach="row" t-as="color" t-key="color">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.highlightColor === color }"
+                                            t-attf-style="background: #{color};"
+                                            t-attf-aria-label="背景色 #{color}"
+                                            t-att-title="color"
+                                            t-on-click="(ev) => this.onColorSwatchPick('highlight', color, ev)"/>
+                                </t>
+                            </div>
+                        </t>
+                        <div class="doc-color-palette-footer">
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorReset('highlight', ev)">重設</button>
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorCustom('highlight', ev)">自訂色...</button>
+                        </div>
+                    </div>
+                </span>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executePainterStyle', {})"
+                        title="清除格式" aria-label="清除格式">
+                    <i class="fa fa-eraser" aria-hidden="true"/>
                 </button>
             </div>
 
-            <!-- ── 尺規 ── -->
-            <DocRuler t-if="state.editorReady"
-                      pageWidthMm="pageWidthMm"/>
-
-            <!-- ── 工作區（可捲動） ── -->
-            <div class="doc-workspace">
-                <div class="doc-workspace-zoom"
-                     t-att-style="'zoom: ' + state.zoom + '; transform-origin: top center;'">
-                <t t-if="state.editorReady">
-                    <DocPageLayout
-                        pageFormat="state.pageFormat"
-                        marginTop="state.marginTop"
-                        marginBottom="state.marginBottom"
-                        marginLeft="state.marginLeft"
-                        marginRight="state.marginRight"
-                        headerHtml="state.headerHtml"
-                        footerHtml="state.footerHtml"
-                        editorConfig="mainEditorConfig"
-                        onHeaderChange="(html) => this.onHeaderChange(html)"
-                        onFooterChange="(html) => this.onFooterChange(html)"
-                    />
-                </t>
-                <t t-else="">
-                    <div class="d-flex justify-content-center align-items-center py-5">
-                        <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
-                        <span class="ms-3 text-muted">載入中...</span>
+            <!-- ═══ 表格工具列：游標在表格儲存格內時才顯示（Google Docs 風）═══
+                 全部接 canvas-editor 既有 table command；icon-only + 繁中 title。
+                 mousedown.prevent 防按下時 canvas 失焦丟選區。 -->
+            <div class="doc-table-toolbar" t-if="state.inTable" role="toolbar" aria-label="表格工具列">
+                <span class="doc-table-toolbar-label"><i class="fa fa-table me-1"/>表格</span>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 列：上插 / 下插 / 刪列 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableTopRow')"
+                        title="上方插入列" aria-label="上方插入列">
+                    <i class="fa fa-arrow-up" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableBottomRow')"
+                        title="下方插入列" aria-label="下方插入列">
+                    <i class="fa fa-arrow-down" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeDeleteTableRow')"
+                        title="刪除列" aria-label="刪除列">
+                    <i class="fa fa-minus" aria-hidden="true"/><span class="doc-tt-glyph">列</span>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 欄：左插 / 右插 / 刪欄 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableLeftCol')"
+                        title="左方插入欄" aria-label="左方插入欄">
+                    <i class="fa fa-arrow-left" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableRightCol')"
+                        title="右方插入欄" aria-label="右方插入欄">
+                    <i class="fa fa-arrow-right" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeDeleteTableCol')"
+                        title="刪除欄" aria-label="刪除欄">
+                    <i class="fa fa-minus" aria-hidden="true"/><span class="doc-tt-glyph">欄</span>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 合併 / 取消合併 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeMergeTableCell')"
+                        title="合併儲存格" aria-label="合併儲存格">
+                    <i class="fa fa-compress" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeCancelMergeTableCell')"
+                        title="取消合併" aria-label="取消合併">
+                    <i class="fa fa-expand" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 垂直對齊 上 / 中 / 下 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeTableTdVerticalAlign', 'top')"
+                        title="儲存格靠上" aria-label="儲存格靠上對齊">
+                    <i class="fa fa-align-left fa-rotate-90" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeTableTdVerticalAlign', 'middle')"
+                        title="儲存格置中" aria-label="儲存格垂直置中">
+                    <i class="fa fa-align-center fa-rotate-90" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeTableTdVerticalAlign', 'bottom')"
+                        title="儲存格靠下" aria-label="儲存格靠下對齊">
+                    <i class="fa fa-align-right fa-rotate-90" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 儲存格底色（重用色盤 popover，type='cellbg'）-->
+                <span class="doc-format-color-wrap"
+                      t-att-class="{ 'is-open': state.showColorPalette === 'cellbg' }"
+                      title="儲存格底色" aria-label="儲存格底色"
+                      t-on-click="(ev) => this.onColorTriggerClick('cellbg', ev)">
+                    <i class="fa fa-paint-brush" aria-hidden="true"/>
+                    <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    <div class="doc-color-palette" t-if="state.showColorPalette === 'cellbg'">
+                        <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
+                            <div class="doc-color-palette-row">
+                                <t t-foreach="row" t-as="color" t-key="color">
+                                    <button class="doc-color-swatch"
+                                            t-attf-style="background: #{color};"
+                                            t-attf-aria-label="儲存格底色 #{color}"
+                                            t-att-title="color"
+                                            t-on-click="(ev) => this.onColorSwatchPick('cellbg', color, ev)"/>
+                                </t>
+                            </div>
+                        </t>
                     </div>
-                </t>
-                </div><!-- end doc-workspace-zoom -->
+                </span>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 刪除整個表格 -->
+                <button class="doc-format-btn doc-table-toolbar-danger" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeDeleteTable')"
+                        title="刪除整個表格" aria-label="刪除整個表格">
+                    <i class="fa fa-trash" aria-hidden="true"/>
+                </button>
             </div>
 
-            <!-- ── 狀態列 ── -->
-            <div class="doc-statusbar">
-                <span>
-                    <t t-if="state.docId">文件 ID: <t t-esc="state.docId"/></t>
+            <!-- ═══ Row 4：Field toolbar（欄位類型按鈕 + Odoo 欄位）═══
+                 Sprint A：僅在「範本」分頁顯示 -->
+            <t t-if="state.activeSubNav === 'templates'">
+            <div class="doc-field-toolbar"
+                 role="toolbar"
+                 aria-label="範本欄位工具列">
+                <span class="doc-field-toolbar-label">欄位：</span>
+
+                <!-- 插入欄位 ▾：原 10 顆欄位類型鈕（不含簽名）收進下拉，更像 Google Docs -->
+                <div class="doc-toolbar-dropdown-wrap">
+                    <button class="doc-field-btn doc-field-dropdown-trigger"
+                            t-att-class="state.openToolbarMenu === 'fields' ? 'is-open' : ''"
+                            t-on-click="(ev) => this.onToolbarMenuToggle('fields', ev)"
+                            aria-haspopup="true"
+                            title="插入變數欄位">
+                        <span class="doc-field-btn-glyph">A</span> 插入欄位
+                        <i class="fa fa-caret-down ms-1" aria-hidden="true"/>
+                    </button>
+                    <div class="doc-toolbar-dropdown" t-if="state.openToolbarMenu === 'fields'" role="menu">
+                        <t t-foreach="FIELD_TYPES" t-as="ft" t-key="ft.key">
+                            <t t-if="ft.key !== 'signature' and ft.key !== 'initial'">
+                                <button class="doc-toolbar-dropdown-item"
+                                        role="menuitem"
+                                        t-att-data-field-type="ft.key"
+                                        draggable="true"
+                                        t-on-click="() => this.onToolbarMenuAction(() => this.onFieldButtonClick(ft.key))"
+                                        t-on-dragstart="(ev) => this.onFieldDragStart(ev, ft.key)"
+                                        t-on-dragend="onFieldDragEnd"
+                                        t-attf-title="點擊插入游標位置，或拖到文件任意處新增「#{ft.label}」欄位">
+                                    <t t-if="ft.icon === 'A'">
+                                        <span class="doc-field-btn-glyph">A</span>
+                                    </t>
+                                    <t t-else="">
+                                        <i t-attf-class="fa #{ft.icon}" aria-hidden="true"/>
+                                    </t>
+                                    <span t-esc="ft.label"/>
+                                </button>
+                            </t>
+                        </t>
+                        <div class="doc-menu-separator" role="separator"/>
+                        <button class="doc-toolbar-dropdown-item"
+                                role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onOdooFieldClick())"
+                                title="插入 Odoo 模型欄位">
+                            <i class="fa fa-database" aria-hidden="true"/>
+                            <span>Odoo 欄位</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 簽名 ▾：簽名 / 繕寫簽名 -->
+                <div class="doc-toolbar-dropdown-wrap">
+                    <button class="doc-field-btn doc-field-dropdown-trigger"
+                            t-att-class="state.openToolbarMenu === 'signature' ? 'is-open' : ''"
+                            t-on-click="(ev) => this.onToolbarMenuToggle('signature', ev)"
+                            aria-haspopup="true"
+                            title="插入簽名欄位">
+                        <i class="fa fa-pencil" aria-hidden="true"/> 簽名
+                        <i class="fa fa-caret-down ms-1" aria-hidden="true"/>
+                    </button>
+                    <div class="doc-toolbar-dropdown" t-if="state.openToolbarMenu === 'signature'" role="menu">
+                        <t t-foreach="FIELD_TYPES" t-as="ft" t-key="ft.key">
+                            <t t-if="ft.key === 'signature' or ft.key === 'initial'">
+                                <button class="doc-toolbar-dropdown-item"
+                                        role="menuitem"
+                                        t-att-data-field-type="ft.key"
+                                        draggable="true"
+                                        t-on-click="() => this.onToolbarMenuAction(() => this.onFieldButtonClick(ft.key))"
+                                        t-on-dragstart="(ev) => this.onFieldDragStart(ev, ft.key)"
+                                        t-on-dragend="onFieldDragEnd"
+                                        t-attf-title="新增「#{ft.label}」欄位">
+                                    <i t-attf-class="fa #{ft.icon}" aria-hidden="true"/>
+                                    <span t-esc="ft.label"/>
+                                </button>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- 掃描 ▾：掃描變數 / 掃描並替換 / 預覽變數 / 復原（條件） -->
+                <div class="doc-toolbar-dropdown-wrap">
+                    <button class="doc-field-btn doc-field-dropdown-trigger"
+                            t-att-class="state.openToolbarMenu === 'scan' ? 'is-open' : ''"
+                            t-on-click="(ev) => this.onToolbarMenuToggle('scan', ev)"
+                            aria-haspopup="true"
+                            title="變數掃描工具">
+                        <i class="fa fa-magic" aria-hidden="true"/> 掃描
+                        <i class="fa fa-caret-down ms-1" aria-hidden="true"/>
+                    </button>
+                    <div class="doc-toolbar-dropdown" t-if="state.openToolbarMenu === 'scan'" role="menu">
+                        <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onScanVariablesClick())"
+                                title="掃描文件內所有 {{ }} 變數、批次建立 Odoo 欄位 record（不替換文字）">
+                            <i class="fa fa-magic" aria-hidden="true"/><span>掃描變數</span>
+                        </button>
+                        <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onScanAndReplaceClick())"
+                                title="掃描 + 建 record + 文字替換為可編輯 control（實驗性，不可回復）">
+                            <i class="fa fa-magic" aria-hidden="true"/><span>掃描並替換</span>
+                        </button>
+                        <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onPreviewVariablesClick())"
+                                title="在文件內高亮所有 {{ }} 變數（toggle、純讀、不修改文件）">
+                            <i class="fa fa-search" aria-hidden="true"/><span>預覽變數</span>
+                        </button>
+                        <t t-if="state.lastScanReplaceSnapshot">
+                            <div class="doc-menu-separator" role="separator"/>
+                            <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                    t-on-click="() => this.onToolbarMenuAction(() => this.onRollbackScanReplaceClick())"
+                                    title="復原最近一次「掃描並替換」">
+                                <i class="fa fa-undo" aria-hidden="true"/><span>復原替換</span>
+                            </button>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- Sprint D：版面模式切換（inline / overlay） -->
+                <div class="doc-field-toolbar-sep" role="separator" aria-hidden="true"/>
+                <div class="doc-layout-mode-group" role="group" aria-label="版面模式">
+                    <button class="doc-layout-mode-btn"
+                            t-att-class="state.layoutMode === 'inline' ? 'active' : ''"
+                            t-on-click="() => this.onLayoutModeToggle('inline')"
+                            title="行內模式：插入游標位置、隨文字流動">
+                        <i class="fa fa-align-left" aria-hidden="true"/>
+                        行內
+                    </button>
+                    <button class="doc-layout-mode-btn"
+                            t-att-class="state.layoutMode === 'overlay' ? 'active' : ''"
+                            t-on-click="() => this.onLayoutModeToggle('overlay')"
+                            title="浮動模式：絕對定位、可拖曳到頁面任意位置">
+                        <i class="fa fa-arrows" aria-hidden="true"/>
+                        浮動
+                    </button>
+                </div>
+            </div>
+            </t>
+
+            <!-- ═══ Row 5：Signer bar（簽約人 chip + 頁碼 + zoom fit）═══
+                 Sprint A：僅在「範本」分頁顯示 -->
+            <t t-if="state.activeSubNav === 'templates'">
+            <div class="doc-signer-bar">
+                <span class="doc-signer-bar-label">簽約人：</span>
+                <t t-foreach="state.signers" t-as="signer" t-key="signer.id">
+                    <button class="doc-signer-chip"
+                            t-att-class="state.activeSignerId === signer.id ? 'active' : ''"
+                            t-att-style="'--signer-color: ' + signer.color"
+                            t-on-click="() => this.onSignerClick(signer.id)"
+                            t-attf-aria-label="切換到簽約人 #{signer.name}">
+                        <span class="doc-signer-chip-dot"/>
+                        <span class="doc-signer-chip-name" t-esc="signer.name"/>
+                        <span class="doc-signer-chip-count" t-esc="signer.count"/>
+                    </button>
+                </t>
+
+                <div class="doc-signer-bar-spacer"/>
+
+                <!-- 頁碼導航 -->
+                <button class="doc-pager-btn"
+                        t-on-click="onPrevPage"
+                        t-att-disabled="state.pageNo &lt;= 1"
+                        aria-label="上一頁">
+                    <i class="fa fa-chevron-left"/>
+                </button>
+                <span class="doc-pager-label">
+                    <t t-esc="state.pageNo"/> 頁，共 <t t-esc="state.totalPages"/> 頁
+                </span>
+                <button class="doc-pager-btn"
+                        t-on-click="onNextPage"
+                        t-att-disabled="state.pageNo &gt;= state.totalPages"
+                        aria-label="下一頁">
+                    <i class="fa fa-chevron-right"/>
+                </button>
+
+                <div class="doc-signer-bar-sep"/>
+
+                <select class="doc-toolbar-select"
+                        t-on-change="onZoomFitChange"
+                        aria-label="縮放模式">
+                    <option value="auto">自動縮放</option>
+                    <option value="width">符合寬度</option>
+                    <option value="page">符合頁面</option>
+                </select>
+            </div>
+            </t>
+
+            <!-- ═══ Row 6：Main grid（thumbnails / workspace / inspector）═══
+                 Sprint A：canvas-editor 不能被 t-if unmount（會炸），改用 inline style
+                 在非「範本」分頁時隱藏。dashboard/requests/settings 分頁則接著在後方渲染。 -->
+            <div class="doc-main"
+                 t-att-style="state.activeSubNav === 'templates' ? '' : 'display: none;'">
+                <!-- 左：頁面縮圖 panel — Sprint C 接 canvas.toDataURL 真實縮圖 -->
+                <aside class="doc-thumbnail-panel" aria-label="頁面縮圖">
+                    <div class="doc-thumbnail-panel-header">頁面</div>
+                    <div class="doc-thumbnail-list">
+                        <t t-if="!state.thumbnails.length">
+                            <!-- Fallback：縮圖未生成時顯示佔位（保留視覺結構） -->
+                            <div class="doc-thumbnail-item active">
+                                <div class="doc-thumbnail-page"/>
+                                <span class="doc-thumbnail-num">
+                                    1<span class="doc-thumbnail-badge" t-esc="state.fieldCount"/>
+                                </span>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <t t-foreach="state.thumbnails" t-as="thumb" t-key="thumb.pageNo">
+                                <div class="doc-thumbnail-item"
+                                     t-att-class="thumb.pageNo === state.pageNo ? 'active' : ''"
+                                     t-on-click="() => this._scrollToPage(thumb.pageNo)"
+                                     t-attf-title="跳到第 #{thumb.pageNo} 頁"
+                                     t-attf-aria-label="跳到第 #{thumb.pageNo} 頁">
+                                    <img class="doc-thumbnail-img"
+                                         t-att-src="thumb.dataUrl"
+                                         t-attf-alt="第 #{thumb.pageNo} 頁縮圖"
+                                         loading="lazy"/>
+                                    <span class="doc-thumbnail-num">
+                                        <t t-esc="thumb.pageNo"/>
+                                    </span>
+                                </div>
+                            </t>
+                        </t>
+                    </div>
+                </aside>
+
+                <!-- 中：canvas-editor workspace（既有 _initCanvasEditor 邏輯不動）
+                     Phase 2.2a：是 drag-and-drop drop target，可接受從欄位工具列拖入的欄位 -->
+                <section class="doc-workspace"
+                         role="region"
+                         aria-label="文件編輯區"
+                         t-att-class="state.isDropTarget ? 'is-drop-target' : ''"
+                         t-on-dragover="onWorkspaceDragOver"
+                         t-on-dragleave="onWorkspaceDragLeave"
+                         t-on-drop="onWorkspaceDrop"
+                         aria-busy="state.editorReady ? 'false' : 'true'">
+                    <!-- Sprint Y/Y2：尺規（CSS-only 公分刻度，純視覺、不阻擋互動）
+                         Y2：t-att-style 注入 ruler-cm-px CSS variable 跟 zoom 同步、
+                         t-foreach rulerTicks 跟 paper size 同步 -->
+                    <div class="doc-ruler"
+                         t-att-style="rulerStyle"
+                         aria-hidden="true">
+                        <div class="doc-ruler-labels">
+                            <t t-foreach="rulerTicks" t-as="cm" t-key="cm">
+                                <span class="doc-ruler-tick"><t t-esc="cm"/></span>
+                            </t>
+                        </div>
+                    </div>
+                    <!-- Sprint Y4：尋找／取代 panel（浮在 workspace 右上）
+                         觸發：menubar 編輯 menu / Ctrl+F / Ctrl+H
+                         state.findReplaceMode = 'find' 只顯示尋找列；'replace' 顯示尋找+取代列 -->
+                    <div class="doc-find-replace-panel" t-if="state.findReplaceMode" role="dialog" aria-label="尋找與取代">
+                        <div class="doc-find-row">
+                            <input class="doc-find-input"
+                                   type="text"
+                                   placeholder="尋找..."
+                                   t-att-value="state.findText"
+                                   t-on-input="onFindTextInput"
+                                   t-on-keydown="onFindInputKeyDown"
+                                   aria-label="尋找文字"/>
+                            <!-- Sprint Y10：match count 顯示「3 / 12」，無 match 時顯「無結果」、空查詢時隱藏 -->
+                            <span class="doc-find-count"
+                                  t-if="state.findText"
+                                  t-att-class="{ 'no-match': state.findMatchCount === 0 }"
+                                  aria-live="polite">
+                                <t t-if="state.findMatchCount > 0">
+                                    <t t-esc="state.findMatchIndex"/> / <t t-esc="state.findMatchCount"/>
+                                </t>
+                                <t t-else="">無結果</t>
+                            </span>
+                            <!-- Sprint Y33：findMatchCount === 0 時 prev/next 也 disabled、跟取代 button 鎖一致 -->
+                            <button class="doc-find-btn"
+                                    t-on-click="onFindPrev"
+                                    t-att-disabled="state.findMatchCount === 0"
+                                    title="上一個 (Shift+Enter)"
+                                    aria-label="上一個">
+                                <i class="fa fa-chevron-up" aria-hidden="true"/>
+                            </button>
+                            <button class="doc-find-btn"
+                                    t-on-click="onFindNext"
+                                    t-att-disabled="state.findMatchCount === 0"
+                                    title="下一個 (Enter)"
+                                    aria-label="下一個">
+                                <i class="fa fa-chevron-down" aria-hidden="true"/>
+                            </button>
+                            <!-- 關閉 button 不 disable：findText 空時 user 應仍能關 panel -->
+                            <button class="doc-find-btn"
+                                    t-on-click="closeFindReplace"
+                                    title="關閉 (Esc)"
+                                    aria-label="關閉尋找面板">
+                                <i class="fa fa-times" aria-hidden="true"/>
+                            </button>
+                        </div>
+                        <div class="doc-replace-row" t-if="state.findReplaceMode === 'replace'">
+                            <input class="doc-replace-input"
+                                   type="text"
+                                   placeholder="取代為..."
+                                   t-att-value="state.replaceText"
+                                   t-on-input="onReplaceTextInput"
+                                   aria-label="取代為"/>
+                            <!-- Sprint Y32：findMatchCount === 0 時 disabled、防 user 浪費 click -->
+                            <button class="doc-find-btn-text"
+                                    t-on-click="onReplaceOnce"
+                                    t-att-disabled="state.findMatchCount === 0"
+                                    title="取代當前 match">取代</button>
+                            <button class="doc-find-btn-text"
+                                    t-on-click="onReplaceAll"
+                                    t-att-disabled="state.findMatchCount === 0"
+                                    title="全部取代">全部取代</button>
+                        </div>
+                    </div>
+                    <div class="canvas-editor-container" t-ref="canvasContainer">
+                        <t t-if="!state.editorReady">
+                            <div class="d-flex justify-content-center align-items-center h-100 py-5"
+                                 role="status"
+                                 aria-live="polite">
+                                <i class="fa fa-spinner fa-spin fa-2x text-muted" aria-hidden="true"/>
+                                <span class="ms-3 text-muted">載入中...</span>
+                            </div>
+                        </t>
+                    </div>
+                    <!-- Drop hint overlay（拖過時顯示） -->
+                    <div class="doc-workspace-drop-hint" t-if="state.isDropTarget">
+                        <i class="fa fa-arrow-down fa-2x mb-2"/>
+                        <div class="doc-workspace-drop-hint-text">
+                            放開以插入欄位到此位置
+                        </div>
+                    </div>
+                    <!-- Sprint D：Overlay layer — 絕對定位浮動欄位，依 pos_x/pos_y 渲染
+                         Sprint F：加右下角 resize handle、selected 時顯示 -->
+                    <div class="doc-overlay-layer"
+                         t-att-class="state.layoutMode === 'overlay' ? 'is-active' : ''"
+                         aria-label="浮動欄位層">
+                        <t t-foreach="overlayFields" t-as="of" t-key="of.id">
+                            <div class="doc-overlay-field"
+                                 t-att-data-field-id="of.id"
+                                 t-att-class="state.selectedFieldId === of.id ? 'is-selected' : ''"
+                                 t-attf-style="left:#{of.pos_x}px; top:#{of.pos_y}px; width:#{of.width}px; height:#{of.height}px; transform:scale(#{state.currentZoomScale});"
+                                 t-on-mousedown="(ev) => this.onOverlayMouseDown(ev, of.id)"
+                                 t-on-click="() => this.onOverlayFieldClick(of.id)"
+                                 t-attf-title="浮動欄位：#{of.placeholder_text or of.field_type}（拖曳調整位置、右下角縮放）">
+                                <i class="fa fa-arrows doc-overlay-field-grip" aria-hidden="true"/>
+                                <span class="doc-overlay-field-label" t-esc="of.placeholder_text or of.field_type"/>
+                                <!-- Sprint F：右下角 resize handle，只在 selected 時顯示可拖 -->
+                                <div class="doc-overlay-resize-handle"
+                                     t-on-mousedown="(ev) => this.onOverlayResizeMouseDown(ev, of.id)"
+                                     aria-label="調整尺寸"
+                                     title="拖曳調整寬度與高度"/>
+                            </div>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- 右：Inspector panel — Phase 2.1 補項：雙向綁定 selectedField -->
+                <aside class="doc-inspector-panel" aria-label="欄位屬性">
+                    <!-- Sprint L：所有欄位清單（點 row 跳到 document 對應 control）
+                         Sprint M：標出孤兒 record + 提供批次清理按鈕
+                         Sprint O：search filter input（>5 fields 才顯示） -->
+                    <t t-if="fieldsList.length > 0">
+                        <div class="doc-inspector-fields-list">
+                            <div class="doc-inspector-fields-list-header">
+                                <i class="fa fa-list me-1" aria-hidden="true"/>
+                                <span>所有欄位 (<t t-esc="filteredFieldsList.length"/><t t-if="filteredFieldsList.length !== fieldsList.length"> / <t t-esc="fieldsList.length"/></t>)</span>
+                                <t t-if="orphanRecordIds.size > 0">
+                                    <button class="doc-inspector-cleanup-orphans-btn"
+                                            t-on-click="onCleanupOrphansClick"
+                                            t-attf-title="清理 #{orphanRecordIds.size} 個沒有文件內 control 對應的孤兒 record"
+                                            aria-label="清理孤兒 record">
+                                        <i class="fa fa-trash-o" aria-hidden="true"/>
+                                        清理孤兒 (<t t-esc="orphanRecordIds.size"/>)
+                                    </button>
+                                </t>
+                            </div>
+                            <t t-if="fieldsList.length > 5">
+                                <div class="doc-inspector-fields-list-filter">
+                                    <i class="fa fa-search" aria-hidden="true"/>
+                                    <input type="text"
+                                           placeholder="篩選欄位名稱..."
+                                           t-att-value="state.fieldListFilter"
+                                           t-on-input="(ev) => this.onFieldListFilterInput(ev.target.value)"
+                                           aria-label="篩選欄位"/>
+                                    <t t-if="state.fieldListFilter">
+                                        <button class="doc-inspector-fields-list-filter-clear"
+                                                t-on-click="() => this.onFieldListFilterInput('')"
+                                                title="清除篩選"
+                                                aria-label="清除篩選">
+                                            <i class="fa fa-times" aria-hidden="true"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+                            <ul class="doc-inspector-fields-list-items"
+                                role="listbox"
+                                tabindex="0"
+                                t-on-keydown="onFieldListKeyDown"
+                                aria-label="欄位列表（鍵盤：↑/↓ 切換、Enter 跳到 control、Esc 取消）">
+                                <t t-foreach="filteredFieldsList" t-as="fl" t-key="fl.id">
+                                    <li t-attf-class="doc-inspector-fields-list-item #{state.selectedFieldId === fl.id ? 'is-selected' : ''} #{orphanRecordIds.has(fl.id) ? 'is-orphan' : ''} #{state.focusedListIndex === fl_index ? 'is-focused' : ''}"
+                                        role="option"
+                                        t-att-aria-selected="state.selectedFieldId === fl.id ? 'true' : 'false'"
+                                        t-on-click="() => this.onFieldListRowClick(fl.id)"
+                                        t-attf-title="#{orphanRecordIds.has(fl.id) ? '⚠️ 孤兒：record 存在但文件內沒對應 control。' : '點擊：跳到文件內對應 control 並選取此欄位'}">
+                                        <t t-if="orphanRecordIds.has(fl.id)">
+                                            <i class="fa fa-exclamation-triangle doc-inspector-fields-list-item-orphan-icon" aria-hidden="true"/>
+                                        </t>
+                                        <span class="doc-inspector-fields-list-item-name"
+                                              t-esc="fl.odoo_field_name or fl.placeholder_text or fl.field_type"/>
+                                        <span class="doc-inspector-fields-list-item-id">#<t t-esc="fl.id"/></span>
+                                    </li>
+                                </t>
+                                <t t-if="filteredFieldsList.length === 0">
+                                    <li class="doc-inspector-fields-list-empty">
+                                        無符合篩選條件的欄位
+                                    </li>
+                                </t>
+                            </ul>
+                        </div>
+                    </t>
+                    <t t-if="selectedField">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-cog me-2"/>
+                            <span t-esc="selectedFieldLabel"/>
+                            <span class="doc-inspector-field-id">#<t t-esc="selectedField.id"/></span>
+                        </div>
+
+                        <!-- 填寫者（簽約人下拉） -->
+                        <div class="doc-inspector-field">
+                            <label>填寫者</label>
+                            <select t-on-change="(ev) => this.onInspectorFieldChange('signer_id', ev.target.value)">
+                                <t t-foreach="state.signers.filter(s => s.id > 0)" t-as="s" t-key="s.id">
+                                    <option t-att-value="s.id"
+                                            t-att-selected="s.id === selectedField.signer_id ? 'selected' : ''"
+                                            t-esc="s.name"/>
+                                </t>
+                            </select>
+                        </div>
+
+                        <!-- 必填 -->
+                        <div class="doc-inspector-field">
+                            <label class="doc-inspector-checkbox">
+                                <input type="checkbox"
+                                       t-att-checked="selectedField.required ? 'checked' : ''"
+                                       t-on-change="(ev) => this.onInspectorFieldChange('required', ev.target.checked)"/>
+                                必填
+                            </label>
+                        </div>
+
+                        <!-- 佔位符 -->
+                        <div class="doc-inspector-field">
+                            <label>佔位符</label>
+                            <input type="text"
+                                   placeholder="輸入佔位文字"
+                                   t-att-value="selectedField.placeholder_text or ''"
+                                   t-on-input="(ev) => this.onInspectorFieldChange('placeholder_text', ev.target.value)"/>
+                        </div>
+
+                        <!-- 字型大小 -->
+                        <div class="doc-inspector-field">
+                            <label>字型大小</label>
+                            <input type="number" min="6" max="72"
+                                   t-att-value="selectedField.font_size or 12"
+                                   t-on-input="(ev) => this.onInspectorFieldChange('font_size', ev.target.value)"/>
+                        </div>
+
+                        <!-- Odoo 欄位（僅當 field_type === odoo_field 時顯示） -->
+                        <t t-if="selectedField.field_type === 'odoo_field'">
+                            <div class="doc-inspector-field">
+                                <label>Odoo 欄位名稱</label>
+                                <input type="text" placeholder="如 partner_id.name"
+                                       t-att-value="selectedField.odoo_field_name or ''"
+                                       t-on-input="(ev) => this.onInspectorFieldChange('odoo_field_name', ev.target.value)"/>
+                            </div>
+                        </t>
+
+                        <!-- Sprint F：Overlay 模式專屬欄位（X/Y/W/H 數字輸入） -->
+                        <t t-if="selectedField.layout_mode === 'overlay'">
+                            <div class="doc-inspector-section-label">
+                                <i class="fa fa-arrows me-1"/>浮動位置與尺寸
+                            </div>
+                            <div class="doc-inspector-grid-2col">
+                                <div class="doc-inspector-field">
+                                    <label>X (px)</label>
+                                    <input type="number" step="1"
+                                           t-att-value="Math.round(selectedField.pos_x or 0)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('pos_x', ev.target.value)"/>
+                                </div>
+                                <div class="doc-inspector-field">
+                                    <label>Y (px)</label>
+                                    <input type="number" step="1"
+                                           t-att-value="Math.round(selectedField.pos_y or 0)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('pos_y', ev.target.value)"/>
+                                </div>
+                                <div class="doc-inspector-field">
+                                    <label>寬度 (px)</label>
+                                    <input type="number" step="1" min="40"
+                                           t-att-value="Math.round(selectedField.width or 120)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('width', ev.target.value)"/>
+                                </div>
+                                <div class="doc-inspector-field">
+                                    <label>高度 (px)</label>
+                                    <input type="number" step="1" min="20"
+                                           t-att-value="Math.round(selectedField.height or 24)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('height', ev.target.value)"/>
+                                </div>
+                            </div>
+                        </t>
+
+                        <!-- 刪除按鈕（推到底部） -->
+                        <div class="doc-inspector-actions">
+                            <button class="doc-inspector-delete-btn"
+                                    t-on-click="onInspectorDeleteField"
+                                    title="從後端紀錄刪除（文件上的占位符需手動按 Del）">
+                                <i class="fa fa-trash me-1"/>
+                                刪除欄位紀錄
+                            </button>
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <div class="doc-inspector-empty">
+                            <i class="fa fa-mouse-pointer fa-2x text-muted mb-2"/>
+                            <p class="text-muted small mb-1">尚未選取欄位</p>
+                            <p class="text-muted small">點擊文件上的欄位以編輯屬性</p>
+                        </div>
+                    </t>
+
+                    <!-- L2-v2：中文欄位對映管理面板 -->
+                    <div class="doc-alias-panel">
+                        <div class="doc-alias-panel-header">
+                            <i class="fa fa-tags me-1" aria-hidden="true"/>
+                            <span>中文欄位對映</span>
+                            <span class="doc-alias-panel-count">(<t t-esc="fieldAliasesList.length"/>)</span>
+                            <button class="doc-alias-tool-btn"
+                                    t-on-click="onAutoInitAliasesClick"
+                                    title="從綁定的 Odoo 模型自動生成欄位對映"
+                                    aria-label="自動生成欄位對映">
+                                <i class="fa fa-magic" aria-hidden="true"/>
+                            </button>
+                            <button class="doc-alias-tool-btn"
+                                    t-on-click="onScanConvertAliasesClick"
+                                    title="掃描文件內 {{ }} 變數並轉成 《中文》 token"
+                                    aria-label="掃描並轉換">
+                                <i class="fa fa-exchange" aria-hidden="true"/>
+                            </button>
+                        </div>
+                        <t t-if="!_loadedModelName">
+                            <div class="doc-alias-panel-empty">
+                                <p class="text-muted small mb-1">
+                                    <i class="fa fa-exclamation-triangle text-warning me-1"/>
+                                    此文件未綁定 Odoo 模型
+                                </p>
+                                <p class="text-muted small">
+                                    請到後台 doc.document form view<br/>
+                                    設定「關聯模型」與「關聯記錄 ID」後再回來。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-elif="fieldAliasesList.length === 0">
+                            <div class="doc-alias-panel-empty">
+                                <p class="text-muted small mb-1">尚未建立任何欄位對映</p>
+                                <p class="text-muted small">
+                                    用「插入 → 插入 Odoo 欄位」新增中文 token，<br/>
+                                    或按上方 <i class="fa fa-magic"/> 自動從模型生成。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <ul class="doc-alias-panel-list">
+                                <t t-foreach="fieldAliasesList" t-as="a" t-key="a.token">
+                                    <li t-attf-class="doc-alias-panel-row doc-alias-source-#{a.source}"
+                                        t-attf-title="#{a.source === 'template' ? '來自範本：' + state.templateName + '。' : ''}點 token 重新插入《#{a.token}》到游標位置">
+                                        <t t-if="a.source === 'template'">
+                                            <i class="fa fa-link doc-alias-source-icon" t-attf-title="來自範本「#{state.templateName}」"/>
+                                        </t>
+                                        <span class="doc-alias-token"
+                                              t-on-click="() => this.onInsertAliasFromList(a.token)"
+                                              t-esc="a.token"/>
+                                        <span class="doc-alias-arrow">→</span>
+                                        <code class="doc-alias-expression" t-esc="a.expression"/>
+                                        <button class="doc-alias-delete-btn"
+                                                t-on-click="() => this.onDeleteAlias(a.token, a.source)"
+                                                t-attf-title="#{a.source === 'template' ? '從範本移除此對映（影響所有使用此範本的文件）' : '從本文件移除此對映（文件內文字保留）'}"
+                                                aria-label="刪除對映">
+                                            <i class="fa fa-times" aria-hidden="true"/>
+                                        </button>
+                                    </li>
+                                </t>
+                            </ul>
+                        </t>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- ═══ Sprint A：Sub-nav 「儀表板」分頁殼 ═══ -->
+            <t t-if="state.activeSubNav === 'dashboard'">
+                <div class="doc-subnav-panel doc-dashboard-panel" role="region" aria-label="儀表板">
+                    <header class="doc-subnav-panel-header">
+                        <h2><i class="fa fa-tachometer me-2"/>範本儀表板</h2>
+                        <p class="text-muted">當前範本的欄位與簽約人總覽。</p>
+                    </header>
+
+                    <div class="doc-dashboard-cards">
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">總欄位數</div>
+                            <div class="doc-dashboard-card-value" t-esc="state.fieldCount"/>
+                            <div class="doc-dashboard-card-hint">所有頁面合計</div>
+                        </div>
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">簽約人</div>
+                            <div class="doc-dashboard-card-value" t-esc="state.signers.length"/>
+                            <div class="doc-dashboard-card-hint">含 placeholder</div>
+                        </div>
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">頁數</div>
+                            <div class="doc-dashboard-card-value" t-esc="state.totalPages"/>
+                            <div class="doc-dashboard-card-hint"><t t-esc="state.pageFormat"/></div>
+                        </div>
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">文件狀態</div>
+                            <div class="doc-dashboard-card-value">
+                                <t t-if="state.isSaving">儲存中</t>
+                                <t t-else=""><t t-esc="state.statusMsg"/></t>
+                            </div>
+                            <div class="doc-dashboard-card-hint">
+                                <t t-if="state.docId">ID #<t t-esc="state.docId"/></t>
+                                <t t-else="">尚未儲存</t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section class="doc-dashboard-section">
+                        <h3>簽約人分配</h3>
+                        <table class="doc-dashboard-table">
+                            <thead>
+                                <tr>
+                                    <th>角色</th>
+                                    <th class="text-end">欄位數</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.signers" t-as="signer" t-key="signer.id">
+                                    <tr>
+                                        <td>
+                                            <span class="doc-signer-chip-dot" t-att-style="'background-color: ' + signer.color"/>
+                                            <span t-esc="signer.name"/>
+                                        </td>
+                                        <td class="text-end" t-esc="signer.count"/>
+                                    </tr>
+                                </t>
+                                <t t-if="!state.signers.length">
+                                    <tr><td colspan="2" class="text-muted text-center">（尚未配置簽約人）</td></tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+            </t>
+
+            <!-- ═══ Sprint A：Sub-nav 「請求」分頁殼 ═══ -->
+            <t t-if="state.activeSubNav === 'requests'">
+                <div class="doc-subnav-panel doc-requests-panel" role="region" aria-label="填寫請求">
+                    <header class="doc-subnav-panel-header">
+                        <h2><i class="fa fa-paper-plane me-2"/>填寫請求</h2>
+                        <p class="text-muted">針對此範本發出的填寫請求清單。</p>
+                    </header>
+
+                    <t t-if="state.requestsLoading">
+                        <div class="text-center py-5 text-muted">
+                            <i class="fa fa-spinner fa-spin fa-2x mb-2"/>
+                            <div>載入中...</div>
+                        </div>
+                    </t>
+                    <t t-elif="!state.requests || !state.requests.length">
+                        <div class="doc-subnav-panel-empty">
+                            <i class="fa fa-inbox fa-3x text-muted mb-3"/>
+                            <p class="text-muted mb-1">目前沒有填寫請求</p>
+                            <p class="text-muted small">將範本送出給簽約人後，請求會列在這裡。</p>
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <table class="doc-requests-table">
+                            <thead>
+                                <tr>
+                                    <th>請求對象</th>
+                                    <th>狀態</th>
+                                    <th>發出時間</th>
+                                    <th>完成時間</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.requests" t-as="req" t-key="req.id">
+                                    <tr>
+                                        <td t-esc="req.recipient_name or '—'"/>
+                                        <td><span class="doc-request-badge" t-att-data-state="req.state" t-esc="req.state_label"/></td>
+                                        <td t-esc="req.sent_at or '—'"/>
+                                        <td t-esc="req.completed_at or '—'"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </t>
+                </div>
+            </t>
+
+            <!-- ═══ Sprint A：Sub-nav 「設定」分頁殼 ═══ -->
+            <t t-if="state.activeSubNav === 'settings'">
+                <div class="doc-subnav-panel doc-settings-panel" role="region" aria-label="範本設定">
+                    <header class="doc-subnav-panel-header">
+                        <h2><i class="fa fa-cog me-2"/>範本設定</h2>
+                        <p class="text-muted">頁面格式、自動儲存與預設行為。</p>
+                    </header>
+
+                    <div class="doc-settings-grid">
+                        <div class="doc-settings-field">
+                            <label>預設紙張</label>
+                            <select t-on-change="onPageFormatChange">
+                                <option value="A4" t-att-selected="state.pageFormat === 'A4' ? 'selected' : ''">A4</option>
+                                <option value="A3" t-att-selected="state.pageFormat === 'A3' ? 'selected' : ''">A3</option>
+                                <option value="A5" t-att-selected="state.pageFormat === 'A5' ? 'selected' : ''">A5</option>
+                                <option value="letter" t-att-selected="state.pageFormat === 'letter' ? 'selected' : ''">Letter</option>
+                                <option value="legal" t-att-selected="state.pageFormat === 'legal' ? 'selected' : ''">Legal</option>
+                            </select>
+                            <div class="doc-settings-hint">影響新頁面的尺寸與列印輸出。</div>
+                        </div>
+
+                        <div class="doc-settings-field">
+                            <label>自動儲存</label>
+                            <label class="doc-settings-toggle">
+                                <input type="checkbox"
+                                       t-att-checked="state.autoSaveEnabled !== false ? 'checked' : ''"
+                                       t-on-change="onAutoSaveToggle"/>
+                                啟用（編輯後 1.5 秒自動儲存）
+                            </label>
+                            <div class="doc-settings-hint">關閉後需手動按「儲存」按鈕。</div>
+                        </div>
+
+                        <div class="doc-settings-field">
+                            <label>預設簽約人角色</label>
+                            <select t-on-change="onDefaultSignerChange">
+                                <t t-foreach="state.signers" t-as="signer" t-key="signer.id">
+                                    <option t-att-value="signer.id"
+                                            t-att-selected="signer.id === state.activeSignerId ? 'selected' : ''"
+                                            t-esc="signer.name"/>
+                                </t>
+                            </select>
+                            <div class="doc-settings-hint">新增欄位時預設指派的簽約人。</div>
+                        </div>
+
+                        <div class="doc-settings-field">
+                            <label>文件 ID</label>
+                            <input type="text" readonly="readonly" t-att-value="state.docId or '（尚未儲存）'"/>
+                            <div class="doc-settings-hint">系統識別碼（唯讀）。</div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- ═══ 模板變數面板（既有 isTemplateMode）═══ -->
+            <t t-if="state.isTemplateMode">
+                <div class="doc-template-bar">
+                    <span class="doc-template-bar-label">
+                        <i class="fa fa-file-word-o me-1"/>
+                        <t t-esc="state.templateFilename"/>
+                    </span>
+                    <span class="doc-template-bar-vars">
+                        <t t-foreach="state.templateVariables" t-as="v" t-key="v">
+                            <span class="badge bg-secondary me-1" t-esc="v"/>
+                        </t>
+                        <t t-if="!state.templateVariables.length">
+                            <span class="text-muted">（未偵測到變數）</span>
+                        </t>
+                    </span>
+                </div>
+                <div class="doc-template-bar" style="align-items:flex-start; flex-direction:column; gap:4px;">
+                    <span class="doc-template-bar-label">
+                        <i class="fa fa-code me-1"/>
+                        Context JSON（匯出時使用）
+                    </span>
+                    <textarea class="doc-context-json"
+                              rows="4"
+                              placeholder='{"projectName":"工程名稱","pages":[{"items":[{"no":"1","name":"材料名稱"}]}]}'
+                              t-att-value="state.contextJson"
+                              t-on-input="(e) => { state.contextJson = e.target.value; }"/>
+                </div>
+            </t>
+
+            <!-- ═══ Row 7：Statusbar（頁碼 + 欄位計數 + hint）═══ -->
+            <div class="doc-statusbar"
+                 role="status"
+                 aria-live="polite"
+                 aria-atomic="true">
+                <span class="doc-statusbar-hint d-none d-lg-inline">
+                    <i class="fa fa-info-circle me-1"/>
+                    從工具列點擊欄位插入文件中。點擊以選取。按 [Del] 以移除。
                 </span>
                 <span t-att-class="statusClass">
                     <t t-esc="state.statusMsg"/>
                 </span>
-                <span>
-                    <t t-esc="state.pageFormat"/>
-                    <t t-if="state.modelName"> · <t t-esc="state.modelName"/></t>
+                <span class="doc-statusbar-counts">
+                    頁面 <t t-esc="state.pageNo"/> 的 <t t-esc="state.totalPages"/>
+                    │ <t t-esc="state.fieldCount"/> 欄位
+                    │ <t t-esc="state.pageFormat"/>
                 </span>
             </div>
+
+            <!-- 版本歷史面板（W7-8 P1-1） -->
+            <t t-if="state.showVersionPanel and state.docId">
+                <DocVersionPanel
+                    docId="state.docId"
+                    onClose.bind="onCloseVersionPanel"
+                    onRestore.bind="onVersionRestored"/>
+            </t>
+
+            <!-- Sprint Y17：文件設定 modal（紙張 / 方向 / margin） -->
+            <t t-if="state.showDocSettings">
+                <div class="doc-modal-overlay" t-on-click="() => this.onCloseDocSettings()">
+                    <div class="doc-modal-dialog" t-on-click.stop="">
+                        <div class="doc-modal-header">
+                            <h3 class="doc-modal-title">文件設定</h3>
+                            <button class="doc-modal-close" type="button"
+                                    t-on-click="() => this.onCloseDocSettings()"
+                                    title="關閉">
+                                <i class="fa fa-times"/>
+                            </button>
+                        </div>
+                        <div class="doc-modal-body">
+                            <div class="doc-modal-field">
+                                <label>紙張尺寸</label>
+                                <select t-on-change="(ev) => this.onDocSettingsSet('format', ev.target.value)">
+                                    <option value="A4" t-att-selected="state.docSettingsForm.format === 'A4'">A4 (210 × 297 mm)</option>
+                                    <option value="A3" t-att-selected="state.docSettingsForm.format === 'A3'">A3 (297 × 420 mm)</option>
+                                    <option value="A5" t-att-selected="state.docSettingsForm.format === 'A5'">A5 (148 × 210 mm)</option>
+                                    <option value="letter" t-att-selected="state.docSettingsForm.format === 'letter'">Letter (216 × 279 mm)</option>
+                                    <option value="legal" t-att-selected="state.docSettingsForm.format === 'legal'">Legal (216 × 356 mm)</option>
+                                </select>
+                            </div>
+                            <div class="doc-modal-field">
+                                <label>方向</label>
+                                <div class="doc-modal-radio-group">
+                                    <label class="doc-modal-radio">
+                                        <input type="radio" name="doc-direction" value="vertical"
+                                               t-att-checked="state.docSettingsForm.direction === 'vertical'"
+                                               t-on-change="() => this.onDocSettingsSet('direction', 'vertical')"/>
+                                        <span>直向</span>
+                                    </label>
+                                    <label class="doc-modal-radio">
+                                        <input type="radio" name="doc-direction" value="horizontal"
+                                               t-att-checked="state.docSettingsForm.direction === 'horizontal'"
+                                               t-on-change="() => this.onDocSettingsSet('direction', 'horizontal')"/>
+                                        <span>橫向</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="doc-modal-field">
+                                <label>邊界（mm）</label>
+                                <div class="doc-modal-margins">
+                                    <div class="doc-modal-margin">
+                                        <span>上</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginTopMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginTopMm', ev.target.value, ev)"/>
+                                    </div>
+                                    <div class="doc-modal-margin">
+                                        <span>右</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginRightMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginRightMm', ev.target.value, ev)"/>
+                                    </div>
+                                    <div class="doc-modal-margin">
+                                        <span>下</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginBottomMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginBottomMm', ev.target.value, ev)"/>
+                                    </div>
+                                    <div class="doc-modal-margin">
+                                        <span>左</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginLeftMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginLeftMm', ev.target.value, ev)"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="doc-modal-footer">
+                            <button class="doc-modal-btn doc-modal-btn-secondary" type="button"
+                                    t-on-click="() => this.onCloseDocSettings()">取消</button>
+                            <button class="doc-modal-btn doc-modal-btn-primary" type="button"
+                                    t-on-click="() => this.onApplyDocSettings()">套用</button>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Sprint Y18：行距 modal -->
+            <t t-if="state.showLineSpacing">
+                <div class="doc-modal-overlay" t-on-click="() => this.onCloseLineSpacing()">
+                    <div class="doc-modal-dialog doc-modal-dialog-narrow" t-on-click.stop="">
+                        <div class="doc-modal-header">
+                            <h3 class="doc-modal-title">行距</h3>
+                            <button class="doc-modal-close" type="button"
+                                    t-on-click="() => this.onCloseLineSpacing()"
+                                    title="關閉">
+                                <i class="fa fa-times"/>
+                            </button>
+                        </div>
+                        <div class="doc-modal-body">
+                            <div class="doc-modal-field">
+                                <label>行距倍數</label>
+                                <input type="number" min="0.5" max="5" step="0.05"
+                                       t-att-value="state.lineSpacingValue"
+                                       t-on-input="(ev) => this.onLineSpacingSet(ev.target.value, ev)"/>
+                            </div>
+                            <div class="doc-modal-field">
+                                <label>預設值</label>
+                                <div class="doc-modal-preset-row">
+                                    <t t-foreach="LINE_SPACING_PRESETS" t-as="preset" t-key="preset">
+                                        <button type="button" class="doc-modal-preset-btn"
+                                                t-att-class="state.lineSpacingValue === preset ? 'is-active' : ''"
+                                                t-on-click="() => this.onLineSpacingSet(preset)">
+                                            <t t-esc="preset.toFixed(2)"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="doc-modal-footer">
+                            <button class="doc-modal-btn doc-modal-btn-secondary" type="button"
+                                    t-on-click="() => this.onCloseLineSpacing()">取消</button>
+                            <button class="doc-modal-btn doc-modal-btn-primary" type="button"
+                                    t-on-click="() => this.onApplyLineSpacing()">套用</button>
+                        </div>
+                    </div>
+                </div>
+            </t>
 
         </div>
     </t>
