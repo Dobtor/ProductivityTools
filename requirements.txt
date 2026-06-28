@@ -1,0 +1,14 @@
+# ProductivityTools — Odoo 18 模組外部 Python 依賴
+# 部署時安裝：pip install --break-system-packages -r requirements.txt
+# （Debian/PEP 668 externally-managed 環境需要 --break-system-packages）
+#
+# 注意：requirements.txt 用 pip 套件名；模組 __manifest__.py 的
+#       external_dependencies 用 import 名稱（python-docx → docx）。
+
+# dobtor_doc_editor：模板上傳/填充（.docx 解析與 Jinja 模板輸出）
+python-docx
+docxtpl
+
+# base_geoengine（OCA 地理引擎）：安裝時要求的外部依賴
+shapely
+geojson
