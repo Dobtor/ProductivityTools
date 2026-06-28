@@ -1057,32 +1057,54 @@ class DocEditorController(http.Controller):
                 status=400,
             )
 
-        # Step 1：轉換 +++INS+++ → {{ }}
-        converted_bytes = _convert_ins_to_jinja(raw_bytes)
-
-        # Step 2：偵測變數清單（從 ZIP 內的 document.xml）
-        # 包含：{{ var }}、{{ item.field }}（取根名稱）、{% for v in collection %}（取集合名稱）
+        # 整段處理包 try/except：type='http' 路由若拋出未處理例外，Odoo 會回傳
+        # HTML 500 錯誤頁，前端 resp.json() 解析失敗 → 「Unexpected token '<'」。
+        # 改為一律回傳 JSON，讓真實錯誤（缺套件 / 非 docx / 解析失敗）顯示在 UI。
         variables = []
         try:
-            with zipfile.ZipFile(io.BytesIO(converted_bytes)) as z:
-                xml = z.read('word/document.xml').decode('utf-8')
-            # {{ var }} 或 {{ item.field }} → 取根名稱（點號前）
-            raw_vars = re.findall(r'\{\{\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\}\}', xml)
-            root_vars = {v.split('.')[0] for v in raw_vars}
-            # {% for v in collection %} 或 {% tr for v in collection %} → 取集合名稱
-            for_cols = set(re.findall(
-                r'\{%-?\s+(?:tr\s+)?for\s+\w+\s+in\s+([A-Za-z_][A-Za-z0-9_.]*)\s*-?%\}', xml
-            ))
-            variables = sorted(root_vars | for_cols)
-        except Exception:
-            pass
+            # Step 1：轉換 +++INS+++ → {{ }}
+            converted_bytes = _convert_ins_to_jinja(raw_bytes)
 
-        # Step 3：儲存轉換後的模板 + 變數清單
-        doc.write({
-            'template_docx': base64.b64encode(converted_bytes).decode(),
-            'template_filename': docx_file.filename,
-            'template_variables': json.dumps(variables),
-        })
+            # Step 2：偵測變數清單（從 ZIP 內的 document.xml）
+            # 包含：{{ var }}、{{ item.field }}（取根名稱）、{% for v in collection %}（取集合名稱）
+            try:
+                with zipfile.ZipFile(io.BytesIO(converted_bytes)) as z:
+                    xml = z.read('word/document.xml').decode('utf-8')
+                # {{ var }} 或 {{ item.field }} → 取根名稱（點號前）
+                raw_vars = re.findall(r'\{\{\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\}\}', xml)
+                root_vars = {v.split('.')[0] for v in raw_vars}
+                # {% for v in collection %} 或 {% tr for v in collection %} → 取集合名稱
+                for_cols = set(re.findall(
+                    r'\{%-?\s+(?:tr\s+)?for\s+\w+\s+in\s+([A-Za-z_][A-Za-z0-9_.]*)\s*-?%\}', xml
+                ))
+                variables = sorted(root_vars | for_cols)
+            except Exception:
+                pass
+
+            # Step 3：儲存轉換後的模板 + 變數清單
+            doc.write({
+                'template_docx': base64.b64encode(converted_bytes).decode(),
+                'template_filename': docx_file.filename,
+                'template_variables': json.dumps(variables),
+            })
+        except ImportError as e:
+            _logger.exception("upload_template: 缺少 python-docx (doc_id=%s)", doc_id)
+            return request.make_response(
+                json.dumps({'success': False,
+                            'error': '伺服器缺少 python-docx 套件，請安裝：pip install python-docx'}),
+                headers={'Content-Type': 'application/json'}, status=500,
+            )
+        except zipfile.BadZipFile:
+            return request.make_response(
+                json.dumps({'success': False, 'error': '檔案不是有效的 .docx（無法解析 ZIP）'}),
+                headers={'Content-Type': 'application/json'}, status=400,
+            )
+        except Exception as e:
+            _logger.exception("upload_template 處理失敗 (doc_id=%s)", doc_id)
+            return request.make_response(
+                json.dumps({'success': False, 'error': '模板處理失敗：%s' % e}),
+                headers={'Content-Type': 'application/json'}, status=500,
+            )
 
         return request.make_response(
             json.dumps({'success': True, 'variables': variables}),

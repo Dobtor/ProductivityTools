@@ -1243,6 +1243,26 @@ export class DocEditor extends Component {
         input.click();
     }
 
+    /**
+     * 安全解析 fetch 回應為 JSON。type='http' 路由出錯時 Odoo 會回傳 HTML 錯誤頁，
+     * 直接 resp.json() 會丟「Unexpected token '<'」。此處改抓 HTML → 給可讀訊息。
+     */
+    async _readJsonResponse(resp) {
+        const text = await resp.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            const snippet = (text || "")
+                .replace(/<[^>]*>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 200);
+            throw new Error(
+                `伺服器錯誤 (HTTP ${resp.status})${snippet ? "：" + snippet : ""}`
+            );
+        }
+    }
+
     async _handleImportFile(file) {
         if (!file) return;
 
@@ -1259,7 +1279,7 @@ export class DocEditor extends Component {
                     method: "POST",
                     body: formData,
                 });
-                const result = await resp.json();
+                const result = await this._readJsonResponse(resp);
 
                 if (!result.success) throw new Error(result.error || "上傳失敗");
 
@@ -1322,7 +1342,7 @@ export class DocEditor extends Component {
                 method: "POST",
                 body: formData,
             });
-            const result = await resp.json();
+            const result = await this._readJsonResponse(resp);
             if (result.error) throw new Error(result.error);
             if (!Array.isArray(result.elements)) {
                 throw new Error("Backend 未回傳 elements 陣列（engine=ts 可能 fallback 到 libreoffice）");
