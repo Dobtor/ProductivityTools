@@ -31,12 +31,13 @@
                     <group string="Basic">
                         <field name="activity_type_id" string="Type" required="1"
                                options="{'no_create': True, 'no_open': True}"/>
+                        <!-- 未關聯 → 顯示「目標文件」選取器；已關聯 → 顯示「相關文件」唯讀標籤。互斥 -->
                         <field name="target_ref" string="Target Document"
-                               invisible="id and res_model_id and res_id"
+                               invisible="res_model_id and res_id"
                                options="{'no_create': True}"
                                placeholder="Leave empty to use default note"/>
                         <field name="res_name" string="Related Document" readonly="1"
-                               invisible="not res_model_id or not res_id"/>
+                               invisible="not (res_model_id and res_id)"/>
                     </group>
 
                     <!-- 優先 -->
@@ -149,6 +150,7 @@
                     <!-- 隱藏欄位 -->
                     <field name="id" invisible="1"/>
                     <field name="res_model_id" invisible="1"/>
+                    <field name="res_id" invisible="1"/>
                     <!-- 欄位層級編輯權限（建立者 / 被指派者）-->
                     <field name="can_edit_as_creator" invisible="1"/>
                     <field name="can_edit_as_assignee" invisible="1"/>
@@ -200,12 +202,14 @@
                     <group>
                         <!-- 關聯資訊 -->
                         <group string="Related Information">
+                            <!-- 未關聯 → 目標文件選取器；已關聯 → 相關文件唯讀標籤。互斥 -->
                             <field name="target_ref" string="Target Document"
+                                   invisible="res_model_id and res_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"
                                    placeholder="Leave empty to use default note"/>
                             <field name="res_name" string="Related Document" readonly="1"
-                                   invisible="not res_name"/>
+                                   invisible="not (res_model_id and res_id)"/>
                             <field name="note_id" string="Note"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>

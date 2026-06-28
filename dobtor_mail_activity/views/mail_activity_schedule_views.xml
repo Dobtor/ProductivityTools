@@ -188,12 +188,15 @@
                         <!-- 左側：關聯資訊 -->
                         <group string="Related Information">
                             <field name="id" invisible="1"/>
+                            <field name="res_model_id" invisible="1"/>
+                            <field name="res_id" invisible="1"/>
+                            <!-- 未關聯 → 目標文件選取器；已關聯 → 相關文件唯讀標籤。互斥 -->
                             <field name="target_ref" string="Target Document"
+                                   invisible="res_model_id and res_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
-                            <field name="res_model_id" invisible="1"/>
                             <field name="res_name" string="Related Document" readonly="1"
-                                   invisible="not res_name"/>
+                                   invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
                             <field name="note_id" string="Note"
@@ -559,13 +562,16 @@
                         <!-- 左側：關聯資訊 -->
                         <group string="Related Information">
                             <field name="id" invisible="1"/>
-                            <field name="target_ref" string="Target Document"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
-                                   required="not id"
-                                   options="{'no_create': True}"/>
                             <field name="res_model_id" invisible="1"/>
+                            <field name="res_id" invisible="1"/>
+                            <!-- 未關聯 → 目標文件選取器（新建必填）；已關聯 → 相關文件唯讀標籤。互斥 -->
+                            <field name="target_ref" string="Target Document"
+                                   invisible="res_model_id and res_id"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                                   required="not id and not (res_model_id and res_id)"
+                                   options="{'no_create': True}"/>
                             <field name="res_name" string="Related Document" readonly="1"
-                                   invisible="not res_name"/>
+                                   invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
                             <field name="note_id" string="Note"
