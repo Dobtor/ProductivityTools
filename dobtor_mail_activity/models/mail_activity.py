@@ -587,6 +587,41 @@ class MailActivity(models.Model):
         )
         return activities._as_query(order)
 
+    def _check_access(self, operation):
+        """支援 res 為空的獨立待辦（需求七）之存取檢查。
+
+        官方 mail.activity._check_access（mail/models/mail_activity.py）依 res_model
+        分組後 self.env[doc_model].browse(...) 做文件層存取 gating，res_model 為空時
+        self.env[False] → KeyError（讀取獨立待辦即踩到）。
+
+        獨立待辦無關聯文件，無從以文件 gate，應只受基礎存取規則（ir.rule /
+        ir.model.access，即 models.Model._check_access）約束。故將獨立待辦自官方
+        文件 gating 拆出：有關聯文件者沿用官方鏈，獨立待辦僅跑基礎檢查，最後合併
+        兩者的 forbidden 記錄。
+        """
+        standalone = self.filtered(lambda a: not a.res_model)
+        if not standalone:
+            return super()._check_access(operation)
+
+        combined_forbidden = self.browse()
+        linked = self - standalone
+        if linked:
+            # 重新進入本方法（此時 standalone 為空）→ 走官方鏈含文件 gating
+            linked_result = linked._check_access(operation)
+            if linked_result:
+                combined_forbidden |= linked_result[0]
+        # 獨立待辦：略過官方文件 gating，只用基礎存取檢查
+        standalone_result = models.Model._check_access(standalone, operation)
+        if standalone_result:
+            combined_forbidden |= standalone_result[0]
+
+        if not combined_forbidden:
+            return None
+        return (
+            combined_forbidden,
+            lambda: combined_forbidden._make_access_error(operation),
+        )
+
     @api.model_create_multi
     def create(self, vals_list):
         """覆寫 create 方法
@@ -1749,6 +1784,16 @@ class MailActivity(models.Model):
     def action_open_document(self):
         """打開相關文件"""
         self.ensure_one()
+        # 需求七：獨立待辦（res 為空）無關聯文件，改開啟待辦本身，避免回傳
+        # res_model=False 造成前端動作錯誤。
+        if not self.res_model or not self.res_id:
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'mail.activity',
+                'res_id': self.id,
+                'view_mode': 'form',
+                'target': 'current',
+            }
         return {
             'type': 'ir.actions.act_window',
             'res_model': self.res_model,
@@ -1929,8 +1974,20 @@ class MailActivity(models.Model):
 
         # 處理預設通知（調用原始方法）；併入自訂模板無法寄送而退回的待辦
         default_notify_activities |= fallback_notify_activities
-        if default_notify_activities:
-            super(MailActivity, default_notify_activities).action_notify()
+        # 需求七：獨立待辦（res 為空）無關聯文件，核心 action_notify 會
+        # self.env['ir.model']._get(False) / self.env[False].browse(...) → KeyError。
+        # 其 systray 計數已於 create 覆寫發送；此處略過「文件式」郵件/inbox 通知
+        # （無文件可據以發送），避免崩潰。
+        notifiable = default_notify_activities.filtered(
+            lambda a: a.res_model and a.res_id)
+        skipped = default_notify_activities - notifiable
+        if skipped:
+            _logger.debug(
+                'action_notify: skip document-based notify for %s standalone '
+                'activities (no related document); systray count already sent on create.',
+                len(skipped))
+        if notifiable:
+            super(MailActivity, notifiable).action_notify()
 
     # ========== 工具方法 ==========
 
