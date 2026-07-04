@@ -1,9 +1,9 @@
 /** @odoo-module */
 
-import { Component, useRef, onWillUnmount, useState } from "@odoo/owl";
+import { Component, useRef, onWillUnmount, useState, useEffect } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { useService, useEffect } from "@web/core/utils/hooks";
+import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
 /**
