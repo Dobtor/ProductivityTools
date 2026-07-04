@@ -119,6 +119,17 @@ class MailActivity(models.Model):
         help='Display name of the related document',
     )
 
+    # ===== 即時關聯文件顯示（模型名稱 / 來源記錄目前名稱）=====
+    # 刻意「非 stored」：每次讀取即時計算，永遠反映來源記錄目前的 display_name，
+    # 不像 res_name（stored 快照）會在來源改名後 stale。用於視圖顯示，取代 res_name。
+    res_document_display = fields.Char(
+        string='Related Document',
+        compute='_compute_res_document_display',
+        compute_sudo=True,
+        help='Live "<model label> / <current record name>"; not stored, so it '
+             'always reflects the source record current name (unlike res_name).',
+    )
+
     # ===== 目標文件選擇（用於建立待辦時選擇關聯文件）=====
     target_ref = fields.Reference(
         string='Target Document',
@@ -410,6 +421,29 @@ class MailActivity(models.Model):
             else:
                 activity.res_name = False
 
+    @api.depends('res_model', 'res_id', 'res_model_id')
+    def _compute_res_document_display(self):
+        """即時計算「模型名稱 / 來源記錄目前名稱」（非 stored，永遠最新）。"""
+        for activity in self:
+            if not activity.res_model or not activity.res_id:
+                activity.res_document_display = False
+                continue
+            try:
+                record = self.env[activity.res_model].browse(activity.res_id)
+                if not record.exists():
+                    activity.res_document_display = _('(Record Deleted)')
+                    continue
+                model_label = activity.res_model_id.name \
+                    or self.env['ir.model']._get(activity.res_model).name \
+                    or activity.res_model
+                activity.res_document_display = '%s / %s' % (
+                    model_label, record.display_name)
+            except Exception as e:
+                _logger.debug(
+                    'Failed to compute res_document_display for activity %s: %s',
+                    activity.id, str(e))
+                activity.res_document_display = False
+
     @api.model
     def _selection_target_model(self):
         """取得允許的目標模型選項（使用共用方法）"""
@@ -469,7 +503,8 @@ class MailActivity(models.Model):
                 'active': act.active,
                 'user_id': act.user_id.id,
                 'user_name': act.user_id.name or '',
-                'res_name': act.res_name or '',
+                # 即時「模型 / 記錄名」（取代 stored 快照 res_name，避免傳出 stale 值）
+                'res_name': act.res_document_display or '',
                 'activity_type_name': act.activity_type_id.name or '',
             })
         return {'activities': result, 'has_more': has_more}

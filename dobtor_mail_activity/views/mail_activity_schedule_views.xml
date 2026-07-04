@@ -195,7 +195,7 @@
                                    invisible="res_model_id and res_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
-                            <field name="res_name" string="Related Document" readonly="1"
+                            <field name="res_document_display" string="Related Document" readonly="1"
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
@@ -314,7 +314,7 @@
             <kanban default_group_by="user_id" class="o_kanban_mobile">
                 <field name="id"/>
                 <field name="activity_type_id"/>
-                <field name="res_name"/>
+                <field name="res_document_display"/>
                 <field name="summary"/>
                 <field name="date_deadline"/>
                 <field name="planned_date"/>
@@ -363,7 +363,7 @@
                             <!-- 第三列：關聯文件 -->
                             <div class="text-muted small mb-1">
                                 <a type="object" name="action_open_document" title="Open Document">
-                                    <i class="fa fa-external-link"/> <field name="res_name"/>
+                                    <i class="fa fa-external-link"/> <field name="res_document_display"/>
                                 </a>
                             </div>
 
@@ -465,7 +465,7 @@
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
                 <field name="partner_id" optional="show"/>
-                <field name="res_name" string="Related Document" optional="show"/>
+                <field name="res_document_display" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
                 <field name="urgency" string="Urgency" widget="badge"
@@ -570,7 +570,7 @@
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    required="not id and not (res_model_id and res_id)"
                                    options="{'no_create': True}"/>
-                            <field name="res_name" string="Related Document" readonly="1"
+                            <field name="res_document_display" string="Related Document" readonly="1"
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>

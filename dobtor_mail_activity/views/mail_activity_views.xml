@@ -34,7 +34,7 @@
                                invisible="res_model_id and res_id"
                                options="{'no_create': True}"
                                placeholder="Leave empty for a standalone to-do"/>
-                        <field name="res_name" string="Related Document" readonly="1"
+                        <field name="res_document_display" string="Related Document" readonly="1"
                                invisible="not (res_model_id and res_id)"/>
                     </group>
 
@@ -225,7 +225,7 @@
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"
                                    placeholder="Leave empty for a standalone to-do"/>
-                            <field name="res_name" string="Related Document" readonly="1"
+                            <field name="res_document_display" string="Related Document" readonly="1"
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="note_id" string="Source Reference"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
@@ -363,7 +363,7 @@
                 <field name="res_model_id"/>
                 <field name="res_model"/>
                 <field name="res_id"/>
-                <field name="res_name"/>
+                <field name="res_document_display"/>
                 <field name="summary"/>
                 <field name="date_deadline"/>
                 <field name="planned_date"/>
@@ -446,9 +446,9 @@
                                 <span t-if="record.note_id.raw_value" class="me-2" title="Note">
                                     <i class="fa fa-sticky-note-o text-warning"/> <field name="note_id"/>
                                 </span>
-                                <span t-if="!record.note_id.raw_value and record.res_name.raw_value">
+                                <span t-if="!record.note_id.raw_value and record.res_document_display.raw_value">
                                     <a type="object" name="action_open_document" title="Open Document">
-                                        <i class="fa fa-external-link"/> <field name="res_name"/>
+                                        <i class="fa fa-external-link"/> <field name="res_document_display"/>
                                     </a>
                                 </span>
                                 <span t-if="record.partner_id.raw_value" class="ms-2" title="Customer">
@@ -544,7 +544,7 @@
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
                 <field name="partner_id" optional="show"/>
-                <field name="res_name" string="Related Document" optional="show"/>
+                <field name="res_document_display" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
                 <field name="urgency" string="Urgency" widget="badge"
