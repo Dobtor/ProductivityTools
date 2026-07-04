@@ -10,7 +10,8 @@
         <field name="name">mail.activity.list.report</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <list create="0" edit="0">
+            <!-- expand="1" → openGroupsByDefault：預設展開所有分組（含 res_name 分組）-->
+            <list create="0" edit="0" expand="1">
                 <field name="summary"/>
                 <field name="urgency"/>
                 <field name="importance"/>
