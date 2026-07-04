@@ -89,7 +89,9 @@
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('mail_activity_view_list_report')}),
             (0, 0, {'view_mode': 'pivot', 'view_id': ref('mail_activity_view_pivot_report')})]"/>
-        <field name="context">{'search_default_active_activities': 1, 'active_test': False}</field>
+        <!-- 左側 search panel 篩選 客戶/專案/負責人/狀態；右側清單預設以「相關文件」
+             (res_name) 分組，補回原五層規劃中 search panel 無法容納的文件層。 -->
+        <field name="context">{'search_default_group_document': 1, 'search_default_active_activities': 1, 'active_test': False}</field>
     </record>
 
 </odoo>
