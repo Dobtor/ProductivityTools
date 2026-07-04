@@ -332,9 +332,11 @@ class WeeklyReport(models.Model):
         pending_activities = []
 
         # 預先查詢上週有延期記錄的待辦 ID（用於精確判斷 postponed 狀態）
+        # set 提到迴圈外算一次，避免 comprehension 內反覆重建（O(n²)）
+        actual_ids_set = set(actual_activities.ids)
         all_activity_ids = actual_activities.ids + [
             sl.activity_id.id for sl in planned_snapshot
-            if sl.activity_id and sl.activity_id.id not in set(a.id for a in actual_activities)
+            if sl.activity_id and sl.activity_id.id not in actual_ids_set
         ]
         postponed_activity_ids = set()
         if all_activity_ids:

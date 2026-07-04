@@ -13,9 +13,7 @@
 
             <!-- 移除原本的 group 結構，重新排版 -->
             <xpath expr="//sheet/group[last()]" position="replace">
-                <!-- 隱藏欄位 -->
-                <field name="res_model_id" invisible="1"/>
-                <field name="res_id" invisible="1"/>
+                <!-- 隱藏欄位（res_model/res_model_id/res_id 由原生隱藏 group 已提供，不重宣告）-->
                 <field name="can_edit_as_assignee" invisible="1"/>
 
                 <!-- 摘要 - 置頂明顯 -->
@@ -35,7 +33,7 @@
                         <field name="target_ref" string="Target Document"
                                invisible="res_model_id and res_id"
                                options="{'no_create': True}"
-                               placeholder="Leave empty to use default note"/>
+                               placeholder="Leave empty for a standalone to-do"/>
                         <field name="res_name" string="Related Document" readonly="1"
                                invisible="not (res_model_id and res_id)"/>
                     </group>
@@ -65,6 +63,14 @@
                         <field name="planned_date" string="Planned Date"
                                readonly="planned_date or not can_edit_as_assignee"/>
                     </group>
+                </group>
+
+                <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）。
+                     res_model 由原生隱藏 group + widget fieldDependencies 提供，不重宣告 -->
+                <group string="Project Relation" name="activity_project_relation">
+                    <field name="project_id" options="{'no_create': True}"/>
+                    <field name="relation_diagram_anchor" widget="activity_relation_diagram"
+                           nolabel="1" colspan="2"/>
                 </group>
             </xpath>
 
@@ -132,7 +138,7 @@
                             invisible="not active or not user_id"/>
                     <button name="action_open_document" type="object"
                             string="Document"/>
-                    <field name="schedule_status" widget="statusbar" clickable="1"
+                    <field name="schedule_status" widget="statusbar"
                            options="{'clickable': '1'}"/>
                 </header>
                 <sheet>
@@ -199,6 +205,17 @@
                         </group>
                     </group>
 
+                    <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）
+                         位於左右資訊 group 與 關聯/排程 group 之間 -->
+                    <group string="Project Relation" name="activity_project_relation">
+                        <field name="project_id" options="{'no_create': True}"
+                               readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                        <!-- 供邏輯圖 widget 讀取（隱藏） -->
+                        <field name="res_model" invisible="1"/>
+                        <field name="relation_diagram_anchor" widget="activity_relation_diagram"
+                               nolabel="1" colspan="2"/>
+                    </group>
+
                     <group>
                         <!-- 關聯資訊 -->
                         <group string="Related Information">
@@ -207,14 +224,15 @@
                                    invisible="res_model_id and res_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"
-                                   placeholder="Leave empty to use default note"/>
+                                   placeholder="Leave empty for a standalone to-do"/>
                             <field name="res_name" string="Related Document" readonly="1"
                                    invisible="not (res_model_id and res_id)"/>
-                            <field name="note_id" string="Note"
+                            <field name="note_id" string="Source Reference"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
-                            <field name="partner_id" string="Related Customer" readonly="1"
-                                   invisible="not partner_id"/>
+                            <!-- 需求五：客戶可手填（res→專案客戶自動帶入，仍可覆寫） -->
+                            <field name="partner_id" string="Related Customer"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
                         </group>
 
                         <!-- 排程資訊 -->
@@ -230,7 +248,7 @@
                     </group>
 
                     <notebook>
-                        <page string="Note" name="note">
+                        <page string="Todo Note" name="note">
                             <field name="note" placeholder="Add note..."/>
                         </page>
                         <page string="Feedback" name="feedback" invisible="not feedback">
@@ -518,7 +536,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <list string="Activities"
+            <list
                   js_class="activity_list"
                   default_order="date_deadline asc, urgency desc"
                   multi_edit="1"
@@ -561,84 +579,6 @@
     </record>
 
     <!-- ============================================================ -->
-    <!-- mail.activity Search View (Schedule)                          -->
-    <!-- 搜尋視圖，含多種篩選與分組                                      -->
-    <!-- ============================================================ -->
-    <record id="mail_activity_view_search_productivity" model="ir.ui.view">
-        <field name="name">mail.activity.search.schedule</field>
-        <field name="model">mail.activity</field>
-        <field name="priority">100</field>
-        <field name="arch" type="xml">
-            <search string="Search Activities">
-                <field name="summary" string="Summary"/>
-                <field name="user_id" string="Assignee"/>
-                <field name="activity_type_id" string="Type"/>
-                <field name="res_name" string="Related Document"/>
-                <field name="partner_id" string="Customer"/>
-
-                <separator/>
-                <filter string="My Activities" name="my_activities"
-                        domain="[('user_id', '=', uid)]"/>
-                <filter string="My Created" name="created_by_me"
-                        domain="[('create_uid', '=', uid)]"/>
-                <filter string="Unassigned" name="unassigned"
-                        domain="[('user_id', '=', False)]"/>
-
-                <separator/>
-                <filter string="Waiting Schedule" name="waiting"
-                        domain="[('schedule_status', '=', 'waiting')]"/>
-                <filter string="This Week" name="this_week"
-                        domain="[('schedule_week', '=', 'week0')]"/>
-                <filter string="Next Week" name="next_week"
-                        domain="[('schedule_week', '=', 'week1')]"/>
-                <filter string="Previous Week" name="week_prev"
-                        domain="[('schedule_week', '=', 'week_prev')]"/>
-
-                <separator/>
-                <filter string="Urgent" name="urgent"
-                        domain="[('urgency', '=', 'urgent')]"/>
-                <filter string="Important" name="important"
-                        domain="[('importance', '=', 'important')]"/>
-
-                <separator/>
-                <filter string="In Progress" name="active"
-                        domain="[('active', '=', True)]"/>
-                <filter string="Completed" name="done"
-                        domain="[('done_date', '!=', False)]"/>
-                <filter string="Cancelled" name="cancelled"
-                        domain="[('cancel_date', '!=', False)]"/>
-                <filter string="Archived" name="archived"
-                        domain="[('active', '=', False)]"/>
-
-                <separator/>
-                <filter string="Overdue" name="overdue"
-                        domain="[('date_deadline', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
-                <filter string="Due Today" name="due_today"
-                        domain="[('date_deadline', '=', context_today().strftime('%Y-%m-%d'))]"/>
-
-                <group expand="0" string="Group By">
-                    <filter string="Schedule Status" name="group_schedule"
-                            context="{'group_by': 'schedule_status'}"/>
-                    <filter string="Assignee" name="group_user"
-                            context="{'group_by': 'user_id'}"/>
-                    <filter string="Week" name="group_week"
-                            context="{'group_by': 'schedule_week'}"/>
-                    <filter string="Type" name="group_type"
-                            context="{'group_by': 'activity_type_id'}"/>
-                    <filter string="Urgency" name="group_urgency"
-                            context="{'group_by': 'urgency'}"/>
-                    <filter string="Importance" name="group_importance"
-                            context="{'group_by': 'importance'}"/>
-                    <filter string="Due Date" name="group_deadline"
-                            context="{'group_by': 'date_deadline:week'}"/>
-                    <filter string="Customer" name="group_partner"
-                            context="{'group_by': 'partner_id'}"/>
-                </group>
-            </search>
-        </field>
-    </record>
-
-    <!-- ============================================================ -->
     <!-- mail.activity Calendar View                                   -->
     <!-- 行事曆視圖                                                     -->
     <!-- ============================================================ -->
@@ -674,7 +614,7 @@
         <field name="name">mail.activity.list.history</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <list string="Activity History" create="false" delete="false">
+            <list create="false" delete="false">
                 <field name="activity_status" string="Status" widget="badge"
                        decoration-success="activity_status == 'done'"
                        decoration-danger="activity_status == 'cancelled'"/>

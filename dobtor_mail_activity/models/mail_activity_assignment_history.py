@@ -65,6 +65,9 @@ class MailActivityAssignmentHistory(models.Model):
         for record in self:
             previous = record.previous_user_id.name if record.previous_user_id else _('Unassigned')
             new = record.new_user_id.name if record.new_user_id else _('Unassigned')
-            date_str = record.changed_date.strftime('%Y-%m-%d %H:%M') if record.changed_date else ''
+            # changed_date 為 UTC Datetime，顯示前轉本地時區（UTC+8）
+            date_str = fields.Datetime.context_timestamp(
+                record, record.changed_date).strftime('%Y-%m-%d %H:%M') \
+                if record.changed_date else ''
             record.display_name = '%s: %s -> %s' % (date_str, previous, new)
 

@@ -9,10 +9,7 @@
                 <RelatedNotes resModel="props.threadModel" resId="props.threadId"/>
             </t>
         </xpath>
-        <!-- 將 "Activities" 按鈕改為 "待辦" -->
-        <xpath expr="//button[hasclass('o-mail-Chatter-activity')]/span" position="replace">
-            <span>Activities</span>
-        </xpath>
+        <!-- 「Activities」等按鈕文字的中文化由 i18n/zh_TW.po 處理，不在此以同內容 replace。 -->
     </t>
 
 </templates>

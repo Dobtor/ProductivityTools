@@ -2,7 +2,6 @@
 
 from datetime import date
 from odoo.tests.common import TransactionCase, tagged
-from odoo.exceptions import AccessError
 
 
 @tagged('post_install', '-at_install')

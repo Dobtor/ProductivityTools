@@ -1,2 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_activity_efficiency_metrics_timesheet_manager,activity.efficiency.metrics.timesheet.manager,dobtor_mail_activity.model_activity_efficiency_metrics,hr_timesheet.group_timesheet_manager,1,1,1,1

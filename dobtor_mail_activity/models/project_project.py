@@ -8,6 +8,8 @@ class ProjectProject(models.Model):
 
     在專案上新增 CRM 商機的反向關聯，
     提供智慧按鈕快速查看關聯商機。
+
+    （原 dobtor_mail_activity_timesheet 併入。）
     """
     _inherit = 'project.project'
 

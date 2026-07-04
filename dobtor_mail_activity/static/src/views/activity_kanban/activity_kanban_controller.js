@@ -91,28 +91,6 @@ export class ActivityKanbanController extends KanbanController {
      * 已移至 ActivityKanbanHeader，保留作備用
      */
     _updateColumnHeaders() {}
-
-    getWeekButtonClass(week) {
-        if (week.number === this.weekState.currentWeek) {
-            return 'btn btn-sm btn-primary me-1';
-        }
-        return 'btn btn-sm btn-outline-secondary me-1';
-    }
-
-    getWeekDateRange(week) {
-        if (week.start_date && week.end_date) {
-            return `${week.start_date} ~ ${week.end_date}`;
-        }
-        return '';
-    }
-
-    async scheduleToThisWeek() {
-        await this.scheduleToWeek(0);
-    }
-
-    async scheduleToNextWeek() {
-        await this.scheduleToWeek(1);
-    }
 }
 
 Object.assign(ActivityKanbanController.prototype, ActivityWeekMethods);

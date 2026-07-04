@@ -58,7 +58,7 @@
         <field name="name">activity.efficiency.metrics.view.list</field>
         <field name="model">activity.efficiency.metrics</field>
         <field name="arch" type="xml">
-            <list string="Efficiency Metrics">
+            <list>
                 <field name="user_id" widget="many2one_avatar_user"/>
                 <field name="department_id" optional="show"/>
                 <field name="period_type"/>

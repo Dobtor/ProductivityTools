@@ -5073,3 +5073,55 @@ msgstr "週日"
 #: code:addons/dobtor_mail_activity/static/src/views/fields/planned_date_picker/planned_date_picker_field.js:0
 msgid "Planned date set to %s (visible in the All view)."
 msgstr "已排定計畫日期 %s（於「全部」檢視可見）。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__note_id
+msgid "Source Reference"
+msgstr "來源參考"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__note
+msgid "Todo Note"
+msgstr "待辦註記"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.crm_lead_view_form_inherit_productivity
+msgid "Create Project"
+msgstr "建立專案"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__project_id
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_crm_lead__project_id
+msgid "Project"
+msgstr "專案"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_res_company__dobtor_activity_timesheet_enabled
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_res_config_settings__dobtor_activity_timesheet_enabled
+msgid "Enable Activity Timesheet Recording"
+msgstr "啟用工時記錄"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_config_settings_view_form_inherit_productivity
+msgid "Timesheet Recording"
+msgstr "工時記錄"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+msgid "Leave empty for a standalone to-do"
+msgstr "留空即為獨立待辦（無關聯文件）"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__timesheet_ids
+msgid "Timesheet Entries"
+msgstr "工時記錄明細"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_res_config_settings__group_weekly_report
+msgid "Enable Weekly Report Management"
+msgstr "啟用週報管理"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_config_settings_view_form_inherit_productivity
+msgid "Weekly Report Management"
+msgstr "週報管理"

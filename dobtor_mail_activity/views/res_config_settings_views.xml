@@ -10,11 +10,24 @@
         <field name="inherit_id" ref="base.res_config_settings_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//form" position="inside">
-                <app data-string="Productivity Tools" string="Productivity Tools" name="dobtor_mail_activity" groups="dobtor_mail_activity.group_activity_manager">
-                    <block title="Timesheet Settings" name="timesheet_settings">
+                <app data-string="To-Do" string="To-Do" name="dobtor_mail_activity" groups="dobtor_mail_activity.group_activity_manager">
+                    <block title="Weekly Report" name="activity_weekly_report_settings">
+                        <setting id="activity_weekly_report_enabled_setting"
+                                 string="Weekly Report Management"
+                                 help="When enabled, weekly report menus, views and related design are shown. Disabling hides all weekly-report features.">
+                            <field name="group_weekly_report"/>
+                        </setting>
+                    </block>
+                    <block title="Timesheet Recording" name="activity_timesheet_settings">
+                        <setting id="activity_timesheet_enabled_setting"
+                                 string="Timesheet Recording"
+                                 help="When enabled, completing an activity logs time into timesheet entries and shows the Timesheet tab on the activity form. CRM project selection is unaffected by this switch.">
+                            <field name="dobtor_activity_timesheet_enabled"/>
+                        </setting>
                         <setting id="default_timesheet_project_setting"
                                  string="Default Timesheet Project"
-                                 help="When an activity is completed without a linked project, use this default project to create timesheet entries.">
+                                 help="When an activity is completed without a linked project, use this default project to create timesheet entries."
+                                 invisible="not dobtor_activity_timesheet_enabled">
                             <field name="timesheet_project_id"
                                    domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
                         </setting>

@@ -182,6 +182,13 @@ class MailMessage(models.Model):
         if self.model and self.res_id and self.model not in ('mail.channel', 'discuss.channel'):
             ctx['active_model'] = self.model
             ctx['active_id'] = self.res_id
+        else:
+            # 需求八：由 discuss（頻道/無文件）建立的待辦，預設客戶帶入
+            # 發訊者的公司（作者 partner 的 commercial_company_id；無則作者本人）
+            author = self.author_id
+            if author:
+                company_partner = author.commercial_partner_id or author
+                ctx['default_partner_id'] = company_partner.id
 
         return {
             'type': 'ir.actions.act_window',

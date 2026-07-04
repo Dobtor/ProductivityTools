@@ -10,7 +10,7 @@
         <field name="model">note.tag</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="Note Tags" editable="bottom">
+            <list editable="bottom">
                 <field name="name" string="Tag Name"/>
                 <field name="parent_id" string="Parent Category"/>
                 <field name="color" string="Color" widget="color_picker"/>

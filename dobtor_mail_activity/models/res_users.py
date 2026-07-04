@@ -11,9 +11,7 @@ class ResUsers(models.Model):
     - 效率指標計算參考
     - 工時超時警示
 
-    新增預設待辦筆記，用於：
-    - 建立待辦時若未選擇目標文件，自動關聯到此筆記
-    - 支援「獨立待辦」的使用情境
+    （需求七：已移除「預設待辦筆記」設計 —— 待辦可無關聯文件的獨立存在。）
     """
     _inherit = 'res.users'
 
@@ -21,14 +19,12 @@ class ResUsers(models.Model):
     @property
     def SELF_WRITEABLE_FIELDS(self):
         return super().SELF_WRITEABLE_FIELDS + [
-            'default_activity_note_id',
             'weekly_committed_hours',
         ]
 
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + [
-            'default_activity_note_id',
             'weekly_committed_hours',
             'weekly_report_count',
             'latest_efficiency_index',
@@ -38,13 +34,6 @@ class ResUsers(models.Model):
         string='Committed Hours',
         default=40.0,
         help='Weekly committed working hours, used for weekly report and efficiency metrics calculation',
-    )
-
-    # ===== 預設待辦筆記 =====
-    default_activity_note_id = fields.Many2one(
-        'note.note',
-        string='Default Activity Note',
-        help='When creating activity without selecting a target document, it will be automatically linked to this note.',
     )
 
     # ===== 週報告相關欄位 =====
@@ -213,40 +202,5 @@ class ResUsers(models.Model):
             'target': 'current',
         }
 
-    # ========== 預設待辦筆記方法 ==========
-
-    def _get_or_create_default_activity_note(self):
-        """取得或建立用戶的預設待辦筆記
-
-        若用戶已設定預設筆記且該筆記存在，則返回該筆記。
-        否則自動建立一個新的預設筆記並設定給用戶。
-
-        Returns:
-            note.note: 用戶的預設待辦筆記
-        """
-        self.ensure_one()
-
-        # 檢查是否已有預設筆記且存在
-        if self.default_activity_note_id and self.default_activity_note_id.exists():
-            return self.default_activity_note_id
-
-        # 建立新的預設筆記
-        note = self.env['note.note'].sudo().create({
-            'memo': _('<p><strong>%s Activity Inbox</strong></p>'
-                      '<p>This is your default activity note. Activities without a specified target document will be automatically linked here.</p>') % self.name,
-            'user_id': self.id,
-        })
-
-        # 設定為用戶的預設筆記
-        self.sudo().write({'default_activity_note_id': note.id})
-
-        return note
-
-    @api.model
-    def get_current_user_default_note(self):
-        """取得當前用戶的預設待辦筆記（API 方法）
-
-        Returns:
-            note.note: 當前用戶的預設待辦筆記
-        """
-        return self.env.user._get_or_create_default_activity_note()
+    # 需求七：已移除 _get_or_create_default_activity_note /
+    # get_current_user_default_note（不再有預設待辦筆記）。

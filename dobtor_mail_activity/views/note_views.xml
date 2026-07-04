@@ -89,7 +89,7 @@
         <field name="model">note.note</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="Notes" expand="1">
+            <list expand="1">
                 <field name="name" string="Title"/>
                 <field name="stage_id" string="Stage"
                        column_invisible="context.get('hide_stage')"

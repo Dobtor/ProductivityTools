@@ -1,6 +1,6 @@
 /** @odoo-module */
 
-import { Component, useState, onWillStart } from "@odoo/owl";
+import { Component, useState, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
@@ -28,13 +28,24 @@ export class RelatedNotes extends Component {
                 await this.loadNotes();
             }
         });
+
+        // Chatter 在表單記錄間切換時是同一實例、只更新 props（不重跑 onWillStart），
+        // 故需在 props 變更時重新載入，否則會持續顯示前一筆記錄的關聯筆記。
+        onWillUpdateProps(async (nextProps) => {
+            if (
+                nextProps.resId !== this.props.resId ||
+                nextProps.resModel !== this.props.resModel
+            ) {
+                await this.loadNotes(nextProps.resModel, nextProps.resId);
+            }
+        });
     }
 
     /**
      * 載入關聯筆記
      */
-    async loadNotes() {
-        if (!this.props.resModel || !this.props.resId) {
+    async loadNotes(resModel = this.props.resModel, resId = this.props.resId) {
+        if (!resModel || !resId) {
             this.state.notes = [];
             return;
         }
@@ -44,7 +55,7 @@ export class RelatedNotes extends Component {
             const notes = await this.orm.call(
                 'mail.activity',
                 'get_related_notes',
-                [this.props.resModel, this.props.resId]
+                [resModel, resId]
             );
             this.state.notes = notes;
         } catch (e) {

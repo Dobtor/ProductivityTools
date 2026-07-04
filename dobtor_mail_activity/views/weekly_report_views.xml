@@ -149,7 +149,7 @@
         <field name="name">weekly.report.view.list</field>
         <field name="model">weekly.report</field>
         <field name="arch" type="xml">
-            <list string="Weekly Reports">
+            <list>
                 <field name="name"/>
                 <field name="user_id" widget="many2one_avatar_user"/>
                 <field name="week_start"/>
@@ -199,7 +199,7 @@
         <field name="name">weekly.report.snapshot.line.view.list</field>
         <field name="model">weekly.report.snapshot.line</field>
         <field name="arch" type="xml">
-            <list string="Plan Snapshot" editable="bottom">
+            <list editable="bottom">
                 <field name="report_id" column_invisible="1"/>
                 <field name="activity_id" readonly="1"/>
                 <field name="summary"/>
@@ -219,7 +219,7 @@
         <field name="name">weekly.report.review.line.view.list</field>
         <field name="model">weekly.report.review.line</field>
         <field name="arch" type="xml">
-            <list string="Execution Review"
+            <list
                   decoration-muted="status == 'cancelled'"
                   decoration-danger="status == 'pending'"
                   decoration-warning="status == 'postponed'">

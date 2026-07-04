@@ -1,0 +1,118 @@
+.o_activity_relation_diagram {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+
+    .o_ard_toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        gap: 8px;
+
+        .o_ard_hint {
+            font-size: 12px;
+        }
+    }
+
+    .o_ard_status {
+        padding: 8px 0;
+        font-size: 13px;
+    }
+
+    // 邏輯圖畫布：固定高度、可平移（lib 內部處理 pan/zoom）
+    .o_ard_canvas {
+        position: relative;
+        width: 100%;
+        height: 360px;
+        border: 1px solid var(--gray-300, #dee2e6);
+        border-radius: 4px;
+        overflow: hidden;
+        background: #f7f8fb;
+    }
+
+    // 節點內「未完成待辦」：level-down/up 切換鈕（置於節點名稱前）
+    .o_ard_todo_toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        margin-right: 5px;
+        vertical-align: middle;
+        border: 1px solid var(--gray-300, #dee2e6);
+        border-radius: 5px;
+        background: var(--white, #fff);
+        color: #017E84;
+        cursor: pointer;
+
+        .o_ard_ic {
+            width: 11px;
+            height: 11px;
+            display: block;
+        }
+
+        &:hover {
+            border-color: #017E84;
+            background: #eef7f7;
+        }
+    }
+
+    // 節點內垂直下拉的待辦清單（往下展開，撐開節點高度 → 佈局自動下移兄弟）
+    .o_ard_todos {
+        margin-top: 5px;
+        padding-left: 9px;
+        border-left: 2px solid #017E84;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        cursor: default;
+        font-weight: 400;
+        text-align: left;
+    }
+
+    .o_ard_todo {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        max-width: 300px;
+        font-size: 11.5px;
+        line-height: 1.35;
+        background: var(--gray-100, #f6f6f7);
+        border: 1px solid var(--gray-300, #dee2e6);
+        border-radius: 6px;
+        padding: 3px 8px;
+        cursor: pointer;
+
+        &:hover {
+            border-color: #017E84;
+        }
+    }
+
+    .o_ard_dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex: 0 0 auto;
+
+        &.over { background: #c0392b; }
+        &.soon { background: #b9781a; }
+        &.ok { background: #2f8f5b; }
+    }
+
+    .o_ard_todo_txt {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--gray-800, #2b2733);
+    }
+
+    .o_ard_todo_when {
+        margin-left: auto;
+        padding-left: 8px;
+        font-size: 10.5px;
+        color: var(--gray-600, #6c757d);
+        font-variant-numeric: tabular-nums;
+    }
+}

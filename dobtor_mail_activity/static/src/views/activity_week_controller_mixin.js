@@ -181,11 +181,6 @@ export const ActivityWeekMethods = {
         return weekFilter;
     },
 
-    formatHours(hours) {
-        if (!hours) return '';
-        return hours.toFixed(1) + _t(' hours');
-    },
-
     async onWeekSelectChange(ev) {
         const raw = ev.target.value;
         const weekNumber = raw === 'all' ? 'all' : parseInt(raw, 10);
@@ -238,25 +233,6 @@ export const ActivityWeekMethods = {
         this.notification.add(_t("Completed %s activities", activityIds.length), {
             type: "success",
         });
-
-        await this.model.root.load();
-    },
-
-    async scheduleToWeek(weekNumber) {
-        const selectedRecords = this.model.root.selection;
-        if (!selectedRecords.length) {
-            this.notification.add(_t("Please select activities to schedule first"), {
-                type: "warning",
-            });
-            return;
-        }
-
-        const activityIds = selectedRecords.map(r => r.resId);
-        await this.orm.call(
-            'mail.activity',
-            'action_schedule_to_week',
-            [activityIds, weekNumber]
-        );
 
         await this.model.root.load();
     },

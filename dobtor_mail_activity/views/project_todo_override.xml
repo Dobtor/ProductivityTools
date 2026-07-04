@@ -3,13 +3,12 @@
 
     <!-- ============================================================ -->
     <!--      替換 project_todo 主選單 Action                           -->
+    <!--      （原 dobtor_mail_activity_timesheet 併入）                 -->
     <!-- ============================================================ -->
-
     <!--
         將 project_todo 主選單的 action 替換為本模組的「我的待辦事項」，
         點擊主選單直接開啟 mail.activity 的週排程 Kanban 視圖。
     -->
-
     <record id="project_todo.menu_todo_todos" model="ir.ui.menu">
         <field name="action" ref="dobtor_mail_activity.action_mail_activity_my_schedule"/>
     </record>

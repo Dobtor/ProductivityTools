@@ -185,7 +185,7 @@ class WeeklyScheduleConfig(models.Model):
             elif self.auto_create_note:
                 # 自動建立筆記本
                 today = fields.Date.today()
-                iso_year, iso_week, _ = today.isocalendar()
+                iso_year, iso_week, _dow = today.isocalendar()
                 week_str = '%d-W%02d' % (iso_year, iso_week)
                 note = self.env['note.note'].create({
                     'user_id': self.user_id.id,
@@ -221,7 +221,7 @@ class WeeklyScheduleConfig(models.Model):
         """取得待辦摘要（支援變數替換）"""
         self.ensure_one()
         today = fields.Date.today()
-        iso_year, iso_week, _ = today.isocalendar()
+        iso_year, iso_week, _dow = today.isocalendar()
         week_str = '%d-W%02d' % (iso_year, iso_week)
 
         summary = self.summary_template or _('Weekly Schedule')

@@ -29,6 +29,21 @@
             <field name="comment">Can view all activities, weekly reports and efficiency analysis</field>
         </record>
 
+        <!-- 週報管理功能開關群組（feature flag，供設定頁勾選啟停週報相關選單/視圖）
+             隱藏分類，不在使用者群組清單顯示；由 res.config.settings 的
+             group_weekly_report 以 implied_group 切換。 -->
+        <record id="group_weekly_report" model="res.groups">
+            <field name="name">Advanced Activity: Weekly Report Management</field>
+            <field name="category_id" ref="base.module_category_hidden"/>
+        </record>
+
+    </data>
+
+    <!-- 預設啟用週報管理（授予所有內部使用者）；noupdate 使升級不覆寫使用者之後的關閉選擇 -->
+    <data noupdate="1">
+        <record id="base.group_user" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('dobtor_mail_activity.group_weekly_report'))]"/>
+        </record>
     </data>
 
     <!-- ============================================
@@ -174,6 +189,59 @@
         </record>
 
         <!-- ==========================================
+             weekly.report.snapshot.line / weekly.report.review.line 記錄規則
+             子行依父週報的 user 做列級隔離（否則使用者可經 RPC 讀/改他人子行）
+             ========================================== -->
+
+        <!-- 用戶只能存取自己週報的快照行 -->
+        <record id="weekly_report_snapshot_line_rule_user" model="ir.rule">
+            <field name="name">Weekly Report Snapshot Line: User Access Own Only</field>
+            <field name="model_id" ref="model_weekly_report_snapshot_line"/>
+            <field name="domain_force">[('report_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 管理者可存取所有快照行 -->
+        <record id="weekly_report_snapshot_line_rule_manager" model="ir.rule">
+            <field name="name">Weekly Report Snapshot Line: Manager Access All</field>
+            <field name="model_id" ref="model_weekly_report_snapshot_line"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 用戶只能存取自己週報的回顧行 -->
+        <record id="weekly_report_review_line_rule_user" model="ir.rule">
+            <field name="name">Weekly Report Review Line: User Access Own Only</field>
+            <field name="model_id" ref="model_weekly_report_review_line"/>
+            <field name="domain_force">[('report_id.user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 管理者可存取所有回顧行 -->
+        <record id="weekly_report_review_line_rule_manager" model="ir.rule">
+            <field name="name">Weekly Report Review Line: Manager Access All</field>
+            <field name="model_id" ref="model_weekly_report_review_line"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ==========================================
              weekly.schedule.config 記錄規則
              ========================================== -->
 
@@ -282,6 +350,19 @@
             <field name="model_id" ref="model_mail_activity_postpone_history"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 工時管理員可查看所有效率指標
+             （原 dobtor_mail_activity_timesheet 併入；本模組硬相依 hr_timesheet）-->
+        <record id="efficiency_metrics_rule_timesheet_manager" model="ir.rule">
+            <field name="name">Efficiency Metrics: Timesheet Manager Access All Metrics</field>
+            <field name="model_id" ref="model_activity_efficiency_metrics"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('hr_timesheet.group_timesheet_manager'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
             <field name="perm_create" eval="True"/>

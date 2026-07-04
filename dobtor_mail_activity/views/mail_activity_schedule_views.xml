@@ -199,7 +199,7 @@
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="note_id" string="Note"
+                            <field name="note_id" string="Source Reference"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
                         </group>
@@ -215,7 +215,7 @@
                     </group>
 
                     <notebook>
-                        <page string="Note" name="note">
+                        <page string="Todo Note" name="note">
                             <field name="note" placeholder="Add note..."/>
                         </page>
                         <page string="Feedback" name="feedback" invisible="not feedback">
@@ -265,7 +265,7 @@
         <field name="name">mail.activity.view.list.created</field>
         <field name="model">mail.activity</field>
         <field name="arch" type="xml">
-            <list string="My Created Activities"
+            <list
                   js_class="activity_list"
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
@@ -457,7 +457,7 @@
         <field name="model">mail.activity</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <list string="Unassigned Activities"
+            <list
                   js_class="activity_list"
                   default_order="date_deadline asc, urgency desc"
                   multi_edit="1"
@@ -507,7 +507,7 @@
                             invisible="not active"/>
                     <button name="action_open_document" type="object"
                             string="Document"/>
-                    <field name="schedule_status" widget="statusbar" clickable="1"
+                    <field name="schedule_status" widget="statusbar"
                            options="{'clickable': '1'}"/>
                 </header>
                 <sheet>
@@ -574,7 +574,7 @@
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="note_id" string="Note"
+                            <field name="note_id" string="Source Reference"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
                         </group>
@@ -589,7 +589,7 @@
                     </group>
 
                     <notebook>
-                        <page string="Note" name="note">
+                        <page string="Todo Note" name="note">
                             <field name="note" placeholder="Add note..."/>
                         </page>
                     </notebook>

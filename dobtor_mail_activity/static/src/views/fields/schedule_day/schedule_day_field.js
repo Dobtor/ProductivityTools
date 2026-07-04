@@ -51,6 +51,12 @@ export const scheduleDayField = {
     ...selectionField,
     component: ScheduleDayField,
     displayName: _t("Schedule Day"),
+    // string getter 讀 planned_date 渲染「週X mm/dd」；宣告依賴確保被抓取，
+    // 即使該欄在 list 被設 optional 隱藏也不會退化成純選項標籤。
+    fieldDependencies: [
+        ...(selectionField.fieldDependencies || []),
+        { name: "planned_date", type: "date" },
+    ],
 };
 
 registry.category("fields").add("schedule_day", scheduleDayField);

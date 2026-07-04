@@ -8,10 +8,11 @@
         <field name="name">mail.activity.transfer.config.list</field>
         <field name="model">mail.activity.transfer.config</field>
         <field name="arch" type="xml">
-            <list string="Transfer Config" editable="bottom">
+            <list editable="bottom">
                 <field name="sequence" widget="handle"/>
                 <field name="model_id" options="{'no_create': True}"/>
                 <field name="partner_field" optional="show"/>
+                <field name="project_field" optional="show"/>
                 <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
@@ -34,6 +35,8 @@
                         <group>
                             <field name="partner_field"
                                    placeholder="partner_id (auto-detect if empty)"/>
+                            <field name="project_field"
+                                   placeholder="project_id (empty = no project FK)"/>
                             <field name="active" widget="boolean_toggle"/>
                         </group>
                     </group>

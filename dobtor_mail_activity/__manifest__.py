@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Advanced Activity Management',
-    'version': '18.0.1.5.5',
+    'version': '18.0.1.6.0',
     'category': 'Productivity',
     'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
     'description': """
@@ -58,10 +58,17 @@ Main Features:
         'calendar',
         'portal',
         'hr',
-        # project：僅為 res.company.default_timesheet_project_id（公司層級預設
-        # 工時專案設定）所需，此設定供本模組及生態系其他模組（如 meeting_minutes）
-        # 共用。完整工時表整合仍在 dobtor_mail_activity_timesheet 橋接模組。
         'project',
+        # 併入 dobtor_mail_activity_timesheet 後新增的硬相依：
+        # crm     → crm.lead.project_id（恆可選，與工時開關無關）
+        # sale_crm→ 銷售訂單確認回寫商機專案
+        # project_todo → 待辦事項 app 選單父節點與 My Activities 動作覆寫
+        # hr_timesheet → 工時表整合（Timesheet 分頁/工時加總/done 精靈）
+        #               「啟用工時記錄」為功能開關，非條件安裝
+        'crm',
+        'sale_crm',
+        'project_todo',
+        'hr_timesheet',
     ],
     'data': [
         # Security
@@ -90,10 +97,20 @@ Main Features:
         'views/res_company_views.xml',
         'views/res_config_settings_views.xml',
         'views/weekly_schedule_config_views.xml',
+        # 併入自 dobtor_mail_activity_timesheet（crm/專案/工時整合）
+        'views/crm_lead_views.xml',
+        'views/project_project_views.xml',
+        'views/mail_activity_timesheet_views.xml',
+        'views/project_todo_override.xml',
+        'views/mail_activity_report_views.xml',
         'views/menu_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
+            # Vendored 邏輯圖渲染器（window.OdooMindMap，自 dobtor_xmind 複製，
+            # 零 import 自足），供關聯圖 widget 使用。需先於 widget 載入。
+            'dobtor_mail_activity/static/lib/mindmap/jsmind.css',
+            'dobtor_mail_activity/static/lib/mindmap/jsmind.js',
             # Core (mail extensions)
             'dobtor_mail_activity/static/src/core/**/*',
             # Shared utilities
@@ -108,9 +125,6 @@ Main Features:
             'dobtor_mail_activity/static/src/editor/**/*',
             # Styles
             'dobtor_mail_activity/static/src/scss/**/*',
-        ],
-        'web.assets_unit_tests': [
-            'dobtor_mail_activity/static/tests/**/*',
         ],
     },
     'installable': True,

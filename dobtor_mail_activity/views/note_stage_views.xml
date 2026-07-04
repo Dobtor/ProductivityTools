@@ -10,7 +10,7 @@
         <field name="model">note.stage</field>
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <list string="Note Stages" editable="bottom">
+            <list editable="bottom">
                 <field name="sequence" widget="handle"/>
                 <field name="name" string="Stage Name"/>
                 <field name="user_id" string="Owner" widget="many2one_avatar_user"/>

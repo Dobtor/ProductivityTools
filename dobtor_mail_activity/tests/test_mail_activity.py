@@ -2,7 +2,6 @@
 
 from datetime import date, timedelta
 from odoo.tests.common import TransactionCase, tagged
-from odoo.exceptions import ValidationError, UserError
 
 
 @tagged('post_install', '-at_install')
@@ -95,7 +94,6 @@ class TestMailActivity(TransactionCase):
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
-            'actual_hours': 1.0,
         })
 
         # 執行完成（透過內部方法）
@@ -223,15 +221,17 @@ class TestMailActivity(TransactionCase):
 
         self.assertEqual(activity.estimated_hours, 2.5)
 
-    def test_12_target_ref_validation(self):
-        """測試目標文件驗證"""
-        with self.assertRaises(ValidationError):
-            self.env['mail.activity'].create({
-                'summary': '無目標文件',
-                'activity_type_id': self.activity_type.id,
-                'date_deadline': date.today(),
-                # 缺少 res_model_id 和 res_id
-            })
+    def test_12_standalone_activity_allowed(self):
+        """需求七：允許建立無關聯文件（res_model_id/res_id 皆空）的獨立待辦。"""
+        activity = self.env['mail.activity'].create({
+            'summary': '獨立待辦（無目標文件）',
+            'activity_type_id': self.activity_type.id,
+            'date_deadline': date.today(),
+            # 刻意不帶 res_model_id / res_id
+        })
+        self.assertTrue(activity.id)
+        self.assertFalse(activity.res_model_id)
+        self.assertFalse(activity.res_id)
 
     def test_13_transfer_activity(self):
         """測試轉移待辦功能"""

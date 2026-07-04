@@ -20,8 +20,8 @@ class MailActivityCreateWizard(models.TransientModel):
     目標文件（res）兩種情境：
       - 已知（context 帶 active_model/active_id）：res_known=True，唯讀顯示
         目標，不顯示輸入。
-      - 未知：res_known=False，顯示 target_ref 輸入；留空 → fallback 使用者
-        個人待辦筆記（與舊 editor wizard 一致）。
+      - 未知：res_known=False，顯示 target_ref 輸入；留空 → 建立無關聯的
+        獨立待辦（需求七：不再 fallback 預設個人筆記本）。
 
     note_id 為獨立關聯，各情境皆可編輯。urgency / importance /
     estimated_hours / note_id 透過 activity_schedule 的 **act_values 寫入
@@ -31,6 +31,14 @@ class MailActivityCreateWizard(models.TransientModel):
     _inherit = 'mail.activity.schedule'
     _description = 'Create To-do Wizard'
 
+    # 需求七：res-less 獨立待辦。官方 mail.activity.schedule 把 res_model /
+    # res_model_id 設為 required=True 且僅由 context 的 active_model 填值，但
+    # systray「Create To-do」與編輯器 powerbox 入口皆不帶 active_model，會使
+    # 這兩個必填欄位存 NULL → 存檔失敗。與 mail_activity.py 對 mail.activity 的
+    # res_model_id 覆寫一致，此處放寬為非必填（留空 → fallback 個人待辦筆記）。
+    res_model = fields.Char(required=False)
+    res_model_id = fields.Many2one('ir.model', required=False)
+
     # ===== 目標已知 / 未知 =====
     res_known = fields.Boolean(string='Target Known')
     res_display = fields.Char(string='Target Document', compute='_compute_res_display')
@@ -38,7 +46,7 @@ class MailActivityCreateWizard(models.TransientModel):
         string='Target Document',
         selection='_selection_target_model',
         help='Business document this activity is attached to. '
-             'Leave empty to use your personal to-do note.',
+             'Leave empty to create a standalone to-do.',
     )
     # 由 note.note 編輯器建立時：不自動帶入 res，但要求必選目標文件（res_id 必填）。
     target_required = fields.Boolean(
@@ -90,10 +98,12 @@ class MailActivityCreateWizard(models.TransientModel):
 
     @api.depends('activity_type_id')
     def _compute_date_deadline(self):
-        """覆寫官方：建立待辦預設截止日固定為「今天」，不採活動類型的延遲天數
-        （官方會用 activity_type._get_date_deadline()，To-Do 類型為今天+5）。"""
+        """覆寫官方：建立待辦預設截止日「今天」，不採活動類型的延遲天數
+        （官方會用 activity_type._get_date_deadline()，To-Do 類型為今天+5）。
+        僅在尚未設定時填今天，避免使用者手改後又換活動類型被 compute 覆蓋。"""
         for wiz in self:
-            wiz.date_deadline = fields.Date.context_today(wiz)
+            if not wiz.date_deadline:
+                wiz.date_deadline = fields.Date.context_today(wiz)
 
     @api.model
     def default_get(self, fields_list):
@@ -112,26 +122,16 @@ class MailActivityCreateWizard(models.TransientModel):
         res = super().default_get(fields_list)
         res['res_known'] = is_known
 
-        if not is_known:
-            # 未知：res 先放個人待辦筆記，確保官方 res_model(required)/res_model_id
-            # compute 不出錯；建立時若使用者選了 target_ref 會以其為準。
-            note = self.env.user._get_or_create_default_activity_note()
-            if note:
-                if 'res_model' in fields_list:
-                    res['res_model'] = 'note.note'
-                if 'res_ids' in fields_list:
-                    res['res_ids'] = str([note.id])
+        # 需求七：未知情境不再回填預設筆記；未選 target_ref 即建立「獨立待辦」
+        # （res 為空），由 _action_schedule_activities 直接建立 mail.activity。
 
-        # note_id 預設（獨立關聯）
+        # note_id 預設（來源參考）：僅在 context 明確帶入、或編輯 note.note 時帶入
         if 'note_id' in fields_list and not res.get('note_id'):
             note_id = ctx.get('default_note_id')
             if note_id:
                 res['note_id'] = note_id
             elif active_model == 'note.note' and active_id:
                 res['note_id'] = active_id
-            else:
-                note = self.env.user._get_or_create_default_activity_note()
-                res['note_id'] = note.id if note else False
 
         # 待辦類型預設：待辦事項
         if 'activity_type_id' in fields_list and not res.get('activity_type_id'):
@@ -142,15 +142,21 @@ class MailActivityCreateWizard(models.TransientModel):
         return res
 
     def _get_applied_on_records(self):
-        """未知情境且使用者已選 target_ref → 以其為建立目標；否則沿用官方
-        （res_model/res_ids，未選時即個人待辦筆記）。"""
+        """未知情境且使用者已選 target_ref → 以其為建立目標；已知情境沿用官方。
+        需求七：未知且未選 target_ref → 回傳空集合（建立獨立待辦，無關聯文件）。"""
         self.ensure_one()
         if not self.res_known and self.target_ref:
             return self.target_ref
+        if not self.res_known:
+            # 無目標文件 → 獨立待辦
+            return self.env['mail.activity'].browse()
         return super()._get_applied_on_records()
 
     def _action_schedule_activities(self):
-        """沿用官方建立路徑，額外帶入本模組自訂欄位與獨立關聯筆記。"""
+        """沿用官方建立路徑，額外帶入本模組自訂欄位與來源參考。
+
+        需求七：無關聯文件時直接建立 res-less 的 mail.activity；
+        需求五/八：帶入 partner_id（若 context/欄位有值）。"""
         act_values = {
             'urgency': self.urgency,
             'importance': self.importance,
@@ -160,15 +166,33 @@ class MailActivityCreateWizard(models.TransientModel):
             act_values['note_id'] = self.note_id.id
         if self.source_message_id:
             act_values['source_message_id'] = self.source_message_id.id
-        return self._get_applied_on_records().activity_schedule(
-            activity_type_id=self.activity_type_id.id,
-            automated=False,
-            summary=self.summary,
-            note=self.note,
-            user_id=self.activity_user_id.id,
-            date_deadline=self.date_deadline,
+        # 需求八：discuss 建立時 context 帶入 default_partner_id
+        partner_id = self.env.context.get('default_partner_id')
+
+        records = self._get_applied_on_records()
+        if records:
+            return records.activity_schedule(
+                activity_type_id=self.activity_type_id.id,
+                automated=False,
+                summary=self.summary,
+                note=self.note,
+                user_id=self.activity_user_id.id,
+                date_deadline=self.date_deadline,
+                **act_values,
+            )
+
+        # 獨立待辦（無關聯文件）：直接建立 mail.activity
+        vals = {
+            'activity_type_id': self.activity_type_id.id,
+            'summary': self.summary,
+            'note': self.note,
+            'user_id': self.activity_user_id.id,
+            'date_deadline': self.date_deadline,
             **act_values,
-        )
+        }
+        if partner_id:
+            vals['partner_id'] = partner_id
+        return self.env['mail.activity'].create(vals)
 
     def action_create_todo(self):
         """建立待辦並回傳新待辦 id（供編輯器插入回饋膠囊 / 清單刷新）。"""

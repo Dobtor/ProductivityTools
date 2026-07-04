@@ -1,0 +1,42 @@
+/**
+ * XMind Renderer Styles (minimal — most styling is inline from the renderer)
+ */
+
+/* World container */
+.xmind-world {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Nodes layer */
+.xmind-nodes {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* Node base */
+.xmind-node {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    transition: box-shadow 0.15s ease;
+}
+
+/* Selection highlight */
+.xmind-node.xmind-selected {
+    box-shadow: 0 0 0 2px #428bca, 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+    z-index: 10;
+}
+
+/* Multi-selection */
+.xmind-node.multi-selected {
+    outline: 3px solid #007bff;
+    outline-offset: 2px;
+}
+
+/* Edit input */
+.xmind-edit-input {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}

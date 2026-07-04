@@ -46,6 +46,14 @@ class MailActivityTransferConfig(models.Model):
              'a "partner_id" field. Used by activities to derive their related customer '
              'without hard-coding any specific module.',
     )
+    project_field = fields.Char(
+        string='Project Field',
+        help='Technical name of the field on this model that points to a '
+             'project.project, e.g. "project_id". Used to build the FK relation '
+             'diagram (project -> related records) and to derive an activity\'s '
+             'project from its linked document, without hard-coding any module. '
+             'For project.project itself, leave empty (it is its own project).',
+    )
     active = fields.Boolean(
         string='Active',
         default=True,
@@ -92,15 +100,18 @@ class MailActivityTransferConfig(models.Model):
 
     @api.model
     def _get_relation_map(self):
-        """回傳 {model_name: {'partner_field': ...}} 供 mail.activity 設定驅動派生關聯。
+        """回傳 {model_name: {'partner_field': ..., 'project_field': ...}}
+        供 mail.activity 設定驅動派生關聯（客戶）、專案關聯與關聯圖。
 
         只回傳啟用中的設定；partner_field 為空表示讓 mail.activity 自動探測。
+        project_field 為空表示該模型無專案 FK（或它本身即 project.project）。
         """
         result = {}
         for config in self.search([('active', '=', True)]):
             if config.model:
                 result[config.model] = {
                     'partner_field': config.partner_field or False,
+                    'project_field': config.project_field or False,
                 }
         return result
 
@@ -118,31 +129,30 @@ class MailActivityTransferConfig(models.Model):
     def create_default_configs(self):
         """建立預設配置（供模組安裝時使用）
 
-        預設允許的模型:
-        - note.note: 筆記本
-        - res.partner: 聯絡人
-        - crm.lead: CRM 商機
-        - project.project: 專案
-        - project.task: 任務
-        - sale.order: 銷售訂單
-        - purchase.order: 採購訂單
-        - account.move: 會計分錄（發票）
-        - helpdesk.ticket: 服務台工單
+        預設允許的模型（含指向 project.project 的 FK 欄位 project_field，
+        供關聯圖 / 客戶推導 / 專案推導使用）:
+        - note.note / res.partner / purchase.order / account.move /
+          helpdesk.ticket：無專案 FK
+        - crm.lead / project.task / sale.order：project_id
+        - project.project：本身即專案（project_field 留空）
+
+        升級既有設定時，會補填尚未設定的 project_field（不覆蓋使用者手改值）。
         """
+        # (model_name, project_field)
         default_models = [
-            'note.note',
-            'res.partner',
-            'crm.lead',
-            'project.project',
-            'project.task',
-            'sale.order',
-            'purchase.order',
-            'account.move',
-            'helpdesk.ticket',
+            ('note.note', False),
+            ('res.partner', False),
+            ('crm.lead', 'project_id'),
+            ('project.project', False),
+            ('project.task', 'project_id'),
+            ('sale.order', 'project_id'),
+            ('purchase.order', False),
+            ('account.move', False),
+            ('helpdesk.ticket', False),
         ]
 
         created = self.env['mail.activity.transfer.config']
-        for sequence, model_name in enumerate(default_models, start=10):
+        for sequence, (model_name, project_field) in enumerate(default_models, start=10):
             # 檢查模型是否存在
             model = self.env['ir.model'].search([('model', '=', model_name)], limit=1)
             if not model:
@@ -151,12 +161,16 @@ class MailActivityTransferConfig(models.Model):
             # 檢查是否已有配置（含已停用者，避免升級時重複建立）
             existing = self.with_context(active_test=False).search([('model', '=', model_name)])
             if existing:
+                # 升級補填 project_field（僅在尚未設定時），不覆蓋使用者手改
+                if project_field and not existing.project_field:
+                    existing.project_field = project_field
                 continue
 
             # 建立配置
             created |= self.create({
                 'model_id': model.id,
                 'sequence': sequence,
+                'project_field': project_field or False,
             })
 
         return created

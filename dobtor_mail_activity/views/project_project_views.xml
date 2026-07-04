@@ -3,6 +3,7 @@
 
     <!-- ============================================================ -->
     <!--       專案表單擴展 - CRM 商機 Smart Button                     -->
+    <!--       （原 dobtor_mail_activity_timesheet 併入）                -->
     <!-- ============================================================ -->
     <record id="project_project_view_form_inherit_productivity" model="ir.ui.view">
         <field name="name">project.project.view.form.inherit.productivity</field>

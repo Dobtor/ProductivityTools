@@ -156,7 +156,7 @@ class ActivityEfficiencyMetrics(models.Model):
                 continue
 
             if record.period_type == 'week':
-                iso_year, iso_week, _ = record.period_start.isocalendar()
+                iso_year, iso_week, _dow = record.period_start.isocalendar()
                 record.period_name = '%d-W%02d' % (iso_year, iso_week)
             elif record.period_type == 'month':
                 record.period_name = record.period_start.strftime('%Y-%m')
@@ -329,7 +329,11 @@ class ActivityEfficiencyMetrics(models.Model):
 
                 if act['done_date']:
                     completed += 1
-                    if act['date_deadline'] and act['done_date'].date() <= act['date_deadline']:
+                    # done_date 為 UTC datetime，date_deadline 為本地 Date；
+                    # 先轉本地時區再取日期，避免近午夜完成被誤判準時/逾期（UTC+8）。
+                    done_local_date = fields.Datetime.context_timestamp(
+                        self, act['done_date']).date()
+                    if act['date_deadline'] and done_local_date <= act['date_deadline']:
                         on_time += 1
 
                 if (act['postpone_count'] or 0) > 0:

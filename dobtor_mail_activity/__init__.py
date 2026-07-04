@@ -17,11 +17,11 @@ def _create_default_note_stages_for_existing_users(env):
     ])
 
     NoteStage = env['note.stage']
+    # 與 data/note_data.xml（admin 預設階段）一致：暫記 / 規劃中 / 定稿發佈
     default_stages = [
-        {'name': 'Notes', 'sequence': 1, 'fold': False},
-        {'name': 'Meeting Minutes', 'sequence': 5, 'fold': False},
-        {'name': 'Manuals', 'sequence': 10, 'fold': False},
-        {'name': 'References', 'sequence': 50, 'fold': True},
+        {'name': '暫記', 'sequence': 1, 'fold': False},
+        {'name': '規劃中', 'sequence': 5, 'fold': False},
+        {'name': '定稿發佈', 'sequence': 10, 'fold': False},
     ]
 
     # Batch query users who already have stages

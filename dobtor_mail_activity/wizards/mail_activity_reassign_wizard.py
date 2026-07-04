@@ -130,22 +130,14 @@ class MailActivityReassignWizard(models.TransientModel):
                 self.activity_id.source_message_id, self.new_user_id
             )
 
-    def _send_notification_to_new_user(self):
-        """發送通知給新負責人"""
-        self.ensure_one()
-        if self.new_user_id.partner_id:
-            # 使用 Odoo 18 的 _bus_send 方法
-            self.new_user_id._bus_send(
-                'mail.activity/updated',
-                {'activity_created': True}
-            )
 
     def action_confirm(self):
         """確認變更指派"""
         self.ensure_one()
         self._validate_reassign()
 
-        now = fields.Datetime.now()
+        # 顯示於備註的時間戳需轉本地時區（Datetime.now() 為 UTC，UTC+8 使用者會少 8 小時）
+        now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
         now_str = now.strftime('%Y-%m-%d %H:%M')
 
         # 準備變更記錄文字
@@ -172,8 +164,8 @@ class MailActivityReassignWizard(models.TransientModel):
 
         self._cancel_original_activity(cancel_note)
 
-        # 發送通知給新負責人
-        self._send_notification_to_new_user()
+        # 通知與 systray 計數由 mail.activity.create() 覆寫統一處理
+        # （其到期過濾邏輯已對新負責人發送 count_diff，此處不可重複發送以免重複計數）
 
         # 刷新視圖（原待辦會從當前用戶的列表中移除）
         return {

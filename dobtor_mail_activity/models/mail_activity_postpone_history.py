@@ -63,7 +63,11 @@ class MailActivityPostponeHistory(models.Model):
     def _compute_display_name(self):
         """計算顯示名稱"""
         for record in self:
-            date_str = record.postpone_date.strftime('%Y-%m-%d %H:%M') if record.postpone_date else ''
+            # postpone_date 為 UTC Datetime，顯示前轉本地時區（UTC+8）；
+            # original_planned_date 為 Date（無時區），不轉。
+            date_str = fields.Datetime.context_timestamp(
+                record, record.postpone_date).strftime('%Y-%m-%d %H:%M') \
+                if record.postpone_date else ''
             original = record.original_planned_date.strftime('%Y-%m-%d') if record.original_planned_date else record.original_week or _('None')
             record.display_name = '%s (%s)' % (date_str, original)
 
@@ -90,7 +94,7 @@ class MailActivityPostponeHistory(models.Model):
         # 計算原週次
         original_week = False
         if activity.planned_date:
-            year, week, _ = activity.planned_date.isocalendar()
+            year, week, _dow = activity.planned_date.isocalendar()
             original_week = '%d-W%02d' % (year, week)
 
         return self.create({

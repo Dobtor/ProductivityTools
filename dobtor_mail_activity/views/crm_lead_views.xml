@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--   CRM 商機表單擴展 - 專案關聯 + Smart Button + 建立專案按鈕     -->
+    <!--   （原 dobtor_mail_activity_timesheet 併入 + 需求一）           -->
+    <!-- ============================================================ -->
+    <record id="crm_lead_view_form_inherit_productivity" model="ir.ui.view">
+        <field name="name">crm.lead.view.form.inherit.productivity</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Smart Button: 專案任務數量 -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_tasks" type="object"
+                        class="oe_stat_button" icon="fa-tasks"
+                        invisible="not project_id">
+                    <field name="task_count" widget="statinfo" string="Tasks"/>
+                </button>
+            </xpath>
+
+            <!-- 需求一：project 欄位移至標題(name)下方、預期收入(expected_revenue)上方，
+                 並在欄位後方加「建立專案」按鈕（僅商機顯示） -->
+            <xpath expr="//div[@class='oe_title']/h1" position="after">
+                <div class="o_row align-items-center mb-2" name="opportunity_project"
+                     invisible="type == 'lead'">
+                    <label for="project_id" string="Project" class="oe_edit_only me-2"/>
+                    <field name="project_id" options="{'no_create': True}" class="oe_inline"/>
+                    <button name="action_create_project_from_lead" type="object"
+                            string="Create Project" class="btn btn-link oe_inline ms-2"
+                            invisible="project_id"/>
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

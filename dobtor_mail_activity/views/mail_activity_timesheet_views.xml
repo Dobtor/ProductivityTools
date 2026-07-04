@@ -2,15 +2,21 @@
 <odoo>
 
     <!-- ============================================================ -->
-    <!-- 在待辦表單加回「工時表」分頁（橋接：需要工時表整合）              -->
+    <!-- 待辦表單「工時表」分頁（原 dobtor_mail_activity_timesheet 併入） -->
+    <!-- 需求九：分頁依公司「啟用工時記錄」開關顯示/隱藏                    -->
     <!-- ============================================================ -->
     <record id="mail_activity_view_form_schedule_timesheet" model="ir.ui.view">
         <field name="name">mail.activity.form.schedule.timesheet</field>
         <field name="model">mail.activity</field>
         <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_schedule"/>
         <field name="arch" type="xml">
+            <!-- 隱藏欄位置於 conditional page 之外，確保 page 的 invisible 可評估 -->
+            <xpath expr="//field[@name='can_edit_as_creator']" position="after">
+                <field name="timesheet_feature_enabled" invisible="1"/>
+            </xpath>
             <xpath expr="//page[@name='note']" position="after">
-                <page string="Timesheet" name="timesheet">
+                <page string="Timesheet" name="timesheet"
+                      invisible="not timesheet_feature_enabled">
                     <field name="timesheet_ids" readonly="1" context="{'default_activity_id': id}">
                         <list>
                             <field name="date"/>

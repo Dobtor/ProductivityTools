@@ -14,6 +14,10 @@ class CrmLead(models.Model):
     - 商機可關聯到專案，用於工時記錄歸屬
     - 建立商機（opportunity）時自動填入公司預設工時表專案
     - 專案變更時自動遷移相關工時記錄
+    - 「建立專案」按鈕：以商機名稱快速建立專案並回填
+
+    （原 dobtor_mail_activity_timesheet 併入；project_id 與工時開關無關，
+    即便關閉工時記錄仍恆可選擇。）
     """
     _inherit = 'crm.lead'
 
@@ -194,4 +198,31 @@ class CrmLead(models.Model):
             'context': {
                 'default_project_id': self.project_id.id,
             },
+        }
+
+    def action_create_project_from_lead(self):
+        """以當前商機標題快速建立專案，並回填 project_id（需求一）。
+
+        專案名稱帶入商機標題，客戶帶入商機客戶；建立後開啟該專案表單。
+        若商機已有專案則不重複建立（按鈕於前端亦以 project_id 隱藏）。
+        """
+        self.ensure_one()
+        if self.project_id:
+            return self.action_view_tasks()
+
+        project = self.env['project.project'].create({
+            'name': self.name or _('New Project'),
+            'partner_id': self.partner_id.id or False,
+            'company_id': self.company_id.id or self.env.company.id,
+        })
+        self.project_id = project.id
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Project'),
+            'res_model': 'project.project',
+            'res_id': project.id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
         }

@@ -55,7 +55,26 @@ class MailActivity(models.Model):
         index='btree_not_null',
         model_field='res_model',
         readonly=False,  # 改為可寫入
+        required=False,  # 需求七：獨立待辦可無 res（與 res_model_id 一致）
     )
+
+    # ===== 覆寫 res_model_id 為非必填（需求七：允許無關聯文件的獨立待辦）=====
+    # 官方為 required=True(NOT NULL) + SQL CHECK(res_id NOT NULL)，本模組原以
+    # 「預設筆記本」規避。需求七移除該規避，改為讓 res 真正可空。
+    res_model_id = fields.Many2one(
+        'ir.model',
+        'Document Model',
+        index=True,
+        ondelete='cascade',
+        required=False,  # 官方為 True
+    )
+
+    # 中和官方 SQL 約束 check_res_id_is_set（同名覆寫為恆真）；殘留於 DB 的
+    # 舊約束由 migration 18.0.1.6.0 DROP。
+    _sql_constraints = [
+        ('check_res_id_is_set', 'CHECK(1=1)',
+         'Standalone activities may have no related document (res_id is optional).'),
+    ]
 
     # ===== 封存相關 =====
     active = fields.Boolean(
@@ -79,14 +98,17 @@ class MailActivity(models.Model):
         ('cancelled', 'Cancelled'),
     ], string='Activity Status', compute='_compute_activity_status', store=True)
 
-    # ===== 關聯筆記 =====
+    # ===== 來源參考（需求四：note_id 顯示為「來源參考 / Source Reference」）=====
     note_id = fields.Many2one(
         'note.note',
-        string='Related Note',
+        string='Source Reference',
         index=True,
         ondelete='set null',
-        help='Note linked to this activity',
+        help='Source note referenced by this activity',
     )
+
+    # 需求四：核心 note（HTML）欄位顯示為「待辦註記 / Todo Note」
+    note = fields.Html(string='Todo Note')
 
     # ===== res_name 儲存計算結果以提升效能 =====
     res_name = fields.Char(
@@ -226,12 +248,27 @@ class MailActivity(models.Model):
         help='Estimated time required for execution (hours)',
     )
 
-    # actual_hours：核心為普通欄位（可手動累計）。
-    # 安裝 timesheet 橋接模組（dobtor_mail_activity_timesheet）後，
-    # 會被改寫為由關聯工時表記錄自動加總的計算欄位。
+    # ===== 工時表整合（原 dobtor_mail_activity_timesheet 併入）=====
+    # 本模組硬相依 hr_timesheet，actual_hours 改為由關聯工時表記錄
+    # （timesheet_ids）自動加總；工時表記錄由完成精靈依「啟用工時記錄」
+    # 開關建立（見 res.company.dobtor_activity_timesheet_enabled）。
+    timesheet_ids = fields.One2many(
+        'account.analytic.line',
+        'activity_id',
+        string='Timesheet Entries',
+    )
     actual_hours = fields.Float(
         string='Actual Hours',
-        help='Total time spent on this activity (hours).',
+        compute='_compute_actual_hours',
+        store=True,
+        readonly=True,
+        help='Total of all logged hours (from linked timesheet entries).',
+    )
+
+    # 非儲存：供表單 Timesheet 分頁 invisible 綁定（需求九功能開關）。
+    timesheet_feature_enabled = fields.Boolean(
+        string='Timesheet Feature Enabled',
+        compute='_compute_timesheet_feature_enabled',
     )
 
     feedback = fields.Text(
@@ -254,12 +291,36 @@ class MailActivity(models.Model):
     # partner_id 由 mail.activity.transfer.config 指定的 partner 欄位
     #（或自動探測模型上的 'partner_id'）派生；「關聯文件」顯示沿用既有的
     # res_name（= 來源文件 display_name），同樣不認得任何具體模組。
+    # partner_id：可手填（需求五）。不再是純 compute —— 改由 helper
+    # _derive_partner_from_source() 於 res/project onchange 與 create 時派生：
+    # res 記錄的 partner_field → 專案客戶 → 否則留空/手填（手填不被覆寫）。
     partner_id = fields.Many2one(
         'res.partner',
         string='Customer',
-        compute='_compute_partner_id',
+        index=True,
         store=True,
     )
+
+    # ===== 專案關聯（需求二/三/五/六共用；設定驅動 FK）=====
+    # 可空、可手填。與 res 雙向 onchange（見 _onchange_*）：選 project 後可用
+    # 邏輯圖挑 res；直接選 res 亦反推 project。
+    project_id = fields.Many2one(
+        'project.project',
+        string='Project',
+        index=True,
+        help='Related project. Used for the relation diagram, customer '
+             'fallback and grouped report.',
+    )
+
+    # 承載關聯邏輯圖 widget 的錨點欄位（非儲存、無資料意義；widget 讀取整筆記錄）
+    relation_diagram_anchor = fields.Boolean(
+        string='Relation Diagram',
+        compute='_compute_relation_diagram_anchor',
+    )
+
+    def _compute_relation_diagram_anchor(self):
+        for activity in self:
+            activity.relation_diagram_anchor = False
 
     # ===== 警告相關 =====
     schedule_warning = fields.Char(
@@ -356,13 +417,12 @@ class MailActivity(models.Model):
 
     @api.model
     def get_editor_default_note_id(self):
-        """回傳目前使用者的個人待辦筆記 id（供富文字編輯器內嵌清單在「無對應記錄」
-        情境下綁定 note_id 使用；無則建立）。
+        """需求七：已移除「預設筆記本」設計 —— 不再有個人待辦筆記。
 
-        註：因可能觸發 _get_or_create_default_activity_note 的建立寫入，
-        故不可標記 @api.readonly。"""
-        note = self.env.user._get_or_create_default_activity_note()
-        return note.id if note else False
+        富文字編輯器內嵌清單/時鐘在「無對應記錄」情境下不再退回預設筆記；
+        呼叫端（activity_clock_toolbar.js）對 False 有優雅退化（顯示空）。
+        """
+        return False
 
     @api.model
     def _editor_activity_domain(self, bind, res_model=False, res_id=False, note_id=False):
@@ -381,8 +441,8 @@ class MailActivity(models.Model):
             ]
         if bind == 'res' and res_model and res_id:
             return [('res_model', '=', res_model), ('res_id', '=', int(res_id))]
-        note = self.env.user._get_or_create_default_activity_note()
-        return [('note_id', '=', note.id)] if note else [('id', '=', False)]
+        # 需求七：無預設筆記 —— 退回「目前使用者的獨立待辦（無關聯文件）」
+        return [('user_id', '=', self.env.uid), ('res_model', '=', False)]
 
     @api.model
     def get_editor_activities(self, bind, res_model=False, res_id=False, note_id=False, limit=0):
@@ -447,7 +507,7 @@ class MailActivity(models.Model):
     def _inverse_target_ref(self):
         """反向設定 res_model_id 和 res_id
 
-        當 target_ref 為空時，自動關聯到用戶的預設待辦筆記。
+        需求七：target_ref 為空時，res 真正清空（不再回填預設筆記）。
         """
         for activity in self:
             if activity.target_ref:
@@ -456,13 +516,9 @@ class MailActivity(models.Model):
                 activity.res_model_id = self.env['ir.model']._get(model_name)
                 activity.res_id = activity.target_ref.id
             else:
-                # target_ref 為空時，自動關聯到用戶的預設筆記
-                # 因為官方 res_model_id 是 NOT NULL，不能設為 False
-                target_user = activity.user_id or self.env.user
-                default_note = target_user._get_or_create_default_activity_note()
-                activity.res_model_id = self.env['ir.model']._get('note.note')
-                activity.res_id = default_note.id
-                activity.note_id = default_note
+                # 獨立待辦：res 清空
+                activity.res_model_id = False
+                activity.res_id = False
 
     @api.onchange('target_ref')
     def _onchange_target_ref(self):
@@ -481,20 +537,49 @@ class MailActivity(models.Model):
                     self.res_id = target_id
             except Exception as e:
                 _logger.warning('Error in _onchange_target_ref: %s', str(e))
-        # 不在 onchange 中自動設定預設筆記，避免選擇被強制覆蓋
-        # create() 和 _inverse_target_ref() 會在儲存時處理空值
+        # 需求七：不在 onchange 中自動設定預設筆記；清空即為獨立待辦
 
-    def _set_default_note(self):
-        """設定預設筆記為關聯目標"""
-        target_user = self.user_id or self.env.user
-        default_note = target_user._get_or_create_default_activity_note()
-        self.res_model_id = self.env['ir.model']._get('note.note')
-        self.res_id = default_note.id
-        self.note_id = default_note
+    @api.model
+    def _search(self, domain, offset=0, limit=None, order=None):
+        """覆寫官方存取過濾，支援 res 為空的獨立待辦（需求七）。
 
-    # 注意：已移除 _check_target_document 約束
-    # 改為在 create 時自動關聯到用戶的預設筆記（若未指定目標文件）
-    # 這允許建立「獨立待辦」，同時保持與 Odoo mail.activity 設計的相容性
+        官方 mail.activity._search（mail/models/mail_activity.py）對
+        user_id != uid 的列會 self.env[res_model].browse(...) 做文件存取檢查，
+        res_model 為空時會 KeyError（未指派視圖 user_id=False 會踩到）。
+
+        本覆寫直接以 models.Model._search 取基礎查詢（繞過官方 _search 的
+        存取過濾，避免遞迴與崩潰），再套用修正版過濾：res 為空的列一律放行
+        （無文件可據以 gate），其餘沿用官方之文件存取檢查。
+        """
+        # 系統管理員略過額外過濾
+        if self.env.is_superuser():
+            return models.Model._search(self, domain, offset, limit, order)
+
+        query = models.Model._search(self, domain, offset, limit, order)
+        fnames_to_read = ['id', 'res_model', 'res_id', 'user_id']
+        rows = self.env.execute_query(query.select(
+            *[self._field_to_sql(self._table, fname) for fname in fnames_to_read],
+        ))
+
+        # 依模型分組需檢查存取的 res（跳過 res 為空者）
+        model_ids = defaultdict(set)
+        for __, res_model, res_id, user_id in rows:
+            if user_id != self.env.uid and res_model:
+                model_ids[res_model].add(res_id)
+
+        allowed_ids = defaultdict(set)
+        for res_model, res_ids in model_ids.items():
+            records = self.env[res_model].browse(res_ids).exists()
+            operation = getattr(records, '_mail_post_access', 'read')
+            allowed_ids[res_model] = set(records._filtered_access(operation)._ids)
+
+        activities = self.browse(
+            id_
+            for id_, res_model, res_id, user_id in rows
+            # 自己的待辦、或無關聯文件的獨立待辦、或文件可存取者
+            if user_id == self.env.uid or not res_model or res_id in allowed_ids[res_model]
+        )
+        return activities._as_query(order)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -518,22 +603,7 @@ class MailActivity(models.Model):
                     except (ValueError, TypeError):
                         _logger.warning('Invalid target_ref format: %s', target_ref)
 
-            # 若未指定目標文件，自動關聯到用戶的預設待辦筆記
-            if not vals.get('res_model_id') and not vals.get('res_id'):
-                # 決定待辦的擁有者（優先使用 vals 中指定的 user_id）
-                target_user_id = vals.get('user_id') or self.env.uid
-                target_user = self.env['res.users'].browse(target_user_id)
-
-                # 取得或建立預設筆記
-                default_note = target_user._get_or_create_default_activity_note()
-                if default_note:
-                    vals['res_model_id'] = self.env['ir.model']._get('note.note').id
-                    vals['res_id'] = default_note.id
-                    vals['note_id'] = default_note.id  # 同時設定 note_id 關聯
-                    _logger.debug(
-                        'Activity auto-linked to default note %s for user %s',
-                        default_note.id, target_user.name
-                    )
+            # 需求七：不再自動關聯預設筆記；res 允許為空（獨立待辦）。
 
             # 設定預設的 activity_type_id（如果未提供）
             if not vals.get('activity_type_id'):
@@ -553,21 +623,14 @@ class MailActivity(models.Model):
             # Odoo 18 的 mail/models/mail_activity.py 有 UnboundLocalError bug
             activities = models.Model.create(self_with_context, vals_list)
 
-            # 手動處理 bus 通知（原本在 base create 中，但有 bug）
-            for activity in activities:
-                if activity.user_id:
-                    try:
-                        activity.user_id._bus_send(
-                            'mail.activity/updated',
-                            {'activity_created': True}
-                        )
-                    except Exception as e:
-                        _logger.debug('Bus notification failed: %s', str(e))
-
-            # 通知被指派人（僅指派給他人時，與原生邏輯一致）
-            activities_to_notify = activities.filtered(
-                lambda act: act.user_id and act.user_id != self.env.user
-            )
+            # 通知被指派人（僅指派給他人時，與原生邏輯一致）；
+            # mail_activity_quick_update context 下不寄信/推播（與 base create 一致）。
+            if self.env.context.get('mail_activity_quick_update'):
+                activities_to_notify = self.env['mail.activity']
+            else:
+                activities_to_notify = activities.filtered(
+                    lambda act: act.user_id and act.user_id != self.env.user
+                )
             if activities_to_notify:
                 user_partners = activities_to_notify.user_id.partner_id
                 readable_user_partners = user_partners._filtered_access('read')
@@ -577,6 +640,21 @@ class MailActivity(models.Model):
                 other = activities_to_notify - to_sudo
                 to_sudo.sudo().action_notify()
                 other.action_notify()
+
+            # systray 計數 bus 通知：僅對「已到期的待辦」按使用者分組送出，
+            # 並帶 count_diff（與 base create 一致，避免 systray 計數不同步）。
+            todo_activities = activities.filtered(
+                lambda act: act.user_id and act.active and act.date_deadline
+                and act.date_deadline <= fields.Date.context_today(act)
+            )
+            for user, user_activities in todo_activities.grouped('user_id').items():
+                try:
+                    user._bus_send(
+                        'mail.activity/updated',
+                        {'activity_created': True, 'count_diff': len(user_activities)},
+                    )
+                except Exception as e:
+                    _logger.debug('Bus notification failed: %s', str(e))
 
             # 手動訂閱被分派人為關聯文件的關注者
             # （bypass 繞過了 core create 中的 message_subscribe 邏輯）
@@ -598,6 +676,9 @@ class MailActivity(models.Model):
                         )
         else:
             activities = super().create(vals_list)
+
+        # 需求五：未帶客戶者，依來源（res → 專案客戶）派生（不覆寫已帶入者）
+        activities.filtered(lambda a: not a.partner_id)._derive_partner_from_source()
 
         return activities
 
@@ -785,27 +866,28 @@ class MailActivity(models.Model):
         for activity in self:
             activity.postpone_count = len(activity.postpone_history_ids)
 
-    @api.depends('res_model', 'res_id')
-    def _compute_partner_id(self):
-        """設定驅動派生關聯客戶（批次優化，不綁定特定模組）。
+    def _derive_partner_from_source(self, force=False):
+        """設定驅動派生關聯客戶（需求五，不綁定特定模組）。
 
-        partner 欄位來源優先序：
-        1. mail.activity.transfer.config 為該模型指定的 partner_field
-        2. 自動探測來源模型上的 'partner_id' 欄位
-        皆無則留空。
+        來源優先序（每筆待辦）：
+        1. res 記錄的 partner 欄位（transfer.config.partner_field，或自動探測
+           res 模型上的 'partner_id'）
+        2. 待辦 project_id 的客戶（project.partner_id）—— 需求五「以專案客戶帶入」
+        3. 皆無 → 不動（保留手填/留空）
 
-        如此核心 mail.activity 完全不認得 crm.lead / project.* 等具體模組，
-        新增可關聯模型只需在轉移/關聯設定中加一筆。
+        預設只在「partner 尚未設定」時填入（force=False），以免覆寫手填值；
+        force=True 時（來源明確變更）一律以派生值覆寫。
         """
         relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
 
-        # 初始化 + 依模型分組（僅處理目前已安裝、存在的模型）
+        # 依 res 模型分組批次讀取（僅存在的模型）
         model_groups = defaultdict(list)
         for activity in self:
-            activity.partner_id = False
             if activity.res_model and activity.res_id and activity.res_model in self.env:
                 model_groups[activity.res_model].append(activity)
 
+        # 先算出每筆的 res-partner 候選
+        res_partner = {}
         for model_name, activities in model_groups.items():
             Model = self.env[model_name]
             partner_field = relation_map.get(model_name, {}).get('partner_field')
@@ -813,7 +895,6 @@ class MailActivity(models.Model):
                 partner_field = 'partner_id'
             if not partner_field or partner_field not in Model._fields:
                 continue
-
             res_ids = list({a.res_id for a in activities})
             record_map = {r.id: r for r in Model.browse(res_ids).exists()}
             for activity in activities:
@@ -822,13 +903,420 @@ class MailActivity(models.Model):
                     continue
                 try:
                     partner = record[partner_field]
+                    # partner_field 若被誤設為非關聯欄位（如 Char），partner[:1].id
+                    # 會 AttributeError；一併包進 try 防呆（設定驅動功能）。
+                    res_partner[activity.id] = partner[:1].id if partner else False
                 except Exception as e:
-                    _logger.debug(
-                        'Failed to read partner field %s on %s: %s',
-                        partner_field, model_name, str(e)
-                    )
+                    _logger.debug('Failed to read partner field %s on %s: %s',
+                                  partner_field, model_name, str(e))
                     continue
-                activity.partner_id = partner[:1].id if partner else False
+
+        # 依 candidate 分組後批次 write（同 partner 一次寫），避免逐筆 N 次 write
+        to_write = defaultdict(lambda: self.env['mail.activity'])
+        for activity in self:
+            candidate = res_partner.get(activity.id) or activity.project_id.partner_id.id
+            if candidate and (force or not activity.partner_id):
+                to_write[candidate] |= activity
+        for candidate, activities in to_write.items():
+            activities.partner_id = candidate
+
+    def _project_from_res(self, res_model, res_id):
+        """依 transfer.config.project_field 由 res 記錄反推 project（需求三）。
+
+        res 為 project.project 本身 → 回傳自身；否則讀該模型的 project_field。
+        回傳 project.project 記錄集（可能為空）。
+        """
+        Project = self.env['project.project']
+        if not res_model or not res_id or res_model not in self.env:
+            return Project
+        if res_model == 'project.project':
+            return Project.browse(res_id).exists()
+        relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
+        project_field = relation_map.get(res_model, {}).get('project_field')
+        Model = self.env[res_model]
+        if not project_field or project_field not in Model._fields:
+            return Project
+        record = Model.browse(res_id).exists()
+        if not record:
+            return Project
+        try:
+            return record[project_field][:1]
+        except Exception:
+            return Project
+
+    @api.model
+    def _partner_from_res(self, res_model, res_id):
+        """由 res 記錄反推 partner id（唯讀，供關聯圖「客戶為根」fallback）。
+
+        依 transfer.config.partner_field，或自動探測 res 模型的 'partner_id'。
+        與 _derive_partner_from_source 的 res-partner 候選邏輯一致，但不寫入。
+        回傳 partner id 或 False。
+        """
+        if not res_model or not res_id or res_model not in self.env:
+            return False
+        relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
+        partner_field = relation_map.get(res_model, {}).get('partner_field')
+        Model = self.env[res_model]
+        if not partner_field and 'partner_id' in Model._fields:
+            partner_field = 'partner_id'
+        if not partner_field or partner_field not in Model._fields:
+            return False
+        record = Model.browse(res_id).exists()
+        if not record:
+            return False
+        try:
+            partner = record[partner_field]
+        except Exception:
+            return False
+        return partner[:1].id if partner else False
+
+    @api.onchange('res_model_id', 'res_id')
+    def _onchange_res_fill_project_partner(self):
+        """需求三/五：選定 res 後，反推專案並派生客戶。
+
+        - project_id 空時由 res 反推帶入（force 專案，因 res 明確變更）
+        - partner 依 _derive_partner_from_source（res 客戶 > 專案客戶）
+        """
+        for activity in self:
+            if activity.res_model and activity.res_id:
+                if not activity.project_id:
+                    project = activity._project_from_res(activity.res_model, activity.res_id)
+                    if project:
+                        activity.project_id = project.id
+                activity._derive_partner_from_source(force=True)
+
+    @api.onchange('project_id')
+    def _onchange_project_fill_partner(self):
+        """需求五：選定/變更專案後，若客戶尚未設定則以專案客戶帶入。"""
+        for activity in self:
+            if activity.project_id and not activity.partner_id:
+                activity._derive_partner_from_source(force=False)
+
+    # ========== 關聯邏輯圖（需求二/三/五）==========
+
+    _RELATION_TREE_LIMIT = 100  # 每模型節點上限，避免樹過大
+
+    @api.model
+    def get_relation_tree(self, project_id=False, partner_id=False,
+                          res_model=False, res_id=False):
+        """回傳向右邏輯圖的 node_tree（需求二/三/五）。
+
+        以「直接外鍵(FK)為軸」（使用者選擇）：
+        - 有 project（或由 res 反推得到）→ 以專案為根，依 transfer.config
+          的 project_field 展開各模型（CRM/任務/…）中屬於該專案的紀錄。
+        - 否則有 partner → 以客戶為根，依 partner_field 展開各模型中屬於
+          該客戶的紀錄（需求五：依客戶縮小 res 選擇範圍）。
+        - 皆無 → 空樹。
+
+        節點 data 帶 {res_model, res_id}，供前端點擊回填 res。
+        """
+        Project = self.env['project.project']
+        project = Project.browse(project_id).exists() if project_id else Project
+        if not project and res_model and res_id:
+            project = self._project_from_res(res_model, res_id)
+
+        # 方案 C：無專案且前端未傳 partner 時，由 res(如 crm.lead)反推客戶，
+        # 確保「CRM 尚未建專案但有客戶」仍能顯示客戶為根的關聯樹。
+        if not project and not partner_id and res_model and res_id:
+            partner_id = self._partner_from_res(res_model, res_id)
+
+        if project:
+            root = {
+                'id': 'project_%s' % project.id,
+                'topic': project.display_name,
+                'expanded': True,
+                'data': {'res_model': 'project.project', 'res_id': project.id},
+                'children': self._project_scoped_children(project),
+            }
+        elif partner_id:
+            partner = self.env['res.partner'].browse(partner_id).exists()
+            if not partner:
+                return self._empty_tree()
+            root = {
+                'id': 'partner_%s' % partner.id,
+                'topic': partner.display_name,
+                'expanded': True,
+                'data': {'res_model': 'res.partner', 'res_id': partner.id},
+                'children': self._partner_scoped_children(partner),
+            }
+        else:
+            return self._empty_tree()
+
+        return {
+            'meta': {'name': 'activity_relation', 'version': '1.0'},
+            'format': 'node_tree',
+            'data': root,
+        }
+
+    @api.model
+    def _empty_tree(self):
+        return {
+            'meta': {'name': 'activity_relation', 'version': '1.0'},
+            'format': 'node_tree',
+            'data': {'id': 'empty', 'topic': _('No related records'),
+                     'expanded': True, 'data': {}, 'children': []},
+        }
+
+    @api.model
+    def _relation_group_node(self, node_id, model_label, leaves, truncated):
+        """模型分組節點（不帶 res，不可回填），內含葉節點。"""
+        return {
+            'id': node_id,
+            'topic': '%s (%s%s)' % (model_label, len(leaves), '+' if truncated else ''),
+            'expanded': True,
+            'data': {},
+            'children': leaves,
+        }
+
+    @api.model
+    def _record_leaf(self, model_name, rec, todos_by_res, extra_children=None):
+        """單筆記錄葉節點（帶 {res_model,res_id} 可回填）。
+        結構子節點（如子任務）為圖上的子節點（往右）；未完成待辦不再是節點，
+        改以 data.todos 掛在本節點，前端在節點內以 level-down/up 鈕垂直下拉呈現。
+        """
+        children = list(extra_children or [])
+        return {
+            'id': '%s_%s' % (model_name, rec.id),
+            'topic': rec.display_name,
+            'expanded': True,
+            'data': {
+                'res_model': model_name,
+                'res_id': rec.id,
+                'todos': todos_by_res.get(rec.id, []),
+            },
+            'children': children,
+        }
+
+    @api.model
+    def _task_forest_nodes(self, tasks, acts_by_res):
+        """把 project.task 記錄依 parent_id 建成森林（需求：子任務放上層任務下）。
+        僅在給定集合內巢狀；上層任務不在集合者，該任務視為頂層。
+        回傳頂層任務節點清單。
+        """
+        task_ids = set(tasks.ids)
+        by_parent = defaultdict(list)
+        tops = []
+        for t in tasks:
+            parent = t.parent_id
+            if parent and parent.id in task_ids:
+                by_parent[parent.id].append(t)
+            else:
+                tops.append(t)
+
+        # 全部互為子代（資料成環，project.task 有祖先約束理論上不會發生）時
+        # tops 為空 → 全列為頂層保底，避免整組任務被靜默丟棄
+        if not tops and tasks:
+            tops = list(tasks)
+
+        def build(task, seen):
+            if task.id in seen:
+                return None  # 防環：無窮遞迴保護
+            seen = seen | {task.id}
+            sub_nodes = [n for n in (build(s, seen) for s in by_parent.get(task.id, [])) if n]
+            return self._record_leaf('project.task', task, acts_by_res,
+                                     extra_children=sub_nodes)
+
+        return [n for n in (build(t, frozenset()) for t in tops) if n]
+
+    @api.model
+    def _model_leaves(self, model_name, records, acts_by_res):
+        """依模型產生葉節點清單：task 走森林巢狀，其餘為平列。"""
+        if model_name == 'project.task':
+            return self._task_forest_nodes(records, acts_by_res)
+        return [self._record_leaf(model_name, r, acts_by_res) for r in records]
+
+    @api.model
+    def _project_scoped_children(self, project):
+        """專案為根：各設定模型中 project_field==project 的紀錄。
+        任務依 parent_id 巢狀；每模型一個群組節點。
+        """
+        relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
+        children = []
+        for model_name, cfg in relation_map.items():
+            if model_name not in self.env:
+                continue
+            fk_field = cfg.get('project_field')
+            Model = self.env[model_name]
+            if not fk_field or fk_field not in Model._fields:
+                continue
+            try:
+                records = Model.search(
+                    [(fk_field, '=', project.id)], limit=self._RELATION_TREE_LIMIT + 1)
+            except Exception as e:
+                _logger.debug('relation tree search failed on %s.%s: %s',
+                              model_name, fk_field, str(e))
+                continue
+            if not records:
+                continue
+            truncated = len(records) > self._RELATION_TREE_LIMIT
+            records = records[:self._RELATION_TREE_LIMIT]
+            acts = self._incomplete_activities_by_res(model_name, records.ids)
+            leaves = self._model_leaves(model_name, records, acts)
+            model_label = self.env['ir.model']._get(model_name).name or model_name
+            children.append(self._relation_group_node(
+                'group_project_%s' % model_name, model_label, leaves, truncated))
+        return children
+
+    @api.model
+    def _partner_scoped_children(self, partner):
+        """客戶為根（需求五 + 巢狀）：
+        - 有專案 FK 的模型（商機/任務/銷售訂單…）依其 project_id 歸入專案節點下；
+          無專案者集中在「未歸專案」的模型群組。
+        - 任務再依 parent_id 巢狀。
+        - 無專案 FK 的模型（採購單/會計傳票/服務單…）維持平列模型群組。
+        - project.project 本身作為巢狀節點，不另列平列群組。
+        """
+        relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
+        # 分類設定模型
+        project_fk_models = {}   # model -> project_field
+        flat_models = []         # 無 project_field、但可依 partner 過濾的模型
+        for model_name, cfg in relation_map.items():
+            if model_name not in self.env:
+                continue
+            if model_name == 'project.project':
+                continue  # 專案本身作為節點，稍後處理
+            Model = self.env[model_name]
+            partner_field = cfg.get('partner_field') or (
+                'partner_id' if 'partner_id' in Model._fields else False)
+            if not partner_field or partner_field not in Model._fields:
+                continue
+            proj_field = cfg.get('project_field')
+            if proj_field and proj_field in Model._fields:
+                project_fk_models[model_name] = (proj_field, partner_field)
+            else:
+                flat_models.append((model_name, partner_field))
+
+        # 有專案 FK 的模型：查客戶紀錄，依 project_id 分桶
+        by_project = {}    # (proj_id, model_name) -> recordset（同模型才 union）
+        noproject = {}     # model_name -> recordset
+        acts_maps = {}
+        referenced_project_ids = set()
+        for model_name, (proj_field, partner_field) in project_fk_models.items():
+            Model = self.env[model_name]
+            try:
+                records = Model.search(
+                    [(partner_field, '=', partner.id)], limit=self._RELATION_TREE_LIMIT + 1)
+            except Exception as e:
+                _logger.debug('relation tree search failed on %s: %s', model_name, str(e))
+                continue
+            if not records:
+                continue
+            records = records[:self._RELATION_TREE_LIMIT]
+            acts_maps[model_name] = self._incomplete_activities_by_res(model_name, records.ids)
+            for rec in records:
+                proj = rec[proj_field][:1]
+                if proj:
+                    referenced_project_ids.add(proj.id)
+                    key = (proj.id, model_name)
+                    by_project[key] = by_project.get(key, Model.browse()) | rec
+                else:
+                    noproject[model_name] = noproject.get(model_name, Model.browse()) | rec
+
+        children = []
+
+        # 專案節點：客戶自己的專案 ∪ 被紀錄引用到的專案
+        Project = self.env['project.project']
+        own_projects = Project.search(
+            [('partner_id', '=', partner.id)], limit=self._RELATION_TREE_LIMIT + 1)
+        project_ids = list(dict.fromkeys(own_projects.ids + list(referenced_project_ids)))
+        project_acts = self._incomplete_activities_by_res('project.project', project_ids)
+        for proj in Project.browse(project_ids).exists():
+            subgroups = []
+            for model_name in project_fk_models:
+                recs = by_project.get((proj.id, model_name))
+                if not recs:
+                    continue
+                leaves = self._model_leaves(model_name, recs, acts_maps.get(model_name, {}))
+                model_label = self.env['ir.model']._get(model_name).name or model_name
+                subgroups.append(self._relation_group_node(
+                    'group_proj_%s_%s' % (proj.id, model_name), model_label, leaves, False))
+            # 專案節點本身也是可回填的 res，且掛自身未完成待辦
+            children.append(self._record_leaf(
+                'project.project', proj, project_acts, extra_children=subgroups))
+
+        # 無專案的紀錄：集中為「未歸專案」模型群組
+        for model_name in project_fk_models:
+            recs = noproject.get(model_name)
+            if not recs:
+                continue
+            leaves = self._model_leaves(model_name, recs, acts_maps.get(model_name, {}))
+            model_label = self.env['ir.model']._get(model_name).name or model_name
+            children.append(self._relation_group_node(
+                'group_noproj_%s' % model_name,
+                _('%s (no project)') % model_label, leaves, False))
+
+        # 無專案 FK 的模型：平列模型群組
+        for model_name, partner_field in flat_models:
+            Model = self.env[model_name]
+            try:
+                records = Model.search(
+                    [(partner_field, '=', partner.id)], limit=self._RELATION_TREE_LIMIT + 1)
+            except Exception as e:
+                _logger.debug('relation tree search failed on %s: %s', model_name, str(e))
+                continue
+            if not records:
+                continue
+            truncated = len(records) > self._RELATION_TREE_LIMIT
+            records = records[:self._RELATION_TREE_LIMIT]
+            acts = self._incomplete_activities_by_res(model_name, records.ids)
+            leaves = self._model_leaves(model_name, records, acts)
+            model_label = self.env['ir.model']._get(model_name).name or model_name
+            children.append(self._relation_group_node(
+                'group_partner_%s' % model_name, model_label, leaves, truncated))
+
+        return children
+
+    @api.model
+    def _incomplete_activities_by_res(self, model_name, res_ids):
+        """批次查某模型多筆記錄底下「尚未完成」的 mail.activity，回傳
+        {res_id: [待辦 dict,...]}（供關聯圖記錄節點內的下拉待辦清單）。
+
+        未完成 = active=True 且未完成(done)、未取消(cancel)。單一查詢避免 N+1。
+        待辦 dict：{activity_id, label, deadline(字串), severity('over'/'soon'/'ok')}。
+        severity 依截止日相對今日（本地時區）：逾期 over、3 日內 soon、其餘 ok。
+        """
+        if not res_ids:
+            return {}
+        activities = self.with_context(active_test=False).search([
+            ('res_model', '=', model_name),
+            ('res_id', 'in', res_ids),
+            ('active', '=', True),
+            ('done_date', '=', False),
+            ('cancel_date', '=', False),
+        ], order='date_deadline asc, id asc', limit=self._RELATION_TREE_LIMIT + 1)
+        today = fields.Date.context_today(self)
+        soon_limit = today + timedelta(days=3)
+        result = {}
+        for act in activities:
+            label = act.summary or act.activity_type_id.display_name or _('To-do')
+            dl = act.date_deadline
+            severity = 'ok'
+            if dl:
+                if dl < today:
+                    severity = 'over'
+                elif dl <= soon_limit:
+                    severity = 'soon'
+            result.setdefault(act.res_id, []).append({
+                'activity_id': act.id,
+                'label': label,
+                'deadline': fields.Date.to_string(dl) if dl else '',
+                'severity': severity,
+            })
+        return result
+
+    @api.depends('timesheet_ids', 'timesheet_ids.unit_amount')
+    def _compute_actual_hours(self):
+        """執行工時 = 所有登錄工時的總合（原 timesheet 橋接併入）。"""
+        for activity in self:
+            activity.actual_hours = sum(
+                activity.timesheet_ids.mapped('unit_amount')
+            )
+
+    def _compute_timesheet_feature_enabled(self):
+        """公司層「啟用工時記錄」開關（需求九功能開關，非儲存）。"""
+        enabled = self.env.company.dobtor_activity_timesheet_enabled
+        for activity in self:
+            activity.timesheet_feature_enabled = enabled
 
     @api.depends('date_deadline', 'estimated_hours', 'schedule_status')
     def _compute_schedule_warning(self):
@@ -897,11 +1385,31 @@ class MailActivity(models.Model):
             assignee_only = {'estimated_hours'}
             # target_ref（computed Reference，inverse 寫 res_model_id/res_id）一併納入
             related_fields = {'res_model_id', 'res_id', 'note_id', 'target_ref'}
-            changed = set(vals.keys())
+            guarded = creator_only | assignee_only | related_fields
             is_transfer = 'transferred_from_model' in vals
             uid = self.env.uid
             for activity in self:
                 if not activity.id:
+                    continue
+                # 只在「值真的改變」時套限制，避免整筆 vals（API/copy/部分 wizard
+                # 送未變更欄位）誤觸 UserError
+                changed = set()
+                for f in guarded:
+                    if f not in vals:
+                        continue
+                    cur = activity[f]
+                    newv = vals[f]
+                    if f == 'target_ref':
+                        # Reference 欄位：activity[f] 回傳 recordset，vals[f] 是
+                        # 'model,id' 字串。需還原成同格式再比，否則恆判定為已變更。
+                        cur = ('%s,%s' % (cur._name, cur.id)) if cur else False
+                        newv = newv or False
+                    elif isinstance(cur, models.BaseModel):
+                        cur = cur.id or False
+                        newv = newv or False
+                    if cur != newv:
+                        changed.add(f)
+                if not changed:
                     continue
                 is_creator = activity.create_uid.id == uid
                 is_assignee = bool(activity.user_id) and activity.user_id.id == uid
@@ -909,7 +1417,9 @@ class MailActivity(models.Model):
                     raise UserError(_(
                         'Only the creator can edit the activity type, urgency or importance.'
                     ))
-                if (assignee_only & changed) and not is_assignee:
+                # 僅在「有指派對象」時才限定被指派者；未指派（需求七獨立/未領取
+                # 待辦）時放行，否則預估工時將無人可改。
+                if (assignee_only & changed) and activity.user_id and not is_assignee:
                     raise UserError(_(
                         'Only the assignee can edit the estimated hours.'
                     ))
@@ -1006,15 +1516,19 @@ class MailActivity(models.Model):
                             activity.planned_date.strftime('%Y-%m-%d')
                         ))
 
-        # 記錄指派變更
+        # 記錄指派變更（批次建立，避免逐筆 create 的 N+1）
         if 'user_id' in vals:
-            for activity in self:
-                if activity.user_id.id != vals.get('user_id'):
-                    self.env['mail.activity.assignment.history'].sudo().create({
-                        'activity_id': activity.id,
-                        'previous_user_id': activity.user_id.id,
-                        'new_user_id': vals.get('user_id'),
-                    })
+            history_vals = [
+                {
+                    'activity_id': activity.id,
+                    'previous_user_id': activity.user_id.id,
+                    'new_user_id': vals.get('user_id'),
+                }
+                for activity in self
+                if activity.user_id.id != vals.get('user_id')
+            ]
+            if history_vals:
+                self.env['mail.activity.assignment.history'].sudo().create(history_vals)
 
         # 處理排程狀態變更時自動設定計畫日期和來源標記
         per_record_planned = None
@@ -1371,11 +1885,24 @@ class MailActivity(models.Model):
             else:
                 default_notify_activities |= activity
 
+        # 自訂模板無法寄送時，退回預設通知（避免完全不通知）
+        fallback_notify_activities = self.env['mail.activity']
+
         # 處理自定義模板通知
         for activity in custom_notify_activities:
             if not activity.user_id:
                 continue
             template = activity.activity_type_id.notify_template_id
+            # 獨立待辦（res 為空）或模板 model 與 res_model 不符 → 跳過自訂模板寄送，
+            # 避免 template.send_mail(False) 對不存在文件寄信（需求七防禦），
+            # 改由預設通知路徑處理，確保被指派者仍收到通知
+            if not activity.res_model or not activity.res_id or \
+                    (template.model and template.model != activity.res_model):
+                _logger.debug(
+                    'Activity %s: custom notify skipped (no matching res document), '
+                    'falling back to default notify', activity.id)
+                fallback_notify_activities |= activity
+                continue
             # 使用被指派者的語言
             if activity.user_id.lang:
                 template = template.with_context(lang=activity.user_id.lang)
@@ -1394,7 +1921,8 @@ class MailActivity(models.Model):
                 activity.id, template.name, activity.user_id.name
             )
 
-        # 處理預設通知（調用原始方法）
+        # 處理預設通知（調用原始方法）；併入自訂模板無法寄送而退回的待辦
+        default_notify_activities |= fallback_notify_activities
         if default_notify_activities:
             super(MailActivity, default_notify_activities).action_notify()
 

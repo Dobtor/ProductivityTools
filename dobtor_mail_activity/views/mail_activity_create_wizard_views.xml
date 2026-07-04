@@ -57,13 +57,13 @@
                         <field name="target_ref" string="Target Document"
                                options="{'no_create': True}" invisible="res_known"
                                required="target_required and not res_known"/>
-                        <field name="note_id" string="Related Note"
+                        <field name="note_id" string="Source Reference"
                                options="{'no_create': True}"/>
                     </group>
                 </group>
 
                 <notebook>
-                    <page string="Note" name="note">
+                    <page string="Todo Note" name="note">
                         <field name="note" placeholder="Activity note (optional)..."/>
                     </page>
                 </notebook>

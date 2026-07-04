@@ -6,6 +6,7 @@
         <record id="ir_cron_weekly_transition" model="ir.cron">
             <field name="name">Activity Week Transition</field>
             <field name="model_id" ref="mail.model_mail_activity"/>
+            <field name="user_id" ref="base.user_root"/>
             <field name="state">code</field>
             <field name="code">model._cron_weekly_transition()</field>
             <field name="interval_number">1</field>
@@ -17,6 +18,7 @@
         <record id="ir_cron_refresh_schedule_week" model="ir.cron">
             <field name="name">Refresh Activity Schedule Week</field>
             <field name="model_id" ref="mail.model_mail_activity"/>
+            <field name="user_id" ref="base.user_root"/>
             <field name="state">code</field>
             <field name="code">model._cron_refresh_schedule_week()</field>
             <field name="interval_number">1</field>
@@ -29,6 +31,7 @@
         <record id="ir_cron_compute_efficiency_metrics" model="ir.cron">
             <field name="name">Calculate Efficiency Metrics</field>
             <field name="model_id" ref="dobtor_mail_activity.model_activity_efficiency_metrics"/>
+            <field name="user_id" ref="base.user_root"/>
             <field name="state">code</field>
             <field name="code">model._cron_compute_metrics()</field>
             <field name="interval_number">1</field>
@@ -40,6 +43,7 @@
         <record id="ir_cron_create_weekly_schedule" model="ir.cron">
             <field name="name">Create Weekly Schedule Activities</field>
             <field name="model_id" ref="dobtor_mail_activity.model_weekly_schedule_config"/>
+            <field name="user_id" ref="base.user_root"/>
             <field name="state">code</field>
             <field name="code">model._cron_create_weekly_activities()</field>
             <field name="interval_number">1</field>
