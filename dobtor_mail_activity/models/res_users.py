@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import api, fields, models, _
+from odoo import api, fields, models, modules, _
 
 
 class ResUsers(models.Model):
@@ -204,3 +204,60 @@ class ResUsers(models.Model):
 
     # 需求七：已移除 _get_or_create_default_activity_note /
     # get_current_user_default_note（不再有預設待辦筆記）。
+
+    # ========== 系統匣待辦分組（需求七相容）==========
+
+    @api.model
+    def _get_activity_groups(self):
+        """容許「獨立待辦」（需求七：res_model 為空）於系統匣分組。
+
+        核心 mail/models/res_users.py 對每筆待辦執行
+        ``self.env[activity.res_model].browse(...)``，遇到 res_model 為空的獨立待辦
+        時 ``self.env[False]`` → ``KeyError: False``。
+
+        為保留 calendar（今日會議）/contacts（圖示）/project_todo（拆分待辦/任務）
+        對結果的增修，本覆寫仍呼叫 super()，僅以 context 旗標讓核心鏈中對
+        mail.activity 的搜尋排除獨立待辦（見 mail.activity._search 覆寫）；隨後再把
+        獨立待辦併入核心既有的 'mail.activity'（「其他活動」）分組。
+        """
+        groups = super(
+            ResUsers,
+            self.with_context(activity_systray_skip_standalone=True),
+        )._get_activity_groups()
+
+        standalone = self.env["mail.activity"].search([
+            ("user_id", "=", self.env.uid),
+            ("res_model", "=", False),
+        ])
+        if standalone:
+            self._inject_standalone_activity_group(groups, standalone)
+        return groups
+
+    def _inject_standalone_activity_group(self, groups, standalone):
+        """把獨立待辦（res_model 空）併入系統匣「其他活動」(mail.activity) 分組。"""
+        group = next(
+            (g for g in groups if g.get('model') == 'mail.activity'), None)
+        if group is None:
+            Model = self.env['mail.activity']
+            module = Model._original_module
+            model = self.env['ir.model']._get('mail.activity')
+            group = {
+                'id': model.id,
+                'name': _("Other activities"),
+                'model': 'mail.activity',
+                'type': 'activity',
+                'icon': module and modules.module.get_module_icon(module),
+                'total_count': 0,
+                'today_count': 0,
+                'overdue_count': 0,
+                'planned_count': 0,
+                'view_type': getattr(Model, '_systray_view', 'list'),
+                'activity_ids': [],
+            }
+            groups.append(group)
+        group.setdefault('activity_ids', [])
+        for activity in standalone:
+            group['activity_ids'].append(activity.id)
+            group["%s_count" % activity.state] += 1
+            if activity.state in ('today', 'overdue'):
+                group['total_count'] += 1

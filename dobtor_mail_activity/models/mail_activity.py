@@ -551,6 +551,12 @@ class MailActivity(models.Model):
         存取過濾，避免遞迴與崩潰），再套用修正版過濾：res 為空的列一律放行
         （無文件可據以 gate），其餘沿用官方之文件存取檢查。
         """
+        # 系統匣待辦分組（res.users._get_activity_groups）以此旗標排除獨立待辦：
+        # 核心 mail 版會對每筆待辦 self.env[res_model].browse(...)，res_model 為空
+        # 時 self.env[False] → KeyError。獨立待辦改由該覆寫另行併入「其他活動」。
+        if self.env.context.get('activity_systray_skip_standalone'):
+            domain = domain + [('res_model', '!=', False)]
+
         # 系統管理員略過額外過濾
         if self.env.is_superuser():
             return models.Model._search(self, domain, offset, limit, order)
