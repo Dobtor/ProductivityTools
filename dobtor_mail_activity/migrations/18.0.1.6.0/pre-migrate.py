@@ -41,6 +41,13 @@ def _migrate_requirement_7(cr):
         "DROP CONSTRAINT IF EXISTS mail_activity_check_res_id_is_set"
     )
 
+    # 官方 res_id / res_model_id 於 base 為 required=True → DB 欄位帶 NOT NULL。
+    # 本模組覆寫為 required=False，但移除 NOT NULL 的 schema 同步發生在「載入模型」
+    # 階段，晚於本 pre-migration。若此處先把 res 設 NULL 會違反尚未移除的 NOT NULL，
+    # 故先手動移除（ALTER ... DROP NOT NULL 對已可空欄位為 no-op，安全冪等）。
+    cr.execute("ALTER TABLE mail_activity ALTER COLUMN res_model_id DROP NOT NULL")
+    cr.execute("ALTER TABLE mail_activity ALTER COLUMN res_id DROP NOT NULL")
+
     cr.execute("""
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'res_users' AND column_name = 'default_activity_note_id'
