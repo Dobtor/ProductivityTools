@@ -24,8 +24,43 @@ CORE = 'dobtor_mail_activity'
 
 
 def migrate(cr, version):
+    _drop_stale_default_note_views(cr)
     _migrate_requirement_7(cr)
     _merge_timesheet_bridge(cr)
+
+
+def _drop_stale_default_note_views(cr):
+    """需求七：清除殘留、仍引用已移除欄位 default_activity_note_id 的 res.users 檢視。
+
+    舊版於 res.users form（本模組的 res_users_view_form_inherit_productivity）加了
+    「預設筆記本」欄位 default_activity_note_id。本版移除該欄位；但升級時 security.xml
+    先載入群組 → Odoo 重建 user groups view 並驗證所有 res.users 繼承檢視，早於 views
+    載入更新 arch，於是撞到 DB 內殘留的舊 arch（仍含該欄位）→ ParseError「欄位不存在」。
+
+    故在 pre 階段先刪除本模組中仍引用該欄位的 res.users 檢視（連同 ir_model_data），
+    稍後 views/res_users_views.xml 載入時會依新 XML 重新建立乾淨的檢視。
+    """
+    cr.execute("""
+        SELECT v.id
+        FROM ir_ui_view v
+        JOIN ir_model_data d
+          ON d.model = 'ir.ui.view' AND d.res_id = v.id
+         AND d.module = %(core)s
+        WHERE v.model = 'res.users'
+          AND v.arch_db::text LIKE '%%default_activity_note_id%%'
+    """, {'core': CORE})
+    view_ids = tuple(r[0] for r in cr.fetchall())
+    if not view_ids:
+        return
+    cr.execute(
+        "DELETE FROM ir_model_data WHERE model = 'ir.ui.view' AND res_id IN %s",
+        (view_ids,),
+    )
+    cr.execute("DELETE FROM ir_ui_view WHERE id IN %s", (view_ids,))
+    _logger.info(
+        '需求七：刪除殘留引用 default_activity_note_id 的 res.users 檢視 %s（將由新 XML 重建）。',
+        view_ids,
+    )
 
 
 def _migrate_requirement_7(cr):
