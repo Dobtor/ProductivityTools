@@ -60,6 +60,16 @@ export class ActivityRelationDiagramField extends Component {
             : _t("Expand all to-dos");
     }
 
+    /** 提示/空狀態文字用 getter 回 _t，確保被翻譯抽取器擷取並依語系翻譯
+     *  （QWeb 模板內字面文字在本情境未被抽取，故集中到 JS）。 */
+    get linkHint() {
+        return _t("Click a node to link it as the related document.");
+    }
+
+    get emptyHint() {
+        return _t("No related records. Select a project or customer to see the relation diagram.");
+    }
+
     _depKey() {
         // 主要依 project/partner 決定是否重載。res_model/res_id 通常是本 widget 點
         // 節點回填的「輸出」，納入依賴會使點節點回填觸發 useEffect → 整張圖

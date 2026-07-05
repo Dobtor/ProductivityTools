@@ -67,15 +67,13 @@
 
                 <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）。
                      res_model 由原生隱藏 group + widget fieldDependencies 提供，不重宣告 -->
-                <group string="Object Relation" name="activity_project_relation">
-                    <!-- 客戶 左 / 專案 右水平排列（一致於「建立待辦」wizard）;
-                         colspan=2 讓 pair-group 佔滿父 group 全寬，避免擠在半欄而換行成垂直 -->
-                    <group col="4" colspan="2">
-                        <field name="partner_id" string="Customer" options="{'no_create': True}"/>
-                        <field name="project_id" string="Project" options="{'no_create': True}"/>
-                    </group>
+                <group string="Object Relation" name="activity_project_relation" col="4">
+                    <!-- 攤平成 col=4：每個帶標籤欄位佔 2 格，客戶+專案剛好同一列（並排）。
+                         移除多餘的 string 覆寫→改用欄位自身標籤（已翻譯為 客戶/專案）。 -->
+                    <field name="partner_id" options="{'no_create': True}"/>
+                    <field name="project_id" options="{'no_create': True}"/>
                     <field name="relation_diagram_anchor" widget="activity_relation_diagram"
-                           nolabel="1" colspan="2"/>
+                           nolabel="1" colspan="4"/>
                 </group>
             </xpath>
 
@@ -212,19 +210,15 @@
 
                     <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）
                          位於左右資訊 group 與 關聯/排程 group 之間 -->
-                    <group string="Object Relation" name="activity_project_relation">
-                        <!-- 客戶 左 / 專案 右水平排列（一致於「建立待辦」wizard；選 res 後自動帶入）;
-                             colspan=2 讓 pair-group 佔滿父 group 全寬，避免擠在半欄而換行成垂直 -->
-                        <group col="4" colspan="2">
-                            <field name="partner_id" string="Customer"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
-                            <field name="project_id" string="Project" options="{'no_create': True}"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
-                        </group>
-                        <!-- 供邏輯圖 widget 讀取（隱藏） -->
-                        <field name="res_model" invisible="1"/>
+                    <group string="Object Relation" name="activity_project_relation" col="4">
+                        <!-- 攤平成 col=4：客戶+專案同一列（並排）。移除多餘 string 覆寫→
+                             用已翻譯的欄位標籤。res_model 由 widget fieldDependencies 自動取得。 -->
+                        <field name="partner_id"
+                               readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                        <field name="project_id" options="{'no_create': True}"
+                               readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
                         <field name="relation_diagram_anchor" widget="activity_relation_diagram"
-                               nolabel="1" colspan="2"/>
+                               nolabel="1" colspan="4"/>
                     </group>
 
                     <group>

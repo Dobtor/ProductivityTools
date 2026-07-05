@@ -4,9 +4,7 @@
     <t t-name="dobtor_mail_activity.ActivityRelationDiagram">
         <div class="o_activity_relation_diagram">
             <div class="o_ard_toolbar">
-                <span class="o_ard_hint text-muted">
-                    Click a node to link it as the related document.
-                </span>
+                <span class="o_ard_hint text-muted" t-esc="linkHint"/>
                 <div class="o_ard_toolbar_btns d-flex align-items-center">
                     <!-- 縮放 -->
                     <div class="o_ard_buttons btn-group btn-group-sm me-2" role="group">
@@ -54,9 +52,8 @@
             <div t-if="state.loading" class="o_ard_status text-muted">
                 <i class="fa fa-spin fa-circle-o-notch me-1"/> Loading…
             </div>
-            <div t-if="!state.loading and state.empty" class="o_ard_status text-muted">
-                No related records. Select a project or customer to see the relation diagram.
-            </div>
+            <div t-if="!state.loading and state.empty" class="o_ard_status text-muted"
+                 t-esc="emptyHint"/>
 
             <div class="o_ard_canvas" t-ref="diagram"
                  t-att-class="{ 'd-none': state.empty or state.loading }"/>

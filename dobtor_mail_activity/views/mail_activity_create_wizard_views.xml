@@ -52,26 +52,19 @@
                 <field name="res_model_id" invisible="1"/>
                 <field name="res_id" invisible="1"/>
 
-                <group>
-                    <!-- 關聯資訊 -->
-                    <group string="Related Information">
-                        <!-- 客戶 左 / 專案 右水平排列（與 mail.activity form 一致；選 res 後自動帶入）;
-                             colspan=2 讓 pair-group 佔滿全寬，避免擠在半欄換行成垂直 -->
-                        <group col="4" colspan="2">
-                            <field name="partner_id" string="Customer"
-                                   options="{'no_create': True}"/>
-                            <field name="project_id" string="Project"
-                                   options="{'no_create': True}"/>
-                        </group>
-                        <!-- res 已知 → 唯讀顯示；未知 → 可輸入 target -->
-                        <field name="res_display" string="Target Document"
-                               readonly="1" invisible="not res_known"/>
-                        <field name="target_ref" string="Target Document"
-                               options="{'no_create': True}" invisible="res_known"
-                               required="target_required and not res_known"/>
-                        <field name="note_id" string="Source Reference"
-                               options="{'no_create': True}"/>
-                    </group>
+                <!-- 關聯資訊：攤平成 col=4，客戶+專案同一列（並排）；其餘欄位 colspan=3
+                     佔整列。移除多餘 string 覆寫→用已翻譯欄位標籤（客戶/專案）。 -->
+                <group string="Related Information" col="4">
+                    <field name="partner_id" options="{'no_create': True}"/>
+                    <field name="project_id" options="{'no_create': True}"/>
+                    <!-- res 已知 → 唯讀顯示；未知 → 可輸入 target（互斥，各佔整列）-->
+                    <field name="res_display" string="Target Document"
+                           readonly="1" invisible="not res_known" colspan="3"/>
+                    <field name="target_ref" string="Target Document"
+                           options="{'no_create': True}" invisible="res_known"
+                           required="target_required and not res_known" colspan="3"/>
+                    <field name="note_id" string="Source Reference"
+                           options="{'no_create': True}" colspan="3"/>
                 </group>
 
                 <!-- 關聯邏輯圖：以 客戶/專案 為根，點節點選 related document

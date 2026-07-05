@@ -5492,3 +5492,15 @@ msgstr "排程本週每日待辦"
 #: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
 msgid "Pre-schedule important work for next week"
 msgstr "預排下週重要工作"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Click a node to link it as the related document."
+msgstr "點選節點以連結為關聯文件。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "No related records. Select a project or customer to see the relation diagram."
+msgstr "尚無關聯記錄。請先選擇專案或客戶以顯示關聯圖。"
