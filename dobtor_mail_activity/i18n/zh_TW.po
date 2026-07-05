@@ -5424,17 +5424,6 @@ msgid "When enabled, completing an activity logs time into timesheet entries and
 msgstr "啟用後，完成待辦時會將時間記錄至工時表並在待辦表單顯示工時表頁籤。此開關不影響 CRM 專案選擇。"
 
 #. module: dobtor_mail_activity
-#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_report
-#: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_report
-msgid "Activity Report"
-msgstr "待辦報告"
-
-#. module: dobtor_mail_activity
-#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_report
-msgid "Active Only"
-msgstr "僅作用中"
-
-#. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule_timesheet
 msgid "Timesheet"
 msgstr "工時表"

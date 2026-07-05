@@ -102,7 +102,6 @@ Main Features:
         'views/project_project_views.xml',
         'views/mail_activity_timesheet_views.xml',
         'views/project_todo_override.xml',
-        'views/mail_activity_report_views.xml',
         'views/menu_views.xml',
     ],
     'assets': {

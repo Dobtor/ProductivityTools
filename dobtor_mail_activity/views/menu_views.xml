@@ -78,15 +78,6 @@
               groups="dobtor_mail_activity.group_weekly_report"/>
 
     <!-- ============================================================ -->
-    <!-- 需求六：報告（客戶→專案→相關文件→負責人→狀態 分層清單）           -->
-    <!-- ============================================================ -->
-    <menuitem id="menu_mail_activity_report"
-              name="Report"
-              parent="project_todo.menu_todo_todos"
-              action="action_mail_activity_report"
-              sequence="35"/>
-
-    <!-- ============================================================ -->
     <!-- 效率分析選單（僅保留一般用戶項目）                               -->
     <!-- ============================================================ -->
     <menuitem id="menu_efficiency_root"
