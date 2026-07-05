@@ -85,16 +85,16 @@ export class EmbeddedXmindMindmap extends Component {
         return _t("Mind map not found or access denied.");
     }
 
-    /** Open the full mind map editor for this workbook in a form view. */
+    /** Open the full (editable) mind map editor — the same client action the app
+     *  uses everywhere (xmind.workbook.action_open_editor). */
     onOpen() {
         if (!this.workbookId) {
             return;
         }
         this.action.doAction({
-            type: "ir.actions.act_window",
-            res_model: "xmind.workbook",
-            res_id: this.workbookId,
-            views: [[false, "form"]],
+            type: "ir.actions.client",
+            tag: "dobtor_xmind.mindmap_editor",
+            params: { workbook_id: this.workbookId },
             target: "current",
         });
     }
