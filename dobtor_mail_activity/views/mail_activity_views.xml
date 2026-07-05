@@ -554,11 +554,12 @@
                 <field name="res_document_display" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
-                <field name="urgency" string="Urgency" widget="badge"
+                <!-- 緊急/重要/排程 已於左側 search panel 篩選，清單表頭預設不再顯示（可由欄位選單開啟）-->
+                <field name="urgency" string="Urgency" widget="badge" optional="hide"
                        decoration-danger="urgency == 'urgent'"
                        decoration-warning="urgency == 'standard'"
                        decoration-success="urgency == 'flexible'"/>
-                <field name="importance" string="Importance"/>
+                <field name="importance" string="Importance" optional="hide"/>
                 <field name="estimated_hours" string="Estimated Hours" widget="float_time" sum="Total"/>
                 <field name="actual_hours" string="Actual Hours" widget="float_time" sum="Total" optional="show"/>
                 <field name="can_edit_as_assignee" column_invisible="1"/>
@@ -566,7 +567,7 @@
                        widget="planned_date_picker"/>
                 <field name="date_deadline" string="Due Date" widget="remaining_days"
                        readonly="id and create_uid != uid"/>
-                <field name="schedule_status" string="Schedule" widget="schedule_day"/>
+                <field name="schedule_status" string="Schedule" widget="schedule_day" optional="hide"/>
                 <field name="schedule_week" string="Week" optional="hide"/>
                 <field name="state" string="Status" widget="badge"
                        decoration-info="state == 'planned'"
