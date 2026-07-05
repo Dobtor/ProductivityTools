@@ -15,3 +15,4 @@ access_xmind_tag_category,xmind.tag.category,model_xmind_tag_category,base.group
 access_xmind_tag,xmind.tag,model_xmind_tag,base.group_user,1,1,1,1
 access_xmind_import_wizard,xmind.import.wizard,model_xmind_import_wizard,base.group_user,1,1,1,1
 access_xmind_import_line,xmind.import.line,model_xmind_import_line,base.group_user,1,1,1,1
+access_xmind_workbook_embed,xmind.workbook.embed,model_xmind_workbook_embed,base.group_user,1,1,1,1

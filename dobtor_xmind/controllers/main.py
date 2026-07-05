@@ -48,6 +48,9 @@ class MindMapController(http.Controller):
                 'id': workbook.partner_id.id,
                 'name': workbook.partner_id.name,
             } if workbook.partner_id else False,
+            # Names of records that embed this whole workbook (via the "/" power-box
+            # of any model's HTML editor) → shown as "關聯物件：..." in the project bar.
+            'embeds': workbook.get_embed_names(),
         }
 
     def _get_relationships(self, workbook):

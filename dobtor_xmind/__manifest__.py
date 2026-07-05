@@ -46,6 +46,15 @@
             # Gantt toolbar integration (dobtor_project) — create/open mind map.
             'dobtor_xmind/static/src/js/gantt_mindmap_button.js',
             'dobtor_xmind/static/src/xml/gantt_mindmap_button.xml',
+            # HTML editor "/" power-box — insert an existing mind map live into any
+            # model's rich-text field.
+            'dobtor_xmind/static/src/editor/xmind_picker_dialog.js',
+            'dobtor_xmind/static/src/editor/xmind_picker_dialog.xml',
+            'dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js',
+            'dobtor_xmind/static/src/editor/xmind_mindmap_embedding.xml',
+            'dobtor_xmind/static/src/editor/xmind_mindmap_blueprint.xml',
+            'dobtor_xmind/static/src/editor/xmind_powerbox_plugin.js',
+            'dobtor_xmind/static/src/editor/html_field_xmind_patch.js',
         ],
     },
     'installable': True,

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- Blueprint inserted into the editor content: only the data-embedded anchor
+         and its persisted props (workbookId + host res_model/res_id). The mind map
+         itself is rendered live by EmbeddedXmindMindmap. -->
+    <t t-name="dobtor_xmind.MindmapBlueprint">
+        <div t-att-data-embedded-props="embeddedProps"
+             data-embedded="xmindMindmap"
+             data-oe-protected="true"
+             contenteditable="false"
+             class="o_xmind_embed"/>
+    </t>
+
+</templates>

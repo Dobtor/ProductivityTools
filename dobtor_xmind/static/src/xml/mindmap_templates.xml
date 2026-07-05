@@ -506,6 +506,9 @@
                 <span class="o_mindmap_partner_name small text-muted" style="display:none;">
                     客戶名稱：<span class="o_mindmap_partner_label"/>
                 </span>
+                <span class="o_mindmap_embeds_name small text-muted" style="display:none;">
+                    關聯物件：<span class="o_mindmap_embeds_label"/>
+                </span>
             </div>
 
             <!-- Sidebar for Properties -->

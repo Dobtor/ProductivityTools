@@ -1067,3 +1067,15 @@
     background-color: transparent !important;
     box-shadow: none !important;
 }
+
+/* ===== Embedded mind map (inserted into another record's HTML field) ===== */
+.o_xmind_embed_card {
+    overflow: hidden;
+    background: #fff;
+}
+.o_xmind_embed_canvas {
+    position: relative;
+    width: 100%;
+    height: 420px;
+    overflow: hidden;
+}

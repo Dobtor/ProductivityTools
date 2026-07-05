@@ -1568,10 +1568,15 @@
                 e.stopPropagation();
                 this._selectNode(node);
             });
-            el.addEventListener('dblclick', (e) => {
-                e.stopPropagation();
-                this.begin_edit(node);
-            });
+            // Skip inline-edit binding entirely on read-only instances (e.g. the
+            // mind map embedded in another record's HTML field) so a double-click
+            // never enters topic-edit mode.
+            if (!this.options || this.options.editable !== false) {
+                el.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.begin_edit(node);
+                });
+            }
 
             this.nodesLayer.appendChild(el);
             node._el = el;
@@ -2608,6 +2613,8 @@
         // === Editing ===
 
         begin_edit(node) {
+            // Read-only guard: never enter inline edit on a non-editable instance.
+            if (this.options && this.options.editable === false) return;
             if (!node || !node._el) return;
             this.editing_node = node;
 

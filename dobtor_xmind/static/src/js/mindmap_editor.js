@@ -63,6 +63,7 @@ export class MindmapEditor extends Component {
         this.jm = null;
         this.projectInfo = null;   // 連結的專案 {id,name,last_sync_direction}
         this.partnerInfo = null;   // 客戶 {id,name}
+        this.embedsInfo = [];      // 關聯物件名稱清單（嵌入此圖的記錄）
         this.commandStack = new CommandStack(200);
         this.selectedNode = null;
         this.autoSaveTimer = null;
@@ -227,6 +228,7 @@ export class MindmapEditor extends Component {
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
                 this.projectInfo = result.project || null;
                 this.partnerInfo = result.partner || null;
+                this.embedsInfo = result.embeds || [];
                 setTimeout(() => this._updateProjectButtons(), 0);
 
                 // Load relationships
@@ -2874,6 +2876,19 @@ export class MindmapEditor extends Component {
             } else {
                 partLabel.textContent = '';
                 partWrap.style.display = 'none';
+            }
+        }
+        // 關聯物件：嵌入此圖的記錄名稱（客戶名稱之後），未有則不顯示。
+        const embWrap = this._el('.o_mindmap_embeds_name');
+        const embLabel = this._el('.o_mindmap_embeds_label');
+        if (embWrap && embLabel) {
+            const names = this.embedsInfo || [];
+            if (names.length) {
+                embLabel.textContent = names.join('、');
+                embWrap.style.display = '';
+            } else {
+                embLabel.textContent = '';
+                embWrap.style.display = 'none';
             }
         }
     }

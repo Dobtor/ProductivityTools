@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_xmind.PickerDialog">
+        <Dialog title="title" size="'md'">
+            <div class="mb-2">
+                <input type="text" class="form-control"
+                       placeholder="搜尋心智圖名稱…"
+                       t-att-value="state.search"
+                       t-on-input="onSearchInput"/>
+            </div>
+            <div t-if="state.loading" class="text-center text-muted p-3">
+                <i class="fa fa-spinner fa-spin"/>
+            </div>
+            <div t-elif="!state.workbooks.length" class="text-muted p-3">
+                找不到心智圖。
+            </div>
+            <div t-else="" class="list-group o_xmind_picker">
+                <button t-foreach="state.workbooks" t-as="wb" t-key="wb.id"
+                        type="button"
+                        class="list-group-item list-group-item-action d-flex align-items-center gap-2"
+                        t-on-click="() => this.onSelect(wb)">
+                    <i class="fa fa-sitemap fa-fw text-primary"/>
+                    <span class="flex-grow-1 text-truncate" t-esc="wb.name"/>
+                    <span t-if="subtitle(wb)" class="text-muted small text-truncate"
+                          t-esc="subtitle(wb)"/>
+                </button>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-secondary" t-on-click="() => this.props.close()">
+                    取消
+                </button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

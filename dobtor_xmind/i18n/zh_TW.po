@@ -3740,3 +3740,63 @@ msgstr "由心智圖管理"
 #: model:ir.model.fields,field_description:dobtor_xmind.field_project_project__xmind_workbook_count
 msgid "Mind Map Count"
 msgstr "心智圖數量"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_powerbox_plugin.js:0
+msgid "Insert Mind Map"
+msgstr "插入心智圖"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_powerbox_plugin.js:0
+msgid "Embed an existing mind map, rendered live"
+msgstr "嵌入既有心智圖，即時呈現"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_powerbox_plugin.js:0
+msgid "Mind Map"
+msgstr "心智圖"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_picker_dialog.js:0
+msgid "Insert a Mind Map"
+msgstr "插入心智圖"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js:0
+msgid "No mind map selected."
+msgstr "尚未選擇心智圖。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js:0
+msgid "Mind map not found or access denied."
+msgstr "找不到心智圖或無存取權限。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js:0
+msgid "Failed to load mind map."
+msgstr "載入心智圖失敗。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js:0
+msgid "Mind map renderer not loaded."
+msgstr "心智圖繪製引擎尚未載入。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js:0
+msgid "This mind map is empty."
+msgstr "這張心智圖是空的。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_mindmap_embedding.js:0
+msgid "Failed to render mind map."
+msgstr "繪製心智圖失敗。"

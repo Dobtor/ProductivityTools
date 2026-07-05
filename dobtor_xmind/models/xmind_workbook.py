@@ -47,6 +47,10 @@ class XMindWorkbook(models.Model):
     # Customer
     partner_id = fields.Many2one('res.partner', string='Customer', tracking=True)
 
+    # Records that embed this mind map inside their HTML fields (via the editor's
+    # "/" power-box). The whole workbook is associated with each host record.
+    embed_ids = fields.One2many('xmind.workbook.embed', 'workbook_id', string='Embedded In')
+
     # Project integration (1:1). When linked, this mind map's access is governed by
     # the project's privacy_visibility — see security/xmind_security.xml.
     project_id = fields.Many2one(
@@ -506,6 +510,50 @@ class XMindWorkbook(models.Model):
             'active_ids': self.project_id.ids,
         }
         return action
+
+    @api.model
+    def register_embed(self, workbook_id, res_model, res_id):
+        """Upsert the association between this workbook and a host record.
+
+        Called by the HTML-editor embedded component when it mounts on a saved
+        host record. Idempotent: does nothing if the pair already exists, so
+        re-opening a record with an embedded mind map never duplicates rows.
+        Requires read access to the workbook (embedding it is a read-level use).
+        """
+        if not workbook_id or not res_model or not res_id:
+            return False
+        workbook = self.browse(int(workbook_id))
+        if not workbook.exists() or not workbook.has_access('read'):
+            return False
+        Embed = self.env['xmind.workbook.embed'].sudo()
+        exists = Embed.search_count([
+            ('workbook_id', '=', workbook.id),
+            ('res_model', '=', res_model),
+            ('res_id', '=', int(res_id)),
+        ])
+        if not exists:
+            Embed.create({
+                'workbook_id': workbook.id,
+                'res_model': res_model,
+                'res_id': int(res_id),
+            })
+        return True
+
+    def get_embed_names(self):
+        """Return the display names of records embedding this mind map.
+
+        Used by the editor's project bar to render "關聯物件：a, b, c".
+        Deduplicated and stripped of dangling references (deleted records).
+        """
+        self.ensure_one()
+        names = []
+        seen = set()
+        for embed in self.embed_ids:
+            name = embed.res_name
+            if name and name not in seen:
+                seen.add(name)
+                names.append(name)
+        return names
 
     def _plan_project_orphans(self):
         """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to
