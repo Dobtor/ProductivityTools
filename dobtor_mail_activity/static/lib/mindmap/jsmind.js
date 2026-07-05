@@ -1634,10 +1634,14 @@
                 e.stopPropagation();
                 this._selectNode(node);
             });
-            el.addEventListener('dblclick', (e) => {
-                e.stopPropagation();
-                this.begin_edit(node);
-            });
+            // 唯讀圖（如 mail.activity 關聯圖 editable:false）連雙擊編輯監聽都不掛，
+            // 從源頭杜絕「快按兩下進入 topic 編輯模式」；begin_edit 內另有守門為雙保險。
+            if (!this.options || this.options.editable !== false) {
+                el.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.begin_edit(node);
+                });
+            }
 
             this.nodesLayer.appendChild(el);
             node._el = el;
