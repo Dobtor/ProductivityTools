@@ -95,6 +95,20 @@
                     <filter string="By Due Date" name="group_by_deadline"
                             context="{'group_by': 'date_deadline:day'}"/>
                 </group>
+
+                <!-- 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程。
+                     view_types="list" → 僅清單顯示（kanban 不顯示，符合先前需求）；
+                     fold="1" → 預設收闔。四個欄位皆 stored 可供 read_group 計數。 -->
+                <searchpanel view_types="list" fold="1">
+                    <field name="partner_id" string="Customer" select="one"
+                           icon="fa-building" hierarchize="0" enable_counters="1"/>
+                    <field name="urgency" string="Urgency" select="multi"
+                           icon="fa-exclamation-circle" enable_counters="1"/>
+                    <field name="importance" string="Importance" select="multi"
+                           icon="fa-star" enable_counters="1"/>
+                    <field name="schedule_week" string="Schedule" select="multi"
+                           icon="fa-calendar-o" enable_counters="1"/>
+                </searchpanel>
             </xpath>
         </field>
     </record>
