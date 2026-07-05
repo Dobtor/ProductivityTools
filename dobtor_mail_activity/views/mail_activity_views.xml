@@ -549,7 +549,8 @@
                   expand="1"
                   decoration-danger="date_deadline &lt; current_date"
                   decoration-warning="date_deadline == current_date">
-                <field name="partner_id" optional="show"/>
+                <!-- 客戶已於左側 search panel 呈現，清單表頭預設不再顯示（可由欄位選單開啟）-->
+                <field name="partner_id" optional="hide"/>
                 <field name="res_document_display" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
                 <field name="note_id" optional="show"/>
