@@ -36,9 +36,14 @@
                     <filter name="group_partner" string="Customer" context="{'group_by': 'partner_id'}"/>
                     <filter name="group_creator" string="Created by" context="{'group_by': 'create_uid'}"/>
                 </group>
-                <!-- Left navigation panel: tags grouped by their category, with
-                     per-value counters. Checking tags filters the list. -->
+                <!-- Left navigation panel: 客戶(category) / 專案(filter) / 標籤(依類別分組)。
+                     partner_id、project_id 皆 stored 可供 read_group 計數；不寫 string=
+                     以沿用欄位自身已翻譯的標籤(客戶/專案)。 -->
                 <searchpanel>
+                    <field name="partner_id" select="one"
+                           icon="fa-building" enable_counters="1"/>
+                    <field name="project_id" select="multi"
+                           icon="fa-folder-open" enable_counters="1"/>
                     <field name="tag_ids" select="multi" icon="fa-tags"
                            enable_counters="1" groupby="category_id"/>
                 </searchpanel>
