@@ -35,6 +35,9 @@
     <record id="mail_activity_view_search_report" model="ir.ui.view">
         <field name="name">mail.activity.search.report</field>
         <field name="model">mail.activity</field>
+        <!-- 高 priority：此為報告專用獨立 search view，只由報告 action 顯式指定;
+             調高避免它被當成 mail.activity 的「預設 search view」而污染其他畫面 -->
+        <field name="priority">99</field>
         <field name="arch" type="xml">
             <search string="Activity Report">
                 <field name="summary"/>

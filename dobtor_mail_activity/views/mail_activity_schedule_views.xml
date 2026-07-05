@@ -448,6 +448,9 @@
     <record id="action_mail_activity_my_schedule" model="ir.actions.act_window">
         <field name="name">My Activities</field>
         <field name="res_model">mail.activity</field>
+        <!-- 明確綁核心 search view（我們的 5 欄 search panel 即 inherit 它）;
+             不綁的話會與報告獨立 search view 競爭「預設」→ list/kanban 抓到錯 panel -->
+        <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
         <field name="context">{'search_default_active_activities': 1}</field>
@@ -621,6 +624,7 @@
     <record id="action_mail_activity_unassigned" model="ir.actions.act_window">
         <field name="name">Unassigned</field>
         <field name="res_model">mail.activity</field>
+        <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('user_id', '=', False)]</field>
         <field name="context">{}</field>
@@ -669,6 +673,7 @@
     <record id="action_mail_activity_all" model="ir.actions.act_window">
         <field name="name">All Activities</field>
         <field name="res_model">mail.activity</field>
+        <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[]</field>
         <field name="context">{'search_default_active_activities': 1}</field>
