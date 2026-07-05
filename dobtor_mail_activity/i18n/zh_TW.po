@@ -5125,3 +5125,380 @@ msgstr "啟用週報管理"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_config_settings_view_form_inherit_productivity
 msgid "Weekly Report Management"
 msgstr "週報管理"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "No related records"
+msgstr "無關聯記錄"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "%s (no project)"
+msgstr "%s（無專案）"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/crm_lead.py:0
+msgid "Timesheet migration skipped: project \"%(project)s\" does not have timesheets enabled."
+msgstr "略過工時遷移：專案「%(project)s」尚未啟用工時表。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/crm_lead.py:0
+msgid "Timesheet migration skipped: project \"%(project)s\" is missing a valid analytic account."
+msgstr "略過工時遷移：專案「%(project)s」缺少有效的分析帳戶。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/crm_lead.py:0
+msgid "Migrated %(count)s timesheet entries from project \"%(old)s\" to \"%(new)s\"."
+msgstr "已將 %(count)s 筆工時記錄從專案「%(old)s」遷移至「%(new)s」。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/crm_lead.py:0
+msgid "Project removed. %(count)s timesheet entries remain in project \"%(project)s\"."
+msgstr "已移除專案。%(count)s 筆工時記錄仍保留於專案「%(project)s」。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/project_project.py:0
+msgid "%(name)s's Leads"
+msgstr "%(name)s 的線索"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/res_users.py:0
+msgid "Other activities"
+msgstr "其他待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/sale_order.py:0
+msgid "Sales order %(order)s created %(count)s projects. Please manually select the appropriate project for this lead."
+msgstr "銷售訂單 %(order)s 已建立 %(count)s 個專案。請手動為此線索選擇適當的專案。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/sale_order.py:0
+msgid "Sales order %(order)s is associated with project \"%(so_project)s\", which differs from current project \"%(lead_project)s\"."
+msgstr "銷售訂單 %(order)s 關聯的專案「%(so_project)s」與目前專案「%(lead_project)s」不同。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "You do not have an employee record and cannot log time."
+msgstr "您沒有員工記錄，無法記錄工時。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Your employee record is inactive and cannot log time."
+msgstr "您的員工記錄未啟用，無法記錄工時。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Cannot find a project to log time.\nPlease ensure the activity is linked to a project task/lead, or the company has a default timesheet project configured."
+msgstr "找不到可記錄工時的專案。\n請確認待辦已關聯專案任務/線索，或公司已設定預設工時表專案。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Project \"%(project)s\" does not have timesheets enabled."
+msgstr "專案「%(project)s」尚未啟用工時表。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Project \"%(project)s\" is missing a valid analytic account. Please configure it in project settings."
+msgstr "專案「%(project)s」缺少有效的分析帳戶。請在專案設定中設定。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Activity Execution"
+msgstr "待辦執行"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/crm_lead.py:0
+msgid "New Project"
+msgstr "新專案"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Collapse all to-dos"
+msgstr "收合所有待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Expand all to-dos"
+msgstr "展開所有待辦"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Failed to load the relation diagram."
+msgstr "無法載入關聯圖。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Diagram library is not loaded."
+msgstr "圖表函式庫尚未載入。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Show open to-dos (%s)"
+msgstr "顯示未完成待辦（%s）"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Linked related document: %s"
+msgstr "已連結關聯文件：%s"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
+msgid "Failed to link the selected document."
+msgstr "無法連結所選文件。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.xml:0
+msgid "Zoom out"
+msgstr "縮小"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.xml:0
+msgid "Fit to window"
+msgstr "符合視窗"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.xml:0
+msgid "Zoom in"
+msgstr "放大"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.xml:0
+msgid "Collapse one level"
+msgstr "收合一層"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.xml:0
+msgid "Expand one level"
+msgstr "展開一層"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_account_analytic_line__activity_id
+msgid "Related Activity"
+msgstr "關聯待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_account_analytic_line__activity_id
+msgid "The activity that created this timesheet entry"
+msgstr "建立此工時記錄的待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity__note_id
+msgid "Source note referenced by this activity"
+msgstr "此待辦引用的來源筆記"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity__res_document_display
+msgid "Live \"<model label> / <current record name>\"; not stored, so it always reflects the source record current name (unlike res_name)."
+msgstr "即時顯示「<模型標籤> / <當前記錄名稱>」；不儲存，因此永遠反映來源記錄的當前名稱（與 res_name 不同）。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__timesheet_feature_enabled
+msgid "Timesheet Feature Enabled"
+msgstr "已啟用工時功能"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity__project_id
+msgid "Related project. Used for the relation diagram, customer fallback and grouped report."
+msgstr "關聯專案。用於關聯圖、客戶回退與分組報告。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__relation_diagram_anchor
+msgid "Relation Diagram"
+msgstr "關聯圖"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_transfer_config__project_field
+msgid "Project Field"
+msgstr "專案欄位"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_transfer_config__project_field
+msgid "Technical name of the field on this model that points to a project.project, e.g. \"project_id\". Used to build the FK relation diagram (project -> related records) and to derive an activity's project from its linked document, without hard-coding any module. For project.project itself, leave empty (it is its own project)."
+msgstr "此模型上指向 project.project 的欄位技術名稱，例如「project_id」。用於建立外鍵關聯圖（專案 -> 關聯記錄），並從關聯文件推導待辦的專案，而不需寫死任何模組。對 project.project 本身請留空（它即為自身的專案）。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_res_company__dobtor_activity_timesheet_enabled
+msgid "When enabled, completing an activity logs time into timesheet entries and the Timesheet tab is shown on the activity form. Disabling only hides timesheet features; CRM project selection is unaffected."
+msgstr "啟用後，完成待辦時會將時間記錄至工時表，並在待辦表單上顯示工時表頁籤。停用僅隱藏工時功能；不影響 CRM 專案選擇。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_crm_lead__project_id
+msgid "Project associated with this lead for timesheet tracking."
+msgstr "為工時追蹤而與此線索關聯的專案。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_crm_lead__task_count
+msgid "Task Count"
+msgstr "任務數"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_project_project__lead_ids
+msgid "CRM Leads"
+msgstr "CRM 線索"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_project_project__lead_count
+msgid "Lead Count"
+msgstr "線索數"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_create_wizard__target_ref
+msgid "Business document this activity is attached to. Leave empty to create a standalone to-do."
+msgstr "此待辦所附掛的業務文件。留空以建立獨立待辦。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_create_wizard__target_required
+msgid "When set (e.g. created from a note editor), a target document must be chosen instead of falling back to the personal note."
+msgstr "設定後（例如從筆記編輯器建立），必須選擇目標文件，而不會回退至個人筆記。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/crm_lead.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.crm_lead_view_form_inherit_productivity
+msgid "Tasks"
+msgstr "任務"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.project_project_view_form_inherit_productivity
+msgid "Leads"
+msgstr "線索"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_popup_inherit
+msgid "Project Relation"
+msgstr "專案關聯"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+msgid "Info"
+msgstr "資訊"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_create_wizard_view_form
+msgid "Related Document — Relation Diagram"
+msgstr "關聯文件 — 關聯圖"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_config_settings_view_form_inherit_productivity
+msgid "To-Do"
+msgstr "待辦"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_config_settings_view_form_inherit_productivity
+msgid "When enabled, weekly report menus, views and related design are shown. Disabling hides all weekly-report features."
+msgstr "啟用後，將顯示週報選單、視圖與相關設計。停用則隱藏所有週報功能。"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_config_settings_view_form_inherit_productivity
+msgid "When enabled, completing an activity logs time into timesheet entries and shows the Timesheet tab on the activity form. CRM project selection is unaffected by this switch."
+msgstr "啟用後，完成待辦時會將時間記錄至工時表並在待辦表單顯示工時表頁籤。此開關不影響 CRM 專案選擇。"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_report
+#: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_report
+msgid "Activity Report"
+msgstr "待辦報告"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_report
+msgid "Active Only"
+msgstr "僅作用中"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule_timesheet
+msgid "Timesheet"
+msgstr "工時表"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule_timesheet
+msgid "Description"
+msgstr "說明"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule_timesheet
+msgid "Hours"
+msgstr "時數"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_config_view_form
+msgid "project_id (empty = no project FK)"
+msgstr "project_id（留空 = 無專案外鍵）"
+
+#. module: dobtor_mail_activity
+#: model:ir.actions.server,name:dobtor_mail_activity.ir_cron_weekly_transition_ir_actions_server
+msgid "Activity Week Transition"
+msgstr "待辦週轉換"
+
+#. module: dobtor_mail_activity
+#: model:ir.actions.server,name:dobtor_mail_activity.ir_cron_refresh_res_name_ir_actions_server
+msgid "Refresh Activity Related Document Name"
+msgstr "重新整理待辦關聯文件名稱"
+
+#. module: dobtor_mail_activity
+#: model:ir.actions.server,name:dobtor_mail_activity.ir_cron_compute_efficiency_metrics_ir_actions_server
+msgid "Calculate Efficiency Metrics"
+msgstr "計算效率指標"
+
+#. module: dobtor_mail_activity
+#: model:ir.actions.server,name:dobtor_mail_activity.ir_cron_create_weekly_schedule_ir_actions_server
+msgid "Create Weekly Schedule Activities"
+msgstr "建立每週排程待辦"
+
+#. module: dobtor_mail_activity
+#: model:mail.activity.type,summary:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
+msgid "Plan this week's work"
+msgstr "安排本週工作計畫"
+
+#. module: dobtor_mail_activity
+#: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
+msgid "Please complete the following:"
+msgstr "請完成以下事項："
+
+#. module: dobtor_mail_activity
+#: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
+msgid "Review last week's completion"
+msgstr "回顧上週完成情況"
+
+#. module: dobtor_mail_activity
+#: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
+msgid "Confirm this week's priorities"
+msgstr "確認本週優先事項"
+
+#. module: dobtor_mail_activity
+#: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
+msgid "Schedule daily activities for this week"
+msgstr "排程本週每日待辦"
+
+#. module: dobtor_mail_activity
+#: model_terms:mail.activity.type,default_description:dobtor_mail_activity.mail_activity_type_weekly_report_schedule
+msgid "Pre-schedule important work for next week"
+msgstr "預排下週重要工作"

@@ -89,10 +89,10 @@ class ResUsers(models.Model):
         NoteStage = self.env['note.stage'].sudo()
 
         default_stages = [
-            {'name': 'Notes', 'sequence': 1, 'fold': False},
-            {'name': 'Meeting Minutes', 'sequence': 5, 'fold': False},
-            {'name': 'Manuals', 'sequence': 10, 'fold': False},
-            {'name': 'References', 'sequence': 50, 'fold': True},
+            {'name': _('Notes'), 'sequence': 1, 'fold': False},
+            {'name': _('Meeting Minutes'), 'sequence': 5, 'fold': False},
+            {'name': _('Manuals'), 'sequence': 10, 'fold': False},
+            {'name': _('References'), 'sequence': 50, 'fold': True},
         ]
 
         # 批次查詢已有 stage 的用戶
