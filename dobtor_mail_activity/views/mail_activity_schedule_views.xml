@@ -96,14 +96,12 @@
                             context="{'group_by': 'date_deadline:day'}"/>
                 </group>
 
-                <!-- 左側 search panel：客戶 / 專案 / 緊急程度 / 重要性 / 排程 / 負責人。
+                <!-- 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程 / 負責人。
                      不設 view_types → 清單與看板皆顯示；fold="1" → 預設收闔。
-                     六個欄位皆 stored 可供 read_group 計數。 -->
+                     五個欄位皆 stored 可供 read_group 計數。 -->
                 <searchpanel fold="1">
                     <field name="partner_id" string="Customer" select="one"
                            icon="fa-building" hierarchize="0" enable_counters="1"/>
-                    <field name="project_id" string="Project" select="multi"
-                           icon="fa-folder-open" enable_counters="1"/>
                     <field name="urgency" string="Urgency" select="multi"
                            icon="fa-exclamation-circle" enable_counters="1"/>
                     <field name="importance" string="Importance" select="multi"
