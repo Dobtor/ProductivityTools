@@ -410,16 +410,14 @@
                                 </div>
                             </div>
 
-                            <!-- 警告訊息（有資訊時才顯示） -->
-                            <div t-if="record.schedule_warning.raw_value"
-                                 class="alert alert-warning d-flex align-items-center py-1 px-2 mb-1 small"
-                                 role="alert">
-                                <i class="fa fa-exclamation-triangle me-1" title="Warning"/><span t-esc="record.schedule_warning.value"/>
-                            </div>
-
-                            <!-- 排定列：空值卡可直接挑日期；有值卡顯示唯讀 badge -->
-                            <div class="mb-1">
+                            <!-- 排定列：空值卡可直接挑日期（「排定日期」按鈕）；有值卡顯示唯讀 badge。
+                                 排程提示（schedule_warning，僅未排程時有值）緊接按鈕之後、同一列。 -->
+                            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
                                 <field name="planned_date" widget="planned_date_picker"/>
+                                <span t-if="record.schedule_warning.raw_value"
+                                      class="text-warning small d-inline-flex align-items-center" role="alert">
+                                    <i class="fa fa-exclamation-triangle me-1" title="Warning"/><t t-esc="record.schedule_warning.value"/>
+                                </span>
                             </div>
 
                             <!-- 第二列：截止日期(左) + [緊急][類型](右) -->
