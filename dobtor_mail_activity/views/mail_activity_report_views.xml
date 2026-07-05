@@ -85,10 +85,12 @@
     <record id="action_mail_activity_report" model="ir.actions.act_window">
         <field name="name">Activity Report</field>
         <field name="res_model">mail.activity</field>
-        <field name="view_mode">list,pivot</field>
+        <!-- form 供點列編輯（客戶/專案/關聯圖）；不在檢視切換列，僅由點列開啟 -->
+        <field name="view_mode">list,form,pivot</field>
         <field name="search_view_id" ref="mail_activity_view_search_report"/>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('mail_activity_view_list_report')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
             (0, 0, {'view_mode': 'pivot', 'view_id': ref('mail_activity_view_pivot_report')})]"/>
         <!-- 左側 search panel 篩選 客戶/專案/負責人；右側清單預設以「相關文件」
              (res_name) 分組並展開；state 為最右欄位。res_name 由 cron 定期重算保持新鮮。 -->

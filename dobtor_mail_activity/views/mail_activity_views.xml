@@ -68,7 +68,11 @@
                 <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）。
                      res_model 由原生隱藏 group + widget fieldDependencies 提供，不重宣告 -->
                 <group string="Project Relation" name="activity_project_relation">
-                    <field name="project_id" options="{'no_create': True}"/>
+                    <!-- 客戶 左 / 專案 右（一致於「建立待辦」wizard）-->
+                    <group col="4">
+                        <field name="partner_id" string="Customer" options="{'no_create': True}"/>
+                        <field name="project_id" string="Project" options="{'no_create': True}"/>
+                    </group>
                     <field name="relation_diagram_anchor" widget="activity_relation_diagram"
                            nolabel="1" colspan="2"/>
                 </group>
@@ -208,8 +212,13 @@
                     <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）
                          位於左右資訊 group 與 關聯/排程 group 之間 -->
                     <group string="Project Relation" name="activity_project_relation">
-                        <field name="project_id" options="{'no_create': True}"
-                               readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                        <!-- 客戶 左 / 專案 右（一致於「建立待辦」wizard；選 res 後自動帶入）-->
+                        <group col="4">
+                            <field name="partner_id" string="Customer"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                            <field name="project_id" string="Project" options="{'no_create': True}"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                        </group>
                         <!-- 供邏輯圖 widget 讀取（隱藏） -->
                         <field name="res_model" invisible="1"/>
                         <field name="relation_diagram_anchor" widget="activity_relation_diagram"
@@ -230,9 +239,6 @@
                             <field name="note_id" string="Source Reference"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
-                            <!-- 需求五：客戶可手填（res→專案客戶自動帶入，仍可覆寫） -->
-                            <field name="partner_id" string="Related Customer"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
                         </group>
 
                         <!-- 排程資訊 -->

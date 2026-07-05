@@ -37,7 +37,19 @@ class MailActivityCreateWizard(models.TransientModel):
     # 這兩個必填欄位存 NULL → 存檔失敗。與 mail_activity.py 對 mail.activity 的
     # res_model_id 覆寫一致，此處放寬為非必填（留空 → fallback 個人待辦筆記）。
     res_model = fields.Char(required=False)
-    res_model_id = fields.Many2one('ir.model', required=False)
+    # 覆寫為可寫（移除官方 _compute_res_model_id），供關聯圖 widget 回填 res_model_id
+    res_model_id = fields.Many2one(
+        'ir.model', required=False, compute=False, readonly=False)
+    # 單一關聯文件 id（供關聯圖 widget 與 target_ref 同步）
+    res_id = fields.Many2oneReference(
+        string='Related Document ID', model_field='res_model')
+
+    # ===== 客戶 / 專案（與 mail.activity form 一致；選 res 後可自動帶入）=====
+    partner_id = fields.Many2one('res.partner', string='Customer')
+    project_id = fields.Many2one('project.project', string='Project')
+
+    # 關聯圖錨點（dummy Boolean，供 activity_relation_diagram widget 綁定）
+    relation_diagram_anchor = fields.Boolean(default=False)
 
     # ===== 目標已知 / 未知 =====
     res_known = fields.Boolean(string='Target Known')
@@ -105,6 +117,68 @@ class MailActivityCreateWizard(models.TransientModel):
             if not wiz.date_deadline:
                 wiz.date_deadline = fields.Date.context_today(wiz)
 
+    # ===== 關聯文件 ↔ target_ref 同步 + 客戶/專案連動 =====
+
+    @api.onchange('res_model_id', 'res_id')
+    def _onchange_wizard_res(self):
+        """關聯圖選節點（設 res_model_id + res_id）→ 同步 res_model / target_ref，
+        並由文件反推帶入 專案/客戶（僅填空欄，不覆蓋已選）。"""
+        for wiz in self:
+            model_name = wiz.res_model_id.model or False
+            if wiz.res_model != model_name:
+                wiz.res_model = model_name
+            if model_name and wiz.res_id:
+                ref = '%s,%s' % (model_name, wiz.res_id)
+                if wiz.target_ref != ref:
+                    wiz.target_ref = ref
+                wiz._wizard_fill_project_partner()
+
+    @api.onchange('target_ref')
+    def _onchange_wizard_target_ref(self):
+        """手動選 target_ref → 同步 res_model_id/res_id/res_model（供關聯圖標示），
+        並反推帶入 專案/客戶。清空 target_ref → 一併清空 res。"""
+        for wiz in self:
+            if wiz.target_ref:
+                model_rec = wiz.env['ir.model']._get(wiz.target_ref._name)
+                if wiz.res_model_id.id != model_rec.id:
+                    wiz.res_model_id = model_rec.id
+                if wiz.res_id != wiz.target_ref.id:
+                    wiz.res_id = wiz.target_ref.id
+                wiz.res_model = wiz.target_ref._name
+                wiz._wizard_fill_project_partner()
+            elif wiz.res_id or wiz.res_model_id:
+                wiz.res_model_id = False
+                wiz.res_id = False
+                wiz.res_model = False
+
+    @api.onchange('project_id')
+    def _onchange_wizard_project(self):
+        """選/改專案 → 客戶空則以專案客戶帶入（不覆蓋已選客戶）。"""
+        for wiz in self:
+            if wiz.project_id and not wiz.partner_id and wiz.project_id.partner_id:
+                wiz.partner_id = wiz.project_id.partner_id.id
+
+    def _wizard_fill_project_partner(self):
+        """選定 res 後：專案/客戶「空時」由文件反推帶入（不覆蓋使用者已選）。
+
+        規則對照使用者確認之情境：
+          選客戶先 → 選 doc → 帶入專案（客戶已填、保持）
+          選專案先 → 選 doc → 帶入客戶（專案已填、保持）
+        重用 mail.activity 的 _project_from_res / _partner_from_res。
+        """
+        self.ensure_one()
+        if not self.res_model or not self.res_id:
+            return
+        Act = self.env['mail.activity']
+        if not self.project_id:
+            project = Act._project_from_res(self.res_model, self.res_id)
+            if project:
+                self.project_id = project.id
+        if not self.partner_id:
+            partner_id = Act._partner_from_res(self.res_model, self.res_id)
+            if partner_id:
+                self.partner_id = partner_id
+
     @api.model
     def default_get(self, fields_list):
         ctx = self.env.context
@@ -166,8 +240,13 @@ class MailActivityCreateWizard(models.TransientModel):
             act_values['note_id'] = self.note_id.id
         if self.source_message_id:
             act_values['source_message_id'] = self.source_message_id.id
-        # 需求八：discuss 建立時 context 帶入 default_partner_id
-        partner_id = self.env.context.get('default_partner_id')
+        # 客戶/專案（wizard 上選定或由文件自動帶入）；兩條建立路徑皆帶入
+        if self.project_id:
+            act_values['project_id'] = self.project_id.id
+        # 需求八：discuss 建立時 context 帶入 default_partner_id；wizard 選定者優先
+        partner_id = self.partner_id.id or self.env.context.get('default_partner_id')
+        if partner_id:
+            act_values['partner_id'] = partner_id
 
         records = self._get_applied_on_records()
         if records:
@@ -182,6 +261,7 @@ class MailActivityCreateWizard(models.TransientModel):
             )
 
         # 獨立待辦（無關聯文件）：直接建立 mail.activity
+        # （partner_id/project_id 已含於 act_values）
         vals = {
             'activity_type_id': self.activity_type_id.id,
             'summary': self.summary,
@@ -190,8 +270,6 @@ class MailActivityCreateWizard(models.TransientModel):
             'date_deadline': self.date_deadline,
             **act_values,
         }
-        if partner_id:
-            vals['partner_id'] = partner_id
         return self.env['mail.activity'].create(vals)
 
     def action_create_todo(self):
