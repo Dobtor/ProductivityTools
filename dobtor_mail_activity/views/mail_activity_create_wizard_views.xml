@@ -55,8 +55,9 @@
                 <group>
                     <!-- 關聯資訊 -->
                     <group string="Related Information">
-                        <!-- 客戶 左 / 專案 右（與 mail.activity form 一致；選 res 後自動帶入）-->
-                        <group col="4">
+                        <!-- 客戶 左 / 專案 右水平排列（與 mail.activity form 一致；選 res 後自動帶入）;
+                             colspan=2 讓 pair-group 佔滿全寬，避免擠在半欄換行成垂直 -->
+                        <group col="4" colspan="2">
                             <field name="partner_id" string="Customer"
                                    options="{'no_create': True}"/>
                             <field name="project_id" string="Project"

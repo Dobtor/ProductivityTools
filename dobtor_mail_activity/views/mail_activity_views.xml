@@ -67,9 +67,10 @@
 
                 <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）。
                      res_model 由原生隱藏 group + widget fieldDependencies 提供，不重宣告 -->
-                <group string="Project Relation" name="activity_project_relation">
-                    <!-- 客戶 左 / 專案 右（一致於「建立待辦」wizard）-->
-                    <group col="4">
+                <group string="Object Relation" name="activity_project_relation">
+                    <!-- 客戶 左 / 專案 右水平排列（一致於「建立待辦」wizard）;
+                         colspan=2 讓 pair-group 佔滿父 group 全寬，避免擠在半欄而換行成垂直 -->
+                    <group col="4" colspan="2">
                         <field name="partner_id" string="Customer" options="{'no_create': True}"/>
                         <field name="project_id" string="Project" options="{'no_create': True}"/>
                     </group>
@@ -211,9 +212,10 @@
 
                     <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）
                          位於左右資訊 group 與 關聯/排程 group 之間 -->
-                    <group string="Project Relation" name="activity_project_relation">
-                        <!-- 客戶 左 / 專案 右（一致於「建立待辦」wizard；選 res 後自動帶入）-->
-                        <group col="4">
+                    <group string="Object Relation" name="activity_project_relation">
+                        <!-- 客戶 左 / 專案 右水平排列（一致於「建立待辦」wizard；選 res 後自動帶入）;
+                             colspan=2 讓 pair-group 佔滿父 group 全寬，避免擠在半欄而換行成垂直 -->
+                        <group col="4" colspan="2">
                             <field name="partner_id" string="Customer"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
                             <field name="project_id" string="Project" options="{'no_create': True}"

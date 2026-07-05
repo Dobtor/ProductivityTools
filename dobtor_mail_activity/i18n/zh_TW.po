@@ -5394,8 +5394,9 @@ msgstr "線索"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_popup_inherit
-msgid "Project Relation"
-msgstr "專案關聯"
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+msgid "Object Relation"
+msgstr "項目關聯"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
