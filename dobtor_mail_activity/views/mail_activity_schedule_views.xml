@@ -96,9 +96,9 @@
                             context="{'group_by': 'date_deadline:day'}"/>
                 </group>
 
-                <!-- 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程。
+                <!-- 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程 / 負責人。
                      不設 view_types → 清單與看板皆顯示；fold="1" → 預設收闔。
-                     四個欄位皆 stored 可供 read_group 計數。 -->
+                     五個欄位皆 stored 可供 read_group 計數。 -->
                 <searchpanel fold="1">
                     <field name="partner_id" string="Customer" select="one"
                            icon="fa-building" hierarchize="0" enable_counters="1"/>
@@ -108,6 +108,8 @@
                            icon="fa-star" enable_counters="1"/>
                     <field name="schedule_week" string="Schedule" select="multi"
                            icon="fa-calendar-o" enable_counters="1"/>
+                    <field name="user_id" string="Assignee" select="multi"
+                           icon="fa-user" enable_counters="1"/>
                 </searchpanel>
             </xpath>
         </field>
