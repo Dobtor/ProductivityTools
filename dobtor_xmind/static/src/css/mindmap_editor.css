@@ -1073,9 +1073,15 @@
     overflow: hidden;
     background: #fff;
 }
-.o_xmind_embed_canvas {
+/* Fixed viewport for the inline read-only editor. */
+.o_xmind_embed_host {
     position: relative;
     width: 100%;
-    height: 420px;
+    height: 460px;
     overflow: hidden;
+}
+/* The full editor container is normally full-page (100vh); when embedded it must
+   fill the fixed host box instead. */
+.o_xmind_embed_host .o_mindmap_editor_container {
+    height: 100%;
 }

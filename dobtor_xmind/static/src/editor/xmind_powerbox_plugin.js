@@ -65,11 +65,14 @@ export class XmindPowerboxPlugin extends Plugin {
             // Fall back to the current selection if the saved one can't be restored.
         }
         const { resModel, resId } = this.getRecordInfo();
+        // resId may arrive as a string; keep the persisted prop a clean Number|false
+        // so the embedded component's prop types validate.
+        const resIdNum = resId ? Number(resId) || false : false;
         const block = renderToElement("dobtor_xmind.MindmapBlueprint", {
             embeddedProps: JSON.stringify({
                 workbookId,
                 resModel: resModel || false,
-                resId: resId || false,
+                resId: resIdNum,
             }),
         });
         this.dependencies.dom.insert(block);

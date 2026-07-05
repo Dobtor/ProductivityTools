@@ -52,8 +52,18 @@ export class MindmapEditor extends Component {
         this.containerRef = useRef("jsmindContainer");
         this.sidebarRef = useRef("sidebar");
 
-        // Read workbook_id from action params (normal open) or router state (page refresh)
+        // Read-only mode: when mounted as a sub-component (e.g. embedded into another
+        // record's HTML field), suppress ALL editing affordances (toolbar, sidebar,
+        // status bar, autosave, keyboard, drag/drop, context menus, URL hijack) while
+        // keeping the full faithful rendering pipeline (_renderAllFeatures) intact.
+        // Strictly additive: the client-action path never sets this, so its behaviour
+        // is unchanged.
+        this.readonly = !!(this.props && this.props.readonly);
+
+        // Read workbook_id from a direct prop (embedded), else action params (normal
+        // open) or router state (page refresh).
         this.workbookId =
+            (this.props && this.props.workbookId) ||
             (this.props.action && this.props.action.params && this.props.action.params.workbook_id) ||
             router.current.workbook_id ||
             null;
@@ -132,8 +142,9 @@ export class MindmapEditor extends Component {
                 link.href = 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap';
                 document.head.appendChild(link);
             }
-            // Push state into URL so page refresh reopens the same mind map
-            if (this.workbookId) {
+            // Push state into URL so page refresh reopens the same mind map.
+            // Skip when embedded/read-only — an inline map must not hijack the URL.
+            if (this.workbookId && !this.readonly) {
                 router.pushState({
                     action: 'dobtor_xmind.mindmap_editor',
                     workbook_id: this.workbookId,
@@ -146,18 +157,22 @@ export class MindmapEditor extends Component {
                 return;
             }
             this._initFeatures();
-            this._setupCommandStackListener();
-            this._setupContextMenu();
-            document.addEventListener('keydown', this._boundKeydownHandler);
-            this._setupAutoSave();
-            this._initFormatMenu();
-            this._initRectangleSelector();
-            this._initWheelZoom();       // Fix #9: Ctrl+scroll zoom
-            this._initSpacePan();        // Fix #10: Space+drag pan
+            // Editing-only wiring: skipped entirely in read-only/embedded mode so
+            // multiple inline maps never register duplicate timers/handlers.
+            if (!this.readonly) {
+                this._setupCommandStackListener();
+                this._setupContextMenu();
+                document.addEventListener('keydown', this._boundKeydownHandler);
+                this._setupAutoSave();
+                this._initFormatMenu();
+                this._initRectangleSelector();
+                this._initWheelZoom();       // Fix #9: Ctrl+scroll zoom
+                this._initSpacePan();        // Fix #10: Space+drag pan
+                this._loadSheets(); // Feature 4: Multi-Sheet tabs
+            }
             this._zoomLevel = 1;
             this._copiedStyle = null;
             this._numberingEnabled = false;
-            this._loadSheets(); // Feature 4: Multi-Sheet tabs
             this._updateStatus(_t('Ready'));
         });
 
@@ -166,8 +181,9 @@ export class MindmapEditor extends Component {
                 clearInterval(this.autoSaveTimer);
             }
             clearTimeout(this._featureRelayoutTimer);
-            // Auto-save + thumbnail on exit if dirty
-            if (this.commandStack && this.commandStack.isDirty && this.workbookId) {
+            // Auto-save + thumbnail on exit if dirty. Never persist from a read-only
+            // embed — inline navigation (expand/collapse) must not write to the DB.
+            if (!this.readonly && this.commandStack && this.commandStack.isDirty && this.workbookId) {
                 this._saveData().then(() => this._saveThumbnail()).catch(() => {});
             }
             if (this.dragDropManager) {
@@ -352,7 +368,7 @@ export class MindmapEditor extends Component {
         const options = {
             container: container,
             theme: this.sheetSettings.theme || 'primary',
-            editable: true,
+            editable: !this.readonly,
             mode: 'full',
             support_html: false,
             view: {
@@ -1356,6 +1372,14 @@ export class MindmapEditor extends Component {
         this.boundaryRenderer = new BoundaryRenderer(world);
         this.summaryRenderer = new SummaryRenderer(world);
         this.calloutRenderer = new CalloutRenderer(world);
+
+        // Read-only/embedded: the overlay renderers above are all that _renderAllFeatures
+        // needs to faithfully draw relationships/boundaries/summaries/callouts. Skip every
+        // editing interaction below (drag/drop, dblclick-to-edit, relationship editing,
+        // summary context menus).
+        if (this.readonly) {
+            return;
+        }
 
         this.summaryRenderer.setContextMenuCallback((summaryId, event) => {
             this._showSummaryContextMenu(summaryId, event);

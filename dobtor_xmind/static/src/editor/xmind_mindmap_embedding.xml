@@ -12,15 +12,13 @@
                     <i class="fa fa-external-link me-1"/>開啟
                 </button>
             </div>
-            <div t-if="state.loading" class="text-muted small p-3">
-                <i class="fa fa-spinner fa-spin me-1"/>載入心智圖…
-            </div>
-            <div t-elif="state.error" class="text-muted small p-3">
+            <div t-if="state.missing" class="text-muted small p-3">
                 <i class="fa fa-exclamation-triangle text-warning me-1"/>
-                <span t-esc="state.error"/>
+                <span t-esc="emptyLabel"/>
             </div>
-            <div t-ref="canvas" class="o_xmind_embed_canvas"
-                 t-att-style="state.loading or state.error ? 'display:none;' : ''"/>
+            <div t-else="" class="o_xmind_embed_host">
+                <MindmapEditor t-props="editorProps"/>
+            </div>
         </div>
     </t>
 

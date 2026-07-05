@@ -3,7 +3,7 @@
     <t t-name="dobtor_xmind.MindmapEditor">
         <div class="o_mindmap_editor_container">
             <!-- Toolbar: Mind map layout -->
-            <div class="o_mindmap_toolbar">
+            <div class="o_mindmap_toolbar" t-if="!readonly">
 
                 <!-- Group 1: Home / Save / Undo / Redo (Mind map: Dashboard toolbar) -->
                 <div class="btn-group me-2">
@@ -491,7 +491,7 @@
 
             <!-- Project bar：位於工具列下方（儲存下方）。建立/同步專案 +
                  專案名稱(可點→開啟專案，取代原「開啟專案」按鈕) + 客戶名稱(未設不顯示) -->
-            <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1">
+            <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1" t-if="!readonly">
                 <div class="btn-group btn-group-sm">
                     <button class="btn btn-outline-info o_mindmap_btn_create_project" title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
                         <i class="fa fa-folder-open me-1"/>建立專案
@@ -512,7 +512,7 @@
             </div>
 
             <!-- Sidebar for Properties -->
-            <div class="o_mindmap_sidebar" t-ref="sidebar">
+            <div class="o_mindmap_sidebar" t-ref="sidebar" t-if="!readonly">
                 <div class="o_mindmap_sidebar_header">
                     <h5>主題屬性</h5>
                     <button class="btn btn-sm btn-link o_mindmap_sidebar_close" t-on-click="onSidebarClose">
@@ -722,7 +722,7 @@
             </div>
 
             <!-- Status Bar -->
-            <div class="o_mindmap_statusbar">
+            <div class="o_mindmap_statusbar" t-if="!readonly">
                 <span class="o_mindmap_status_text">就緒</span>
                 <span class="o_mindmap_autosave_indicator"></span>
                 <span class="o_mindmap_status_spacer"/>

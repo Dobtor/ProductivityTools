@@ -4,24 +4,26 @@
  * Live, read-only mind map embedded inside another model's HTML field.
  *
  * Inserted by the "/" power-box command "插入心智圖"; data-embedded="xmindMindmap".
- * The block persists only { workbookId, resModel, resId }; the map itself is always
- * fetched fresh from the backend (/xmind/workbook/<id>/data) at mount, so it stays
- * faithful to the original — same theme, layout, node styling and floating topics —
- * and never goes stale. Rendered with window.OdooMindMap in editable:false mode
- * (no inline edit, no double-click-to-edit), draggable for panning.
+ * The block persists only { workbookId, resModel, resId }. It mounts the FULL
+ * MindmapEditor component in read-only mode, so the map is rendered through the
+ * exact same pipeline as the real editor — faithful theme, layout, node styling,
+ * markers, labels, images, floating topics, AND overlays (relationships,
+ * boundaries, summaries, callouts) — always fresh from the DB, never stale, and
+ * non-editable (no toolbar/sidebar/status bar, no autosave, no keyboard/drag).
  *
- * On mount (when the host record is already saved) it registers the whole-workbook
- * association via xmind.workbook.register_embed so the mind map editor's project bar
- * can list the host records under "關聯物件：...".
+ * On mount (host record already saved) it registers the whole-workbook association
+ * via xmind.workbook.register_embed so the editor's project bar can list the host
+ * records under "關聯物件：...".
  */
-import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { getEmbeddedProps } from "@html_editor/others/embedded_component_utils";
 import { useService } from "@web/core/utils/hooks";
-import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/l10n/translation";
+import { MindmapEditor } from "@dobtor_xmind/js/mindmap_editor";
 
 export class EmbeddedXmindMindmap extends Component {
     static template = "dobtor_xmind.EmbeddedMindmap";
+    static components = { MindmapEditor };
     static props = {
         host: { type: Object },
         workbookId: { type: [Number, Boolean], optional: true },
@@ -32,20 +34,24 @@ export class EmbeddedXmindMindmap extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.canvasRef = useRef("canvas");
-        this.state = useState({ loading: true, error: false, name: "" });
-        this._alive = true;
-        this._jm = null;
+        this.state = useState({ name: "", missing: false });
 
-        onWillStart(() => this.load());
-        onMounted(() => this._renderMap());
-        onWillUnmount(() => {
-            this._alive = false;
-            this._jm = null;
-            // Drop the rendered canvas so any renderer-held DOM/listeners go with it.
-            if (this.canvasRef.el) {
-                this.canvasRef.el.innerHTML = "";
+        onWillStart(async () => {
+            if (!this.workbookId) {
+                this.state.missing = true;
+                return;
             }
+            try {
+                const recs = await this.orm.read("xmind.workbook", [this.workbookId], ["name"]);
+                if (recs && recs.length) {
+                    this.state.name = recs[0].name || "";
+                } else {
+                    this.state.missing = true;
+                }
+            } catch (e) {
+                this.state.missing = true;
+            }
+            this._registerEmbed();
         });
     }
 
@@ -53,33 +59,9 @@ export class EmbeddedXmindMindmap extends Component {
         return this.props.workbookId || false;
     }
 
-    async load() {
-        if (!this.workbookId) {
-            this.state.error = _t("No mind map selected.");
-            this.state.loading = false;
-            return;
-        }
-        try {
-            const result = await rpc(`/xmind/workbook/${this.workbookId}/data`, {});
-            if (!this._alive) {
-                return;
-            }
-            if (!result || result.error) {
-                this.state.error = _t("Mind map not found or access denied.");
-                this.state.loading = false;
-                return;
-            }
-            this._data = result;
-            this.state.name = result.name || "";
-            this.state.loading = false;
-            // Fire-and-forget association registration (host must be saved).
-            this._registerEmbed();
-        } catch (e) {
-            if (this._alive) {
-                this.state.error = _t("Failed to load mind map.");
-                this.state.loading = false;
-            }
-        }
+    /** Props for the read-only MindmapEditor sub-component. */
+    get editorProps() {
+        return { workbookId: this.workbookId, readonly: true };
     }
 
     /** Register the whole-workbook ↔ host-record association (idempotent). */
@@ -99,87 +81,11 @@ export class EmbeddedXmindMindmap extends Component {
         }
     }
 
-    /** Instantiate the renderer read-only and show the fetched map faithfully. */
-    _renderMap() {
-        if (!this._alive || this.state.error || !this._data) {
-            return;
-        }
-        const container = this.canvasRef.el;
-        if (!container || !window.OdooMindMap) {
-            this.state.error = _t("Mind map renderer not loaded.");
-            return;
-        }
-        const settings = this._data.sheet_settings || {};
-        const mindmapData = this._data.mindmap_data;
-        if (!mindmapData || !mindmapData.data) {
-            this.state.error = _t("This mind map is empty.");
-            return;
-        }
-
-        // Inject floating topics as flagged root children (mirrors the main editor)
-        // so free-floating nodes render at their saved positions.
-        const floats = this._data.floating_topics || [];
-        if (floats.length && mindmapData.data) {
-            if (!mindmapData.data.children) {
-                mindmapData.data.children = [];
-            }
-            for (const ft of floats) {
-                if (mindmapData.data.children.some((c) => c.id === ft.id)) {
-                    continue;
-                }
-                mindmapData.data.children.push({
-                    id: ft.id || ft.component_id,
-                    topic: ft.title,
-                    expanded: true,
-                    children: [],
-                    data: {
-                        _isFloatingTopic: true,
-                        _ftX: ft.x,
-                        _ftY: ft.y,
-                        note: ft.note || "",
-                        style: ft.style || { background: "#FFFFFF", color: "#303030", fontSize: "13", bold: true },
-                        shape: { type: "rounded", fillColor: "#FFFFFF", borderColor: "#558ED5", borderWidth: 2 },
-                    },
-                });
-            }
-        }
-
-        const options = {
-            container,
-            theme: settings.theme || "primary",
-            editable: false,
-            mode: "full",
-            support_html: false,
-            view: {
-                engine: "canvas",
-                hmargin: 60,
-                vmargin: 30,
-                line_width: 2,
-                line_color: "#555",
-                draggable: true,
-                hide_scrollbars_when_draggable: false,
-            },
-            layout: {
-                hspace: settings.spacing_major || 30,
-                vspace: settings.spacing_minor || 8,
-                pspace: 13,
-            },
-            shortcut: { enable: false },
-        };
-
-        try {
-            this._jm = new window.OdooMindMap(options);
-            const layoutMode = settings.layout || "map";
-            if (this._jm.layout && this._jm.layout.setLayoutMode) {
-                this._jm.layout.setLayoutMode(layoutMode);
-            }
-            this._jm.show(mindmapData);
-        } catch (e) {
-            this.state.error = _t("Failed to render mind map.");
-        }
+    get emptyLabel() {
+        return _t("Mind map not found or access denied.");
     }
 
-    /** Open the full mind map editor for this workbook in a new form view. */
+    /** Open the full mind map editor for this workbook in a form view. */
     onOpen() {
         if (!this.workbookId) {
             return;
