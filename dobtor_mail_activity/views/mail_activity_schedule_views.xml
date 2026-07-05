@@ -97,9 +97,9 @@
                 </group>
 
                 <!-- 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程。
-                     view_types="list" → 僅清單顯示（kanban 不顯示，符合先前需求）；
-                     fold="1" → 預設收闔。四個欄位皆 stored 可供 read_group 計數。 -->
-                <searchpanel view_types="list" fold="1">
+                     不設 view_types → 清單與看板皆顯示；fold="1" → 預設收闔。
+                     四個欄位皆 stored 可供 read_group 計數。 -->
+                <searchpanel fold="1">
                     <field name="partner_id" string="Customer" select="one"
                            icon="fa-building" hierarchize="0" enable_counters="1"/>
                     <field name="urgency" string="Urgency" select="multi"
