@@ -445,6 +445,28 @@ class MailActivity(models.Model):
                 activity.res_document_display = False
 
     @api.model
+    def _cron_refresh_res_name(self, batch_limit=5000):
+        """定期強制重算 stored res_name，讓來源記錄改名後群組標題能跟上。
+
+        res_name 是 stored 快照，@api.depends('res_model','res_id') 不會因「來源記錄
+        改名」而重算（多型參考無法穿透）。報告以 res_name 當群組標題，故以本 cron
+        週期性重算，使標題保持新鮮（非即時，取決於 cron 週期）。僅處理仍 active 且
+        有關聯文件的待辦，控制成本。
+        """
+        activities = self.search([
+            ('active', '=', True),
+            ('res_model', '!=', False),
+            ('res_id', '!=', False),
+        ], limit=batch_limit)
+        if not activities:
+            return
+        # 清快取後直接重算 compute（賦值 stored 欄位 → flush 落地）
+        activities.invalidate_recordset(['res_name'])
+        activities._compute_res_name()
+        activities.flush_recordset(['res_name'])
+        _logger.info('Cron: refreshed res_name for %s activities.', len(activities))
+
+    @api.model
     def _selection_target_model(self):
         """取得允許的目標模型選項（使用共用方法）"""
         return self.env['mail.activity.transfer.config'].get_target_model_selection()

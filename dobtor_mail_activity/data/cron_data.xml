@@ -27,6 +27,19 @@
             <field name="active">True</field>
         </record>
 
+        <!-- 每日重算 res_name（來源記錄改名後，報告群組標題跟上） -->
+        <record id="ir_cron_refresh_res_name" model="ir.cron">
+            <field name="name">Refresh Activity Related Document Name</field>
+            <field name="model_id" ref="mail.model_mail_activity"/>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_refresh_res_name()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="(datetime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 00:45:00')"/>
+            <field name="active">True</field>
+        </record>
+
         <!-- 效率指標計算定時任務 -->
         <record id="ir_cron_compute_efficiency_metrics" model="ir.cron">
             <field name="name">Calculate Efficiency Metrics</field>
