@@ -23,6 +23,21 @@
     z-index: 100;
 }
 
+/* Project bar: 工具列下方的專案/客戶資訊列 */
+.o_mindmap_project_bar {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    min-height: 34px;
+    z-index: 99;
+}
+.o_mindmap_project_bar .o_mindmap_project_link {
+    cursor: pointer;
+    text-decoration: none;
+}
+.o_mindmap_project_bar .o_mindmap_project_link:hover {
+    text-decoration: underline;
+}
+
 .o_mindmap_toolbar .btn-group {
     display: flex;
     gap: 0;

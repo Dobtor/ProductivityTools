@@ -435,18 +435,7 @@
                     </div>
                 </div>
 
-                <!-- Group 7b: Project integration (map → project) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_create_project" title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
-                        <i class="fa fa-folder-open"/> 建立專案
-                    </button>
-                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_sync_project" title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject">
-                        <i class="fa fa-refresh"/> 同步專案
-                    </button>
-                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_open_project" title="開啟連結的專案" t-on-click="onOpenProject" style="display:none;">
-                        <i class="fa fa-external-link"/> 開啟專案
-                    </button>
-                </div>
+                <!-- Group 7b: 專案整合按鈕已移到工具列下方的 o_mindmap_project_bar -->
 
                 <!-- Group 8: Structure / Theme selectors (Mind map: Window > Properties panels) -->
                 <div class="btn-group me-2">
@@ -498,6 +487,25 @@
                     </span>
                     <span class="badge text-bg-secondary o_mindmap_command_count">0 個指令</span>
                 </div>
+            </div>
+
+            <!-- Project bar：位於工具列下方（儲存下方）。建立/同步專案 +
+                 專案名稱(可點→開啟專案，取代原「開啟專案」按鈕) + 客戶名稱(未設不顯示) -->
+            <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-info o_mindmap_btn_create_project" title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
+                        <i class="fa fa-folder-open me-1"/>建立專案
+                    </button>
+                    <button class="btn btn-outline-info o_mindmap_btn_sync_project" title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject" style="display:none;">
+                        <i class="fa fa-refresh me-1"/>同步專案
+                    </button>
+                </div>
+                <span class="o_mindmap_project_name small" style="display:none;">
+                    專案名稱：<a href="#" class="o_mindmap_project_link fw-bold" t-on-click.prevent="onOpenProject"/>
+                </span>
+                <span class="o_mindmap_partner_name small text-muted" style="display:none;">
+                    客戶名稱：<span class="o_mindmap_partner_label"/>
+                </span>
             </div>
 
             <!-- Sidebar for Properties -->

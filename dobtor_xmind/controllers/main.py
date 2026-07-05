@@ -44,6 +44,10 @@ class MindMapController(http.Controller):
                 'name': workbook.project_id.name,
                 'last_sync_direction': workbook.xmind_last_sync_direction,
             } if workbook.project_id else False,
+            'partner': {
+                'id': workbook.partner_id.id,
+                'name': workbook.partner_id.name,
+            } if workbook.partner_id else False,
         }
 
     def _get_relationships(self, workbook):

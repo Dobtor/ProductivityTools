@@ -61,6 +61,8 @@ export class MindmapEditor extends Component {
             this.workbookId = parseInt(this.workbookId, 10) || null;
         }
         this.jm = null;
+        this.projectInfo = null;   // 連結的專案 {id,name,last_sync_direction}
+        this.partnerInfo = null;   // 客戶 {id,name}
         this.commandStack = new CommandStack(200);
         this.selectedNode = null;
         this.autoSaveTimer = null;
@@ -224,6 +226,7 @@ export class MindmapEditor extends Component {
                 this.mindmapData = result.mindmap_data;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
                 this.projectInfo = result.project || null;
+                this.partnerInfo = result.partner || null;
                 setTimeout(() => this._updateProjectButtons(), 0);
 
                 // Load relationships
@@ -2838,18 +2841,39 @@ export class MindmapEditor extends Component {
     }
 
     _updateProjectButtons() {
+        // 建立：未連結專案時顯示；同步：已連結時顯示。
         const createBtn = this._el('.o_mindmap_btn_create_project');
         if (createBtn) createBtn.style.display = this.projectInfo ? 'none' : '';
         const syncBtn = this._el('.o_mindmap_btn_sync_project');
-        if (syncBtn && this.projectInfo && this.projectInfo.name) {
-            syncBtn.title = _t('Sync to project: ') + this.projectInfo.name;
-        }
-        // "Open project" jumps to the linked project — only meaningful once linked.
-        const openBtn = this._el('.o_mindmap_btn_open_project');
-        if (openBtn) {
-            openBtn.style.display = this.projectInfo ? '' : 'none';
+        if (syncBtn) {
+            syncBtn.style.display = this.projectInfo ? '' : 'none';
             if (this.projectInfo && this.projectInfo.name) {
-                openBtn.title = _t('Open project: ') + this.projectInfo.name;
+                syncBtn.title = _t('Sync to project: ') + this.projectInfo.name;
+            }
+        }
+        // 專案名稱：可點連結（取代原「開啟專案」按鈕），僅連結後顯示。
+        const projWrap = this._el('.o_mindmap_project_name');
+        const projLink = this._el('.o_mindmap_project_link');
+        if (projWrap && projLink) {
+            if (this.projectInfo && this.projectInfo.name) {
+                projLink.textContent = this.projectInfo.name;
+                projLink.title = _t('Open project: ') + this.projectInfo.name;
+                projWrap.style.display = '';
+            } else {
+                projLink.textContent = '';
+                projWrap.style.display = 'none';
+            }
+        }
+        // 客戶名稱：未設定則不顯示。
+        const partWrap = this._el('.o_mindmap_partner_name');
+        const partLabel = this._el('.o_mindmap_partner_label');
+        if (partWrap && partLabel) {
+            if (this.partnerInfo && this.partnerInfo.name) {
+                partLabel.textContent = this.partnerInfo.name;
+                partWrap.style.display = '';
+            } else {
+                partLabel.textContent = '';
+                partWrap.style.display = 'none';
             }
         }
     }
