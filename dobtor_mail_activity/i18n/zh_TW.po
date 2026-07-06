@@ -2735,8 +2735,14 @@ msgstr "需在此日期前排程"
 #. module: dobtor_mail_activity
 #. odoo-python
 #: code:addons/dobtor_mail_activity/models/mail_activity.py:0
-msgid "Needs to be scheduled by %(weekday)s"
-msgstr "需在 %(weekday)s 前排程"
+msgid "Needs to be scheduled by this %(weekday)s"
+msgstr "需在 本%(weekday)s 前排定"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "Overdue, please schedule immediately"
+msgstr "已逾期，請立即排定"
 
 #. module: dobtor_mail_activity
 #. odoo-javascript

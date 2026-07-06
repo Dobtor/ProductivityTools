@@ -1423,9 +1423,10 @@ class MailActivity(models.Model):
             0: 'monday', 1: 'tuesday', 2: 'wednesday',
             3: 'thursday', 4: 'friday', 5: 'saturday', 6: 'sunday'
         }
+        # 顯示用週天名稱：以 _() 包裹讓代入警告字串前先翻譯（po 已有 週一…週日）
         weekday_names = {
-            0: 'Monday', 1: 'Tuesday', 2: 'Wednesday',
-            3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'
+            0: _('Monday'), 1: _('Tuesday'), 2: _('Wednesday'),
+            3: _('Thursday'), 4: _('Friday'), 5: _('Saturday'), 6: _('Sunday')
         }
 
         today = fields.Date.today()
@@ -1449,7 +1450,14 @@ class MailActivity(models.Model):
             if needs_schedule_date <= week_end:
                 weekday = needs_schedule_date.weekday()
                 activity.needs_schedule_by = weekday_map.get(weekday)
-                activity.schedule_warning = _('Needs to be scheduled by %(weekday)s', weekday=weekday_names.get(weekday, ''))
+                if needs_schedule_date < today:
+                    # 過了該安排日（含過了本週）→ 逾期提示
+                    activity.schedule_warning = _('Overdue, please schedule immediately')
+                else:
+                    # 本週內尚未到期 → 需在 本週X 前排定
+                    activity.schedule_warning = _(
+                        'Needs to be scheduled by this %(weekday)s',
+                        weekday=weekday_names.get(weekday, ''))
 
     @api.depends('create_uid', 'user_id')
     def _compute_edit_roles(self):

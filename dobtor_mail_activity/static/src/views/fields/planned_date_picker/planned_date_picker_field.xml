@@ -9,7 +9,7 @@
         </t>
         <t t-elif="isEditable">
             <button type="button" t-ref="root"
-                    class="btn btn-sm btn-outline-primary o_planned_date_pick"
+                    class="btn btn-sm btn-primary o_planned_date_pick"
                     t-on-click.stop="() => this.openPicker(0)">
                 <i class="fa fa-calendar-plus-o me-1"/><span t-esc="setDateLabel"/>
             </button>
