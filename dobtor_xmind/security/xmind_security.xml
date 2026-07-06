@@ -7,24 +7,21 @@
         <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
-    <!-- Access model:
-         * Standalone maps  → owner/follower (read+write).
-         * Project-linked   → READ for anyone who can see the project (privacy !=
-           'followers' OR project follower); WRITE/CREATE/UNLINK only for the
-           owner, a map follower, or a project follower (mirrors project's split).
-         * Mind Map Manager → all maps. Project Administrator → all project-linked. -->
+    <!-- Access model (READ visibility keyed on Customer):
+         * No customer (partner_id empty) → ONLY the owner (create_uid) can see it.
+         * Has customer (partner_id set — whether picked manually or brought in from
+           the linked project) → visible to every internal Mind Map user.
+         WRITE/CREATE/UNLINK stay restricted to owner / map follower / project
+         follower (unchanged). Mind Map Manager → all maps. Project Administrator →
+         all project-linked. Child models mirror the workbook's partner_id/owner. -->
 
     <!-- ===== workbook ===== -->
     <record id="rule_xmind_workbook_read" model="ir.rule">
         <field name="name">Mind Map workbook: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_workbook"/>
-        <field name="domain_force">['|', '|',
-            ('create_uid', '=', user.id),
-            ('message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('project_id', '!=', False),
-                 '|', ('project_id.privacy_visibility', '!=', 'followers'),
-                      ('project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('partner_id', '!=', False),
+            ('create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -58,13 +55,9 @@
     <record id="rule_xmind_sheet_read" model="ir.rule">
         <field name="name">Mind Map sheet: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_sheet"/>
-        <field name="domain_force">['|', '|',
-            ('workbook_id.create_uid', '=', user.id),
-            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('workbook_id.project_id', '!=', False),
-                 '|', ('workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('workbook_id.partner_id', '!=', False),
+            ('workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -98,13 +91,9 @@
     <record id="rule_xmind_topic_read" model="ir.rule">
         <field name="name">Mind Map topic: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_topic"/>
-        <field name="domain_force">['|', '|',
-            ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('sheet_id.workbook_id.partner_id', '!=', False),
+            ('sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -138,13 +127,9 @@
     <record id="rule_xmind_relationship_read" model="ir.rule">
         <field name="name">Mind Map relationship: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_relationship"/>
-        <field name="domain_force">['|', '|',
-            ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('sheet_id.workbook_id.partner_id', '!=', False),
+            ('sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -178,13 +163,9 @@
     <record id="rule_xmind_boundary_read" model="ir.rule">
         <field name="name">Mind Map boundary: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_boundary"/>
-        <field name="domain_force">['|', '|',
-            ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('sheet_id.workbook_id.partner_id', '!=', False),
+            ('sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -218,13 +199,9 @@
     <record id="rule_xmind_summary_read" model="ir.rule">
         <field name="name">Mind Map summary: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_summary"/>
-        <field name="domain_force">['|', '|',
-            ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('sheet_id.workbook_id.partner_id', '!=', False),
+            ('sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -258,13 +235,9 @@
     <record id="rule_xmind_floating_topic_read" model="ir.rule">
         <field name="name">Mind Map floating_topic: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_floating_topic"/>
-        <field name="domain_force">['|', '|',
-            ('sheet_id.workbook_id.create_uid', '=', user.id),
-            ('sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('sheet_id.workbook_id.partner_id', '!=', False),
+            ('sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -298,13 +271,9 @@
     <record id="rule_xmind_callout_read" model="ir.rule">
         <field name="name">Mind Map callout: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_callout"/>
-        <field name="domain_force">['|', '|',
-            ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id),
-            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('topic_id.sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('topic_id.sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('topic_id.sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('topic_id.sheet_id.workbook_id.partner_id', '!=', False),
+            ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -338,13 +307,9 @@
     <record id="rule_xmind_revision_read" model="ir.rule">
         <field name="name">Mind Map revision: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_revision"/>
-        <field name="domain_force">['|', '|',
-            ('workbook_id.create_uid', '=', user.id),
-            ('workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('workbook_id.project_id', '!=', False),
-                 '|', ('workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('workbook_id.partner_id', '!=', False),
+            ('workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -378,13 +343,9 @@
     <record id="rule_xmind_attachment_read" model="ir.rule">
         <field name="name">Mind Map attachment: read (own/follower or project-visible)</field>
         <field name="model_id" ref="model_xmind_attachment"/>
-        <field name="domain_force">['|', '|',
-            ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id),
-            ('topic_id.sheet_id.workbook_id.message_partner_ids', 'in', [user.partner_id.id]),
-            '&amp;', ('topic_id.sheet_id.workbook_id.project_id', '!=', False),
-                 '|', ('topic_id.sheet_id.workbook_id.project_id.privacy_visibility', '!=', 'followers'),
-                      ('topic_id.sheet_id.workbook_id.project_id.message_partner_ids', 'in', [user.partner_id.id])
-        ]</field>
+        <field name="domain_force">['|',
+            ('topic_id.sheet_id.workbook_id.partner_id', '!=', False),
+            ('topic_id.sheet_id.workbook_id.create_uid', '=', user.id)]</field>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>

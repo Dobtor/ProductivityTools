@@ -14,4 +14,19 @@
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
     </record>
+
+    <!-- 可見性以「客戶」為閘門：
+         * 無客戶（partner_id 空）→ 只有擁有者（create_uid）看得到。
+         * 有客戶（partner_id 有值——自選或由專案帶入皆可）→ 所有設計圖使用者皆可見。
+         僅約束讀取；此規則掛在 group_bpmn_diagram_user，manager 另有全權規則（OR）不受限。 -->
+    <record id="rule_bpmn_diagram_user_read" model="ir.rule">
+        <field name="name">設計圖：有客戶則公開，否則僅擁有者可見</field>
+        <field name="model_id" ref="model_bpmn_diagram"/>
+        <field name="groups" eval="[(4, ref('dobtor_approval.group_bpmn_diagram_user'))]"/>
+        <field name="domain_force">['|', ('partner_id', '!=', False), ('create_uid', '=', user.id)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
 </odoo>
