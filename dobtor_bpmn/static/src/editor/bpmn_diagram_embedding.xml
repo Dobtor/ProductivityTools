@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_bpmn.EmbeddedDiagram">
+        <div class="o_bpmn_embed_card border rounded my-2" contenteditable="false">
+            <div class="o_bpmn_embed_header d-flex align-items-center gap-2 px-2 py-1 border-bottom bg-light">
+                <i class="fa fa-sitemap text-primary"/>
+                <span class="fw-bold text-truncate flex-grow-1" t-esc="state.name"/>
+                <button t-if="diagramId" type="button"
+                        class="btn btn-sm btn-link p-0 text-decoration-none"
+                        t-on-click="onOpen">
+                    <i class="fa fa-external-link me-1"/>開啟
+                </button>
+            </div>
+            <div t-if="state.missing" class="text-muted small p-3">
+                <i class="fa fa-exclamation-triangle text-warning me-1"/>
+                <span t-esc="emptyLabel"/>
+            </div>
+            <div t-else="" class="o_bpmn_embed_host">
+                <BpmnEditorAction t-props="editorProps"/>
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -50,4 +50,55 @@
             display: none;
         }
     }
+
+    // 專案列（工具列下方）：可編輯專案/客戶 + 關聯物件顯示
+    .o_bpmn_project_bar {
+        flex: 0 0 auto;
+        border-bottom: 1px solid var(--border-color, #dee2e6);
+        background-color: var(--o-view-background-color, #fff);
+
+        .o_bpmn_pb_ac {
+            display: inline-block;
+
+            input {
+                border: 1px solid transparent;
+                background: transparent;
+                border-radius: 4px;
+                padding: 1px 6px;
+                min-width: 120px;
+                max-width: 220px;
+                font-size: 0.85rem;
+
+                &:hover {
+                    border-color: var(--border-color, #dee2e6);
+                }
+                &:focus {
+                    outline: none;
+                    border-color: var(--o-action-color, #714b67);
+                    background: #fff;
+                }
+            }
+        }
+    }
+}
+
+// 唯讀嵌入：畫布只呈現、不可互動；隱藏 bpmn-js 編輯附件（調色盤/情境選單/浮水印）。
+.o_bpmn_readonly {
+    .o_bpmn_action_canvas {
+        pointer-events: none;
+    }
+    .djs-palette,
+    .djs-context-pad,
+    .bjs-powered-by {
+        display: none !important;
+    }
+}
+
+// HTML 欄位內的嵌入卡片：固定高度容器，讓內部編輯器填滿。
+.o_bpmn_embed_host {
+    height: 420px;
+
+    .o_bpmn_action {
+        height: 100%;
+    }
 }

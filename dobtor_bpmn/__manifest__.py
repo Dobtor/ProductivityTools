@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor BPMN (流程設計圖庫)',
-    'version': '18.0.2.1.0',
+    'version': '18.0.2.2.0',
     'category': 'Productivity',
     'summary': 'BPMN/DMN 流程設計圖庫，疊在 dobtor_approval 編輯器核心之上，可將設計圖交給簽核引擎',
     'description': """
@@ -16,7 +16,7 @@ Dobtor BPMN — 流程設計圖庫（依賴 dobtor_approval 編輯器核心）
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
     'license': 'LGPL-3',
-    'depends': ['dobtor_approval'],
+    'depends': ['dobtor_approval', 'project'],
     'data': [
         'security/dobtor_bpmn_security.xml',
         'security/ir.model.access.csv',
@@ -33,6 +33,15 @@ Dobtor BPMN — 流程設計圖庫（依賴 dobtor_approval 編輯器核心）
             'dobtor_bpmn/static/src/fields/bpmn_multi_file_field.js',
             'dobtor_bpmn/static/src/fields/bpmn_multi_file_field.xml',
             'dobtor_bpmn/static/src/views/bpmn_kanban.scss',
+            # HTML editor "/" power-box — insert an existing BPMN/DMN diagram live
+            # into any model's rich-text field (faithful, read-only render).
+            'dobtor_bpmn/static/src/editor/bpmn_picker_dialog.js',
+            'dobtor_bpmn/static/src/editor/bpmn_picker_dialog.xml',
+            'dobtor_bpmn/static/src/editor/bpmn_diagram_embedding.js',
+            'dobtor_bpmn/static/src/editor/bpmn_diagram_embedding.xml',
+            'dobtor_bpmn/static/src/editor/bpmn_diagram_blueprint.xml',
+            'dobtor_bpmn/static/src/editor/bpmn_powerbox_plugin.js',
+            'dobtor_bpmn/static/src/editor/html_field_bpmn_patch.js',
         ],
     },
     'application': True,

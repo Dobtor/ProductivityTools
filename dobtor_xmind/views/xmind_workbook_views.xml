@@ -78,7 +78,8 @@
                     </div>
                     <group>
                         <group>
-                            <field name="partner_id"/>
+                            <field name="partner_id" readonly="project_id"
+                                   help="有專案時客戶由專案帶入且不可編輯；無專案時可自由選填"/>
                             <field name="project_id"/>
                             <field name="privacy_visibility" readonly="1"
                                    invisible="not project_id"/>

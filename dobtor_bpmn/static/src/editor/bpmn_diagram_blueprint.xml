@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- Blueprint inserted into the editor content: only the data-embedded anchor
+         and its persisted props (diagramId + host res_model/res_id). The diagram
+         itself is rendered live by EmbeddedBpmnDiagram. -->
+    <t t-name="dobtor_bpmn.DiagramBlueprint">
+        <div t-att-data-embedded-props="embeddedProps"
+             data-embedded="bpmnDiagram"
+             data-oe-protected="true"
+             contenteditable="false"
+             class="o_bpmn_embed"/>
+    </t>
+
+</templates>

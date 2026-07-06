@@ -9,7 +9,9 @@
                 <field name="diagram_type"/>
                 <field name="purpose"/>
                 <field name="category_id"/>
-                <field name="project_ref"/>
+                <field name="partner_id" optional="show"/>
+                <field name="project_id" optional="show"/>
+                <field name="project_ref" optional="hide"/>
                 <field name="odoo_module"/>
                 <field name="version"/>
                 <field name="state" widget="badge"
@@ -60,6 +62,9 @@
                         </group>
                         <group>
                             <field name="category_id"/>
+                            <field name="partner_id" readonly="project_id"
+                                   help="有專案時客戶由專案帶入且不可編輯；無專案時可自由選填"/>
+                            <field name="project_id"/>
                             <field name="project_ref"
                                    invisible="purpose != 'blueprint'"/>
                             <field name="odoo_module"
@@ -96,6 +101,8 @@
                 <field name="purpose"/>
                 <field name="state"/>
                 <field name="thumbnail"/>
+                <field name="partner_id"/>
+                <field name="project_id"/>
                 <templates>
                     <t t-name="menu">
                         <a role="menuitem" type="object" name="action_open_editor"
@@ -113,6 +120,12 @@
                                 <img class="w-100"
                                      style="max-height: 160px; object-fit: contain; background: #fff; border: 1px solid #eee; border-radius: 4px;"
                                      t-att-src="record.thumbnail.value" alt="預覽縮圖"/>
+                            </div>
+                            <div class="text-muted" t-if="record.partner_id.value">
+                                <i class="fa fa-building me-1"/><field name="partner_id"/>
+                            </div>
+                            <div class="text-muted" t-if="record.project_id.value">
+                                <i class="fa fa-folder-open me-1"/><field name="project_id"/>
                             </div>
                             <div class="text-muted">
                                 <field name="purpose"/>
@@ -147,6 +160,8 @@
                 <field name="name"/>
                 <field name="code"/>
                 <field name="odoo_module"/>
+                <field name="partner_id"/>
+                <field name="project_id"/>
                 <field name="project_ref"/>
                 <field name="category_id"/>
                 <field name="tag_ids"/>
@@ -160,15 +175,19 @@
                 <separator/>
                 <filter name="frozen" string="已定版" domain="[('state', '=', 'frozen')]"/>
                 <group expand="0" string="分組">
+                    <filter name="group_partner" string="客戶" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_project" string="專案" context="{'group_by': 'project_id'}"/>
                     <filter name="group_type" string="圖類型" context="{'group_by': 'diagram_type'}"/>
                     <filter name="group_purpose" string="用途" context="{'group_by': 'purpose'}"/>
                     <filter name="group_category" string="分類" context="{'group_by': 'category_id'}"/>
                 </group>
+                <!-- 左側導覽面板：客戶 / 專案 / 標籤（仿 dobtor_xmind）。
+                     partner_id、project_id 皆 stored 可供 read_group 計數。 -->
                 <searchpanel>
-                    <field name="category_id" string="目錄" icon="fa-folder"
+                    <field name="partner_id" string="客戶" icon="fa-building"
                            select="one" enable_counters="1"/>
-                    <field name="diagram_type" string="圖類型" icon="fa-sitemap"
-                           select="one" enable_counters="1"/>
+                    <field name="project_id" string="專案" icon="fa-folder-open"
+                           select="multi" enable_counters="1"/>
                     <field name="tag_ids" string="標籤" icon="fa-tags"
                            select="multi" enable_counters="1"/>
                 </searchpanel>

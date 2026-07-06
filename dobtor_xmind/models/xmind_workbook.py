@@ -90,7 +90,30 @@ class XMindWorkbook(models.Model):
     def action_unarchive(self):
         self.write({'active': True})
 
+    # ---- 專案 → 客戶連動 ----
+    # 規則：有專案時「客戶」＝專案的客戶（唯讀，專案客戶為空則一併清空）；
+    #       無專案時「客戶」可自由選填。
+    @api.onchange('project_id')
+    def _onchange_project_id_partner(self):
+        if self.project_id:
+            self.partner_id = self.project_id.partner_id
+
+    @api.model
+    def _enforce_project_partner(self, vals):
+        """設定專案時，強制客戶＝該專案的客戶（可能為空）。清除/未帶專案時不動客戶。"""
+        if vals.get('project_id'):
+            proj = self.env['project.project'].browse(vals['project_id'])
+            vals['partner_id'] = proj.partner_id.id or False
+        return vals
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            self._enforce_project_partner(vals)
+        return super().create(vals_list)
+
     def write(self, vals):
+        self._enforce_project_partner(vals)
         res = super().write(vals)
         if 'name' in vals and not self.env.context.get('_syncing_name'):
             for record in self:

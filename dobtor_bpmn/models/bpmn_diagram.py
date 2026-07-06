@@ -195,10 +195,16 @@ class BpmnDiagram(models.Model):
     ], string='用途', default='documentation', required=True, index=True, tracking=True)
 
     category_id = fields.Many2one('bpmn.diagram.category', string='分類')
-    project_ref = fields.Char(string='關聯專案/客戶', help='blueprint 用')
+    # 專案／客戶（可在視覺編輯器上方直接編輯，並供左側 search panel 依此瀏覽/篩選）
+    project_id = fields.Many2one('project.project', string='專案', index=True, tracking=True)
+    partner_id = fields.Many2one('res.partner', string='客戶', index=True, tracking=True)
+    project_ref = fields.Char(string='關聯專案/客戶（文字）', help='blueprint 用；自由文字備註')
     odoo_module = fields.Char(string='關聯 Odoo 模組技術名', help='documentation 用，如 sale')
     tag_ids = fields.Many2many('bpmn.diagram.tag', string='標籤')
     active = fields.Boolean(default=True)
+
+    # 嵌入關聯：哪些記錄（res_model,res_id）在其 HTML 欄位以 "/" 插入了本設計圖
+    embed_ids = fields.One2many('bpmn.diagram.embed', 'diagram_id', string='嵌入於')
 
     # kanban 卡片預覽縮圖：由存檔時寫入的 svg 轉成 data URI（非儲存，隨 svg 變動）
     thumbnail = fields.Char(string='預覽縮圖', compute='_compute_thumbnail')
@@ -212,12 +218,33 @@ class BpmnDiagram(models.Model):
             else:
                 diagram.thumbnail = False
 
+    # ---- 專案 → 客戶連動 ----
+    # 規則：有專案時「客戶」＝專案的客戶（唯讀，專案客戶為空則一併清空）；
+    #       無專案時「客戶」可自由選填。
+    @api.onchange('project_id')
+    def _onchange_project_id_partner(self):
+        if self.project_id:
+            self.partner_id = self.project_id.partner_id
+
+    @api.model
+    def _enforce_project_partner(self, vals):
+        """設定專案時，強制客戶＝該專案的客戶（可能為空）。清除/未帶專案時不動客戶。"""
+        if vals.get('project_id'):
+            proj = self.env['project.project'].browse(vals['project_id'])
+            vals['partner_id'] = proj.partner_id.id or False
+        return vals
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if not vals.get('xml'):
                 vals['xml'] = self._default_xml(vals.get('diagram_type', 'bpmn'))
+            self._enforce_project_partner(vals)
         return super().create(vals_list)
+
+    def write(self, vals):
+        self._enforce_project_partner(vals)
+        return super().write(vals)
 
     @api.model
     def _default_xml(self, diagram_type):
@@ -319,6 +346,51 @@ class BpmnDiagram(models.Model):
             },
             'target': 'current',
         }
+
+    # ---- HTML 編輯器嵌入關聯（"/" 插入設計圖）----
+    @api.model
+    def register_embed(self, diagram_id, res_model, res_id):
+        """Upsert the association between this diagram and a host record.
+
+        Called by the HTML-editor embedded component when it mounts on a saved
+        host record. Idempotent: does nothing if the pair already exists, so
+        re-opening a record with an embedded diagram never duplicates rows.
+        Requires read access to the diagram (embedding it is a read-level use).
+        """
+        if not diagram_id or not res_model or not res_id:
+            return False
+        diagram = self.browse(int(diagram_id))
+        if not diagram.exists() or not diagram.has_access('read'):
+            return False
+        Embed = self.env['bpmn.diagram.embed'].sudo()
+        exists = Embed.search_count([
+            ('diagram_id', '=', diagram.id),
+            ('res_model', '=', res_model),
+            ('res_id', '=', int(res_id)),
+        ])
+        if not exists:
+            Embed.create({
+                'diagram_id': diagram.id,
+                'res_model': res_model,
+                'res_id': int(res_id),
+            })
+        return True
+
+    def get_embed_names(self):
+        """Return the display names of records embedding this diagram.
+
+        Used by the editor's project bar to render "關聯物件：a、b、c".
+        Deduplicated and stripped of dangling references (deleted records).
+        """
+        self.ensure_one()
+        names = []
+        seen = set()
+        for embed in self.embed_ids:
+            name = embed.res_name
+            if name and name not in seen:
+                seen.add(name)
+                names.append(name)
+        return names
 
     def action_set_draft(self):
         for diagram in self:
