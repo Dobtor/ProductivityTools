@@ -47,27 +47,6 @@ class MailActivityDoneWizard(models.TransientModel):
         string='Attachments',
     )
 
-    # ===== 下一個待辦相關 =====
-    schedule_next = fields.Boolean(
-        string='Schedule Next Activity',
-        default=False,
-    )
-    next_activity_type_id = fields.Many2one(
-        'mail.activity.type',
-        string='Next Activity Type',
-    )
-    next_date_deadline = fields.Date(
-        string='Next Deadline',
-    )
-    next_summary = fields.Char(
-        string='Next Summary',
-    )
-    next_user_id = fields.Many2one(
-        'res.users',
-        string='Next Assignee',
-        default=lambda self: self.env.user,
-    )
-
     # ===== 刪除權限 =====
     can_delete = fields.Boolean(
         string='Can Delete',
@@ -106,15 +85,6 @@ class MailActivityDoneWizard(models.TransientModel):
                 res['actual_hours'] = max(remaining, 0)
 
         return res
-
-    @api.onchange('schedule_next')
-    def _onchange_schedule_next(self):
-        """當選擇安排下一次時，預填類型和摘要"""
-        if self.schedule_next and self.activity_id:
-            if not self.next_activity_type_id:
-                self.next_activity_type_id = self.activity_id.activity_type_id
-            if not self.next_summary:
-                self.next_summary = self.activity_id.summary
 
     # ===== 驗證方法 =====
 
@@ -265,48 +235,65 @@ class MailActivityDoneWizard(models.TransientModel):
         }
 
     def action_done_and_schedule_next(self):
-        """完成並安排下一次待辦"""
+        """完成當前待辦，並鏈式開啟「建立待辦」精靈安排下一個。
+
+        依需求：先把當前待辦設為完成（記錄工時），再開啟
+        mail.activity.create.wizard，帶入上一筆待辦的標題（summary）、
+        類型與關聯（res 文件 / 客戶 / 專案 / 來源參考）作為新待辦預設值，
+        使用者於新精靈編輯後儲存。
+        """
         self.ensure_one()
         self._validate_actual_hours()
 
-        # 驗證下一次待辦資訊
-        if not self.next_activity_type_id:
-            raise UserError(_('Please select next activity type.'))
-        if not self.next_date_deadline:
-            raise UserError(_('Please select next deadline.'))
-
         activity = self.activity_id
 
-        # 先記錄本次工時（如果有填寫且大於 0）
+        # 先擷取上一筆資訊（完成前先取用）
+        prev_summary = activity.summary
+        prev_type_id = activity.activity_type_id.id
+        prev_res_model = activity.res_model
+        prev_res_id = activity.res_id
+        prev_partner_id = activity.partner_id.id
+        prev_project_id = activity.project_id.id
+        prev_note_id = activity.note_id.id
+
+        # 記錄本次工時（如有）並完成當前待辦
         if self.actual_hours > 0:
             self._log_hours()
-
-        # 執行完成動作
         activity._action_done(
             feedback=self.feedback,
             attachment_ids=self._get_attachment_ids(),
         )
 
-        # 建立下一個待辦
-        next_activity_vals = {
-            'activity_type_id': self.next_activity_type_id.id,
-            'date_deadline': self.next_date_deadline,
-            'summary': self.next_summary or activity.summary,
-            'user_id': self.next_user_id.id if self.next_user_id else False,
-            'res_model_id': activity.res_model_id.id,
-            'res_id': activity.res_id,
+        # 組建立待辦精靈的 context 預設值（不沿用當前 env.context，
+        # 避免殘留的 active_model / default_* 汙染新精靈情境）
+        ctx = {
+            # 關閉新精靈時觸發 soft_reload，讓已完成的當前待辦從清單消失
+            'chained_from_done': True,
+            'default_summary': prev_summary,          # 需求三：帶入上一筆標題
+            'default_activity_type_id': prev_type_id,  # 需求二：類型一樣
         }
+        # 需求一：記錄上一筆關聯文件（有 res 才帶 → 新精靈視為「已知目標」）
+        if prev_res_model and prev_res_id:
+            ctx.update({
+                'active_model': prev_res_model,
+                'active_id': prev_res_id,
+                'active_ids': [prev_res_id],
+            })
+        if prev_partner_id:
+            ctx['default_partner_id'] = prev_partner_id
+        if prev_project_id:
+            ctx['default_project_id'] = prev_project_id
+        if prev_note_id:
+            ctx['default_note_id'] = prev_note_id
 
-        # 保留筆記關聯
-        if activity.note_id:
-            next_activity_vals['note_id'] = activity.note_id.id
-
-        self.env['mail.activity'].create(next_activity_vals)
-
-        # 刷新視圖
         return {
-            'type': 'ir.actions.client',
-            'tag': 'reload',
+            'type': 'ir.actions.act_window',
+            'name': _('Create To-do'),
+            'res_model': 'mail.activity.create.wizard',
+            'view_mode': 'form',
+            'views': [[False, 'form']],
+            'target': 'new',
+            'context': ctx,
         }
 
     def action_postpone(self):

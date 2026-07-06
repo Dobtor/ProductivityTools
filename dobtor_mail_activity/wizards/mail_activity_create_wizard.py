@@ -286,6 +286,12 @@ class MailActivityCreateWizard(models.TransientModel):
 
         activities = self._action_schedule_activities()
         activity = activities[:1]
+
+        # 由「完成並安排下一個」鏈式開啟時：關閉後 soft_reload，
+        # 讓已完成的上一筆待辦即時從清單/看板消失（此情境無需回傳 infos）。
+        if self.env.context.get('chained_from_done'):
+            return {'type': 'ir.actions.client', 'tag': 'soft_reload'}
+
         return {
             'type': 'ir.actions.act_window_close',
             'infos': {

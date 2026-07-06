@@ -26,7 +26,6 @@
                             confirm="Delete this to-do permanently? This cannot be undone."/>
                 </header>
                 <field name="activity_id" invisible="1"/>
-                <field name="schedule_next" invisible="1"/>
 
                 <!-- 摘要 -->
                 <div class="oe_title">
@@ -67,22 +66,13 @@
                     <page string="Attachments" name="attachments">
                         <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
                     </page>
-                    <page string="Schedule Next Activity" name="schedule_next" invisible="not schedule_next">
-                        <group>
-                            <field name="next_activity_type_id" invisible="not schedule_next"/>
-                            <field name="next_date_deadline" invisible="not schedule_next"/>
-                            <field name="next_summary" invisible="not schedule_next"/>
-                            <field name="next_user_id" widget="many2one_avatar_user" invisible="not schedule_next"/>
-                        </group>
-                    </page>
                 </notebook>
                 <footer>
                     <button string="Complete" name="action_done" type="object" class="btn-primary"/>
                     <button string="Log and Continue" name="action_log_and_continue" type="object"
                             class="btn-secondary" title="Log time only, do not complete activity"/>
                     <button string="Complete and Schedule Next" name="action_done_and_schedule_next" type="object"
-                            class="btn-secondary"
-                            context="{'default_schedule_next': True}"/>
+                            class="btn-secondary"/>
                     <button string="Postpone to Next Week" name="action_postpone" type="object" class="btn-secondary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
