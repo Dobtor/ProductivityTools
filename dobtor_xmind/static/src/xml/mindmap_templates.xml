@@ -474,7 +474,19 @@
                     </select>
                 </div>
 
-                <!-- Group 9: Zoom indicator + Export (Mind map: Export toolbar) -->
+                <!-- Group 9（縮放% / 匯出SVG / 指令數）已移到下方 o_mindmap_project_bar 靠右 -->
+            </div>
+
+            <!-- Project bar：位於工具列下方。左側=可編輯的專案/客戶（子元件 MindmapProjectBar，
+                 客戶/專案 AutoComplete、依客戶過濾專案、有專案客戶轉唯讀），右側=縮放/匯出/指令數。 -->
+            <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1" t-if="!readonly">
+                <MindmapProjectBar workbookId="workbookId"
+                    onCreateProject.bind="onCreateProject"
+                    onSyncProject.bind="onSyncProject"
+                    onOpenProject.bind="onOpenProject"
+                    onProjectChanged.bind="_onProjectBarChanged"
+                    registerApi.bind="_registerProjectBarApi"/>
+                <!-- 靠右：縮放% / 匯出SVG / 指令數（原工具列右上角 Group 9，移到與專案/客戶同列） -->
                 <div class="ms-auto d-flex align-items-center">
                     <span class="btn btn-sm btn-outline-secondary disabled o_mindmap_zoom_level me-1">100%</span>
                     <div class="btn-group me-2">
@@ -487,28 +499,6 @@
                     </span>
                     <span class="badge text-bg-secondary o_mindmap_command_count">0 個指令</span>
                 </div>
-            </div>
-
-            <!-- Project bar：位於工具列下方（儲存下方）。建立/同步專案 +
-                 專案名稱(可點→開啟專案，取代原「開啟專案」按鈕) + 客戶名稱(未設不顯示) -->
-            <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1" t-if="!readonly">
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-info o_mindmap_btn_create_project" title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
-                        <i class="fa fa-folder-open me-1"/>建立專案
-                    </button>
-                    <button class="btn btn-outline-info o_mindmap_btn_sync_project" title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject" style="display:none;">
-                        <i class="fa fa-refresh me-1"/>同步專案
-                    </button>
-                </div>
-                <span class="o_mindmap_project_name small" style="display:none;">
-                    專案名稱：<a href="#" class="o_mindmap_project_link fw-bold" t-on-click.prevent="onOpenProject"/>
-                </span>
-                <span class="o_mindmap_partner_name small text-muted" style="display:none;">
-                    客戶名稱：<span class="o_mindmap_partner_label"/>
-                </span>
-                <span class="o_mindmap_embeds_name small text-muted" style="display:none;">
-                    關聯物件：<span class="o_mindmap_embeds_label"/>
-                </span>
             </div>
 
             <!-- Sidebar for Properties -->
@@ -743,4 +733,66 @@
 
     <!-- Dead templates removed: MarkerSelector, SummaryProperties, BoundaryProperties, RelationshipProperties -->
     <!-- All dialogs are now built with DOM in mindmap_editor.js -->
+
+    <!-- Editable project/customer bar (reactive child of MindmapEditor). -->
+    <t t-name="dobtor_xmind.MindmapProjectBar">
+        <div class="o_mindmap_project_bar_inner d-flex align-items-center flex-wrap gap-3">
+            <div class="btn-group btn-group-sm">
+                <button t-if="!state.projectId"
+                        class="btn btn-outline-info o_mindmap_btn_create_project"
+                        title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
+                    <i class="fa fa-folder-open me-1"/>建立專案
+                </button>
+                <button t-if="state.projectId"
+                        class="btn btn-outline-info o_mindmap_btn_sync_project"
+                        title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject">
+                    <i class="fa fa-refresh me-1"/>同步專案
+                </button>
+            </div>
+            <!-- 客戶：有專案 → 由專案帶入，唯讀顯示；無專案 → 可搜尋選填。 -->
+            <div class="d-flex align-items-center gap-1">
+                <i class="fa fa-building text-muted"/>
+                <span class="small text-muted">客戶：</span>
+                <t t-if="state.projectId">
+                    <span class="small fw-bold" t-esc="state.partnerName or '—'"/>
+                    <span class="small text-muted">（由專案帶入）</span>
+                </t>
+                <t t-else="">
+                    <AutoComplete
+                        value="state.partnerName"
+                        sources="partnerSources"
+                        onSelect.bind="onSelectPartner"
+                        placeholder="'搜尋客戶…'"
+                        class="'o_mindmap_pb_ac'"/>
+                    <button t-if="state.partnerId" class="btn btn-sm btn-link p-0 text-muted"
+                            title="清除客戶" t-on-click="() => this.clearPartner()">
+                        <i class="fa fa-times"/>
+                    </button>
+                </t>
+            </div>
+            <!-- 專案：可搜尋選填（依已選客戶過濾）；已選可開啟或清除。 -->
+            <div class="d-flex align-items-center gap-1">
+                <i class="fa fa-folder-open text-muted"/>
+                <span class="small text-muted">專案：</span>
+                <AutoComplete
+                    value="state.projectName"
+                    sources="projectSources"
+                    onSelect.bind="onSelectProject"
+                    placeholder="'搜尋專案…'"
+                    class="'o_mindmap_pb_ac'"/>
+                <button t-if="state.projectId" class="btn btn-sm btn-link p-0 text-muted"
+                        title="開啟專案" t-on-click="onOpenProject">
+                    <i class="fa fa-external-link"/>
+                </button>
+                <button t-if="state.projectId" class="btn btn-sm btn-link p-0 text-muted"
+                        title="清除專案" t-on-click="() => this.clearProject()">
+                    <i class="fa fa-times"/>
+                </button>
+            </div>
+            <!-- 關聯物件：嵌入此圖的記錄名稱。 -->
+            <span t-if="embedsLabel" class="small text-muted">
+                關聯物件：<span t-esc="embedsLabel"/>
+            </span>
+        </div>
+    </t>
 </templates>

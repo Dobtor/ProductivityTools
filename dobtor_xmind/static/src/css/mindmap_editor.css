@@ -37,6 +37,24 @@
 .o_mindmap_project_bar .o_mindmap_project_link:hover {
     text-decoration: underline;
 }
+/* 專案列可編輯的客戶/專案 AutoComplete 輸入框（子元件 MindmapProjectBar） */
+.o_mindmap_project_bar .o_mindmap_pb_ac input {
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 4px;
+    padding: 1px 6px;
+    min-width: 120px;
+    max-width: 200px;
+    font-size: 0.85rem;
+}
+.o_mindmap_project_bar .o_mindmap_pb_ac input:hover {
+    border-color: #dee2e6;
+}
+.o_mindmap_project_bar .o_mindmap_pb_ac input:focus {
+    outline: none;
+    border-color: #714b67;
+    background: #fff;
+}
 
 .o_mindmap_toolbar .btn-group {
     display: flex;

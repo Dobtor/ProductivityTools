@@ -30,6 +30,7 @@ import {
 } from "@dobtor_xmind/js/xmind_features";
 import { DragDropManager } from "@dobtor_xmind/js/drag_drop_manager";
 import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
+import { MindmapProjectBar } from "@dobtor_xmind/js/mindmap_project_bar";
 
 /**
  * Style Mind Map Editor for Odoo 18
@@ -37,6 +38,7 @@ import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
  */
 export class MindmapEditor extends Component {
     static template = "dobtor_xmind.MindmapEditor";
+    static components = { MindmapProjectBar };
     static props = ["*"];
 
     setup() {
@@ -243,9 +245,8 @@ export class MindmapEditor extends Component {
                 this.mindmapData = result.mindmap_data;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
                 this.projectInfo = result.project || null;
-                this.partnerInfo = result.partner || null;
-                this.embedsInfo = result.embeds || [];
-                setTimeout(() => this._updateProjectButtons(), 0);
+                // 專案/客戶/關聯物件的顯示與編輯已移入 MindmapProjectBar 子元件，
+                // 由子元件自行載入；此處僅保留 projectInfo 供同步/開啟專案的守衛使用。
 
                 // Load relationships
                 if (result.relationships && result.relationships.length > 0) {
@@ -2866,54 +2867,20 @@ export class MindmapEditor extends Component {
         }
     }
 
-    _updateProjectButtons() {
-        // 建立：未連結專案時顯示；同步：已連結時顯示。
-        const createBtn = this._el('.o_mindmap_btn_create_project');
-        if (createBtn) createBtn.style.display = this.projectInfo ? 'none' : '';
-        const syncBtn = this._el('.o_mindmap_btn_sync_project');
-        if (syncBtn) {
-            syncBtn.style.display = this.projectInfo ? '' : 'none';
-            if (this.projectInfo && this.projectInfo.name) {
-                syncBtn.title = _t('Sync to project: ') + this.projectInfo.name;
-            }
-        }
-        // 專案名稱：可點連結（取代原「開啟專案」按鈕），僅連結後顯示。
-        const projWrap = this._el('.o_mindmap_project_name');
-        const projLink = this._el('.o_mindmap_project_link');
-        if (projWrap && projLink) {
-            if (this.projectInfo && this.projectInfo.name) {
-                projLink.textContent = this.projectInfo.name;
-                projLink.title = _t('Open project: ') + this.projectInfo.name;
-                projWrap.style.display = '';
-            } else {
-                projLink.textContent = '';
-                projWrap.style.display = 'none';
-            }
-        }
-        // 客戶名稱：未設定則不顯示。
-        const partWrap = this._el('.o_mindmap_partner_name');
-        const partLabel = this._el('.o_mindmap_partner_label');
-        if (partWrap && partLabel) {
-            if (this.partnerInfo && this.partnerInfo.name) {
-                partLabel.textContent = this.partnerInfo.name;
-                partWrap.style.display = '';
-            } else {
-                partLabel.textContent = '';
-                partWrap.style.display = 'none';
-            }
-        }
-        // 關聯物件：嵌入此圖的記錄名稱（客戶名稱之後），未有則不顯示。
-        const embWrap = this._el('.o_mindmap_embeds_name');
-        const embLabel = this._el('.o_mindmap_embeds_label');
-        if (embWrap && embLabel) {
-            const names = this.embedsInfo || [];
-            if (names.length) {
-                embLabel.textContent = names.join('、');
-                embWrap.style.display = '';
-            } else {
-                embLabel.textContent = '';
-                embWrap.style.display = 'none';
-            }
+    /** MindmapProjectBar 子元件掛載時回註冊其 API，供建立/同步專案後刷新。 */
+    _registerProjectBarApi(api) {
+        this._projectBarApi = api;
+    }
+
+    /** 子元件變更專案時回報，讓 projectInfo 保持最新（供同步警示/開啟專案守衛）。 */
+    _onProjectBarChanged(info) {
+        this.projectInfo = info || null;
+    }
+
+    /** 建立/同步專案改動後，請子元件重讀專案/客戶/關聯物件。 */
+    _reloadProjectBar() {
+        if (this._projectBarApi && this._projectBarApi.reload) {
+            this._projectBarApi.reload();
         }
     }
 
@@ -2948,7 +2915,7 @@ export class MindmapEditor extends Component {
                 }
                 const name = (r && r.project_name) || '';
                 this.projectInfo = { id: r.project_id, name, last_sync_direction: 'to_project' };
-                this._updateProjectButtons();
+                this._reloadProjectBar();
                 this._updateStatus(_t('Project synced: ') + name);
                 if (this.notification) {
                     const detail = _t('Created %s, updated %s, archived %s.')
