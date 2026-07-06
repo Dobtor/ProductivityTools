@@ -215,7 +215,7 @@
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="note_id" string="Source Reference"
+                            <field name="note_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
                         </group>
@@ -595,7 +595,7 @@
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="note_id" string="Source Reference"
+                            <field name="note_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
                         </group>

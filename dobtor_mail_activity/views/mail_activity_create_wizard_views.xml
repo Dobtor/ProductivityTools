@@ -52,27 +52,35 @@
                 <field name="res_model_id" invisible="1"/>
                 <field name="res_id" invisible="1"/>
 
-                <!-- 關聯資訊：攤平成 col=4，客戶+專案同一列（並排）；其餘欄位 colspan=3
-                     佔整列。移除多餘 string 覆寫→用已翻譯欄位標籤（客戶/專案）。 -->
-                <group string="Related Information" col="4">
-                    <field name="partner_id" options="{'no_create': True}"/>
-                    <field name="project_id" options="{'no_create': True}"/>
-                    <!-- res 已知 → 唯讀顯示；未知 → 可輸入 target（互斥，各佔整列）-->
-                    <field name="res_display" string="Target Document"
-                           readonly="1" invisible="not res_known" colspan="3"/>
-                    <field name="target_ref" string="Target Document"
-                           options="{'no_create': True}" invisible="res_known"
-                           required="target_required and not res_known" colspan="3"/>
-                    <field name="note_id" string="Source Reference"
-                           options="{'no_create': True}" colspan="3"/>
+                <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）
+                     版面對齊 mail.activity 主表單 form_schedule 的 Object Relation：
+                     客戶+專案同一列並排，關聯圖橫跨整列於其下（目標未固定時才顯示）。 -->
+                <group string="Object Relation" name="activity_project_relation">
+                    <!-- 客戶+專案各置於獨立巢狀 group → 等寬各占 1/2；關聯圖橫跨兩欄。 -->
+                    <group>
+                        <field name="partner_id" options="{'no_create': True}"/>
+                    </group>
+                    <group>
+                        <field name="project_id" options="{'no_create': True}"/>
+                    </group>
+                    <field name="relation_diagram_anchor"
+                           widget="activity_relation_diagram" nolabel="1"
+                           colspan="2" invisible="res_known"/>
                 </group>
 
-                <!-- 關聯邏輯圖：以 客戶/專案 為根，點節點選 related document
-                     （目標未固定時才顯示）-->
-                <group string="Related Document — Relation Diagram"
-                       invisible="res_known">
-                    <field name="relation_diagram_anchor"
-                           widget="activity_relation_diagram" nolabel="1" colspan="2"/>
+                <group>
+                    <!-- 關聯資訊（對齊 form_schedule 的 Related Information）-->
+                    <group string="Related Information">
+                        <!-- res 未知 → 目標文件選取器；已知 → 相關文件唯讀標籤。互斥 -->
+                        <field name="target_ref" string="Target Document"
+                               options="{'no_create': True}" invisible="res_known"
+                               required="target_required and not res_known"
+                               placeholder="Leave empty for a standalone to-do"/>
+                        <field name="res_display" string="Related Document"
+                               readonly="1" invisible="not res_known"/>
+                        <field name="note_id"
+                               options="{'no_create': True}"/>
+                    </group>
                 </group>
 
                 <notebook>

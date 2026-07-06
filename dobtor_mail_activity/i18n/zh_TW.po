@@ -5077,7 +5077,7 @@ msgstr "已排定計畫日期 %s（於「全部」檢視可見）。"
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__note_id
 msgid "Source Reference"
-msgstr "來源參考"
+msgstr "參考來源"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__note

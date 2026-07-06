@@ -210,15 +210,19 @@
 
                     <!-- 需求二/三：專案關聯 + 向右邏輯圖（點節點回填相關文件）
                          位於左右資訊 group 與 關聯/排程 group 之間 -->
-                    <group string="Object Relation" name="activity_project_relation" col="4">
-                        <!-- 攤平成 col=4：客戶+專案同一列（並排）。移除多餘 string 覆寫→
-                             用已翻譯的欄位標籤。res_model 由 widget fieldDependencies 自動取得。 -->
-                        <field name="partner_id"
-                               readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
-                        <field name="project_id" options="{'no_create': True}"
-                               readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                    <group string="Object Relation" name="activity_project_relation">
+                        <!-- 客戶+專案各置於獨立巢狀 group → 等寬各占 1/2；關聯圖橫跨兩欄。
+                             res_model 由 widget fieldDependencies 自動取得。 -->
+                        <group>
+                            <field name="partner_id"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                        </group>
+                        <group>
+                            <field name="project_id" options="{'no_create': True}"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                        </group>
                         <field name="relation_diagram_anchor" widget="activity_relation_diagram"
-                               nolabel="1" colspan="4"/>
+                               nolabel="1" colspan="2"/>
                     </group>
 
                     <group>
@@ -232,7 +236,7 @@
                                    placeholder="Leave empty for a standalone to-do"/>
                             <field name="res_document_display" string="Related Document" readonly="1"
                                    invisible="not (res_model_id and res_id)"/>
-                            <field name="note_id" string="Source Reference"
+                            <field name="note_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
                         </group>
