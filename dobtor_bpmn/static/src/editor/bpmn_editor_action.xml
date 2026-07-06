@@ -9,6 +9,23 @@
                 <input type="text" class="o_bpmn_title_input fw-bold mx-2"
                        t-att-value="state.name" t-on-change="onNameChange"
                        placeholder="設計圖名稱" title="點擊可直接修改名稱"/>
+                <!-- 標題後的多標籤欄位：已選標籤以彩色膠囊呈現（可移除），末端可搜尋新增/即時建立。 -->
+                <div class="o_bpmn_tags d-flex align-items-center flex-wrap gap-1">
+                    <i class="fa fa-tags text-muted"/>
+                    <span t-foreach="state.tags" t-as="tag" t-key="tag.id"
+                          t-attf-class="o_tag o_tag_color_{{tag.color}} d-inline-flex align-items-center rounded-pill">
+                        <span class="o_tag_badge_text" t-esc="tag.name"/>
+                        <a class="o_delete fa fa-times ms-1" role="button"
+                           title="移除標籤" t-on-click="() => this.removeTag(tag.id)"/>
+                    </span>
+                    <AutoComplete
+                        value="''"
+                        sources="tagSources"
+                        onSelect.bind="onSelectTag"
+                        resetOnSelect="true"
+                        placeholder="'新增標籤…'"
+                        class="'o_bpmn_tag_ac'"/>
+                </div>
                 <span t-if="state.dirty" class="badge text-bg-warning">未儲存</span>
                 <div class="flex-grow-1"/>
                 <span class="badge text-bg-secondary text-uppercase me-2" t-esc="state.diagramType"/>

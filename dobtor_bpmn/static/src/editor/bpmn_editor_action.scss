@@ -5,8 +5,35 @@
 
     .o_bpmn_action_toolbar {
         flex: 0 0 auto;
+        flex-wrap: wrap;          // 標籤過多時整列換行，不擠壓其他控制項
+        row-gap: 4px;
         border-bottom: 1px solid var(--border-color, #dee2e6);
         background-color: var(--o-list-footer-bg-color, #f9f9f9);
+    }
+
+    // 標題後的多標籤欄位
+    .o_bpmn_tags {
+        .o_tag {
+            font-size: 0.8rem;
+        }
+        .o_bpmn_tag_ac input {
+            border: 1px solid transparent;
+            background: transparent;
+            border-radius: 4px;
+            padding: 1px 6px;
+            min-width: 90px;
+            max-width: 160px;
+            font-size: 0.85rem;
+
+            &:hover {
+                border-color: var(--border-color, #dee2e6);
+            }
+            &:focus {
+                outline: none;
+                border-color: var(--o-action-color, #714b67);
+                background: #fff;
+            }
+        }
     }
 
     .o_bpmn_title_input {

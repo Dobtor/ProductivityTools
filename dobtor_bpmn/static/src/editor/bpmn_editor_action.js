@@ -53,6 +53,8 @@ export class BpmnEditorAction extends Component {
             projectId: false,
             projectName: "",
             embedsLabel: "",
+            // 標題後的多標籤欄位：[{id, name, color}]
+            tags: [],
         });
 
         onWillStart(async () => {
@@ -62,7 +64,7 @@ export class BpmnEditorAction extends Component {
             }
             const fields = ["name", "diagram_type", "xml"];
             if (!this.readonly) {
-                fields.push("partner_id", "project_id");
+                fields.push("partner_id", "project_id", "tag_ids");
             }
             const [rec] = await this.orm.read("bpmn.diagram", [this.diagramId], fields);
             this._record = rec;
@@ -73,6 +75,7 @@ export class BpmnEditorAction extends Component {
                 this.state.partnerName = (rec.partner_id && rec.partner_id[1]) || "";
                 this.state.projectId = (rec.project_id && rec.project_id[0]) || false;
                 this.state.projectName = (rec.project_id && rec.project_id[1]) || "";
+                await this._loadTags(rec.tag_ids || []);
                 await this._loadEmbeds();
             }
             // bpmn-js / dmn-js 皆已隨 dobtor_approval 打包（bundled），不需 runtime load。
@@ -93,6 +96,92 @@ export class BpmnEditorAction extends Component {
             this.state.embedsLabel = (names || []).join("、");
         } catch (e) {
             this.state.embedsLabel = "";
+        }
+    }
+
+    // ===== 標題後的多標籤欄位（bpmn.diagram.tag，可搜尋新增/即時建立/移除）=====
+
+    async _loadTags(tagIds) {
+        if (!tagIds.length) {
+            this.state.tags = [];
+            return;
+        }
+        try {
+            const recs = await this.orm.read("bpmn.diagram.tag", tagIds, ["name", "color"]);
+            this.state.tags = recs.map((r) => ({ id: r.id, name: r.name, color: r.color || 0 }));
+        } catch (e) {
+            this.state.tags = [];
+        }
+    }
+
+    get tagSources() {
+        const selected = this.state.tags.map((t) => t.id);
+        return [
+            {
+                options: async (request) => {
+                    const term = (request || "").trim();
+                    let results = [];
+                    try {
+                        results = await this.orm.call("bpmn.diagram.tag", "name_search", [], {
+                            name: term,
+                            args: [["id", "not in", selected]],
+                            operator: "ilike",
+                            limit: 8,
+                        });
+                    } catch (e) {
+                        results = [];
+                    }
+                    const opts = results.map(([id, name]) => ({ label: name, id }));
+                    // 無完全相符 → 提供即時建立新標籤選項。
+                    const exact = results.some(
+                        ([, n]) => (n || "").toLowerCase() === term.toLowerCase()
+                    );
+                    if (term && !exact) {
+                        opts.push({ label: _t('建立「%s」', term), id: false, create: true, term });
+                    }
+                    return opts;
+                },
+            },
+        ];
+    }
+
+    async onSelectTag(option) {
+        try {
+            let id = option.id;
+            if (option.create) {
+                const created = await this.orm.call("bpmn.diagram.tag", "name_create", [
+                    option.term,
+                ]);
+                id = created && created[0];
+            }
+            if (!id) {
+                return;
+            }
+            if (this.state.tags.some((t) => t.id === id)) {
+                return; // 已存在，忽略
+            }
+            await this.orm.write("bpmn.diagram", [this.diagramId], { tag_ids: [[4, id]] });
+            let name = option.label;
+            let color = 0;
+            try {
+                const [t] = await this.orm.read("bpmn.diagram.tag", [id], ["name", "color"]);
+                name = t.name;
+                color = t.color || 0;
+            } catch (e) {
+                // 讀取顏色/名稱失敗不阻斷；沿用選項標籤。
+            }
+            this.state.tags.push({ id, name, color });
+        } catch (e) {
+            this.notification.add(_t("新增標籤失敗：%s", e?.message || e), { type: "danger" });
+        }
+    }
+
+    async removeTag(tagId) {
+        try {
+            await this.orm.write("bpmn.diagram", [this.diagramId], { tag_ids: [[3, tagId]] });
+            this.state.tags = this.state.tags.filter((t) => t.id !== tagId);
+        } catch (e) {
+            this.notification.add(_t("移除標籤失敗：%s", e?.message || e), { type: "danger" });
         }
     }
 
