@@ -38,6 +38,10 @@ export class BpmnEditorAction extends Component {
                 this.props.action.params &&
                 this.props.action.params.diagram_id) ||
             null;
+        // 重整後 diagram_id 由 URL 取回會是字串（"5"），轉回 int 供 ORM 使用。
+        if (this.diagramId) {
+            this.diagramId = parseInt(this.diagramId, 10) || null;
+        }
 
         this.state = useState({
             ready: false,
@@ -84,7 +88,17 @@ export class BpmnEditorAction extends Component {
                 : !window.BpmnJS;
         });
 
-        onMounted(() => this._initModeler());
+        onMounted(() => {
+            // Persist diagram_id into the action's controller state so a browser
+            // refresh reopens the SAME diagram. On refresh Odoo feeds the URL state
+            // back as action.params, and action_service rebuilds the URL from this
+            // controller state — so writing here (not a bare router.pushState, which
+            // gets wiped) makes the id land in the URL and survive refresh.
+            if (this.diagramId && !this.readonly && this.props.updateActionState) {
+                this.props.updateActionState({ diagram_id: this.diagramId });
+            }
+            this._initModeler();
+        });
         onWillUnmount(() => this._destroyModeler());
     }
 
@@ -375,9 +389,17 @@ export class BpmnEditorAction extends Component {
         await this._writeField("project_id", false);
     }
 
-    onBack() {
-        this.action.doAction("dobtor_bpmn.action_bpmn_diagram", {
-            clearBreadcrumbs: true,
+    /** Breadcrumb gear: open this diagram's form view (customer/project/state/…). */
+    onOpenForm() {
+        if (!this.diagramId) {
+            return;
+        }
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "bpmn.diagram",
+            res_id: this.diagramId,
+            views: [[false, "form"]],
+            target: "current",
         });
     }
 }

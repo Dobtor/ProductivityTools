@@ -36,6 +36,21 @@
         }
     }
 
+    // 工具列最左：資料所屬麵包屑（模型 + 齒輪 → 開啟表單）
+    .o_bpmn_breadcrumb {
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+
+        &:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        .o_bpmn_bc_model {
+            white-space: nowrap;
+        }
+    }
+
+    // inline 標題（可直接改名）
     .o_bpmn_title_input {
         border: 1px solid transparent;
         background: transparent;

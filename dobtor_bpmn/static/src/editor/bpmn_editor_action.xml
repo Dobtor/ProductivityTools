@@ -3,10 +3,20 @@
     <t t-name="dobtor_bpmn.BpmnEditorAction">
         <div class="o_bpmn_action d-flex flex-column" t-att-class="{ 'o_bpmn_readonly': readonly }">
             <div t-if="!readonly" class="o_bpmn_action_toolbar d-flex align-items-center p-2 gap-2">
-                <button class="btn btn-secondary btn-sm" t-on-click="onBack">
-                    <i class="fa fa-arrow-left me-1"/>返回清單
+                <!-- 資料所屬資訊（仿 form view 麵包屑）：模型 + 齒輪 → 開啟資料表單。 -->
+                <div class="o_bpmn_breadcrumb d-flex align-items-center gap-1 me-1"
+                     role="button" t-on-click="onOpenForm"
+                     title="開啟資料表單（客戶／專案／狀態／版本／分類…）">
+                    <span class="o_bpmn_bc_model text-muted small">流程設計圖</span>
+                    <i class="fa fa-cog text-muted"/>
+                </div>
+                <!-- 儲存（icon，仿 xmind），置於 inline 標題左邊。 -->
+                <button class="btn btn-sm btn-outline-success o_bpmn_btn_save" title="儲存"
+                        t-on-click="onSave" t-att-disabled="state.saving or state.libMissing">
+                    <i t-att-class="state.saving ? 'fa fa-spinner fa-spin' : 'fa fa-save'"/>
                 </button>
-                <input type="text" class="o_bpmn_title_input fw-bold mx-2"
+                <!-- inline 標題（可直接改名）。 -->
+                <input type="text" class="o_bpmn_title_input fw-bold"
                        t-att-value="state.name" t-on-change="onNameChange"
                        placeholder="設計圖名稱" title="點擊可直接修改名稱"/>
                 <!-- 標題後的多標籤欄位：已選標籤以彩色膠囊呈現（可移除），末端可搜尋新增/即時建立。 -->
@@ -27,14 +37,6 @@
                         class="'o_bpmn_tag_ac'"/>
                 </div>
                 <span t-if="state.dirty" class="badge text-bg-warning">未儲存</span>
-                <div class="flex-grow-1"/>
-                <span class="badge text-bg-secondary text-uppercase me-2" t-esc="state.diagramType"/>
-                <button class="btn btn-primary btn-sm" t-on-click="onSave"
-                        t-att-disabled="state.saving or state.libMissing">
-                    <i class="fa fa-save me-1"/>
-                    <t t-if="state.saving">儲存中…</t>
-                    <t t-else="">儲存</t>
-                </button>
             </div>
 
             <!-- 專案列：可直接編輯專案 / 客戶，並顯示以 "/" 嵌入本圖的關聯物件名稱。 -->
