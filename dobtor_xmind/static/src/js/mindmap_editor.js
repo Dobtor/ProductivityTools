@@ -2883,6 +2883,13 @@ export class MindmapEditor extends Component {
         });
     }
 
+    /** Breadcrumb text / switcher list button: back to the workbook list view (with
+     *  its search panel & filters). viewType forces the list over the action's
+     *  default kanban. */
+    onOpenList() {
+        this.action.doAction('dobtor_xmind.action_xmind_workbook', { viewType: 'list' });
+    }
+
     /** Pager (child MindmapPager) → open another workbook. This is a heavy imperative
      *  god-component, so instead of an error-prone in-place teardown we re-dispatch
      *  the SAME client action on the new id with stackPosition 'replaceCurrentAction':

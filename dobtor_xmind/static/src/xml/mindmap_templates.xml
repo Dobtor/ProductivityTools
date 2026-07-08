@@ -5,14 +5,15 @@
             <!-- Toolbar: Mind map layout -->
             <div class="o_mindmap_toolbar" t-if="!readonly">
 
-                <!-- 資料所屬資訊（仿 form view 麵包屑）：模型 + 記錄名 + 齒輪 → 開啟資料表單。 -->
-                <div class="o_mindmap_breadcrumb d-flex flex-column justify-content-center me-2"
-                     role="button" t-on-click="onOpenForm"
-                     title="開啟資料表單（客戶／專案／可見性／建立資訊…）">
-                    <small class="o_mindmap_bc_model text-muted lh-1">心智圖</small>
+                <!-- 資料所屬麵包屑：模型 / 記錄名文字 → 返回清單；齒輪 → 開啟資料表單。 -->
+                <div class="o_mindmap_breadcrumb d-flex flex-column justify-content-center me-2">
+                    <small class="o_mindmap_bc_model text-muted lh-1" role="button"
+                           t-on-click="onOpenList" title="返回清單">心智圖</small>
                     <span class="d-flex align-items-center gap-1 lh-1">
-                        <span class="o_mindmap_record_name fw-bold text-truncate"/>
-                        <i class="fa fa-cog text-muted"/>
+                        <span class="o_mindmap_record_name fw-bold text-truncate" role="button"
+                              t-on-click="onOpenList" title="返回清單"/>
+                        <i class="fa fa-cog text-muted" role="button" t-on-click="onOpenForm"
+                           title="開啟資料表單（客戶／專案／可見性／建立資訊…）"/>
                     </span>
                 </div>
 
@@ -67,20 +68,20 @@
                 <!-- Group 3: Relationship / Boundary / Summary (Mind map: mindmap toolbar group) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_relationship" title="關連線：點選來源 → 點選目標" t-on-click="onAddRelationship">
-                        <i class="fa fa-long-arrow-right"/> 關連線
+                        <i class="fa fa-share-alt"/>
                     </button>
                     <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_boundary" title="外框：拖曳選取主題" t-on-click="onAddBoundary">
-                        <i class="fa fa-square-o"/> 外框
+                        <i class="fa fa-square-o"/>
                     </button>
                     <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_summary" title="括弧總結：拖曳選取主題" t-on-click="onAddSummary">
-                        <i class="fa fa-indent"/> 括弧總結
+                        <i class="fa fa-indent"/>
                     </button>
                 </div>
 
                 <!-- Group 4: Insert dropdown (Mind map: Markers + Notes + Label + Hyperlink + Image + Attachment) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="插入">
-                        <i class="fa fa-plus"/> 插入
+                        <i class="fa fa-plus-square-o"/>
                     </button>
                     <div class="dropdown-menu">
                         <a class="dropdown-item o_mindmap_btn_marker" href="#" t-on-click="onOpenMarker">
@@ -111,7 +112,7 @@
                 <!-- Group 5: Format dropdown (Mind map: Properties panel - Shape/Text/Branch) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="格式">
-                        <i class="fa fa-paint-brush"/> 格式
+                        <i class="fa fa-paint-brush"/>
                     </button>
                     <div class="dropdown-menu o_format_menu" style="min-width: 280px;">
                         <!-- Shape Style Section -->
@@ -317,7 +318,7 @@
                 <!-- Group 6: View dropdown (Mind map: View menu — Zoom / Drill / Expand / Overview / Outline) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="檢視">
-                        <i class="fa fa-eye"/> 檢視
+                        <i class="fa fa-eye"/>
                     </button>
                     <div class="dropdown-menu">
                         <h6 class="dropdown-header"><i class="fa fa-search"/> 縮放</h6>
@@ -387,7 +388,7 @@
                 <!-- Group 7: Modify dropdown (Mind map: Modify menu — Edit/Sort/Align/Delete) -->
                 <div class="btn-group me-2">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="修改">
-                        <i class="fa fa-pencil"/> 修改
+                        <i class="fa fa-pencil"/>
                     </button>
                     <div class="dropdown-menu">
                         <h6 class="dropdown-header"><i class="fa fa-pencil"/> 編輯</h6>
@@ -500,8 +501,11 @@
                         <button class="btn btn-light active" disabled="disabled" title="心智圖">
                             <i class="fa fa-sitemap"/>
                         </button>
-                        <button class="btn btn-light" t-on-click="onOpenForm" title="以表單開啟">
-                            <i class="fa fa-list-alt"/>
+                        <button class="btn btn-light" t-on-click="onOpenList" title="清單檢視">
+                            <i class="fa fa-list-ul"/>
+                        </button>
+                        <button class="btn btn-light" t-on-click="onOpenForm" title="表單檢視">
+                            <i class="fa fa-window-maximize"/>
                         </button>
                     </div>
                     <MindmapPager workbookId="workbookId" onNavigate.bind="_navigateToRecord"/>

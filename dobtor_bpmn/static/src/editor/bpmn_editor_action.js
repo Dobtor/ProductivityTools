@@ -393,6 +393,13 @@ export class BpmnEditorAction extends Component {
         });
     }
 
+    /** Breadcrumb text / switcher list button: back to the diagram list view (with
+     *  its search panel & filters). viewType forces the list over the action's
+     *  default kanban. */
+    onOpenList() {
+        this.action.doAction("dobtor_bpmn.action_bpmn_diagram", { viewType: "list" });
+    }
+
     // ===== 記錄載入 / 右上角 pager（在可讀設計圖之間翻頁）=====
 
     /** Read this.diagramId into state (name/type/xml/專案/客戶/標籤/嵌入). Reusable by

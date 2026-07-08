@@ -3,12 +3,12 @@
     <t t-name="dobtor_bpmn.BpmnEditorAction">
         <div class="o_bpmn_action d-flex flex-column" t-att-class="{ 'o_bpmn_readonly': readonly }">
             <div t-if="!readonly" class="o_bpmn_action_toolbar d-flex align-items-center p-2 gap-2">
-                <!-- 資料所屬資訊（仿 form view 麵包屑）：模型 + 齒輪 → 開啟資料表單。 -->
-                <div class="o_bpmn_breadcrumb d-flex align-items-center gap-1 me-1"
-                     role="button" t-on-click="onOpenForm"
-                     title="開啟資料表單（客戶／專案／狀態／版本／分類…）">
-                    <span class="o_bpmn_bc_model text-muted small">流程設計圖</span>
-                    <i class="fa fa-cog text-muted"/>
+                <!-- 資料所屬麵包屑：模型文字 → 返回清單；齒輪 → 開啟資料表單。 -->
+                <div class="o_bpmn_breadcrumb d-flex align-items-center gap-1 me-1">
+                    <span class="o_bpmn_bc_model text-muted small" role="button"
+                          t-on-click="onOpenList" title="返回清單">流程設計圖</span>
+                    <i class="fa fa-cog text-muted" role="button" t-on-click="onOpenForm"
+                       title="開啟資料表單（客戶／專案／狀態／版本／分類…）"/>
                 </div>
                 <!-- 儲存（icon，仿 xmind），置於 inline 標題左邊。 -->
                 <button class="btn btn-sm btn-outline-success o_bpmn_btn_save" title="儲存"
@@ -43,8 +43,11 @@
                         <button class="btn btn-light active" disabled="disabled" title="流程設計圖">
                             <i class="fa fa-sitemap"/>
                         </button>
-                        <button class="btn btn-light" t-on-click="onOpenForm" title="以表單開啟">
-                            <i class="fa fa-list-alt"/>
+                        <button class="btn btn-light" t-on-click="onOpenList" title="清單檢視">
+                            <i class="fa fa-list-ul"/>
+                        </button>
+                        <button class="btn btn-light" t-on-click="onOpenForm" title="表單檢視">
+                            <i class="fa fa-window-maximize"/>
                         </button>
                     </div>
                     <Pager t-if="state.pagerTotal"
