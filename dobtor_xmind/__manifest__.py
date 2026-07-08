@@ -40,6 +40,7 @@
             'dobtor_xmind/static/src/js/drag_drop_manager.js',
             'dobtor_xmind/static/src/js/relationship_manager.js',
             'dobtor_xmind/static/src/js/mindmap_project_bar.js',
+            'dobtor_xmind/static/src/js/mindmap_pager.js',
             'dobtor_xmind/static/src/js/mindmap_editor.js',
             'dobtor_xmind/static/src/xml/mindmap_templates.xml',
             # Pre-fill the "Schedule Activity" wizard summary from the clicked node.

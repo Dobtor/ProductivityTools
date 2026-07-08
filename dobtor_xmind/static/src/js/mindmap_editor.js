@@ -31,6 +31,7 @@ import {
 import { DragDropManager } from "@dobtor_xmind/js/drag_drop_manager";
 import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
 import { MindmapProjectBar } from "@dobtor_xmind/js/mindmap_project_bar";
+import { MindmapPager } from "@dobtor_xmind/js/mindmap_pager";
 
 /**
  * Style Mind Map Editor for Odoo 18
@@ -38,7 +39,7 @@ import { MindmapProjectBar } from "@dobtor_xmind/js/mindmap_project_bar";
  */
 export class MindmapEditor extends Component {
     static template = "dobtor_xmind.MindmapEditor";
-    static components = { MindmapProjectBar };
+    static components = { MindmapProjectBar, MindmapPager };
     static props = ["*"];
 
     setup() {
@@ -2880,6 +2881,24 @@ export class MindmapEditor extends Component {
             views: [[false, 'form']],
             target: 'current',
         });
+    }
+
+    /** Pager (child MindmapPager) → open another workbook. This is a heavy imperative
+     *  god-component, so instead of an error-prone in-place teardown we re-dispatch
+     *  the SAME client action on the new id with stackPosition 'replaceCurrentAction':
+     *  onWillUnmount runs (autosave-on-exit if dirty, listeners cleaned up) and the
+     *  editor mounts fresh — the cleanest, safest reload. Breadcrumb is replaced, not
+     *  stacked. */
+    _navigateToRecord(newId) {
+        if (!newId || newId === this.workbookId || this.readonly) return;
+        this.action.doAction(
+            {
+                type: 'ir.actions.client',
+                tag: 'dobtor_xmind.mindmap_editor',
+                params: { workbook_id: newId },
+            },
+            { stackPosition: 'replaceCurrentAction' },
+        );
     }
 
     async onOpenProject() {

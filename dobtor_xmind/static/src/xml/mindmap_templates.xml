@@ -493,6 +493,19 @@
 
                 <!-- 縮放%、指令數、選取數皆移至下方狀態列右側（縮放控制左邊）；
                      匯出SVG 已移到 Group 1。工具列右側不再放計數。 -->
+
+                <!-- 右上角：仿 Odoo control panel 的 view 切換 + pager（在可讀心智圖間翻頁）。 -->
+                <div class="o_mindmap_topright ms-auto d-flex align-items-center gap-2">
+                    <div class="o_mindmap_view_switcher btn-group btn-group-sm">
+                        <button class="btn btn-light active" disabled="disabled" title="心智圖">
+                            <i class="fa fa-sitemap"/>
+                        </button>
+                        <button class="btn btn-light" t-on-click="onOpenForm" title="以表單開啟">
+                            <i class="fa fa-list-alt"/>
+                        </button>
+                    </div>
+                    <MindmapPager workbookId="workbookId" onNavigate.bind="_navigateToRecord"/>
+                </div>
             </div>
 
             <!-- Project bar：位於工具列下方。可編輯的專案/客戶（子元件 MindmapProjectBar，
@@ -738,6 +751,15 @@
 
     <!-- Dead templates removed: MarkerSelector, SummaryProperties, BoundaryProperties, RelationshipProperties -->
     <!-- All dialogs are now built with DOM in mindmap_editor.js -->
+
+    <!-- Top-right record pager (reactive child of MindmapEditor; isolates the Odoo
+         Pager widget from the non-reactive god-component). -->
+    <t t-name="dobtor_xmind.MindmapPager">
+        <Pager t-if="state.total"
+               offset="state.offset" limit="1"
+               total="state.total" onUpdate.bind="onPagerUpdate"
+               withAccessKey="false"/>
+    </t>
 
     <!-- Editable project/customer bar (reactive child of MindmapEditor). -->
     <t t-name="dobtor_xmind.MindmapProjectBar">
