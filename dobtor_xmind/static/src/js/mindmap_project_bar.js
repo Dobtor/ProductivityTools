@@ -28,8 +28,6 @@ export class MindmapProjectBar extends Component {
     static components = { AutoComplete };
     static props = {
         workbookId: { type: [Number, Boolean], optional: true },
-        onCreateProject: { type: Function, optional: true },
-        onSyncProject: { type: Function, optional: true },
         onOpenProject: { type: Function, optional: true },
         onProjectChanged: { type: Function, optional: true },
         registerApi: { type: Function, optional: true },
@@ -186,14 +184,6 @@ export class MindmapProjectBar extends Component {
                     : null
             );
         }
-    }
-
-    onCreateProject() {
-        this.props.onCreateProject && this.props.onCreateProject();
-    }
-
-    onSyncProject() {
-        this.props.onSyncProject && this.props.onSyncProject();
     }
 
     onOpenProject() {

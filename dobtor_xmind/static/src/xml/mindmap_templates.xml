@@ -5,10 +5,27 @@
             <!-- Toolbar: Mind map layout -->
             <div class="o_mindmap_toolbar" t-if="!readonly">
 
-                <!-- Group 1: Home / Save / Undo / Redo (Mind map: Dashboard toolbar) -->
+                <!-- 資料所屬資訊（仿 form view 麵包屑）：模型 + 記錄名 + 齒輪 → 開啟資料表單。 -->
+                <div class="o_mindmap_breadcrumb d-flex flex-column justify-content-center me-2"
+                     role="button" t-on-click="onOpenForm"
+                     title="開啟資料表單（客戶／專案／可見性／建立資訊…）">
+                    <small class="o_mindmap_bc_model text-muted lh-1">心智圖</small>
+                    <span class="d-flex align-items-center gap-1 lh-1">
+                        <span class="o_mindmap_record_name fw-bold text-truncate"/>
+                        <i class="fa fa-cog text-muted"/>
+                    </span>
+                </div>
+
+                <!-- Group 1: 建立/同步專案 · 儲存 · 匯出SVG · 復原 · 重做 -->
                 <div class="btn-group me-2">
+                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_project_sync" title="建立 / 同步專案" t-on-click="onSyncOrCreateProject">
+                        <i class="fa fa-refresh"/>
+                    </button>
                     <button class="btn btn-sm btn-outline-success o_mindmap_btn_save" title="儲存 (Ctrl+S)" t-on-click="onSave">
                         <i class="fa fa-save"/>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_export" title="匯出 SVG" t-on-click="onExportSVG">
+                        <i class="fa fa-download"/>
                     </button>
                     <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_undo" title="復原 (Ctrl+Z)" disabled="disabled" t-on-click="onUndo">
                         <i class="fa fa-undo"/>
@@ -474,31 +491,18 @@
                     </select>
                 </div>
 
-                <!-- Group 9（縮放% / 匯出SVG / 指令數）已移到下方 o_mindmap_project_bar 靠右 -->
+                <!-- 縮放%、指令數、選取數皆移至下方狀態列右側（縮放控制左邊）；
+                     匯出SVG 已移到 Group 1。工具列右側不再放計數。 -->
             </div>
 
-            <!-- Project bar：位於工具列下方。左側=可編輯的專案/客戶（子元件 MindmapProjectBar，
-                 客戶/專案 AutoComplete、依客戶過濾專案、有專案客戶轉唯讀），右側=縮放/匯出/指令數。 -->
+            <!-- Project bar：位於工具列下方。可編輯的專案/客戶（子元件 MindmapProjectBar，
+                 客戶/專案 AutoComplete、依客戶過濾專案、有專案客戶轉唯讀）。建立/同步專案
+                 已移到上方工具列 Group 1 的 icon 按鈕。 -->
             <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1" t-if="!readonly">
                 <MindmapProjectBar workbookId="workbookId"
-                    onCreateProject.bind="onCreateProject"
-                    onSyncProject.bind="onSyncProject"
                     onOpenProject.bind="onOpenProject"
                     onProjectChanged.bind="_onProjectBarChanged"
                     registerApi.bind="_registerProjectBarApi"/>
-                <!-- 靠右：縮放% / 匯出SVG / 指令數（原工具列右上角 Group 9，移到與專案/客戶同列） -->
-                <div class="ms-auto d-flex align-items-center">
-                    <span class="btn btn-sm btn-outline-secondary disabled o_mindmap_zoom_level me-1">100%</span>
-                    <div class="btn-group me-2">
-                        <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_export" t-on-click="onExportSVG" title="匯出 SVG">
-                            <i class="fa fa-download"/> 匯出 SVG
-                        </button>
-                    </div>
-                    <span class="badge text-bg-info me-1 o_mindmap_selection_count" style="display:none;">
-                        <i class="fa fa-check-square"/> <span class="count">0</span>
-                    </span>
-                    <span class="badge text-bg-secondary o_mindmap_command_count">0 個指令</span>
-                </div>
             </div>
 
             <!-- Sidebar for Properties -->
@@ -718,6 +722,7 @@
                 <span class="o_mindmap_status_spacer"/>
                 <span class="o_mindmap_status_counts">
                     <span class="o_mindmap_topic_count" title="主題數">0 個主題</span>
+                    <span class="o_mindmap_command_count" title="指令數（可復原步數）">  ·  0 個指令</span>
                     <span class="o_mindmap_selection_count"></span>
                 </span>
                 <span class="o_mindmap_zoom_control">
@@ -737,18 +742,6 @@
     <!-- Editable project/customer bar (reactive child of MindmapEditor). -->
     <t t-name="dobtor_xmind.MindmapProjectBar">
         <div class="o_mindmap_project_bar_inner d-flex align-items-center flex-wrap gap-3">
-            <div class="btn-group btn-group-sm">
-                <button t-if="!state.projectId"
-                        class="btn btn-outline-info o_mindmap_btn_create_project"
-                        title="從這張心智圖建立專案與任務" t-on-click="onCreateProject">
-                    <i class="fa fa-folder-open me-1"/>建立專案
-                </button>
-                <button t-if="state.projectId"
-                        class="btn btn-outline-info o_mindmap_btn_sync_project"
-                        title="將心智圖同步到專案（心智圖 → 專案）" t-on-click="onSyncProject">
-                    <i class="fa fa-refresh me-1"/>同步專案
-                </button>
-            </div>
             <!-- 客戶：有專案 → 由專案帶入，唯讀顯示；無專案 → 可搜尋選填。 -->
             <div class="d-flex align-items-center gap-1">
                 <i class="fa fa-building text-muted"/>

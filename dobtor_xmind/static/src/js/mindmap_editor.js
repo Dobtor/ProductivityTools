@@ -144,13 +144,17 @@ export class MindmapEditor extends Component {
                 link.href = 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap';
                 document.head.appendChild(link);
             }
-            // Push state into URL so page refresh reopens the same mind map.
+            // Show the record name in the toolbar breadcrumb ASAP (from the action's
+            // name); _loadWorkbookData refreshes it from the DB afterwards.
+            this._setRecordName((this.props.action && this.props.action.name) || '');
+            // Persist workbook_id into the action's controller state so a browser
+            // refresh reopens the SAME mind map. NB: a bare router.pushState() is
+            // wiped by action_service's own pushState({replace:true}) (it rebuilds
+            // the URL from the controller state); updateActionState writes into that
+            // controller state so the id lands in the URL and survives refresh.
             // Skip when embedded/read-only — an inline map must not hijack the URL.
-            if (this.workbookId && !this.readonly) {
-                router.pushState({
-                    action: 'dobtor_xmind.mindmap_editor',
-                    workbook_id: this.workbookId,
-                });
+            if (this.workbookId && !this.readonly && this.props.updateActionState) {
+                this.props.updateActionState({ workbook_id: this.workbookId });
             }
             await this._loadData();
             const jmInitSuccess = this._initJsMind();
@@ -244,6 +248,7 @@ export class MindmapEditor extends Component {
             } else {
                 this.mindmapData = result.mindmap_data;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
+                this._setRecordName(result.name);
                 this.projectInfo = result.project || null;
                 // 專案/客戶/關聯物件的顯示與編輯已移入 MindmapProjectBar 子元件，
                 // 由子元件自行載入；此處僅保留 projectInfo 供同步/開啟專案的守衛使用。
@@ -506,9 +511,10 @@ export class MindmapEditor extends Component {
         }
     }
 
+    /** Status bar「N 個指令」— CommandStack（可復原步數）計數。 */
     _updateCommandCount(count) {
         const el = this._el('.o_mindmap_command_count');
-        if (el) el.textContent = count + ' ' + _t('commands');
+        if (el) el.textContent = '  ·  ' + (count || 0) + ' 個指令';
     }
 
     // ===== Keyboard Shortcuts =====
@@ -2851,8 +2857,30 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Project integration (mind map → project) =====
-    onCreateProject() { this._doProjectSync(true); }
-    onSyncProject() { this._doProjectSync(false); }
+    /** Toolbar icon: create the project if none is linked yet, else sync to it. */
+    onSyncOrCreateProject() { this._doProjectSync(!this.projectInfo); }
+
+    /** Fill the toolbar breadcrumb record name (imperative — component is non-reactive). */
+    _setRecordName(name) {
+        this.workbookName = name || '';
+        const el = this._el('.o_mindmap_record_name');
+        if (el) {
+            el.textContent = this.workbookName;
+            el.title = this.workbookName;
+        }
+    }
+
+    /** Breadcrumb gear: open this mind map's form view (customer/project/visibility…). */
+    onOpenForm() {
+        if (!this.workbookId) return;
+        this.action.doAction({
+            type: 'ir.actions.act_window',
+            res_model: 'xmind.workbook',
+            res_id: this.workbookId,
+            views: [[false, 'form']],
+            target: 'current',
+        });
+    }
 
     async onOpenProject() {
         if (!this.projectInfo || !this.projectInfo.id || !this.workbookId) return;
@@ -3902,11 +3930,14 @@ export class MindmapEditor extends Component {
         this._updateStatus(_t('Task info updated'));
     }
 
-    /** Render a small inline progress badge on a node (re-applied on render). */
+    /** Render a small inline progress badge on a node (re-applied on render).
+     *  Only shown when there is real progress (>0). The old "○" no-progress circle
+     *  was removed — the assignee is now shown as an avatar next to the clock. */
     _renderTaskIndicator(nodeElement, taskInfo) {
         if (!nodeElement) return;
         let badge = nodeElement.querySelector('.xmind-task-badge');
-        if (!taskInfo || (!taskInfo.progress && !taskInfo.start && !taskInfo.end && !taskInfo.assignee)) {
+        const pct = (taskInfo && taskInfo.progress) || 0;
+        if (!pct) {
             if (badge) badge.remove();
             return;
         }
@@ -3915,12 +3946,44 @@ export class MindmapEditor extends Component {
             badge.className = 'xmind-task-badge';
             nodeElement.appendChild(badge);
         }
-        const pct = taskInfo.progress || 0;
-        badge.textContent = pct ? (pct + '%') : '○';
+        badge.textContent = pct + '%';
         badge.title = [
             taskInfo.assignee && (_t('Assignee: ') + taskInfo.assignee),
             (taskInfo.start || taskInfo.end) && ((taskInfo.start || '?') + ' → ' + (taskInfo.end || '?')),
         ].filter(Boolean).join('\n');
+    }
+
+    /** Render assignee avatar(s) right AFTER the activity clock (before the text),
+     *  mirroring how dobtor_project shows task assignees. `assignees` = [{id,name}]. */
+    _renderAssignee(nodeElement, assignees) {
+        if (!nodeElement) return;
+        let wrap = nodeElement.querySelector('.xmind-assignee');
+        if (!assignees || !assignees.length) {
+            if (wrap) wrap.remove();
+            return;
+        }
+        if (!wrap) {
+            wrap = document.createElement('span');
+            wrap.className = 'xmind-assignee';
+            wrap.style.cssText = 'display:inline-flex;align-items:center;margin-right:5px;';
+            // After the clock (if any), before the topic title text.
+            const titleEl = nodeElement.querySelector('.xmind-topic-text');
+            if (titleEl) nodeElement.insertBefore(wrap, titleEl);
+            else nodeElement.insertBefore(wrap, nodeElement.firstChild);
+        }
+        wrap.innerHTML = '';
+        for (const u of assignees.slice(0, 3)) {
+            const img = document.createElement('img');
+            img.className = 'xmind-assignee-avatar';
+            img.src = '/web/image/res.users/' + u.id + '/avatar_128';
+            img.title = u.name || '';
+            img.alt = u.name || '';
+            img.style.cssText =
+                'width:18px;height:18px;border-radius:50%;object-fit:cover;' +
+                'margin-left:-4px;border:1px solid #fff;vertical-align:middle;';
+            wrap.appendChild(img);
+        }
+        if (wrap.firstChild) wrap.firstChild.style.marginLeft = '0';
     }
 
     // ===== Activity clock (schedule a mail.activity on the linked task) =====
@@ -5096,13 +5159,13 @@ export class MindmapEditor extends Component {
                 if (nd && nd.data && nd.data._isSummaryNode) continue;
                 n++;
             }
-            topicEl.textContent = n + (n === 1 ? ' topic' : ' topics');
+            topicEl.textContent = n + ' 個主題';
         }
         const selEl = this._el('.o_mindmap_selection_count');
         if (selEl) {
             const selCount = (this.selectedNodes && this.selectedNodes.length)
                 || (this.selectedNode ? 1 : 0);
-            selEl.textContent = selCount > 1 ? ('  ·  ' + selCount + ' selected') : '';
+            selEl.textContent = selCount > 1 ? ('  ·  已選 ' + selCount + ' 個') : '';
         }
     }
 
@@ -5449,12 +5512,8 @@ export class MindmapEditor extends Component {
     }
 
     _updateSelectionCount() {
-        const badge = this._el('.o_mindmap_selection_count');
-        if (!badge) return;
-        const count = this.selectedNodes.length;
-        badge.style.display = count > 0 ? '' : 'none';
-        const countSpan = badge.querySelector('.count');
-        if (countSpan) countSpan.textContent = count;
+        // 選取數現於狀態列以文字呈現（與主題/指令數同區），統一由 _updateStatusCounts 更新。
+        this._updateStatusCounts();
     }
 
     _showSummaryContextMenu(summaryId, event) {
@@ -5524,7 +5583,11 @@ export class MindmapEditor extends Component {
                     this._watchImageLoad(element);
                 }
                 if (node.data.taskInfo) this._renderTaskIndicator(element, node.data.taskInfo);
-                if (node.data.taskId) this._renderActivityClock(element, id, node.data.taskId, node.data.activity || {});
+                if (node.data.taskId) {
+                    this._renderActivityClock(element, id, node.data.taskId, node.data.activity || {});
+                    // Assignee avatar(s) after the clock (before the text).
+                    this._renderAssignee(element, node.data.assignees || []);
+                }
             }
         }
 

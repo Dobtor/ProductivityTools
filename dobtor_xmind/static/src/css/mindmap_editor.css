@@ -37,6 +37,23 @@
 .o_mindmap_project_bar .o_mindmap_project_link:hover {
     text-decoration: underline;
 }
+/* 工具列最左：資料所屬麵包屑（模型 + 記錄名 + 齒輪 → 開啟表單） */
+.o_mindmap_breadcrumb {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    max-width: 260px;
+}
+.o_mindmap_breadcrumb:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+.o_mindmap_breadcrumb .o_mindmap_bc_model {
+    font-size: 0.7rem;
+}
+.o_mindmap_breadcrumb .o_mindmap_record_name {
+    font-size: 0.9rem;
+    max-width: 210px;
+}
 /* 專案列可編輯的客戶/專案 AutoComplete 輸入框（子元件 MindmapProjectBar） */
 .o_mindmap_project_bar .o_mindmap_pb_ac input {
     border: 1px solid transparent;
@@ -142,10 +159,6 @@
     padding: 6px 12px;
     font-size: 14px;
     border: 1px solid #ced4da;
-}
-
-.o_mindmap_command_count {
-    font-size: 0.85em;
 }
 
 /* Drag and Drop Styles */
@@ -785,10 +798,6 @@
     border-color: #007bff !important;
 }
 
-/* Selection count badge */
-.o_mindmap_selection_count {
-    animation: o-xmind-pulse 2s infinite;
-}
 
 /* Relationship Styles */
 .relationship-path {

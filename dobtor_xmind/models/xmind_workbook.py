@@ -223,6 +223,10 @@ class XMindWorkbook(models.Model):
                 'exception_icon': task.activity_exception_icon or '',
                 'type_icon': task.activity_type_icon or '',
             }
+            # Assignee users (負責人) — shown on the node as avatar(s), like project.
+            data['assignees'] = [
+                {'id': u.id, 'name': u.name} for u in task.user_ids
+            ]
         if topic.project_managed:
             data['projectManaged'] = True
 

@@ -862,25 +862,18 @@ export class NoteIndicator {
 
         if (!hasNote) return;
 
+        // 顯示於文字最後（inline），不再固定於左上角。
         const indicator = document.createElement('span');
         indicator.className = 'xmind-note-indicator';
-        indicator.style.position = 'absolute';
-        indicator.style.top = '-8px';
-        indicator.style.left = '-8px';
-        indicator.style.width = '16px';
-        indicator.style.height = '16px';
-        indicator.style.borderRadius = '50%';
-        indicator.style.background = '#17a2b8';
-        indicator.style.color = '#fff';
-        indicator.style.display = 'flex';
+        indicator.style.display = 'inline-flex';
         indicator.style.alignItems = 'center';
-        indicator.style.justifyContent = 'center';
-        indicator.style.fontSize = '9px';
+        indicator.style.marginLeft = '5px';
+        indicator.style.color = '#17a2b8';
+        indicator.style.fontSize = '12px';
         indicator.style.cursor = 'pointer';
         indicator.innerHTML = '<i class="fa fa-sticky-note"></i>';
         indicator.title = _t('Has Note');
 
-        nodeElement.style.position = 'relative';
         nodeElement.appendChild(indicator);
     }
 }
