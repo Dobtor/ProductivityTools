@@ -20,9 +20,8 @@ import { ChannelMemberList } from "@mail/discuss/core/common/channel_member_list
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/core/popover/popover_hook";
-import { Dropdown } from "@web/core/dropdown/dropdown";
-import { DropdownItem } from "@web/core/dropdown/dropdown_item";
 import { CompanyAutocomplete } from "./company_autocomplete";
+import { MemberCompanyDropdown } from "./member_company_dropdown";
 import { MessagingPartnerCard } from "./messaging_partner_card";
 
 patch(ChannelMemberList.prototype, {
@@ -95,7 +94,6 @@ patch(ChannelMemberList.prototype, {
 ChannelMemberList.components = {
     ...ChannelMemberList.components,
     CompanyAutocomplete,
-    Dropdown,
-    DropdownItem,
+    MemberCompanyDropdown,
 };
 ChannelMemberList.template = "dobtor_messaging_base.ChannelMemberList";

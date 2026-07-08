@@ -41,6 +41,26 @@
         </ActionPanel>
     </t>
 
+    <!-- 每位成員的「加入公司」下拉（獨立元件，member 以 prop 傳入，隔離每一列）-->
+    <t t-name="dobtor_messaging_base.MemberCompanyDropdown">
+        <Dropdown menuClass="'o-messaging-CompanyMenu'">
+            <button class="btn btn-sm btn-link p-1 text-muted" title="Assign company">
+                <i class="fa fa-building-o opacity-75"/>
+            </button>
+            <t t-set-slot="content">
+                <DropdownItem t-foreach="props.companyChoices" t-as="company" t-key="company.id"
+                              class="props.member.persona?.messagingCompanyId === company.id ? 'active' : ''"
+                              onSelected="() => props.onAssign(props.member, company.id)">
+                    <i class="fa fa-building-o me-1 opacity-75"/><t t-esc="company.name"/>
+                </DropdownItem>
+                <div t-if="props.companyChoices.length" role="separator" class="dropdown-divider"/>
+                <DropdownItem onSelected="() => props.onAssign(props.member, false)">
+                    <i class="fa fa-times me-1 opacity-75"/><span>Unassign</span>
+                </DropdownItem>
+            </t>
+        </Dropdown>
+    </t>
+
     <!-- 成員列：官方樣式 + 「加入公司」下拉 -->
     <t t-name="dobtor_messaging_base.channel_member">
         <div class="o-discuss-ChannelMember d-flex align-items-center p-1 bg-inherit rounded"
@@ -55,22 +75,10 @@
             </div>
             <span class="ms-auto d-flex align-items-center">
                 <span t-if="member.in(props.thread.invitedMembers)" class="p-1 fa fa-user-plus opacity-75"/>
-                <Dropdown t-if="canManageCompanies and member.persona?.type === 'partner'" menuClass="'o-messaging-CompanyMenu'">
-                    <button class="btn btn-sm btn-link p-1 text-muted" title="Assign company">
-                        <i class="fa fa-building-o opacity-75"/>
-                    </button>
-                    <t t-set-slot="content">
-                        <DropdownItem t-foreach="companyChoices" t-as="company" t-key="company.id"
-                                      class="member.persona?.messagingCompanyId === company.id ? 'active' : ''"
-                                      onSelected="() => this.assignMemberCompany(member, company.id)">
-                            <i class="fa fa-building-o me-1 opacity-75"/><t t-esc="company.name"/>
-                        </DropdownItem>
-                        <div t-if="companyChoices.length" role="separator" class="dropdown-divider"/>
-                        <DropdownItem onSelected="() => this.assignMemberCompany(member, false)">
-                            <i class="fa fa-times me-1 opacity-75"/><span>Unassign</span>
-                        </DropdownItem>
-                    </t>
-                </Dropdown>
+                <MemberCompanyDropdown t-if="canManageCompanies and member.persona?.type === 'partner'"
+                                       member="member"
+                                       companyChoices="companyChoices"
+                                       onAssign.bind="assignMemberCompany"/>
             </span>
         </div>
     </t>
