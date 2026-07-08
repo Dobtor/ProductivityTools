@@ -1,5 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_mail_activity_done_wizard,mail.activity.done.wizard,model_mail_activity_done_wizard,base.group_user,1,1,1,1
+access_mail_activity_cancel_wizard,mail.activity.cancel.wizard,model_mail_activity_cancel_wizard,base.group_user,1,1,1,1
 access_mail_activity_postpone_wizard,mail.activity.postpone.wizard,model_mail_activity_postpone_wizard,base.group_user,1,1,1,1
 access_mail_activity_transfer_wizard,mail.activity.transfer.wizard,model_mail_activity_transfer_wizard,base.group_user,1,1,1,1
 access_mail_activity_reassign_wizard,mail.activity.reassign.wizard,model_mail_activity_reassign_wizard,base.group_user,1,1,1,1

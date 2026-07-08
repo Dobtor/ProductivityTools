@@ -113,11 +113,13 @@ class TestMailActivity(TransactionCase):
             'date_deadline': date.today(),
         })
 
-        activity.action_cancel()
+        # action_cancel 現導向取消原因精靈；封存/記錄邏輯在 _action_cancel
+        activity._action_cancel(feedback='測試取消原因')
 
         self.assertFalse(activity.active)
         self.assertTrue(activity.cancel_date)
         self.assertEqual(activity.activity_status, 'cancelled')
+        self.assertEqual(activity.feedback, '測試取消原因')
 
     def test_07_activity_restore(self):
         """測試恢復已封存待辦"""
@@ -130,7 +132,7 @@ class TestMailActivity(TransactionCase):
         })
 
         # 先取消
-        activity.action_cancel()
+        activity._action_cancel(feedback='原因')
         self.assertFalse(activity.active)
 
         # 再恢復

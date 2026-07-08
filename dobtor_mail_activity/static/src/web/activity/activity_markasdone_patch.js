@@ -126,6 +126,42 @@ patch(ActivityMarkAsDone.prototype, {
     },
 
     /**
+     * 取消待辦：開啟取消原因 wizard（需填原因才確認，記錄方式比照完成）
+     */
+    async onClickCancelActivity() {
+        const { res_id, res_model } = this.props.activity;
+        const thread = this.store.Thread.insert({
+            model: res_model,
+            id: res_id,
+        });
+
+        if (this.props.close) {
+            this.props.close();
+        }
+
+        await new Promise((resolve) => {
+            this.actionService.doAction(
+                {
+                    type: "ir.actions.act_window",
+                    name: _t("Cancel Activity"),
+                    res_model: "mail.activity.cancel.wizard",
+                    view_mode: "form",
+                    views: [[false, "form"]],
+                    target: "new",
+                    context: {
+                        default_activity_id: this.props.activity.id,
+                    },
+                },
+                {
+                    onClose: resolve,
+                }
+            );
+        });
+
+        this.props.onActivityChanged(thread);
+    },
+
+    /**
      * 變更指派：開啟重新指派 wizard
      */
     async onClickReassign() {

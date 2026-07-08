@@ -774,6 +774,7 @@ msgstr "待辦歷史"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_reassign_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
 msgid "Activity Information"
 msgstr "待辦資訊"
 
@@ -882,6 +883,7 @@ msgstr "待辦記錄不存在。"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_reassign_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
 msgid "Activity summary"
 msgstr "待辦摘要"
 
@@ -1258,13 +1260,54 @@ msgstr "可查看所有待辦、週報和效率分析"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_created
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_created
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
 msgid "Cancel"
 msgstr "取消"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_popup_inherit
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
 msgid "Cancel Activity"
 msgstr "取消待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_cancel_wizard__reason
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
+msgid "Cancellation Reason"
+msgstr "取消原因"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
+msgid "Confirm Cancel"
+msgstr "確認取消"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "To-do cancelled: %(summary)s"
+msgstr "已取消待辦：%(summary)s"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid "Reason: %(reason)s"
+msgstr "原因：%(reason)s"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_cancel_wizard.py:0
+msgid "This activity is archived and cannot be cancelled."
+msgstr "此待辦已封存，無法取消。"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
+msgid "The activity will be archived and marked as cancelled. Please provide a reason."
+msgstr "此待辦將被封存並標記為已取消，請填寫原因。"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
+msgid "Please explain the reason for cancellation..."
+msgstr "請說明取消原因…"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__cancel_date
@@ -3515,6 +3558,7 @@ msgstr "優先順序"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_reassign_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
 msgid "Priority & Assignment"
 msgstr "優先級與指派"
 
@@ -3658,6 +3702,7 @@ msgstr "相關單據編號"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_created
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_unassigned
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
 msgid "Related Information"
 msgstr "相關資訊"
 

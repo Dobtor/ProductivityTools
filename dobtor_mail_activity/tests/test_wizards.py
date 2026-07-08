@@ -68,6 +68,62 @@ class TestActivityDoneWizard(TransactionCase):
 
 
 @tagged('post_install', '-at_install')
+class TestActivityCancelWizard(TransactionCase):
+    """測試取消待辦 Wizard（需填原因，記錄方式比照完成）"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = cls.env.ref('base.user_demo')
+
+        cls.activity_type = cls.env['mail.activity.type'].create({
+            'name': 'Cancel Wizard 測試類型',
+            'category': 'default',
+        })
+
+        cls.note = cls.env['note.note'].create({
+            'memo': '<p>Cancel Wizard 測試筆記</p>',
+            'user_id': cls.user.id,
+        })
+
+    def _make_activity(self, summary='待取消'):
+        return self.env['mail.activity'].create({
+            'summary': summary,
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'user_id': self.user.id,
+        })
+
+    def test_01_action_cancel_opens_wizard(self):
+        """action_cancel 回傳取消原因精靈動作（不直接封存）"""
+        activity = self._make_activity()
+        action = activity.action_cancel()
+
+        self.assertEqual(action['res_model'], 'mail.activity.cancel.wizard')
+        self.assertEqual(action['context']['default_activity_id'], activity.id)
+        # 尚未確認 → 仍為 active
+        self.assertTrue(activity.active)
+
+    def test_02_cancel_wizard_records_reason(self):
+        """確認取消：封存 + cancel_date + feedback（原因）"""
+        activity = self._make_activity('待取消2')
+
+        wizard = self.env['mail.activity.cancel.wizard'].create({
+            'activity_id': activity.id,
+            'reason': '不再需要',
+        })
+        wizard.action_cancel_activity()
+
+        activity.invalidate_recordset()
+        self.assertFalse(activity.active)
+        self.assertTrue(activity.cancel_date)
+        self.assertEqual(activity.activity_status, 'cancelled')
+        self.assertEqual(activity.feedback, '不再需要')
+
+
+@tagged('post_install', '-at_install')
 class TestActivityPostponeWizard(TransactionCase):
     """測試延期 Wizard"""
 

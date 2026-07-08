@@ -4,6 +4,8 @@ import logging
 from collections import defaultdict
 from datetime import timedelta
 
+from markupsafe import Markup
+
 from odoo import api, fields, models, Command, _
 from odoo.exceptions import UserError, AccessError
 from odoo.release import version_info
@@ -1816,12 +1818,37 @@ class MailActivity(models.Model):
 
         return messages, next_activities
 
-    def action_cancel(self):
-        """取消待辦（封存）"""
+    def _action_cancel(self, feedback=False):
+        """取消待辦：封存並記錄取消原因。
+
+        記錄方式比照 _action_done：於關聯文件 chatter 留痕（含原因）、原因存入
+        feedback 欄位、封存待辦並設 cancel_date；獨立待辦（無 res）僅封存記錄。
+        """
+        for activity in self:
+            # 於關聯文件 chatter 留下取消訊息（含原因）
+            if activity.res_model and activity.res_id:
+                record = self.env[activity.res_model].sudo().browse(activity.res_id)
+                if record.exists():
+                    body = _('To-do cancelled: %(summary)s',
+                             summary=activity.summary or activity.activity_type_id.display_name or '')
+                    if feedback:
+                        # Markup：使 <br/> 生效並自動轉義使用者填寫的原因
+                        body = Markup('%s<br/>%s') % (
+                            body, _('Reason: %(reason)s', reason=feedback))
+                    record.message_post(
+                        body=body,
+                        author_id=self.env.user.partner_id.id,
+                        subtype_xmlid='mail.mt_activities',
+                        mail_activity_type_id=activity.activity_type_id.id,
+                    )
+
+        # 封存並記錄（feedback 存入待辦，與完成一致）
         self.write({
             'active': False,
             'cancel_date': fields.Datetime.now(),
+            'feedback': feedback,
         })
+
         # 發送 bus 通知
         for activity in self:
             if activity.user_id:
@@ -1829,9 +1856,24 @@ class MailActivity(models.Model):
                     'mail.activity/updated',
                     {'activity_deleted': True, 'count_diff': -1}
                 )
+
+    def action_cancel(self):
+        """取消待辦：開啟取消原因精靈（需填原因才確認，記錄方式比照完成）。
+
+        表單 header / mark-as-done popover / 清單 / 看板的所有「取消」入口共用，
+        統一導向精靈以強制填寫原因。
+        """
+        self.ensure_one()
         return {
-            'type': 'ir.actions.client',
-            'tag': 'reload',
+            'type': 'ir.actions.act_window',
+            'name': _('Cancel Activity'),
+            'res_model': 'mail.activity.cancel.wizard',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'new',
+            'context': {
+                'default_activity_id': self.id,
+            }
         }
 
     def action_restore(self):

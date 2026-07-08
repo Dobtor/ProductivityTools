@@ -88,6 +88,70 @@
     </record>
 
     <!-- =====================================================
+         取消待辦 Wizard (mail.activity.cancel.wizard)
+         需填原因才能確認；記錄方式比照「完成」。
+         ===================================================== -->
+
+    <record id="mail_activity_cancel_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.cancel.wizard.form</field>
+        <field name="model">mail.activity.cancel.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cancel Activity">
+                <field name="activity_id" invisible="1"/>
+
+                <!-- 摘要 -->
+                <div class="oe_title">
+                    <h1>
+                        <field name="summary" readonly="1" placeholder="Activity summary"/>
+                    </h1>
+                </div>
+
+                <!-- 待辦資訊（統一區塊）-->
+                <group>
+                    <group string="Activity Information">
+                        <field name="activity_type_name"/>
+                        <field name="date_deadline"/>
+                        <field name="planned_date"/>
+                        <field name="estimated_hours" widget="float_time"/>
+                    </group>
+                    <group string="Priority &amp; Assignment">
+                        <field name="urgency"/>
+                        <field name="importance"/>
+                        <field name="assignee_id" widget="many2one_avatar_user"/>
+                    </group>
+                </group>
+                <group string="Related Information">
+                    <field name="res_display"/>
+                    <field name="note_id"/>
+                </group>
+
+                <div class="alert alert-warning" role="alert">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    <span>The activity will be archived and marked as cancelled. Please provide a reason.</span>
+                </div>
+
+                <notebook>
+                    <page string="Cancellation Reason" name="reason">
+                        <field name="reason" nolabel="1" required="1"
+                               placeholder="Please explain the reason for cancellation..."/>
+                    </page>
+                </notebook>
+                <footer>
+                    <button string="Confirm Cancel" name="action_cancel_activity" type="object" class="btn-danger"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_cancel_wizard" model="ir.actions.act_window">
+        <field name="name">Cancel Activity</field>
+        <field name="res_model">mail.activity.cancel.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- =====================================================
          延期待辦 Wizard (mail.activity.postpone.wizard)
          ===================================================== -->
 

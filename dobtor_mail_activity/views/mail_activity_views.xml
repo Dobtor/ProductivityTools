@@ -139,6 +139,10 @@
                     <button name="action_reassign_activity" type="object"
                             string="Reassign"
                             invisible="not active or not user_id"/>
+                    <!-- 取消待辦（被指派人可用）：導向取消原因精靈，需填原因 -->
+                    <button name="action_cancel" type="object"
+                            string="Cancel Activity"
+                            invisible="not active or not can_edit_as_assignee"/>
                     <button name="action_open_document" type="object"
                             string="Document"/>
                     <field name="schedule_status" widget="statusbar"

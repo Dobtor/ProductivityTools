@@ -34,6 +34,11 @@
                     t-on-click="onClickReassign">
                 Reassign
             </button>
+            <button type="button" class="btn btn-sm btn-danger mx-1"
+                    aria-label="Cancel Activity"
+                    t-on-click="onClickCancelActivity">
+                Cancel Activity
+            </button>
         </xpath>
     </t>
 
