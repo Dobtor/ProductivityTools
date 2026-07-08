@@ -37,6 +37,21 @@
                         class="'o_bpmn_tag_ac'"/>
                 </div>
                 <span t-if="state.dirty" class="badge text-bg-warning">未儲存</span>
+                <!-- 右上角：仿 Odoo control panel 的 view 切換 + pager（在可讀設計圖間翻頁）。 -->
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <div class="o_bpmn_view_switcher btn-group btn-group-sm">
+                        <button class="btn btn-light active" disabled="disabled" title="流程設計圖">
+                            <i class="fa fa-sitemap"/>
+                        </button>
+                        <button class="btn btn-light" t-on-click="onOpenForm" title="以表單開啟">
+                            <i class="fa fa-list-alt"/>
+                        </button>
+                    </div>
+                    <Pager t-if="state.pagerTotal"
+                           offset="state.pagerOffset" limit="1"
+                           total="state.pagerTotal" onUpdate.bind="onPagerUpdate"
+                           withAccessKey="false"/>
+                </div>
             </div>
 
             <!-- 專案列：可直接編輯專案 / 客戶，並顯示以 "/" 嵌入本圖的關聯物件名稱。 -->

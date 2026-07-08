@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { AutoComplete } from "@web/core/autocomplete/autocomplete";
+import { Pager } from "@web/core/pager/pager";
 import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 
 /**
@@ -19,7 +20,7 @@ import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } fr
  */
 export class BpmnEditorAction extends Component {
     static template = "dobtor_bpmn.BpmnEditorAction";
-    static components = { AutoComplete };
+    static components = { AutoComplete, Pager };
     static props = ["*"];
 
     setup() {
@@ -59,33 +60,22 @@ export class BpmnEditorAction extends Component {
             embedsLabel: "",
             // 標題後的多標籤欄位：[{id, name, color}]
             tags: [],
+            // 右上角 pager（在所有可讀設計圖之間翻頁，write_date desc）
+            pagerTotal: 0,
+            pagerOffset: 0,
         });
+        // pager 記錄清單（非 reactive；offset/total 進 state 驅動 Pager 重繪）
+        this.pagerIds = [];
 
         onWillStart(async () => {
             if (!this.diagramId) {
                 this.state.error = _t("缺少設計圖 ID。");
                 return;
             }
-            const fields = ["name", "diagram_type", "xml"];
+            await this._loadRecord();
             if (!this.readonly) {
-                fields.push("partner_id", "project_id", "tag_ids");
+                await this._loadPager();
             }
-            const [rec] = await this.orm.read("bpmn.diagram", [this.diagramId], fields);
-            this._record = rec;
-            this.state.name = rec.name || "";
-            this.state.diagramType = rec.diagram_type || "bpmn";
-            if (!this.readonly) {
-                this.state.partnerId = (rec.partner_id && rec.partner_id[0]) || false;
-                this.state.partnerName = (rec.partner_id && rec.partner_id[1]) || "";
-                this.state.projectId = (rec.project_id && rec.project_id[0]) || false;
-                this.state.projectName = (rec.project_id && rec.project_id[1]) || "";
-                await this._loadTags(rec.tag_ids || []);
-                await this._loadEmbeds();
-            }
-            // bpmn-js / dmn-js 皆已隨 dobtor_approval 打包（bundled），不需 runtime load。
-            this.state.libMissing = this.state.diagramType === "dmn"
-                ? !window.DmnJS
-                : !window.BpmnJS;
         });
 
         onMounted(() => {
@@ -401,6 +391,87 @@ export class BpmnEditorAction extends Component {
             views: [[false, "form"]],
             target: "current",
         });
+    }
+
+    // ===== 記錄載入 / 右上角 pager（在可讀設計圖之間翻頁）=====
+
+    /** Read this.diagramId into state (name/type/xml/專案/客戶/標籤/嵌入). Reusable by
+     *  onWillStart and pager navigation. */
+    async _loadRecord() {
+        const fields = ["name", "diagram_type", "xml"];
+        if (!this.readonly) {
+            fields.push("partner_id", "project_id", "tag_ids");
+        }
+        const [rec] = await this.orm.read("bpmn.diagram", [this.diagramId], fields);
+        if (!rec) {
+            // 翻頁到已被刪除 / 失去權限的設計圖：優雅呈現，勿讓 undefined 拋錯。
+            this.state.error = _t("找不到設計圖（可能已被刪除或無存取權限）。");
+            return;
+        }
+        this._record = rec;
+        this.state.name = rec.name || "";
+        this.state.diagramType = rec.diagram_type || "bpmn";
+        if (!this.readonly) {
+            this.state.partnerId = (rec.partner_id && rec.partner_id[0]) || false;
+            this.state.partnerName = (rec.partner_id && rec.partner_id[1]) || "";
+            this.state.projectId = (rec.project_id && rec.project_id[0]) || false;
+            this.state.projectName = (rec.project_id && rec.project_id[1]) || "";
+            await this._loadTags(rec.tag_ids || []);
+            await this._loadEmbeds();
+        }
+        // bpmn-js / dmn-js 皆已隨 dobtor_approval 打包（bundled），不需 runtime load。
+        this.state.libMissing = this.state.diagramType === "dmn"
+            ? !window.DmnJS
+            : !window.BpmnJS;
+    }
+
+    /** Fetch the id set the pager walks: all readable diagrams, newest-edited first. */
+    async _loadPager() {
+        try {
+            this.pagerIds = await this.orm.search("bpmn.diagram", [], {
+                order: "write_date desc",
+            });
+        } catch {
+            this.pagerIds = [];
+        }
+        this._syncPagerOffset();
+    }
+
+    _syncPagerOffset() {
+        const idx = this.pagerIds.indexOf(this.diagramId);
+        this.state.pagerTotal = this.pagerIds.length;
+        this.state.pagerOffset = idx >= 0 ? idx : 0;
+    }
+
+    /** Pager onUpdate → open the diagram at the new 0-based offset (limit=1). */
+    onPagerUpdate({ offset }) {
+        const newId = this.pagerIds[offset];
+        if (newId) {
+            this._navigateToRecord(newId);
+        }
+    }
+
+    /** Switch the editor to another diagram in place (no full action re-dispatch):
+     *  teardown modeler → swap id → sync URL → reload record → re-init modeler. */
+    async _navigateToRecord(newId) {
+        if (!newId || newId === this.diagramId || this.readonly) {
+            return;
+        }
+        if (this.state.dirty &&
+            !window.confirm(_t("有未儲存的變更，切換將捨棄。是否繼續？"))) {
+            return;
+        }
+        this._destroyModeler();
+        this.diagramId = newId;
+        this.state.dirty = false;
+        this.state.ready = false;
+        this.state.error = "";
+        if (this.props.updateActionState) {
+            this.props.updateActionState({ diagram_id: newId });
+        }
+        await this._loadRecord();
+        this._syncPagerOffset();
+        this._initModeler();
     }
 }
 
