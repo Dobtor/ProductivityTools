@@ -139,10 +139,11 @@
                     <button name="action_reassign_activity" type="object"
                             string="Reassign"
                             invisible="not active or not user_id"/>
-                    <!-- 取消待辦（被指派人可用）：導向取消原因精靈，需填原因 -->
+                    <!-- 取消待辦（建立者或被指派人可用）：導向取消原因精靈，需填原因。
+                         條件與表單內可編輯欄位（partner/project/note）一致。 -->
                     <button name="action_cancel" type="object"
                             string="Cancel Activity"
-                            invisible="not active or not can_edit_as_assignee"/>
+                            invisible="not active or not (can_edit_as_creator or can_edit_as_assignee)"/>
                     <button name="action_open_document" type="object"
                             string="Document"/>
                     <field name="schedule_status" widget="statusbar"
