@@ -128,6 +128,10 @@
                     <button name="action_done_wizard" type="object"
                             string="Complete" class="btn-primary"
                             invisible="not active"/>
+                    <!-- 已完成待辦：延續新增待辦（帶入標題/類型/關聯開建立精靈）-->
+                    <button name="action_continue_new_activity" type="object"
+                            string="Continue with New To-do" class="btn-primary"
+                            invisible="activity_status != 'done'"/>
                     <button name="action_postpone_wizard" type="object"
                             string="Postpone"
                             invisible="not active or not planned_date"/>
@@ -160,6 +164,7 @@
                     <field name="schedule_warning" invisible="1"/>
                     <field name="user_id" invisible="1"/>
                     <field name="source_message_id" invisible="1"/>
+                    <field name="activity_status" invisible="1"/>
 
                     <!-- 隱藏欄位 -->
                     <field name="id" invisible="1"/>

@@ -247,15 +247,6 @@ class MailActivityDoneWizard(models.TransientModel):
 
         activity = self.activity_id
 
-        # 先擷取上一筆資訊（完成前先取用）
-        prev_summary = activity.summary
-        prev_type_id = activity.activity_type_id.id
-        prev_res_model = activity.res_model
-        prev_res_id = activity.res_id
-        prev_partner_id = activity.partner_id.id
-        prev_project_id = activity.project_id.id
-        prev_note_id = activity.note_id.id
-
         # 記錄本次工時（如有）並完成當前待辦
         if self.actual_hours > 0:
             self._log_hours()
@@ -264,37 +255,9 @@ class MailActivityDoneWizard(models.TransientModel):
             attachment_ids=self._get_attachment_ids(),
         )
 
-        # 組建立待辦精靈的 context 預設值（不沿用當前 env.context，
-        # 避免殘留的 active_model / default_* 汙染新精靈情境）
-        ctx = {
-            # 關閉新精靈時觸發 soft_reload，讓已完成的當前待辦從清單消失
-            'chained_from_done': True,
-            'default_summary': prev_summary,          # 需求三：帶入上一筆標題
-            'default_activity_type_id': prev_type_id,  # 需求二：類型一樣
-        }
-        # 需求一：記錄上一筆關聯文件（有 res 才帶 → 新精靈視為「已知目標」）
-        if prev_res_model and prev_res_id:
-            ctx.update({
-                'active_model': prev_res_model,
-                'active_id': prev_res_id,
-                'active_ids': [prev_res_id],
-            })
-        if prev_partner_id:
-            ctx['default_partner_id'] = prev_partner_id
-        if prev_project_id:
-            ctx['default_project_id'] = prev_project_id
-        if prev_note_id:
-            ctx['default_note_id'] = prev_note_id
-
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Create To-do'),
-            'res_model': 'mail.activity.create.wizard',
-            'view_mode': 'form',
-            'views': [[False, 'form']],
-            'target': 'new',
-            'context': ctx,
-        }
+        # 帶入本待辦的標題/類型/關聯，鏈式開啟建立待辦精靈
+        # （完成後欄位仍在，與已完成待辦的「延續新增待辦」共用同一路徑）
+        return activity._continue_todo_action()
 
     def action_postpone(self):
         """延至下週（開啟延期 wizard）"""

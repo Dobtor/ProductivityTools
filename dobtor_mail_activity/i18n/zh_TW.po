@@ -1643,6 +1643,11 @@ msgid "Create To-do"
 msgstr "建立待辦"
 
 #. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+msgid "Continue with New To-do"
+msgstr "延續新增待辦"
+
+#. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_create_wizard
 msgid "Create To-do Wizard"
 msgstr "建立待辦精靈"

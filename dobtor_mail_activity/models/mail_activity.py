@@ -1998,6 +1998,51 @@ class MailActivity(models.Model):
             }
         }
 
+    def _continue_todo_action(self):
+        """開啟「建立待辦」精靈並帶入本待辦的標題/類型/關聯（客戶/專案/來源
+        參考/關聯文件）作為預設值。
+
+        供兩處共用：
+          - 完成精靈的「完成並排程下一個」（完成後鏈式建立）
+          - 已完成待辦表單的「延續新增待辦」按鈕
+        本待辦即使已封存（完成/取消），summary / activity_type_id / res /
+        partner / project / note 等欄位仍在，直接讀取即可。
+        """
+        self.ensure_one()
+        ctx = {
+            # 關閉新精靈時 soft_reload，讓來源清單/看板即時刷新
+            'chained_from_done': True,
+            'default_summary': self.summary,
+            'default_activity_type_id': self.activity_type_id.id,
+        }
+        # 有關聯文件才帶（新精靈視為「已知目標」）
+        if self.res_model and self.res_id:
+            ctx.update({
+                'active_model': self.res_model,
+                'active_id': self.res_id,
+                'active_ids': [self.res_id],
+            })
+        if self.partner_id:
+            ctx['default_partner_id'] = self.partner_id.id
+        if self.project_id:
+            ctx['default_project_id'] = self.project_id.id
+        if self.note_id:
+            ctx['default_note_id'] = self.note_id.id
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Create To-do'),
+            'res_model': 'mail.activity.create.wizard',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'new',
+            'context': ctx,
+        }
+
+    def action_continue_new_activity(self):
+        """已完成待辦的「延續新增待辦」：以本待辦資訊開新的建立待辦精靈。"""
+        self.ensure_one()
+        return self._continue_todo_action()
+
     def action_postpone_wizard(self):
         """開啟延期 wizard"""
         self.ensure_one()

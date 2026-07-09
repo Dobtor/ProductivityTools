@@ -299,3 +299,27 @@ class TestMailActivity(TransactionCase):
         self.assertEqual(notes[0]['id'], self.note.id)
         self.assertEqual(notes[0]['total_count'], 1)
         self.assertEqual(notes[0]['active_count'], 1)
+
+    def test_15_continue_new_activity(self):
+        """已完成待辦『延續新增待辦』：開建立精靈並帶入標題/類型/關聯"""
+        activity = self.env['mail.activity'].create({
+            'summary': '母待辦',
+            'activity_type_id': self.activity_type.id,
+            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_id': self.note.id,
+            'date_deadline': date.today(),
+            'partner_id': self.partner.id,
+        })
+        # 完成（封存）後欄位仍在
+        activity._action_done()
+        self.assertFalse(activity.active)
+
+        action = activity.action_continue_new_activity()
+        self.assertEqual(action['res_model'], 'mail.activity.create.wizard')
+        ctx = action['context']
+        self.assertEqual(ctx['default_summary'], '母待辦')
+        self.assertEqual(ctx['default_activity_type_id'], self.activity_type.id)
+        self.assertEqual(ctx['default_partner_id'], self.partner.id)
+        # 關聯文件以 active_model/id 帶入（新精靈視為已知目標）
+        self.assertEqual(ctx['active_model'], 'note.note')
+        self.assertEqual(ctx['active_id'], self.note.id)
