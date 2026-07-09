@@ -1265,8 +1265,11 @@ msgid "Cancel"
 msgstr "取消"
 
 #. module: dobtor_mail_activity
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.js:0
+#: code:addons/dobtor_mail_activity/static/src/web/activity/activity_markasdone_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_popup_inherit
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_cancel_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
 msgid "Cancel Activity"
 msgstr "取消待辦"
 
