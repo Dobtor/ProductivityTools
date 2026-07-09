@@ -1,0 +1,595 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* dobtor_messaging_base
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0-20250428\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-08 08:33+0000\n"
+"PO-Revision-Date: 2026-07-08 08:33+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.constraint,message:dobtor_messaging_base.constraint_discuss_channel_messaging_source_uniq
+msgid "A messaging source can only be synced to one channel."
+msgstr "一個訊息來源只能同步至一個群組。"
+
+#. module: dobtor_messaging_base
+#: model:ir.ui.menu,name:dobtor_messaging_base.menu_messaging_accounts
+msgid "Accounts"
+msgstr "帳號"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__active
+msgid "Active"
+msgstr "啟用"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/js/company_autocomplete.js:0
+msgid "Add a company…"
+msgstr "新增公司…"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "After binding:"
+msgstr "綁定後："
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "And"
+msgstr "還有"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "And 1 other member."
+msgstr "還有 1 位其他成員。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__archive_source
+msgid "Archive Source Contact"
+msgstr "封存來源聯絡人"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_messaging_partner_link__archive_source
+msgid "Archive the duplicate after binding. Uncheck to delete it instead."
+msgstr "綁定後封存重複的聯絡人；取消勾選則改為刪除。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Assign company"
+msgstr "指派公司"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/messaging_partner_card.xml:0
+msgid "Avatar"
+msgstr "頭像"
+
+#. module: dobtor_messaging_base
+#: model:ir.ui.menu,name:dobtor_messaging_base.menu_messaging_partner_link
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_partner_link_view_form
+msgid "Bind Contact"
+msgstr "綁定聯絡人"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/models/res_partner.py:0
+#: model:ir.actions.act_window,name:dobtor_messaging_base.action_messaging_partner_link
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_partner_link_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.view_partner_form_messaging_bind
+msgid "Bind Messaging Contact"
+msgstr "綁定訊息聯絡人"
+
+#. module: dobtor_messaging_base
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_partner_link_view_form
+msgid ""
+"Bind this contact into the selected customer? Messages and conversations "
+"will be re-assigned."
+msgstr "將此聯絡人綁定至所選客戶？訊息與對話將重新指派。"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "Binding Successful"
+msgstr "綁定成功"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid ""
+"Bound into \"%(target)s\": %(accounts)d account(s), %(messages)d message(s),"
+" %(members)d conversation(s)."
+msgstr "已綁定至「%(target)s」：%(accounts)d 個帳號、%(messages)d 則訊息、%(members)d 個對話。"
+
+#. module: dobtor_messaging_base
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_partner_link_view_form
+msgid "Cancel"
+msgstr "取消"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "Cannot bind a contact into itself."
+msgstr "無法將聯絡人綁定至自己。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_discuss_channel__panel_company_ids
+msgid ""
+"Companies shown as buckets in the member panel (including empty buckets kept"
+" as assignment targets)."
+msgstr "在成員面板中以群組呈現的公司（包含保留作為指派目標的空群組）。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/js/thread_model_patch.js:0
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Company"
+msgstr "公司"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/models/discuss_channel.py:0
+msgid "Company not found."
+msgstr "找不到公司。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_res_config_settings
+msgid "Config Settings"
+msgstr "設定"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_res_partner
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__partner_id
+msgid "Contact"
+msgstr "聯絡人"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_discuss_channel__messaging_source_id
+msgid ""
+"Conversation identifier on the external platform (LINE userId/groupId, "
+"Telegram chat.id, ...)."
+msgstr "外部平台上的對話識別碼（LINE userId/groupId、Telegram chat.id…）。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/company_autocomplete.xml:0
+msgid "Create \""
+msgstr "建立 \""
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__create_uid
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__create_uid
+msgid "Created by"
+msgstr "建立者"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__create_date
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__create_date
+msgid "Created on"
+msgstr "建立於"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_discuss_channel
+msgid "Discussion Channel"
+msgstr "討論群組"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__display_name
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__display_name
+msgid "Display Name"
+msgstr "顯示名稱"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_discuss_channel__messaging_sync_enabled
+msgid "Enable bidirectional synchronization with the external platform."
+msgstr "啟用與外部平台的雙向同步。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__target_partner_id
+msgid "Existing Customer"
+msgstr "既有客戶"
+
+#. module: dobtor_messaging_base
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_partner_link_view_form
+msgid "Existing Customer (Keep)"
+msgstr "既有客戶（保留）"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_mail_mail__messaging_external_id
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_mail_message__messaging_external_id
+msgid "External Message ID"
+msgstr "外部訊息 ID"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__external_user_id
+msgid "External User ID"
+msgstr "外部使用者 ID"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_discuss_channel__messaging_provider
+msgid "External messaging platform this channel is bound to."
+msgstr "此群組所綁定的外部訊息平台。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields.selection,name:dobtor_messaging_base.selection__discuss_channel__messaging_category__group
+#: model:ir.model.fields.selection,name:dobtor_messaging_base.selection__discuss_channel__messaging_source_type__group
+msgid "Group"
+msgstr "群組"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__id
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__id
+msgid "ID"
+msgstr "ID"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_mail_mail__messaging_external_id
+#: model:ir.model.fields,help:dobtor_messaging_base.field_mail_message__messaging_external_id
+msgid "Identifier of this message on the external platform (inbound)."
+msgstr "此訊息在外部平台上的識別碼（入站）。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__info_message
+msgid "Info Message"
+msgstr "資訊訊息"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/models/discuss_channel.py:0
+msgid "Invalid company."
+msgstr "無效的公司。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Invite a User"
+msgstr "邀請使用者"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__is_messaging_channel
+msgid "Is Messaging Channel"
+msgstr "是否為訊息群組"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_last_sync_date
+msgid "Last Messaging Sync"
+msgstr "上次訊息同步"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__write_uid
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__write_uid
+msgid "Last Updated by"
+msgstr "最後更新者"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__write_date
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__write_date
+msgid "Last Updated on"
+msgstr "最後更新於"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_messaging_partner_link
+msgid "Link Messaging Contact to Existing Customer"
+msgstr "將訊息聯絡人連結至既有客戶"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Load more"
+msgstr "載入更多"
+
+#. module: dobtor_messaging_base
+#: model:res.groups,comment:dobtor_messaging_base.group_messaging_manager
+msgid "Manage external messaging accounts, conversations and bindings."
+msgstr "管理外部訊息帳號、對話與綁定。"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/models/discuss_channel.py:0
+msgid "Member contact not found."
+msgstr "找不到成員聯絡人。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Members"
+msgstr "成員"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_mail_message
+msgid "Message"
+msgstr "消息"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid ""
+"Messages and memberships of the source contact will be re-assigned to the "
+"target customer."
+msgstr "來源聯絡人的訊息與成員資格將重新指派至目標客戶。"
+
+#. module: dobtor_messaging_base
+#: model:ir.ui.menu,name:dobtor_messaging_base.menu_messaging_root
+msgid "Messaging"
+msgstr "訊息"
+
+#. module: dobtor_messaging_base
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_account_view_form
+msgid "Messaging Account"
+msgstr "訊息帳號"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_partner__messaging_account_count
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_users__messaging_account_count
+msgid "Messaging Account Count"
+msgstr "訊息帳號數"
+
+#. module: dobtor_messaging_base
+#: model:ir.actions.act_window,name:dobtor_messaging_base.action_messaging_account
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_partner__messaging_account_ids
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_users__messaging_account_ids
+msgid "Messaging Accounts"
+msgstr "訊息帳號"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_category
+msgid "Messaging Category"
+msgstr "訊息分類"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__source_partner_id
+msgid "Messaging Contact"
+msgstr "訊息聯絡人"
+
+#. module: dobtor_messaging_base
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_partner_link_view_form
+msgid "Messaging Contact (Archive)"
+msgstr "訊息聯絡人（封存）"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_partner__messaging_channel_count
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_users__messaging_channel_count
+msgid "Messaging Conversations"
+msgstr "訊息對話"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_messaging_account
+msgid "Messaging External Account"
+msgstr "訊息外部帳號"
+
+#. module: dobtor_messaging_base
+#: model:ir.module.category,name:dobtor_messaging_base.module_category_messaging
+msgid "Messaging Integration"
+msgstr "訊息整合"
+
+#. module: dobtor_messaging_base
+#: model:res.groups,name:dobtor_messaging_base.group_messaging_manager
+msgid "Messaging Manager"
+msgstr "訊息管理員"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_res_config_settings__messaging_operator_partner_ids
+msgid "Messaging Operators"
+msgstr "訊息操作人員"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_picture_url
+msgid "Messaging Picture URL"
+msgstr "訊息圖片網址"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_provider
+msgid "Messaging Provider"
+msgstr "訊息供應商"
+
+#. module: dobtor_messaging_base
+#: model:ir.model,name:dobtor_messaging_base.model_messaging_api_mixin
+msgid "Messaging Provider API Mixin"
+msgstr "訊息供應商 API Mixin"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_mail_mail__messaging_provider
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_mail_message__messaging_provider
+msgid "Messaging Provider Code"
+msgstr "訊息供應商代碼"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_sort_sequence
+msgid "Messaging Sort Sequence"
+msgstr "訊息排序序號"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_sync_enabled
+msgid "Messaging Sync Enabled"
+msgstr "啟用訊息同步"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_discuss_channel__messaging_source_type
+msgid "Normalized conversation type (1-to-1 vs group)."
+msgstr "正規化的對話類型（一對一或群組）。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_res_partner__messaging_channel_count
+#: model:ir.model.fields,help:dobtor_messaging_base.field_res_users__messaging_channel_count
+msgid "Number of external messaging conversations this contact is part of."
+msgstr "此聯絡人參與的外部訊息對話數量。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Offline"
+msgstr "離線"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/messaging_partner_card.xml:0
+msgid "Open contact"
+msgstr "開啟聯絡人"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__panel_company_ids
+msgid "Panel Companies"
+msgstr "面板公司"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "Past messages and conversations move to the customer"
+msgstr "過往訊息與對話將移轉至該客戶"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields.selection,name:dobtor_messaging_base.selection__discuss_channel__messaging_category__personal
+#: model:ir.model.fields.selection,name:dobtor_messaging_base.selection__discuss_channel__messaging_source_type__user
+msgid "Personal"
+msgstr "個人"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__picture_url
+msgid "Picture URL"
+msgstr "圖片網址"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__external_display_name
+msgid "Platform Display Name"
+msgstr "平台顯示名稱"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/models/discuss_channel.py:0
+msgid "Please provide a company."
+msgstr "請提供公司。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__provider
+#: model_terms:ir.ui.view,arch_db:dobtor_messaging_base.messaging_account_view_search
+msgid "Provider"
+msgstr "供應商"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_mail_mail__messaging_provider
+#: model:ir.model.fields,help:dobtor_messaging_base.field_mail_message__messaging_provider
+msgid "Provider code of the channel this message was synced from."
+msgstr "此訊息同步來源群組的供應商代碼。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_source_id
+msgid "Source ID"
+msgstr "來源 ID"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__source_preview
+msgid "Source Preview"
+msgstr "來源預覽"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_discuss_channel__messaging_source_type
+msgid "Source Type"
+msgstr "來源類型"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_res_config_settings__messaging_operator_partner_ids
+msgid ""
+"Staff added to every new external messaging conversation (across all "
+"providers)."
+msgstr "加入每個新外部訊息對話的人員（適用所有供應商）。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__status_message
+msgid "Status Message"
+msgstr "狀態訊息"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__target_preview
+msgid "Target Preview"
+msgstr "目標預覽"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid ""
+"The customer receives the external account(s); future messages attach to it"
+msgstr "客戶將取得該外部帳號，未來訊息都會歸屬於它"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_messaging_partner_link__target_partner_id
+msgid "The customer to keep; it will receive the conversations."
+msgstr "要保留的客戶，將接收這些對話。"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "The duplicate contact is archived"
+msgstr "重複的聯絡人將被封存"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_messaging_partner_link__source_partner_id
+msgid "The external-only contact to merge away (it will be archived)."
+msgstr "要合併移除的純外部聯絡人（將被封存）。"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "The source contact has no messaging account to move."
+msgstr "來源聯絡人沒有可移轉的訊息帳號。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,help:dobtor_messaging_base.field_messaging_account__external_user_id
+msgid "The user/account identifier on the external platform."
+msgstr "外部平台上的使用者／帳號識別碼。"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.constraint,message:dobtor_messaging_base.constraint_messaging_account_provider_user_uniq
+msgid "This external account is already linked to a contact."
+msgstr "此外部帳號已連結至某個聯絡人。"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "This wizard binds a messaging contact into an existing customer."
+msgstr "此精靈將訊息聯絡人綁定至既有客戶。"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "Unassign"
+msgstr "取消指派"
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/js/thread_model_patch.js:0
+msgid "Unassigned"
+msgstr "未指派"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_account__username
+msgid "Username"
+msgstr "使用者名稱"
+
+#. module: dobtor_messaging_base
+#: model:ir.model.fields,field_description:dobtor_messaging_base.field_messaging_partner_link__warning_message
+msgid "Warning Message"
+msgstr "警告訊息"
+
+#. module: dobtor_messaging_base
+#. odoo-python
+#: code:addons/dobtor_messaging_base/wizards/messaging_partner_link.py:0
+msgid "Warning:"
+msgstr "警告："
+
+#. module: dobtor_messaging_base
+#. odoo-javascript
+#: code:addons/dobtor_messaging_base/static/src/xml/channel_member_list.xml:0
+msgid "other members."
+msgstr "位其他成員。"
