@@ -347,6 +347,14 @@ class BpmnDiagram(models.Model):
             'target': 'current',
         }
 
+    @api.model
+    def action_new_and_open_editor(self):
+        """建立一筆空白設計圖並「直接開啟編輯器」，跳過 form view。
+        供 kanban 的 on_create 使用（點「新增」即進編輯器）。name 為 required
+        且無 default，故在此帶預設名稱；xml 由 create() 依 diagram_type 補上。"""
+        rec = self.create({'name': _('未命名流程設計圖')})
+        return rec.action_open_editor()
+
     # ---- HTML 編輯器嵌入關聯（"/" 插入設計圖）----
     @api.model
     def register_embed(self, diagram_id, res_model, res_id):

@@ -397,7 +397,10 @@ export class BpmnEditorAction extends Component {
      *  its search panel & filters). viewType forces the list over the action's
      *  default kanban. */
     onOpenList() {
-        this.action.doAction("dobtor_bpmn.action_bpmn_diagram", { viewType: "list" });
+        this.action.doAction("dobtor_bpmn.action_bpmn_diagram", {
+            viewType: "list",
+            clearBreadcrumbs: true,
+        });
     }
 
     // ===== 記錄載入 / 右上角 pager（在可讀設計圖之間翻頁）=====

@@ -2745,3 +2745,12 @@ class XMindWorkbook(models.Model):
             },
             'target': 'current',
         }
+
+    @api.model
+    def action_new_and_open_editor(self):
+        """Create a blank workbook and open the editor directly, skipping the form
+        view. Used by the kanban ``on_create`` (clicking "New" enters the editor).
+        ``name`` has a default so create({}) is enough; the create() override sets
+        up the default sheet / root topic."""
+        rec = self.create({})
+        return rec.action_open_editor()

@@ -96,7 +96,7 @@
         <field name="name">bpmn.diagram.kanban</field>
         <field name="model">bpmn.diagram</field>
         <field name="arch" type="xml">
-            <kanban action="action_open_editor" type="object" class="o_kanban_mobile o_bpmn_kanban">
+            <kanban action="action_open_editor" type="object" on_create="dobtor_bpmn.action_new_bpmn_editor" class="o_kanban_mobile o_bpmn_kanban">
                 <field name="diagram_type"/>
                 <field name="purpose"/>
                 <field name="state"/>
@@ -204,5 +204,13 @@
             <p class="o_view_nocontent_smiling_face">建立第一張流程設計圖</p>
             <p>用 BPMN/DMN 視覺編輯器繪製流程；可用於記錄既有 Odoo 模組流程、繪製客戶專案規格藍圖，或作為簽核流程的設計來源。</p>
         </field>
+    </record>
+
+    <!-- kanban「新增」→ 建空白設計圖後直接開編輯器（跳過 form），供 on_create 引用。 -->
+    <record id="action_new_bpmn_editor" model="ir.actions.server">
+        <field name="name">新增流程設計圖</field>
+        <field name="model_id" ref="model_bpmn_diagram"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_new_and_open_editor()</field>
     </record>
 </odoo>

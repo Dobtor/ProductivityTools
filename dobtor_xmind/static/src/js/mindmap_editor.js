@@ -2887,7 +2887,10 @@ export class MindmapEditor extends Component {
      *  its search panel & filters). viewType forces the list over the action's
      *  default kanban. */
     onOpenList() {
-        this.action.doAction('dobtor_xmind.action_xmind_workbook', { viewType: 'list' });
+        this.action.doAction('dobtor_xmind.action_xmind_workbook', {
+            viewType: 'list',
+            clearBreadcrumbs: true,
+        });
     }
 
     /** Pager (child MindmapPager) → open another workbook. This is a heavy imperative

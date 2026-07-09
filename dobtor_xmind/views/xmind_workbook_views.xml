@@ -127,7 +127,7 @@
         <field name="name">xmind.workbook.kanban</field>
         <field name="model">xmind.workbook</field>
         <field name="arch" type="xml">
-            <kanban action="action_open_editor" type="object">
+            <kanban action="action_open_editor" type="object" on_create="dobtor_xmind.action_new_xmind_editor">
                 <field name="create_uid"/>
                 <field name="tag_ids"/>
                 <field name="topic_count"/>
@@ -170,5 +170,13 @@
         <field name="res_model">xmind.workbook</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="view_xmind_workbook_search"/>
+    </record>
+
+    <!-- kanban「新增」→ 建空白心智圖後直接開編輯器（跳過 form），供 on_create 引用。 -->
+    <record id="action_new_xmind_editor" model="ir.actions.server">
+        <field name="name">新增心智圖</field>
+        <field name="model_id" ref="model_xmind_workbook"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_new_and_open_editor()</field>
     </record>
 </odoo>
