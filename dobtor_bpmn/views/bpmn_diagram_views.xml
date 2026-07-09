@@ -4,7 +4,7 @@
         <field name="name">bpmn.diagram.list</field>
         <field name="model">bpmn.diagram</field>
         <field name="arch" type="xml">
-            <list>
+            <list js_class="bpmn_diagram_list_open_editor">
                 <field name="name"/>
                 <field name="diagram_type"/>
                 <field name="purpose"/>

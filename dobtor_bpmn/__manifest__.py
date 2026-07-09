@@ -27,6 +27,7 @@ Dobtor BPMN — 流程設計圖庫（依賴 dobtor_approval 編輯器核心）
     ],
     'assets': {
         'web.assets_backend': [
+            'dobtor_bpmn/static/src/views/list_open_editor.js',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.js',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.xml',
             'dobtor_bpmn/static/src/editor/bpmn_editor_action.scss',

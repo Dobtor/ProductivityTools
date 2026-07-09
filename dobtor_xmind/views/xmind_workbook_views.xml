@@ -5,7 +5,7 @@
         <field name="name">xmind.workbook.list</field>
         <field name="model">xmind.workbook</field>
         <field name="arch" type="xml">
-            <list>
+            <list js_class="xmind_workbook_list_open_editor">
                 <field name="name"/>
                 <field name="partner_id" optional="show"/>
                 <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
