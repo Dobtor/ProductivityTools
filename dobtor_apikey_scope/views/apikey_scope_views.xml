@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add the permission-scope picker to the "Generate key" wizard -->
+    <record id="form_res_users_key_description_scope" model="ir.ui.view">
+        <field name="name">apikeys.description.form.scope</field>
+        <field name="model">res.users.apikeys.description</field>
+        <field name="inherit_id" ref="base.form_res_users_key_description"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='expiration_date']" position="after">
+                <field name="available_group_ids" invisible="1"/>
+                <h3 class="fw-bold">Permission scope</h3>
+                <field name="scope_restrict"/>
+                <label for="scope_restrict"
+                       string="Limit this key to a subset of my access groups"/>
+                <p invisible="not scope_restrict">
+                    The key will only carry the groups ticked below (intersected
+                    with your own groups). Your base user type is always kept.
+                </p>
+                <field name="scope_group_ids"
+                       invisible="not scope_restrict"
+                       widget="many2many_tags"
+                       options="{'no_create': True, 'no_quick_create': True}"
+                       domain="[('id', 'in', available_group_ids)]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Management of existing keys' scopes -->
+    <record id="view_apikey_scope_list" model="ir.ui.view">
+        <field name="name">res.users.apikeys.scope.list</field>
+        <field name="model">res.users.apikeys.scope</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="key_name"/>
+                <field name="user_id" optional="hide"/>
+                <field name="expiration_date" optional="show"/>
+                <field name="restrict"/>
+                <field name="available_group_ids" column_invisible="1"/>
+                <field name="group_ids" widget="many2many_tags"
+                       options="{'no_create': True, 'no_quick_create': True}"
+                       domain="[('id', 'in', available_group_ids)]"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_apikey_scope_form" model="ir.ui.view">
+        <field name="name">res.users.apikeys.scope.form</field>
+        <field name="model">res.users.apikeys.scope</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="key_name"/>
+                        <field name="user_id"/>
+                        <field name="expiration_date"/>
+                        <field name="restrict"/>
+                    </group>
+                    <field name="available_group_ids" invisible="1"/>
+                    <field name="group_ids" invisible="not restrict"
+                           widget="many2many_tags"
+                           options="{'no_create': True, 'no_quick_create': True}"
+                           domain="[('id', 'in', available_group_ids)]"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_apikey_scope" model="ir.actions.act_window">
+        <field name="name">API Key Permissions</field>
+        <field name="res_model">res.users.apikeys.scope</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No API key permission scopes yet</p>
+            <p>Scopes are created automatically when you generate a key with
+               "Limit permissions" enabled. You can adjust each key here.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_apikey_scope"
+              name="API Key Permissions"
+              parent="base.menu_users"
+              action="action_apikey_scope"
+              sequence="25"/>
+
+    <!-- Self-service: a per-key "Permissions" button in My Profile > Account
+         Security, so any internal user can adjust their own keys without the
+         admin-only Settings menu. -->
+    <record id="view_users_form_simple_modif_apikey_scope" model="ir.ui.view">
+        <field name="name">res.users.preferences.apikey.scope</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='api_key_ids']/list/button[@name='remove']" position="before">
+                <button type="object" name="action_manage_scope"
+                        string="Permissions" icon="fa-shield"
+                        title="Adjust the permission scope of this key"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
