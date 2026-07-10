@@ -19,7 +19,7 @@
                          help="限縮一般使用者建立 API Key 時可授出的權限與有效期限。系統管理員不受此限。">
                     <div class="mt8">
                         <label for="apikey_max_group_ids"
-                               string="API Key 最大權限範圍（預設全帶入）"/>
+                               string="API Key 最大權限範圍"/>
                         <field name="apikey_max_group_ids" widget="many2many_tags"
                                options="{'no_create': True, 'no_quick_create': True}"/>
                         <div class="text-muted">
