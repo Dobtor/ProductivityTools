@@ -10,7 +10,7 @@ from odoo.addons.base.models.res_users import (
 )
 
 from .apikey_scope import (
-    active_scope_group_ids, global_ceiling_ids, global_max_duration, _THREAD_ATTR,
+    thread_scope_group_ids, global_ceiling_ids, global_max_duration, _THREAD_ATTR,
 )
 
 _logger = logging.getLogger(__name__)
@@ -60,10 +60,6 @@ class ResUsers(models.Model):
                 "failing closed (restricting to floor groups)", uid)
             scope = _FAIL_CLOSED_SCOPE
         setattr(threading.current_thread(), _THREAD_ATTR, scope)
-        # TEMP DIAG (remove after diagnosis): confirms check() runs on the RPC
-        # auth path and what scope was resolved for this (uid, key).
-        _logger.warning("APIKEY_DIAG check uid=%s tid=%s scope=%r",
-                        uid, threading.get_ident(), scope)
         return res
 
     @classmethod
@@ -101,13 +97,13 @@ class ResUsers(models.Model):
         # Only narrow the current user, and only for restricted-key calls.
         if self.id != self.env.uid:
             return full
-        scope = active_scope_group_ids(self.env)
-        # TEMP DIAG (remove after diagnosis): shows what the ACL path sees --
-        # the scope, whether su/request suppressed it, and the thread id (to
-        # compare with the check() line above; a mismatch => carrier lost).
-        _logger.warning("APIKEY_DIAG ggi uid=%s tid=%s scope=%r su=%s req=%s",
-                        self.env.uid, threading.get_ident(), scope,
-                        self.env.su, bool(request))
+        # NB: use thread_scope_group_ids(), NOT active_scope_group_ids(). This
+        # method always runs on ``self.env.user``, which is intrinsically su
+        # (Environment.user == self(su=True)[...]), so an env.su guard here would
+        # disable narrowing on every ACL/rule path -> fail-open. The su-based
+        # business-sudo gating is done by our ir.model.access / ir.rule overrides
+        # on the real (non-user) env instead.
+        scope = thread_scope_group_ids()
         if scope is None:
             return full
 

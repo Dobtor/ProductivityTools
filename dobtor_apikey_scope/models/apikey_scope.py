@@ -61,6 +61,27 @@ def active_scope_group_ids(env):
     return getattr(threading.current_thread(), _THREAD_ATTR, None)
 
 
+def thread_scope_group_ids():
+    """Raw per-call key scope from the thread, guarded ONLY by the web-request
+    check -- deliberately NOT by ``env.su``.
+
+    This exists solely for ``res.users._get_group_ids()``. Every ACL / record
+    rule / has_group path reaches that method through ``self.env.user``, and
+    ``Environment.user`` is defined as ``self(su=True)[...]`` (api.py) -- i.e. it
+    is *intrinsically* superuser. So an ``env.su`` guard inside
+    ``_get_group_ids`` would fire on EVERY narrowing path and silently disable
+    the whole feature (fail-open). Whether we are in a genuine scoped-key call
+    (versus explicit business ``sudo()``) is already decided correctly by the
+    *callers* -- ``ir.model.access._get_allowed_models`` and
+    ``ir.rule._compute_domain_context_values`` -- which call
+    ``active_scope_group_ids`` on the REAL (non-user) env, where ``env.su`` does
+    distinguish the two. Here we only need the presence of a scope on a borrowed
+    (non-web) request thread."""
+    if request:
+        return None
+    return getattr(threading.current_thread(), _THREAD_ATTR, None)
+
+
 class ApiKeyScope(models.Model):
     """Per-key permission restriction. Kept in a regular (auto) model rather
     than as extra columns on the ``_auto=False`` ``res.users.apikeys`` model,
