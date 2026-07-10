@@ -60,6 +60,10 @@ class ResUsers(models.Model):
                 "failing closed (restricting to floor groups)", uid)
             scope = _FAIL_CLOSED_SCOPE
         setattr(threading.current_thread(), _THREAD_ATTR, scope)
+        # TEMP DIAG (remove after diagnosis): confirms check() runs on the RPC
+        # auth path and what scope was resolved for this (uid, key).
+        _logger.warning("APIKEY_DIAG check uid=%s tid=%s scope=%r",
+                        uid, threading.get_ident(), scope)
         return res
 
     @classmethod
@@ -98,6 +102,12 @@ class ResUsers(models.Model):
         if self.id != self.env.uid:
             return full
         scope = active_scope_group_ids(self.env)
+        # TEMP DIAG (remove after diagnosis): shows what the ACL path sees --
+        # the scope, whether su/request suppressed it, and the thread id (to
+        # compare with the check() line above; a mismatch => carrier lost).
+        _logger.warning("APIKEY_DIAG ggi uid=%s tid=%s scope=%r su=%s req=%s",
+                        self.env.uid, threading.get_ident(), scope,
+                        self.env.su, bool(request))
         if scope is None:
             return full
 
