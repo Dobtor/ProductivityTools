@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Global "API Key rules": two controls inserted inside the native
+         "API Keys" setting (Settings > Permissions), right BEFORE the
+         "Manage API Keys" button. The whole setting is groups=base.group_system,
+         so these inherit admin-only visibility. -->
+    <record id="res_config_settings_view_form_apikey_scope" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.apikey.scope</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@string='Manage API Keys']" position="before">
+                <div class="mt16">
+                    <label for="apikey_max_group_ids"
+                           string="最大權限範圍（預設全帶入）" class="fw-bold"/>
+                    <field name="apikey_max_group_ids" widget="many2many_tags"
+                           options="{'no_create': True, 'no_quick_create': True}"/>
+                    <div class="text-muted">
+                        一般使用者建立的 API Key 最多只能含這些存取群組（再與其本身擁有的群組取交集）。留空＝不限制。系統管理員不受此限。
+                    </div>
+                </div>
+                <div class="mt16">
+                    <label for="apikey_max_duration" string="允許最大時間" class="fw-bold"/>
+                    <field name="apikey_max_duration"/>
+                    <div class="text-muted">
+                        決定一般使用者建立 Key 時可選的最長有效期限與到期日上限；預設「Persistent Key」＝開放全部選項（含永久／自訂日期）。系統管理員不受此限。
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

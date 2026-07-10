@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import contextlib
+import logging
 import threading
 
 from odoo import api, fields, models, tools, SUPERUSER_ID
@@ -8,7 +9,18 @@ from odoo.addons.base.models.res_users import (
     check_identity, INDEX_SIZE, KEY_CRYPT_CONTEXT,
 )
 
-from .apikey_scope import active_scope_group_ids, _THREAD_ATTR
+from .apikey_scope import (
+    active_scope_group_ids, global_ceiling_ids, global_max_duration, _THREAD_ATTR,
+)
+
+_logger = logging.getLogger(__name__)
+
+# Sentinel written to the thread when scope resolution *fails*. It is an empty
+# tuple (not None): ``_get_group_ids`` treats it like any scope and narrows the
+# user down to just the mandatory FLOOR groups -- i.e. we FAIL CLOSED. A broken
+# or throwing scope lookup must never silently hand out the user's full rights
+# (that would turn a restricted key into a full-privilege key -- fail-open).
+_FAIL_CLOSED_SCOPE = ()
 
 # Baseline "user type" groups that must never be dropped by a key scope,
 # otherwise the request's user would stop being internal/portal and a large
@@ -39,8 +51,14 @@ class ResUsers(models.Model):
         res = super().check(db, uid, passwd)
         try:
             scope = cls._resolve_apikey_scope(uid, passwd)
-        except Exception:  # never let scope resolution break authentication
-            scope = None
+        except Exception:
+            # Credentials are already validated by super() above; the failure
+            # is in *scope* resolution. Fail CLOSED (floor groups only) and log
+            # loudly -- never fall through to full permissions.
+            _logger.exception(
+                "dobtor_apikey_scope: scope resolution failed for uid=%s; "
+                "failing closed (restricting to floor groups)", uid)
+            scope = _FAIL_CLOSED_SCOPE
         setattr(threading.current_thread(), _THREAD_ATTR, scope)
         return res
 
@@ -84,6 +102,17 @@ class ResUsers(models.Model):
             return full
 
         allowed = set(scope)
+        # R3/R5: additionally cap non-admins to the global 'max permission
+        # scope'. Applied at runtime, so lowering the global later also tightens
+        # existing keys (decision R3=retroactive). Admin status is read from the
+        # *full* (unnarrowed) set to avoid recursing through has_group.
+        sys_grp = self.env.ref('base.group_system', raise_if_not_found=False)
+        is_admin = bool(sys_grp and sys_grp.id in full)
+        if not is_admin:
+            ceiling = global_ceiling_ids(self.env)
+            if ceiling is not None:
+                allowed &= set(ceiling)
+        # Mandatory floor groups are always kept.
         for xmlid in FLOOR_GROUP_XMLIDS:
             grp = self.env.ref(xmlid, raise_if_not_found=False)
             if grp and grp.id in full:
@@ -101,16 +130,53 @@ class ApiKeyDescription(models.TransientModel):
     scope_group_ids = fields.Many2many(
         'res.groups', 'apikey_desc_group_rel', 'desc_id', 'group_id',
         string='Allowed Groups',
-        default=lambda self: [(6, 0, self.env.user.groups_id.ids)])
+        default=lambda self: [(6, 0, self._apikey_available_groups().ids)])
     available_group_ids = fields.Many2many(
         'res.groups', compute='_compute_available_group_ids',
         string='Your Groups')
 
+    def _apikey_available_groups(self):
+        """Groups this key may be scoped to: the user's own groups, capped by
+        the global 'max permission scope' for non-admins (R3/R5)."""
+        user_groups = self.env.user.groups_id
+        if self.env.is_system():
+            return user_groups
+        ceiling = global_ceiling_ids(self.env)
+        if ceiling is None:
+            return user_groups
+        cset = set(ceiling)
+        return user_groups.filtered(lambda g: g.id in cset)
+
     @api.depends_context('uid')
     def _compute_available_group_ids(self):
-        groups = self.env.user.groups_id
+        avail = self._apikey_available_groups()
         for rec in self:
-            rec.available_group_ids = groups
+            rec.available_group_ids = avail
+
+    def _selection_duration(self):
+        """Override core: non-admins get durations up to the global 'max
+        duration' setting -- including Persistent Key / Custom Date when the
+        global setting allows (default 'persistent' => everyone can). Replaces
+        the native per-group ``api_key_duration`` cap. System admins keep the
+        full native list (R1/R5)."""
+        if self.env.is_system():
+            return super()._selection_duration()
+        durations = [
+            ('1', '1 Day'), ('7', '1 Week'), ('30', '1 Month'),
+            ('90', '3 Months'), ('180', '6 Months'), ('365', '1 Year'),
+        ]
+        persistent = ('0', 'Persistent Key')  # magic value: infinite duration
+        custom = ('-1', 'Custom Date')         # magic value: manual date
+        g = global_max_duration(self.env)
+        if g == 'persistent':
+            return durations + [persistent, custom]
+        if g == 'custom':
+            return durations + [custom]
+        try:
+            max_days = int(g)
+        except (TypeError, ValueError):
+            max_days = 1
+        return [d for d in durations if int(d[0]) <= max_days] + [custom]
 
     @check_identity
     def make_key(self):

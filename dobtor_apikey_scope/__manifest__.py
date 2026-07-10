@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'API Key Permission Scope',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Technical',
     'summary': 'Restrict each API key to a subset of the owner user\'s access groups',
     'description': """
@@ -20,11 +20,12 @@ access, never widen it.
 """,
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
-    'depends': ['base'],
+    'depends': ['base', 'base_setup'],
     'data': [
         'security/apikey_scope_security.xml',
         'security/ir.model.access.csv',
         'views/apikey_scope_views.xml',
+        'views/res_config_settings_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,
