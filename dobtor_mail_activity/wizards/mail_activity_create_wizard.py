@@ -39,7 +39,7 @@ class MailActivityCreateWizard(models.TransientModel):
     res_model = fields.Char(required=False)
     # 覆寫為可寫（移除官方 _compute_res_model_id），供關聯圖 widget 回填 res_model_id
     res_model_id = fields.Many2one(
-        'ir.model', required=False, compute=False, readonly=False)
+        'ir.model', required=False, compute=False, precompute=False, readonly=False)
     # 單一關聯文件 id（供關聯圖 widget 與 target_ref 同步）
     res_id = fields.Many2oneReference(
         string='Related Document ID', model_field='res_model')
