@@ -35,7 +35,7 @@
                 <field name="xmind_workbook_count"/>
             </xpath>
             <xpath expr="//footer//field[@name='user_id']" position="before">
-                <a name="action_open_mindmaps" type="object"
+                <a name="action_open_mindmaps" type="object" role="button"
                    class="btn btn-sm btn-link p-0 me-1 text-info align-self-center"
                    t-if="record.xmind_workbook_count.raw_value &gt; 0"
                    title="開啟心智圖" aria-label="開啟心智圖">
