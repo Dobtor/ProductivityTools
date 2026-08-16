@@ -962,9 +962,52 @@ export class RelationshipManager {
         }
     }
 
+    /**
+     * 端點是否真的畫在畫布上。
+     *
+     * 收合的分支其節點是 display:none，`offsetLeft/offsetWidth` 全部是 0 ——
+     * 直接拿去算幾何，關連線的端點會跳到畫布左上角 (0,0)，畫出一條射向角落
+     * 的線。所以要先判斷可見性。
+     */
+    _isEndpointVisible(el) {
+        return Boolean(el && el.offsetParent !== null && el.offsetWidth > 0);
+    }
+
+    /**
+     * 依端點可見性顯示／隱藏每條關連線。
+     *
+     * 端點被收合起來時整條線就該收起來（XMind 也是這個行為），而不是留一條
+     * 指向角落的殘線。
+     */
+    syncVisibility() {
+        for (const relData of this.relationships) {
+            if (!relData.group) {
+                continue;
+            }
+            const visible = this._isEndpointVisible(relData.sourceElement)
+                && this._isEndpointVisible(relData.targetElement);
+            relData.group.style.display = visible ? '' : 'none';
+        }
+    }
+
+    /**
+     * 依節點的新位置就地平移既有路徑，保留使用者拖過的控制點。
+     *
+     * 與 `clear()` + 逐條重建相比：不動 DOM、不重算預設控制點，成本是 O(關連線
+     * 數) 的座標更新。適用於「節點位置變了但元素本身還在」的情況（展開／收合
+     * 走的是 view.refresh()，只重新定位、不重建節點元素）。節點元素若被重建過
+     * （jm.show()），sourceElement 會指向已卸離的節點，那時必須用重建。
+     */
     refreshPositions() {
         this.relationships.forEach(relData => {
             if (!relData.sourceElement || !relData.targetElement) return;
+            // 端點被收合 → 整條線收起來，不要拿 0 座標去算幾何
+            if (!this._isEndpointVisible(relData.sourceElement)
+                || !this._isEndpointVisible(relData.targetElement)) {
+                if (relData.group) relData.group.style.display = 'none';
+                return;
+            }
+            if (relData.group) relData.group.style.display = '';
 
             // Remember old endpoints
             const oldSx = relData.sx, oldSy = relData.sy;

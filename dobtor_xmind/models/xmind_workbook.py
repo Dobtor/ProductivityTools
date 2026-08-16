@@ -478,18 +478,16 @@ class XMindWorkbook(models.Model):
             else:
                 sheet = self.sheet_ids[0]
 
-        # Clear dependent records BEFORE topics (avoid cascade deletion of relationships etc.)
+        # 特徵層一律整組取代（筆數少、彼此有引用關係，逐筆對帳不划算）。
+        # 主題樹則是差異更新 —— 見下方 _sync_jsmind_tree。
         sheet.relationship_ids.unlink()
         sheet.boundary_ids.unlink()
         sheet.summary_ids.unlink()
-        # Clear callouts (linked to topics, would cascade)
         self.env['xmind.callout'].search([('topic_id', 'in', sheet.topic_ids.ids)]).unlink()
-        # Now safe to clear topics
-        sheet.topic_ids.unlink()
 
         # Import from jsMind format
         if 'data' in data:
-            self._import_jsmind_node(data['data'], sheet, False)
+            self._sync_jsmind_tree(data['data'], sheet)
             # Sync root topic title → workbook name
             root_title = data['data'].get('topic', '')
             if root_title and root_title != self.name:
@@ -513,24 +511,10 @@ class XMindWorkbook(models.Model):
         self.modified_time = fields.Datetime.now()
 
         # Create revision snapshot (captures the full payload incl. features)
-        self._create_revision(data, is_auto=is_auto)
+        self._create_revision(data, is_auto=is_auto, sheet=sheet)
 
         return True
 
-    # -------------------------------------------------------------------------
-    # Project integration — forward sync (mind map → project / tasks)
-    # -------------------------------------------------------------------------
-    def action_create_project(self):
-        """Create a project from this mind map (if not linked) and sync its tasks."""
-        self.ensure_one()
-        stats = self._sync_to_project(create_if_missing=True)
-        return self._sync_notification(stats, _("Project synced"))
-
-    def action_sync_project(self):
-        """Sync this mind map into its linked project (create/update/archive tasks)."""
-        self.ensure_one()
-        stats = self._sync_to_project(create_if_missing=not self.project_id)
-        return self._sync_notification(stats, _("Project synced"))
 
     def action_open_project(self):
         """Jump straight to the linked project's Gantt (tasks) view.
@@ -627,15 +611,6 @@ class XMindWorkbook(models.Model):
             ('project_id', '=', self.project_id.id), ('xmind_managed', '=', True)])
         return tasks.filtered(lambda t: t.id not in synced)
 
-    def _sync_notification(self, stats, title):
-        msg = _("Created %(c)s, updated %(u)s, archived/removed %(a)s.") % {
-            'c': stats.get('created', 0), 'u': stats.get('updated', 0),
-            'a': stats.get('removed', 0)}
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {'title': title, 'message': msg, 'type': 'success', 'sticky': False},
-        }
 
     def _sync_to_project(self, create_if_missing=False):
         """Diff-sync the FIRST sheet's topic tree into a project:
@@ -922,19 +897,27 @@ class XMindWorkbook(models.Model):
         except (TypeError, ValueError):
             return default
 
-    def _create_revision(self, data, is_auto=False):
-        """Create a revision snapshot of the current mindmap state."""
+    def _create_revision(self, data, is_auto=False, sheet=None):
+        """Create a revision snapshot of the sheet that was just saved.
+
+        The payload is one sheet's tree, so the revision records which sheet it
+        came from — restoring must write back to the same one.
+        """
         self.env['xmind.revision'].create({
             'workbook_id': self.id,
+            'sheet_id': sheet.id if sheet else False,
             'snapshot': json.dumps(data),
             'topic_count': self.topic_count,
             'is_auto': is_auto,
         })
-        # Keep max 50 revisions per workbook. Order by id desc (monotonic, fresh from
-        # DB) rather than the in-transaction create_date, which can be equal/unset for
-        # the just-created record and make pruning drop the wrong row.
-        revisions = self.env['xmind.revision'].search(
-            [('workbook_id', '=', self.id)], order='id desc')
+        # Keep max 50 revisions **per sheet**. Pruning per workbook would let a
+        # busy sheet evict another sheet's history even though they are
+        # independent documents. Order by id desc (monotonic, fresh from DB)
+        # rather than the in-transaction create_date, which can be equal/unset
+        # for the just-created record and make pruning drop the wrong row.
+        domain = [('workbook_id', '=', self.id)]
+        domain.append(('sheet_id', '=', sheet.id) if sheet else ('sheet_id', '=', False))
+        revisions = self.env['xmind.revision'].search(domain, order='id desc')
         if len(revisions) > 50:
             revisions[50:].unlink()
 
@@ -942,10 +925,68 @@ class XMindWorkbook(models.Model):
     # depth would otherwise blow the Python recursion limit (uncaught 500).
     _MAX_IMPORT_DEPTH = 200
 
-    def _import_jsmind_node(self, node, sheet, parent=False, _depth=0):
-        """Import node from jsMind data with styling"""
+    def _sync_jsmind_tree(self, root_node, sheet):
+        """以 payload 的樹差異更新一張分頁的主題，保留既有主題的資料庫 id。
+
+        取代舊的「整棵 unlink 再重建」。差別在於**主題的資料庫 id 不再每次
+        存檔就換一批** —— 指向 xmind.topic 的外部參考（目前是
+        ``project.task.xmind_topic_id``）因此能自然存活，不必再靠 payload 裡
+        的 taskId 事後補接；大型心智圖的存檔成本也從 O(節點數) 降成
+        O(異動數)＋一次比對。
+
+        三個步驟：
+          1. 以 ``component_id`` 建索引（前後端往返時是穩定的）；
+          2. 由上而下 upsert，順便記下這次 payload 用到哪些 component_id；
+          3. 沒被用到的就是使用者刪掉的 —— 一次刪除（parent_id 是 cascade，
+             刪父節點會連同子樹一起走，所以只要刪最上層的殘留即可）。
+        """
+        Topic = self.env['xmind.topic']
+        existing = {}
+        for topic in sheet.topic_ids:
+            # 同一個 component_id 理論上只會有一顆；真的重複時取第一顆，
+            # 另一顆會落到步驟 3 被當成殘留刪掉。
+            if topic.component_id and topic.component_id not in existing:
+                existing[topic.component_id] = topic
+
+        seen = set()
+        self._upsert_jsmind_node(root_node, sheet, False, 0, existing=existing, seen=seen)
+
+        # 重新查一次：sheet.topic_ids 這個快取在上面的 create/write 之後不可靠。
+        # 殘留的判斷放在 Python 端而不是塞進 domain —— 大型心智圖的 seen 會有
+        # 上千個 component_id，寫成 NOT IN (...) 是一條很肥的查詢。
+        all_topics = Topic.search([('sheet_id', '=', sheet.id)])
+        stale = all_topics.filtered(lambda t: t.component_id not in seen)
+        if stale:
+            # 只刪最上層的殘留，子孫由 parent_id 的 ondelete='cascade' 帶走。
+            # 存活的主題此時都已經被 upsert 寫過 parent_id，指向的必定也是存活
+            # 的主題，所以不會有存活主題掛在殘留主題底下被一起 cascade 掉。
+            stale_ids = set(stale.ids)
+            roots = stale.filtered(lambda t: not t.parent_id or t.parent_id.id not in stale_ids)
+            roots.unlink()
+
+    def _upsert_jsmind_node(self, node, sheet, parent=False, _depth=0,
+                            existing=None, seen=None, sequence=0):
+        """把一個 jsMind 節點寫進資料庫：能對上就更新，對不上才新建。
+
+        以 ``component_id`` 對帳 —— 它在前後端之間是完整往返的
+        (``_topic_to_jsmind`` 送 ``'id': topic.component_id``，這裡再存回去)，
+        所以同一顆主題跨存檔可以認得出來。
+
+        為什麼不再「全刪重建」：舊作法每次存檔都 ``unlink()`` 整棵樹再重建，
+        於是**每顆主題的資料庫 id 每次存檔都會換一批**。任何指向 xmind.topic
+        的外部參考都會斷掉 —— 目前只有 ``project.task.xmind_topic_id``，而它
+        之所以沒斷，是靠下面那段從 payload 的 ``taskId`` 重新接回來的補救。
+        改成差異更新之後 id 是穩定的，那段補救退化成純粹的防呆。
+
+        :param existing: {component_id: xmind.topic} 這張分頁現有的主題
+        :param seen: 本次 payload 已用掉的 component_id（就地累積）
+        """
         if _depth > self._MAX_IMPORT_DEPTH:
             raise UserError(_("Mind map is nested too deeply (max %d levels).") % self._MAX_IMPORT_DEPTH)
+        if existing is None:
+            existing = {}
+        if seen is None:
+            seen = set()
         style_data = node.get('data', {}).get('style', {})
         shape_data = node.get('data', {}).get('shape', {})
 
@@ -966,7 +1007,9 @@ class XMindWorkbook(models.Model):
         node_data = node.get('data', {})
         topic_vals = {
             'sheet_id': sheet.id,
-            'component_id': node.get('id', str(uuid.uuid4())),
+            # `or` 而不是 get 的 default：id 是空字串／None 時也要給新的 uuid，
+            # 否則所有這類節點會全部撞在同一個 '' 上，對帳時互相覆蓋。
+            'component_id': node.get('id') or str(uuid.uuid4()),
             'title': node.get('topic', ''),
             'expanded': node.get('expanded', True),
             'note': node_data.get('note', ''),
@@ -1004,12 +1047,27 @@ class XMindWorkbook(models.Model):
             topic_vals['task_progress'] = self._safe_int(task.get('progress', 0), 0)
             topic_vals['task_assignee'] = task.get('assignee') or ''
 
-        if parent:
-            topic_vals['parent_id'] = parent.id
+        # 樹是由上而下走的，所以 parent 一定已經 upsert 過了。
+        topic_vals['parent_id'] = parent.id if parent else False
+        topic_vals['sequence'] = sequence
 
-        topic = self.env['xmind.topic'].create(topic_vals)
+        cid = topic_vals['component_id']
+        topic = existing.get(cid) if cid not in seen else None
+        if topic is not None:
+            topic.write(topic_vals)
+        else:
+            if cid in seen:
+                # payload 裡出現重複的 component_id（正常操作不會發生 —— 貼上
+                # 一律產生新 id）。寧可多建一顆，也不要把既有主題搬到別的位置。
+                cid = str(uuid.uuid4())
+                topic_vals['component_id'] = cid
+            topic = self.env['xmind.topic'].create(topic_vals)
+        seen.add(cid)
 
-        # Import markers from node.data (with XMind 2 alias fallback)
+        # 標記與附件是「整組取代」的語意：更新既有主題時得先清掉舊的，
+        # 否則每存一次檔就疊加一輪。
+        if topic.marker_ids:
+            topic.marker_ids.unlink()
         marker_codes = node.get('data', {}).get('markers', [])
         for code in marker_codes:
             marker = self._resolve_marker(code)
@@ -1020,34 +1078,49 @@ class XMindWorkbook(models.Model):
                 })
 
         # Persist embedded image + file attachments (previously dropped on save).
+        if topic.attachment_ids:
+            topic.attachment_ids.unlink()
         self._save_topic_attachments(topic, node_data)
 
-        # Restore the project-task link (validated) so the map↔project mapping
-        # survives the full-recreate save, and re-point the task back to this topic.
-        if node_data.get('projectManaged'):
-            topic.project_managed = True
+        # 專案關聯：payload 說了算，所以是**明確指派**而不是「有值才設」。
+        #
+        # 舊作法每次存檔都把主題刪掉重建，這兩個欄位自然回到預設值，於是
+        # 「有值才設」剛好等價於「照 payload 重建」。改成差異更新之後主題會
+        # 存活 —— 沿用舊寫法的話，使用者在編輯器裡把任務關聯拿掉，資料庫這邊
+        # 卻永遠清不掉。
+        link_vals = {'project_managed': bool(node_data.get('projectManaged'))}
         task_id = node_data.get('taskId')
+        linked_task = self.env['project.task']
         if task_id:
             task = self.env['project.task'].browse(int(task_id)).exists()
             # Only re-link to a task the saving user may actually read (browse+exists
             # bypasses record/company rules — never link to a foreign/other-company task).
             if task and task.has_access('read'):
-                topic.task_id = task.id
-                if task.xmind_topic_id.id != topic.id:
-                    task.xmind_topic_id = topic.id
+                linked_task = task
+        previous_task = topic.task_id
+        link_vals['task_id'] = linked_task.id or False
+        topic.write(link_vals)
+        if linked_task:
+            if linked_task.xmind_topic_id.id != topic.id:
+                linked_task.xmind_topic_id = topic.id
+        elif previous_task and previous_task.xmind_topic_id.id == topic.id:
+            # 解除關聯時兩邊都要清 —— task.xmind_topic_id 是獨立的反向 M2O，
+            # 不會跟著 topic.task_id 自己歸零。舊作法之所以看起來沒事，是因為
+            # 主題被刪掉時 ondelete='set null' 順手清掉了它。
+            previous_task.xmind_topic_id = False
 
-        # Import children
-        seq = 0
-        for child_node in node.get('children', []):
-            child = self._import_jsmind_node(child_node, sheet, topic, _depth + 1)
-            if child:
-                child.sequence = seq
-                seq += 1
+        # Import children（sequence 直接在 upsert 時寫入，不再事後補寫）
+        for seq, child_node in enumerate(node.get('children', [])):
+            self._upsert_jsmind_node(child_node, sheet, topic, _depth + 1,
+                                     existing=existing, seen=seen, sequence=seq)
 
         return topic
 
     def _generate_xmind_content(self):
         """Generate the XMind content.json structure (list of sheets)."""
+        # 多筆時 self.sheet_ids 會把所有工作簿的分頁串在一起 —— 不是報錯，
+        # 而是靜默產生一份混合的匯出檔，所以在這裡擋掉。
+        self.ensure_one()
         sheets_data = []
         for sheet in self.sheet_ids:
             root_topic = sheet.topic_ids.filtered(lambda t: not t.parent_id)
@@ -1687,12 +1760,6 @@ class XMindWorkbook(models.Model):
             root = ET.fromstring(styles_xml)
         except ET.ParseError:
             return style_map
-
-        ns = {
-            'xs': 'urn:xmind:xmap:xmlns:style:2.0',
-            'fo': 'http://www.w3.org/1999/XSL/Format',
-            'svg': 'http://www.w3.org/2000/svg',
-        }
 
         # Search all style elements across automatic-styles, master-styles, styles
         for style_elem in root.iter('{urn:xmind:xmap:xmlns:style:2.0}style'):
@@ -2523,6 +2590,71 @@ class XMindWorkbook(models.Model):
     }
     _SVG_DEFAULT_STYLE = {'bg': '#eeeeee', 'fg': '#333333', 'font_size': 12, 'font_weight': 'normal', 'rx': 4}
 
+    def action_export_xmind(self):
+        """Export the workbook as a real ``.xmind`` archive (XMind Zen format).
+
+        The archive is written to a fresh ``ir.attachment`` rather than into
+        ``xmind_file`` — that field is the *import source*, and overwriting it
+        would make the uploaded file unrecoverable and a re-import impossible.
+        (``export_svg`` above does overwrite it; kept as-is, but not copied.)
+        """
+        self.ensure_one()
+        content = self._generate_xmind_content()
+        if not content:
+            raise UserError(_(
+                "There is nothing to export: this mind map has no sheet with a "
+                "root topic yet."
+            ))
+        # 重複使用同一筆附件而不是每次新建：附件掛在本工作簿上（會出現在附件區），
+        # 每按一次匯出就多一份的話，檔案區很快就被同名檔塞滿，儲存空間也一直長。
+        # 固定一個名稱 → 永遠只有「最新一次匯出」這一份。
+        vals = {
+            'name': f'{self.name}.xmind',
+            'datas': base64.b64encode(self._generate_xmind_archive(content)),
+            'mimetype': 'application/vnd.xmind.workbook',
+            'res_model': self._name,
+            'res_id': self.id,
+        }
+        attachment = self.env['ir.attachment'].search([
+            ('res_model', '=', self._name),
+            ('res_id', '=', self.id),
+            ('name', '=', vals['name']),
+        ], limit=1)
+        if attachment:
+            attachment.write(vals)
+        else:
+            attachment = self.env['ir.attachment'].create(vals)
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    def _generate_xmind_archive(self, content):
+        """Zip ``content`` (the content.json payload) into XMind Zen bytes.
+
+        XMind reads ``content.json`` and ignores unknown members, so the three
+        files below are the whole contract; ``manifest.json`` / ``metadata.json``
+        are written because the desktop app warns when they are missing.
+        Mirrors what :meth:`import_xmind_file` reads back (``content.json``).
+        """
+        self.ensure_one()
+        buf = io.BytesIO()
+        # ZIP_DEFLATED: an .xmind is mostly JSON, so this is a large win and
+        # every XMind release since 8 reads deflated archives.
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('content.json', json.dumps(content, ensure_ascii=False))
+            zf.writestr('metadata.json', json.dumps({
+                'creator': {'name': 'Odoo', 'version': '18.0'},
+            }, ensure_ascii=False))
+            zf.writestr('manifest.json', json.dumps({
+                'file-entries': {
+                    'content.json': {},
+                    'metadata.json': {},
+                },
+            }, ensure_ascii=False))
+        return buf.getvalue()
+
     def export_svg(self):
         """Export workbook as SVG file"""
         self.ensure_one()
@@ -2770,7 +2902,11 @@ class XMindWorkbook(models.Model):
     def action_new_and_open_editor(self):
         """Create a blank workbook and open the editor directly, skipping the form
         view. Used by the kanban ``on_create`` (clicking "New" enters the editor).
-        ``name`` has a default so create({}) is enough; the create() override sets
-        up the default sheet / root topic."""
+
+        ``name`` has a default so ``create({})`` is enough. The workbook starts
+        with **no sheet** — that is intentional and handled on both sides:
+        ``get_mindmap_data()`` returns a blank central topic when ``sheet_ids``
+        is empty, and the first save creates the sheet (``save_mindmap_data``
+        falls back to creating one when no ``sheet_id`` is supplied)."""
         rec = self.create({})
         return rec.action_open_editor()

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import uuid
-from odoo import models, fields, api
+from odoo import models, fields
 
 
 class XMindSheet(models.Model):

@@ -9,7 +9,7 @@
                 <button t-if="workbookId" type="button"
                         class="btn btn-sm btn-link p-0 text-decoration-none"
                         t-on-click="onOpen">
-                    <i class="fa fa-external-link me-1"/>開啟
+                    <i class="fa fa-external-link me-1"/>Open
                 </button>
             </div>
             <div t-if="state.missing" class="text-muted small p-3">

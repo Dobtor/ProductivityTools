@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="dobtor_xmind.MindmapSheetTabs">
+        <div class="o_xmind_sheet_tabs">
+            <span t-foreach="props.sheets" t-as="sheet" t-key="sheet.id"
+                  t-att-class="tabClass(sheet)"
+                  t-att-data-sheet-id="sheet.id"
+                  t-on-click="() => props.onSwitch(sheet.id)"
+                  t-on-dblclick="() => props.onRename(sheet.id)"
+                  t-on-contextmenu="(ev) => this.onContextMenu(ev, sheet)">
+                <t t-esc="sheet.name"/>
+            </span>
+            <span class="o_xmind_sheet_add badge text-bg-light text-dark"
+                  t-att-title="addLabel" t-on-click="() => props.onAdd()">
+                <i class="fa fa-plus"/>
+            </span>
+        </div>
+    </t>
+
+</templates>

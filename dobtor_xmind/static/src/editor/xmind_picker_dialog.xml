@@ -5,7 +5,7 @@
         <Dialog title="title" size="'md'">
             <div class="mb-2">
                 <input type="text" class="form-control"
-                       placeholder="搜尋心智圖名稱…"
+                       placeholder="Search mind map names…"
                        t-att-value="state.search"
                        t-on-input="onSearchInput"/>
             </div>
@@ -13,7 +13,7 @@
                 <i class="fa fa-spinner fa-spin"/>
             </div>
             <div t-elif="!state.workbooks.length" class="text-muted p-3">
-                找不到心智圖。
+                No mind map found.
             </div>
             <div t-else="" class="list-group o_xmind_picker">
                 <button t-foreach="state.workbooks" t-as="wb" t-key="wb.id"
@@ -28,7 +28,7 @@
             </div>
             <t t-set-slot="footer">
                 <button class="btn btn-secondary" t-on-click="() => this.props.close()">
-                    取消
+                    Cancel
                 </button>
             </t>
         </Dialog>

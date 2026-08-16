@@ -1,0 +1,37 @@
+/* Open Sans — 自帶字型，取代原本在 mindmap_editor.js 掛載時注入的
+ * <link href="fonts.googleapis.com/..."> CDN 引用。
+ *
+ * 為什麼要自帶：Open Sans 不只是畫面字型，縮圖繪製（canvas measureText）、
+ * SVG 匯出（<text font-family>）與格式選單的預設值都指定它。在離線／內網／
+ * 有 CSP 的部署環境，CDN 會靜默失敗 → 字型降級成 sans-serif → **匯出的 SVG
+ * 與畫布上的字寬對不上**，而且不會有任何錯誤訊息。
+ *
+ * Open Sans v44 是可變字型：latin 與 latin-ext 各一份 woff2 就涵蓋 300–800
+ * 全字重，所以這裡用 `font-weight: 300 800` 的區間語法，而不是每個字重各放
+ * 一個檔（Google 對 400 與 700 回的本來就是同一個位元組相同的檔案）。
+ * 只收 latin / latin-ext —— 中文字本來就不在 Open Sans 裡，會走系統 fallback。
+ *
+ * 授權：SIL Open Font License 1.1（見同目錄 LICENSE.txt），可隨模組散布。
+ */
+
+/* latin-ext */
+@font-face {
+    font-family: 'Open Sans';
+    font-style: normal;
+    font-weight: 300 800;
+    font-stretch: 100%;
+    font-display: swap;
+    src: url('/dobtor_xmind/static/lib/fonts/OpenSans-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* latin */
+@font-face {
+    font-family: 'Open Sans';
+    font-style: normal;
+    font-weight: 300 800;
+    font-stretch: 100%;
+    font-display: swap;
+    src: url('/dobtor_xmind/static/lib/fonts/OpenSans-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

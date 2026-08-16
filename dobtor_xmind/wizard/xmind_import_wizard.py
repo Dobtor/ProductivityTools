@@ -4,7 +4,6 @@ import json
 import os
 import zipfile
 import io
-import uuid
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError

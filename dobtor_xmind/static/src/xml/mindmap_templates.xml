@@ -8,151 +8,155 @@
                 <!-- 資料所屬麵包屑：模型 / 記錄名文字 → 返回清單；齒輪 → 開啟資料表單。 -->
                 <div class="o_mindmap_breadcrumb d-flex flex-column justify-content-center me-2">
                     <small class="o_mindmap_bc_model text-muted lh-1" role="button"
-                           t-on-click="onOpenList" title="返回清單">心智圖</small>
+                           t-on-click="onOpenList" title="Back to list">Mind Map</small>
                     <span class="d-flex align-items-center gap-1 lh-1">
                         <span class="o_mindmap_record_name fw-bold text-truncate" role="button"
-                              t-on-click="onOpenList" title="返回清單"/>
+                              t-on-click="onOpenList" title="Back to list"/>
                         <i class="fa fa-cog text-muted" role="button" t-on-click="onOpenForm"
-                           title="開啟資料表單（客戶／專案／可見性／建立資訊…）"/>
+                           title="Open the record form (customer / project / visibility / creation info…)"/>
                     </span>
                 </div>
 
                 <!-- Group 1: 建立/同步專案 · 儲存 · 匯出SVG · 復原 · 重做 -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-info o_mindmap_btn_project_sync" title="建立 / 同步專案" t-on-click="onSyncOrCreateProject">
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_project_sync" title="Create / sync project" t-on-click="onSyncOrCreateProject">
                         <i class="fa fa-refresh"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-success o_mindmap_btn_save" title="儲存 (Ctrl+S)" t-on-click="onSave">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_save" title="Save (Ctrl+S)" t-on-click="onSave">
                         <i class="fa fa-save"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_export" title="匯出 SVG" t-on-click="onExportSVG">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_export" title="Export SVG" t-on-click="onExportSVG">
                         <i class="fa fa-download"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_undo" title="復原 (Ctrl+Z)" disabled="disabled" t-on-click="onUndo">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_undo" title="Undo (Ctrl+Z)" disabled="disabled" t-on-click="onUndo">
                         <i class="fa fa-undo"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_redo" title="重做 (Ctrl+Y)" disabled="disabled" t-on-click="onRedo">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_redo" title="Redo (Ctrl+Y)" disabled="disabled" t-on-click="onRedo">
                         <i class="fa fa-repeat"/>
                     </button>
                 </div>
 
                 <!-- Group 2: Topic dropdown (Mind map: Topic + Subtopic + Before + Parent) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-primary o_mindmap_btn_add_child" title="新增子主題 (Tab)" t-on-click="onAddChild">
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_add_child" title="Add subtopic (Tab)" t-on-click="onAddChild">
                         <i class="fa fa-plus"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" title="更多主題選項"/>
+                    <button class="o_mindmap_tb_btn o_mindmap_tb_has_menu dropdown-toggle" data-bs-toggle="dropdown" title="More topic options"/>
                     <div class="dropdown-menu">
                         <a class="dropdown-item" href="#" t-on-click="onAddSibling">
-                            <i class="fa fa-plus text-primary"/> 主題 (Enter)
+                            <i class="fa fa-plus text-primary"/> Topic (Enter)
                         </a>
                         <a class="dropdown-item o_mindmap_btn_add_child" href="#" t-on-click="onAddChild">
-                            <i class="fa fa-level-down text-primary"/> 子主題 (Tab)
+                            <i class="fa fa-level-down text-primary"/> Subtopic (Tab)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onAddTopicBefore">
-                            <i class="fa fa-level-up text-primary"/> 前方主題 (Shift+Enter)
+                            <i class="fa fa-level-up text-primary"/> Topic Before (Shift+Enter)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onAddParentTopic">
-                            <i class="fa fa-outdent text-primary"/> 父主題 (Ctrl+Enter)
+                            <i class="fa fa-outdent text-primary"/> Parent Topic (Ctrl+Enter)
                         </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item o_mindmap_btn_floating" href="#" t-on-click="onAddFloatingTopic">
-                            <i class="fa fa-plus-circle text-muted"/> 浮動主題
+                            <i class="fa fa-plus-circle text-muted"/> Floating Topic
                         </a>
                         <a class="dropdown-item o_mindmap_btn_callout" href="#" t-on-click="onAddCallout">
-                            <i class="fa fa-comment text-warning"/> 標註
+                            <i class="fa fa-comment text-warning"/> Callout
                         </a>
                     </div>
                 </div>
 
                 <!-- Group 3: Relationship / Boundary / Summary (Mind map: mindmap toolbar group) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_relationship" title="關連線：點選來源 → 點選目標" t-on-click="onAddRelationship">
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_relationship" title="Relationship: click the source, then the target" t-on-click="onAddRelationship">
                         <i class="fa fa-share-alt"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_boundary" title="外框：拖曳選取主題" t-on-click="onAddBoundary">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_boundary" title="Boundary: drag to select topics" t-on-click="onAddBoundary">
                         <i class="fa fa-square-o"/>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary o_mindmap_btn_summary" title="括弧總結：拖曳選取主題" t-on-click="onAddSummary">
+                    <button class="o_mindmap_tb_btn o_mindmap_btn_summary" title="Summary: drag to select topics" t-on-click="onAddSummary">
                         <i class="fa fa-indent"/>
                     </button>
                 </div>
 
                 <!-- Group 4: Insert dropdown (Mind map: Markers + Notes + Label + Hyperlink + Image + Attachment) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="插入">
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_tb_has_menu dropdown-toggle" data-bs-toggle="dropdown" title="Insert">
                         <i class="fa fa-plus-square-o"/>
                     </button>
                     <div class="dropdown-menu">
                         <a class="dropdown-item o_mindmap_btn_marker" href="#" t-on-click="onOpenMarker">
-                            <i class="fa fa-flag text-warning"/> 標記
+                            <i class="fa fa-flag text-warning"/> Marker
                         </a>
                         <a class="dropdown-item o_mindmap_btn_note" href="#" t-on-click="onOpenNote">
-                            <i class="fa fa-sticky-note text-info"/> 備註
+                            <i class="fa fa-sticky-note text-info"/> Note
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onInsertHyperlink">
-                            <i class="fa fa-link text-primary"/> 超連結
+                            <i class="fa fa-link text-primary"/> Hyperlink
                         </a>
                         <a class="dropdown-item o_mindmap_insert_image" href="#" t-on-click="onInsertImage">
-                            <i class="fa fa-image text-success"/> 圖片
+                            <i class="fa fa-image text-success"/> Image
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onInsertComment">
-                            <i class="fa fa-comments text-muted"/> 評論
+                            <i class="fa fa-comments text-muted"/> Comment
                         </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item o_mindmap_insert_attachment" href="#" t-on-click="onInsertAttachment">
-                            <i class="fa fa-paperclip text-secondary"/> 附件
+                            <i class="fa fa-paperclip text-secondary"/> Attachment
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onInsertNote">
-                            <i class="fa fa-tag text-info"/> 標籤
+                            <i class="fa fa-tag text-info"/> Label
                         </a>
                     </div>
                 </div>
 
                 <!-- Group 5: Format dropdown (Mind map: Properties panel - Shape/Text/Branch) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="格式">
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_tb_has_menu dropdown-toggle" data-bs-toggle="dropdown" title="Format">
                         <i class="fa fa-paint-brush"/>
                     </button>
                     <div class="dropdown-menu o_format_menu" style="min-width: 280px;">
                         <!-- Shape Style Section -->
                         <h6 class="dropdown-header">
-                            <i class="fa fa-square"/> 形狀樣式
+                            <i class="fa fa-square"/> Shape Style
                         </h6>
                         <div class="px-3 py-1">
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">形狀類型</label>
+                                <label class="small mb-1">Shape Type</label>
                                 <select class="form-control form-control-sm o_format_shape_type">
-                                    <option value="rectangle">矩形</option>
-                                    <option value="rounded" selected="selected">圓角矩形</option>
-                                    <option value="ellipse">橢圓</option>
-                                    <option value="circle">圓形</option>
-                                    <option value="diamond">菱形</option>
-                                    <option value="parallelogram">平行四邊形</option>
-                                    <option value="hexagon">六邊形</option>
-                                    <option value="cloud">雲朵</option>
-                                    <option value="underline">僅底線</option>
-                                    <option value="noBorder">無邊框</option>
-                                    <option value="stroke">筆畫圓</option>
-                                    <option value="fishhead_left">魚頭向左</option>
-                                    <option value="fishhead_right">魚頭向右</option>
+                                    <option value="rectangle">Rectangle</option>
+                                    <option value="rounded" selected="selected">Rounded Rectangle</option>
+                                    <option value="ellipse">Ellipse</option>
+                                    <option value="circle">Circle</option>
+                                    <option value="diamond">Diamond</option>
+                                    <option value="parallelogram">Parallelogram</option>
+                                    <option value="hexagon">Hexagon</option>
+                                    <option value="cloud">Cloud</option>
+                                    <option value="underline">Underline Only</option>
+                                    <option value="noBorder">No Border</option>
+                                    <option value="stroke">Stroke Circle</option>
+                                    <option value="fishhead_left">Fishhead Left</option>
+                                    <option value="fishhead_right">Fishhead Right</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">填色</label>
+                                <label class="small mb-1">Fill Color</label>
                                 <input type="color" class="form-control form-control-sm o_format_fill_color" value="#DCE6F2"/>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">邊框色</label>
+                                <label class="small mb-1">Border Color</label>
                                 <input type="color" class="form-control form-control-sm o_format_border_color" value="#558ED5"/>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">邊框寬度</label>
+                                <label class="small mb-1">Border Width</label>
                                 <select class="form-control form-control-sm o_format_border_width">
-                                    <option value="1">細 (1px)</option>
-                                    <option value="2" selected="selected">標準 (2px)</option>
-                                    <option value="3">中等 (3px)</option>
-                                    <option value="4">粗 (4px)</option>
+                                    <option value="1">Thin (1px)</option>
+                                    <option value="2" selected="selected">Normal (2px)</option>
+                                    <option value="3">Medium (3px)</option>
+                                    <option value="4">Bold (4px)</option>
                                 </select>
                             </div>
                         </div>
@@ -161,13 +165,13 @@
 
                         <!-- Text Style Section -->
                         <h6 class="dropdown-header">
-                            <i class="fa fa-font"/> 文字樣式
+                            <i class="fa fa-font"/> Text Style
                         </h6>
                         <div class="px-3 py-1">
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">字型</label>
+                                <label class="small mb-1">Font</label>
                                 <select class="form-control form-control-sm o_format_font_family">
-                                    <option value="inherit">預設</option>
+                                    <option value="inherit">Default</option>
                                     <option value="Arial, sans-serif">Arial</option>
                                     <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
                                     <option value="'Times New Roman', Times, serif">Times New Roman</option>
@@ -178,7 +182,7 @@
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">字級</label>
+                                <label class="small mb-1">Font Size</label>
                                 <select class="form-control form-control-sm o_format_font_size">
                                     <option value="10">10px</option>
                                     <option value="12">12px</option>
@@ -192,33 +196,33 @@
                                 </select>
                             </div>
                             <div class="btn-group btn-group-sm mb-2" role="group">
-                                <button class="btn btn-outline-secondary o_format_bold" title="粗體" t-on-click="onFormatBold">
+                                <button class="btn btn-outline-secondary o_format_bold" title="Bold" t-on-click="onFormatBold">
                                     <i class="fa fa-bold"/>
                                 </button>
-                                <button class="btn btn-outline-secondary o_format_italic" title="斜體" t-on-click="onFormatItalic">
+                                <button class="btn btn-outline-secondary o_format_italic" title="Italic" t-on-click="onFormatItalic">
                                     <i class="fa fa-italic"/>
                                 </button>
-                                <button class="btn btn-outline-secondary o_format_underline" title="底線" t-on-click="onFormatUnderline">
+                                <button class="btn btn-outline-secondary o_format_underline" title="Underline" t-on-click="onFormatUnderline">
                                     <i class="fa fa-underline"/>
                                 </button>
-                                <button class="btn btn-outline-secondary o_format_strikethrough" title="刪除線" t-on-click="onFormatStrikethrough">
+                                <button class="btn btn-outline-secondary o_format_strikethrough" title="Strikethrough" t-on-click="onFormatStrikethrough">
                                     <i class="fa fa-strikethrough"/>
                                 </button>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">文字對齊</label>
+                                <label class="small mb-1">Text Alignment</label>
                                 <div class="btn-group btn-group-sm d-flex">
-                                    <button class="btn btn-outline-secondary" title="靠左對齊" t-on-click="onTextAlignLeft"><i class="fa fa-align-left"/></button>
-                                    <button class="btn btn-outline-secondary" title="置中對齊" t-on-click="onTextAlignCenter"><i class="fa fa-align-center"/></button>
-                                    <button class="btn btn-outline-secondary" title="靠右對齊" t-on-click="onTextAlignRight"><i class="fa fa-align-right"/></button>
+                                    <button class="btn btn-outline-secondary" title="Align Left" t-on-click="onTextAlignLeft"><i class="fa fa-align-left"/></button>
+                                    <button class="btn btn-outline-secondary" title="Align Center" t-on-click="onTextAlignCenter"><i class="fa fa-align-center"/></button>
+                                    <button class="btn btn-outline-secondary" title="Align Right" t-on-click="onTextAlignRight"><i class="fa fa-align-right"/></button>
                                 </div>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">文字色</label>
+                                <label class="small mb-1">Text Color</label>
                                 <input type="color" class="form-control form-control-sm o_format_text_color" value="#17375E"/>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">背景色</label>
+                                <label class="small mb-1">Background Color</label>
                                 <input type="color" class="form-control form-control-sm o_format_bg_color" value="#ffffff"/>
                             </div>
                         </div>
@@ -227,32 +231,32 @@
 
                         <!-- Structure Section -->
                         <h6 class="dropdown-header">
-                            <i class="fa fa-sitemap"/> 結構
+                            <i class="fa fa-sitemap"/> Structure
                         </h6>
                         <div class="px-3 py-1">
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">佈局類型</label>
+                                <label class="small mb-1">Layout Type</label>
                                 <select class="form-control form-control-sm o_format_structure_type" t-on-change="onFormatStructureChange">
-                                    <option value="map">心智圖</option>
-                                    <option value="org_chart_down">組織圖 (向下)</option>
-                                    <option value="org_chart_up">組織圖 (向上)</option>
-                                    <option value="tree_right">樹狀圖 (向右)</option>
-                                    <option value="tree_left">樹狀圖 (向左)</option>
-                                    <option value="logic_right">邏輯圖 (向右)</option>
-                                    <option value="logic_left">邏輯圖 (向左)</option>
-                                    <option value="timeline_horizontal">時間軸 - 水平</option>
-                                    <option value="timeline_vertical">時間軸 - 垂直</option>
-                                    <option value="fishbone_right">魚骨圖 (頭向左)</option>
-                                    <option value="fishbone_left">魚骨圖 (頭向右)</option>
+                                    <option value="map">Mind Map</option>
+                                    <option value="org_chart_down">Org Chart (Down)</option>
+                                    <option value="org_chart_up">Org Chart (Up)</option>
+                                    <option value="tree_right">Tree Chart (Right)</option>
+                                    <option value="tree_left">Tree Chart (Left)</option>
+                                    <option value="logic_right">Logic Chart (Right)</option>
+                                    <option value="logic_left">Logic Chart (Left)</option>
+                                    <option value="timeline_horizontal">Timeline - Horizontal</option>
+                                    <option value="timeline_vertical">Timeline - Vertical</option>
+                                    <option value="fishbone_right">Fishbone (Head Left)</option>
+                                    <option value="fishbone_left">Fishbone (Head Right)</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">水平間距</label>
+                                <label class="small mb-1">Horizontal Spacing</label>
                                 <input type="range" class="form-range o_format_h_space" min="30" max="150" value="80" t-on-input="onFormatHSpaceChange"/>
                                 <small class="text-muted o_format_h_space_val">80px</small>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">垂直間距</label>
+                                <label class="small mb-1">Vertical Spacing</label>
                                 <input type="range" class="form-range o_format_v_space" min="10" max="80" value="25" t-on-input="onFormatVSpaceChange"/>
                                 <small class="text-muted o_format_v_space_val">25px</small>
                             </div>
@@ -262,39 +266,39 @@
 
                         <!-- Branch Style Section -->
                         <h6 class="dropdown-header">
-                            <i class="fa fa-code-fork"/> 分支樣式
+                            <i class="fa fa-code-fork"/> Branch Style
                         </h6>
                         <div class="px-3 py-1">
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">線型</label>
+                                <label class="small mb-1">Line Type</label>
                                 <select class="form-control form-control-sm o_format_line_type">
-                                    <option value="curved">曲線</option>
-                                    <option value="straight">直線</option>
-                                    <option value="angular">直角折線</option>
-                                    <option value="rounded">圓角折線</option>
-                                    <option value="none">無</option>
+                                    <option value="curved">Curve</option>
+                                    <option value="straight">Straight</option>
+                                    <option value="angular">Elbow</option>
+                                    <option value="rounded">Rounded Elbow</option>
+                                    <option value="none">None</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">線寬</label>
+                                <label class="small mb-1">Line Width</label>
                                 <select class="form-control form-control-sm o_format_line_width">
-                                    <option value="1">細 (1px)</option>
-                                    <option value="2" selected="selected">標準 (2px)</option>
-                                    <option value="3">中等 (3px)</option>
-                                    <option value="4">粗 (4px)</option>
-                                    <option value="5">特粗 (5px)</option>
+                                    <option value="1">Thin (1px)</option>
+                                    <option value="2" selected="selected">Normal (2px)</option>
+                                    <option value="3">Medium (3px)</option>
+                                    <option value="4">Bold (4px)</option>
+                                    <option value="5">Extra Bold (5px)</option>
                                 </select>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">線色</label>
+                                <label class="small mb-1">Line Color</label>
                                 <input type="color" class="form-control form-control-sm o_format_line_color" value="#558ED5"/>
                             </div>
                             <div class="mb-3 mb-2">
-                                <label class="small mb-1">線條樣式</label>
+                                <label class="small mb-1">Line Style</label>
                                 <select class="form-control form-control-sm o_format_line_style">
-                                    <option value="solid">實線</option>
-                                    <option value="dashed">虛線</option>
-                                    <option value="dotted">點線</option>
+                                    <option value="solid">Solid</option>
+                                    <option value="dashed">Dashed</option>
+                                    <option value="dotted">Dotted</option>
                                 </select>
                             </div>
                         </div>
@@ -303,152 +307,154 @@
 
                         <div class="px-3 py-1">
                             <button class="btn btn-sm btn-primary w-100 o_format_apply" t-on-click="onFormatApply">
-                                <i class="fa fa-check"/> 套用至選取
+                                <i class="fa fa-check"/> Apply to Selection
                             </button>
                             <button class="btn btn-sm btn-outline-secondary w-100 mt-1 o_format_apply_all" t-on-click="onFormatApplyAll">
-                                <i class="fa fa-globe"/> 套用至全部
+                                <i class="fa fa-globe"/> Apply to All
                             </button>
                             <button class="btn btn-sm btn-outline-warning w-100 mt-1 o_format_reset" t-on-click="onFormatReset">
-                                <i class="fa fa-undo"/> 重設為預設
+                                <i class="fa fa-undo"/> Reset to Default
                             </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Group 6: View dropdown (Mind map: View menu — Zoom / Drill / Expand / Overview / Outline) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="檢視">
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_tb_has_menu dropdown-toggle" data-bs-toggle="dropdown" title="View">
                         <i class="fa fa-eye"/>
                     </button>
                     <div class="dropdown-menu">
-                        <h6 class="dropdown-header"><i class="fa fa-search"/> 縮放</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-search"/> Zoom</h6>
                         <a class="dropdown-item" href="#" t-on-click="onZoomIn">
-                            <i class="fa fa-search-plus"/> 放大 (Ctrl++)
+                            <i class="fa fa-search-plus"/> Zoom In (Ctrl++)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onZoomOut">
-                            <i class="fa fa-search-minus"/> 縮小 (Ctrl+-)
+                            <i class="fa fa-search-minus"/> Zoom Out (Ctrl+-)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onZoomReset">
-                            <i class="fa fa-compress"/> 實際大小
+                            <i class="fa fa-compress"/> Actual Size
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onZoomFit">
-                            <i class="fa fa-arrows-alt"/> 符合畫面
+                            <i class="fa fa-arrows-alt"/> Fit to Screen
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onZoomFitSelection">
-                            <i class="fa fa-crosshairs"/> 符合選取
+                            <i class="fa fa-crosshairs"/> Fit Selection
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-sitemap"/> 導覽</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-sitemap"/> Navigation</h6>
                         <a class="dropdown-item" href="#" t-on-click="onDrillDown">
-                            <i class="fa fa-arrow-circle-down"/> 鑽研進入
+                            <i class="fa fa-arrow-circle-down"/> Drill Down
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onDrillUp">
-                            <i class="fa fa-arrow-circle-up"/> 鑽研返回
+                            <i class="fa fa-arrow-circle-up"/> Drill Up
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-toggle-on"/> 顯示</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-toggle-on"/> Display</h6>
                         <a class="dropdown-item o_mindmap_btn_expand_all" href="#" t-on-click="onExpandAll">
-                            <i class="fa fa-expand"/> 全部展開
+                            <i class="fa fa-expand"/> Expand All
                         </a>
                         <a class="dropdown-item o_mindmap_btn_collapse_all" href="#" t-on-click="onCollapseAll">
-                            <i class="fa fa-compress"/> 全部收合
+                            <i class="fa fa-compress"/> Collapse All
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-columns"/> 面板</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-columns"/> Panel</h6>
                         <a class="dropdown-item" href="#" t-on-click="onToggleOverview">
-                            <i class="fa fa-eye"/> 概覽
+                            <i class="fa fa-eye"/> Overview
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onToggleOutline">
-                            <i class="fa fa-list"/> 大綱
+                            <i class="fa fa-list"/> Outline
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onToggleLegend">
-                            <i class="fa fa-list-ul"/> 圖例
+                            <i class="fa fa-list-ul"/> Legend
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onToggleRevisions">
-                            <i class="fa fa-history"/> 版本紀錄
+                            <i class="fa fa-history"/> Revisions
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-wrench"/> 工具</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-wrench"/> Tools</h6>
                         <a class="dropdown-item" href="#" t-on-click="onFindReplace">
-                            <i class="fa fa-search"/> 尋找與取代 (Ctrl+F)
+                            <i class="fa fa-search"/> Find &amp; Replace (Ctrl+F)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onToggleNumbering">
-                            <i class="fa fa-list-ol"/> 編號
+                            <i class="fa fa-list-ol"/> Numbering
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onToggleTapering">
-                            <i class="fa fa-long-arrow-right"/> 漸細線
+                            <i class="fa fa-long-arrow-right"/> Tapered
                         </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item" href="#" t-on-click="onShowResourceManager">
-                            <i class="fa fa-th-large"/> 資源管理員
+                            <i class="fa fa-th-large"/> Resource Manager
                         </a>
                     </div>
                 </div>
 
                 <!-- Group 7: Modify dropdown (Mind map: Modify menu — Edit/Sort/Align/Delete) -->
-                <div class="btn-group me-2">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="修改">
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <button class="o_mindmap_tb_btn o_mindmap_tb_has_menu dropdown-toggle" data-bs-toggle="dropdown" title="Modify">
                         <i class="fa fa-pencil"/>
                     </button>
                     <div class="dropdown-menu">
-                        <h6 class="dropdown-header"><i class="fa fa-pencil"/> 編輯</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-pencil"/> Edit</h6>
                         <a class="dropdown-item" href="#" t-on-click="onCutTopic">
-                            <i class="fa fa-scissors"/> 剪下 (Ctrl+X)
+                            <i class="fa fa-scissors"/> Cut (Ctrl+X)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onCopyTopic">
-                            <i class="fa fa-copy"/> 複製 (Ctrl+C)
+                            <i class="fa fa-copy"/> Copy (Ctrl+C)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onPasteTopic">
-                            <i class="fa fa-paste"/> 貼上 (Ctrl+V)
+                            <i class="fa fa-paste"/> Paste (Ctrl+V)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onDuplicateTopic">
-                            <i class="fa fa-files-o"/> 重製 (Ctrl+D)
+                            <i class="fa fa-files-o"/> Duplicate (Ctrl+D)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onDelete">
-                            <i class="fa fa-trash text-danger"/> 刪除 (Del)
+                            <i class="fa fa-trash text-danger"/> Delete (Del)
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-arrows-v"/> 位置</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-arrows-v"/> Position</h6>
                         <a class="dropdown-item" href="#" t-on-click="onMoveUp">
-                            <i class="fa fa-arrow-up"/> 上移 (Alt+Up)
+                            <i class="fa fa-arrow-up"/> Move Up (Alt+Up)
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onMoveDown">
-                            <i class="fa fa-arrow-down"/> 下移 (Alt+Down)
+                            <i class="fa fa-arrow-down"/> Move Down (Alt+Down)
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-eye"/> 顯示</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-eye"/> Display</h6>
                         <a class="dropdown-item" href="#" t-on-click="onExpandAll">
-                            <i class="fa fa-expand"/> 全部展開
+                            <i class="fa fa-expand"/> Expand All
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onCollapseAll">
-                            <i class="fa fa-compress"/> 全部收合
+                            <i class="fa fa-compress"/> Collapse All
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-sort"/> 排序</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-sort"/> Sort</h6>
                         <a class="dropdown-item" href="#" t-on-click="onSortAscending">
-                            <i class="fa fa-sort-alpha-asc"/> 排序 A → Z
+                            <i class="fa fa-sort-alpha-asc"/> Sort A → Z
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onSortDescending">
-                            <i class="fa fa-sort-alpha-desc"/> 排序 Z → A
+                            <i class="fa fa-sort-alpha-desc"/> Sort Z → A
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onSortByPriority">
-                            <i class="fa fa-sort-numeric-asc"/> 依優先級排序
+                            <i class="fa fa-sort-numeric-asc"/> Sort by Priority
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-paint-brush"/> 樣式</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-paint-brush"/> Style</h6>
                         <a class="dropdown-item" href="#" t-on-click="onResetStyle">
-                            <i class="fa fa-eraser"/> 移除所有樣式
+                            <i class="fa fa-eraser"/> Remove All Styles
                         </a>
                         <div class="dropdown-divider"></div>
-                        <h6 class="dropdown-header"><i class="fa fa-mouse-pointer"/> 選取</h6>
+                        <h6 class="dropdown-header"><i class="fa fa-mouse-pointer"/> Select</h6>
                         <a class="dropdown-item o_mindmap_btn_multiselect" href="#" t-on-click="onToggleMultiSelect">
-                            <i class="fa fa-object-group"/> 多選模式
+                            <i class="fa fa-object-group"/> Multi-select Mode
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onSelectSiblings">
-                            <i class="fa fa-users"/> 選取同層主題
+                            <i class="fa fa-users"/> Select Siblings
                         </a>
                         <a class="dropdown-item" href="#" t-on-click="onSelectChildren">
-                            <i class="fa fa-level-down"/> 選取子主題
+                            <i class="fa fa-level-down"/> Select Children
                         </a>
                     </div>
                 </div>
@@ -456,55 +462,68 @@
                 <!-- Group 7b: 專案整合按鈕已移到工具列下方的 o_mindmap_project_bar -->
 
                 <!-- Group 8: Structure / Theme selectors (Mind map: Window > Properties panels) -->
-                <div class="btn-group me-2">
-                    <select class="form-control form-control-sm o_mindmap_layout_select" title="結構" t-on-change="onLayoutChange">
-                        <option value="map">心智圖</option>
-                        <option value="org_chart_down">組織圖 (向下)</option>
-                        <option value="org_chart_up">組織圖 (向上)</option>
-                        <option value="tree_right">樹狀圖 (向右)</option>
-                        <option value="tree_left">樹狀圖 (向左)</option>
-                        <option value="logic_right">邏輯圖 (向右)</option>
-                        <option value="logic_left">邏輯圖 (向左)</option>
-                        <option value="timeline_horizontal">時間軸 - 水平</option>
-                        <option value="timeline_vertical">時間軸 - 垂直</option>
-                        <option value="fishbone_right">魚骨圖 (頭向左)</option>
-                        <option value="fishbone_left">魚骨圖 (頭向右)</option>
-                        <option value="matrix_vertical">表格圖 (橫列)</option>
-                        <option value="matrix_horizontal">表格圖 (直行)</option>
+                <div class="o_mindmap_tb_sep"/>
+                <div class="o_mindmap_tb_group">
+                    <select class="form-control form-control-sm o_mindmap_layout_select" title="Structure" t-on-change="onLayoutChange">
+                        <option value="map">Mind Map</option>
+                        <option value="org_chart_down">Org Chart (Down)</option>
+                        <option value="org_chart_up">Org Chart (Up)</option>
+                        <option value="tree_right">Tree Chart (Right)</option>
+                        <option value="tree_left">Tree Chart (Left)</option>
+                        <option value="logic_right">Logic Chart (Right)</option>
+                        <option value="logic_left">Logic Chart (Left)</option>
+                        <option value="timeline_horizontal">Timeline - Horizontal</option>
+                        <option value="timeline_vertical">Timeline - Vertical</option>
+                        <option value="fishbone_right">Fishbone (Head Left)</option>
+                        <option value="fishbone_left">Fishbone (Head Right)</option>
+                        <option value="matrix_vertical">Matrix (Rows)</option>
+                        <option value="matrix_horizontal">Matrix (Columns)</option>
                     </select>
                 </div>
+                <div class="o_mindmap_tb_sep"/>
 
-                <div class="btn-group me-2">
-                    <select class="form-control form-control-sm o_mindmap_theme_select" title="主題色" t-on-change="onThemeChange">
-                        <option value="primary">主色</option>
-                        <option value="warning">警告</option>
-                        <option value="danger">危險</option>
-                        <option value="success">成功</option>
-                        <option value="info">資訊</option>
-                        <option value="greensea">碧海綠</option>
-                        <option value="nephrite">翡翠綠</option>
-                        <option value="belizehole">貝里斯藍</option>
-                        <option value="wisteria">紫藤紫</option>
-                        <option value="asphalt">瀝青灰</option>
-                        <option value="orange">橙色</option>
-                        <option value="pumpkin">南瓜橘</option>
-                        <option value="pomegranate">石榴紅</option>
+                <div class="o_mindmap_tb_group">
+                    <select class="form-control form-control-sm o_mindmap_theme_select" title="Theme Color" t-on-change="onThemeChange">
+                        <option value="primary">Primary Color</option>
+                        <option value="warning">Warning</option>
+                        <option value="danger">Danger</option>
+                        <option value="success">Success</option>
+                        <option value="info">Info</option>
+                        <option value="greensea">Sea Green</option>
+                        <option value="nephrite">Emerald</option>
+                        <option value="belizehole">Belize Blue</option>
+                        <option value="wisteria">Wisteria</option>
+                        <option value="asphalt">Asphalt</option>
+                        <option value="orange">Orange</option>
+                        <option value="pumpkin">Pumpkin</option>
+                        <option value="pomegranate">Pomegranate</option>
                     </select>
                 </div>
 
                 <!-- 縮放%、指令數、選取數皆移至下方狀態列右側（縮放控制左邊）；
                      匯出SVG 已移到 Group 1。工具列右側不再放計數。 -->
 
-                <!-- 右上角：仿 Odoo control panel 的 view 切換 + pager（在可讀心智圖間翻頁）。 -->
-                <div class="o_mindmap_topright ms-auto d-flex align-items-center gap-2">
+                <!-- 中央：主題搜尋 / 篩選。兩側各一個彈性空白把它推到正中間，
+                     按鈕群組因此靠左、客戶/專案區因此靠右。 -->
+                <div class="o_mindmap_tb_spacer"/>
+                <MindmapSearch onSearchChange.bind="_onSearchChange"/>
+                <div class="o_mindmap_tb_spacer"/>
+
+                <!-- 右側：客戶/專案（原本在工具列下方獨立一列）＋ 檢視切換 ＋ pager -->
+                <div class="o_mindmap_tb_right">
+                    <MindmapProjectBar workbookId="workbookId"
+                        onOpenProject.bind="onOpenProject"
+                        onProjectChanged.bind="_onProjectBarChanged"
+                        registerApi.bind="_registerProjectBarApi"/>
+                    <div class="o_mindmap_tb_sep"/>
                     <div class="o_mindmap_view_switcher btn-group btn-group-sm">
-                        <button class="btn btn-light active" disabled="disabled" title="心智圖">
+                        <button class="btn btn-light active" disabled="disabled" title="Mind Map">
                             <i class="fa fa-sitemap"/>
                         </button>
-                        <button class="btn btn-light" t-on-click="onOpenList" title="清單檢視">
+                        <button class="btn btn-light" t-on-click="onOpenList" title="List view">
                             <i class="fa fa-list-ul"/>
                         </button>
-                        <button class="btn btn-light" t-on-click="onOpenForm" title="表單檢視">
+                        <button class="btn btn-light" t-on-click="onOpenForm" title="Form view">
                             <i class="fa fa-window-maximize"/>
                         </button>
                     </div>
@@ -512,20 +531,11 @@
                 </div>
             </div>
 
-            <!-- Project bar：位於工具列下方。可編輯的專案/客戶（子元件 MindmapProjectBar，
-                 客戶/專案 AutoComplete、依客戶過濾專案、有專案客戶轉唯讀）。建立/同步專案
-                 已移到上方工具列 Group 1 的 icon 按鈕。 -->
-            <div class="o_mindmap_project_bar d-flex align-items-center flex-wrap gap-3 px-2 py-1" t-if="!readonly">
-                <MindmapProjectBar workbookId="workbookId"
-                    onOpenProject.bind="onOpenProject"
-                    onProjectChanged.bind="_onProjectBarChanged"
-                    registerApi.bind="_registerProjectBarApi"/>
-            </div>
 
             <!-- Sidebar for Properties -->
             <div class="o_mindmap_sidebar" t-ref="sidebar" t-if="!readonly">
                 <div class="o_mindmap_sidebar_header">
-                    <h5>主題屬性</h5>
+                    <h5>Topic Properties</h5>
                     <button class="btn btn-sm btn-link o_mindmap_sidebar_close" t-on-click="onSidebarClose">
                         <i class="fa fa-times"/>
                     </button>
@@ -534,128 +544,128 @@
                     <!-- Child Structure Layout -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-sitemap text-primary"/> 子主題結構
+                            <i class="fa fa-sitemap text-primary"/> Subtopic Structure
                         </label>
                         <select class="form-control form-control-sm o_topic_child_structure" t-on-change="onTopicChildStructureChange">
-                            <option value="">繼承 (預設)</option>
-                            <option value="map">心智圖</option>
-                            <option value="org_chart_down">組織圖 (向下)</option>
-                            <option value="org_chart_up">組織圖 (向上)</option>
-                            <option value="tree_right">樹狀圖 (向右)</option>
-                            <option value="tree_left">樹狀圖 (向左)</option>
-                            <option value="logic_right">邏輯圖 (向右)</option>
-                            <option value="logic_left">邏輯圖 (向左)</option>
-                            <option value="timeline_horizontal">時間軸 - 水平</option>
-                            <option value="timeline_vertical">時間軸 - 垂直</option>
-                            <option value="fishbone_right">魚骨圖 (頭向左)</option>
-                            <option value="fishbone_left">魚骨圖 (頭向右)</option>
+                            <option value="">Inherit (default)</option>
+                            <option value="map">Mind Map</option>
+                            <option value="org_chart_down">Org Chart (Down)</option>
+                            <option value="org_chart_up">Org Chart (Up)</option>
+                            <option value="tree_right">Tree Chart (Right)</option>
+                            <option value="tree_left">Tree Chart (Left)</option>
+                            <option value="logic_right">Logic Chart (Right)</option>
+                            <option value="logic_left">Logic Chart (Left)</option>
+                            <option value="timeline_horizontal">Timeline - Horizontal</option>
+                            <option value="timeline_vertical">Timeline - Vertical</option>
+                            <option value="fishbone_right">Fishbone (Head Left)</option>
+                            <option value="fishbone_left">Fishbone (Head Right)</option>
                         </select>
                     </div>
 
                     <!-- Hyperlink Section -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-link text-primary"/> 超連結
+                            <i class="fa fa-link text-primary"/> Hyperlink
                         </label>
                         <div class="input-group input-group-sm">
                             <input type="url" class="form-control o_topic_hyperlink" placeholder="https://..." t-on-change="onTopicHyperlinkChange"/>
-                            <button class="btn btn-outline-primary o_topic_hyperlink_open" type="button" title="開啟連結" t-on-click="onOpenHyperlink">
+                            <button class="btn btn-outline-primary o_topic_hyperlink_open" type="button" title="Open link" t-on-click="onOpenHyperlink">
                                 <i class="fa fa-external-link"/>
                             </button>
                         </div>
-                        <input type="text" class="form-control form-control-sm o_topic_hyperlink_title mt-1" placeholder="連結標題 (選填)" t-on-change="onTopicHyperlinkChange"/>
+                        <input type="text" class="form-control form-control-sm o_topic_hyperlink_title mt-1" placeholder="Link title (optional)" t-on-change="onTopicHyperlinkChange"/>
                     </div>
 
                     <!-- Task Info -->
                     <div class="mb-3 o_topic_task_section">
                         <label>
-                            <i class="fa fa-tasks text-warning"/> 任務資訊
+                            <i class="fa fa-tasks text-warning"/> Task Info
                         </label>
                         <div class="d-flex" style="gap:6px;">
                             <div style="flex:1;">
-                                <span class="small text-muted">開始</span>
+                                <span class="small text-muted">Start</span>
                                 <input type="date" class="form-control form-control-sm o_topic_task_start" t-on-change="onTopicTaskChange"/>
                             </div>
                             <div style="flex:1;">
-                                <span class="small text-muted">結束</span>
+                                <span class="small text-muted">End</span>
                                 <input type="date" class="form-control form-control-sm o_topic_task_end" t-on-change="onTopicTaskChange"/>
                             </div>
                             <div style="flex:1;">
-                                <span class="small text-muted">時間</span>
+                                <span class="small text-muted">Time</span>
                                 <input type="time" class="form-control form-control-sm o_topic_task_end_time" t-on-change="onTopicTaskChange"/>
                             </div>
                         </div>
                         <div class="mt-1">
-                            <span class="small text-muted">進度：<span class="o_topic_task_progress_val">0%</span></span>
+                            <span class="small text-muted">Progress:<span class="o_topic_task_progress_val">0%</span></span>
                             <input type="range" min="0" max="100" step="5" class="form-range o_topic_task_progress" t-on-input="onTopicTaskChange"/>
                         </div>
-                        <input type="text" class="form-control form-control-sm o_topic_task_assignee mt-1" placeholder="指派對象" t-on-change="onTopicTaskChange"/>
+                        <input type="text" class="form-control form-control-sm o_topic_task_assignee mt-1" placeholder="Assignees" t-on-change="onTopicTaskChange"/>
                     </div>
 
                     <!-- Image/Attachment Preview -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-image text-success"/> 圖片／附件
+                            <i class="fa fa-image text-success"/> Image / Attachment
                         </label>
                         <div class="o_topic_image_preview" style="min-height: 60px; border: 1px dashed #ccc; border-radius: 4px; padding: 8px; text-align: center;">
-                            <span class="text-muted">尚未附加圖片</span>
+                            <span class="text-muted">No image attached yet</span>
                         </div>
                         <button class="btn btn-sm btn-outline-success mt-1 o_topic_change_image" t-on-click="onChangeImage">
-                            <i class="fa fa-upload"/> 更換圖片
+                            <i class="fa fa-upload"/> Replace Image
                         </button>
                         <button class="btn btn-sm btn-outline-danger mt-1 o_topic_remove_image" style="display:none;" t-on-click="onRemoveImage">
-                            <i class="fa fa-trash"/> 移除
+                            <i class="fa fa-trash"/> Remove
                         </button>
                     </div>
 
                     <!-- Shape Type -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-square-o text-secondary"/> 形狀類型
+                            <i class="fa fa-square-o text-secondary"/> Shape Type
                         </label>
                         <select class="form-control form-control-sm o_topic_shape_type" t-on-change="onTopicShapeChange">
-                            <option value="rectangle">矩形</option>
-                            <option value="rounded" selected="selected">圓角矩形</option>
-                            <option value="ellipse">橢圓</option>
-                            <option value="circle">圓形</option>
-                            <option value="diamond">菱形</option>
-                            <option value="parallelogram">平行四邊形</option>
-                            <option value="hexagon">六邊形</option>
-                            <option value="cloud">雲朵</option>
-                            <option value="underline">僅底線</option>
-                            <option value="noBorder">無邊框</option>
-                            <option value="stroke">筆畫圓</option>
+                            <option value="rectangle">Rectangle</option>
+                            <option value="rounded" selected="selected">Rounded Rectangle</option>
+                            <option value="ellipse">Ellipse</option>
+                            <option value="circle">Circle</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="parallelogram">Parallelogram</option>
+                            <option value="hexagon">Hexagon</option>
+                            <option value="cloud">Cloud</option>
+                            <option value="underline">Underline Only</option>
+                            <option value="noBorder">No Border</option>
+                            <option value="stroke">Stroke Circle</option>
                         </select>
                     </div>
                     <!-- Border Width -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-square text-secondary"/> 邊框寬度
+                            <i class="fa fa-square text-secondary"/> Border Width
                         </label>
                         <select class="form-control form-control-sm o_topic_border_width" t-on-change="onTopicShapeChange">
-                            <option value="1">細 (1px)</option>
-                            <option value="2" selected="selected">標準 (2px)</option>
-                            <option value="3">中等 (3px)</option>
-                            <option value="4">粗 (4px)</option>
+                            <option value="1">Thin (1px)</option>
+                            <option value="2" selected="selected">Normal (2px)</option>
+                            <option value="3">Medium (3px)</option>
+                            <option value="4">Bold (4px)</option>
                         </select>
                     </div>
                     <!-- Connection Line Style -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-code-fork text-info"/> 線型
+                            <i class="fa fa-code-fork text-info"/> Line Type
                         </label>
                         <select class="form-control form-control-sm o_topic_line_type" t-on-change="onTopicBranchStyleChange">
-                            <option value="curved">曲線</option>
-                            <option value="straight">直線</option>
-                            <option value="roundedElbow">圓角折線</option>
-                            <option value="angular">直角折線</option>
-                            <option value="none">無</option>
+                            <option value="curved">Curve</option>
+                            <option value="straight">Straight</option>
+                            <option value="roundedElbow">Rounded Elbow</option>
+                            <option value="angular">Elbow</option>
+                            <option value="none">None</option>
                         </select>
                     </div>
                     <!-- Connection Line Width -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-minus text-info"/> 線寬
+                            <i class="fa fa-minus text-info"/> Line Width
                         </label>
                         <select class="form-control form-control-sm o_topic_line_width" t-on-change="onTopicBranchStyleChange">
                             <option value="1" selected="selected">1px</option>
@@ -668,10 +678,10 @@
                     <!-- Numbering -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-list-ol text-warning"/> 編號
+                            <i class="fa fa-list-ol text-warning"/> Numbering
                         </label>
                         <select class="form-control form-control-sm o_topic_numbering" t-on-change="onTopicNumberingChange">
-                            <option value="none">無</option>
+                            <option value="none">None</option>
                             <option value="1">1, 2, 3...</option>
                             <option value="a">a, b, c...</option>
                             <option value="A">A, B, C...</option>
@@ -681,47 +691,47 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label>背景色</label>
+                        <label>Background Color</label>
                         <input type="color" class="form-control form-control-sm o_topic_bg_color" t-on-change="onTopicStyleChange"/>
                     </div>
                     <div class="mb-3">
-                        <label>文字色</label>
+                        <label>Text Color</label>
                         <input type="color" class="form-control form-control-sm o_topic_text_color" value="#333333" t-on-change="onTopicStyleChange"/>
                     </div>
                     <div class="mb-3">
-                        <label>字級</label>
+                        <label>Font Size</label>
                         <input type="number" class="form-control form-control-sm o_topic_font_size" min="10" max="36" value="14" t-on-change="onTopicStyleChange"/>
                     </div>
                     <div class="mb-3">
-                        <label>字重</label>
+                        <label>Font Weight</label>
                         <select class="form-control form-control-sm o_topic_font_weight" t-on-change="onTopicStyleChange">
-                            <option value="normal">標準</option>
-                            <option value="bold">粗體</option>
+                            <option value="normal">Normal</option>
+                            <option value="bold">Bold</option>
                         </select>
                     </div>
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-sticky-note text-info"/> 備註
+                            <i class="fa fa-sticky-note text-info"/> Note
                         </label>
-                        <textarea class="form-control form-control-sm o_topic_note" rows="4" placeholder="在此新增備註..." t-on-change="onTopicNoteChange" t-on-input="onTopicNoteInput"></textarea>
-                        <small class="text-muted o_topic_note_count">0 字元</small>
+                        <textarea class="form-control form-control-sm o_topic_note" rows="4" placeholder="Add a note here..." t-on-change="onTopicNoteChange" t-on-input="onTopicNoteInput"></textarea>
+                        <small class="text-muted o_topic_note_count">0 characters</small>
                     </div>
                     <div class="mb-3">
-                        <label>標籤 (以逗號分隔)</label>
+                        <label>Labels (comma separated)</label>
                         <input type="text" class="form-control form-control-sm o_topic_labels" t-on-change="onTopicPropertyChange"/>
                     </div>
                     <div class="mb-3">
-                        <label>標記</label>
+                        <label>Marker</label>
                         <div class="o_topic_markers"></div>
                     </div>
 
                     <!-- Attachments List -->
                     <div class="mb-3">
                         <label>
-                            <i class="fa fa-paperclip text-secondary"/> 附件
+                            <i class="fa fa-paperclip text-secondary"/> Attachment
                         </label>
                         <div class="o_topic_attachments" style="max-height: 150px; overflow-y: auto;">
-                            <small class="text-muted">無附件</small>
+                            <small class="text-muted">No attachment</small>
                         </div>
                     </div>
                 </div>
@@ -732,22 +742,31 @@
                 <div id="jsmind_container" t-ref="jsmindContainer" style="width:100%;height:100%;"/>
             </div>
 
+            <!-- 分頁列（讀寫模式才有；唯讀的內嵌心智圖不顯示分頁） -->
+            <MindmapSheetTabs t-if="!readonly"
+                              sheets="sheetState.sheets"
+                              currentId="sheetState.currentId"
+                              onSwitch.bind="onSwitchSheet"
+                              onRename.bind="onRenameSheet"
+                              onDelete.bind="onDeleteSheet"
+                              onAdd.bind="onAddSheet"/>
+
             <!-- Status Bar -->
             <div class="o_mindmap_statusbar" t-if="!readonly">
-                <span class="o_mindmap_status_text">就緒</span>
+                <span class="o_mindmap_status_text">Ready</span>
                 <span class="o_mindmap_autosave_indicator"></span>
                 <span class="o_mindmap_status_spacer"/>
                 <span class="o_mindmap_status_counts">
-                    <span class="o_mindmap_topic_count" title="主題數">0 個主題</span>
-                    <span class="o_mindmap_command_count" title="指令數（可復原步數）">  ·  0 個指令</span>
+                    <span class="o_mindmap_topic_count" title="Topic count">0 topics</span>
+                    <span class="o_mindmap_command_count" title="Command count (undoable steps)">  ·  0 commands</span>
                     <span class="o_mindmap_selection_count"></span>
                 </span>
                 <span class="o_mindmap_zoom_control">
-                    <button type="button" class="o_mindmap_zoom_btn" title="縮小" t-on-click="onZoomOut">−</button>
+                    <button type="button" class="o_mindmap_zoom_btn" title="Zoom out" t-on-click="onZoomOut">−</button>
                     <input type="range" class="o_mindmap_zoom_slider" min="30" max="300" step="10" value="100"
-                           title="縮放" t-on-input="onZoomSlider"/>
-                    <button type="button" class="o_mindmap_zoom_btn" title="放大" t-on-click="onZoomIn">+</button>
-                    <span class="o_mindmap_zoom_level" t-on-click="onZoomReset" title="點擊重設為 100%">100%</span>
+                           title="Zoom" t-on-input="onZoomSlider"/>
+                    <button type="button" class="o_mindmap_zoom_btn" title="Zoom in" t-on-click="onZoomIn">+</button>
+                    <span class="o_mindmap_zoom_level" t-on-click="onZoomReset" title="Click to reset to 100%">100%</span>
                 </span>
             </div>
         </div>
@@ -755,6 +774,51 @@
 
     <!-- Dead templates removed: MarkerSelector, SummaryProperties, BoundaryProperties, RelationshipProperties -->
     <!-- All dialogs are now built with DOM in mindmap_editor.js -->
+
+    <!-- 工具列中央的主題搜尋 / 篩選（reactive child of MindmapEditor）。
+         作用於當前心智圖的主題；篩選條件對照 project.task 搜尋視圖中，主題上
+         真的有對應資料的那幾項。刻意不做分組 —— 樹的層級就是它的分組。 -->
+    <t t-name="dobtor_xmind.MindmapSearch">
+        <div class="o_mindmap_search">
+            <i class="fa fa-search o_mindmap_search_icon"/>
+
+            <!-- 已套用的篩選以 facet 呈現，可個別移除 -->
+            <t t-foreach="activeFacets" t-as="f" t-key="f.key">
+                <span class="o_mindmap_facet">
+                    <t t-esc="f.label"/>
+                    <i class="fa fa-times" t-on-click="() => this.onRemoveFacet(f.key)"/>
+                </span>
+            </t>
+
+            <input type="text" t-att-value="state.query" t-on-input="onQueryInput"
+                   placeholder="Search topics…" aria-label="Search topics"/>
+
+            <span class="o_mindmap_search_count" t-if="countLabel" t-esc="countLabel"/>
+
+            <button class="o_mindmap_search_btn" t-if="hasCriteria"
+                    t-on-click="onClear" title="Clear search and filters">
+                <i class="fa fa-times-circle"/>
+            </button>
+
+            <!-- 篩選下拉 -->
+            <div class="dropdown">
+                <button t-att-class="'o_mindmap_search_btn' + (state.active.length ? ' active' : '')"
+                        data-bs-toggle="dropdown" t-on-click="onToggleMenu" title="Filters">
+                    <i class="fa fa-filter"/>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    <h6 class="dropdown-header"><i class="fa fa-filter"/> Filters</h6>
+                    <t t-foreach="filters" t-as="f" t-key="f.key">
+                        <a class="dropdown-item d-flex align-items-center gap-2" href="#"
+                           t-on-click.prevent="() => this.onToggleFilter(f.key)">
+                            <i t-att-class="'fa ' + (state.active.includes(f.key) ? 'fa-check-square-o' : 'fa-square-o')"/>
+                            <t t-esc="f.label"/>
+                        </a>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
 
     <!-- Top-right record pager (reactive child of MindmapEditor; isolates the Odoo
          Pager widget from the non-reactive god-component). -->
@@ -771,20 +835,20 @@
             <!-- 客戶：有專案 → 由專案帶入，唯讀顯示；無專案 → 可搜尋選填。 -->
             <div class="d-flex align-items-center gap-1">
                 <i class="fa fa-building text-muted"/>
-                <span class="small text-muted">客戶：</span>
+                <span class="small text-muted">Customer:</span>
                 <t t-if="state.projectId">
                     <span class="small fw-bold" t-esc="state.partnerName or '—'"/>
-                    <span class="small text-muted">（由專案帶入）</span>
+                    <span class="small text-muted">(from the project)</span>
                 </t>
                 <t t-else="">
                     <AutoComplete
                         value="state.partnerName"
                         sources="partnerSources"
                         onSelect.bind="onSelectPartner"
-                        placeholder="'搜尋客戶…'"
+                        placeholder="partnerPlaceholder"
                         class="'o_mindmap_pb_ac'"/>
                     <button t-if="state.partnerId" class="btn btn-sm btn-link p-0 text-muted"
-                            title="清除客戶" t-on-click="() => this.clearPartner()">
+                            title="Clear customer" t-on-click="() => this.clearPartner()">
                         <i class="fa fa-times"/>
                     </button>
                 </t>
@@ -792,25 +856,25 @@
             <!-- 專案：可搜尋選填（依已選客戶過濾）；已選可開啟或清除。 -->
             <div class="d-flex align-items-center gap-1">
                 <i class="fa fa-folder-open text-muted"/>
-                <span class="small text-muted">專案：</span>
+                <span class="small text-muted">Project:</span>
                 <AutoComplete
                     value="state.projectName"
                     sources="projectSources"
                     onSelect.bind="onSelectProject"
-                    placeholder="'搜尋專案…'"
+                    placeholder="projectPlaceholder"
                     class="'o_mindmap_pb_ac'"/>
                 <button t-if="state.projectId" class="btn btn-sm btn-link p-0 text-muted"
-                        title="開啟專案" t-on-click="onOpenProject">
+                        title="Open project" t-on-click="onOpenProject">
                     <i class="fa fa-external-link"/>
                 </button>
                 <button t-if="state.projectId" class="btn btn-sm btn-link p-0 text-muted"
-                        title="清除專案" t-on-click="() => this.clearProject()">
+                        title="Clear project" t-on-click="() => this.clearProject()">
                     <i class="fa fa-times"/>
                 </button>
             </div>
             <!-- 關聯物件：嵌入此圖的記錄名稱。 -->
             <span t-if="embedsLabel" class="small text-muted">
-                關聯物件：<span t-esc="embedsLabel"/>
+                Linked records:<span t-esc="embedsLabel"/>
             </span>
         </div>
     </t>

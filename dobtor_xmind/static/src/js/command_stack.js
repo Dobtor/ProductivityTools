@@ -32,36 +32,6 @@ export class Command {
 }
 
 /**
- * Compound Command - Groups multiple commands together
- */
-export class CompoundCommand extends Command {
-    constructor(label) {
-        super(label);
-        this.commands = [];
-    }
-
-    add(command) {
-        this.commands.push(command);
-    }
-
-    execute() {
-        for (let cmd of this.commands) {
-            cmd.execute();
-        }
-    }
-
-    undo() {
-        for (let i = this.commands.length - 1; i >= 0; i--) {
-            this.commands[i].undo();
-        }
-    }
-
-    isEmpty() {
-        return this.commands.length === 0;
-    }
-}
-
-/**
  * Add Node Command
  */
 export class AddNodeCommand extends Command {
@@ -222,29 +192,6 @@ export class UpdateNodeStyleCommand extends Command {
                 element.style.borderWidth = style['border-width'];
             }
         }
-    }
-}
-
-/**
- * Move Node Command
- */
-export class MoveNodeCommand extends Command {
-    constructor(jm, nodeId, beforeId, parentId, newParentId, newBeforeId) {
-        super('Move Node');
-        this.jm = jm;
-        this.nodeId = nodeId;
-        this.oldParentId = parentId;
-        this.oldBeforeId = beforeId;
-        this.newParentId = newParentId;
-        this.newBeforeId = newBeforeId;
-    }
-
-    execute() {
-        this.jm.move_node(this.nodeId, this.newBeforeId, this.newParentId);
-    }
-
-    undo() {
-        this.jm.move_node(this.nodeId, this.oldBeforeId, this.oldParentId);
     }
 }
 

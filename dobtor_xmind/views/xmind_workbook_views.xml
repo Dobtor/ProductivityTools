@@ -61,6 +61,7 @@
                     <button name="action_open_editor" string="Open Visual Editor" type="object" class="btn-primary" invisible="not active"/>
                     <button name="action_archive" string="Archive" type="object" class="btn-secondary" invisible="not active"/>
                     <button name="action_unarchive" string="Unarchive" type="object" class="btn-primary" invisible="active"/>
+                    <button name="action_export_xmind" string="Export .xmind" type="object" class="btn-secondary"/>
                     <button name="export_svg" string="Export SVG" type="object" class="btn-secondary"/>
                     <button name="import_xmind_file" string="Import .xmind" type="object" class="btn-secondary" invisible="not active"/>
                     <button name="import_freemind_file" string="Import FreeMind" type="object" class="btn-secondary" invisible="not active"/>

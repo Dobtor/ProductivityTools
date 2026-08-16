@@ -29,16 +29,19 @@ class MindMapController(http.Controller):
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
+        first_sheet = workbook.sheet_ids[:1]
         return {
             'id': workbook.id,
             'name': workbook.name,
             'mindmap_data': workbook.get_mindmap_data(),
-            'sheet_settings': self._get_sheet_settings(workbook),
-            'relationships': self._get_relationships(workbook),
-            'summaries': self._get_summaries(workbook),
-            'boundaries': self._get_boundaries(workbook),
-            'callouts': self._get_callouts(workbook),
-            'floating_topics': self._get_floating_topics(workbook),
+            # 編輯器開啟時顯示第一張分頁（get_mindmap_data 亦然），
+            # 特徵層必須取同一張，否則畫面上的關聯線/外框會屬於別張。
+            'sheet_settings': self._get_sheet_settings(first_sheet),
+            'relationships': self._get_relationships(first_sheet),
+            'summaries': self._get_summaries(first_sheet),
+            'boundaries': self._get_boundaries(first_sheet),
+            'callouts': self._get_callouts(first_sheet),
+            'floating_topics': self._get_floating_topics(first_sheet),
             'project': {
                 'id': workbook.project_id.id,
                 'name': workbook.project_id.name,
@@ -53,12 +56,10 @@ class MindMapController(http.Controller):
             'embeds': workbook.get_embed_names(),
         }
 
-    def _get_relationships(self, workbook):
-        """Get relationship data for the first sheet"""
-        if not workbook.sheet_ids:
+    def _get_relationships(self, sheet):
+        """Get relationship data for one sheet."""
+        if not sheet:
             return []
-
-        sheet = workbook.sheet_ids[0]
         result = []
         for rel in sheet.relationship_ids:
             if not rel.source_topic_id.component_id or not rel.target_topic_id.component_id:
@@ -95,12 +96,10 @@ class MindMapController(http.Controller):
             cps.append({'x': rel.cp1_x, 'y': rel.cp1_y})
         return cps
 
-    def _get_summaries(self, workbook):
-        """Get summary data for the first sheet"""
-        if not workbook.sheet_ids:
+    def _get_summaries(self, sheet):
+        """Get summary data for one sheet."""
+        if not sheet:
             return []
-
-        sheet = workbook.sheet_ids[0]
         result = []
         for summary in sheet.summary_ids:
             topic_ids = summary.topic_ids.mapped('component_id')
@@ -121,15 +120,13 @@ class MindMapController(http.Controller):
                 })
         return result
 
-    def _get_sheet_settings(self, workbook):
-        """Get sheet layout and theme settings"""
-        if not workbook.sheet_ids:
+    def _get_sheet_settings(self, sheet):
+        """Get layout and theme settings of one sheet."""
+        if not sheet:
             return {
                 'layout': 'map',
                 'theme': 'primary',
             }
-
-        sheet = workbook.sheet_ids[0]
         return {
             'layout': sheet.layout_type or 'map',
             'theme': sheet.theme or 'primary',
@@ -139,11 +136,10 @@ class MindMapController(http.Controller):
             'branch_line_class': sheet.branch_line_class or 'curve',
         }
 
-    def _get_boundaries(self, workbook):
-        """Get boundary data for the first sheet"""
-        if not workbook.sheet_ids:
+    def _get_boundaries(self, sheet):
+        """Get boundary data for one sheet."""
+        if not sheet:
             return []
-        sheet = workbook.sheet_ids[0]
         result = []
         for b in sheet.boundary_ids:
             topic_ids = b.topic_ids.mapped('component_id')
@@ -161,11 +157,10 @@ class MindMapController(http.Controller):
                 })
         return result
 
-    def _get_callouts(self, workbook):
-        """Get callout data for the first sheet"""
-        if not workbook.sheet_ids:
+    def _get_callouts(self, sheet):
+        """Get callout data for one sheet."""
+        if not sheet:
             return []
-        sheet = workbook.sheet_ids[0]
         result = []
         for c in self._get_sheet_callouts(sheet):
             result.append({
@@ -187,11 +182,10 @@ class MindMapController(http.Controller):
         topics = sheet.topic_ids
         return request.env['xmind.callout'].search([('topic_id', 'in', topics.ids)])
 
-    def _get_floating_topics(self, workbook):
-        """Get floating topics for the first sheet"""
-        if not workbook.sheet_ids:
+    def _get_floating_topics(self, sheet):
+        """Get floating topics of one sheet."""
+        if not sheet:
             return []
-        sheet = workbook.sheet_ids[0]
         return [{
             'id': ft.id,
             'component_id': ft.component_id,
@@ -207,41 +201,6 @@ class MindMapController(http.Controller):
             },
         } for ft in sheet.floating_topic_ids]
 
-    @http.route('/xmind/workbook/<int:workbook_id>/floating_topics', type='json', auth='user')
-    def save_floating_topics(self, workbook_id, floating_topics, **kwargs):
-        """Save all floating topics (full replace)"""
-        workbook = self._check_workbook_access(workbook_id, 'write')
-        if not workbook or not workbook.sheet_ids:
-            return {'error': 'Workbook not found or access denied'}
-        workbook._replace_floating_topics(workbook.sheet_ids[0], floating_topics)
-        return {'success': True}
-
-    @http.route('/xmind/workbook/<int:workbook_id>/boundaries', type='json', auth='user')
-    def save_boundaries(self, workbook_id, boundaries, **kwargs):
-        """Save all boundaries (full replace)"""
-        workbook = self._check_workbook_access(workbook_id, 'write')
-        if not workbook or not workbook.sheet_ids:
-            return {'error': 'Workbook not found or access denied'}
-        workbook._replace_boundaries(workbook.sheet_ids[0], boundaries)
-        return {'success': True}
-
-    @http.route('/xmind/workbook/<int:workbook_id>/summaries/save', type='json', auth='user')
-    def save_summaries(self, workbook_id, summaries, **kwargs):
-        """Save all summaries (full replace)"""
-        workbook = self._check_workbook_access(workbook_id, 'write')
-        if not workbook or not workbook.sheet_ids:
-            return {'error': 'Workbook not found or access denied'}
-        workbook._replace_summaries(workbook.sheet_ids[0], summaries)
-        return {'success': True}
-
-    @http.route('/xmind/workbook/<int:workbook_id>/callouts', type='json', auth='user')
-    def save_callouts(self, workbook_id, callouts, **kwargs):
-        """Save all callouts (full replace)"""
-        workbook = self._check_workbook_access(workbook_id, 'write')
-        if not workbook or not workbook.sheet_ids:
-            return {'error': 'Workbook not found or access denied'}
-        workbook._replace_callouts(workbook.sheet_ids[0], callouts)
-        return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/save', type='json', auth='user')
     def save_workbook_data(self, workbook_id, data, is_auto=False, sheet_id=None, **kwargs):
@@ -333,14 +292,6 @@ class MindMapController(http.Controller):
 
         return {'success': True}
 
-    @http.route('/xmind/workbook/<int:workbook_id>/relationships', type='json', auth='user')
-    def save_relationships(self, workbook_id, relationships, **kwargs):
-        """Save relationship lines between topics"""
-        workbook = self._check_workbook_access(workbook_id, 'write')
-        if not workbook or not workbook.sheet_ids:
-            return {'error': 'Workbook or sheet not found or access denied'}
-        workbook._replace_relationships(workbook.sheet_ids[0], relationships)
-        return {'success': True}
 
     @http.route('/xmind/markers', type='json', auth='user')
     def get_markers(self, **kwargs):
@@ -357,12 +308,23 @@ class MindMapController(http.Controller):
         } for m in markers]
 
     @http.route('/xmind/workbook/<int:workbook_id>/revisions', type='json', auth='user')
-    def get_revisions(self, workbook_id, **kwargs):
-        """List revision history for a workbook"""
+    def get_revisions(self, workbook_id, sheet_id=None, **kwargs):
+        """List revision history.
+
+        sheet_id 由編輯器帶上目前顯示的分頁 —— 快照是「單一分頁」的樹，不分頁
+        列出會把各分頁的版本混在一起，使用者無從判斷還原後會影響哪一張。
+        不帶時列出整本（相容舊呼叫端）。
+        """
         workbook = self._check_workbook_access(workbook_id, 'read')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
+        revisions = workbook.revision_ids
+        if sheet_id:
+            revisions = revisions.filtered(
+                # 舊版本沒有 sheet_id，視為屬於第一張（還原時也是寫第一張）
+                lambda r: r.sheet_id.id == int(sheet_id)
+                or (not r.sheet_id and workbook.sheet_ids[:1].id == int(sheet_id)))
         return [{
             'id': r.id,
             'name': r.name,
@@ -370,7 +332,7 @@ class MindMapController(http.Controller):
             'user': r.user_id.name or '',
             'topic_count': r.topic_count,
             'is_auto': r.is_auto,
-        } for r in workbook.revision_ids[:30]]
+        } for r in revisions[:30]]
 
     @http.route('/xmind/workbook/<int:workbook_id>/revisions/<int:revision_id>/restore', type='json', auth='user')
     def restore_revision(self, workbook_id, revision_id, **kwargs):
@@ -459,13 +421,18 @@ class MindMapController(http.Controller):
                 'format': 'node_tree',
                 'data': {'id': 'root', 'topic': sheet.name, 'expanded': True, 'children': [], 'data': {}},
             }
+        # 特徵層必須跟著分頁一起回傳。少了它們，切換分頁後畫布換成新分頁的樹，
+        # 但前端記憶體裡仍是「上一張」的關聯線／外框／總結／標註／浮動主題，
+        # 會被重新畫上去，而且下一次存檔就寫進新分頁 —— 跨分頁污染。
         return {
             'mindmap_data': mindmap_data,
             'name': sheet.name,
-            'sheet_settings': {
-                'layout': sheet.layout_type or 'map',
-                'theme': sheet.theme or 'primary',
-            },
+            'sheet_settings': self._get_sheet_settings(sheet),
+            'relationships': self._get_relationships(sheet),
+            'summaries': self._get_summaries(sheet),
+            'boundaries': self._get_boundaries(sheet),
+            'callouts': self._get_callouts(sheet),
+            'floating_topics': self._get_floating_topics(sheet),
         }
 
     @http.route('/xmind/workbook/<int:workbook_id>/sheet/<int:sheet_id>/rename', type='json', auth='user')

@@ -282,45 +282,6 @@ export class DragDropManager {
         }
     }
 
-    _moveNodeToPosition(element, x, y) {
-        element.style.left = x + 'px';
-        element.style.top = y + 'px';
-    }
-
-    _checkOverlaps() {
-        if (!this.draggedElement) return;
-
-        const draggedRect = this.draggedElement.getBoundingClientRect();
-        let hasOverlap = false;
-
-        // Check all other nodes
-        const allNodes = document.querySelectorAll('.xmind-node');
-        allNodes.forEach(node => {
-            if (node === this.draggedElement) return;
-            if (this.draggedChildren.some(c => c.element === node)) return;
-
-            const nodeRect = node.getBoundingClientRect();
-
-            // Check if rectangles overlap
-            if (!(draggedRect.right < nodeRect.left ||
-                  draggedRect.left > nodeRect.right ||
-                  draggedRect.bottom < nodeRect.top ||
-                  draggedRect.top > nodeRect.bottom)) {
-                hasOverlap = true;
-                node.classList.add('overlap-warning');
-            } else {
-                node.classList.remove('overlap-warning');
-            }
-        });
-
-        // Add visual feedback to dragged node
-        if (hasOverlap) {
-            this.draggedElement.classList.add('overlap-warning');
-        } else {
-            this.draggedElement.classList.remove('overlap-warning');
-        }
-    }
-
     _findAttachmentTarget(e) {
         const containerRect = this.jm.view.e_panel.getBoundingClientRect();
         const mouseX = e.clientX - containerRect.left;
@@ -554,112 +515,6 @@ export class DragDropManager {
         this.editor._updateStatus(_t('Created floating topic: ') + topic);
     }
 
-    _createFloatingTopicWithAvoid(e) {
-        const containerRect = this.jm.view.e_panel.getBoundingClientRect();
-        let finalX = e.clientX - containerRect.left - this.offsetX;
-        let finalY = e.clientY - containerRect.top - this.offsetY;
-
-        // Auto-avoid overlaps
-        const adjustedPos = this._findNonOverlappingPosition(finalX, finalY);
-        finalX = adjustedPos.x;
-        finalY = adjustedPos.y;
-
-        this._convertToFloating(finalX, finalY);
-        this.editor._updateStatus(_t('Created floating topic (auto-positioned)'));
-    }
-
-    _convertToFloating(x, y) {
-        // Mark node as floating and detach from parent
-        this.draggedNode.isFloating = true;
-        this.draggedNode.absolutePosition = { x: x, y: y };
-
-        // Remove from parent's children
-        if (this.draggedNode.parent && !this.draggedNode.isroot) {
-            const parentChildren = this.draggedNode.parent.children;
-            const index = parentChildren.indexOf(this.draggedNode);
-            if (index > -1) {
-                parentChildren.splice(index, 1);
-            }
-            this.draggedNode.parent = null;
-        }
-
-        // Save positions for all children with relative offsets
-        for (let i = 0; i < this.draggedChildren.length; i++) {
-            const childData = this.draggedChildren[i];
-            const offset = this.childrenOffsets[i];
-            childData.node.absolutePosition = { x: x + offset.x, y: y + offset.y };
-        }
-
-        // Redraw
-        this.jm.view.refresh();
-    }
-
-    _findNonOverlappingPosition(startX, startY) {
-        const nodeWidth = this.draggedElement.offsetWidth;
-        const nodeHeight = this.draggedElement.offsetHeight;
-        const margin = 20; // Minimum space between nodes
-
-        let bestX = startX;
-        let bestY = startY;
-        let minOverlap = Infinity;
-
-        // Try the original position first
-        const overlap = this._calculateOverlapArea(startX, startY, nodeWidth, nodeHeight);
-        if (overlap === 0) {
-            return { x: startX, y: startY };
-        }
-
-        // Try positions in a spiral pattern around the drop point
-        const maxAttempts = 8;
-        const radius = 50;
-
-        for (let i = 0; i < maxAttempts; i++) {
-            const angle = (i / maxAttempts) * 2 * Math.PI;
-            const testX = startX + Math.cos(angle) * radius;
-            const testY = startY + Math.sin(angle) * radius;
-
-            const testOverlap = this._calculateOverlapArea(testX, testY, nodeWidth, nodeHeight);
-
-            if (testOverlap === 0) {
-                return { x: testX, y: testY };
-            }
-
-            if (testOverlap < minOverlap) {
-                minOverlap = testOverlap;
-                bestX = testX;
-                bestY = testY;
-            }
-        }
-
-        return { x: bestX, y: bestY };
-    }
-
-    _calculateOverlapArea(x, y, width, height) {
-        let totalOverlap = 0;
-
-        const allNodes = document.querySelectorAll('.xmind-node');
-        allNodes.forEach(node => {
-            if (node === this.draggedElement) return;
-            if (this.draggedChildren.some(c => c.element === node)) return;
-
-            const rect = node.getBoundingClientRect();
-            const containerRect = this.jm.view.e_panel.getBoundingClientRect();
-
-            const nodeX = rect.left - containerRect.left;
-            const nodeY = rect.top - containerRect.top;
-            const nodeW = rect.width;
-            const nodeH = rect.height;
-
-            // Calculate overlap
-            const overlapX = Math.max(0, Math.min(x + width, nodeX + nodeW) - Math.max(x, nodeX));
-            const overlapY = Math.max(0, Math.min(y + height, nodeY + nodeH) - Math.max(y, nodeY));
-
-            totalOverlap += overlapX * overlapY;
-        });
-
-        return totalOverlap;
-    }
-
     _performMove(sourceNode, targetNode) {
         // Guard: root or detached nodes have no parent
         if (!sourceNode.parent) return;
@@ -777,28 +632,5 @@ export class DragDropManager {
         }
     }
 
-    _handleEmptySpaceDrop(e) {
-        // Option: Convert to floating topic or attach to root
-        const containerRect = this.jm.view.e_panel.getBoundingClientRect();
-        const x = e.clientX - containerRect.left;
-        const y = e.clientY - containerRect.top;
-
-        // Check if far from root - could become floating
-        const root = this.jm.mind.root;
-        const rootElement = this.jm.view.get_node_element(root.id);
-        const rootRect = rootElement.getBoundingClientRect();
-        const rootX = rootRect.left - containerRect.left + rootRect.width / 2;
-        const rootY = rootRect.top - containerRect.top + rootRect.height / 2;
-
-        const distFromRoot = Math.sqrt(Math.pow(x - rootX, 2) + Math.pow(y - rootY, 2));
-
-        if (distFromRoot > 300) {
-            // Far from root - offer to convert to floating topic
-            this.editor._showFloatingTopicOption(this.draggedNode, x, y);
-        } else {
-            // Near root - attach to root
-            this._performMove(this.draggedNode, root);
-        }
-    }
 }
 

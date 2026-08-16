@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
@@ -9,6 +9,10 @@ import { router } from "@web/core/browser/router";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { usePopover } from "@web/core/popover/popover_hook";
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
+import { getMindmapTemplates } from "@dobtor_xmind/js/mindmap_templates_data";
+import { MindmapPromptDialog } from "@dobtor_xmind/js/mindmap_prompt_dialog";
+import { MindmapContextMenu } from "@dobtor_xmind/js/mindmap_context_menu";
+import { MindmapSheetTabs } from "@dobtor_xmind/js/mindmap_sheet_tabs";
 import {
     CommandStack,
     AddNodeCommand,
@@ -32,6 +36,7 @@ import { DragDropManager } from "@dobtor_xmind/js/drag_drop_manager";
 import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
 import { MindmapProjectBar } from "@dobtor_xmind/js/mindmap_project_bar";
 import { MindmapPager } from "@dobtor_xmind/js/mindmap_pager";
+import { MindmapSearch, MINDMAP_FILTERS } from "@dobtor_xmind/js/mindmap_search";
 
 /**
  * Style Mind Map Editor for Odoo 18
@@ -39,7 +44,7 @@ import { MindmapPager } from "@dobtor_xmind/js/mindmap_pager";
  */
 export class MindmapEditor extends Component {
     static template = "dobtor_xmind.MindmapEditor";
-    static components = { MindmapProjectBar, MindmapPager };
+    static components = { MindmapProjectBar, MindmapPager, MindmapSearch, MindmapSheetTabs };
     static props = ["*"];
 
     setup() {
@@ -103,8 +108,21 @@ export class MindmapEditor extends Component {
         this.floatingTopics = [];
         this.boundarySelectionMode = false;
         this.summarySelectionMode = false;
-        this.summaryBranchStyles = {};
         this.selectedTopicsForFeature = [];
+
+        // 右鍵選單：547 行的命令分派表，抽到 mindmap_context_menu.js。
+        // 它只讀編輯器的公開命令，所以相依是建構子參數而不是隱式的 this。
+        this.contextMenu = new MindmapContextMenu(this);
+
+        // 分頁列的狀態。改成 useState 是為了讓 MindmapSheetTabs 這個子元件能
+        // 自己重繪 —— 以前是 _renderSheetTabs() 每次把整條列 innerHTML 清空
+        // 重建（連事件監聽器一起重綁）。
+        //
+        // `_currentSheetId` / `_sheets` 全檔有十幾處讀寫，所以不改名，而是用
+        // getter/setter 轉接到這份狀態上：任何一處指派都會自動同步，不會漏。
+        // currentId 用 false 而不是 null 表示「未載入」—— props 宣告是
+        // [Number, Boolean]，OWL 的型別檢查不接受 null。
+        this.sheetState = useState({ sheets: [], currentId: false });
 
         // Drag and Drop Manager
         this.dragDropManager = null;
@@ -135,16 +153,11 @@ export class MindmapEditor extends Component {
         this.sheetSettings = { layout: 'map', theme: 'primary' };
 
         // Keyboard handler reference for cleanup
-        this._boundKeydownHandler = this._setupKeyboardShortcuts.bind(this);
+        // 這是每次按鍵都會跑的 handler，不是初始化函式（名稱曾為 _setupKeyboardShortcuts，
+        // 看起來像 setup 而被誤讀）。
+        this._boundKeydownHandler = this._onDocumentKeydown.bind(this);
 
         onMounted(async () => {
-            // Load Open Sans font on-demand (not globally via @import)
-            if (!document.querySelector('link[href*="Open+Sans"]')) {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap';
-                document.head.appendChild(link);
-            }
             // Show the record name in the toolbar breadcrumb ASAP (from the action's
             // name); _loadWorkbookData refreshes it from the DB afterwards.
             this._setRecordName((this.props.action && this.props.action.name) || '');
@@ -168,7 +181,7 @@ export class MindmapEditor extends Component {
             // multiple inline maps never register duplicate timers/handlers.
             if (!this.readonly) {
                 this._setupCommandStackListener();
-                this._setupContextMenu();
+                this.contextMenu.setup();
                 document.addEventListener('keydown', this._boundKeydownHandler);
                 this._setupAutoSave();
                 this._initFormatMenu();
@@ -205,6 +218,22 @@ export class MindmapEditor extends Component {
             // component closure each time the editor is reopened.
             this._removeAllDocListeners();
         });
+    }
+
+    get _sheets() {
+        return this.sheetState.sheets;
+    }
+
+    set _sheets(value) {
+        this.sheetState.sheets = value || [];
+    }
+
+    get _currentSheetId() {
+        return this.sheetState.currentId;
+    }
+
+    set _currentSheetId(value) {
+        this.sheetState.currentId = value || false;
     }
 
     // ===== Helper: DOM query within this component =====
@@ -254,59 +283,7 @@ export class MindmapEditor extends Component {
                 // 專案/客戶/關聯物件的顯示與編輯已移入 MindmapProjectBar 子元件，
                 // 由子元件自行載入；此處僅保留 projectInfo 供同步/開啟專案的守衛使用。
 
-                // Load relationships
-                if (result.relationships && result.relationships.length > 0) {
-                    this.relationships = result.relationships.map(r => ({
-                        id: 'rel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                        sourceId: r.sourceId,
-                        targetId: r.targetId,
-                        options: r.options || {},
-                        controlPoints: r.controlPoints || [],
-                        // If CPs came from import, they are relative offsets from midpoint
-                        _cpIsRelativeOffset: r.cpIsRelativeOffset || false,
-                    }));
-                    this._hadRelationshipsOnLoad = true;
-                }
-
-                // Load summaries
-                if (result.summaries && result.summaries.length > 0) {
-                    this.summaries = result.summaries.map(s => ({
-                        id: 'sum_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                        topicIds: s.topicIds || [],
-                        summaryNodeId: s.summaryNodeId || '',
-                        options: s.options || {},
-                    }));
-                }
-
-                // Load boundaries
-                if (result.boundaries && result.boundaries.length > 0) {
-                    this.boundaries = result.boundaries.map(b => ({
-                        id: 'bnd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-                        topicIds: b.topicIds || [],
-                        options: b.options || {},
-                    }));
-                }
-
-                // Load callouts
-                if (result.callouts && result.callouts.length > 0) {
-                    this.callouts = result.callouts.map(c => ({
-                        parentNodeId: c.parentNodeId,
-                        options: c.options || {},
-                    }));
-                }
-
-                // Load floating topics
-                if (result.floating_topics && result.floating_topics.length > 0) {
-                    this.floatingTopics = result.floating_topics.map(ft => ({
-                        id: ft.component_id || ('ft_' + ft.id),
-                        component_id: ft.component_id,
-                        title: ft.title,
-                        note: ft.note || '',
-                        x: ft.x,
-                        y: ft.y,
-                        style: ft.style || {},
-                    }));
-                }
+                this._applyFeaturePayload(result);
             }
         } catch (e) {
             // A load failure must NOT masquerade as a new empty map — otherwise a
@@ -321,6 +298,57 @@ export class MindmapEditor extends Component {
             }
             this.mindmapData = this._getDefaultData();
         }
+    }
+
+    /**
+     * 套用一份「單一分頁」的特徵層載荷（關聯線／總結／外框／標註／浮動主題）。
+     *
+     * 初次載入（/data）與切換分頁（/sheet/<id>/data）共用。**一律賦值**，
+     * 沒有資料就設空陣列 —— 舊寫法是 `if (result.x && x.length) {...}`，
+     * 於是切到一張沒有關聯線的分頁時，上一張的關聯線會留在記憶體裡被重畫，
+     * 而且下一次存檔就寫進新分頁，造成跨分頁污染。
+     */
+    _applyFeaturePayload(result) {
+        const rnd = () => Math.random().toString(36).substr(2, 9);
+
+        this.relationships = (result.relationships || []).map(r => ({
+            id: 'rel_' + Date.now() + '_' + rnd(),
+            sourceId: r.sourceId,
+            targetId: r.targetId,
+            options: r.options || {},
+            controlPoints: r.controlPoints || [],
+            // If CPs came from import, they are relative offsets from midpoint
+            _cpIsRelativeOffset: r.cpIsRelativeOffset || false,
+        }));
+        this._hadRelationshipsOnLoad = this.relationships.length > 0;
+
+        this.summaries = (result.summaries || []).map(s => ({
+            id: 'sum_' + Date.now() + '_' + rnd(),
+            topicIds: s.topicIds || [],
+            summaryNodeId: s.summaryNodeId || '',
+            options: s.options || {},
+        }));
+
+        this.boundaries = (result.boundaries || []).map(b => ({
+            id: 'bnd_' + Date.now() + '_' + rnd(),
+            topicIds: b.topicIds || [],
+            options: b.options || {},
+        }));
+
+        this.callouts = (result.callouts || []).map(c => ({
+            parentNodeId: c.parentNodeId,
+            options: c.options || {},
+        }));
+
+        this.floatingTopics = (result.floating_topics || []).map(ft => ({
+            id: ft.component_id || ('ft_' + ft.id),
+            component_id: ft.component_id,
+            title: ft.title,
+            note: ft.note || '',
+            x: ft.x,
+            y: ft.y,
+            style: ft.style || {},
+        }));
     }
 
     async _loadMarkers() {
@@ -519,7 +547,7 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Keyboard Shortcuts =====
-    _setupKeyboardShortcuts(e) {
+    _onDocumentKeydown(e) {
         if (this._isInputFocused()) return;
 
         // Escape cancels any active mode
@@ -712,7 +740,9 @@ export class MindmapEditor extends Component {
             this._rebuildBoundaries();
             this._rebuildSummaries();
             if (this.jm && this.jm.view) this.jm.view.draw_lines();
-            this._rebuildRelationships();
+            // 展開／收合不會重建節點元素，所以只要平移既有的線就好 ——
+            // 使用者拖過的控制點得以保留，也省掉整組 SVG 的重建。
+            this._refreshRelationshipPositions();
             // Deferred second pass for floating topic summaries
             if (this.floatingTopics.length > 0) {
                 requestAnimationFrame(() => {
@@ -720,7 +750,7 @@ export class MindmapEditor extends Component {
                     this._rebuildBoundaries();
                     this._rebuildSummaries();
                     if (this.jm && this.jm.view) this.jm.view.draw_lines();
-                    this._rebuildRelationships();
+                    this._refreshRelationshipPositions();
                 });
             }
             return;
@@ -790,6 +820,22 @@ export class MindmapEditor extends Component {
     // relationship regenerate fresh defaults from the CURRENT node positions.
     // Used on layout switch so the green connector re-optimises for the new
     // structure instead of staying anchored to the previous layout's geometry.
+    /**
+     * 只把既有的關連線平移到節點的新位置（不清空重建）。
+     *
+     * 展開／收合走的是 jsMind 的 `view.refresh()`，它只重新排版與定位，
+     * **不會重建節點元素**（`_createAllNodes` 只在 `show()` 呼叫）——所以
+     * `relData.sourceElement` 仍然有效，用增量平移就夠了，而且會保留使用者
+     * 手動拖過的控制點；全刪重建則要重算每條線的預設幾何。
+     *
+     * 節點元素真的被重建過的場合（`jm.show()`、切換版面）仍必須走
+     * `_rebuildRelationships()`。
+     */
+    _refreshRelationshipPositions() {
+        if (!this.advancedRelationshipManager) return;
+        this.advancedRelationshipManager.refreshPositions();
+    }
+
     _rebuildRelationships(resetControlPoints = false) {
         if (!this.advancedRelationshipManager) return;
         // Sync control points from manager before clearing (preserves user drags).
@@ -835,6 +881,9 @@ export class MindmapEditor extends Component {
         if (resetControlPoints) {
             this._syncRelationshipControlPoints();
         }
+
+        // 端點若在收合的分支裡就把整條線收起來，避免留下指向 (0,0) 的殘線。
+        this.advancedRelationshipManager.syncVisibility();
     }
 
     _collectSummaryElements(summary) {
@@ -1243,23 +1292,6 @@ export class MindmapEditor extends Component {
             }
         };
         node.children.forEach(c => posAll(c));
-    }
-
-    /**
-     * Check if the topics covered by a summary are descendants of a summary node.
-     * If so, this is a nested summary (inside a summary's children tree) → should stay horizontal.
-     */
-    _isSummaryDescendant(topicIds) {
-        if (!topicIds || topicIds.length === 0) return false;
-        const firstNode = this.jm.get_node(topicIds[0]);
-        if (!firstNode) return false;
-        // Walk up the parent chain; if any ancestor is a summary node, this is nested
-        let current = firstNode.parent;
-        while (current) {
-            if (current.data && current.data._isSummaryNode) return true;
-            current = current.parent;
-        }
-        return false;
     }
 
     _rebuildBoundaries() {
@@ -1968,12 +2000,6 @@ export class MindmapEditor extends Component {
         const defaults = this._getDefaultsForDepth(childDepth);
         const inheritedData = { shape: defaults.shape, style: { ...defaults.style } };
 
-        let summaryBranchStyle = null;
-        if (this.summaryBranchStyles && this.summaryBranchStyles[parentId]) {
-            summaryBranchStyle = this.summaryBranchStyles[parentId];
-            inheritedData.branchStyle = summaryBranchStyle;
-        }
-
         const cmd = new AddNodeCommand(this.jm, parentId, nodeId, topic, inheritedData);
         this.commandStack.execute(cmd);
 
@@ -1981,7 +2007,6 @@ export class MindmapEditor extends Component {
         const newElement = this.jm.view.get_node_element(nodeId);
         if (newNode && newElement) {
             if (inheritedData.shape) this._applyShapeToNode(newElement, inheritedData.shape);
-            if (summaryBranchStyle) this._applySummaryBranchStyle(parentId, nodeId, summaryBranchStyle);
         }
 
         this.jm.select_node(nodeId);
@@ -2669,7 +2694,10 @@ export class MindmapEditor extends Component {
         list.innerHTML = `<div class="text-center text-muted py-3"><i class="fa fa-spinner fa-spin"></i></div>`;
 
         try {
-            const revisions = await rpc('/xmind/workbook/' + this.workbookId + '/revisions', {});
+            // 帶上目前分頁：快照是單一分頁的樹，混列會讓使用者不知道還原會動到哪張
+            const revisions = await rpc('/xmind/workbook/' + this.workbookId + '/revisions', {
+                sheet_id: this._currentSheetId || false,
+            });
             if (!revisions || revisions.error) {
                 list.innerHTML = `<div class="text-muted">${_t('No revisions yet')}</div>`;
                 return;
@@ -2930,6 +2958,62 @@ export class MindmapEditor extends Component {
     }
 
     /** 子元件變更專案時回報，讓 projectInfo 保持最新（供同步警示/開啟專案守衛）。 */
+    /**
+     * 工具列中央搜尋 / 篩選的回呼（子元件 MindmapSearch 呼叫）。
+     *
+     * 直接操作畫布 DOM 而不重建 jsMind 樹：命中的節點加 .o_mindmap_hit，
+     * 容器加 .o_mindmap_searching 讓 CSS 把未命中的淡化。這樣搜尋不會動到
+     * 資料、不會觸發存檔，清除條件即完全復原。
+     *
+     * @param {string} query 主題標題的子字串比對（不分大小寫）
+     * @param {string[]} filterKeys 已選的篩選 key（見 MINDMAP_FILTERS）
+     * @returns {{hits: number, total: number}} 供搜尋框顯示計數
+     */
+    _onSearchChange(query, filterKeys) {
+        // this.el 就是 .o_mindmap_editor_container 本身（模板的根節點）；
+        // 沿用既有的 _el() 慣例處理 this.el 尚未就緒的情況。
+        const container = this.el?.classList?.contains('o_mindmap_editor_container')
+            ? this.el
+            : this.canvasRef.el?.closest('.o_mindmap_editor_container');
+        const nodes = (this.jm && this.jm.mind && this.jm.mind.nodes) || {};
+        const preds = MINDMAP_FILTERS
+            .filter((f) => filterKeys.includes(f.key))
+            .map((f) => f.predicate);
+        const needle = (query || '').trim().toLowerCase();
+        const hasCriteria = Boolean(needle) || preds.length > 0;
+
+        let hits = 0;
+        let total = 0;
+        for (const id in nodes) {
+            const node = nodes[id];
+            const el = node._el;
+            if (!el) {
+                continue;
+            }
+            total += 1;
+            const data = node.data || {};
+            // 標題比對 + 所有已選篩選皆須成立（篩選之間是 AND）
+            const matchText = !needle
+                || String(node.topic || '').toLowerCase().includes(needle);
+            const matchFilters = preds.every((fn) => {
+                try {
+                    return fn(data);
+                } catch {
+                    return false;
+                }
+            });
+            const hit = hasCriteria && matchText && matchFilters;
+            el.classList.toggle('o_mindmap_hit', hit);
+            if (hit) {
+                hits += 1;
+            }
+        }
+        if (container) {
+            container.classList.toggle('o_mindmap_searching', hasCriteria);
+        }
+        return { hits, total };
+    }
+
     _onProjectBarChanged(info) {
         this.projectInfo = info || null;
     }
@@ -2944,11 +3028,24 @@ export class MindmapEditor extends Component {
     _doProjectSync(create, confirmed = false) {
         if (!this.workbookId) return;
         // Warn if the last sync was the OTHER direction (this one overwrites it).
+        // `confirmed` 是「封存任務」那道確認的旗標（要送到後端），與這裡的方向
+        // 警告無關 —— 所以確認之後仍原值傳下去，行為與改寫前一致。
         if (!confirmed && this.projectInfo && this.projectInfo.last_sync_direction === 'to_mindmap') {
-            if (!window.confirm(_t('The last sync was Project → Mind Map. Syncing now overwrites the project with this mind map. Continue?'))) {
-                return;
-            }
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Overwrite the project?"),
+                body: _t('The last sync was Project → Mind Map. Syncing now overwrites the project with this mind map.'),
+                confirmLabel: _t("Overwrite"),
+                confirmClass: "btn-danger",
+                confirm: () => this._runProjectSync(create, confirmed),
+                cancel: () => this._updateStatus(_t('Project sync cancelled.')),
+            });
+            return;
         }
+        this._runProjectSync(create, confirmed);
+    }
+
+    /** _doProjectSync 通過確認之後真正執行的部分。 */
+    _runProjectSync(create, confirmed) {
         // Save first so the backend syncs from the persisted topic tree.
         this._saveData().then((ok) => {
             if (ok === false) {
@@ -2960,14 +3057,19 @@ export class MindmapEditor extends Component {
                 if (r && r.error) { this._showError(r.error); return; }
                 if (r && r.needs_confirm) {
                     // Removed topics → their tasks would be archived. Ask first.
+                    // ConfirmationDialog 的 body 是 text-prewrap，換行會保留，
+                    // 所以這份條列可以照原樣呈現。
                     const names = (r.archive_names || []).join('\n  • ');
                     const msg = _t('%s task(s) will be archived (their topic was removed):')
-                        .replace('%s', r.archive_count) + '\n  • ' + names + '\n\n' + _t('Continue?');
-                    if (window.confirm(msg)) {
-                        this._doProjectSync(create, true);
-                    } else {
-                        this._updateStatus(_t('Project sync cancelled.'));
-                    }
+                        .replace('%s', r.archive_count) + '\n  • ' + names;
+                    this.dialog.add(ConfirmationDialog, {
+                        title: _t("Archive tasks?"),
+                        body: msg,
+                        confirmLabel: _t("Archive and sync"),
+                        confirmClass: "btn-danger",
+                        confirm: () => this._doProjectSync(create, true),
+                        cancel: () => this._updateStatus(_t('Project sync cancelled.')),
+                    });
                     return;
                 }
                 const name = (r && r.project_name) || '';
@@ -3236,21 +3338,22 @@ export class MindmapEditor extends Component {
                 <p class="small">${_t('Use Format menu to customize styles per topic. Copy Style / Paste Style to reuse.')}</p>
             </div>`;
         } else if (tabId === 'templates') {
-            this._getTemplates().then(templates => {
-                const grid = document.createElement('div');
-                grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;';
-                for (const t of templates) {
-                    const card = document.createElement('div');
-                    card.style.cssText = 'border:1px solid #dee2e6;border-radius:8px;padding:12px;cursor:pointer;text-align:center;';
-                    card.innerHTML = `<i class="fa fa-sitemap" style="font-size:24px;color:#558ED5;"></i><div style="font-size:12px;margin-top:6px;">${t.name}</div><small class="text-muted">${t.category || ''}</small>`;
-                    card.addEventListener('click', () => {
-                        this._applyTemplate(t);
-                        document.querySelector('.o_xmind_resource_manager')?.remove();
-                    });
-                    grid.appendChild(card);
-                }
-                container.appendChild(grid);
-            });
+            // _getTemplates() 是同步的 —— 原本寫成 .then() 會對陣列取 .then，
+            // 直接 TypeError，「範本」分頁其實從來沒有內容。
+            const templates = this._getTemplates();
+            const grid = document.createElement('div');
+            grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;';
+            for (const t of templates) {
+                const card = document.createElement('div');
+                card.style.cssText = 'border:1px solid #dee2e6;border-radius:8px;padding:12px;cursor:pointer;text-align:center;';
+                card.innerHTML = `<i class="fa fa-sitemap" style="font-size:24px;color:#558ED5;"></i><div style="font-size:12px;margin-top:6px;">${t.name}</div><small class="text-muted">${t.category || ''}</small>`;
+                card.addEventListener('click', () => {
+                    this._applyTemplate(t);
+                    document.querySelector('.o_xmind_resource_manager')?.remove();
+                });
+                grid.appendChild(card);
+            }
+            container.appendChild(grid);
         }
     }
 
@@ -3513,17 +3616,78 @@ export class MindmapEditor extends Component {
         return path.join('.');
     }
 
+    /**
+     * 開一個輸入對話框（取代 `window.prompt`）。
+     *
+     * 回呼式而非 await 式：`prompt()` 是同步的，原本的呼叫端都寫成
+     * 「拿到值就往下做」的形狀；用回呼替換可以一比一對應，不必把每個
+     * 呼叫端都改成 async（那會連帶影響它們自己的呼叫者）。
+     */
+    _promptDialog({ title, fields, confirmLabel, onConfirm }) {
+        this.dialog.add(MindmapPromptDialog, {
+            title,
+            fields,
+            confirmLabel,
+            onConfirm,
+        });
+    }
+
     // ===== Feature 4: Multi-Sheet Tab Bar =====
     onAddSheet() {
         if (!this.workbookId) return;
-        const name = prompt(_t('New sheet name:'), _t('Sheet ') + ((this._sheets || []).length + 1));
-        if (!name) return;
-        rpc('/xmind/workbook/' + this.workbookId + '/sheet/create', { name }).then(result => {
-            if (result.success) {
-                this._loadSheets();
-                this._updateStatus(_t('Sheet created: ') + name);
-            }
-        }).catch(() => this._showError(_t('Failed to create sheet.')));
+        this._promptDialog({
+            title: _t("New Sheet"),
+            fields: [{
+                name: 'name',
+                label: _t("Sheet name"),
+                value: _t('Sheet ') + ((this._sheets || []).length + 1),
+            }],
+            confirmLabel: _t("Create"),
+            onConfirm: ({ name }) => {
+                const trimmed = (name || '').trim();
+                if (!trimmed) {
+                    return false;   // 空白名稱：留在對話框裡讓使用者補
+                }
+                rpc('/xmind/workbook/' + this.workbookId + '/sheet/create', { name: trimmed })
+                    .then(result => {
+                        if (result.success) {
+                            this._loadSheets();
+                            this._updateStatus(_t('Sheet created: ') + trimmed);
+                        }
+                    })
+                    .catch(() => this._showError(_t('Failed to create sheet.')));
+            },
+        });
+    }
+
+    /**
+     * 把某張分頁的資料讀進畫布。**不會先存檔** —— 呼叫端自己決定要不要存。
+     *
+     * 抽出來是因為有兩個呼叫端，而它們對「要不要先存」的答案相反：
+     * 切換分頁必須先存（不然當前分頁的編輯會被覆蓋掉），刪除當前分頁則
+     * 絕對不能存（那份畫布屬於已經不存在的分頁，存下去會寫進別張）。
+     *
+     * @returns {Promise<Object|false>} 後端回傳的 payload，失敗時 false
+     */
+    async _loadSheetIntoCanvas(sheetId) {
+        const result = await rpc(
+            '/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}
+        );
+        if (!result || !result.mindmap_data) {
+            return false;
+        }
+        this._loadFailed = false;   // a good sheet load re-enables saving
+        this.mindmapData = result.mindmap_data;
+        // 特徵層必須跟著換 —— 不換的話畫布是新分頁的樹、關聯線卻是
+        // 上一張的，且下一次存檔會把它們寫進新分頁。
+        this._applyFeaturePayload(result);
+        if (result.sheet_settings) {
+            this.sheetSettings = result.sheet_settings;
+        }
+        this.jm.show(this.mindmapData, () => this._renderAllFeatures());
+        // 分頁列的高亮跟著 sheetState.currentId 走，OWL 自己會重繪，
+        // 不再需要手動叫它重畫。
+        return result;
     }
 
     onSwitchSheet(sheetId) {
@@ -3537,12 +3701,8 @@ export class MindmapEditor extends Component {
             }
             const prevSheetId = this._currentSheetId;
             this._currentSheetId = sheetId;
-            rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/data', {}).then(result => {
-                if (result.mindmap_data) {
-                    this._loadFailed = false;   // a good sheet load re-enables saving
-                    this.mindmapData = result.mindmap_data;
-                    this.jm.show(this.mindmapData, () => this._renderAllFeatures());
-                    this._updateSheetTabs();
+            this._loadSheetIntoCanvas(sheetId).then((result) => {
+                if (result) {
                     this._updateStatus(_t('Switched to sheet: ') + result.name);
                 }
             }).catch(() => {
@@ -3554,11 +3714,24 @@ export class MindmapEditor extends Component {
     }
 
     onRenameSheet(sheetId) {
-        const name = prompt(_t('Rename sheet:'));
-        if (!name) return;
-        rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/rename', { name }).then(result => {
-            if (result.success) this._loadSheets();
-        }).catch(() => this._showError(_t('Failed to rename sheet.')));
+        const current = (this._sheets || []).find(sh => sh.id === sheetId);
+        this._promptDialog({
+            title: _t("Rename Sheet"),
+            // 帶入現有名稱：原本的 prompt() 沒有預設值，改名等於重打一次。
+            fields: [{ name: 'name', label: _t("Sheet name"), value: (current && current.name) || '' }],
+            confirmLabel: _t("Rename"),
+            onConfirm: ({ name }) => {
+                const trimmed = (name || '').trim();
+                if (!trimmed) {
+                    return false;
+                }
+                rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/rename', { name: trimmed })
+                    .then(result => {
+                        if (result.success) this._loadSheets();
+                    })
+                    .catch(() => this._showError(_t('Failed to rename sheet.')));
+            },
+        });
     }
 
     onDeleteSheet(sheetId) {
@@ -3566,16 +3739,48 @@ export class MindmapEditor extends Component {
             this._showWarning(_t('Cannot delete the last sheet'));
             return;
         }
-        if (confirm(_t('Delete this sheet?'))) {
-            rpc('/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/delete', {}).then(result => {
-                if (result.success) {
-                    if (this._currentSheetId === sheetId) {
+        const target = (this._sheets || []).find(sh => sh.id === sheetId);
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Delete Sheet"),
+            body: target
+                ? _t('Delete sheet "%s"? Everything on it is removed.', target.name)
+                : _t("Delete this sheet? Everything on it is removed."),
+            confirmLabel: _t("Delete"),
+            confirmClass: "btn-danger",
+            confirm: async () => {
+                const wasCurrent = this._currentSheetId === sheetId;
+                if (wasCurrent) {
+                    // 畫布上還是這張（即將消失的）分頁的樹，而 _currentSheetId
+                    // 馬上會指向別張 —— 這中間只要自動存檔醒來，就會把被刪分頁
+                    // 的內容寫進另一張分頁。_loadFailed 是既有的「畫布與伺服器
+                    // 狀態不一致，禁止存檔」旗標，正好用來擋住這個空窗。
+                    this._loadFailed = true;
+                }
+                try {
+                    const result = await rpc(
+                        '/xmind/workbook/' + this.workbookId + '/sheet/' + sheetId + '/delete', {}
+                    );
+                    if (!result.success) {
+                        this._loadFailed = false;
+                        this._showError(result.error || _t('Failed to delete sheet.'));
+                        return;
+                    }
+                    if (wasCurrent) {
                         this._currentSheetId = null;
                     }
-                    this._loadSheets();
+                    await this._loadSheets();   // 這裡會把 _currentSheetId 補成第一張
+                    if (wasCurrent && this._currentSheetId) {
+                        // 換上新的當前分頁；成功載入會把 _loadFailed 解除。
+                        await this._loadSheetIntoCanvas(this._currentSheetId);
+                    }
+                    this._updateStatus(_t('Sheet deleted'));
+                } catch {
+                    this._loadFailed = false;
+                    this._showError(_t('Failed to delete sheet.'));
                 }
-            }).catch(() => this._showError(_t('Failed to delete sheet.')));
-        }
+            },
+            cancel: () => {},
+        });
     }
 
     async _loadSheets() {
@@ -3586,53 +3791,9 @@ export class MindmapEditor extends Component {
             if (!this._currentSheetId && this._sheets.length > 0) {
                 this._currentSheetId = this._sheets[0].id;
             }
-            this._renderSheetTabs();
         } catch (e) {
             this._sheets = [];
         }
-    }
-
-    _renderSheetTabs() {
-        let tabBar = this.canvasRef.el?.parentElement?.querySelector('.o_xmind_sheet_tabs');
-        if (!tabBar) {
-            tabBar = document.createElement('div');
-            tabBar.className = 'o_xmind_sheet_tabs';
-            tabBar.style.cssText = 'display:flex;align-items:center;gap:2px;padding:4px 8px;background:#f8f9fa;border-top:1px solid #dee2e6;font-size:12px;overflow-x:auto;';
-            // Insert before status bar
-            const statusBar = this.canvasRef.el?.parentElement?.querySelector('.o_mindmap_statusbar');
-            if (statusBar) {
-                statusBar.parentNode.insertBefore(tabBar, statusBar);
-            }
-        }
-        tabBar.innerHTML = '';
-        for (const sheet of (this._sheets || [])) {
-            const tab = document.createElement('span');
-            const isActive = sheet.id === this._currentSheetId;
-            tab.className = `badge ${isActive ? 'text-bg-primary' : 'text-bg-light text-dark'}`;
-            tab.style.cssText = 'cursor:pointer;padding:4px 10px;user-select:none;';
-            tab.textContent = sheet.name;
-            tab.addEventListener('click', () => this.onSwitchSheet(sheet.id));
-            tab.addEventListener('dblclick', () => this.onRenameSheet(sheet.id));
-            tab.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                if (confirm(_t('Delete sheet "') + sheet.name + '"?')) {
-                    this.onDeleteSheet(sheet.id);
-                }
-            });
-            tabBar.appendChild(tab);
-        }
-        // Add new sheet button
-        const addBtn = document.createElement('span');
-        addBtn.className = 'badge text-bg-light text-dark';
-        addBtn.style.cssText = 'cursor:pointer;padding:4px 8px;';
-        addBtn.innerHTML = '<i class="fa fa-plus"></i>';
-        addBtn.title = _t('New Sheet');
-        addBtn.addEventListener('click', () => this.onAddSheet());
-        tabBar.appendChild(addBtn);
-    }
-
-    _updateSheetTabs() {
-        this._renderSheetTabs();
     }
 
     onSidebarClose() {
@@ -4145,14 +4306,30 @@ export class MindmapEditor extends Component {
             this._showWarning(_t('Please select a topic first'));
             return;
         }
-        // Use prompt-based simple dialog for Odoo 18
         const node = this.jm.get_node(this.selectedNode);
-        const currentUrl = (node.data && node.data.hyperlink) || '';
-        const url = prompt(_t('Enter URL:'), currentUrl);
-        if (url !== null) {
-            const title = prompt(_t('Enter title (optional):'), (node.data && node.data.hyperlinkTitle) || '');
-            this._setTopicHyperlink(url.trim(), (title || '').trim());
-        }
+        // 一張表單問完網址與標題。原本連彈兩次 prompt()：在第一次按取消，
+        // 第二次照樣會跳出來。
+        this._promptDialog({
+            title: _t("Hyperlink"),
+            fields: [
+                {
+                    name: 'url',
+                    label: _t("URL"),
+                    value: (node.data && node.data.hyperlink) || '',
+                    placeholder: 'https://',
+                },
+                {
+                    name: 'title',
+                    label: _t("Title (optional)"),
+                    value: (node.data && node.data.hyperlinkTitle) || '',
+                },
+            ],
+            confirmLabel: _t("Apply"),
+            onConfirm: ({ url, title }) => {
+                // 空網址 = 移除連結（與原本傳空字串給 _setTopicHyperlink 一致）
+                this._setTopicHyperlink((url || '').trim(), (title || '').trim());
+            },
+        });
     }
 
     onInsertNote(ev) {
@@ -4284,11 +4461,6 @@ export class MindmapEditor extends Component {
             btn.classList.toggle('btn-primary', this.multiSelectMode);
         }
         this._updateStatus(this.multiSelectMode ? _t('Multi-select mode enabled') : _t('Multi-select mode disabled'));
-    }
-
-    onClearSelection() {
-        this._clearMultiSelection();
-        this._updateStatus(_t('Selection cleared'));
     }
 
     // ===== Boundary =====
@@ -4483,14 +4655,22 @@ export class MindmapEditor extends Component {
 
     // ===== Floating Topic =====
     onAddFloatingTopic() {
-        const title = prompt(_t('Topic Text:'), _t('Floating Topic'));
-        if (title) {
-            // Place at center of visible canvas
-            const canvas = this.canvasRef.el;
-            const x = canvas ? canvas.scrollLeft + canvas.clientWidth / 2 : 200;
-            const y = canvas ? canvas.scrollTop + canvas.clientHeight / 2 : 200;
-            this._createFloatingTopicAt(title, '', x, y);
-        }
+        this._promptDialog({
+            title: _t("Add Floating Topic"),
+            fields: [{ name: 'title', label: _t("Topic text"), value: _t('Floating Topic') }],
+            confirmLabel: _t("Add"),
+            onConfirm: ({ title }) => {
+                const trimmed = (title || '').trim();
+                if (!trimmed) {
+                    return false;
+                }
+                // Place at center of visible canvas
+                const canvas = this.canvasRef.el;
+                const x = canvas ? canvas.scrollLeft + canvas.clientWidth / 2 : 200;
+                const y = canvas ? canvas.scrollTop + canvas.clientHeight / 2 : 200;
+                this._createFloatingTopicAt(trimmed, '', x, y);
+            },
+        });
     }
 
     // ===== Image =====
@@ -5057,7 +5237,10 @@ export class MindmapEditor extends Component {
             options: c.options || {},
         }));
 
-        // Floating topics — sync positions from render-engine node data
+        // Floating topics — sync positions from render-engine node data.
+        // 先對帳：刪除／剪下／復原新增都會把節點從畫布拿掉卻不動這個陣列，
+        // 不清掉的話會把已刪除的浮動主題以空白標題寫回去。
+        this._pruneFloatingTopics();
         data.floating_topics = this.floatingTopics.map(ft => {
             const node = this.jm.get_node(ft.id);
             const nd = (node && node.data) || {};
@@ -5231,9 +5414,19 @@ export class MindmapEditor extends Component {
         element.style.boxShadow = '';
         element.style.aspectRatio = '';
         element.style.outline = '';
+        element.style.outlineOffset = '';
+        // circle / stroke 會把節點改成 flex 置中；不一併重置的話，從那兩種形狀
+        // 切換到別的形狀時置中會殘留（文字位置與其他同形狀節點對不上）。
+        element.style.display = '';
+        element.style.alignItems = '';
+        element.style.justifyContent = '';
         element.classList.remove('shape-rectangle', 'shape-rounded', 'shape-ellipse', 'shape-circle',
             'shape-diamond', 'shape-parallelogram', 'shape-hexagon', 'shape-cloud',
-            'shape-underline', 'shape-stroke');
+            'shape-underline', 'shape-stroke',
+            // noBorder / fishhead 也要在這裡列出來 —— 它們同樣有專屬的選取外框
+            // 樣式（CSS 把 fishhead 與 diamond/hexagon 歸為同一組），漏列的話
+            // 切換形狀後舊 class 會殘留。
+            'shape-noBorder', 'shape-fishhead_left', 'shape-fishhead_right');
 
         switch (shapeData.type) {
             case 'rectangle':
@@ -5285,6 +5478,7 @@ export class MindmapEditor extends Component {
                 element.style.border = 'none';
                 element.style.boxShadow = 'none';
                 element.style.borderRadius = '0';
+                element.classList.add('shape-noBorder');
                 return;
             case 'stroke':
                 // double-ring circle: double-ring circle (inner border + outer outline)
@@ -5296,10 +5490,12 @@ export class MindmapEditor extends Component {
                 element.classList.add('shape-stroke');
                 break;
             case 'fishhead_left':
+                element.classList.add('shape-fishhead_left');
                 element.style.clipPath = 'polygon(15% 0%, 100% 0%, 100% 100%, 15% 100%, 0% 50%)';
                 element.style.borderRadius = '0';
                 break;
             case 'fishhead_right':
+                element.classList.add('shape-fishhead_right');
                 element.style.clipPath = 'polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%)';
                 element.style.borderRadius = '0';
                 break;
@@ -5455,15 +5651,6 @@ export class MindmapEditor extends Component {
         };
     }
 
-    _applySummaryBranchStyle(parentId, childId, branchStyle) {
-        if (!branchStyle) return;
-        // Simplified version - applies custom branch line between summary topic and child
-        const parentElement = this.jm.view.get_node_element(parentId);
-        const childElement = this.jm.view.get_node_element(childId);
-        if (!parentElement || !childElement) return;
-        // Branch style will be applied via CSS/SVG in the renderer
-    }
-
     // ===== Multi-Selection =====
     _selectNodesInRect(selRect) {
         const nodes = this.jm.mind.nodes;
@@ -5584,7 +5771,6 @@ export class MindmapEditor extends Component {
         if (summaryData.summaryNodeId) {
             const cmd = new RemoveNodeCommand(this.jm, summaryData.summaryNodeId);
             this.commandStack.execute(cmd);
-            delete this.summaryBranchStyles[summaryData.summaryNodeId];
         }
 
         this.summaryRenderer.removeSummary(summaryId);
@@ -5753,23 +5939,6 @@ export class MindmapEditor extends Component {
         this._applyZoom();
     }
 
-    _forceRelayout() {
-        // Re-measure and re-layout using the custom renderer's API
-        if (!this.jm || !this.jm.view) return;
-        // Re-measure all node sizes from DOM, then re-layout and redraw
-        if (this.jm.mind && this.jm.mind.nodes) {
-            const nodes = this.jm.mind.nodes;
-            for (const id in nodes) {
-                const node = nodes[id];
-                if (node._el) {
-                    node._w = node._el.offsetWidth || node._w;
-                    node._h = node._el.offsetHeight || node._h;
-                }
-            }
-        }
-        this.jm.view.refresh();
-    }
-
     _applyZoom() {
         if (!this.jm || !this.jm.view) return;
 
@@ -5785,553 +5954,6 @@ export class MindmapEditor extends Component {
         if (slider) slider.value = Math.round(level * 100);
     }
 
-    // ===== Global Context Menu =====
-    _setupContextMenu() {
-        const canvas = this.canvasRef.el;
-        if (!canvas) return;
-
-        canvas.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-
-            // Fix #5: Right-click cancels relationship mode
-            if (this.relationshipMode) {
-                this._exitRelationshipMode();
-                return;
-            }
-
-            // Remove existing context menus
-            document.querySelectorAll('.o_xmind_context_menu').forEach(el => el.remove());
-
-            // Check if right-clicking on a relationship line
-            const relPath = e.target.closest('.relationship-path');
-            const relGroup = relPath ? relPath.closest('g[data-rel-id]') : null;
-
-            if (relGroup) {
-                this._showRelationshipContextMenu(e, relGroup.getAttribute('data-rel-id'));
-                return;
-            }
-
-            // Fix #8: Right-click on marker badge → show replace/remove menu
-            const markerBadge = e.target.closest('.xmind-marker-badge');
-            if (markerBadge) {
-                const nodeElement = markerBadge.closest('.xmind-node');
-                if (nodeElement) {
-                    const nodeId = nodeElement.getAttribute('data-nodeid');
-                    const markerCode = markerBadge.dataset.markerCode;
-                    this._showMarkerContextMenu(e, nodeId, markerCode);
-                    return;
-                }
-            }
-
-            const nodeElement = e.target.closest('.xmind-node');
-            if (nodeElement) {
-                this._showNodeContextMenu(e, nodeElement);
-            } else {
-                this._showCanvasContextMenu(e);
-            }
-        });
-    }
-
-    _showNodeContextMenu(e, nodeElement) {
-        const nodeId = nodeElement.getAttribute('data-nodeid');
-        const node = this.jm.get_node(nodeId);
-        if (!node) return;
-
-        const isRoot = node.isroot;
-
-        const menu = document.createElement('div');
-        menu.className = 'o_xmind_context_menu dropdown-menu show';
-        menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 10000;`;
-
-        const hasChildren = node.children && node.children.length > 0;
-
-        const items = [
-            // Edit group
-            { icon: 'fa-pencil', label: _t('Edit (F2)'), action: 'edit', disabled: false },
-            { divider: true },
-            // Topic creation group (Insert submenu)
-            { icon: 'fa-plus', label: _t('Topic (Enter)'), action: 'addSibling', disabled: isRoot },
-            { icon: 'fa-level-down', label: _t('Subtopic (Tab)'), action: 'addChild', disabled: false },
-            { icon: 'fa-level-up', label: _t('Topic Before (Shift+Enter)'), action: 'addBefore', disabled: isRoot },
-            { icon: 'fa-outdent', label: _t('Parent Topic (Ctrl+Enter)'), action: 'addParent', disabled: isRoot },
-            { icon: 'fa-comment', label: _t('Callout'), action: 'callout', disabled: false },
-            { divider: true },
-            // Structure elements
-            { icon: 'fa-link', label: _t('Relationship'), action: 'relationship', disabled: false },
-            { icon: 'fa-square-o', label: _t('Boundary'), action: 'boundary', disabled: false },
-            { icon: 'fa-indent', label: _t('Summary'), action: 'summary', disabled: isRoot },
-            { divider: true },
-            // Insert content
-            { icon: 'fa-flag', label: _t('Marker'), action: 'marker', disabled: false },
-            { icon: 'fa-sticky-note', label: _t('Notes'), action: 'note', disabled: false },
-            { icon: 'fa-tag', label: _t('Label'), action: 'label', disabled: false },
-            { icon: 'fa-link', label: _t('Hyperlink'), action: 'hyperlink', disabled: false },
-            { icon: 'fa-image', label: _t('Image'), action: 'image', disabled: false },
-            { divider: true },
-            // Clipboard (Cut/Copy/Paste/Duplicate)
-            { icon: 'fa-scissors', label: _t('Cut (Ctrl+X)'), action: 'cutTopic', disabled: isRoot },
-            { icon: 'fa-copy', label: _t('Copy (Ctrl+C)'), action: 'copyTopic', disabled: false },
-            { icon: 'fa-paste', label: _t('Paste (Ctrl+V)'), action: 'pasteTopic', disabled: !this._clipboardTopic },
-            { icon: 'fa-files-o', label: _t('Duplicate (Ctrl+D)'), action: 'duplicateTopic', disabled: isRoot },
-            { divider: true },
-            // Style
-            { icon: 'fa-clone', label: _t('Copy Style'), action: 'copyStyle', disabled: false },
-            { icon: 'fa-paint-brush', label: _t('Paste Style'), action: 'pasteStyle', disabled: !this._copiedStyle },
-            { icon: 'fa-eraser', label: _t('Reset Style'), action: 'resetStyle', disabled: false },
-            { divider: true },
-            // Visibility (Extend/Collapse/ExtendAll/CollapseAll)
-            { icon: node.expanded ? 'fa-compress' : 'fa-expand', label: node.expanded ? _t('Collapse') : _t('Expand'), action: 'toggle', disabled: !hasChildren },
-            { icon: 'fa-expand', label: _t('Expand All'), action: 'expandAllFromNode', disabled: !hasChildren },
-            { icon: 'fa-compress', label: _t('Collapse All'), action: 'collapseAllFromNode', disabled: !hasChildren },
-            { divider: true },
-            // Navigation
-            { icon: 'fa-arrow-circle-down', label: _t('Drill Down'), action: 'drillDown', disabled: !hasChildren },
-            { icon: 'fa-arrow-circle-up', label: _t('Drill Up'), action: 'drillUp', disabled: !this._drillStack || this._drillStack.length === 0 },
-            { divider: true },
-            // Position (Move/Sort)
-            { icon: 'fa-arrow-up', label: _t('Move Up (Alt+↑)'), action: 'moveUp', disabled: isRoot },
-            { icon: 'fa-arrow-down', label: _t('Move Down (Alt+↓)'), action: 'moveDown', disabled: isRoot },
-            { icon: 'fa-sort-alpha-asc', label: _t('Sort A→Z'), action: 'sortAsc', disabled: !hasChildren || node.children.length < 2 },
-            { icon: 'fa-sort-alpha-desc', label: _t('Sort Z→A'), action: 'sortDesc', disabled: !hasChildren || node.children.length < 2 },
-            { icon: 'fa-sort-numeric-asc', label: _t('Sort by Priority'), action: 'sortPriority', disabled: !hasChildren || node.children.length < 2 },
-            { divider: true },
-            // Selection
-            { icon: 'fa-users', label: _t('Select Siblings'), action: 'selectSiblings', disabled: isRoot },
-            { icon: 'fa-level-down', label: _t('Select Children'), action: 'selectChildren', disabled: !hasChildren },
-            { divider: true },
-            // Branch Style
-            { icon: 'fa-code-fork', label: _t('Branch Style...'), action: 'branchStyle', disabled: isRoot },
-            // Properties
-            { icon: 'fa-cog', label: _t('Properties'), action: 'properties', disabled: false },
-            { divider: true },
-            // Floating topic specific
-            { icon: 'fa-arrows', label: _t('Convert to Regular Topic'), action: 'convertFloating', disabled: !(node.data && node.data._isFloatingTopic) },
-            // Delete
-            { icon: 'fa-trash text-danger', label: _t('Delete (Del)'), action: 'delete', disabled: isRoot, cls: 'text-danger' },
-        ];
-
-        for (const item of items) {
-            if (item.divider) {
-                menu.insertAdjacentHTML('beforeend', '<div class="dropdown-divider"></div>');
-                continue;
-            }
-            const a = document.createElement('a');
-            a.className = `dropdown-item ${item.disabled ? 'disabled' : ''} ${item.cls || ''}`;
-            a.href = '#';
-            a.innerHTML = `<i class="fa ${item.icon} me-2" style="width:16px;text-align:center;"></i>${item.label}`;
-            if (!item.disabled) {
-                a.addEventListener('click', (ev) => {
-                    ev.preventDefault();
-                    menu.remove();
-                    this._handleContextAction(item.action, nodeId);
-                });
-            }
-            menu.appendChild(a);
-        }
-
-        document.body.appendChild(menu);
-        this._clampMenuPosition(menu);
-
-        setTimeout(() => {
-            document.addEventListener('click', () => menu.remove(), { once: true });
-        }, 10);
-    }
-
-    // Fix #8: Marker right-click replacement menu
-    _showMarkerContextMenu(e, nodeId, markerCode) {
-        const node = this.jm.get_node(nodeId);
-        if (!node) return;
-
-        const menu = document.createElement('div');
-        menu.className = 'o_xmind_context_menu dropdown-menu show';
-        menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:10000;max-height:300px;overflow-y:auto;`;
-
-        // Find current marker's category to show same-category alternatives
-        const currentMarker = this.markers.find(m => m.code === markerCode);
-        const category = currentMarker ? currentMarker.category : '';
-        const sameCategory = this.markers.filter(m => m.category === category);
-
-        for (const marker of sameCategory) {
-            const item = document.createElement('a');
-            item.className = 'dropdown-item' + (marker.code === markerCode ? ' active' : '');
-            item.href = '#';
-            item.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i> ${marker.name}`;
-            item.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                // Replace marker
-                if (!node.data) node.data = {};
-                if (!node.data.markers) node.data.markers = [];
-                const idx = node.data.markers.indexOf(markerCode);
-                if (idx > -1) node.data.markers[idx] = marker.code;
-                // Re-render
-                const element = this.jm.view.get_node_element(nodeId);
-                if (element) this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
-                this.commandStack.isDirty = true;
-                this.commandStack._notifyListeners();
-                menu.remove();
-            });
-            menu.appendChild(item);
-        }
-
-        // Remove marker option
-        const divider = document.createElement('div');
-        divider.className = 'dropdown-divider';
-        menu.appendChild(divider);
-        const removeItem = document.createElement('a');
-        removeItem.className = 'dropdown-item text-danger';
-        removeItem.href = '#';
-        removeItem.innerHTML = `<i class="fa fa-trash"></i> ${_t('Remove Marker')}`;
-        removeItem.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            if (node.data && node.data.markers) {
-                node.data.markers = node.data.markers.filter(c => c !== markerCode);
-                const element = this.jm.view.get_node_element(nodeId);
-                if (element) this.markerBadgeRenderer.renderMarkers(element, node.data.markers, this.markers);
-                this.commandStack.isDirty = true;
-                this.commandStack._notifyListeners();
-            }
-            menu.remove();
-        });
-        menu.appendChild(removeItem);
-
-        document.body.appendChild(menu);
-        setTimeout(() => {
-            const closeHandler = () => { menu.remove(); document.removeEventListener('click', closeHandler); };
-            document.addEventListener('click', closeHandler);
-        }, 100);
-    }
-
-    _showCanvasContextMenu(e) {
-        const menu = document.createElement('div');
-        menu.className = 'o_xmind_context_menu dropdown-menu show';
-        menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 10000;`;
-
-        const items = [
-            { icon: 'fa-plus-circle', label: _t('Add Floating Topic'), action: 'floatingAt' },
-            { divider: true },
-            { icon: 'fa-expand', label: _t('Expand All'), action: 'expandAll' },
-            { icon: 'fa-compress', label: _t('Collapse All'), action: 'collapseAll' },
-            { divider: true },
-            { icon: 'fa-search-plus', label: _t('Zoom In'), action: 'zoomIn' },
-            { icon: 'fa-search-minus', label: _t('Zoom Out'), action: 'zoomOut' },
-            { icon: 'fa-arrows-alt', label: _t('Fit to View'), action: 'zoomFit' },
-            { icon: 'fa-compress', label: _t('Actual Size'), action: 'zoomReset' },
-            { icon: 'fa-crosshairs', label: _t('Fit Selection'), action: 'zoomFitSelection' },
-            { divider: true },
-            { icon: 'fa-save', label: _t('Save (Ctrl+S)'), action: 'save' },
-            { divider: true },
-            { icon: 'fa-eye', label: _t('Overview Panel'), action: 'overview' },
-            { icon: 'fa-list', label: _t('Outline Panel'), action: 'outline' },
-            { icon: 'fa-paint-brush', label: _t('Theme Manager'), action: 'themes' },
-            { icon: 'fa-file-text-o', label: _t('Load Template'), action: 'template' },
-            { icon: 'fa-history', label: _t('Revisions'), action: 'revisions' },
-        ];
-
-        for (const item of items) {
-            if (item.divider) {
-                menu.insertAdjacentHTML('beforeend', '<div class="dropdown-divider"></div>');
-                continue;
-            }
-            const a = document.createElement('a');
-            a.className = 'dropdown-item';
-            a.href = '#';
-            a.innerHTML = `<i class="fa ${item.icon} me-2" style="width:16px;text-align:center;"></i>${item.label}`;
-            a.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                menu.remove();
-                this._handleContextAction(item.action, null, e);
-            });
-            menu.appendChild(a);
-        }
-
-        document.body.appendChild(menu);
-        this._clampMenuPosition(menu);
-
-        setTimeout(() => {
-            document.addEventListener('click', () => menu.remove(), { once: true });
-        }, 10);
-    }
-
-    _showRelationshipContextMenu(e, relId) {
-        const relData = this.relationships.find(r => r.id === relId);
-        if (!relData) return;
-
-        const menu = document.createElement('div');
-        menu.className = 'o_xmind_context_menu dropdown-menu show';
-        menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 10000;`;
-
-        const items = [
-            { icon: 'fa-pencil', label: _t('Edit Properties'), action: 'edit' },
-            { icon: 'fa-hand-pointer-o', label: _t('Show Control Points'), action: 'controlPoints' },
-            { divider: true },
-            { icon: 'fa-trash text-danger', label: _t('Delete Relationship'), action: 'delete', cls: 'text-danger' },
-        ];
-
-        for (const item of items) {
-            if (item.divider) {
-                menu.insertAdjacentHTML('beforeend', '<div class="dropdown-divider"></div>');
-                continue;
-            }
-            const a = document.createElement('a');
-            a.className = `dropdown-item ${item.cls || ''}`;
-            a.href = '#';
-            a.innerHTML = `<i class="fa ${item.icon} me-2" style="width:16px;text-align:center;"></i>${item.label}`;
-            a.addEventListener('click', (ev) => {
-                ev.preventDefault();
-                menu.remove();
-                if (item.action === 'edit') {
-                    this._showRelationshipPropertiesDialog(relData.sourceId, relData.targetId, relId);
-                } else if (item.action === 'controlPoints') {
-                    this.advancedRelationshipManager.selectRelationship(relId);
-                    this._updateStatus(_t('Drag green points to adjust curve, blue/red to move endpoints'));
-                } else if (item.action === 'delete') {
-                    this.advancedRelationshipManager.removeRelationship(relId);
-                    const idx = this.relationships.findIndex(r => r.id === relId);
-                    if (idx > -1) this.relationships.splice(idx, 1);
-                    this.commandStack.isDirty = true;
-                    this.commandStack._notifyListeners();
-                    this._updateStatus(_t('Relationship deleted'));
-                }
-            });
-            menu.appendChild(a);
-        }
-
-        document.body.appendChild(menu);
-        this._clampMenuPosition(menu);
-        setTimeout(() => {
-            document.addEventListener('click', () => menu.remove(), { once: true });
-        }, 10);
-    }
-
-    _clampMenuPosition(menu) {
-        const rect = menu.getBoundingClientRect();
-        if (rect.right > window.innerWidth) {
-            menu.style.left = (window.innerWidth - rect.width - 5) + 'px';
-        }
-        if (rect.bottom > window.innerHeight) {
-            menu.style.top = (window.innerHeight - rect.height - 5) + 'px';
-        }
-    }
-
-    _handleContextAction(action, nodeId, originalEvent) {
-        switch (action) {
-            case 'addChild':
-                if (nodeId) this.jm.select_node(nodeId);
-                this.selectedNode = nodeId;
-                this.onAddChild();
-                break;
-            case 'addSibling':
-                if (nodeId) this.jm.select_node(nodeId);
-                this.selectedNode = nodeId;
-                this.onAddSibling();
-                break;
-            case 'addBefore':
-                this.selectedNode = nodeId;
-                this.onAddTopicBefore();
-                break;
-            case 'addParent':
-                this.selectedNode = nodeId;
-                this.onAddParentTopic();
-                break;
-            case 'edit':
-                this.selectedNode = nodeId;
-                this._editSelectedNode();
-                break;
-            case 'moveUp':
-                this.selectedNode = nodeId;
-                this.onMoveUp();
-                break;
-            case 'moveDown':
-                this.selectedNode = nodeId;
-                this.onMoveDown();
-                break;
-            case 'cutTopic':
-                this.selectedNode = nodeId;
-                this.onCutTopic();
-                break;
-            case 'copyTopic':
-                this.selectedNode = nodeId;
-                this.onCopyTopic();
-                break;
-            case 'pasteTopic':
-                this.selectedNode = nodeId;
-                this.onPasteTopic();
-                break;
-            case 'duplicateTopic':
-                this.selectedNode = nodeId;
-                this.onDuplicateTopic();
-                break;
-            case 'drillDown':
-                this.selectedNode = nodeId;
-                this.onDrillDown();
-                break;
-            case 'drillUp':
-                this.onDrillUp();
-                break;
-            case 'sortAsc':
-                this.selectedNode = nodeId;
-                this.onSortAscending();
-                break;
-            case 'sortDesc':
-                this.selectedNode = nodeId;
-                this.onSortDescending();
-                break;
-            case 'sortPriority':
-                this.selectedNode = nodeId;
-                this.onSortByPriority();
-                break;
-            case 'selectSiblings':
-                this.selectedNode = nodeId;
-                this.onSelectSiblings();
-                break;
-            case 'selectChildren':
-                this.selectedNode = nodeId;
-                this.onSelectChildren();
-                break;
-            case 'copyStyle':
-                this._copyNodeStyle(nodeId);
-                break;
-            case 'pasteStyle':
-                this._pasteNodeStyle(nodeId);
-                break;
-            case 'resetStyle':
-                this.selectedNode = nodeId;
-                this.onResetStyle();
-                break;
-            case 'relationship':
-                this.selectedNode = nodeId;
-                this.onAddRelationship();
-                break;
-            case 'boundary':
-                this.selectedNode = nodeId;
-                this.onAddBoundary();
-                break;
-            case 'summary':
-                this.selectedNode = nodeId;
-                this.onAddSummary();
-                break;
-            case 'callout':
-                this.selectedNode = nodeId;
-                this.onAddCallout();
-                break;
-            case 'marker':
-                this.selectedNode = nodeId;
-                this.onOpenMarker();
-                break;
-            case 'hyperlink':
-                this.selectedNode = nodeId;
-                this.onInsertHyperlink({ preventDefault: () => {} });
-                break;
-            case 'note':
-                this.selectedNode = nodeId;
-                this.onOpenNote();
-                break;
-            case 'image':
-                this.selectedNode = nodeId;
-                this.onAddImage();
-                break;
-            case 'toggle':
-                this.selectedNode = nodeId;
-                this._toggleSelectedExpand();
-                break;
-            case 'expandAllFromNode':
-                this.selectedNode = nodeId;
-                this.onExpandAllFromNode();
-                break;
-            case 'collapseAllFromNode':
-                this.selectedNode = nodeId;
-                this.onCollapseAllFromNode();
-                break;
-            case 'branchStyle':
-                this.selectedNode = nodeId;
-                this._showBranchStylePicker(nodeId);
-                break;
-            case 'properties':
-                this.selectedNode = nodeId;
-                this._openSidebar();
-                this._updateSidebar(nodeId);
-                break;
-            case 'label':
-                this.selectedNode = nodeId;
-                this._openSidebar();
-                setTimeout(() => {
-                    const el = this._el('.o_topic_labels');
-                    if (el) el.focus();
-                }, 200);
-                break;
-            case 'convertFloating':
-                this._convertFloatingToRegular(nodeId);
-                break;
-            case 'delete':
-                this.selectedNode = nodeId;
-                this.onDelete();
-                break;
-            case 'floatingAt':
-                if (originalEvent) {
-                    const world = this.jm.view.world;
-                    if (world) {
-                        const wr = world.getBoundingClientRect();
-                        const zoom = this._zoomLevel || 1;
-                        const fx = (originalEvent.clientX - wr.left) / zoom;
-                        const fy = (originalEvent.clientY - wr.top) / zoom;
-                        this._createFloatingTopicAt(_t('Floating Topic'), '', fx, fy);
-                    }
-                } else {
-                    this.onAddFloatingTopic();
-                }
-                break;
-            case 'expandAll': this.onExpandAll(); break;
-            case 'collapseAll': this.onCollapseAll(); break;
-            case 'zoomIn': this.onZoomIn(); break;
-            case 'zoomOut': this.onZoomOut(); break;
-            case 'zoomFit': this.onZoomFit(); break;
-            case 'zoomReset': this.onZoomReset(); break;
-            case 'save': this.onSave(); break;
-            case 'zoomFitSelection': this.onZoomFitSelection(); break;
-            case 'overview': this.onToggleOverview(); break;
-            case 'outline': this.onToggleOutline(); break;
-            case 'themes': this.onManageThemes(); break;
-            case 'template': this.onLoadTemplate(); break;
-            case 'revisions': this.onToggleRevisions(); break;
-        }
-    }
-
-    _copyNodeStyle(nodeId) {
-        const node = this.jm.get_node(nodeId);
-        if (!node) return;
-        this._copiedStyle = JSON.parse(JSON.stringify(node.data && node.data.style || {}));
-        if (node.data && node.data.shape) {
-            this._copiedStyle._shape = JSON.parse(JSON.stringify(node.data.shape));
-        }
-        this._updateStatus(_t('Style copied'));
-    }
-
-    _pasteNodeStyle(nodeId) {
-        if (!this._copiedStyle) return;
-        const node = this.jm.get_node(nodeId);
-        if (!node) return;
-
-        const element = this.jm.view.get_node_element(nodeId);
-        if (!element) return;
-
-        node.data = node.data || {};
-        const style = { ...this._copiedStyle };
-        const shape = style._shape;
-        delete style._shape;
-
-        node.data.style = style;
-        this._restoreNodeStyle(element, style);
-
-        if (shape) {
-            node.data.shape = shape;
-            this._applyShapeToNode(element, shape);
-        }
-
-        this.commandStack.isDirty = true;
-        this.commandStack._notifyListeners();
-        this._updateStatus(_t('Style pasted'));
-    }
 
     _createFloatingTopicAt(title, note, x, y) {
         if (!this.jm) return;
@@ -6450,18 +6072,31 @@ export class MindmapEditor extends Component {
         this._updateStatus(_t('Converted to regular topic'));
     }
 
-    _removeFloatingTopic(ftId) {
-        // Remove from tracking array
-        const idx = this.floatingTopics.findIndex(f => f.id === ftId);
-        if (idx > -1) this.floatingTopics.splice(idx, 1);
-        // Remove the render-engine node (and its children)
-        this.jm.remove_node(ftId);
-        this.commandStack.isDirty = true;
-        this.commandStack._notifyListeners();
-        this._updateStatus(_t('Floating topic removed'));
+    /**
+     * 把 `floatingTopics` 對回畫布的實際節點，丟掉已經不存在的項目。
+     *
+     * `floatingTopics` 是畫布之外的第二份狀態，但浮動主題本身是 root 的真實
+     * 子節點，會被三條完全不知道這個陣列存在的路徑移除：`onDelete()`、
+     * `onCutTopic()`，以及 `AddNodeCommand.undo()`（復原「新增浮動主題」）。
+     *
+     * 不對帳的話，存檔時 `this.jm.get_node(ft.id)` 取到 null，仍會照著殘留項
+     * 寫一筆回去 —— 而那些項目是 `{id, component_id, x, y}`，連 title 都沒有，
+     * 於是刪掉的浮動主題會以「空白標題」復活。與其在每條移除路徑補一次
+     * splice（下一條新路徑照樣會漏），在使用這份狀態之前統一對帳。
+     *
+     * 「轉為一般主題」不在此列 —— 那條路徑自己會 splice，而且節點還在，
+     * 這裡看不出差別（`_isFloatingTopic` 要等第一次 render 才會標上去，拿它
+     * 當判準反而會誤刪剛建立、還沒畫過的浮動主題）。
+     */
+    _pruneFloatingTopics() {
+        if (!this.jm || this.floatingTopics.length === 0) return;
+        this.floatingTopics = this.floatingTopics.filter(
+            (ft) => Boolean(this.jm.get_node(ft.id))
+        );
     }
 
     _renderAllFloatingTopics() {
+        this._pruneFloatingTopics();
         if (this.floatingTopics.length === 0) return;
 
         // Build set of node IDs that are wrapped by boundaries
@@ -6592,318 +6227,13 @@ export class MindmapEditor extends Component {
     }
 
     // ===== Template System =====
-    async onLoadTemplate() {
-        const templates = await this._getTemplates();
-        this._showTemplateDialog(templates);
+    onLoadTemplate() {
+        this._showTemplateDialog(this._getTemplates());
     }
 
     _getTemplates() {
-        return [
-            {
-                id: 'blank',
-                name: _t('Blank Mind Map'),
-                category: 'basic',
-                icon: 'fa-file-o',
-                data: this._getDefaultData(),
-            },
-            {
-                id: 'business_plan',
-                name: _t('Business Plan'),
-                category: 'business',
-                icon: 'fa-briefcase',
-                data: this._buildTemplate('Business Plan', [
-                    { topic: _t('Market Analysis'), children: [_t('Target Market'), _t('Competitors'), _t('Market Size')] },
-                    { topic: _t('Products & Services'), children: [_t('Core Product'), _t('Value Proposition'), _t('Pricing')] },
-                    { topic: _t('Marketing Strategy'), children: [_t('Channels'), _t('Campaigns'), _t('Budget')] },
-                    { topic: _t('Financial Plan'), children: [_t('Revenue Model'), _t('Cost Structure'), _t('Projections')] },
-                    { topic: _t('Team'), children: [_t('Key Roles'), _t('Hiring Plan'), _t('Advisors')] },
-                ]),
-            },
-            {
-                id: 'swot',
-                name: _t('SWOT Analysis'),
-                category: 'business',
-                icon: 'fa-th-large',
-                data: this._buildTemplate('SWOT Analysis', [
-                    { topic: _t('Strengths'), children: [_t('Strength 1'), _t('Strength 2'), _t('Strength 3')], style: { background: '#28a745', color: '#fff' } },
-                    { topic: _t('Weaknesses'), children: [_t('Weakness 1'), _t('Weakness 2'), _t('Weakness 3')], style: { background: '#dc3545', color: '#fff' } },
-                    { topic: _t('Opportunities'), children: [_t('Opportunity 1'), _t('Opportunity 2'), _t('Opportunity 3')], style: { background: '#007bff', color: '#fff' } },
-                    { topic: _t('Threats'), children: [_t('Threat 1'), _t('Threat 2'), _t('Threat 3')], style: { background: '#ffc107', color: '#333' } },
-                ]),
-            },
-            {
-                id: 'meeting',
-                name: _t('Meeting Notes'),
-                category: 'business',
-                icon: 'fa-users',
-                data: this._buildTemplate('Meeting Notes', [
-                    { topic: _t('Attendees'), children: [_t('Person 1'), _t('Person 2')] },
-                    { topic: _t('Agenda'), children: [_t('Item 1'), _t('Item 2'), _t('Item 3')] },
-                    { topic: _t('Discussion'), children: [_t('Point 1'), _t('Point 2')] },
-                    { topic: _t('Action Items'), children: [_t('Task 1'), _t('Task 2')] },
-                    { topic: _t('Next Meeting'), children: [_t('Date'), _t('Topics')] },
-                ]),
-            },
-            {
-                id: 'project',
-                name: _t('Project Dashboard'),
-                category: 'business',
-                icon: 'fa-tasks',
-                data: this._buildTemplate('Project Dashboard', [
-                    { topic: _t('Goals'), children: [_t('Goal 1'), _t('Goal 2')] },
-                    { topic: _t('Milestones'), children: [_t('Phase 1'), _t('Phase 2'), _t('Phase 3')] },
-                    { topic: _t('Resources'), children: [_t('Team'), _t('Budget'), _t('Tools')] },
-                    { topic: _t('Risks'), children: [_t('Risk 1'), _t('Risk 2')] },
-                    { topic: _t('Timeline'), children: [_t('Start'), _t('Checkpoints'), _t('Deadline')] },
-                ]),
-            },
-            {
-                id: 'cause_effect',
-                name: _t('Cause & Effect (Fishbone)'),
-                category: 'business',
-                icon: 'fa-sitemap',
-                data: this._buildTemplate('Problem Statement', [
-                    { topic: _t('People'), children: [_t('Training'), _t('Communication')] },
-                    { topic: _t('Process'), children: [_t('Workflow'), _t('Standards')] },
-                    { topic: _t('Technology'), children: [_t('Systems'), _t('Tools')] },
-                    { topic: _t('Environment'), children: [_t('Culture'), _t('Resources')] },
-                ]),
-            },
-            {
-                id: 'book_report',
-                name: _t('Book Report'),
-                category: 'education',
-                icon: 'fa-book',
-                data: this._buildTemplate('Book Title', [
-                    { topic: _t('Author'), children: [_t('Background'), _t('Other Works')] },
-                    { topic: _t('Characters'), children: [_t('Protagonist'), _t('Antagonist'), _t('Supporting')] },
-                    { topic: _t('Plot'), children: [_t('Beginning'), _t('Climax'), _t('Resolution')] },
-                    { topic: _t('Themes'), children: [_t('Theme 1'), _t('Theme 2')] },
-                    { topic: _t('My Opinion'), children: [_t('Liked'), _t('Disliked'), _t('Rating')] },
-                ]),
-            },
-            {
-                id: 'study_plan',
-                name: _t('Study Plan'),
-                category: 'education',
-                icon: 'fa-graduation-cap',
-                data: this._buildTemplate('Study Plan', [
-                    { topic: _t('Subjects'), children: [_t('Subject 1'), _t('Subject 2'), _t('Subject 3')] },
-                    { topic: _t('Schedule'), children: [_t('Morning'), _t('Afternoon'), _t('Evening')] },
-                    { topic: _t('Resources'), children: [_t('Textbooks'), _t('Online'), _t('Notes')] },
-                    { topic: _t('Goals'), children: [_t('Short-term'), _t('Long-term')] },
-                ]),
-            },
-            {
-                id: 'travel_plan',
-                name: _t('Travel Plan'),
-                category: 'personal',
-                icon: 'fa-plane',
-                data: this._buildTemplate('Travel Plan', [
-                    { topic: _t('Destination'), children: [_t('Places to Visit'), _t('Activities')] },
-                    { topic: _t('Logistics'), children: [_t('Flights'), _t('Hotels'), _t('Transport')] },
-                    { topic: _t('Budget'), children: [_t('Transportation'), _t('Accommodation'), _t('Food'), _t('Activities')] },
-                    { topic: _t('Packing'), children: [_t('Essentials'), _t('Clothing'), _t('Documents')] },
-                ]),
-            },
-            {
-                id: 'weekly_plan',
-                name: _t('Weekly Plan'),
-                category: 'personal',
-                icon: 'fa-calendar',
-                data: this._buildTemplate('This Week', [
-                    { topic: _t('Monday'), children: [_t('Task 1'), _t('Task 2')] },
-                    { topic: _t('Tuesday'), children: [_t('Task 1'), _t('Task 2')] },
-                    { topic: _t('Wednesday'), children: [_t('Task 1'), _t('Task 2')] },
-                    { topic: _t('Thursday'), children: [_t('Task 1'), _t('Task 2')] },
-                    { topic: _t('Friday'), children: [_t('Task 1'), _t('Task 2')] },
-                ]),
-            },
-            {
-                id: 'resume',
-                name: _t('Resume / CV'),
-                category: 'personal',
-                icon: 'fa-id-card',
-                data: this._buildTemplate('My Name', [
-                    { topic: _t('Contact Info'), children: [_t('Email'), _t('Phone'), _t('Location')] },
-                    { topic: _t('Experience'), children: [_t('Company 1'), _t('Company 2')] },
-                    { topic: _t('Education'), children: [_t('Degree 1'), _t('Degree 2')] },
-                    { topic: _t('Skills'), children: [_t('Technical'), _t('Soft Skills'), _t('Languages')] },
-                    { topic: _t('Projects'), children: [_t('Project 1'), _t('Project 2')] },
-                ]),
-            },
-            // ===== Additional Business Templates =====
-            {
-                id: 'annual_report', name: _t('Annual Report'), category: 'business', icon: 'fa-bar-chart',
-                data: this._buildTemplate('Annual Report 2024', [
-                    { topic: _t('Executive Summary'), children: [_t('Highlights'), _t('KPIs')] },
-                    { topic: _t('Financial Results'), children: [_t('Revenue'), _t('Expenses'), _t('Profit')] },
-                    { topic: _t('Operations'), children: [_t('Production'), _t('Quality'), _t('Efficiency')] },
-                    { topic: _t('Market Overview'), children: [_t('Market Share'), _t('Growth'), _t('Trends')] },
-                    { topic: _t('Outlook'), children: [_t('Goals'), _t('Investments'), _t('Risks')] },
-                ]),
-            },
-            {
-                id: 'balance_sheet', name: _t('Balance Sheet'), category: 'business', icon: 'fa-balance-scale',
-                data: this._buildTemplate('Balance Sheet', [
-                    { topic: _t('Assets'), children: [_t('Current Assets'), _t('Fixed Assets'), _t('Intangible')] },
-                    { topic: _t('Liabilities'), children: [_t('Current'), _t('Long-term'), _t('Provisions')] },
-                    { topic: _t('Equity'), children: [_t('Share Capital'), _t('Retained Earnings')] },
-                ]),
-            },
-            {
-                id: 'business_timeline', name: _t('Business Timeline'), category: 'business', icon: 'fa-clock-o',
-                data: this._buildTemplate('Company Timeline', [
-                    { topic: _t('Q1'), children: [_t('Jan'), _t('Feb'), _t('Mar')] },
-                    { topic: _t('Q2'), children: [_t('Apr'), _t('May'), _t('Jun')] },
-                    { topic: _t('Q3'), children: [_t('Jul'), _t('Aug'), _t('Sep')] },
-                    { topic: _t('Q4'), children: [_t('Oct'), _t('Nov'), _t('Dec')] },
-                ]),
-            },
-            {
-                id: 'company_hierarchy', name: _t('Company Hierarchy'), category: 'business', icon: 'fa-sitemap',
-                data: this._buildTemplate('CEO', [
-                    { topic: _t('CTO'), children: [_t('Engineering'), _t('Product'), _t('QA')] },
-                    { topic: _t('CFO'), children: [_t('Accounting'), _t('Finance'), _t('Legal')] },
-                    { topic: _t('COO'), children: [_t('Operations'), _t('HR'), _t('Admin')] },
-                    { topic: _t('CMO'), children: [_t('Marketing'), _t('Sales'), _t('PR')] },
-                ]),
-            },
-            {
-                id: 'manufacturing_flow', name: _t('Manufacturing Flow'), category: 'business', icon: 'fa-industry',
-                data: this._buildTemplate('Manufacturing Process', [
-                    { topic: _t('Raw Materials'), children: [_t('Sourcing'), _t('Inventory'), _t('Quality Check')] },
-                    { topic: _t('Production'), children: [_t('Assembly'), _t('Testing'), _t('Packaging')] },
-                    { topic: _t('Distribution'), children: [_t('Warehouse'), _t('Shipping'), _t('Delivery')] },
-                ]),
-            },
-            {
-                id: 'sales_mgmt', name: _t('Sales Management'), category: 'business', icon: 'fa-line-chart',
-                data: this._buildTemplate('Sales Strategy', [
-                    { topic: _t('Pipeline'), children: [_t('Leads'), _t('Opportunities'), _t('Deals')] },
-                    { topic: _t('Channels'), children: [_t('Direct'), _t('Partners'), _t('Online')] },
-                    { topic: _t('Targets'), children: [_t('Monthly'), _t('Quarterly'), _t('Annual')] },
-                    { topic: _t('Team'), children: [_t('Reps'), _t('Managers'), _t('Training')] },
-                ]),
-            },
-            {
-                id: 'problem_solving', name: _t('Problem Solving'), category: 'business', icon: 'fa-puzzle-piece',
-                data: this._buildTemplate('Problem Statement', [
-                    { topic: _t('Root Causes'), children: [_t('Cause 1'), _t('Cause 2'), _t('Cause 3')] },
-                    { topic: _t('Impact'), children: [_t('Cost'), _t('Time'), _t('Quality')] },
-                    { topic: _t('Solutions'), children: [_t('Option A'), _t('Option B'), _t('Option C')] },
-                    { topic: _t('Action Plan'), children: [_t('Step 1'), _t('Step 2'), _t('Step 3')] },
-                ]),
-            },
-            // ===== Additional Education Templates =====
-            {
-                id: 'class_schedule', name: _t('Class Schedule'), category: 'education', icon: 'fa-calendar-check-o',
-                data: this._buildTemplate('Class Schedule', [
-                    { topic: _t('Monday'), children: [_t('Math'), _t('Science'), _t('English')] },
-                    { topic: _t('Tuesday'), children: [_t('History'), _t('Art'), _t('PE')] },
-                    { topic: _t('Wednesday'), children: [_t('Math'), _t('Music'), _t('Science')] },
-                    { topic: _t('Thursday'), children: [_t('English'), _t('History'), _t('Lab')] },
-                    { topic: _t('Friday'), children: [_t('Math'), _t('Review'), _t('Club')] },
-                ]),
-            },
-            {
-                id: 'compare_contrast', name: _t('Compare & Contrast'), category: 'education', icon: 'fa-columns',
-                data: this._buildTemplate('Comparison', [
-                    { topic: _t('Subject A'), children: [_t('Feature 1'), _t('Feature 2'), _t('Feature 3')], style: { background: '#007bff', color: '#fff' } },
-                    { topic: _t('Similarities'), children: [_t('Common 1'), _t('Common 2')] },
-                    { topic: _t('Subject B'), children: [_t('Feature 1'), _t('Feature 2'), _t('Feature 3')], style: { background: '#28a745', color: '#fff' } },
-                ]),
-            },
-            {
-                id: 'paper_outline', name: _t('Paper Outline'), category: 'education', icon: 'fa-file-text',
-                data: this._buildTemplate('Paper Title', [
-                    { topic: _t('Introduction'), children: [_t('Hook'), _t('Background'), _t('Thesis')] },
-                    { topic: _t('Body'), children: [_t('Argument 1'), _t('Argument 2'), _t('Argument 3')] },
-                    { topic: _t('Counter-arguments'), children: [_t('Objection 1'), _t('Rebuttal')] },
-                    { topic: _t('Conclusion'), children: [_t('Summary'), _t('Implications'), _t('Call to Action')] },
-                    { topic: _t('References'), children: [_t('Source 1'), _t('Source 2')] },
-                ]),
-            },
-            {
-                id: 'exam_review', name: _t('Exam Review'), category: 'education', icon: 'fa-check-square',
-                data: this._buildTemplate('Final Exam Review', [
-                    { topic: _t('Chapter 1'), children: [_t('Key Concepts'), _t('Formulas'), _t('Practice')] },
-                    { topic: _t('Chapter 2'), children: [_t('Key Concepts'), _t('Formulas'), _t('Practice')] },
-                    { topic: _t('Chapter 3'), children: [_t('Key Concepts'), _t('Formulas'), _t('Practice')] },
-                    { topic: _t('Study Tips'), children: [_t('Flash Cards'), _t('Group Study'), _t('Past Papers')] },
-                ]),
-            },
-            {
-                id: 'syllabus', name: _t('Syllabus'), category: 'education', icon: 'fa-graduation-cap',
-                data: this._buildTemplate('Course Name', [
-                    { topic: _t('Instructor'), children: [_t('Name'), _t('Office Hours'), _t('Contact')] },
-                    { topic: _t('Schedule'), children: [_t('Week 1-4'), _t('Week 5-8'), _t('Week 9-12')] },
-                    { topic: _t('Grading'), children: [_t('Homework 30%'), _t('Midterm 30%'), _t('Final 40%')] },
-                    { topic: _t('Resources'), children: [_t('Textbook'), _t('Online'), _t('Library')] },
-                ]),
-            },
-            // ===== Additional Personal Templates =====
-            {
-                id: 'diet_plan', name: _t('Diet Plan'), category: 'personal', icon: 'fa-cutlery',
-                data: this._buildTemplate('Diet Plan', [
-                    { topic: _t('Breakfast'), children: [_t('Option 1'), _t('Option 2')] },
-                    { topic: _t('Lunch'), children: [_t('Option 1'), _t('Option 2')] },
-                    { topic: _t('Dinner'), children: [_t('Option 1'), _t('Option 2')] },
-                    { topic: _t('Snacks'), children: [_t('Healthy'), _t('Treats')] },
-                    { topic: _t('Goals'), children: [_t('Calories'), _t('Nutrition'), _t('Exercise')] },
-                ]),
-            },
-            {
-                id: 'party_prep', name: _t('Party Preparation'), category: 'personal', icon: 'fa-glass',
-                data: this._buildTemplate('Party Plan', [
-                    { topic: _t('Guest List'), children: [_t('Friends'), _t('Family'), _t('Colleagues')] },
-                    { topic: _t('Venue'), children: [_t('Location'), _t('Decoration'), _t('Setup')] },
-                    { topic: _t('Food & Drinks'), children: [_t('Menu'), _t('Beverages'), _t('Desserts')] },
-                    { topic: _t('Entertainment'), children: [_t('Music'), _t('Games'), _t('Activities')] },
-                    { topic: _t('Budget'), children: [_t('Venue'), _t('Food'), _t('Other')] },
-                ]),
-            },
-            {
-                id: 'shopping_list', name: _t('Shopping List'), category: 'personal', icon: 'fa-shopping-cart',
-                data: this._buildTemplate('Shopping List', [
-                    { topic: _t('Groceries'), children: [_t('Fruits'), _t('Vegetables'), _t('Dairy'), _t('Meat')] },
-                    { topic: _t('Household'), children: [_t('Cleaning'), _t('Kitchen'), _t('Bathroom')] },
-                    { topic: _t('Electronics'), children: [_t('Accessories'), _t('Cables')] },
-                    { topic: _t('Clothing'), children: [_t('Tops'), _t('Bottoms'), _t('Shoes')] },
-                ]),
-            },
-        ];
-    }
-
-    _buildTemplate(rootTopic, branches) {
-        const children = branches.map((branch, i) => {
-            const childNodes = (branch.children || []).map((childTopic, j) => ({
-                id: `node_t_${i}_${j}`,
-                topic: childTopic,
-                expanded: true,
-                children: [],
-                data: { style: { background: '#f8f9fa', color: '#333333' } },
-            }));
-            return {
-                id: `node_b_${i}`,
-                topic: branch.topic,
-                expanded: true,
-                children: childNodes,
-                data: { style: branch.style || { background: '#e9ecef', color: '#333333' } },
-            };
-        });
-
-        return {
-            meta: { name: rootTopic, author: '', version: '1.0' },
-            format: 'node_tree',
-            data: {
-                id: 'root',
-                topic: rootTopic,
-                expanded: true,
-                children: children,
-                data: { style: { background: '#428bca', color: '#ffffff', 'font-weight': 'bold', 'font-size': '18px' } },
-            },
-        };
+        // 範本內容搬到 mindmap_templates_data.js（純資料，與編輯器狀態無關）。
+        return getMindmapTemplates(this._getDefaultData());
     }
 
     _showTemplateDialog(templates) {

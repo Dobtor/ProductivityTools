@@ -108,6 +108,19 @@ export class MindmapProjectBar extends Component {
         ];
     }
 
+    /**
+     * AutoComplete 的 placeholder 是**元件 prop**（運算式），不是 HTML 屬性 ——
+     * Odoo 的翻譯抽取器不會看它，直接在模板裡寫字串等於永遠不可翻譯。
+     * 走 getter 回傳 _t()，字串才會進 .po。
+     */
+    get partnerPlaceholder() {
+        return _t("Search customers…");
+    }
+
+    get projectPlaceholder() {
+        return _t("Search projects…");
+    }
+
     get partnerSources() {
         return this._nameSearchSource("res.partner");
     }
@@ -124,7 +137,7 @@ export class MindmapProjectBar extends Component {
         try {
             await this.orm.write("xmind.workbook", [this.workbookId], { [field]: value });
         } catch (e) {
-            this.notification.add(_t("更新失敗：%s", e?.message || e), { type: "danger" });
+            this.notification.add(_t("Update failed: %s", e?.message || e), { type: "danger" });
         }
     }
 

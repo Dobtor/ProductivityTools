@@ -50,7 +50,7 @@ patch(GanttController.prototype, {
     async onCreateMindmap() {
         const projectId = this._getProjectIdFromContext();
         if (!projectId) {
-            this.notification.add(_t("請先選擇專案。"), { type: "warning" });
+            this.notification.add(_t("Please select a project first."), { type: "warning" });
             return;
         }
         // action_create_mindmap creates (if missing), syncs, and returns the
@@ -67,7 +67,7 @@ patch(GanttController.prototype, {
     async onOpenMindmap() {
         const projectId = this._getProjectIdFromContext();
         if (!projectId) {
-            this.notification.add(_t("請先選擇專案。"), { type: "warning" });
+            this.notification.add(_t("Please select a project first."), { type: "warning" });
             return;
         }
         const action = await this.orm.call(
@@ -91,7 +91,7 @@ patch(GanttController.prototype, {
     async onSyncMindmap() {
         const projectId = this._getProjectIdFromContext();
         if (!projectId) {
-            this.notification.add(_t("請先選擇專案。"), { type: "warning" });
+            this.notification.add(_t("Please select a project first."), { type: "warning" });
             return;
         }
         if (this.xmindState.syncing) {

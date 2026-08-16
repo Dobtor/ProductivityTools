@@ -12,32 +12,98 @@
 }
 
 /* Toolbar */
+/* ---------------------------------------------------------------------------
+ * 工具列：仿 dobtor_project 甘特工具列（.o_gantt_toolbar / .o_gantt_tb_btn /
+ * .o_gantt_tb_sep）。--gantt-* 變數定義在 gantt_native.scss 的 :root，
+ * 而 dobtor_xmind depends dobtor_project，所以直接沿用、不重複定義；
+ * 每個都給 fallback，萬一單獨載入也不會塌掉。
+ *
+ * 版面三區：按鈕靠左 → 搜尋置中 → 客戶/專案靠右。
+ * ------------------------------------------------------------------------- */
 .o_mindmap_toolbar {
     display: flex;
     align-items: center;
-    padding: 10px 16px;
-    background: #ffffff;
-    border-bottom: 1px solid #dee2e6;
-    flex-wrap: wrap;
-    gap: 12px;
+    gap: 1px;
+    padding: 3px 8px;
+    background: var(--gantt-surface-elevated, #ffffff);
+    border-top: 1px solid var(--gantt-separator, rgba(60, 60, 67, 0.29));
+    border-bottom: 1px solid var(--gantt-separator, rgba(60, 60, 67, 0.29));
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    min-height: 34px;
     z-index: 100;
 }
 
-/* Project bar: 工具列下方的專案/客戶資訊列 */
-.o_mindmap_project_bar {
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    min-height: 34px;
-    z-index: 99;
-}
-.o_mindmap_project_bar .o_mindmap_project_link {
+/* 扁平 icon 按鈕（28x28，無邊框，hover 才有底色）—— 比照 .o_gantt_tb_btn */
+.o_mindmap_toolbar .o_mindmap_tb_btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--gantt-radius-sm, 6px);
+    background: transparent;
+    color: var(--gantt-label-secondary, rgba(60, 60, 67, 0.6));
     cursor: pointer;
-    text-decoration: none;
+    font-size: 13px;
+    position: relative;
+    transition: background 0.15s, color 0.15s;
 }
-.o_mindmap_project_bar .o_mindmap_project_link:hover {
-    text-decoration: underline;
+.o_mindmap_toolbar .o_mindmap_tb_btn:hover:not(:disabled) {
+    background: var(--gantt-fill-secondary, rgba(120, 120, 128, 0.16));
+    color: var(--gantt-label-primary, #000);
 }
-/* 工具列最左：資料所屬麵包屑（模型 + 記錄名 + 齒輪 → 開啟表單） */
+.o_mindmap_toolbar .o_mindmap_tb_btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+.o_mindmap_toolbar .o_mindmap_tb_btn.active {
+    background: var(--gantt-fill-secondary, rgba(120, 120, 128, 0.16));
+    color: var(--gantt-accent-blue, #007AFF);
+}
+/* 帶下拉的按鈕：去掉 Bootstrap 的 caret，改用右下角小三角，維持 28x28 */
+.o_mindmap_toolbar .o_mindmap_tb_btn.dropdown-toggle::after {
+    display: none;
+}
+.o_mindmap_toolbar .o_mindmap_tb_btn.o_mindmap_tb_has_menu::before {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    border: 3px solid transparent;
+    border-bottom-color: currentColor;
+    border-right-color: currentColor;
+    opacity: 0.55;
+}
+
+/* 直向分隔線 —— 比照 .o_gantt_tb_sep */
+.o_mindmap_toolbar .o_mindmap_tb_sep {
+    width: 1px;
+    height: 18px;
+    background: var(--gantt-separator, rgba(60, 60, 67, 0.29));
+    margin: 0 3px;
+    flex-shrink: 0;
+}
+
+/* 中央搜尋區：兩側各一個彈性空白，把它推到正中間 */
+.o_mindmap_toolbar .o_mindmap_tb_spacer {
+    flex: 1 1 0;
+    min-width: 8px;
+}
+
+/* 右側客戶/專案（原本在工具列下方獨立一列，改成同列靠右） */
+.o_mindmap_toolbar .o_mindmap_tb_right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* 工具列內的下拉選單：按鈕本身沒有 .btn-group 包覆了，定位交給 Bootstrap */
+.o_mindmap_toolbar .dropdown-menu {
+    font-size: 0.85rem;
+}/* 工具列最左：資料所屬麵包屑（模型 + 記錄名 + 齒輪 → 開啟表單） */
 .o_mindmap_breadcrumb {
     cursor: pointer;
     padding: 2px 6px;
@@ -325,15 +391,7 @@
     color: #5a3e00;
     font-weight: 600;
     vertical-align: middle;
-}
-
-/* Marker Selector Dialog */
-.o_marker_selector {
-    max-height: 400px;
-    overflow-y: auto;
-}
-
-.o_marker_category {
+}.o_marker_category {
     margin-bottom: 16px;
 }
 
@@ -506,72 +564,11 @@
     font-size: 12px;
     line-height: 1;
     flex-shrink: 0;
-}
-
-/* Labels Display */
-.xmind-node .node-labels {
-    position: absolute;
-    bottom: -20px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 4px;
-}
-
-.xmind-node .node-label {
-    background: #ffc107;
-    color: #000;
-    padding: 1px 6px;
-    border-radius: 10px;
-    font-size: 10px;
-    white-space: nowrap;
-}
-
-/* Note Indicator */
-.xmind-node.has-note::after {
-    content: '\f249';
-    font-family: 'Font Awesome 5 Free';
-    font-weight: 400;
-    position: absolute;
-    top: -8px;
-    left: -8px;
-    background: #17a2b8;
-    color: #fff;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px;
-}
-
-/* Relationship Lines */
-.relationship-line {
-    stroke: #999;
-    stroke-width: 2;
-    stroke-dasharray: 5, 5;
-    fill: none;
-}
-
-.relationship-label {
-    fill: #666;
-    font-size: 12px;
-}
-
-/* Drag and Drop Styles */
+}/* Drag and Drop Styles */
 .xmind-node.dragging {
     cursor: grabbing !important;
     opacity: 0.5 !important;
-}
-
-.xmind-node.drop-target {
-    box-shadow: 0 0 0 4px rgba(40, 167, 69, 0.5), 0 0 20px rgba(40, 167, 69, 0.3) !important;
-    transform: scale(1.05);
-    transition: all 0.2s ease;
-}
-
-.drag-ghost {
+}.drag-ghost {
     cursor: grabbing !important;
 }
 
@@ -594,57 +591,10 @@
 @keyframes o-xmind-fadeIn {
     from { opacity: 0; transform: scale(0.9); }
     to { opacity: 1; transform: scale(1); }
-}
-
-/* Floating Topic Option Dialog */
-.floating-topic-option {
-    position: absolute;
-    background: white;
-    border: 2px solid #6c757d;
-    border-radius: 8px;
-    padding: 15px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    z-index: 2000;
-}
-
-.floating-topic-option h6 {
-    margin-bottom: 10px;
-    color: #495057;
-}
-
-.floating-topic-option .btn {
-    margin: 3px;
-}
-
-/* Drop Zone Visual Feedback */
-.o_mindmap_canvas.drop-zone-active::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border: 3px dashed #28a745;
-    background: rgba(40, 167, 69, 0.05);
-    pointer-events: none;
-    animation: o-xmind-borderPulse 2s infinite;
-}
-
-@keyframes o-xmind-borderPulse {
+}@keyframes o-xmind-borderPulse {
     0%, 100% { border-color: rgba(40, 167, 69, 0.3); }
     50% { border-color: rgba(40, 167, 69, 0.8); }
-}
-
-/* Connection Preview Line */
-.connection-preview {
-    stroke: #28a745;
-    stroke-width: 3;
-    stroke-dasharray: 8, 4;
-    fill: none;
-    animation: o-xmind-dash 1s linear infinite;
-}
-
-@keyframes o-xmind-dash {
+}@keyframes o-xmind-dash {
     to {
         stroke-dashoffset: -24;
     }
@@ -798,7 +748,6 @@
     border-color: #007bff !important;
 }
 
-
 /* Relationship Styles */
 .relationship-path {
     cursor: pointer;
@@ -820,172 +769,17 @@
 
 .draggable-control:active {
     cursor: grabbing !important;
-}
-
-.control-line {
-    pointer-events: none;
-}
-
-/* Relationship Properties Dialog */
-.o_relationship_properties {
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.o_relationship_properties .form-group {
-    margin-bottom: 10px;
-}
-
-.o_relationship_properties label.small {
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 4px;
-}
-
-.o_relationship_properties h6 {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.o_relationship_properties hr {
-    margin: 12px 0;
-}
-
-.o_relationship_properties .btn-group-sm .btn.active {
-    background-color: #007bff;
-    color: #fff;
-    border-color: #007bff;
-}
-
-/* Relationship label block (floating-topic style) */
+}/* Relationship label block (floating-topic style) */
 .label-background {
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
-}
-
-/* Relationship selection highlight */
-.relationship-selected .relationship-path {
-    stroke-opacity: 0.8;
-    filter: drop-shadow(0 0 4px rgba(0, 123, 255, 0.5));
-}
-
-/* Boundary Properties Dialog */
-.o_boundary_properties {
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.o_boundary_properties .form-group {
-    margin-bottom: 10px;
-}
-
-.o_boundary_properties label.small {
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 4px;
-}
-
-.o_boundary_properties h6 {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.o_boundary_properties hr {
-    margin: 12px 0;
-}
-
-.o_boundary_properties .btn-group-sm .btn.active {
-    background-color: #007bff;
-    color: #fff;
-    border-color: #007bff;
-}
-
-.o_boundary_properties input[type="range"] {
-    vertical-align: middle;
-}
-
-/* Boundary group styles */
+}/* Boundary group styles */
 .boundary-group {
     transition: opacity 0.2s ease;
 }
 
 .boundary-group:hover {
     opacity: 0.9;
-}
-
-/* Summary Properties Dialog */
-.o_summary_properties {
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.o_summary_properties .form-group {
-    margin-bottom: 10px;
-}
-
-.o_summary_properties label.small {
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 4px;
-}
-
-.o_summary_properties h6 {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.o_summary_properties hr {
-    margin: 12px 0;
-}
-
-.o_summary_properties .btn-group-sm .btn.active {
-    background-color: #007bff;
-    color: #fff;
-    border-color: #007bff;
-}
-
-.o_summary_topic_selection {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 4px;
-}
-
-.o_summary_topic_selection select {
-    font-size: 0.85rem;
-}
-
-/* Summary Topic Node Styles */
-.xmind-node.summary-topic {
-    position: relative;
-}
-
-.xmind-node.summary-topic::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    border-radius: inherit;
-    pointer-events: none;
-}
-
-/* Summary Branch Overlay */
-.summary-branch-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 1;
-}
-
-.summary-branch-overlay path {
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-/* Summary Group Styles */
+}/* Summary Group Styles */
 .summary-group {
     cursor: pointer;
 }
@@ -1056,16 +850,7 @@
 
 .o_xmind_context_menu .dropdown-divider {
     margin: 4px 0;
-}
-
-/* noBorder shape */
-.xmind-node.shape-noBorder {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-/* Overview Panel */
+}/* Overview Panel */
 .o_mindmap_overview {
     transition: opacity 0.2s;
 }
@@ -1111,4 +896,126 @@
    fill the fixed host box instead. */
 .o_xmind_embed_host .o_mindmap_editor_container {
     height: 100%;
+}
+
+/* ---------------------------------------------------------------------------
+ * 工具列中央：主題搜尋 / 篩選（仿 Odoo 搜尋列外觀，作用於當前心智圖的主題）
+ * ------------------------------------------------------------------------- */
+.o_mindmap_search {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 4px 0 8px;
+    min-width: 220px;
+    max-width: 420px;
+    flex: 0 1 360px;
+    background: var(--gantt-bg-secondary, #f2f2f7);
+    border: 1px solid transparent;
+    border-radius: var(--gantt-radius-sm, 6px);
+    transition: border-color 0.15s, background 0.15s;
+}
+.o_mindmap_search:focus-within {
+    background: var(--gantt-bg-primary, #fff);
+    border-color: var(--gantt-accent-blue, #007AFF);
+}
+.o_mindmap_search .o_mindmap_search_icon {
+    color: var(--gantt-label-tertiary, rgba(60, 60, 67, 0.3));
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.o_mindmap_search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.8rem;
+    color: var(--gantt-label-primary, #000);
+}
+.o_mindmap_search input::placeholder {
+    color: var(--gantt-label-tertiary, rgba(60, 60, 67, 0.3));
+}
+/* 命中計數 */
+.o_mindmap_search .o_mindmap_search_count {
+    font-size: 0.7rem;
+    color: var(--gantt-label-tertiary, rgba(60, 60, 67, 0.3));
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+/* 清除鈕 / 篩選鈕：比工具列按鈕小一號，塞在搜尋框內 */
+.o_mindmap_search .o_mindmap_search_btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    color: var(--gantt-label-secondary, rgba(60, 60, 67, 0.6));
+    font-size: 11px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.o_mindmap_search .o_mindmap_search_btn:hover {
+    background: var(--gantt-fill-secondary, rgba(120, 120, 128, 0.16));
+}
+.o_mindmap_search .o_mindmap_search_btn.active {
+    color: var(--gantt-accent-blue, #007AFF);
+}
+/* 已套用的篩選以 facet 呈現（仿 Odoo searchview facet） */
+.o_mindmap_search .o_mindmap_facet {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 18px;
+    padding: 0 4px 0 6px;
+    border-radius: 3px;
+    background: var(--gantt-accent-blue, #007AFF);
+    color: #fff;
+    font-size: 0.68rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.o_mindmap_search .o_mindmap_facet i {
+    cursor: pointer;
+    opacity: 0.75;
+}
+.o_mindmap_search .o_mindmap_facet i:hover {
+    opacity: 1;
+}
+
+/* 搜尋結果在畫布上的呈現：命中高亮、未命中淡化 */
+.o_mindmap_editor_container.o_mindmap_searching jmnode:not(.o_mindmap_hit) {
+    opacity: 0.25;
+}
+.o_mindmap_editor_container jmnode.o_mindmap_hit {
+    outline: 2px solid var(--gantt-accent-orange, #FF9500);
+    outline-offset: 1px;
+}
+
+/* ===== 分頁列（MindmapSheetTabs）=====
+   原本這些是 _renderSheetTabs() 裡的 element.style.cssText 內嵌字串；
+   改寫成 OWL 子元件時搬進 CSS，樣式才跟著佈景走、也才能被覆寫。 */
+.o_xmind_sheet_tabs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 8px;
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    font-size: 12px;
+    overflow-x: auto;
+}
+
+.o_xmind_sheet_tabs .o_xmind_sheet_tab {
+    cursor: pointer;
+    padding: 4px 10px;
+    user-select: none;
+}
+
+.o_xmind_sheet_tabs .o_xmind_sheet_add {
+    cursor: pointer;
+    padding: 4px 8px;
 }

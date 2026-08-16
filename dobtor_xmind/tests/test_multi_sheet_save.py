@@ -104,3 +104,54 @@ class TestMultiSheetSave(TransactionCase):
         s2.sequence = 10
         wb.invalidate_recordset(['sheet_ids'])
         self.assertEqual(wb.sheet_ids[0], wb.sheet_ids.sorted('sequence')[0])
+
+    # ----- 版本快照必須綁定分頁 -----
+
+    def test_07_revision_records_its_sheet(self):
+        wb, s1, s2 = self._make()
+        wb.save_mindmap_data(self._data('Root1', ['A']), sheet_id=s1.id)
+        wb.save_mindmap_data(self._data('Root2', ['X']), sheet_id=s2.id)
+
+        revs = self.env['xmind.revision'].search(
+            [('workbook_id', '=', wb.id)], order='id asc')
+        self.assertEqual(len(revs), 2)
+        self.assertEqual(revs[0].sheet_id, s1)
+        self.assertEqual(revs[1].sheet_id, s2)
+
+    def test_08_restore_writes_back_to_its_own_sheet(self):
+        """還原 Sheet2 的版本不可覆蓋 Sheet1（與存檔同一類的資料遺失）。"""
+        wb, s1, s2 = self._make()
+        wb.save_mindmap_data(self._data('Root1', ['Keep me']), sheet_id=s1.id)
+        wb.save_mindmap_data(self._data('Root2', ['X']), sheet_id=s2.id)
+        # 再動一次 Sheet2，讓它有第二個版本可還原
+        wb.save_mindmap_data(self._data('Root2', ['Y']), sheet_id=s2.id)
+
+        rev_s2 = self.env['xmind.revision'].search(
+            [('workbook_id', '=', wb.id), ('sheet_id', '=', s2.id)], order='id asc')[0]
+        rev_s2.action_restore()
+
+        self.assertIn('Keep me', self._titles(s1), 'Sheet 1 不可被還原動作覆蓋')
+        self.assertIn('X', self._titles(s2), 'Sheet 2 應回到該版本')
+
+    def test_09_legacy_revision_without_sheet_falls_back(self):
+        """加上 sheet_id 之前建立的舊版本仍應可還原（寫回第一張）。"""
+        wb, s1, _s2 = self._make()
+        wb.save_mindmap_data(self._data('Root1', ['A']), sheet_id=s1.id)
+        rev = self.env['xmind.revision'].search(
+            [('workbook_id', '=', wb.id)], limit=1)
+        rev.sheet_id = False          # 模擬舊資料
+        rev.action_restore()
+        self.assertIn('A', self._titles(s1))
+
+    def test_10_revision_pruning_is_per_sheet(self):
+        """每張分頁各自保留 50 版 —— 依工作簿修剪會讓忙碌的分頁擠掉另一張的歷史。"""
+        wb, s1, s2 = self._make()
+        for i in range(3):
+            wb.save_mindmap_data(self._data('R1', ['A%d' % i]), sheet_id=s1.id)
+        for i in range(3):
+            wb.save_mindmap_data(self._data('R2', ['B%d' % i]), sheet_id=s2.id)
+        Rev = self.env['xmind.revision']
+        self.assertEqual(
+            Rev.search_count([('workbook_id', '=', wb.id), ('sheet_id', '=', s1.id)]), 3)
+        self.assertEqual(
+            Rev.search_count([('workbook_id', '=', wb.id), ('sheet_id', '=', s2.id)]), 3)
