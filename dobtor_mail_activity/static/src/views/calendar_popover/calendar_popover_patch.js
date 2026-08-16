@@ -4,61 +4,40 @@ import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar
 import { patch } from "@web/core/utils/patch";
 
 /**
- * Patch AttendeeCalendarCommonPopover to add meeting note functionality
+ * 在日曆事件 popover 加上「會議記錄」入口。
  *
- * This patch adds a "Create Note" button to the calendar event popover,
- * allowing users to quickly create meeting notes from the calendar view.
- * Note: this.orm and this.actionService are already initialized by the parent setup().
+ * 後端在 models/calendar_event.py：note_count / action_create_note /
+ * action_view_notes；關聯欄位是 note.note.calendar_event_id。
+ *
+ * note_count 必須是 stored 欄位，且要在日曆視圖 arch 內宣告
+ * （views/calendar_event_views.xml 的繼承），popover 的 record.rawRecord 才讀得到。
+ *
+ * this.orm / this.actionService 由父類別 setup() 建立，這裡不需重複取得。
  */
 patch(AttendeeCalendarCommonPopover.prototype, {
-
-    /**
-     * Create a meeting note for the current event
-     */
+    /** 建立本會議的會議記錄並開啟 */
     async onCreateNote() {
-        const record = this.props.record;
-        const eventId = record.id;
-
-        // Call the action to create a note linked to this event
-        const action = await this.orm.call(
-            "calendar.event",
-            "action_create_note",
-            [[eventId]]
-        );
-
+        const action = await this.orm.call("calendar.event", "action_create_note", [
+            [this.props.record.id],
+        ]);
         this.props.close();
         this.actionService.doAction(action);
     },
 
-    /**
-     * View notes linked to this event
-     */
+    /** 檢視本會議既有的會議記錄 */
     async onViewNotes() {
-        const record = this.props.record;
-        const eventId = record.id;
-
-        const action = await this.orm.call(
-            "calendar.event",
-            "action_view_notes",
-            [[eventId]]
-        );
-
+        const action = await this.orm.call("calendar.event", "action_view_notes", [
+            [this.props.record.id],
+        ]);
         this.props.close();
         this.actionService.doAction(action);
     },
 
-    /**
-     * Check if the event has linked notes
-     */
-    get hasNotes() {
-        const noteCount = this.props.record.rawRecord?.note_count;
-        return noteCount && noteCount > 0;
-    },
-
-    /**
-     * Get the note count for display
-     */
     get noteCount() {
         return this.props.record.rawRecord?.note_count || 0;
+    },
+
+    get hasNotes() {
+        return this.noteCount > 0;
     },
 });

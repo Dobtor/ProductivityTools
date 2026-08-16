@@ -24,6 +24,10 @@ import {
     notifyActivityChanged,
     subscribeActivityDeleted,
 } from "@dobtor_mail_activity/editor/activity_signal";
+import {
+    openActivityWizard,
+    ACTIVITY_WIZARDS,
+} from "@dobtor_mail_activity/utils/activity_actions";
 
 export class ActivityPowerboxPlugin extends Plugin {
     static id = "dobtorMailActivity";
@@ -163,16 +167,10 @@ export class ActivityPowerboxPlugin extends Plugin {
             context.default_target_required = true;
         }
 
-        this.services.action.doAction(
-            {
-                type: "ir.actions.act_window",
-                name: _t("Create To-do"),
-                res_model: "mail.activity.create.wizard",
-                view_mode: "form",
-                views: [[false, "form"]],
-                target: "new",
-                context,
-            },
+        openActivityWizard(
+            this.services.action,
+            ACTIVITY_WIZARDS.create,
+            context,
             {
                 // wizard.action_create_activity 回傳 infos.activity_id；
                 // 建立成功後於游標處插入 inline 膠囊，並通知清單重載。

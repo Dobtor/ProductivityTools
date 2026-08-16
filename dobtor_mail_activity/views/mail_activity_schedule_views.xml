@@ -23,82 +23,99 @@
         <field name="model">mail.activity</field>
         <field name="inherit_id" ref="mail.mail_activity_view_search"/>
         <field name="arch" type="xml">
-            <xpath expr="//search" position="inside">
-                <!-- 指派篩選 -->
-                <separator/>
-                <filter string="Assigned by Me" name="assigned_by_me"
+            <!--
+                分組規則提醒：同一 <separator/> 區間內的 filter 之間是 OR，
+                跨 separator 是 AND。以下所有插入點都是刻意挑的，改動前請先確認
+                新位置落在哪個區間。
+
+                另：核心 mail.mail_activity_view_search 是 mail.activity 唯一的
+                search view，本繼承同時作用於系統列的 mail.mail_activity_action_my
+                （它以 search_default_ 引用 filter_user_id_uid /
+                filter_date_deadline_past / filter_date_deadline_today），
+                因此那三個 core filter 一律保持原樣不得移除。
+            -->
+
+            <!-- 1. 指派：與 core 的「My Activities」同組（中間無 separator → OR），
+                    使用者可一次看「指派給我 ＋ 我建立的」。
+                    原 assigned_to_me 已移除：它與 core 的 filter_user_id_uid 重複，
+                    且多了 ('create_uid','!=',uid) 會漏掉「自己建立給自己」的待辦。
+                    原 all_activities（domain=[]）也移除：勾了等於沒勾，卻會讓同組
+                    其他條件 OR 成恆真，使用者容易誤解。 -->
+            <xpath expr="//filter[@name='filter_user_id_uid']" position="after">
+                <filter string="Created by Me" name="created_by_me"
                         domain="[('create_uid', '=', uid)]"/>
-                <filter string="Assigned to Me" name="assigned_to_me"
-                        domain="[('user_id', '=', uid), ('create_uid', '!=', uid)]"/>
-                <filter string="All" name="all_activities"
-                        domain="[]"/>
-                <separator/>
-                <!-- 狀態篩選 -->
+            </xpath>
+
+            <!-- 2. 時間：併進 core 的日期區（Overdue / Today / Future 同組 → OR）。
+                    模組原本自帶的 overdue / due_today 與 core 完全重複，已移除。 -->
+            <xpath expr="//filter[@name='filter_date_deadline_future']" position="after">
+                <filter string="Next 7 Days" name="due_next_week"
+                        domain="[('date_deadline', '&gt;=', context_today().strftime('%Y-%m-%d')),
+                                 ('date_deadline', '&lt;=', (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+            </xpath>
+
+            <!-- 3. 狀態三態取代 core 的「Done」(active=False)。
+                    三者同組互斥值 → 可 OR，「進行中 ＋ 已完成」一起看才成立
+                    （舊版 In Progress 與 Completed 被 separator 隔開＝AND＝空集合）。
+                    name="active_activities" 必須保留：四個 action 以
+                    search_default_active_activities 引用它。
+                    這些 action 都帶 active_test:False（否則 done/cancelled 記錄的
+                    active=False 會被 ORM 擋掉，Completed/Cancelled/Merged 三個
+                    篩選會永遠回 0 筆）。 -->
+            <xpath expr="//filter[@name='filter_archived']" position="replace">
                 <filter string="In Progress" name="active_activities"
-                        domain="[('active', '=', True)]"/>
-                <separator/>
+                        domain="[('activity_status', '=', 'active')]"/>
                 <filter string="Completed" name="completed"
                         domain="[('activity_status', '=', 'done')]"/>
                 <filter string="Cancelled" name="cancelled"
                         domain="[('activity_status', '=', 'cancelled')]"/>
-                <separator/>
+                <filter string="Merged" name="merged"
+                        domain="[('activity_status', '=', 'merged')]"/>
+            </xpath>
+
+            <!-- 4. 其餘篩選，插在 Group By 區塊之前。
+                    原 week_prev / week0 / week1 已移除：週次由控制面板的週次選擇器
+                    （ActivityWeekSearchModel）統一注入，兩套並存會 AND 成空集合。 -->
+            <xpath expr="//search/group[@string='Group By']" position="before">
+                <!-- 不補前導 separator：core 在被取代的 filter_archived 之後
+                     本來就有一個，補了會變連續兩個分隔線 -->
                 <filter string="Transferred" name="transferred"
                         domain="[('is_transferred', '=', True)]"/>
                 <separator/>
-                <!-- 優先級篩選 -->
+                <!-- 優先級（同組 → 「緊急或重要」） -->
                 <filter string="Urgent" name="urgent"
                         domain="[('urgency', '=', 'urgent')]"/>
                 <filter string="Important" name="important"
                         domain="[('importance', '=', 'important')]"/>
                 <separator/>
-                <!-- 時間篩選 -->
-                <filter string="Due Today" name="due_today"
-                        domain="[('date_deadline', '=', context_today().strftime('%Y-%m-%d'))]"/>
-                <filter string="Overdue" name="overdue"
-                        domain="[('date_deadline', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
-                <filter string="Next 7 Days" name="due_next_week"
-                        domain="[('date_deadline', '&gt;=', context_today().strftime('%Y-%m-%d')),
-                                 ('date_deadline', '&lt;=', (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
-                <separator/>
-                <!-- 排程篩選 -->
                 <filter string="Waiting Schedule" name="waiting_schedule"
                         domain="[('schedule_status', '=', 'waiting')]"/>
-                <separator/>
-                <!-- 週次篩選 -->
-                <filter string="Previous Week" name="week_prev"
-                        domain="[('schedule_week_number', '=', -1)]"/>
-                <filter string="This Week" name="week0"
-                        domain="[('schedule_week_number', '=', 0)]"/>
-                <filter string="Next Week" name="week1"
-                        domain="[('schedule_week_number', '=', 1)]"/>
-                <separator/>
-                <!-- 分組條件 -->
-                <group expand="0" string="Group By">
-                    <filter string="By Week" name="group_by_schedule_week"
-                            context="{'group_by': 'schedule_week'}"/>
-                    <filter string="By Activity Status" name="group_by_activity_status"
-                            context="{'group_by': 'activity_status'}"/>
-                    <filter string="By Schedule Status" name="group_by_schedule_status"
-                            context="{'group_by': 'schedule_status'}"/>
-                    <filter string="By Urgency" name="group_by_urgency"
-                            context="{'group_by': 'urgency'}"/>
-                    <filter string="By Importance" name="group_by_importance"
-                            context="{'group_by': 'importance'}"/>
-                    <filter string="By Customer" name="group_by_partner"
-                            context="{'group_by': 'partner_id'}"/>
-                    <filter string="By Assignee" name="group_by_user"
-                            context="{'group_by': 'user_id'}"/>
-                    <separator/>
-                    <!-- 時間分組 -->
-                    <filter string="By Planned Date" name="group_by_planned_date"
-                            context="{'group_by': 'planned_date:day'}"/>
-                    <filter string="By Due Date" name="group_by_deadline"
-                            context="{'group_by': 'date_deadline:day'}"/>
-                </group>
+            </xpath>
 
-                <!-- 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程 / 負責人。
-                     不設 view_types → 清單與看板皆顯示；fold="1" → 預設收闔。
-                     五個欄位皆 stored 可供 read_group 計數。 -->
+            <!-- 5. 分組：併進 core 的 Group By（原本另開一組，UI 會出現兩段）。
+                    已移除與 core 重複的 By Assignee（core: group_by_user_id）
+                    與 By Due Date（core: date_deadline，且 core 版帶日期區間子選單）。 -->
+            <xpath expr="//filter[@name='activittype']" position="after">
+                <filter string="By Week" name="group_by_schedule_week"
+                        context="{'group_by': 'schedule_week'}"/>
+                <filter string="By Activity Status" name="group_by_activity_status"
+                        context="{'group_by': 'activity_status'}"/>
+                <filter string="By Schedule Status" name="group_by_schedule_status"
+                        context="{'group_by': 'schedule_status'}"/>
+                <filter string="By Urgency" name="group_by_urgency"
+                        context="{'group_by': 'urgency'}"/>
+                <filter string="By Importance" name="group_by_importance"
+                        context="{'group_by': 'importance'}"/>
+                <filter string="By Customer" name="group_by_partner"
+                        context="{'group_by': 'partner_id'}"/>
+                <filter string="By Planned Date" name="group_by_planned_date"
+                        context="{'group_by': 'planned_date:day'}"/>
+            </xpath>
+
+            <!-- 6. 左側 search panel：客戶 / 緊急程度 / 重要性 / 排程 / 負責人。
+                    不設 view_types → 清單與看板皆顯示；fold="1" → 預設收闔。
+                    五個欄位皆 stored 可供 read_group 計數。 -->
+            <xpath expr="//search" position="inside">
                 <searchpanel fold="1">
                     <field name="partner_id" string="Customer" select="one"
                            icon="fa-building" hierarchize="0" enable_counters="1"/>
@@ -133,24 +150,33 @@
         <field name="model">mail.activity</field>
         <field name="priority">25</field>
         <field name="arch" type="xml">
-            <form string="My Created Activities">
+            <!-- string 與 action/選單同名，讓既有 zh_TW 條目的四個 #: 參照
+                 （action name / menu name / 本表單 / 清單）一次涵蓋 -->
+            <form string="All To-dos">
                 <header>
-                    <!-- 操作按鈕置於 header 最左（Odoo 標準位置；此表單無排程 statusbar） -->
+                    <!-- 操作按鈕置於 header 最左（Odoo 標準位置；此表單無排程 statusbar）
+                         本表單現由「待辦總覽」使用，會開到別人建立的待辦 →
+                         改派／取消只對建立者（或系統管理員）開放，條件與
+                         mail_activity_view_form_schedule 一致 -->
                     <button name="action_transfer_activity" type="object"
                             string="Transfer"
                             invisible="not active"/>
                     <button name="action_reassign_activity" type="object"
                             string="Reassign"
-                            invisible="not active"/>
+                            invisible="not active or not can_edit_as_creator"/>
                     <button name="action_open_document" type="object"
                             string="Document"/>
                     <button name="action_cancel" type="object"
                             string="Cancel" class="btn-secondary"
-                            invisible="not active"/>
+                            invisible="not active or not (can_edit_as_creator or can_edit_as_assignee)"/>
+                    <button name="action_restore" type="object"
+                            string="Restore"
+                            invisible="active or not can_edit_as_creator"/>
                 </header>
                 <sheet>
                     <!-- 隱藏欄位 -->
                     <field name="active" invisible="1"/>
+                    <field name="create_uid" invisible="1"/>
                     <field name="feedback" invisible="1"/>
                     <field name="is_transferred" invisible="1"/>
                     <field name="assignment_history_ids" invisible="1"/>
@@ -160,8 +186,10 @@
                     <field name="can_edit_as_creator" invisible="1"/>
                     <field name="can_edit_as_assignee" invisible="1"/>
 
-                    <!-- 提示訊息 -->
-                    <div class="alert alert-info" role="alert">
+                    <!-- 提示訊息：僅對自己建立的待辦顯示。「待辦總覽」會開到別人
+                         建立的記錄，此時這句話是錯的 -->
+                    <div class="alert alert-info" role="alert"
+                         invisible="create_uid != uid">
                         <i class="fa fa-info-circle"/>
                         <span class="ms-1">You are the creator of this activity. Schedule operations (planned date, schedule status) can only be set by the assignee.</span>
                     </div>
@@ -283,9 +311,14 @@
         <field name="arch" type="xml">
             <list
                   js_class="activity_list"
-                  decoration-danger="date_deadline &lt; current_date"
-                  decoration-warning="date_deadline == current_date">
+                  decoration-danger="active and date_deadline &lt; current_date"
+                  decoration-warning="active and date_deadline == current_date"
+                  decoration-muted="not active">
                 <field name="active" column_invisible="1"/>
+                <!-- 「待辦總覽」會列出別人建立的待辦 → 用來遮蔽改派／取消 -->
+                <field name="can_edit_as_creator" column_invisible="1"/>
+                <field name="can_edit_as_assignee" column_invisible="1"/>
+                <field name="create_uid" string="Created By" widget="many2one_avatar_user" optional="show"/>
                 <field name="summary"/>
                 <field name="activity_type_id"/>
                 <field name="user_id" string="Assign To" widget="many2one_avatar_user"
@@ -310,12 +343,16 @@
                        decoration-danger="activity_status == 'cancelled'"/>
                 <button name="action_reassign_activity" type="object"
                         string="Reassign" icon="fa-user-plus"
-                        invisible="not active"/>
+                        invisible="not active or not can_edit_as_creator"/>
                 <button name="action_transfer_activity" type="object"
-                        string="Transfer" icon="fa-exchange"/>
+                        string="Transfer" icon="fa-exchange"
+                        invisible="not active"/>
                 <button name="action_cancel" type="object"
                         string="Cancel" icon="fa-times"
-                        invisible="not active"/>
+                        invisible="not active or not (can_edit_as_creator or can_edit_as_assignee)"/>
+                <button name="action_restore" type="object"
+                        string="Restore" icon="fa-undo" class="btn-secondary"
+                        invisible="active or not can_edit_as_creator"/>
             </list>
         </field>
     </record>
@@ -342,6 +379,9 @@
                 <field name="estimated_hours"/>
                 <field name="active"/>
                 <field name="activity_status"/>
+                <!-- 「待辦總覽」會列出別人建立的待辦 → 用來遮蔽取消 -->
+                <field name="can_edit_as_creator"/>
+                <field name="can_edit_as_assignee"/>
 
                 <templates>
                     <t t-name="card" class="flex-column">
@@ -431,7 +471,8 @@
                             <i class="fa fa-exchange fa-fw"/> Transfer
                         </a>
                         <div class="dropdown-divider"/>
-                        <a t-if="record.active.raw_value" role="menuitem" type="object" name="action_cancel" class="dropdown-item text-danger">
+                        <a t-if="record.active.raw_value and (record.can_edit_as_creator.raw_value or record.can_edit_as_assignee.raw_value)"
+                           role="menuitem" type="object" name="action_cancel" class="dropdown-item text-danger">
                             <i class="fa fa-times fa-fw"/> Cancel
                         </a>
                     </t>
@@ -444,7 +485,19 @@
     <!--                        Actions                               -->
     <!-- ============================================================ -->
 
-    <!-- Action - 我的待辦事項 -->
+    <!-- Action - 我的待辦事項（含歷史） -->
+    <!--
+        原本「進行中」與「歷史」分成兩個選單（action_mail_activity_my_history），
+        使用者要查自己做過什麼得換地方。改成同一張清單用狀態篩選切換：
+
+        active_test: False —— 解除 ORM 自動附加的 active=True。done/cancelled 的
+        待辦 active=False，不解除的話 search view 的 Completed / Cancelled 篩選
+        永遠回 0 筆（這正是當初必須另開歷史選單的原因）。
+
+        search_default_active_activities —— 預設仍只看進行中，既有使用者行為不變；
+        取消該 facet 或改勾 Completed / Cancelled 就看得到歷史。三者同組可 OR
+        （見 mail_activity_view_search_inherit）。
+    -->
     <record id="action_mail_activity_my_schedule" model="ir.actions.act_window">
         <field name="name">My Activities</field>
         <field name="res_model">mail.activity</field>
@@ -453,7 +506,9 @@
         <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[('user_id', '=', uid)]</field>
-        <field name="context">{'search_default_active_activities': 1}</field>
+        <field name="context">{'force_search_count': 1,
+                               'active_test': False,
+                               'search_default_active_activities': 1}</field>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'kanban', 'view_id': ref('mail_activity_view_kanban_schedule')}),
             (0, 0, {'view_mode': 'calendar', 'view_id': ref('mail_activity_view_calendar_schedule')}),
@@ -482,7 +537,11 @@
                   multi_edit="1"
                   expand="1"
                   decoration-danger="date_deadline &lt; current_date"
-                  decoration-warning="date_deadline == current_date">
+                  decoration-warning="date_deadline == current_date"
+                  decoration-muted="not active">
+                <!-- action 帶 active_test:False，取消 In Progress 篩選後會出現已取消的
+                     未指派待辦 → 需要 active 供按鈕條件與整列淡化使用 -->
+                <field name="active" column_invisible="1"/>
                 <!-- 客戶已於左側 search panel 呈現，清單表頭預設不再顯示（可由欄位選單開啟）-->
                 <field name="partner_id" optional="hide"/>
                 <field name="res_document_display" string="Related Document" optional="show"/>
@@ -505,9 +564,15 @@
                        decoration-info="state == 'planned'"
                        decoration-warning="state == 'today'"
                        decoration-danger="state == 'overdue'"/>
+                <field name="activity_status" string="Activity Status" widget="badge" optional="hide"
+                       decoration-success="activity_status == 'done'"
+                       decoration-danger="activity_status == 'cancelled'"/>
                 <field name="create_uid" string="Created By" widget="many2one_avatar_user"/>
+                <!-- 已取消/已完成的待辦不可領取（表單版本已有相同條件；
+                     action_claim_activity 後端只擋「已指派」，不擋已封存） -->
                 <button name="action_claim_activity" type="object" string="Claim"
-                        icon="fa-hand-paper-o" class="btn-primary"/>
+                        icon="fa-hand-paper-o" class="btn-primary"
+                        invisible="not active"/>
             </list>
         </field>
     </record>
@@ -621,13 +686,30 @@
     </record>
 
     <!-- Action - 尚未指派 -->
+    <!--
+        「不分誰建立、不分是否過期，只要未指派就在這裡」：
+        domain 只看 user_id，不看 create_uid，也不看任何日期。
+
+        activity_default_week: 'all' —— 關鍵。控制面板的週次選擇器預設是「本週」
+        （ActivityWeekSearchModel 會注入 `waiting OR week_number = 0`），而從其他文件
+        Transfer 進來的未指派待辦可能已帶星期（schedule_status != 'waiting'）並落在
+        上週，預設就會被藏起來，正好違反「過期的也要看得到」。改成預設「全部」，
+        週次選擇器仍在，使用者要看單週隨時可切。
+
+        active_test: False + search_default_active_activities —— 把「只看進行中」
+        從 ORM 的隱式行為改成一個可取消的 facet：預設畫面與過去相同，但使用者可
+        改勾 Completed / Cancelled 查已取消的未指派待辦（否則那兩個篩選永遠 0 筆）。
+    -->
     <record id="action_mail_activity_unassigned" model="ir.actions.act_window">
         <field name="name">Unassigned</field>
         <field name="res_model">mail.activity</field>
         <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('user_id', '=', False)]</field>
-        <field name="context">{}</field>
+        <field name="context">{'force_search_count': 1,
+                               'activity_default_week': 'all',
+                               'active_test': False,
+                               'search_default_active_activities': 1}</field>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('mail_activity_view_list_unassigned')}),
             (0, 0, {'view_mode': 'kanban', 'view_id': ref('mail_activity_view_kanban_schedule')}),
@@ -636,12 +718,17 @@
     </record>
 
     <!-- Action - 我的歷史代辦（我建立的 + 我被指派的） -->
+    <!--
+        已不再掛任何選單：歷史併入 action_mail_activity_my_schedule。
+        record 保留是為了不讓既有的書籤／我的最愛連結變成「動作不存在」。
+        要新增歷史入口請改用主選單 + Completed/Cancelled 篩選，不要再掛這個。
+    -->
     <record id="action_mail_activity_my_history" model="ir.actions.act_window">
         <field name="name">My Activity History</field>
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="domain">['|', ('create_uid', '=', uid), ('user_id', '=', uid), ('active', '=', False)]</field>
-        <field name="context">{'active_test': False}</field>
+        <field name="context">{'force_search_count': 1, 'active_test': False}</field>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('mail_activity_view_list_history')}),
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
@@ -658,7 +745,7 @@
         <field name="res_model">mail.activity</field>
         <field name="view_mode">list,form</field>
         <field name="domain">[('active', '=', False)]</field>
-        <field name="context">{'active_test': False}</field>
+        <field name="context">{'force_search_count': 1, 'active_test': False}</field>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('mail_activity_view_list_history')}),
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_schedule')}),
@@ -676,7 +763,7 @@
         <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">kanban,calendar,list,form</field>
         <field name="domain">[]</field>
-        <field name="context">{'search_default_active_activities': 1}</field>
+        <field name="context">{'force_search_count': 1, 'search_default_active_activities': 1}</field>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'kanban', 'view_id': ref('mail_activity_view_kanban_schedule')}),
             (0, 0, {'view_mode': 'calendar', 'view_id': ref('mail_activity_view_calendar_schedule')}),
@@ -689,22 +776,84 @@
         </field>
     </record>
 
-    <!-- Action - 我建立的待辦 -->
+    <!-- Action - 待辦總覽（全部待辦，預設篩「我建立的」） -->
+    <!--
+        由「我建立的待辦」擴大為全部待辦：domain 放空，改用可取消的 facet
+        search_default_created_by_me 呈現預設視角，使用者取消它即可看全公司待辦。
+
+        可見範圍由 ir.rule 決定：security.xml 的 mail_activity_rule_user_read_all
+        給全體內部使用者唯讀全部；沒有那條規則的話這裡的 domain=[] 只會落到
+        「指派給我 ∪ 我建立 ∪ 未指派」。
+
+        active_test:False —— 同「我的待辦」，讓 Completed / Cancelled 篩選有效。
+
+        本 action 用的是「派工視角」三張視圖（Reassign / Cancel / 可改 Assign To），
+        與 Management 下 action_mail_activity_all 的「執行視角」（Complete / Postpone
+        / 行事曆）互補，兩者 domain 相同但操作面不同。
+    -->
     <record id="action_mail_activity_created_by_me" model="ir.actions.act_window">
-        <field name="name">My Created Activities</field>
+        <field name="name">All To-dos</field>
         <field name="res_model">mail.activity</field>
+        <field name="search_view_id" ref="mail.mail_activity_view_search"/>
         <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('create_uid', '=', uid)]</field>
-        <field name="context">{'search_default_active_activities': 1, 'created_by_me_view': True}</field>
+        <field name="domain">[]</field>
+        <field name="context">{'force_search_count': 1,
+                               'active_test': False,
+                               'search_default_active_activities': 1,
+                               'search_default_created_by_me': 1}</field>
         <field name="view_ids" eval="[(5, 0, 0),
             (0, 0, {'view_mode': 'list', 'view_id': ref('mail_activity_view_list_created')}),
             (0, 0, {'view_mode': 'kanban', 'view_id': ref('mail_activity_view_kanban_created')}),
             (0, 0, {'view_mode': 'form', 'view_id': ref('mail_activity_view_form_created')}),
         ]"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">You haven't created any activities yet</p>
-            <p>Activities you create will appear here.</p>
+            <p class="o_view_nocontent_smiling_face">No activities yet</p>
+            <p>Shows every to-do. The default filter narrows it to the ones you created.</p>
         </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!--            改排週次（保持星期幾，整批搬到另一週）                 -->
+    <!-- ============================================================ -->
+    <!--
+        接上 mail.activity.action_schedule_to_week_* 三個方法。
+
+        用 ir.actions.server + binding 而非在清單/看板加按鈕：
+          - 清單與看板的操作列已各有 5 顆與 3 顆按鈕，再加三顆會過度擁擠；
+          - binding 讓它們出現在 ⚙️ 動作選單，且**多選時自動變成批次操作**
+            （code 內的 records 就是選取集合，action_schedule_to_week 本身
+             以 `for activity in self` 迴圈實作，本來就支援多筆）；
+          - 純 XML，不需要再寫前端程式碼。
+
+        與「延期」的語意差別（兩者並存、不重複）：
+          延期  → 移到「待排程」，清空計畫日期，需填原因並留下延期歷史；
+          改排週次 → 保持原星期幾直接搬到目標週，不留歷史、不需原因。
+    -->
+    <record id="action_schedule_activities_to_week_prev" model="ir.actions.server">
+        <field name="name">Move to Previous Week</field>
+        <field name="model_id" ref="mail.model_mail_activity"/>
+        <field name="binding_model_id" ref="mail.model_mail_activity"/>
+        <field name="binding_view_types">list,kanban</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_schedule_to_week_prev()</field>
+    </record>
+
+    <record id="action_schedule_activities_to_week0" model="ir.actions.server">
+        <field name="name">Move to This Week</field>
+        <field name="model_id" ref="mail.model_mail_activity"/>
+        <field name="binding_model_id" ref="mail.model_mail_activity"/>
+        <field name="binding_view_types">list,kanban</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_schedule_to_week0()</field>
+    </record>
+
+    <record id="action_schedule_activities_to_week1" model="ir.actions.server">
+        <field name="name">Move to Next Week</field>
+        <field name="model_id" ref="mail.model_mail_activity"/>
+        <field name="binding_model_id" ref="mail.model_mail_activity"/>
+        <field name="binding_view_types">list,kanban</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_schedule_to_week1()</field>
     </record>
 
 </odoo>

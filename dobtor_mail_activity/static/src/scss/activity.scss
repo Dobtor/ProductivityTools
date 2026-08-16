@@ -17,18 +17,6 @@
         font-size: large;
     }
 
-    // Chatter panel responsive widths
-    @include media-breakpoint-up(xxl) {
-        .o_widget_activity_chatter_panel {
-            width: 35%;
-        }
-    }
-
-    @include media-breakpoint-down(xxl, $o-extra-grid-breakpoints) {
-        .o_widget_activity_chatter_panel {
-            min-width: 100%;
-        }
-    }
 }
 
 // Full width form sheet for xxl screens

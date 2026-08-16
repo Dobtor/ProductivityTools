@@ -7,6 +7,7 @@ import { useService } from "@web/core/utils/hooks";
 import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 import { registry } from "@web/core/registry";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 // Register activity command category for command palette
 registry.category("command_categories").add("dobtor-activity", {}, { sequence: 105 });
@@ -58,16 +59,8 @@ patch(ActivityMenu.prototype, {
      */
     async createActivity() {
         // 統一走「建立待辦」wizard（無目標文件 → 顯示 target 輸入）
-        await this.actionService.doAction({
-            type: "ir.actions.act_window",
-            name: _t("Create To-do"),
-            res_model: "mail.activity.create.wizard",
-            view_mode: "form",
-            views: [[false, "form"]],
-            target: "new",
-            context: {
-                default_activity_user_id: user.userId,
-            },
+        await openActivityWizard(this.actionService, ACTIVITY_WIZARDS.create, {
+            default_activity_user_id: user.userId,
         });
     },
 

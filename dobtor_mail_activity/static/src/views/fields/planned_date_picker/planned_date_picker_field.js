@@ -16,7 +16,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useDateTimePicker } from "@web/core/datetime/datetime_hook";
-import { serializeDate, today } from "@web/core/l10n/dates";
+import { today } from "@web/core/l10n/dates";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
 const DAY_LABELS = {
@@ -34,7 +34,6 @@ export class PlannedDatePickerField extends Component {
     static props = { ...standardFieldProps };
 
     setup() {
-        this.orm = useService("orm");
         this.notification = useService("notification");
 
         const getPickerProps = () => ({
@@ -53,12 +52,12 @@ export class PlannedDatePickerField extends Component {
                 if (!value) {
                     return;
                 }
-                await this.orm.write(
-                    "mail.activity",
-                    [this.props.record.resId],
-                    { planned_date: serializeDate(value) }
-                );
-                // 後端反推 schedule_status / 順延 deadline → 重載以重新分組顯示。
+                // 走 record 層而非 orm.write：保留 record 的髒值/onchange 語意，
+                // 也讓同一筆記錄的其他欄位（schedule_status 等）由 ORM 回寫。
+                await this.props.record.update({ [this.props.name]: value });
+                await this.props.record.save();
+                // 後端 write() 會反推 schedule_status 並順延 deadline，且可能讓本筆
+                // 落到其他週次/分組 → 仍需重載整個 root 以重新分組顯示。
                 await this.props.record.model.root.load();
                 // 提示：遠期日期會落在目前週次檢視之外，於「全部」檢視可見。
                 this.notification.add(

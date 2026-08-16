@@ -5,11 +5,18 @@ import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { useState } from "@odoo/owl";
+import {
+    openActivityWizard,
+    ACTIVITY_WIZARDS,
+} from "@dobtor_mail_activity/utils/activity_actions";
 
 /**
- * Patch ActivityMarkAsDone - 添加「登錄並繼續」和「延期至下週」按鈕
+ * Patch ActivityMarkAsDone — 在原生「標示完成」popover 加上本模組的動作：
+ * 登錄並繼續 / 延期 / 轉移 / 取消 / 變更指派。
  *
- * 參考 dobtor_mail_activity.mail_activity_done_wizard_view_form 的按鈕設計
+ * 五個動作的流程完全相同（關 popover → 開 wizard → 等關閉 → 通知 thread 刷新），
+ * 故收斂到 _openActivityWizard()；wizard 本身一律以 XML action 開啟
+ * （見 utils/activity_actions.js），標題只在語意確實不同時才覆寫。
  */
 patch(ActivityMarkAsDone.prototype, {
     setup() {
@@ -17,183 +24,56 @@ patch(ActivityMarkAsDone.prototype, {
         this.actionService = useService("action");
         this.store = useState(useService("mail.store"));
     },
+
     /**
-     * 登錄並繼續：開啟完成 wizard（僅登錄工時，不完成待辦）
+     * 開啟針對目前這筆待辦的 wizard，關閉後通知 chatter 刷新。
+     *
+     * @param {string} wizardKey ACTIVITY_WIZARDS 的鍵
+     * @param {string} [name]    標題覆寫（僅在同一 wizard 有不同語意時使用）
      */
-    async onClickLogAndContinue() {
-        const { res_id, res_model } = this.props.activity;
-        const thread = this.store.Thread.insert({
-            model: res_model,
-            id: res_id,
-        });
+    async _openActivityWizard(wizardKey, name) {
+        const { id, res_id, res_model } = this.props.activity;
+        // 先取得 thread：popover 關閉後 props 可能失效，故在關閉前取好
+        const thread = this.store.Thread.insert({ model: res_model, id: res_id });
 
         if (this.props.close) {
             this.props.close();
         }
 
-        await new Promise((resolve) => {
-            this.actionService.doAction(
-                {
-                    type: "ir.actions.act_window",
-                    name: _t("Log and Continue"),
-                    res_model: "mail.activity.done.wizard",
-                    view_mode: "form",
-                    views: [[false, "form"]],
-                    target: "new",
-                    context: {
-                        default_activity_id: this.props.activity.id,
-                    },
-                },
-                {
-                    onClose: resolve,
-                }
-            );
-        });
+        await new Promise((resolve) =>
+            openActivityWizard(
+                this.actionService,
+                ACTIVITY_WIZARDS[wizardKey],
+                { default_activity_id: id },
+                { onClose: resolve, ...(name ? { name } : {}) }
+            )
+        );
 
         this.props.onActivityChanged(thread);
     },
 
-    /**
-     * 延期至下週：開啟延期 wizard
-     */
-    async onClickPostpone() {
-        const { res_id, res_model } = this.props.activity;
-        const thread = this.store.Thread.insert({
-            model: res_model,
-            id: res_id,
-        });
-
-        if (this.props.close) {
-            this.props.close();
-        }
-
-        await new Promise((resolve) => {
-            this.actionService.doAction(
-                {
-                    type: "ir.actions.act_window",
-                    name: _t("Postpone to Next Week"),
-                    res_model: "mail.activity.postpone.wizard",
-                    view_mode: "form",
-                    views: [[false, "form"]],
-                    target: "new",
-                    context: {
-                        default_activity_id: this.props.activity.id,
-                    },
-                },
-                {
-                    onClose: resolve,
-                }
-            );
-        });
-
-        this.props.onActivityChanged(thread);
+    /** 登錄並繼續：開完成 wizard，但只登錄工時、不完成待辦 —— 與「完成」語意不同，故覆寫標題。 */
+    onClickLogAndContinue() {
+        return this._openActivityWizard("done", _t("Log and Continue"));
     },
 
-    /**
-     * 轉移：開啟轉移 wizard
-     */
-    async onClickTransfer() {
-        const { res_id, res_model } = this.props.activity;
-        const thread = this.store.Thread.insert({
-            model: res_model,
-            id: res_id,
-        });
-
-        if (this.props.close) {
-            this.props.close();
-        }
-
-        await new Promise((resolve) => {
-            this.actionService.doAction(
-                {
-                    type: "ir.actions.act_window",
-                    name: _t("Transfer"),
-                    res_model: "mail.activity.transfer.wizard",
-                    view_mode: "form",
-                    views: [[false, "form"]],
-                    target: "new",
-                    context: {
-                        default_activity_id: this.props.activity.id,
-                    },
-                },
-                {
-                    onClose: resolve,
-                }
-            );
-        });
-
-        this.props.onActivityChanged(thread);
+    /** 延期至下週 */
+    onClickPostpone() {
+        return this._openActivityWizard("postpone");
     },
 
-    /**
-     * 取消待辦：開啟取消原因 wizard（需填原因才確認，記錄方式比照完成）
-     */
-    async onClickCancelActivity() {
-        const { res_id, res_model } = this.props.activity;
-        const thread = this.store.Thread.insert({
-            model: res_model,
-            id: res_id,
-        });
-
-        if (this.props.close) {
-            this.props.close();
-        }
-
-        await new Promise((resolve) => {
-            this.actionService.doAction(
-                {
-                    type: "ir.actions.act_window",
-                    name: _t("Cancel Activity"),
-                    res_model: "mail.activity.cancel.wizard",
-                    view_mode: "form",
-                    views: [[false, "form"]],
-                    target: "new",
-                    context: {
-                        default_activity_id: this.props.activity.id,
-                    },
-                },
-                {
-                    onClose: resolve,
-                }
-            );
-        });
-
-        this.props.onActivityChanged(thread);
+    /** 轉移到其他文件 */
+    onClickTransfer() {
+        return this._openActivityWizard("transfer");
     },
 
-    /**
-     * 變更指派：開啟重新指派 wizard
-     */
-    async onClickReassign() {
-        const { res_id, res_model } = this.props.activity;
-        const thread = this.store.Thread.insert({
-            model: res_model,
-            id: res_id,
-        });
+    /** 取消待辦（需填原因） */
+    onClickCancelActivity() {
+        return this._openActivityWizard("cancel");
+    },
 
-        if (this.props.close) {
-            this.props.close();
-        }
-
-        await new Promise((resolve) => {
-            this.actionService.doAction(
-                {
-                    type: "ir.actions.act_window",
-                    name: _t("Reassign"),
-                    res_model: "mail.activity.reassign.wizard",
-                    view_mode: "form",
-                    views: [[false, "form"]],
-                    target: "new",
-                    context: {
-                        default_activity_id: this.props.activity.id,
-                    },
-                },
-                {
-                    onClose: resolve,
-                }
-            );
-        });
-
-        this.props.onActivityChanged(thread);
+    /** 變更指派對象 */
+    onClickReassign() {
+        return this._openActivityWizard("reassign");
     },
 });

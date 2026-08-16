@@ -19,7 +19,14 @@ patch(ActivityListPopoverItem.prototype, {
 
     get hasTransferButton() {
         const activity = this.props.activity;
-        return activity.state !== "done" && activity.can_write;
+        // 已完成、已取消、已合併的待辦都不該再被轉移 —— 尤其「已合併」只是個
+        // 指向主待辦的空殼（activity_status='merged'），轉移它沒有意義。
+        const closed = ["done", "cancelled", "merged"];
+        return (
+            activity.state !== "done" &&
+            !closed.includes(activity.activity_status) &&
+            activity.can_write
+        );
     },
 
     async onClickTransfer() {

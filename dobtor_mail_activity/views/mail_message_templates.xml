@@ -49,7 +49,11 @@
                                 <div class="o-mail-Message-body small"
                                      style="word-break: break-word; overflow-wrap: break-word;">
                                     <t t-if="msg.body">
-                                        <t t-raw="msg.body"/>
+                                        <!-- t-out 而非 t-raw：後者自 15 起已 deprecated
+                                             （ir_qweb.py 每次渲染都會發 warning，19 將移除）。
+                                             msg.body 是 fields.Html → 回傳 Markup，
+                                             t-out 不會二次跳脫，輸出與 t-raw 相同。 -->
+                                        <t t-out="msg.body"/>
                                     </t>
                                     <t t-else="">
                                         <span class="text-muted fst-italic">(No content)</span>

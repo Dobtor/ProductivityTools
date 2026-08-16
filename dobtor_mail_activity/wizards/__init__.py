@@ -7,3 +7,4 @@ from . import mail_activity_postpone_wizard
 from . import mail_activity_transfer_wizard
 from . import mail_activity_reassign_wizard
 from . import mail_activity_create_wizard
+from . import mail_activity_merge_wizard

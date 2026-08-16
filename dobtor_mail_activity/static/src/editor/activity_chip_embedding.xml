@@ -4,11 +4,21 @@
     <!-- 摘要移到滑鼠 hover（title）；膠囊只顯示頭像 / 急迫 / 重要 / 截止日。 -->
     <t t-name="dobtor_mail_activity.EmbeddedActivityChip">
         <span class="o_dobtor_activity_chip" t-att-class="chipClass"
-              t-att-title="state.summary" t-on-click="onClick">
-            <t t-if="state.missing">
+              t-att-title="tooltip" t-on-click="onClick">
+            <!-- 載入失敗（暫時性）：與「已刪除」用不同圖示與文案，點擊可重試 -->
+            <t t-if="state.failed">
+                <i class="fa fa-fw fa-refresh"/>
+                <span class="o_dobtor_chip_label" t-esc="label"/>
+            </t>
+            <t t-elif="state.missing">
                 <i class="fa fa-fw fa-exclamation-circle"/>
                 <span class="o_dobtor_chip_label" t-esc="label"/>
             </t>
+            <t t-else="">
+                <!-- 原待辦已被合併：顯示轉向圖示，內容為主待辦 -->
+                <i t-if="state.redirected" class="fa fa-fw fa-compress o_dobtor_chip_merged"/>
+            </t>
+            <t t-if="state.failed or state.missing"/>
             <t t-elif="!state.active">
                 <!-- 完成 → 打勾；取消 → 叉 -->
                 <i class="fa fa-fw" t-att-class="state.status === 'cancelled' ? 'fa-times' : 'fa-check'"/>

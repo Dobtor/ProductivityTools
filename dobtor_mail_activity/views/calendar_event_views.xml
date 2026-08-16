@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!--   日曆檢視：宣告 note_count 供 popover 的「會議記錄」按鈕使用    -->
+    <!-- ============================================================ -->
+    <!--
+        AttendeeCalendarCommonPopover 讀的是 record.rawRecord.note_count。
+        日曆模型只會抓取 arch 內出現過的欄位，所以必須在這裡宣告；
+        invisible="1" 讓它不佔版面，只是把欄位帶進資料集。
+    -->
+    <record id="calendar_event_view_calendar_inherit_productivity" model="ir.ui.view">
+        <field name="name">calendar.event.calendar.inherit.productivity</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_calendar"/>
+        <field name="arch" type="xml">
+            <!-- 錨在根元素而非某個 <field>：core 的這張日曆視圖並沒有
+                 <field name="name">，用具名欄位當錨點會在升級時直接 ParseError。 -->
+            <xpath expr="//calendar" position="inside">
+                <field name="note_count" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -2,7 +2,7 @@
 
 import { Store } from "@mail/core/common/store_service";
 import { patch } from "@web/core/utils/patch";
-import { _t } from "@web/core/l10n/translation";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 /**
  * 將原生 chatter「排程活動」/ 活動視圖排程導向統一的建立待辦 wizard
@@ -22,16 +22,10 @@ patch(Store.prototype, {
                 : {}),
         };
         return new Promise((resolve) =>
-            this.env.services.action.doAction(
-                {
-                    type: "ir.actions.act_window",
-                    name: _t("Create To-do"),
-                    res_model: "mail.activity.create.wizard",
-                    view_mode: "form",
-                    views: [[false, "form"]],
-                    target: "new",
-                    context,
-                },
+            openActivityWizard(
+                this.env.services.action,
+                ACTIVITY_WIZARDS.create,
+                context,
                 { onClose: resolve }
             )
         );

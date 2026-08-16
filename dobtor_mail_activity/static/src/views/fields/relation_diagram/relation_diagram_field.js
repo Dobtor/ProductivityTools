@@ -5,6 +5,7 @@ import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
+import { RelationDiagramTodoOverlay } from "./todo_overlay";
 
 /**
  * 需求二/三/五：待辦「專案關聯」向右邏輯圖欄位小工具。
@@ -33,6 +34,15 @@ export class ActivityRelationDiagramField extends Component {
             showActivities: false,
         });
         this.jm = null;
+        // 節點內「未完成待辦」清單是插進 vendored 渲染器產生的 DOM，OWL 管不到，
+        // 故整組行為（含事件監聽的登記與移除）關進 overlay 類別。
+        this.todoOverlay = new RelationDiagramTodoOverlay({
+            getMindMap: () => this.jm,
+            onOpenActivity: (activityId) => this._openActivity(activityId),
+            onStateChange: (allOpen) => {
+                this.state.showActivities = allOpen;
+            },
+        });
         this._maxDepth = 0;
         this._resizeObserver = null;
         this._resizeTimer = null;
@@ -88,6 +98,8 @@ export class ActivityRelationDiagramField extends Component {
     }
 
     destroyMap() {
+        // 先移除節點內覆蓋層登記的監聽（不依賴 innerHTML 清空的間接回收）
+        this.todoOverlay.dispose();
         // 卸下視窗大小監聽
         if (this._resizeObserver) {
             try {
@@ -210,7 +222,7 @@ export class ActivityRelationDiagramField extends Component {
         // 預設展開 客戶→專案→res_name（結構節點的 expanded 旗標已設）；渲染完成
         // 後把「未完成待辦」下拉清單注入各記錄節點的 DOM，再 refresh 重量測 + fit。
         this.jm.show(tree, () => {
-            this._injectTodoLists();
+            this.todoOverlay.inject();
             if (this.jm && typeof this.jm.view?.refresh === "function") {
                 this.jm.view.refresh();
             }
@@ -288,136 +300,7 @@ export class ActivityRelationDiagramField extends Component {
         if (!this.jm || !this.jm.mind) {
             return;
         }
-        this.state.showActivities = !this.state.showActivities;
-        this._setAllTodos(this.state.showActivities);
-    }
-
-    // ===== 節點內「未完成待辦」下拉清單（level-down/up）=====
-
-    /** level-down（收合態，點了展開）/ level-up（展開態，點了收合）SVG。 */
-    _levelIcon(open) {
-        return open
-            ? '<svg class="o_ard_ic" viewBox="0 0 16 16"><path d="M3 12 H10 V7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 4 l-2.4 3 h4.8 z" fill="currentColor"/></svg>'
-            : '<svg class="o_ard_ic" viewBox="0 0 16 16"><path d="M3 4 H10 V9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 12 l-2.4 -3 h4.8 z" fill="currentColor"/></svg>';
-    }
-
-    /** 把每個帶 data.todos 的記錄節點，於其 DOM box 內注入切換鈕 + 隱藏清單。 */
-    _injectTodoLists() {
-        if (!this.jm || !this.jm.mind) {
-            return;
-        }
-        const nodes = this.jm.mind.nodes;
-        for (const id in nodes) {
-            const n = nodes[id];
-            const todos = n.data && n.data.todos;
-            const el = n._el;
-            if (!todos || !todos.length || !el || el.dataset.ardTodos === "1") {
-                continue;
-            }
-            el.dataset.ardTodos = "1";
-            n._todosOpen = false;
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "o_ard_todo_toggle";
-            btn.innerHTML = this._levelIcon(false);
-            btn.title = _t("Show open to-dos (%s)", todos.length);
-            btn.addEventListener("click", (ev) => {
-                ev.stopPropagation();
-                this._toggleNodeTodos(n);
-            });
-            el.insertBefore(btn, el.firstChild);
-            const list = this._buildTodoList(todos);
-            el.appendChild(list);
-            n._todoListEl = list;
-            n._todoBtnEl = btn;
-        }
-    }
-
-    _buildTodoList(todos) {
-        const box = document.createElement("div");
-        box.className = "o_ard_todos";
-        box.style.display = "none";
-        for (const t of todos) {
-            const row = document.createElement("div");
-            row.className = "o_ard_todo";
-            const dot = document.createElement("span");
-            dot.className = "o_ard_dot " + (t.severity || "ok");
-            const txt = document.createElement("span");
-            txt.className = "o_ard_todo_txt";
-            txt.textContent = t.label || "";
-            row.appendChild(dot);
-            row.appendChild(txt);
-            if (t.deadline) {
-                const when = document.createElement("span");
-                when.className = "o_ard_todo_when";
-                when.textContent = t.deadline;
-                row.appendChild(when);
-            }
-            row.addEventListener("click", (ev) => {
-                ev.stopPropagation();
-                this._openActivity(t.activity_id);
-            });
-            box.appendChild(row);
-        }
-        return box;
-    }
-
-    /** 單一節點展/收：切換清單顯示 → refresh 重量測（兄弟自動下移、不碰撞）。
-     * 不強制 fit，避免展開單一節點就把整圖縮放/置中（跳動）；使用者可自行縮放/
-     * 平移。總開關（眼睛）與視窗變動才會 fit。 */
-    _toggleNodeTodos(n) {
-        n._todosOpen = !n._todosOpen;
-        if (n._todoListEl) {
-            n._todoListEl.style.display = n._todosOpen ? "" : "none";
-        }
-        if (n._todoBtnEl) {
-            n._todoBtnEl.innerHTML = this._levelIcon(n._todosOpen);
-        }
-        // 眼睛總開關狀態與實際 DOM 同步：全部開才顯示為「已展開」
-        this._syncEyeState();
-        if (this.jm.view && this.jm.view.refresh) {
-            this.jm.view.refresh();
-        }
-    }
-
-    /** 依實際各節點清單開合，同步眼睛 icon 的 state.showActivities。 */
-    _syncEyeState() {
-        if (!this.jm || !this.jm.mind) {
-            return;
-        }
-        const nodes = this.jm.mind.nodes;
-        let total = 0;
-        let open = 0;
-        for (const id in nodes) {
-            const n = nodes[id];
-            if (!n._todoListEl) {
-                continue;
-            }
-            total += 1;
-            if (n._todosOpen) {
-                open += 1;
-            }
-        }
-        this.state.showActivities = total > 0 && open === total;
-    }
-
-    /** 總開關：一次設定所有節點待辦清單的展/收。 */
-    _setAllTodos(show) {
-        const nodes = this.jm.mind.nodes;
-        for (const id in nodes) {
-            const n = nodes[id];
-            if (!n._todoListEl) {
-                continue;
-            }
-            n._todosOpen = show;
-            n._todoListEl.style.display = show ? "" : "none";
-            if (n._todoBtnEl) {
-                n._todoBtnEl.innerHTML = this._levelIcon(show);
-            }
-        }
-        if (this.jm.view && this.jm.view.refresh) {
-            this.jm.view.refresh();
-        }
+        this.todoOverlay.toggleAll(!this.state.showActivities);
         if (this.jm.fitToContainer) {
             this.jm.fitToContainer();
         }

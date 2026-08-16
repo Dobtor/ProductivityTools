@@ -5,7 +5,7 @@ import { calendarView } from "@web/views/calendar/calendar_view";
 import { CalendarController } from "@web/views/calendar/calendar_controller";
 import { CalendarModel } from "@web/views/calendar/calendar_model";
 import { useService } from "@web/core/utils/hooks";
-import { _t } from "@web/core/l10n/translation";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 /**
  * 唯讀展示模型：停用事件拖曳/縮放（改期一律走排程 form / 拖曳卡 / 延期，
@@ -29,16 +29,10 @@ export class ActivityCalendarController extends CalendarController {
     }
 
     createRecord() {
-        return this.actionService.doAction(
-            {
-                type: "ir.actions.act_window",
-                name: _t("Create To-do"),
-                res_model: "mail.activity.create.wizard",
-                view_mode: "form",
-                views: [[false, "form"]],
-                target: "new",
-                context: this.props.context || {},
-            },
+        return openActivityWizard(
+            this.actionService,
+            ACTIVITY_WIZARDS.create,
+            this.props.context || {},
             { onClose: () => this.model.load() }
         );
     }

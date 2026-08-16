@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Advanced Activity Management',
-    'version': '18.0.1.6.0',
+    'version': '18.0.1.8.0',
     'category': 'Productivity',
     'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
     'description': """
@@ -101,6 +101,7 @@ Main Features:
         'views/crm_lead_views.xml',
         'views/project_project_views.xml',
         'views/mail_activity_timesheet_views.xml',
+        'views/calendar_event_views.xml',
         'views/project_todo_override.xml',
         'views/menu_views.xml',
     ],
@@ -124,6 +125,11 @@ Main Features:
             'dobtor_mail_activity/static/src/editor/**/*',
             # Styles
             'dobtor_mail_activity/static/src/scss/**/*',
+        ],
+        # Tour（僅測試時載入）：週次選擇器與搜尋 facet 的共存驗證，
+        # 這條路徑純前端資料流，Python 測不到。
+        'web.assets_tests': [
+            'dobtor_mail_activity/static/tests/tours/**/*',
         ],
     },
     'installable': True,

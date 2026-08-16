@@ -100,9 +100,57 @@
 1. 系統設定 > 生產力工具 > 預設工時表專案
 2. 或待辦關聯的文件（如 project.task）有對應專案
 
+## 升級 Odoo 版本前的檢查清單
+
+本模組對 Odoo 核心的覆寫面積偏大。**每次升級 Odoo 小版本（18.0.x → 18.0.y）或大版本
+前，請逐項比對官方原始碼是否變動**；下表的「對齊版本」代表最後一次人工核對的版本。
+
+### 後端：覆寫 core 方法
+
+| 檔案 | 方法 | 官方原始碼 | 對齊版本 | 風險 |
+|---|---|---|---|---|
+| `models/mail_activity.py` | `_search` | `mail/models/mail_activity.py` | 18.0 | **高** — 整段重寫，繞過官方存取過濾以支援 res 為空的獨立待辦。官方若調整過濾邏輯不會自動反映 |
+| `models/mail_activity.py` | `_check_access` | 同上 | 18.0 | **高** — 同理，獨立待辦自官方文件 gating 拆出 |
+| `models/mail_activity.py` | `create` | 同上 | 18.0 | **最高** — `_CREATE_BYPASS_APPLICABLE` 為真時直接呼叫 `models.Model.create`，**完全繞過** 官方 `mail.activity.create`（繞過 18.0 的 UnboundLocalError bug）。官方在該方法新增的任何邏輯都會靜默失效。官方修掉該 bug 後應移除此 bypass |
+| `models/mail_activity.py` | `write` / `_action_done` / `_action_cancel` / `action_done` / `action_notify` / `_compute_res_name` | 同上 | 18.0 | 中 — 皆有呼叫 `super()` |
+| `models/mail_activity_merge.py` | `unlink` | 同上 | 18.0 | 低 — 呼叫 `super()` |
+| `models/res_users.py` | `_get_activity_groups` | `mail/models/res_users.py` | 18.0 | 中 — 系統匣待辦分組，另行併入獨立待辦 |
+| `models/crm_lead.py` | `create` / `write` | `crm/models/crm_lead.py` | 18.0 | 低 |
+| `models/note_note.py` | `name_create` | — | 18.0 | 低 |
+| `models/weekly_report.py`、四個 wizard | `default_get` | — | 18.0 | 低 |
+
+### 前端：patch core 元件
+
+| 檔案 | 被 patch 的元件 | 官方模組 |
+|---|---|---|
+| `core/message_created_activities.js` | `Message` | `@mail/core/common/message` |
+| `web/activity/activity_markasdone_patch.js` | `ActivityMarkAsDone` | `@mail/core/web/activity_markasdone_popover` |
+| `web/activity/activity_menu_patch.js` | `ActivityMenu` | `@mail/core/web/activity_menu` |
+| `web/activity/activity_list_popover_item_patch.js` | `ActivityListPopoverItem` | `@mail/core/web/activity_list_popover_item` |
+| `web/activity/schedule_activity_patch.js` | `Store.scheduleActivity` | `@mail/core/common/store_service` |
+| `web/chatter/chatter_patch.js` | `Chatter.components`（加入 `RelatedNotes`） | `@mail/chatter/web_portal/chatter` |
+| `editor/html_field_activity_patch.js` | `HtmlField.getConfig` | `@html_editor/fields/html_field` |
+| `views/calendar_popover/calendar_popover_patch.js` | `AttendeeCalendarCommonPopover` | `@calendar/...` |
+
+### 繼承 core 視圖 / 覆寫 core 選單
+
+| 檔案 | 繼承目標 |
+|---|---|
+| `views/mail_activity_schedule_views.xml` | `mail.mail_activity_view_search`（**core 上 mail.activity 唯一的 search view**，同時作用於系統列的 `mail.mail_activity_action_my`，該 action 以 `search_default_` 引用 `filter_user_id_uid` / `filter_date_deadline_past` / `filter_date_deadline_today` → 這三個 filter 不得移除） |
+| `views/mail_activity_views.xml` | `mail.mail_activity_view_form_popup` |
+| `views/mail_activity_type_views.xml` | `mail.mail_activity_type_view_form` |
+| `views/project_todo_override.xml` | **覆寫** `project_todo.menu_todo_todos` 的 action。因本模組 depends `project_todo` 而載入在後才生效；若單獨 `-u project_todo` 會被還原，需連同本模組一起升級 |
+| `views/crm_lead_views.xml` / `project_project_views.xml` / `res_company_views.xml` / `res_config_settings_views.xml` / `res_users_views.xml` | `crm` / `project` / `base` 的表單 |
+
+### 升級後務必回歸的路徑
+
+1. `-u dobtor_mail_activity` 無 ParseError（xpath 錨點失效會中斷升級，一次只噴一顆）
+2. `--test-tags /dobtor_mail_activity`（78 個 Python 測試 + 2 支 tour）
+3. 手動：週次選擇器 × 搜尋 facet 共存、合併後膠囊轉向、未指派清單的過期項目可見
+
 ## 版本資訊
 
-- **版本**：18.0.1.6.0
+- **版本**：18.0.1.8.0
 - **相容性**：Odoo 18
 - **授權**：LGPL-3
 

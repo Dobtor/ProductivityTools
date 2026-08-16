@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+import logging
 
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class MailActivityTransferConfig(models.Model):
@@ -89,13 +92,33 @@ class MailActivityTransferConfig(models.Model):
         Returns:
             list: [(model, name), ...] 格式的選項列表
 
-        此方法供 mail.activity 的 target_ref Reference 欄位使用
+        此方法供 mail.activity 的 target_ref Reference 欄位使用，
+        並由關聯邏輯圖與建立待辦精靈共用。
+
+        兩層過濾：
+          1. 模型必須真的存在（config.model_id 為空代表對應的 ir.model 已隨模組
+             卸載而消失；M2O 留下空值）。
+          2. **目前使用者對該模型要有讀取權限**。預設設定含 account.move /
+             purchase.order / helpdesk.ticket 等，沒有這些權限的使用者原本仍會
+             在「目標文件」下拉看到它們，選了才在讀取時炸 AccessError。
+             以 ir.model.access.check 判斷即可，不需實例化模型。
         """
         configs = self.search([('active', '=', True)])
+        Access = self.env['ir.model.access']
         selection = []
         for config in configs:
-            if config.model_id:
-                selection.append((config.model, config.model_id.name))
+            if not config.model_id:
+                continue
+            model_name = config.model
+            # 模型未載入註冊表（例如設定殘留但模組已移除）→ 跳過，避免 KeyError
+            if model_name not in self.env:
+                _logger.debug(
+                    'Transfer config %s points at %s which is not in the registry; skipped.',
+                    config.id, model_name)
+                continue
+            if not Access.check(model_name, 'read', raise_exception=False):
+                continue
+            selection.append((model_name, config.model_id.name))
         return selection
 
     @api.model
@@ -115,15 +138,6 @@ class MailActivityTransferConfig(models.Model):
                 }
         return result
 
-    @api.model
-    def get_allowed_models(self):
-        """取得允許的模型名稱列表
-
-        Returns:
-            list: 模型名稱字串列表
-        """
-        configs = self.search([('active', '=', True)])
-        return configs.mapped('model')
 
     @api.model
     def create_default_configs(self):

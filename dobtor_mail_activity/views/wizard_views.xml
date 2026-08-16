@@ -357,4 +357,76 @@
         <field name="target">new</field>
     </record>
 
+    <!-- =====================================================
+         合併待辦 Wizard (mail.activity.merge.wizard)
+         ===================================================== -->
+
+    <record id="mail_activity_merge_wizard_view_form" model="ir.ui.view">
+        <field name="name">mail.activity.merge.wizard.form</field>
+        <field name="model">mail.activity.merge.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Merge Activities">
+                <div class="alert alert-info" role="alert">
+                    <i class="fa fa-info-circle"/>
+                    <span class="ms-1">
+                        The master activity survives. All other selected activities are
+                        archived, their referenced notes are attached to the master, and
+                        chips inside those notes start pointing at the master. This can be
+                        undone from the merged activity ("Unmerge").
+                    </span>
+                </div>
+
+                <group>
+                    <field name="activity_count" invisible="1"/>
+                    <field name="master_id"
+                           options="{'no_create': True, 'no_open': True}"/>
+                    <field name="merged_note_count" string="Notes to Attach"/>
+                </group>
+
+                <!-- 跨負責人：合併等於讓別人的待辦消失，明確警示 -->
+                <div class="alert alert-warning" role="alert"
+                     invisible="not other_assignee_warning">
+                    <i class="fa fa-exclamation-triangle"/>
+                    <span class="ms-1">Activities assigned to other people will be archived:</span>
+                    <field name="other_assignee_warning" nolabel="1" readonly="1" class="ms-1 d-inline"/>
+                </div>
+                <!-- 跨關聯文件：主待辦的關聯文件不會改變 -->
+                <div class="alert alert-warning" role="alert"
+                     invisible="not other_document_warning">
+                    <i class="fa fa-exclamation-triangle"/>
+                    <span class="ms-1">These activities point at other documents; the master keeps its own:</span>
+                    <field name="other_document_warning" nolabel="1" readonly="1" class="ms-1 d-inline"/>
+                </div>
+
+                <field name="activity_ids" nolabel="1">
+                    <list create="false" delete="true" edit="false">
+                        <field name="summary"/>
+                        <field name="activity_type_id"/>
+                        <field name="user_id" widget="many2one_avatar_user"/>
+                        <field name="date_deadline" widget="remaining_days"/>
+                        <field name="urgency" widget="badge"/>
+                        <field name="importance"/>
+                        <field name="estimated_hours" widget="float_time"/>
+                        <field name="res_document_display" string="Related Document"/>
+                        <field name="activity_status" widget="badge"
+                               decoration-success="activity_status == 'done'"
+                               decoration-danger="activity_status in ['cancelled', 'merged']"/>
+                    </list>
+                </field>
+
+                <footer>
+                    <button name="action_merge" string="Merge" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mail_activity_merge_wizard" model="ir.actions.act_window">
+        <field name="name">Merge Activities</field>
+        <field name="res_model">mail.activity.merge.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
 </odoo>

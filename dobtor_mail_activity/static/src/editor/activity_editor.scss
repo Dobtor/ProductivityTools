@@ -67,10 +67,12 @@
 
     // 重要性：鮮紅三角
     .o_dobtor_chip_important {
-        color: #e60000;
+        color: var(--bs-danger, #e60000);
     }
 
     // ===== 語意配色：邊框/文字=深色，底=淡色 =====
+    // 以 CSS 變數輸出（SCSS 值作 fallback）：預設外觀完全不變，但佈景／客戶端
+    // 可用 --o-chip-<name>-fg / -bg 覆寫，不必改動本模組。
     $chip-colors: (
         "urgent":    (#c2410c, #fdeee5), // 緊急 深橘
         "standard":  (#1e40af, #e9edfb), // 標準 深藍
@@ -79,14 +81,22 @@
         "done":      (#16a34a, #e8f6ee), // 完成 綠
         "cancelled": (#6b7280, #f1f2f4), // 取消 灰
         "deleted":   (#6b7280, #f1f2f4), // 刪除 灰
+        "failed":    (#6b7280, #f1f2f4), // 載入失敗 灰（可點重試）
     );
 
     @each $name, $pair in $chip-colors {
         &.o_chip_#{$name} {
-            color: nth($pair, 1);
-            border-color: nth($pair, 1);
-            background-color: nth($pair, 2);
+            color: var(--o-chip-#{$name}-fg, #{nth($pair, 1)});
+            border-color: var(--o-chip-#{$name}-fg, #{nth($pair, 1)});
+            background-color: var(--o-chip-#{$name}-bg, #{nth($pair, 2)});
         }
+    }
+
+    // 載入失敗：以虛線邊框與游標提示「這是暫時狀態、可點擊重試」，
+    // 與「已刪除」（實線灰）在視覺上區分開來。
+    &.o_chip_failed {
+        border-style: dashed;
+        cursor: pointer;
     }
 }
 

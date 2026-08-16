@@ -78,28 +78,3 @@ class MailActivityPostponeHistory(models.Model):
             if not record.reason or not record.reason.strip():
                 raise ValidationError(_('Please explain the reason for postponement.'))
 
-    @api.model
-    def create_postpone_record(self, activity, reason):
-        """建立延期記錄的便捷方法
-
-        Args:
-            activity: mail.activity 記錄
-            reason: 延期原因字串
-
-        Returns:
-            新建立的延期歷史記錄
-        """
-        activity.ensure_one()
-
-        # 計算原週次
-        original_week = False
-        if activity.planned_date:
-            year, week, _dow = activity.planned_date.isocalendar()
-            original_week = '%d-W%02d' % (year, week)
-
-        return self.create({
-            'activity_id': activity.id,
-            'original_planned_date': activity.planned_date,
-            'original_week': original_week,
-            'reason': reason,
-        })

@@ -165,8 +165,10 @@
                                    options="{'codeview': true,'collaborative': true}"/>
                         </page>
                         <page string="Related Activities" name="activities" invisible="note_activity_count == 0">
+                            <!-- 已合併的待辦仍列出（顯示但標示）：它與主待辦是同一件事，
+                                 隱藏會讓使用者找不到，故改以狀態徽章與「Merged Into」欄位標明。 -->
                             <field name="note_activity_ids" context="{'active_test': False}">
-                                <list>
+                                <list decoration-muted="activity_status == 'merged'">
                                     <field name="summary" string="Summary"/>
                                     <field name="activity_type_id" string="Type"/>
                                     <field name="user_id" string="Assignee" widget="many2one_avatar_user"/>
@@ -175,6 +177,8 @@
                                            decoration-success="activity_status == 'done'"
                                            decoration-danger="activity_status == 'cancelled'"
                                            decoration-info="activity_status == 'active'"/>
+                                    <field name="merged_into_id" string="Merged Into"
+                                           optional="show" readonly="1"/>
                                     <button name="action_transfer_activity" type="object"
                                             string="Transfer" icon="fa-exchange"
                                             invisible="activity_status != 'active'"/>

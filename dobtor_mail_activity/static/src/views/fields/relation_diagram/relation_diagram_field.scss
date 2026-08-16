@@ -28,7 +28,7 @@
         border: 1px solid var(--gray-300, #dee2e6);
         border-radius: 4px;
         overflow: hidden;
-        background: #f7f8fb;
+        background: var(--gray-100, #f7f8fb);
     }
 
     // 節點內「未完成待辦」：level-down/up 切換鈕（置於節點名稱前）
@@ -44,7 +44,7 @@
         border: 1px solid var(--gray-300, #dee2e6);
         border-radius: 5px;
         background: var(--white, #fff);
-        color: #017E84;
+        color: var(--o-ard-accent, #017E84);
         cursor: pointer;
 
         .o_ard_ic {
@@ -54,8 +54,8 @@
         }
 
         &:hover {
-            border-color: #017E84;
-            background: #eef7f7;
+            border-color: var(--o-ard-accent, #017E84);
+            background: var(--o-ard-accent-bg, #eef7f7);
         }
     }
 
@@ -63,7 +63,7 @@
     .o_ard_todos {
         margin-top: 5px;
         padding-left: 9px;
-        border-left: 2px solid #017E84;
+        border-left: 2px solid var(--o-ard-accent, #017E84);
         display: flex;
         flex-direction: column;
         gap: 3px;
@@ -86,7 +86,7 @@
         cursor: pointer;
 
         &:hover {
-            border-color: #017E84;
+            border-color: var(--o-ard-accent, #017E84);
         }
     }
 
@@ -96,9 +96,9 @@
         border-radius: 50%;
         flex: 0 0 auto;
 
-        &.over { background: #c0392b; }
-        &.soon { background: #b9781a; }
-        &.ok { background: #2f8f5b; }
+        &.over { background: var(--bs-danger, #c0392b); }
+        &.soon { background: var(--bs-warning, #b9781a); }
+        &.ok { background: var(--bs-success, #2f8f5b); }
     }
 
     .o_ard_todo_txt {

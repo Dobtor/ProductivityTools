@@ -2,9 +2,9 @@
 
 import { KanbanController } from "@web/views/kanban/kanban_controller";
 import { useService } from "@web/core/utils/hooks";
-import { _t } from "@web/core/l10n/translation";
-import { setupActivityWeek, ActivityWeekMethods } from "../activity_week_controller_mixin";
+import { setupActivityWeek, applyActivityWeekMethods } from "../activity_week_controller_mixin";
 import { ActivityScheduleFormDialog } from "./activity_kanban_schedule_dialog";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 export class ActivityKanbanController extends KanbanController {
     static template = "dobtor_mail_activity.ActivityKanbanView";
@@ -16,18 +16,15 @@ export class ActivityKanbanController extends KanbanController {
         setupActivityWeek(this);
     }
 
-    /** 左上角「New」改開統一建立待辦 wizard（取代 inline 建立）。 */
+    /**
+     * 左上角「New」改開統一建立待辦 wizard（取代 inline 建立）。
+     * props.context 來自 searchModel，已含 schedule_current_week / schedule_week_dates。
+     */
     createRecord() {
-        return this.actionService.doAction(
-            {
-                type: "ir.actions.act_window",
-                name: _t("Create To-do"),
-                res_model: "mail.activity.create.wizard",
-                view_mode: "form",
-                views: [[false, "form"]],
-                target: "new",
-                context: this.props.context || {},
-            },
+        return openActivityWizard(
+            this.actionService,
+            ACTIVITY_WIZARDS.create,
+            this.props.context || {},
             { onClose: () => this.model.root.load() }
         );
     }
@@ -49,48 +46,9 @@ export class ActivityKanbanController extends KanbanController {
     }
 
     /**
-     * 更新 model context（Kanban 版：遍歷 groups → list.records）
-     */
-    _updateModelContext(weekNumber) {
-        const currentWeekInfo = this.weekState.weeks.find(w => w.number === weekNumber);
-        const dates = currentWeekInfo ? currentWeekInfo.dates : {};
-
-        this.weekDatesState.dates = dates;
-
-        if (this.model.root.config) {
-            this.model.root.config.context = {
-                ...this.model.root.config.context,
-                schedule_current_week: weekNumber,
-                schedule_week_dates: dates,
-            };
-        }
-
-        for (const group of this.model.root.groups || []) {
-            if (group.config && group.config.context) {
-                group.config.context = {
-                    ...group.config.context,
-                    schedule_current_week: weekNumber,
-                    schedule_week_dates: dates,
-                };
-            }
-            if (group.list && group.list.records) {
-                for (const record of group.list.records) {
-                    if (record.config && record.config.context) {
-                        record.config.context = {
-                            ...record.config.context,
-                            schedule_current_week: weekNumber,
-                            schedule_week_dates: dates,
-                        };
-                    }
-                }
-            }
-        }
-    }
-
-    /**
      * 已移至 ActivityKanbanHeader，保留作備用
      */
     _updateColumnHeaders() {}
 }
 
-Object.assign(ActivityKanbanController.prototype, ActivityWeekMethods);
+applyActivityWeekMethods(ActivityKanbanController);

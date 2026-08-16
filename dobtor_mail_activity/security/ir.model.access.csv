@@ -25,3 +25,4 @@ access_activity_efficiency_metrics_timesheet_manager,activity.efficiency.metrics
 access_weekly_schedule_config_user,weekly.schedule.config.user,model_weekly_schedule_config,base.group_user,1,1,1,0
 access_weekly_schedule_config_admin,weekly.schedule.config.admin,model_weekly_schedule_config,base.group_system,1,1,1,1
 access_ir_model_user,ir.model.user,base.model_ir_model,base.group_user,1,0,0,0
+access_mail_activity_merge_wizard,mail.activity.merge.wizard,model_mail_activity_merge_wizard,base.group_user,1,1,1,1

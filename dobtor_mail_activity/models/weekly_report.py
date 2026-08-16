@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 from odoo import api, fields, models, Command, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 
 
 class WeeklyReport(models.Model):

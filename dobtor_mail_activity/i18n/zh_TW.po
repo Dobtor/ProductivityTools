@@ -427,7 +427,7 @@ msgid ""
 "                    All related history will be preserved."
 msgstr ""
 "<i class=\"fa fa-exclamation-triangle me-1\"/>\n"
-"                    確認後，原始任務將被取消，並為選定的負責人建立新任務。\n"
+"                    確認後，原始待辦將被取消，並為選定的負責人建立新待辦。\n"
 "                    所有相關歷史將被保留。"
 
 #. module: dobtor_mail_activity
@@ -457,7 +457,7 @@ msgid ""
 "                        Please ensure the selected project has timesheet feature enabled."
 msgstr ""
 "<i class=\"fa fa-info-circle me-1\"/>\n"
-"                        當任務完成時若未關聯專案，系統將使用此預設專案建立工時表記錄。\n"
+"                        當待辦完成時若未關聯專案，系統將使用此預設專案建立工時表記錄。\n"
 "                        請確保選定的專案已啟用工時表功能。"
 
 #. module: dobtor_mail_activity
@@ -467,7 +467,7 @@ msgid ""
 "                        <span class=\"ms-1\">You are the creator of this activity. Schedule operations (planned date, schedule status) can only be set by the assignee.</span>"
 msgstr ""
 "<i class=\"fa fa-info-circle\"/>\n"
-"                        <span class=\"ms-1\">您是此任務的發起人。排程操作（計畫日期、排程狀態）只能由負責人設定。</span>"
+"                        <span class=\"ms-1\">您是此待辦的發起人。排程操作（計畫日期、排程狀態）只能由負責人設定。</span>"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
@@ -476,7 +476,7 @@ msgid ""
 "                    After transfer, the activity will be linked to the selected target record. The original source will be recorded for tracking."
 msgstr ""
 "<i class=\"fa fa-info-circle\"/>\n"
-"                    轉移後，任務將關聯到選定的目標記錄。原始來源將被記錄以供追蹤。"
+"                    轉移後，待辦將關聯到選定的目標記錄。原始來源將被記錄以供追蹤。"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
@@ -605,7 +605,7 @@ msgid ""
 "                    </span>"
 msgstr ""
 "<span class=\"text-muted small\">\n"
-"                        建立任務時若未選擇目標文件，將自動關聯到此筆記。\n"
+"                        建立待辦時若未選擇目標文件，將自動關聯到此筆記。\n"
 "                    </span>"
 
 #. module: dobtor_mail_activity
@@ -705,8 +705,8 @@ msgstr "透過 note_id 關聯的待辦（從筆記建立）"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_mail_activity_created_by_me
-msgid "Activities you create will appear here."
-msgstr "您建立的待辦將顯示在此。"
+msgid "Shows every to-do. The default filter narrows it to the ones you created."
+msgstr "顯示全部待辦，預設以「我建立的」篩選收斂。"
 
 #. module: dobtor_mail_activity
 #. odoo-python
@@ -830,7 +830,7 @@ msgstr "待辦摘要"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_transfer_config
 #: model:ir.ui.menu,name:dobtor_mail_activity.menu_mail_activity_transfer_config
 msgid "Activity Transfer Config"
-msgstr "任務轉移設定"
+msgstr "待辦轉移設定"
 
 #. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_type
@@ -946,13 +946,13 @@ msgstr "全部"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_all
 #: model:ir.ui.menu,name:dobtor_mail_activity.menu_mail_activity_all
 msgid "All Activities"
-msgstr "所有任務"
+msgstr "所有待辦"
 
 #. module: dobtor_mail_activity
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_archived
 #: model:ir.ui.menu,name:dobtor_mail_activity.menu_mail_activity_archived
 msgid "All Activity History"
-msgstr "所有任務歷史"
+msgstr "所有待辦歷史"
 
 #. module: dobtor_mail_activity
 #. odoo-javascript
@@ -1029,8 +1029,8 @@ msgstr "指派給"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
-msgid "Assigned by Me"
-msgstr "我指派的"
+msgid "Created by Me"
+msgstr "我建立的"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__user_id
@@ -1455,7 +1455,7 @@ msgstr "完成"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_kanban_schedule
 msgid "Complete Activity"
-msgstr "完成任務"
+msgstr "完成待辦"
 
 #. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_done_wizard
@@ -1503,14 +1503,14 @@ msgstr "完成日期"
 #. module: dobtor_mail_activity
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_mail_activity_archived
 msgid "Completed or cancelled activities from all users will appear here."
-msgstr "所有使用者的已完成或已取消任務將顯示在此。"
+msgstr "所有使用者的已完成或已取消待辦將顯示在此。"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_mail_activity_my_history
 msgid ""
 "Completed/cancelled activities you created or were assigned to will appear "
 "here."
-msgstr "您建立或被指派的已完成/已取消任務將顯示在此。"
+msgstr "您建立或被指派的已完成/已取消待辦將顯示在此。"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__feedback
@@ -1554,7 +1554,7 @@ msgid ""
 "Configure which models can be used as activity transfer targets.\n"
 "                If no models are configured, all models supporting mail thread will be allowed."
 msgstr ""
-"設定哪些模型可作為任務轉移目標。\n"
+"設定哪些模型可作為待辦轉移目標。\n"
 "                如未設定任何模型，將允許所有支援 mail thread 的模型。"
 
 #. module: dobtor_mail_activity
@@ -1816,7 +1816,7 @@ msgstr "截止日期偏移（天）"
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_res_users__default_activity_note_id
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.res_users_preferences_view_form_inherit_productivity
 msgid "Default Activity Note"
-msgstr "預設任務筆記"
+msgstr "預設待辦筆記"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_res_company__default_timesheet_project_id
@@ -2720,7 +2720,7 @@ msgstr "早上 (08:00)"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_my_schedule
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_productivity
 msgid "My Activities"
-msgstr "我的任務"
+msgstr "我的待辦"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,field_description:dobtor_mail_activity.field_note_note__my_activity_date_deadline
@@ -2732,7 +2732,7 @@ msgstr "我的待辦截止日期"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_my_history
 #: model:ir.ui.menu,name:dobtor_mail_activity.menu_mail_activity_my_history
 msgid "My Activity History"
-msgstr "我的任務歷史"
+msgstr "我的待辦歷史"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_productivity
@@ -2744,8 +2744,8 @@ msgstr "我建立的"
 #: model:ir.ui.menu,name:dobtor_mail_activity.menu_mail_activity_created_by_me
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_created
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_created
-msgid "My Created Activities"
-msgstr "我建立的任務"
+msgid "All To-dos"
+msgstr "待辦總覽"
 
 #. module: dobtor_mail_activity
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_note_only
@@ -3642,7 +3642,7 @@ msgstr "重新指派"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_reassign_wizard
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_reassign_wizard_view_form
 msgid "Reassign Activity"
-msgstr "重新指派任務"
+msgstr "重新指派待辦"
 
 #. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_reassign_wizard
@@ -4264,7 +4264,7 @@ msgstr "此快照將用於下週週報比較。確認後無法修改。"
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_mail_activity_all
 msgid ""
 "This view shows all activities from all users, accessible by managers only."
-msgstr "此視圖顯示所有使用者的所有任務，僅管理員可存取。"
+msgstr "此視圖顯示所有使用者的所有待辦，僅管理員可存取。"
 
 #. module: dobtor_mail_activity
 #. odoo-javascript
@@ -4375,7 +4375,7 @@ msgstr "轉移"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_transfer_wizard
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_transfer_wizard_view_form
 msgid "Transfer Activity"
-msgstr "轉移任務"
+msgstr "轉移待辦"
 
 #. module: dobtor_mail_activity
 #: model:ir.model,name:dobtor_mail_activity.model_mail_activity_transfer_wizard
@@ -4587,7 +4587,7 @@ msgstr "使用標籤分類您的筆記，支援層級結構。"
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_note_only
 msgid ""
 "Use the notebook to record ideas, activities, and important information."
-msgstr "使用筆記本記錄想法、任務和重要資訊。"
+msgstr "使用筆記本記錄想法、待辦和重要資訊。"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,help:dobtor_mail_activity.field_note_stage__sequence
@@ -4834,7 +4834,7 @@ msgstr "當待辦完成時若無關聯專案，將使用此專案建立工時表
 msgid ""
 "When an activity is completed without a linked project, use this default "
 "project to create timesheet entries."
-msgstr "當任務完成時若未關聯專案，使用此預設專案建立工時表記錄。"
+msgstr "當待辦完成時若未關聯專案，使用此預設專案建立工時表記錄。"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields,help:dobtor_mail_activity.field_note_stage__fold
@@ -4854,7 +4854,7 @@ msgid ""
 "When creating an activity without selecting a target document, it will be automatically linked to this note.\n"
 "                            If not set, the system will automatically create an \"Activity Inbox\" note."
 msgstr ""
-"建立任務時若未選擇目標文件，將自動關聯到此筆記。\n"
+"建立待辦時若未選擇目標文件，將自動關聯到此筆記。\n"
 "                            如未設定，系統將自動建立「待辦收件匣」筆記。"
 
 #. module: dobtor_mail_activity
@@ -4888,8 +4888,8 @@ msgstr "工作時數設定"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_mail_activity_created_by_me
-msgid "You haven't created any activities yet"
-msgstr "您尚未建立任何待辦"
+msgid "No activities yet"
+msgstr "目前沒有待辦"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.actions.act_window,help:dobtor_mail_activity.action_efficiency_personal
@@ -5563,3 +5563,124 @@ msgstr "點選節點以連結為關聯文件。"
 #: code:addons/dobtor_mail_activity/static/src/views/fields/relation_diagram/relation_diagram_field.js:0
 msgid "No related records. Select a project or customer to see the relation diagram."
 msgstr "尚無關聯記錄。請先選擇專案或客戶以顯示關聯圖。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_chip_embedding.js:0
+msgid "(load failed)"
+msgstr "（載入失敗）"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_chip_embedding.js:0
+msgid "Could not load this to-do. Click to retry."
+msgstr "無法載入此待辦，點擊重試。"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_chip_embedding.js:0
+msgid "Merged — now points to: %s"
+msgstr "已合併 —— 現指向：%s"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_week_controller_mixin.js:0
+msgid "Select at least two activities to merge"
+msgstr "請至少選擇兩筆待辦才能合併"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_list/activity_list_controller.xml:0
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_merge_wizard_view_form
+msgid "Merge"
+msgstr "合併"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/components/related_notes/related_notes.xml:0
+#: code:addons/dobtor_mail_activity/static/src/editor/activity_list_embedding.js:0
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_search_inherit
+msgid "Merged"
+msgstr "已合併"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_form/activity_form_controller.js:0
+#: model:ir.actions.server,name:dobtor_mail_activity.action_schedule_activities_to_week_prev
+msgid "Move to Previous Week"
+msgstr "改排至上週"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_form/activity_form_controller.js:0
+#: model:ir.actions.server,name:dobtor_mail_activity.action_schedule_activities_to_week0
+msgid "Move to This Week"
+msgstr "改排至本週"
+
+#. module: dobtor_mail_activity
+#. odoo-javascript
+#: code:addons/dobtor_mail_activity/static/src/views/activity_form/activity_form_controller.js:0
+#: model:ir.actions.server,name:dobtor_mail_activity.action_schedule_activities_to_week1
+msgid "Move to Next Week"
+msgstr "改排至下週"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_schedule
+msgid "Unmerge"
+msgstr "解除合併"
+
+#. module: dobtor_mail_activity
+#: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_merge_wizard
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_merge_wizard_view_form
+msgid "Merge Activities"
+msgstr "合併待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.rule,name:dobtor_mail_activity.mail_activity_rule_user_read_all
+msgid "Activity: All Users Read All Activities"
+msgstr "待辦：所有使用者可讀取全部待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__note_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule
+msgid "Referenced Notes"
+msgstr "引用筆記"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__merged_into_id
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_list_schedule
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.view_note_note_form
+msgid "Merged Into"
+msgstr "已併入"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__merged_activity_ids
+msgid "Merged Activities"
+msgstr "已併入的待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__merged_count
+msgid "Merged Count"
+msgstr "已併入數量"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__note_count
+msgid "Referenced Note Count"
+msgstr "引用筆記數量"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_merge_wizard__activity_ids
+msgid "Activities to Merge"
+msgstr "要合併的待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_merge_wizard__master_id
+msgid "Master Activity"
+msgstr "主待辦"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_merge_wizard__merged_note_count
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_merge_wizard_view_form
+msgid "Notes to Attach"
+msgstr "將併入的筆記數"

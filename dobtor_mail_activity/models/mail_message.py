@@ -132,34 +132,6 @@ class MailMessage(models.Model):
 
         return result
 
-    def action_view_created_activities(self):
-        """查看從此訊息建立的待辦"""
-        self.ensure_one()
-
-        # 取得所有待辦（包含封存）
-        activities = self.with_context(active_test=False).created_activity_ids
-
-        if len(activities) == 1:
-            # 單一待辦：直接開啟表單
-            return {
-                'type': 'ir.actions.act_window',
-                'name': _('Activity'),
-                'res_model': 'mail.activity',
-                'res_id': activities.id,
-                'view_mode': 'form',
-                'target': 'current',
-                'context': {'active_test': False},
-            }
-        else:
-            # 多個待辦：開啟列表視圖
-            return {
-                'type': 'ir.actions.act_window',
-                'name': _('Activities Created from This Message'),
-                'res_model': 'mail.activity',
-                'view_mode': 'list,form',
-                'domain': [('id', 'in', activities.ids)],
-                'context': {'active_test': False},
-            }
 
     def action_create_activity_from_message(self):
         """從訊息建立待辦（開啟統一 wizard）

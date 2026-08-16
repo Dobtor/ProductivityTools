@@ -92,6 +92,28 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- 全體內部使用者可「讀取」所有待辦（唯讀）。
+             用途：待辦總覽（action_mail_activity_created_by_me，domain=[]）要能看到
+             別人建立且指派給第三人的待辦；沒有這條規則的話，一般使用者的可見範圍
+             只有上面三條 OR 起來的「指派給我 ∪ 我建立 ∪ 未指派」。
+
+             同一模型的群組規則之間是 OR，因此這條會讓 read 不受限；write/create/
+             unlink 一律 False，仍由上面三條（及管理者規則）決定，可寫範圍不變。
+
+             ※ 這是刻意的權限政策決定：全體員工可讀到任何待辦的摘要、待辦註記、
+               完成回饋與關聯文件名稱（res_document_display 是 compute_sudo，會顯示
+               使用者本身無權讀取之單據的名稱）。要收回只需停用本規則。 -->
+        <record id="mail_activity_rule_user_read_all" model="ir.rule">
+            <field name="name">Activity: All Users Read All Activities</field>
+            <field name="model_id" ref="mail.model_mail_activity"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
         <!-- 管理者可存取所有待辦 -->
         <record id="mail_activity_rule_manager_all" model="ir.rule">
             <field name="name">Activity: Manager Access All Activities</field>

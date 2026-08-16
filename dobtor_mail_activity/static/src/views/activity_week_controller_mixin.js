@@ -3,10 +3,14 @@
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/core/user";
-import { useState, onWillStart, onMounted, useSubEnv } from "@odoo/owl";
+import { useState, onWillStart, useSubEnv } from "@odoo/owl";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 /**
- * 在 controller.setup() 中呼叫，設定週次相關的狀態和生命週期。
+ * 在 controller.setup() 中呼叫，接上週次選擇器與批次操作。
+ *
+ * 週次的狀態與 domain/context 注入都住在 ActivityWeekSearchModel（見同層
+ * activity_week_search_model.js）；Controller 只負責畫那條選單並轉呼叫。
  *
  * @param {Object} controller - controller instance (this)
  */
@@ -14,70 +18,36 @@ export function setupActivityWeek(controller) {
     controller.orm = useService("orm");
     controller.notification = useService("notification");
 
-    controller.weekState = useState({
-        weeks: [],
-        currentWeek: 0,
-        isLoading: true,
-    });
+    // 週次狀態的擁有者是 ActivityWeekSearchModel（reactive）；在這裡 useState()
+    // 訂閱，讓它的變動只重繪本 controller（而非 WithSearch → 多餘的 model.load）。
+    controller.weekState = useState(controller.env.searchModel.weekState);
 
-    controller.weekDatesState = useState({ dates: {} });
     controller.userHoursState = useState({ dailyTarget: 8, dailyMax: 9 });
     useSubEnv({
-        activityWeekDates: controller.weekDatesState,
+        // kanban 欄位標題用；來源是 searchModel，切週次時由它更新
+        activityWeekDates: useState(controller.env.searchModel.weekDatesState),
         activityUserHours: controller.userHoursState,
     });
 
-    controller._baseDomain = null;
     controller.onWeekSelectChange = controller.onWeekSelectChange.bind(controller);
 
-    onWillStart(async () => {
-        await Promise.all([
-            controller._loadWeekInfo(),
-            controller._loadUserHours(),
-        ]);
-    });
-
-    onMounted(async () => {
-        const weekNumber = controller.weekState.currentWeek;
-        // Set base domain (strip any existing week conditions)
-        controller._baseDomain = controller._filterWeekDomain(controller.props.domain || []);
-        // Build week-filtered domain and apply
-        const weekDomain = controller._buildWeekDomain(weekNumber);
-        controller._updateModelContext(weekNumber);
-        await controller.model.root.load({ domain: weekDomain });
-        controller.model.notify();
-        controller._updateModelContext(weekNumber);
-    });
+    onWillStart(() => controller._loadUserHours());
 }
 
 /**
- * 週次管理共用方法。使用 Object.assign 加到 controller prototype。
+ * 週次／批次操作的共用方法掛到 controller prototype。
  *
- * 注意：_updateModelContext 未包含在內，因為 Kanban（遍歷 groups）
- * 和 List（遍歷 flat records）的實作不同，需由各 controller 自行定義。
+ * 用 Object.defineProperties（複製 property descriptor）而非 Object.assign，
+ * 這樣日後在 ActivityWeekMethods 加 getter 也不會被求值成靜態值。
  */
-export const ActivityWeekMethods = {
-    async _loadWeekInfo() {
-        this.weekState.isLoading = true;
-        try {
-            const weeks = await this.orm.call(
-                'mail.activity',
-                'get_week_info',
-                []
-            );
-            this.weekState.weeks = weeks;
-        } catch (e) {
-            console.error('Failed to load week info:', e);
-            this.weekState.weeks = [
-                { number: -1, name: _t('Previous Week'), display_name: _t('Previous Week'), key: 'week_prev', count: 0, total_hours: 0, dates: {} },
-                { number: 0, name: _t('This Week'), display_name: _t('This Week'), key: 'week0', count: 0, total_hours: 0, dates: {} },
-                { number: 1, name: _t('Next Week'), display_name: _t('Next Week'), key: 'week1', count: 0, total_hours: 0, dates: {} },
-                { number: 'all', name: _t('All'), display_name: _t('All'), key: 'all', count: 0, total_hours: 0, dates: {} },
-            ];
-        }
-        this.weekState.isLoading = false;
-    },
+export function applyActivityWeekMethods(ControllerClass) {
+    Object.defineProperties(
+        ControllerClass.prototype,
+        Object.getOwnPropertyDescriptors(ActivityWeekMethods)
+    );
+}
 
+export const ActivityWeekMethods = {
     async _loadUserHours() {
         try {
             const result = await this.orm.read(
@@ -96,95 +66,10 @@ export const ActivityWeekMethods = {
         }
     },
 
-    async selectWeek(weekNumber) {
-        if (this.weekState.currentWeek === weekNumber) {
-            return;
-        }
-
-        this.weekState.currentWeek = weekNumber;
-
-        if (this._baseDomain === null) {
-            this._baseDomain = this._filterWeekDomain(this.props.domain || []);
-        }
-
-        const weekDomain = this._buildWeekDomain(weekNumber);
-
-        this._updateModelContext(weekNumber);
-
-        await this.model.root.load({ domain: weekDomain });
-        this.model.notify();
-
-        this._updateModelContext(weekNumber);
-
-        await this._loadWeekInfo();
-    },
-
-    _filterWeekDomain(domain) {
-        if (!domain || !domain.length) return [];
-
-        const filtered = [];
-        let skipNext = false;
-
-        for (let i = 0; i < domain.length; i++) {
-            const item = domain[i];
-
-            if (skipNext) {
-                skipNext = false;
-                continue;
-            }
-
-            if (Array.isArray(item) && item.length === 3) {
-                if (item[0] === 'schedule_week_number' || item[0] === 'schedule_status') {
-                    if (filtered.length > 0 && filtered[filtered.length - 1] === '|') {
-                        filtered.pop();
-                    }
-                    continue;
-                }
-            }
-
-            if (item === '|' && i + 2 < domain.length) {
-                const next1 = domain[i + 1];
-                const next2 = domain[i + 2];
-                if (Array.isArray(next1) && Array.isArray(next2)) {
-                    if ((next1[0] === 'schedule_status' || next1[0] === 'schedule_week_number') &&
-                        (next2[0] === 'schedule_status' || next2[0] === 'schedule_week_number')) {
-                        skipNext = true;
-                        i++;
-                        continue;
-                    }
-                }
-            }
-
-            filtered.push(item);
-        }
-
-        return filtered;
-    },
-
-    _buildWeekDomain(weekNumber) {
-        const baseDomain = this._baseDomain || this._filterWeekDomain(this.props.domain || []);
-
-        // 「全部」：不加任何週次過濾，顯示所有（含 waiting / 遠期 / 無日期）
-        if (weekNumber === 'all') {
-            return baseDomain && baseDomain.length ? [...baseDomain] : [];
-        }
-
-        const weekFilter = [
-            '|',
-            ['schedule_status', '=', 'waiting'],
-            ['schedule_week_number', '=', weekNumber]
-        ];
-
-        if (baseDomain && baseDomain.length) {
-            return [...baseDomain, ...weekFilter];
-        }
-        return weekFilter;
-    },
-
     async onWeekSelectChange(ev) {
         const raw = ev.target.value;
         const weekNumber = raw === 'all' ? 'all' : parseInt(raw, 10);
-        await this.selectWeek(weekNumber);
+        await this.env.searchModel.selectWeek(weekNumber);
     },
 
     async onBatchPostpone() {
@@ -198,18 +83,35 @@ export const ActivityWeekMethods = {
 
         const activityIds = selectedRecords.map(r => r.resId);
 
-        await this.actionService.doAction({
-            type: 'ir.actions.act_window',
-            name: _t('Batch Postpone'),
-            res_model: 'mail.activity.postpone.wizard',
-            view_mode: 'form',
-            views: [[false, 'form']],
-            target: 'new',
-            context: {
+        await openActivityWizard(
+            this.actionService,
+            ACTIVITY_WIZARDS.postpone,
+            { default_activity_ids: activityIds, active_ids: activityIds },
+            { name: _t('Batch Postpone') }
+        );
+    },
+
+    /** 合併：多選 → 指定主待辦 → 其餘併入並封存。 */
+    async onBatchMerge() {
+        const selectedRecords = this.model.root.selection;
+        if (selectedRecords.length < 2) {
+            this.notification.add(_t("Select at least two activities to merge"), {
+                type: "warning",
+            });
+            return;
+        }
+
+        const activityIds = selectedRecords.map(r => r.resId);
+
+        await openActivityWizard(
+            this.actionService,
+            ACTIVITY_WIZARDS.merge,
+            {
                 default_activity_ids: activityIds,
+                active_model: 'mail.activity',
                 active_ids: activityIds,
-            },
-        });
+            }
+        );
     },
 
     async onBatchDone() {

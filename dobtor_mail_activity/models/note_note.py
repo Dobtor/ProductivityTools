@@ -56,6 +56,17 @@ class NoteNote(models.Model):
         ('note', 'Note'),
     ], string='Type', default='note', tracking=True)
 
+    # ===== 會議記錄 =====
+    # 由日曆事件 popover 的「會議記錄」按鈕建立（見 models/calendar_event.py）。
+    # set null 而非 cascade：會議被刪除後，記錄本身仍有保存價值。
+    calendar_event_id = fields.Many2one(
+        'calendar.event',
+        string='Meeting',
+        index=True,
+        ondelete='set null',
+        help='Calendar event these meeting minutes belong to.',
+    )
+
     # ===== 階段欄位 =====
     stage_id = fields.Many2one(
         'note.stage',
@@ -102,11 +113,16 @@ class NoteNote(models.Model):
 
     # ===== 筆記專屬待辦關聯欄位 =====
     # 注意：不要覆寫 mail.activity.mixin 的 activity_ids，否則會影響標準活動功能
-    note_activity_ids = fields.One2many(
+    #
+    # 多對多（不是 One2many）：一張待辦可被多張筆記引用 —— 合併待辦時，被併入者
+    # 的筆記會全部併進主待辦。欄位順序與 mail.activity.note_ids 相反（本表是
+    # note 端）。mail.activity 維護「note_id 必為 note_ids 成員」的不變式，
+    # 所以這裡只看 note_ids 一個欄位即可涵蓋來源與引用。
+    note_activity_ids = fields.Many2many(
         'mail.activity',
-        'note_id',
+        'mail_activity_note_rel', 'note_id', 'activity_id',
         string='Note Activities',
-        help='Activities linked via note_id (activities created from note)',
+        help='Activities referencing this note (including those created from it)',
     )
     note_activity_count = fields.Integer(
         string='Note Activity Count',
@@ -133,7 +149,7 @@ class NoteNote(models.Model):
 
     @api.depends('note_activity_ids', 'note_activity_ids.active')
     def _compute_note_activity_count(self):
-        """計算筆記關聯待辦數量（透過 note_id 關聯，批次優化）"""
+        """計算筆記關聯待辦數量（透過 note_ids 引用，批次優化）"""
         if not self.ids:
             for note in self:
                 note.note_activity_count = 0
@@ -141,25 +157,30 @@ class NoteNote(models.Model):
             return
 
         Activity = self.env['mail.activity'].with_context(active_test=False)
-        # 一次查詢所有 note 的待辦總數
-        total_data = Activity.read_group(
-            domain=[('note_id', 'in', self.ids)],
-            fields=['note_id'],
-            groupby=['note_id'],
-        )
-        total_map = {d['note_id'][0]: d['note_id_count'] for d in total_data}
-
-        # 一次查詢所有 note 的 active 待辦數
-        active_data = Activity.read_group(
-            domain=[('note_id', 'in', self.ids), ('active', '=', True)],
-            fields=['note_id'],
-            groupby=['note_id'],
-        )
-        active_map = {d['note_id'][0]: d['note_id_count'] for d in active_data}
+        total_map = self._count_activities_by_note(Activity, [])
+        active_map = self._count_activities_by_note(Activity, [('active', '=', True)])
 
         for note in self:
             note.note_activity_count = total_map.get(note.id, 0)
             note.note_active_activity_count = active_map.get(note.id, 0)
+
+    def _count_activities_by_note(self, Activity, extra_domain):
+        """以單次 _read_group 統計「每張筆記幾筆待辦」。
+
+        groupby 用的是 many2many（Odoo 18 支援，會自動 join rel table），但分組
+        結果會包含「同一批待辦所引用、卻不在 self 內」的筆記，故需再過濾一次。
+        """
+        note_ids = set(self.ids)
+        groups = Activity._read_group(
+            [('note_ids', 'in', self.ids)] + extra_domain,
+            groupby=['note_ids'],
+            aggregates=['__count'],
+        )
+        return {
+            note.id: count
+            for note, count in groups
+            if note and note.id in note_ids
+        }
 
     @api.depends('stage_ids')
     def _compute_stage_id(self):
@@ -228,20 +249,25 @@ class NoteNote(models.Model):
             'res_model': 'mail.activity',
             'view_mode': 'list,form',
             'views': [(False, 'list'), (False, 'form')],
-            'domain': [('note_id', '=', self.id)],
+            'domain': [('note_ids', 'in', self.id)],
             'context': {'active_test': False},
         }
 
     # ===== API 方法 =====
     def get_related_documents(self):
-        """取得關聯文件（CRM/Task）- API 方法
+        """取得關聯文件（CRM/Task）- 對外 API 方法
+
+        ⚠️ 本模組內部無呼叫端（related_notes.js 用的是反向的
+        mail.activity.get_related_notes）。刻意保留為公開 API 供外部整合，
+        若確定無人使用可直接刪除。
+
 
         Returns:
             list: 包含關聯文件資訊的字典列表
         """
         self.ensure_one()
         activities = self.env['mail.activity'].with_context(active_test=False).search([
-            ('note_id', '=', self.id),
+            ('note_ids', 'in', self.id),
             ('is_transferred', '=', True),
         ])
 

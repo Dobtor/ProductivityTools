@@ -33,8 +33,12 @@
                                     <span t-if="note.is_all_done" class="badge bg-success">
                                         <i class="fa fa-check me-1"/>All Done
                                     </span>
-                                    <span t-else="" class="badge bg-info">
+                                    <!-- 分母含已合併的空殼；有的話用 title 說明，
+                                         否則使用者會以為同一件事被算成兩件 -->
+                                    <span t-else="" class="badge bg-info"
+                                          t-att-title="mergedHint(note)">
                                         <t t-esc="note.active_count"/>/<t t-esc="note.total_count"/>
+                                        <i t-if="note.merged_count" class="fa fa-compress ms-1"/>
                                     </span>
                                 </span>
                                 <button class="btn btn-sm btn-link p-0 ms-2"
@@ -59,6 +63,10 @@
                                         </span>
                                         <span t-elif="activity.state === 'cancelled'" class="badge bg-danger-subtle text-danger small">
                                             Cancelled
+                                        </span>
+                                        <!-- 已合併：與主待辦是同一件事，標示出來避免被當成兩件 -->
+                                        <span t-elif="activity.state === 'merged'" class="badge bg-secondary-subtle text-secondary small">
+                                            Merged
                                         </span>
                                     </div>
                                 </t>

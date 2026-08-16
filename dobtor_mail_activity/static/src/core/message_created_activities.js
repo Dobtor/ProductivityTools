@@ -4,8 +4,9 @@ import { Message } from "@mail/core/common/message";
 import { patch } from "@web/core/utils/patch";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
-import { useState, onMounted } from "@odoo/owl";
+import { useState, onMounted, onWillUpdateProps } from "@odoo/owl";
 import { createBatchLoader } from "@dobtor_mail_activity/utils/batch_loader";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 // ===== Module-level batch loader =====
 // Collects message IDs from all mounted Message components and fires a single RPC,
@@ -34,16 +35,27 @@ patch(Message.prototype, {
         });
 
         onMounted(() => {
-            this.loadCreatedActivities();
+            this.loadCreatedActivities(this.props.message);
+        });
+
+        // Message 元件在串列虛擬捲動/切換 thread 時會被重用：同一實例只換 props、
+        // 不重跑 onMounted。少了這段，捲動後會顯示上一則訊息的待辦。
+        // （related_notes.js 早已有同樣的修正，這裡先前漏了。）
+        onWillUpdateProps((nextProps) => {
+            if (nextProps.message?.id !== this.props.message?.id) {
+                this.createdActivitiesState.activities = [];
+                this.createdActivitiesState.loaded = false;
+                this.loadCreatedActivities(nextProps.message);
+            }
         });
     },
 
     /**
      * 載入此訊息建立的待辦事項（透過批次載入器）
      */
-    async loadCreatedActivities() {
-        const message = this.props.message;
-        if (!message || !message.id || this.createdActivitiesState.loading) {
+    async loadCreatedActivities(message = this.props.message) {
+        // id > 0 才是已落地的訊息；樂觀送出的暫存訊息 id 為負，查了必然沒有結果
+        if (!message || !message.id || message.id < 0 || this.createdActivitiesState.loading) {
             return;
         }
 
@@ -51,6 +63,10 @@ patch(Message.prototype, {
 
         try {
             const activities = await requestActivities(this.orm, message.id);
+            // await 期間 props 可能已換成另一則訊息 → 丟棄過期回應
+            if (this.props.message?.id !== message.id) {
+                return;
+            }
             this.createdActivitiesState.activities = activities;
             this.createdActivitiesState.loaded = true;
         } catch (e) {
@@ -86,18 +102,10 @@ patch(Message.prototype, {
     async onTransferCreatedActivity(ev, activity) {
         ev.stopPropagation();
         try {
-            await this.actionService.doAction({
-                type: "ir.actions.act_window",
-                name: _t("Transfer Activity"),
-                res_model: "mail.activity.transfer.wizard",
-                view_mode: "form",
-                views: [[false, "form"]],
-                target: "new",
-                context: {
-                    default_activity_id: activity.id,
-                    default_source_model: activity.res_model,
-                    default_source_id: activity.res_id,
-                },
+            await openActivityWizard(this.actionService, ACTIVITY_WIZARDS.transfer, {
+                default_activity_id: activity.id,
+                default_source_model: activity.res_model,
+                default_source_id: activity.res_id,
             });
         } catch (e) {
             this.notification.add(_t("Failed to open the transfer wizard."), { type: "danger" });

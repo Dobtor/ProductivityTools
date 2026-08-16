@@ -50,23 +50,18 @@
               sequence="15"/>
 
     <!-- ============================================================ -->
-    <!-- 我建立的待辦（我指派給別人的）                                   -->
+    <!-- 待辦總覽：全部待辦，預設篩「我建立的」                            -->
     <!-- ============================================================ -->
     <menuitem id="menu_mail_activity_created_by_me"
-              name="My Created Activities"
+              name="All To-dos"
               parent="project_todo.menu_todo_todos"
               action="action_mail_activity_created_by_me"
               sequence="18"/>
 
     <!-- ============================================================ -->
-    <!-- 我完成的待辦（我建立的 + 我被指派的，已完成/已取消）               -->
-    <!-- ============================================================ -->
-    <menuitem id="menu_mail_activity_my_history"
-              name="My Activity History"
-              parent="project_todo.menu_todo_todos"
-              action="action_mail_activity_my_history"
-              sequence="20"/>
-
+    <!-- 「我完成的待辦」選單已移除：歷史併入主選單的「我的待辦事項」       -->
+    <!-- （action_mail_activity_my_schedule 帶 active_test:False，        -->
+    <!--  用 In Progress / Completed / Cancelled 篩選切換）               -->
     <!-- ============================================================ -->
     <!-- 我的週報                                                       -->
     <!-- ============================================================ -->

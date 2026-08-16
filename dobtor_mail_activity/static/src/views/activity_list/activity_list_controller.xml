@@ -11,9 +11,14 @@
                         t-on-click="() => this.onBatchDone()">
                     <i class="fa fa-check me-1"/>Batch Complete
                 </button>
-                <button class="btn btn-sm btn-secondary"
+                <button class="btn btn-sm btn-secondary me-1"
                         t-on-click="() => this.onBatchPostpone()">
                     <i class="fa fa-clock-o me-1"/>Batch Postpone
+                </button>
+                <button class="btn btn-sm btn-secondary"
+                        t-att-disabled="model.root.selection.length &lt; 2"
+                        t-on-click="() => this.onBatchMerge()">
+                    <i class="fa fa-compress me-1"/>Merge
                 </button>
             </div>
             <!-- Week Selector -->

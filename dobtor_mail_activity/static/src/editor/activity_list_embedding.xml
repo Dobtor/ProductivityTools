@@ -32,10 +32,10 @@
                 No to-do yet. Type "/Create To-do" or click below to add one.
             </div>
 
-            <!-- 已完成 / 取消（淡化顯示，可追溯）-->
+            <!-- 已完成 / 取消 / 已合併（淡化顯示，可追溯）-->
             <div t-foreach="doneActivities" t-as="act" t-key="act.id"
                  class="o_dobtor_activity_row o_dobtor_activity_done_row d-flex align-items-center py-1 text-muted">
-                <i class="fa fa-check fa-fw me-2"/>
+                <i class="fa fa-fw me-2" t-att-class="doneIcon(act)"/>
                 <span class="flex-grow-1 text-truncate text-decoration-line-through"
                       t-att-title="act.summary" t-esc="act.summary"/>
                 <span class="small mx-2" t-esc="doneLabel(act)"/>

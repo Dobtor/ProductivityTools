@@ -150,15 +150,33 @@
                             invisible="not active or not (can_edit_as_creator or can_edit_as_assignee)"/>
                     <button name="action_open_document" type="object"
                             string="Document"/>
+                    <!-- 我的待辦已合併歷史，會直接開到已封存記錄：需要還原入口
+                         （原本只存在於 mail_activity_view_list_history）。
+                         已合併者不可單獨還原（會與主待辦重複）→ 改走解除合併。 -->
+                    <button name="action_restore" type="object"
+                            string="Restore"
+                            invisible="active or merged_into_id"/>
+                    <button name="action_unmerge" type="object"
+                            string="Unmerge"
+                            invisible="not merged_into_id"/>
                     <field name="schedule_status" widget="statusbar"
                            options="{'clickable': '1'}"/>
                 </header>
                 <sheet>
                     <!-- 隱藏欄位供條件使用 -->
                     <field name="active" invisible="1"/>
+                    <field name="merged_into_id" invisible="1"/>
                     <field name="planned_date" invisible="1"/>
                     <field name="feedback" invisible="1"/>
                     <field name="is_transferred" invisible="1"/>
+
+                    <!-- 已被合併：明確告知並提供入口，避免使用者以為待辦消失了 -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not merged_into_id">
+                        <i class="fa fa-compress"/>
+                        <span class="ms-1">This activity was merged into</span>
+                        <field name="merged_into_id" readonly="1" nolabel="1" class="ms-1 d-inline"/>
+                    </div>
                     <field name="assignment_history_ids" invisible="1"/>
                     <field name="postpone_history_ids" invisible="1"/>
                     <field name="schedule_warning" invisible="1"/>
@@ -249,6 +267,14 @@
                             <field name="note_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"
                                    options="{'no_create': True}"/>
+                            <!-- 合併會把被併入者的筆記併進來，故可能多於一張；
+                                 note_id（來源）必定是其中一員 -->
+                            <field name="note_count" invisible="1"/>
+                            <field name="note_ids" widget="many2many_tags"
+                                   string="Referenced Notes"
+                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                                   options="{'no_create': True}"
+                                   invisible="note_count &lt; 2"/>
                         </group>
 
                         <!-- 排程資訊 -->
@@ -408,11 +434,14 @@
 
                 <templates>
                     <t t-name="card">
-                        <!-- 卡片底色優先級：逾期(danger) > 緊急(warning) > 重要(info) -->
+                        <!-- 卡片底色優先級：逾期(danger) > 緊急(warning) > 重要(info)
+                             已封存（完成/取消）淡化顯示 —— 帶 active_test:False 的 action
+                             會讓這些卡片出現在同一張看板上 -->
                         <div t-attf-class="o_activity_kanban_card
                             #{record.state.raw_value == 'overdue' ? 'border-danger bg-danger-subtle' :
                               record.urgency.raw_value == 'urgent' ? 'border-warning bg-warning-subtle' :
-                              record.importance.raw_value == 'important' ? 'border-info bg-info-subtle' : ''}">
+                              record.importance.raw_value == 'important' ? 'border-info bg-info-subtle' : ''}
+                            #{!record.active.raw_value ? 'opacity-50' : ''}">
 
                             <!-- 第一列：摘要 -->
                             <div class="o_kanban_record_top mb-1">
@@ -500,20 +529,22 @@
                                     <span t-if="record.estimated_hours.raw_value" class="d-inline-flex align-items-center text-nowrap text-muted small me-1" title="Estimated Hours">
                                         <i class="fa fa-hourglass-half me-1"/><field name="estimated_hours" widget="float_time"/>
                                     </span>
+                                    <!-- 三顆操作鈕僅對進行中的待辦有意義：帶 active_test:False
+                                         的 action 會讓已完成/已取消的卡片出現在同一張看板 -->
                                     <!-- 領取按鈕（未指派時） -->
-                                    <t t-if="!record.user_id.raw_value">
+                                    <t t-if="record.active.raw_value and !record.user_id.raw_value">
                                         <button name="action_claim_activity" type="object" class="btn btn-sm btn-outline-primary" title="Claim this activity">
                                             <i class="fa fa-hand-paper-o me-1"/>Claim
                                         </button>
                                     </t>
                                     <!-- 延期按鈕（已指派時） -->
-                                    <t t-if="record.user_id.raw_value">
+                                    <t t-if="record.active.raw_value and record.user_id.raw_value">
                                         <button name="action_postpone_wizard" type="object" class="btn btn-sm btn-outline-secondary" title="Postpone">
                                             <i class="fa fa-clock-o me-1"/>Postpone
                                         </button>
                                     </t>
                                     <!-- 完成按鈕 -->
-                                    <button name="action_done_wizard" type="object" class="btn btn-sm btn-success" title="Complete Activity">
+                                    <button t-if="record.active.raw_value" name="action_done_wizard" type="object" class="btn btn-sm btn-success" title="Complete Activity">
                                         <i class="fa fa-check me-1"/>Complete
                                     </button>
                                 </div>
@@ -556,8 +587,12 @@
                   default_order="date_deadline asc, urgency desc"
                   multi_edit="1"
                   expand="1"
-                  decoration-danger="date_deadline &lt; current_date"
-                  decoration-warning="date_deadline == current_date">
+                  decoration-danger="active and date_deadline &lt; current_date"
+                  decoration-warning="active and date_deadline == current_date"
+                  decoration-muted="not active">
+                <!-- action 帶 active_test:False（我的待辦已合併歷史），已完成/已取消的
+                     記錄會出現在同一張清單 → active 供裝飾與按鈕條件使用 -->
+                <field name="active" column_invisible="1"/>
                 <!-- 客戶已於左側 search panel 呈現，清單表頭預設不再顯示（可由欄位選單開啟）-->
                 <field name="partner_id" optional="hide"/>
                 <field name="summary" string="Summary"/>
@@ -574,6 +609,8 @@
                 <field name="can_edit_as_assignee" column_invisible="1"/>
                 <field name="planned_date" string="Planned Date" optional="show"
                        widget="planned_date_picker"/>
+                <!-- date_deadline 的 readonly 條件引用 create_uid，必須在視圖內載入 -->
+                <field name="create_uid" string="Created By" widget="many2one_avatar_user" optional="hide"/>
                 <field name="date_deadline" string="Due Date" widget="remaining_days"
                        readonly="id and create_uid != uid"/>
                 <field name="schedule_status" string="Schedule" widget="schedule_day" optional="hide"/>
@@ -586,12 +623,31 @@
                 <field name="user_id" string="Assignee" widget="many2one_avatar_user"
                        readonly="id" optional="hide"/>
                 <field name="postpone_count" string="Postpone Count" optional="hide"/>
+                <!-- 歷史欄位：預設收起，取消 In Progress 篩選查歷史時可自行開啟 -->
+                <field name="activity_status" string="Activity Status" widget="badge" optional="hide"
+                       decoration-success="activity_status == 'done'"
+                       decoration-danger="activity_status == 'cancelled'"/>
+                <field name="done_date" string="Completed Date" optional="hide"/>
+                <field name="cancel_date" string="Cancelled Date" optional="hide"/>
+                <field name="feedback" string="Feedback" optional="hide"/>
+                <field name="merged_into_id" string="Merged Into" optional="hide"/>
                 <button name="action_done_wizard" type="object" string="Complete"
-                        icon="fa-check" class="btn-success"/>
+                        icon="fa-check" class="btn-success"
+                        invisible="not active"/>
                 <button name="action_postpone_wizard" type="object"
-                        string="Postpone" icon="fa-clock-o"/>
+                        string="Postpone" icon="fa-clock-o"
+                        invisible="not active"/>
                 <button name="action_transfer_activity" type="object"
-                        string="Transfer" icon="fa-exchange"/>
+                        string="Transfer" icon="fa-exchange"
+                        invisible="not active"/>
+                <!-- 取代原歷史清單（mail_activity_view_list_history）的還原入口。
+                     已合併者不可單獨還原（會與主待辦重複）→ 改走解除合併。 -->
+                <button name="action_restore" type="object" string="Restore"
+                        icon="fa-undo" class="btn-secondary"
+                        invisible="active or merged_into_id"/>
+                <button name="action_unmerge" type="object" string="Unmerge"
+                        icon="fa-expand" class="btn-secondary"
+                        invisible="not merged_into_id"/>
             </list>
         </field>
     </record>

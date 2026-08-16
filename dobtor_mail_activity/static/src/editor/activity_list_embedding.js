@@ -18,6 +18,7 @@ import {
 } from "@dobtor_mail_activity/editor/activity_signal";
 import { ensureActionViews } from "@dobtor_mail_activity/editor/activity_action";
 import { activityStateClass } from "@dobtor_mail_activity/utils/activity_state";
+import { openActivityWizard, ACTIVITY_WIZARDS } from "@dobtor_mail_activity/utils/activity_actions";
 
 export class EmbeddedActivityList extends Component {
     static template = "dobtor_mail_activity.EmbeddedActivityList";
@@ -99,9 +100,22 @@ export class EmbeddedActivityList extends Component {
         return this.state.activities.filter((a) => !a.active);
     }
 
-    /** 已完成/取消的顯示文字（可翻譯）。 */
+    /** 已完成/取消/已合併的顯示文字（可翻譯）。
+     *  已合併者刻意保留在清單裡（顯示但標示），內容由主待辦代表。 */
     doneLabel(act) {
-        return act.activity_status === "cancelled" ? _t("Cancelled") : _t("Done");
+        switch (act.activity_status) {
+            case "cancelled":
+                return _t("Cancelled");
+            case "merged":
+                return _t("Merged");
+            default:
+                return _t("Done");
+        }
+    }
+
+    /** 封存列的圖示：已合併用壓縮圖示，與完成的打勾區隔。 */
+    doneIcon(act) {
+        return act.activity_status === "merged" ? "fa-compress" : "fa-check";
     }
 
     /** 依狀態回傳時鐘色點 class（比照原生列表視圖著色）。 */
@@ -133,18 +147,9 @@ export class EmbeddedActivityList extends Component {
         } else if (p.note_id) {
             ctx.default_note_id = p.note_id;
         }
-        await this.action.doAction(
-            {
-                type: "ir.actions.act_window",
-                name: _t("Create To-do"),
-                res_model: "mail.activity.create.wizard",
-                view_mode: "form",
-                views: [[false, "form"]],
-                target: "new",
-                context: ctx,
-            },
-            { onClose: () => this._broadcastReload() }
-        );
+        await openActivityWizard(this.action, ACTIVITY_WIZARDS.create, ctx, {
+            onClose: () => this._broadcastReload(),
+        });
     }
 
     /** 通知所有清單/膠囊/時鐘（含自己）重載。 */

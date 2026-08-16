@@ -106,6 +106,20 @@ export class RelatedNotes extends Component {
     }
 
     /**
+     * 分母含已合併空殼時的說明文字（hover 顯示）。
+     * 已合併者與其主待辦是同一件事，不標示的話會被誤讀成兩件。
+     */
+    mergedHint(note) {
+        if (!note.merged_count) {
+            return "";
+        }
+        return _t(
+            "Includes %s merged activity(ies) already represented by their master activity.",
+            note.merged_count
+        );
+    }
+
+    /**
      * 取得待辦狀態圖示 class
      */
     getActivityIconClass(state) {
@@ -116,6 +130,9 @@ export class RelatedNotes extends Component {
                 return 'fa fa-check-circle text-success';
             case 'cancelled':
                 return 'fa fa-times-circle text-danger';
+            case 'merged':
+                // 已併入其他待辦：保留在清單中（顯示但標示），實際內容由主待辦代表
+                return 'fa fa-compress text-secondary';
             default:
                 return 'fa fa-circle-o text-muted';
         }
