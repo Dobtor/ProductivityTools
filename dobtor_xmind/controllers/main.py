@@ -244,13 +244,20 @@ class MindMapController(http.Controller):
         return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/save', type='json', auth='user')
-    def save_workbook_data(self, workbook_id, data, is_auto=False, **kwargs):
-        """Save mindmap data from visual editor"""
+    def save_workbook_data(self, workbook_id, data, is_auto=False, sheet_id=None, **kwargs):
+        """Save mindmap data from visual editor.
+
+        sheet_id 由編輯器帶上目前顯示中的分頁 —— 少了它，多分頁的工作簿會一律
+        寫進第一張 sheet，切分頁時就會用當下畫面覆蓋掉別張的內容。
+        """
         workbook = self._check_workbook_access(workbook_id, 'write')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
-        workbook.save_mindmap_data(data, is_auto=bool(is_auto))
+        try:
+            workbook.save_mindmap_data(data, is_auto=bool(is_auto), sheet_id=sheet_id)
+        except UserError as e:
+            return {'error': e.args[0] if e.args else str(e)}
         return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/project_sync', type='json', auth='user')

@@ -446,17 +446,37 @@ class XMindWorkbook(models.Model):
         reverse = {v: k for k, v in self._XMIND_STRUCTURE_MAP.items()}
         return reverse.get(layout_type, '')
 
-    def save_mindmap_data(self, data, is_auto=False):
-        """Save mindmap data from jsMind editor with command history"""
+    def save_mindmap_data(self, data, is_auto=False, sheet_id=None):
+        """Save mindmap data from jsMind editor with command history.
+
+        :param sheet_id: sheet the payload belongs to. **Must be supplied whenever
+            the workbook has more than one sheet** — the editor sends the sheet it
+            is currently displaying.
+
+            Previously this always wrote to ``sheet_ids[0]``. Since the editor
+            saves the canvas before switching tabs, switching away from sheet 2
+            back to sheet 1 wrote sheet 2's canvas into sheet 1 — silently wiping
+            sheet 1 — and sheet 2's own edits were never persisted at all.
+            Falling back to the first sheet is kept only for callers that predate
+            multi-sheet support (xmind.revision restore, tests).
+        """
         self.ensure_one()
 
-        if not self.sheet_ids:
-            sheet = self.env['xmind.sheet'].create({
-                'workbook_id': self.id,
-                'name': self.name,
-            })
-        else:
-            sheet = self.sheet_ids[0]
+        sheet = self.env['xmind.sheet']
+        if sheet_id:
+            sheet = self.sheet_ids.filtered(lambda s: s.id == int(sheet_id))[:1]
+            if not sheet:
+                raise UserError(_(
+                    "Sheet %(sheet)s does not belong to mind map %(book)s.",
+                    sheet=sheet_id, book=self.display_name))
+        if not sheet:
+            if not self.sheet_ids:
+                sheet = self.env['xmind.sheet'].create({
+                    'workbook_id': self.id,
+                    'name': self.name,
+                })
+            else:
+                sheet = self.sheet_ids[0]
 
         # Clear dependent records BEFORE topics (avoid cascade deletion of relationships etc.)
         sheet.relationship_ids.unlink()

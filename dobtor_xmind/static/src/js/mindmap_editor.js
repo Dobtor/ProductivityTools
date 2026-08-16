@@ -5072,7 +5072,13 @@ export class MindmapEditor extends Component {
         });
 
         try {
-            const result = await rpc('/xmind/workbook/' + this.workbookId + '/save', { data, is_auto: isAuto });
+            // 一定要帶上目前顯示的 sheet：後端沒有這個值時只能寫第一張，
+            // 於是切換分頁前的這次存檔會用當下畫面覆蓋掉第一張的內容。
+            const result = await rpc('/xmind/workbook/' + this.workbookId + '/save', {
+                data,
+                is_auto: isAuto,
+                sheet_id: this._currentSheetId || false,
+            });
             if (result && result.error) {
                 this._showError(result.error);
                 return false;
