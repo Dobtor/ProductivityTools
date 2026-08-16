@@ -13,7 +13,8 @@ patch(GanttController.prototype, {
     setup() {
         super.setup();
         // null = not loaded / no project selected → button hidden.
-        this.xmindState = useState({ count: null });
+        // syncing = a sync RPC is in flight (shows a spinner, blocks double-clicks).
+        this.xmindState = useState({ count: null, syncing: false });
         onWillStart(() => this._loadXmindWorkbookCount());
     },
 
@@ -74,6 +75,38 @@ patch(GanttController.prototype, {
         );
         if (action) {
             await this.action.doAction(action);
+        }
+    },
+
+    /**
+     * 重新同步：把目前的任務樹推進既有心智圖（專案 → 心智圖，單向）。
+     *
+     * 「建立心智圖」那顆本身就含一次同步，但之後按鈕會換成「開啟」，原本沒有
+     * 任何從甘特圖再同步的入口 —— 得跳回專案表單按 header 的「同步心智圖」。
+     *
+     * action_sync_mindmap 回傳的是 display_notification 這種 client action，
+     * 不會導頁，所以 doAction 之後留在甘特圖上。同步只寫 xmind 端、不動任務，
+     * 因此不需要重載甘特資料。
+     */
+    async onSyncMindmap() {
+        const projectId = this._getProjectIdFromContext();
+        if (!projectId) {
+            this.notification.add(_t("請先選擇專案。"), { type: "warning" });
+            return;
+        }
+        if (this.xmindState.syncing) {
+            return;
+        }
+        this.xmindState.syncing = true;
+        try {
+            const action = await this.orm.call(
+                "project.project", "action_sync_mindmap", [[projectId]]
+            );
+            if (action) {
+                await this.action.doAction(action);
+            }
+        } finally {
+            this.xmindState.syncing = false;
         }
     },
 });

@@ -13,6 +13,13 @@
                     t-on-click="() => this.onOpenMindmap()" title="開啟心智圖">
                 <i class="fa fa-share-alt"/>
             </button>
+            <!-- 重新同步（僅在已有心智圖時）：把目前任務樹推進去。
+                 執行中換成 spinner 並 disabled，比照工具列「自動排程」的慣例。 -->
+            <button class="o_gantt_tb_btn" t-if="showOpenMindmap"
+                    t-on-click="() => this.onSyncMindmap()"
+                    t-att-disabled="xmindState.syncing" title="同步心智圖">
+                <i t-att-class="'fa ' + (xmindState.syncing ? 'fa-spinner fa-spin' : 'fa-refresh')"/>
+            </button>
             <div class="o_gantt_tb_sep" t-if="showMindmapButton"/>
         </xpath>
     </t>
