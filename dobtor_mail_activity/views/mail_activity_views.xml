@@ -96,8 +96,14 @@
                 <attribute name="placeholder">Activity note (optional)...</attribute>
             </xpath>
 
-            <!-- 在 footer 新增轉移和取消按鈕 -->
-            <xpath expr="//footer/button[@name='action_close_dialog']" position="after">
+            <!-- 在 footer 新增轉移和取消按鈕。
+                 錨點刻意用最後一顆 Discard（special="cancel"）而非
+                 button[@name='action_close_dialog'] —— 後者在 core 有兩顆
+                 （Schedule / Save，以 invisible 互斥），xpath 會取到第一顆
+                 「Schedule」，害我們的次要按鈕排到主要動作 Save 之前。
+                 錨在 Discard 之前，順序才是「core 主要動作 → 我們的次要動作
+                 → Discard」。 -->
+            <xpath expr="//footer/button[@special='cancel']" position="before">
                 <button string="Transfer"
                         name="action_transfer_activity"
                         type="object"

@@ -71,14 +71,13 @@
                         domain="[('activity_status', '=', 'cancelled')]"/>
                 <filter string="Merged" name="merged"
                         domain="[('activity_status', '=', 'merged')]"/>
-            </xpath>
-
-            <!-- 4. 其餘篩選，插在 Group By 區塊之前。
-                    原 week_prev / week0 / week1 已移除：週次由控制面板的週次選擇器
-                    （ActivityWeekSearchModel）統一注入，兩套並存會 AND 成空集合。 -->
-            <xpath expr="//search/group[@string='Group By']" position="before">
-                <!-- 不補前導 separator：core 在被取代的 filter_archived 之後
-                     本來就有一個，補了會變連續兩個分隔線 -->
+                <!-- 以下三區一併在這裡插入，而不是另外 xpath 到 Group By 群組之前：
+                     Odoo 禁止用 @string 當繼承選擇器（string 可翻譯，
+                     ir_ui_view._valid_inheritance / TRANSLATED_ATTRS），
+                     而 core 的那個 <group> 沒有 name 可錨。被取代的
+                     filter_archived 後方本來就有 core 的 <separator/> 接著
+                     Group By 群組，所以直接接在這裡，版面完全相同。 -->
+                <separator/>
                 <filter string="Transferred" name="transferred"
                         domain="[('is_transferred', '=', True)]"/>
                 <separator/>
