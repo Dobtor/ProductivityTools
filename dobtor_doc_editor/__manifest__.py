@@ -29,13 +29,12 @@ Dobtor Doc Editor v2.1
         'bus',
         'portal',
     ],
-    # 外部 Python 套件（填 import 名稱，非 pip 名稱）：
-    #   docx    ← pip install python-docx  （upload_template 的 +++INS+++ → Jinja 轉換）
-    #   docxtpl ← pip install docxtpl       （fill_template 填充模板輸出 PDF/DOCX）
-    # 缺套件時 Odoo 會擋安裝並明確提示，而非執行期才 500。
-    # 實際安裝請見 repo 根目錄 requirements.txt / Dockerfile。
+    # 外部 Python 套件（import 名稱，非 pip 名稱）：
+    #   docx    ← pip python-docx  （.docx 匯入/模板轉換）
+    #   docxtpl ← pip docxtpl       （fill_template 填充模板輸出 PDF/DOCX）
+    #   odf     ← pip odfpy         （.odt 匯入解析）
     'external_dependencies': {
-        'python': ['docx', 'docxtpl'],
+        'python': ['docx', 'docxtpl', 'odf'],
     },
     'data': [
         'security/doc_groups.xml',
