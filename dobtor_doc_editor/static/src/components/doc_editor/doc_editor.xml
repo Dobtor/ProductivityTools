@@ -192,8 +192,19 @@
                     </span>
                 </t>
 
-                <!-- 右側：縮放（margin-left:auto 推到最右） -->
+                <!-- 右側：快照狀態 + 縮放（margin-left:auto 推到最右） -->
                 <div class="doc-toolbar-right">
+                    <!-- Phase 3：值凍結時間。快照語意最容易造成的誤解是
+                         「我改了來源記錄，怎麼文件沒變」——攤在這裡最有效。 -->
+                    <t t-if="state.snapshotDate">
+                        <span t-attf-class="doc-snapshot-badge #{state.snapshotIsStale ? 'is-stale' : ''}"
+                              t-attf-title="模型變數的值凍結於 #{state.snapshotDate}#{state.snapshotIsStale ? '；來源記錄之後又被修改過' : ''}">
+                            <i t-attf-class="fa fa-#{state.snapshotIsStale ? 'exclamation-triangle' : 'lock'}"
+                               aria-hidden="true"/>
+                            <t t-if="state.snapshotIsStale">來源已變更</t>
+                            <t t-else="">值已凍結</t>
+                        </span>
+                    </t>
                     <div class="doc-toolbar-field">
                         <label class="doc-toolbar-field-label">縮放</label>
                         <select class="doc-toolbar-select doc-toolbar-zoom"
@@ -825,9 +836,104 @@
             <div class="doc-main"
                  t-att-style="state.activeSubNav === 'templates' ? '' : 'display: none;'">
                 <!-- 左：頁面縮圖 panel — Sprint C 接 canvas.toDataURL 真實縮圖 -->
-                <aside class="doc-thumbnail-panel" aria-label="頁面縮圖">
-                    <div class="doc-thumbnail-panel-header">頁面</div>
-                    <div class="doc-thumbnail-list">
+                <aside class="doc-thumbnail-panel" aria-label="頁面與欄位">
+                    <!-- Phase 6：左欄兩個分頁——頁面縮圖（原有）／模型欄位調色盤（新增） -->
+                    <div class="doc-left-tabs" role="tablist">
+                        <button class="doc-left-tab"
+                                role="tab"
+                                t-att-class="state.leftPanelTab === 'pages' ? 'is-active' : ''"
+                                t-att-aria-selected="state.leftPanelTab === 'pages' ? 'true' : 'false'"
+                                t-on-click="() => this.onLeftPanelTab('pages')">
+                            <i class="fa fa-files-o me-1" aria-hidden="true"/>頁面
+                        </button>
+                        <!-- portal 前台不提供「欄位」分頁：變數綁定屬於範本設計，
+                             不是協作者該做的事（補遺九／範圍 A） -->
+                        <button class="doc-left-tab"
+                                role="tab"
+                                t-if="showFieldPalette"
+                                t-att-class="state.leftPanelTab === 'fields' ? 'is-active' : ''"
+                                t-att-aria-selected="state.leftPanelTab === 'fields' ? 'true' : 'false'"
+                                t-on-click="() => this.onLeftPanelTab('fields')">
+                            <i class="fa fa-database me-1" aria-hidden="true"/>欄位
+                        </button>
+                    </div>
+
+                    <!-- ─── 分頁：模型欄位調色盤 ─── -->
+                    <div class="doc-field-palette"
+                         t-if="state.leftPanelTab === 'fields' and showFieldPalette">
+                        <t t-if="!_loadedModelName">
+                            <div class="doc-alias-panel-empty">
+                                <p class="text-muted small mb-1">
+                                    <i class="fa fa-exclamation-triangle text-warning me-1"/>
+                                    尚未設定關聯模型
+                                </p>
+                                <p class="text-muted small">
+                                    請先設定「適用模型」（範本）或「關聯模型」（文件），
+                                    才會列出可拖曳的欄位。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-elif="state.modelFieldsLoading">
+                            <div class="doc-alias-panel-empty">
+                                <p class="text-muted small">載入欄位中…</p>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <t t-if="!canPlaceVariables">
+                                <div class="doc-palette-hint">
+                                    <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                                    浮動版面不支援模型變數——那些欄位不在文件內容裡，
+                                    匯出時不會出現。請切回「行內」版面再放。
+                                </div>
+                            </t>
+                            <div class="doc-field-palette-filter">
+                                <i class="fa fa-search" aria-hidden="true"/>
+                                <input type="text"
+                                       placeholder="篩選欄位…"
+                                       t-att-value="state.modelFieldFilter"
+                                       t-on-input="(ev) => this.onModelFieldFilterInput(ev.target.value)"
+                                       aria-label="篩選模型欄位"/>
+                            </div>
+                            <ul class="doc-field-palette-list">
+                                <t t-foreach="filteredModelFields" t-as="f" t-key="f.name">
+                                    <li class="doc-field-palette-item"
+                                        t-att-draggable="canPlaceVariables ? 'true' : 'false'"
+                                        t-on-dragstart="(ev) => this.onModelFieldDragStart(ev, f)"
+                                        t-on-click="() => this.onModelFieldClick(f)"
+                                        t-attf-title="拖曳或點擊插入《#{f.label or f.name}》">
+                                        <t t-if="f.sub_fields and f.sub_fields.length">
+                                            <button class="doc-field-palette-expand"
+                                                    t-on-click.stop="() => this.toggleRelation(f.name)"
+                                                    t-attf-aria-label="展開 #{f.label} 的子欄位">
+                                                <i t-attf-class="fa fa-caret-#{state.expandedRelations.includes(f.name) ? 'down' : 'right'}"
+                                                   aria-hidden="true"/>
+                                            </button>
+                                        </t>
+                                        <span class="doc-field-palette-label" t-esc="f.label or f.name"/>
+                                        <span class="doc-field-palette-type" t-esc="f.type"/>
+                                    </li>
+                                    <t t-if="state.expandedRelations.includes(f.name)">
+                                        <t t-foreach="f.sub_fields or []" t-as="sub" t-key="f.name + '.' + sub.name">
+                                            <li class="doc-field-palette-item is-sub"
+                                                t-att-draggable="canPlaceVariables ? 'true' : 'false'"
+                                                t-on-dragstart="(ev) => this.onModelFieldDragStart(ev, sub, f)"
+                                                t-on-click="() => this.onModelFieldClick(sub, f)"
+                                                t-attf-title="插入《#{f.label}-#{sub.label or sub.name}》">
+                                                <span class="doc-field-palette-label" t-esc="sub.label or sub.name"/>
+                                                <span class="doc-field-palette-type" t-esc="sub.type"/>
+                                            </li>
+                                        </t>
+                                    </t>
+                                </t>
+                                <t t-if="!filteredModelFields.length">
+                                    <li class="doc-field-palette-empty">無符合的欄位</li>
+                                </t>
+                            </ul>
+                        </t>
+                    </div>
+
+                    <div class="doc-thumbnail-list"
+                         t-if="state.leftPanelTab !== 'fields' or !showFieldPalette">
                         <t t-if="!state.thumbnails.length">
                             <!-- Fallback：縮圖未生成時顯示佔位（保留視覺結構） -->
                             <div class="doc-thumbnail-item active">
@@ -1049,6 +1155,85 @@
                             </ul>
                         </div>
                     </t>
+                    <!-- ═══ Phase 6：模型變數（自描述藥丸）的欄位定義 ═══
+                         與下面的「待填欄位」分成兩區，因為兩類欄位的定義
+                         存在不同地方：模型變數在元素的 extension.dobtorField，
+                         待填欄位在 doc.template.field 記錄。 -->
+                    <t t-if="state.selectedVariable">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-tag me-2" aria-hidden="true"/>
+                            <span>模型變數</span>
+                        </div>
+
+                        <div class="doc-inspector-field">
+                            <label>標籤文字</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.labelText or ''"
+                                   t-on-change="(ev) => this.onVariablePropertyChange('labelText', ev.target.value)"
+                                   placeholder="顯示在文件上的名稱"/>
+                        </div>
+
+                        <div class="doc-inspector-field">
+                            <label>值來源</label>
+                            <select t-on-change="(ev) => this.onVariablePropertyChange('source', ev.target.value)">
+                                <t t-foreach="VALUE_SOURCES" t-as="vs" t-key="vs.key">
+                                    <option t-att-value="vs.key"
+                                            t-att-selected="(state.selectedVariable.source or 'record') === vs.key ? 'selected' : ''"
+                                            t-esc="vs.label"/>
+                                </t>
+                            </select>
+                        </div>
+
+                        <t t-if="(state.selectedVariable.source or 'record') === 'record'">
+                            <div class="doc-inspector-field">
+                                <label>Odoo 欄位</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.path or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('path', ev.target.value)"
+                                       placeholder="如 partner_id.name"/>
+                                <p class="doc-inspector-hint">
+                                    從左欄「欄位」分頁拖曳可自動填入正確路徑。
+                                </p>
+                            </div>
+                            <div class="doc-inspector-field">
+                                <label>格式（日期用）</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.format or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('format', ev.target.value)"
+                                       placeholder="如 %Y年%m月%d日"/>
+                            </div>
+                        </t>
+
+                        <t t-if="state.selectedVariable.source === 'expression'">
+                            <div class="doc-inspector-field">
+                                <label>表達式</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('expression', ev.target.value)"
+                                       placeholder="如 selection_label('state')"/>
+                                <p class="doc-inspector-hint">
+                                    在沙箱中求值，可用 <code>object</code>、
+                                    <code>selection_label()</code>、<code>format_date()</code>。
+                                </p>
+                            </div>
+                        </t>
+
+                        <t t-if="state.selectedVariable.source === 'static'">
+                            <div class="doc-inspector-field">
+                                <label>固定值</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.static or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('static', ev.target.value)"/>
+                            </div>
+                        </t>
+
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            值在建立文件時凍結一次。空值不印任何東西，也不會擋下匯出。
+                            匯出時標籤網底不會帶進正式文件。
+                        </div>
+                    </t>
+
                     <t t-if="selectedField">
                         <div class="doc-inspector-header">
                             <i class="fa fa-cog me-2"/>
@@ -1148,11 +1333,11 @@
                             </button>
                         </div>
                     </t>
-                    <t t-else="">
+                    <t t-elif="!state.selectedVariable">
                         <div class="doc-inspector-empty">
                             <i class="fa fa-mouse-pointer fa-2x text-muted mb-2"/>
                             <p class="text-muted small mb-1">尚未選取欄位</p>
-                            <p class="text-muted small">點擊文件上的欄位以編輯屬性</p>
+                            <p class="text-muted small">點擊文件上的標籤或欄位以編輯定義</p>
                         </div>
                     </t>
 
@@ -1160,20 +1345,11 @@
                     <div class="doc-alias-panel">
                         <div class="doc-alias-panel-header">
                             <i class="fa fa-tags me-1" aria-hidden="true"/>
-                            <span>中文欄位對映</span>
+                            <span>中文欄位對映（退場中）</span>
                             <span class="doc-alias-panel-count">(<t t-esc="fieldAliasesList.length"/>)</span>
-                            <button class="doc-alias-tool-btn"
-                                    t-on-click="onAutoInitAliasesClick"
-                                    title="從綁定的 Odoo 模型自動生成欄位對映"
-                                    aria-label="自動生成欄位對映">
-                                <i class="fa fa-magic" aria-hidden="true"/>
-                            </button>
-                            <button class="doc-alias-tool-btn"
-                                    t-on-click="onScanConvertAliasesClick"
-                                    title="掃描文件內 {{ }} 變數並轉成 《中文》 token"
-                                    aria-label="掃描並轉換">
-                                <i class="fa fa-exchange" aria-hidden="true"/>
-                            </button>
+                            <!-- Phase 5（決策二：一次性遷移）：新增入口已移除。
+                                 清單保留為唯讀，供退場期對照尚未遷移的資料；
+                                 新的變數請從左欄「欄位」分頁拖曳，會建立自描述藥丸。 -->
                         </div>
                         <t t-if="!_loadedModelName">
                             <div class="doc-alias-panel-empty">
@@ -1189,10 +1365,10 @@
                         </t>
                         <t t-elif="fieldAliasesList.length === 0">
                             <div class="doc-alias-panel-empty">
-                                <p class="text-muted small mb-1">尚未建立任何欄位對映</p>
+                                <p class="text-muted small mb-1">沒有待遷移的舊對映</p>
                                 <p class="text-muted small">
-                                    用「插入 → 插入 Odoo 欄位」新增中文 token，<br/>
-                                    或按上方 <i class="fa fa-magic"/> 自動從模型生成。
+                                    要加入變數，請切到左欄的「欄位」分頁，<br/>
+                                    把模型欄位拖進文件即可。
                                 </p>
                             </div>
                         </t>
@@ -1387,8 +1563,8 @@
                 </div>
             </t>
 
-            <!-- ═══ 模板變數面板（既有 isTemplateMode）═══ -->
-            <t t-if="state.isTemplateMode">
+            <!-- ═══ 模板變數面板（既有 hasDocxTemplate）═══ -->
+            <t t-if="state.hasDocxTemplate">
                 <div class="doc-template-bar">
                     <span class="doc-template-bar-label">
                         <i class="fa fa-file-word-o me-1"/>
@@ -1436,9 +1612,10 @@
             </div>
 
             <!-- 版本歷史面板（W7-8 P1-1） -->
-            <t t-if="state.showVersionPanel and state.docId">
+            <t t-if="state.showVersionPanel and targetId">
                 <DocVersionPanel
                     docId="state.docId"
+                    templateId="state.templateId"
                     onClose.bind="onCloseVersionPanel"
                     onRestore.bind="onVersionRestored"/>
             </t>

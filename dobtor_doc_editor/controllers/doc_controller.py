@@ -11,6 +11,7 @@ import zipfile
 import html as html_mod
 from lxml import etree
 from odoo import http
+from odoo.exceptions import MissingError, UserError
 from odoo.http import request
 
 from ..models.doc_zip_guard import (
@@ -903,16 +904,85 @@ def _convert_ins_to_jinja(raw_bytes):
 
 class DocEditorController(http.Controller):
 
+    # ─── Phase 1（藥丸改版）：編輯對象解析 ───────────────────────────
+    #
+    # 編輯器現在有兩個編輯對象：doc.document（文件）與 doc.template（範本本身）。
+    # 所有原本以 doc_id 為單一入口的路由改為雙入口，由本 helper 統一解析與驗權。
+    #
+    # 刻意不接受同時帶 doc_id 與 template_id：兩者都給時「以誰為準」沒有正確答案，
+    # 靜默挑一個會在前端狀態錯亂時寫錯對象。寧可直接擋下。
+
+    def _resolve_edit_target(self, doc_id=None, template_id=None, access='read'):
+        """回傳 (record, kind)；kind 為 'document' 或 'template'。
+
+        access：'read' / 'write' / 'unlink'，直接餵給 check_access（Odoo 18 統一入口）。
+        找不到記錄或無權限時 raise（json route 會把例外回給前端）。
+        """
+        if doc_id and template_id:
+            raise UserError('doc_id 與 template_id 只能擇一，不可同時指定。')
+        if template_id:
+            record = request.env['doc.template'].browse(int(template_id))
+            kind = 'template'
+        elif doc_id:
+            record = request.env['doc.document'].browse(int(doc_id))
+            kind = 'document'
+        else:
+            raise UserError('必須指定 doc_id 或 template_id 其中之一。')
+        if not record.exists():
+            raise MissingError(f'{kind} 記錄不存在或已被刪除。')
+        # Odoo 18：check_access_rule() / check_access_rights() 已 deprecated，
+        # 合併為 check_access()（同時檢查 ir.model.access 與 ir.rule）。
+        record.check_access(access)
+        return record, kind
+
+    def _resolve_template(self, doc_id=None, template_id=None, access='read'):
+        """解析「要操作哪個範本」。
+
+        文件模式下範本由 doc.template_id 推導，且權限檢查落在文件上
+        （沿用既有行為——doc.template.field 的實際寫入權限由 ACL 控管，
+        見 security/ir.model.access.csv：只有 group_doc_manager 有 write）。
+        範本模式下直接就是該範本。
+
+        回傳 (template, error_dict)；error_dict 非 None 時呼叫端應直接回傳它。
+        """
+        record, kind = self._resolve_edit_target(doc_id, template_id, access)
+        if kind == 'template':
+            return record, None
+        if not record.template_id:
+            return None, {'success': False, 'error': '此文件未關聯範本'}
+        record.template_id.check_access('read')
+        return record.template_id, None
+
+    def _require_document(self, doc_id, access='read'):
+        """文件專用路由的入口守衛。
+
+        Phase 1 起編輯器可能在「範本模式」，此時前端的 state.docId 是 null。
+        沒有這道守衛的話，doc_id=None → browse(None) 回空 recordset →
+        check_access 對空集合直接通過 → 後續欄位讀出來全是預設值，
+        於是匯出得到一份空白 PDF、預覽得到空頁——靜默錯誤。
+        寧可在這裡明確擋下並告訴使用者原因。
+        """
+        if not doc_id:
+            raise UserError('此功能僅適用於文件；目前編輯的是範本，請先從文件開啟。')
+        doc = request.env['doc.document'].browse(int(doc_id))
+        if not doc.exists():
+            raise MissingError('文件不存在或已被刪除。')
+        doc.check_access(access)
+        return doc
+
     @http.route('/dobtor_doc/load', type='json', auth='user', methods=['POST'])
-    def load_document(self, doc_id, **kw):
-        """載入文件資料（Canvas JSON 內容＋頁面設定）。
+    def load_document(self, doc_id=None, template_id=None, **kw):
+        """載入編輯對象（doc.document 或 doc.template）的內容與設定。
 
         回傳值含 `write_date`，給前端做樂觀鎖（P2-2）：
             前端在後續 save 帶回 if_unmodified_since=write_date，
             後端比對若已變動則拒絕並回 409。
+            範本模式同樣適用——範本開放直接編輯後，兩個管理者同開會互蓋。
         """
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('read')
+        record, kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        if kind == 'template':
+            return self._load_template_payload(record)
+        doc = record
         return {
             'id': doc.id,
             'name': doc.name,
@@ -940,10 +1010,59 @@ class DocEditorController(http.Controller):
             # P2-2 樂觀鎖用：給前端記下最後一次同步的 write_date
             'write_date': doc.write_date.isoformat() if doc.write_date else None,
             'version_number': doc.version_number or 0,
+            'edit_target': 'document',
+            # Phase 3 快照：前端據此顯示凍結時間，並判斷是否還需要跑舊的
+            # 「自動預覽模式」（已快照的文件內容就是值，不必再即時渲染一次）
+            'snapshot_date': doc.snapshot_date.isoformat() if doc.snapshot_date else None,
+            'snapshot_is_stale': doc.snapshot_is_stale,
+        }
+
+    def _load_template_payload(self, template):
+        """範本模式的 /load 回傳值。
+
+        刻意與文件模式維持同一組 key，讓前端 _applyLoadedPayload 只有一條路徑。
+        範本沒有的東西（res_id、頁首頁尾、DOCX 模板、頁面邊距）一律給預設值，
+        而不是省略 key——省略會讓前端讀到 undefined 再各自 fallback，容易漏。
+        """
+        return {
+            'id': template.id,
+            'name': template.name,
+            'content_json': template.content_json or '',
+            'content_html': template.get_content_html(),
+            'header_html': '',
+            'footer_html': '',
+            'page_format': template.page_format or 'A4',
+            # 範本本身沒有邊距欄位；沿用 doc.document 的預設值，避免前端拿到 0
+            'margin_top': 96,
+            'margin_bottom': 96,
+            'margin_left': 96,
+            'margin_right': 96,
+            'model_id': template.model_id.id if template.model_id else False,
+            'model_name': template.model_id.model if template.model_id else False,
+            # 範本不綁定單一記錄——設計期沒有 record 可取值，藥丸顯示標籤文字
+            'res_id': False,
+            # 範本模式下「自身的 alias」就是範本級 alias；沒有上層可繼承
+            'field_aliases': template.field_aliases or {},
+            'template_field_aliases': {},
+            'template_name': template.name,
+            # has_template 指的是「上傳的 DOCX 模板檔」，範本記錄本身沒有
+            'has_template': False,
+            'template_filename': '',
+            'template_variables': [],
+            'has_different_first_page': False,
+            'first_header_html': '',
+            'first_footer_html': '',
+            'write_date': template.write_date.isoformat() if template.write_date else None,
+            'version_number': template.version_number or 0,
+            'edit_target': 'template',
+            # 範本沒有綁定記錄，永遠不會有快照——藥丸一律顯示標籤文字
+            'snapshot_date': None,
+            'snapshot_is_stale': False,
         }
 
     @http.route('/dobtor_doc/save', type='json', auth='user', methods=['POST'])
-    def save_document(self, doc_id=None, content_html=None, content_json=None,
+    def save_document(self, doc_id=None, template_id=None,
+                      content_html=None, content_json=None,
                       header_html=None, footer_html=None, name=None,
                       if_unmodified_since=None, **kw):
         """儲存文件內容（content_json 為主，content_html 為備份）。
@@ -958,20 +1077,20 @@ class DocEditorController(http.Controller):
                 2. 自動 reload 拿最新內容
                 3. 把使用者編輯的內容存到 IndexedDB 暫存（offline_manager）
         """
-        if not doc_id:
-            return {'success': False, 'error': 'doc_id required'}
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('write')
+        if not doc_id and not template_id:
+            return {'success': False, 'error': 'doc_id 或 template_id required'}
+        doc, kind = self._resolve_edit_target(doc_id, template_id, 'write')
 
-        # P2-2 樂觀鎖檢查
+        # P2-2 樂觀鎖檢查（文件與範本共用同一套；範本模式尤其需要，
+        # 因為範本是共用資源，被覆蓋的影響範圍是「所有使用它的文件」）
         if if_unmodified_since:
             current_wd = doc.write_date.isoformat() if doc.write_date else None
             # 用字串比對而非 datetime parse — 兩端都用 isoformat 應一致
             # 容忍微秒誤差：取秒為單位比對（或前端送什麼後端就比對什麼）
             if current_wd and current_wd != if_unmodified_since:
                 _logger.info(
-                    "Optimistic lock conflict on doc_id=%s: client had %s, server has %s",
-                    doc_id, if_unmodified_since, current_wd,
+                    "Optimistic lock conflict on %s id=%s: client had %s, server has %s",
+                    kind, doc.id, if_unmodified_since, current_wd,
                 )
                 return {
                     'success': False,
@@ -992,18 +1111,22 @@ class DocEditorController(http.Controller):
             vals['content_json'] = content_json
         if content_html is not None:
             vals['content_html'] = content_html
-        if header_html is not None:
-            vals['header_html'] = header_html
-        if footer_html is not None:
-            vals['footer_html'] = footer_html
         if name is not None:
             vals['name'] = name
+        # 頁首/頁尾只存在於 doc.document；範本模式收到也忽略，不讓前端狀態錯亂
+        # 直接寫爆一個不存在的欄位。
+        if kind == 'document':
+            if header_html is not None:
+                vals['header_html'] = header_html
+            if footer_html is not None:
+                vals['footer_html'] = footer_html
         if vals:
             doc.write(vals)
         return {
             'success': True,
             'write_date': doc.write_date.isoformat(),
             'version_number': doc.version_number or 0,
+            'edit_target': kind,
         }
 
     # ─── DOCX 模板引擎路由 ───────────────────────────────────────────
@@ -1021,8 +1144,7 @@ class DocEditorController(http.Controller):
         ROLLBACK 造成 500 leak trace);filename 取 basename 防 path traversal
         傳入 DB(深度防禦原則、紀律 #15 廣域應用)。
         """
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
 
         # Sprint 116 plus:filename 入口 sanitize
         raw_filename = getattr(docx_file, 'filename', '') or ''
@@ -1119,8 +1241,7 @@ class DocEditorController(http.Controller):
         """
         from docxtpl import DocxTemplate
 
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
+        doc = self._require_document(doc_id, 'read')
 
         if not doc.template_docx:
             return {'success': False, 'error': '此文件尚未上傳 DOCX 模板'}
@@ -1184,8 +1305,7 @@ class DocEditorController(http.Controller):
     @http.route('/dobtor_doc/save_settings', type='json', auth='user', methods=['POST'])
     def save_settings(self, doc_id, **kw):
         """儲存頁面格式與邊距設定。"""
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         allowed = ('page_format', 'margin_top', 'margin_bottom',
                    'margin_left', 'margin_right',
                    'default_column_count', 'default_column_gap', 'column_rule_style')
@@ -1206,11 +1326,10 @@ class DocEditorController(http.Controller):
     @http.route('/dobtor_doc/render_preview', type='json', auth='user', methods=['POST'])
     def render_preview(self, doc_id, record_model, record_id, **kw):
         """將欄位變數渲染為實際值（預覽用）。"""
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('read')
+        doc = self._require_document(doc_id, 'read')
         try:
             record = request.env[record_model].browse(record_id)
-            record.check_access_rule('read')
+            record.check_access('read')
             rendered = doc._render_template(doc.get_content_html(), record, with_chip=True)
             return {'html': rendered}
         except Exception as e:
@@ -1220,8 +1339,7 @@ class DocEditorController(http.Controller):
     @http.route('/dobtor_doc/aliases/get', type='json', auth='user', methods=['POST'])
     def get_aliases(self, doc_id, **kw):
         """讀取文件目前的中文 token → Jinja2 expression 對映。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
+        doc = self._require_document(doc_id, 'read')
         return {'aliases': doc.field_aliases or {}}
 
     @http.route('/dobtor_doc/aliases/save', type='json', auth='user', methods=['POST'])
@@ -1242,8 +1360,7 @@ class DocEditorController(http.Controller):
             val = str(raw_val).strip()
             if key and val:
                 cleaned[key] = val
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         doc.write({'field_aliases': cleaned})
         return {'success': True, 'aliases': cleaned}
 
@@ -1253,22 +1370,19 @@ class DocEditorController(http.Controller):
 
         overwrite=False（預設）保留既有 token；True 整批以模型欄位重建。
         """
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         return doc.init_aliases_from_model(overwrite=bool(overwrite))
 
     @http.route('/dobtor_doc/aliases/scan_convert', type='json', auth='user', methods=['POST'])
     def scan_convert_aliases(self, doc_id, **kw):
         """掃描文件內所有 {{ expression }} 文字，根據既有 alias map 反查中文 token 後改寫成 《token》。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         return doc.scan_and_convert_to_alias()
 
     @http.route('/dobtor_doc/template_aliases/get', type='json', auth='user', methods=['POST'])
     def get_template_aliases(self, doc_id, **kw):
         """讀取 doc 所屬 template 的 alias map（範本層級全域對映）。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
+        doc = self._require_document(doc_id, 'read')
         if not doc.template_id:
             return {'aliases': {}, 'template_id': False, 'template_name': ''}
         return {
@@ -1290,11 +1404,10 @@ class DocEditorController(http.Controller):
             v = str(raw_v).strip()
             if k and v:
                 cleaned[k] = v
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         if not doc.template_id:
             return {'error': '此文件未綁定範本，無法寫入範本級 alias'}
-        doc.template_id.check_access_rule('write')
+        doc.template_id.check_access('write')
         doc.template_id.write({'field_aliases': cleaned})
         return {'success': True, 'aliases': cleaned}
 
@@ -1309,14 +1422,13 @@ class DocEditorController(http.Controller):
         殘餘 token 文字換成值）；沒給則用 doc 儲存的 content_json。前端開檔升級 chip 後會把
         當前內容傳進來，讓 chip 與其餘 token 的實際值「共存」而非被整份覆蓋。
         """
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
+        doc = self._require_document(doc_id, 'read')
         rec_id = int(record_id) if record_id else doc.res_id
         if not doc.model_id or not rec_id:
             return {'error': '此文件未綁定 model_id 或 res_id'}
         try:
             record = request.env[doc.model_id.model].browse(rec_id)
-            record.check_access_rule('read')
+            record.check_access('read')
             if not record.exists():
                 return {'error': f'記錄 {doc.model_id.model}/{rec_id} 不存在'}
         except Exception as e:
@@ -1341,11 +1453,12 @@ class DocEditorController(http.Controller):
             else:
                 token_alias[ks] = vs
 
-        # 準備 Jinja2 環境（含 helper）
-        from jinja2.sandbox import SandboxedEnvironment
-        env_j = SandboxedEnvironment()
-        for name, fn in doc._get_render_helpers(record).items():
-            env_j.globals[name] = fn
+        # 準備 Jinja2 環境。
+        # 補遺五（安全）：這裡原本自己 new 了一個裸 SandboxedEnvironment，
+        # 繞過 _DocSandboxedEnvironment 的 ORM 提權黑名單（env/sudo/browse/write），
+        # 等於任何有 doc 讀取權的使用者可在預覽路徑跑 {{ object.env[...].sudo()... }}。
+        # 一律改走 mixin 的單一建構點。
+        env_j = doc._get_sandbox_env(record)
 
         def _eval(expression):
             try:
@@ -1409,7 +1522,7 @@ class DocEditorController(http.Controller):
         """
         doc = request.env['doc.document'].browse(int(doc_id))
         try:
-            doc.check_access_rule('read')
+            doc.check_access('read')
         except Exception:
             return request.not_found()
 
@@ -1420,7 +1533,7 @@ class DocEditorController(http.Controller):
         if rec_model and rec_id:
             try:
                 rec = request.env[rec_model].browse(rec_id)
-                rec.check_access_rule('read')
+                rec.check_access('read')
                 if not rec.exists():
                     rec = None
             except Exception:
@@ -1489,15 +1602,14 @@ body {{
     @http.route('/dobtor_doc/template_aliases/auto_init', type='json', auth='user', methods=['POST'])
     def auto_init_template_aliases(self, doc_id, overwrite=False, **kw):
         """從 doc 綁定 model 自動生成範本級 alias，寫入 doc.template_id。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         if not doc.template_id:
             return {'success': False, 'error': '此文件未綁定範本'}
         if not doc.model_id:
             return {'success': False, 'error': '此文件未綁定 Odoo 模型'}
         # 借用 doc 的 init_aliases_from_model 邏輯，但寫入點改為 template
         tmpl = doc.template_id
-        tmpl.check_access_rule('write')
+        tmpl.check_access('write')
         # 暫借 doc 的方法計算，再把結果搬到 template
         # 用 _new() 避免污染現有 doc.field_aliases；直接呼叫靜態生成
         return tmpl.init_aliases_from_model_for(
@@ -1509,14 +1621,13 @@ body {{
     def export_document(self, doc_id, format='pdf', quality='high',
                         record_model=None, record_id=None, **kw):
         """匯出文件為 PDF 或 DOCX。quality: 'high'（後端）"""
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('read')
+        doc = self._require_document(doc_id, 'read')
 
         record = None
         if record_model and record_id:
             try:
                 record = request.env[record_model].browse(record_id)
-                record.check_access_rule('read')
+                record.check_access('read')
             except Exception:
                 record = None
 
@@ -1525,7 +1636,7 @@ body {{
         if record is None and doc.model_id and doc.res_id:
             try:
                 rec = request.env[doc.model_id.model].browse(doc.res_id)
-                rec.check_access_rule('read')
+                rec.check_access('read')
                 if rec.exists():
                     record = rec
             except Exception:
@@ -1559,52 +1670,50 @@ body {{
     @http.route('/dobtor_doc/save_version', type='json', auth='user', methods=['POST'])
     def save_version(self, doc_id, label=None, **kw):
         """儲存版本快照（W7-8 P1-1：回傳 version_number 與 message_id）。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        doc = self._require_document(doc_id, 'write')
         result = doc.action_save_version(label=label)
         return {'success': True, **(result or {})}
 
     # ─── 版本管理路由（W7-8 P1-1）────────────────────────────────────
 
     @http.route('/dobtor_doc/versions/list', type='json', auth='user', methods=['POST'])
-    def versions_list(self, doc_id, **kw):
-        """列出文件所有版本快照（不含 content，輕量）。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
-        return {'versions': doc.get_version_list()}
+    def versions_list(self, doc_id=None, template_id=None, **kw):
+        """列出編輯對象的所有版本快照（不含 content，輕量）。"""
+        target, _kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        return {'versions': target.get_version_list()}
 
     @http.route('/dobtor_doc/versions/get', type='json', auth='user', methods=['POST'])
-    def versions_get(self, doc_id, version_id=None, message_id=None, **kw):
+    def versions_get(self, doc_id=None, template_id=None, version_id=None,
+                     message_id=None, **kw):
         """取得單一版本的完整內容（accept version_id 或 legacy message_id）。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, 'read')
         vid = version_id if version_id is not None else message_id
-        content = doc.get_version_content(vid)
+        content = target.get_version_content(vid)
         if content is None:
             return {'error': '找不到指定的版本快照'}
         return {'success': True, **content}
 
     @http.route('/dobtor_doc/versions/restore', type='json', auth='user', methods=['POST'])
-    def versions_restore(self, doc_id, version_id=None, message_id=None, **kw):
+    def versions_restore(self, doc_id=None, template_id=None, version_id=None,
+                         message_id=None, **kw):
         """還原到指定版本（自動先存「還原前」快照）。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('write')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, 'write')
         vid = version_id if version_id is not None else message_id
         try:
-            result = doc.restore_version(vid)
+            result = target.restore_version(vid)
         except Exception as e:
             return {'error': str(e)}
         return {'success': True, **(result or {})}
 
     @http.route('/dobtor_doc/versions/diff', type='json', auth='user', methods=['POST'])
-    def versions_diff(self, doc_id, version_id_a=None, version_id_b=None,
+    def versions_diff(self, doc_id=None, template_id=None,
+                      version_id_a=None, version_id_b=None,
                       message_id_a=None, message_id_b=None, **kw):
         """段落層級 diff 兩個版本（accept version_id_* 或 legacy message_id_*）。"""
-        doc = request.env['doc.document'].browse(int(doc_id))
-        doc.check_access_rule('read')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, 'read')
         a = version_id_a if version_id_a is not None else message_id_a
         b = version_id_b if version_id_b is not None else message_id_b
-        result = doc.diff_versions(a, b)
+        result = target.diff_versions(a, b)
         if result is None:
             return {'error': '找不到指定的版本快照'}
         return {'success': True, **result}
@@ -1903,8 +2012,11 @@ body {{
     # 不 sudo() — 範本欄位修改 = 範本設計變更，依 ACL 限定 manager 是有意為之。
 
     @http.route('/dobtor_doc/template_fields/load', type='json', auth='user', methods=['POST'])
-    def template_fields_load(self, doc_id, **kw):
-        """載入當前 doc 對應 template 的所有 signers + fields。
+    def template_fields_load(self, doc_id=None, template_id=None, **kw):
+        """載入編輯對象對應 template 的所有 signers + fields。
+
+        雙入口（Phase 1）：文件模式傳 doc_id 由 template_id 推導；
+        範本模式直接傳 template_id。
 
         回傳：
             {
@@ -1916,12 +2028,9 @@ body {{
                              width, height, pos_x, pos_y}, ...]
             }
         """
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('read')
-        if not doc.template_id:
+        template, err = self._resolve_template(doc_id, template_id, 'read')
+        if err or not template:
             return {'has_template': False, 'template_id': None, 'signers': [], 'fields': []}
-        template = doc.template_id
-        template.check_access_rule('read')
         signers = template.signer_ids.read([
             'id', 'name', 'color', 'sequence', 'field_count',
         ])
@@ -2017,30 +2126,43 @@ body {{
         }
 
     @http.route('/dobtor_doc/template_fields/options', type='json', auth='user', methods=['POST'])
-    def template_field_options(self, doc_id, field_id=None, **kw):
+    def template_field_options(self, doc_id=None, template_id=None, field_id=None, **kw):
         """回傳互動式 control 的選項設定（valueSets + 預設值）。
 
-        給 field_id → 回單一欄位 spec；不給 → 回此文件範本所有欄位的 spec（批次，
+        給 field_id → 回單一欄位 spec；不給 → 回範本所有欄位的 spec（批次，
         供「開文件自動升級」一次拿齊，免逐個 round-trip）。
+
+        範本模式沒有綁定 record（設計期本來就沒有資料可帶），
+        record=None 時 _field_control_spec 不會算 current_code，
+        chip 開啟時就是空選、由使用者自行挑——這是正確行為，不是缺陷。
         """
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('read')
-        record = doc._resolve_bound_record()
-        aliases = doc._collect_field_aliases() or {}
+        target, kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        if kind == 'template':
+            template = target
+            record = None
+            aliases = template.field_aliases or {}
+        else:
+            template = target.template_id
+            record = target._resolve_bound_record()
+            aliases = target._collect_field_aliases() or {}
+        if not template:
+            # 沒有範本就沒有欄位可查。舊寫法是 `template and field.template_id != template`，
+            # template 為空時整個條件恆假 → 任何 field_id 都會被放行、回傳它的 spec。
+            return {'success': False, 'error': '此文件未關聯範本'}
         FieldModel = request.env['doc.template.field']
         if field_id:
             field = FieldModel.browse(int(field_id))
-            if not field.exists() or (doc.template_id and field.template_id != doc.template_id):
+            if not field.exists() or field.template_id != template:
                 return {'success': False, 'error': '欄位不存在或不屬於此範本'}
             return {'success': True, 'spec': self._field_control_spec(field, record, aliases)}
-        specs = []
-        if doc.template_id:
-            for field in doc.template_id.field_ids:
-                specs.append(self._field_control_spec(field, record, aliases))
+        specs = [
+            self._field_control_spec(field, record, aliases)
+            for field in template.field_ids
+        ]
         return {'success': True, 'specs': specs}
 
     @http.route('/dobtor_doc/template_fields/save_field', type='json', auth='user', methods=['POST'])
-    def template_fields_save_field(self, doc_id, field=None, **kw):
+    def template_fields_save_field(self, doc_id=None, template_id=None, field=None, **kw):
         """新建或更新單個範本欄位。
 
         field 參數：
@@ -2061,11 +2183,9 @@ body {{
         """
         if not field:
             return {'success': False, 'error': 'missing field parameter'}
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('write')
-        if not doc.template_id:
-            return {'success': False, 'error': '此文件未關聯範本，無法新增欄位'}
-        template = doc.template_id
+        template, err = self._resolve_template(doc_id, template_id, 'write')
+        if err:
+            return err
         # 允許的欄位白名單（防止前端塞奇怪 key 進來）
         ALLOWED = {
             'signer_id', 'field_type', 'page_no', 'required',
@@ -2081,7 +2201,7 @@ body {{
         try:
             if field_id:
                 rec = FieldModel.browse(int(field_id))
-                rec.check_access_rule('write')
+                rec.check_access('write')
                 # 確保不能透過 update 把欄位搬到其他範本
                 if rec.template_id != template:
                     return {'success': False, 'error': '欄位不屬於此範本'}
@@ -2106,24 +2226,24 @@ body {{
         }
 
     @http.route('/dobtor_doc/template_fields/delete_field', type='json', auth='user', methods=['POST'])
-    def template_fields_delete_field(self, doc_id, field_id, **kw):
+    def template_fields_delete_field(self, doc_id=None, field_id=None, template_id=None, **kw):
         """刪除單個範本欄位。
 
         回傳：{'success': True, 'signer_field_counts': {...}, 'field_count': int}
             或 {'success': False, 'error': str}
         """
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('write')
-        if not doc.template_id:
-            return {'success': False, 'error': '此文件未關聯範本'}
-        template = doc.template_id
+        if not field_id:
+            return {'success': False, 'error': 'missing field_id'}
+        template, err = self._resolve_template(doc_id, template_id, 'write')
+        if err:
+            return err
         field = request.env['doc.template.field'].browse(int(field_id))
         if not field.exists():
             return {'success': False, 'error': 'field not found'}
         if field.template_id != template:
             return {'success': False, 'error': '欄位不屬於此範本'}
         try:
-            field.check_access_rule('unlink')
+            field.check_access('unlink')
             field.unlink()
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -2138,7 +2258,7 @@ body {{
         }
 
     @http.route('/dobtor_doc/template_fields/save_signer', type='json', auth='user', methods=['POST'])
-    def template_fields_save_signer(self, doc_id, signer=None, **kw):
+    def template_fields_save_signer(self, doc_id=None, template_id=None, signer=None, **kw):
         """新建或更新範本簽約人（讓 Phase 2.1 UI 也能在文件編輯器加 signer）。
 
         signer 參數：
@@ -2146,11 +2266,9 @@ body {{
         """
         if not signer:
             return {'success': False, 'error': 'missing signer parameter'}
-        doc = request.env['doc.document'].browse(doc_id)
-        doc.check_access_rule('write')
-        if not doc.template_id:
-            return {'success': False, 'error': '此文件未關聯範本'}
-        template = doc.template_id
+        template, err = self._resolve_template(doc_id, template_id, 'write')
+        if err:
+            return err
         ALLOWED = {'name', 'color', 'sequence'}
         vals = {k: v for k, v in signer.items() if k in ALLOWED}
         SignerModel = request.env['doc.template.signer']
@@ -2158,7 +2276,7 @@ body {{
         try:
             if signer_id:
                 rec = SignerModel.browse(int(signer_id))
-                rec.check_access_rule('write')
+                rec.check_access('write')
                 if rec.template_id != template:
                     return {'success': False, 'error': '簽約人不屬於此範本'}
                 rec.write(vals)
@@ -2190,8 +2308,7 @@ body {{
             { success: bool, html: str, warnings: list[str], error?: str }
         """
         try:
-            doc = request.env['doc.document'].browse(int(doc_id))
-            doc.check_access_rule('read')
+            doc = self._require_document(doc_id, 'read')
         except Exception as e:
             return {'success': False, 'error': f'文件存取失敗：{e}'}
 
@@ -2199,19 +2316,21 @@ body {{
         warnings = []
         ctx = context if isinstance(context, dict) else {}
 
-        # 用 jinja2 sandbox 渲染（與 doc.render.mixin._render_template 同樣的 sandbox）
+        # 用 doc.render.mixin 的沙箱建構點渲染。
+        # 補遺五：此處原本自己 new 裸 SandboxedEnvironment（註解還宣稱「與
+        # _render_template 同樣的 sandbox」，實際上不是），ORM 提權黑名單失效，
+        # 而且 render 時把 doc 本身當 object 傳進去，等於直接遞出 recordset。
         rendered_body = content_html
         if ctx:
             try:
-                from jinja2.sandbox import SandboxedEnvironment
                 from jinja2 import StrictUndefined, UndefinedError
-                env = SandboxedEnvironment(undefined=StrictUndefined)
+                env = doc._get_sandbox_env(doc, undefined=StrictUndefined)
                 tpl = env.from_string(content_html)
                 try:
                     rendered_body = tpl.render(**ctx, object=doc, user=request.env.user)
                 except UndefinedError as ue:
                     warnings.append(f'缺少變數：{ue}（已用空白替代）')
-                    env_lax = SandboxedEnvironment()
+                    env_lax = doc._get_sandbox_env(doc)
                     rendered_body = env_lax.from_string(content_html).render(
                         **ctx, object=doc, user=request.env.user
                     )
@@ -2274,8 +2393,7 @@ body {{
         未來接上 model 後改成 search_read。
         """
         try:
-            doc = request.env['doc.document'].browse(int(doc_id))
-            doc.check_access_rule('read')
+            doc = self._require_document(doc_id, 'read')
         except Exception as e:
             return {'success': False, 'error': f'文件存取失敗：{e}', 'requests': []}
 

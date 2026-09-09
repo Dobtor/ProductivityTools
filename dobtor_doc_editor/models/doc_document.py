@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 import subprocess
 import tempfile
 import os
@@ -324,6 +325,27 @@ class DocDocument(models.Model):
         string='使用範本',
         ondelete='set null',
     )
+    # ─── Phase 3（藥丸改版）：建立時快照 ─────────────────────────────
+    # 決策一：值在建立文件時凍結一次，之後改來源記錄不會動到文件。
+    # 已簽的合約不該因為有人改了客戶地址就跟著變；代價是需要這兩個欄位
+    # 記錄「何時、對哪筆記錄」凍結，並提供「重新帶值」與過期偵測。
+    snapshot_date = fields.Datetime(
+        string='值凍結時間',
+        copy=False,
+        readonly=True,
+        help='最後一次把模型變數求值寫入文件內容的時間。空值表示尚未帶入過值。',
+    )
+    snapshot_res_id = fields.Integer(
+        string='凍結來源記錄 ID',
+        copy=False,
+        readonly=True,
+        help='上次快照是對哪一筆記錄取值；與目前的 res_id 不同時代表文件已被改綁。',
+    )
+    snapshot_is_stale = fields.Boolean(
+        string='來源已變更',
+        compute='_compute_snapshot_is_stale',
+        help='來源記錄在快照之後又被修改過，文件內的值可能已過期。',
+    )
     page_format = fields.Selection([
         ('A4', 'A4'),
         ('A3', 'A3'),
@@ -391,12 +413,21 @@ class DocDocument(models.Model):
         sanitizer = self.env['doc.sanitizer']
         Template = self.env['doc.template']
         for vals in vals_list:
-            # 範本自動填充：template_id 有給但 content_html 沒給（或空）
-            if vals.get('template_id') and not vals.get('content_html'):
+            # 範本自動填充：template_id 有給但內容沒給（或空）
+            # Phase 3：判斷條件必須同時看 content_json——範本改用 Canvas JSON 為
+            # 權威格式後，可能有 content_json 卻沒有 content_html，舊條件會整段跳過。
+            if vals.get('template_id') and not (
+                vals.get('content_html') or vals.get('content_json')
+            ):
                 template = Template.browse(vals['template_id'])
                 if template.exists():
                     if template.content_html:
                         vals['content_html'] = template.content_html
+                    # content_json 是權威格式，必須一起複製。只複製 HTML 的話，
+                    # 新文件的藥丸（extension.dobtorField）會整組遺失，
+                    # 後續 _apply_value_snapshot 找不到任何可求值的東西。
+                    if template.content_json:
+                        vals['content_json'] = template.content_json
                     if template.page_format and not vals.get('page_format'):
                         vals['page_format'] = template.page_format
             for field in self._HTML_FIELDS:
@@ -425,6 +456,12 @@ class DocDocument(models.Model):
             tpl = rec.template_id
             if tpl.content_html:
                 rec.content_html = tpl.content_html
+            # Phase 3：content_json 是權威格式，必須一併帶過來。
+            # 只複製 content_html 的話，新文件會從 HTML 重建元素樹，
+            # 藥丸的 extension.dobtorField 會在轉換中整組遺失——
+            # 使用者看到的是「範本有變數、文件沒有」。
+            if tpl.content_json:
+                rec.content_json = tpl.content_json
             if tpl.page_format:
                 rec.page_format = tpl.page_format
 
@@ -637,6 +674,90 @@ class DocDocument(models.Model):
         }
 
     # ─── Actions ─────────────────────────────────────────────────────
+
+    @api.depends('snapshot_date', 'res_id', 'model_id')
+    def _compute_snapshot_is_stale(self):
+        """比對快照時間與來源記錄的 write_date。
+
+        快照語意最容易造成的誤解是「我改了客戶名稱怎麼文件沒變」。
+        把過期狀態算出來攤在畫面上，比任何說明文件有效。
+        """
+        for rec in self:
+            rec.snapshot_is_stale = False
+            if not rec.snapshot_date:
+                continue
+            source = rec._resolve_bound_record()
+            if not source:
+                continue
+            write_date = getattr(source, 'write_date', False)
+            if write_date and write_date > rec.snapshot_date:
+                rec.snapshot_is_stale = True
+
+    def _apply_value_snapshot(self, record=None):
+        """對 content_json 內的模型變數藥丸求值並凍結，同步更新 content_html。
+
+        伺服器端快照必須一併更新 content_html——前端沒有跑，攤平後的 HTML
+        不會自己更新，匯出鏈與全文檢索都會讀到舊值。
+        """
+        self.ensure_one()
+        source = record or self._resolve_bound_record()
+        if not source:
+            return False
+        tree = self._parse_content_json(self.content_json)
+        if tree is None:
+            return False
+        tree = self._snapshot_content_json(tree, source)
+        import copy as _copy
+        flat = self._flatten_content_json(_copy.deepcopy(tree))
+        self.write({
+            'content_json': json.dumps(tree, ensure_ascii=False),
+            'content_html': self._content_json_to_html(flat),
+            'snapshot_date': fields.Datetime.now(),
+            'snapshot_res_id': source.id,
+        })
+        return True
+
+    def action_refresh_values(self):
+        """重新帶值：對目前綁定的記錄重跑一次快照。
+
+        會覆蓋使用者在藥丸上做過的人工修改，故 view 上帶 confirm。
+        """
+        self.ensure_one()
+        if not self._apply_value_snapshot():
+            raise UserError(
+                '無法重新帶值：此文件未綁定記錄，或內容尚未以編輯器儲存過。'
+            )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '已重新帶值',
+                'message': '模型變數已依來源記錄的最新內容更新。',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def _export_body_html(self, record=None):
+        """匯出用的 body HTML。
+
+        優先走 content_json（Phase 3 起的權威格式）：攤平藥丸 → 轉 HTML。
+        沒有 content_json 的舊文件退回 content_html + alias 正則路徑（退場期）。
+
+        record 只在「這份文件從未快照過」時才用來即時補值——已快照的文件
+        不重新求值，否則就違背了決策一的凍結語意。
+        """
+        self.ensure_one()
+        tree = self._parse_content_json(self.content_json)
+        if tree is not None:
+            if record is not None and not self.snapshot_date:
+                tree = self._snapshot_content_json(tree, record)
+            return self._content_json_to_html(self._flatten_content_json(tree))
+        # 舊文件：沒有 content_json，退回 content_html + alias 正則（退場期路徑）
+        body = self.get_content_html()
+        if record:
+            body = self._render_template(body, record)
+        return body
 
     def action_open_editor(self):
         """開啟全螢幕文件編輯器。"""
@@ -852,9 +973,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px; }}
     def _generate_pdf(self, record=None):
         """使用 Odoo 內建 wkhtmltopdf 產生 PDF。"""
         self.ensure_one()
-        body = self.get_content_html()
-        if record:
-            body = self._render_template(body, record)
+        body = self._export_body_html(record)
 
         full_html = self._build_full_html(rendered_body=body)
         Report = self.env['ir.actions.report']
@@ -926,9 +1045,7 @@ img {{ max-width: 100%; height: auto; }}
             # Fallback：使用 python-docx（已 pip install）
             return self._generate_docx_via_python(record)
 
-        body = self.get_content_html()
-        if record:
-            body = self._render_template(body, record)
+        body = self._export_body_html(record)
 
         # 使用專為 LibreOffice 設計的最小化 HTML 封裝
         # （不用 _build_full_html，避免 @page CSS 觸發 LO MIME 誤判）
@@ -999,9 +1116,7 @@ img {{ max-width: 100%; height: auto; }}
                 '請安裝 python-docx：pip install python-docx'
             )
 
-        body_html = self.get_content_html()
-        if record:
-            body_html = self._render_template(body_html, record)
+        body_html = self._export_body_html(record)
 
         doc = Document()
 

@@ -23,8 +23,17 @@ import { rpc } from "@web/core/network/rpc";
 
 export class DocVersionPanel extends Component {
     static template = "dobtor_doc_editor.DocVersionPanel";
+
+    /** 送給後端的編輯對象參數；範本模式送 template_id，否則送 doc_id。 */
+    get targetParams() {
+        return this.props.templateId
+            ? { template_id: this.props.templateId }
+            : { doc_id: this.props.docId };
+    }
     static props = {
-        docId: { type: Number },
+        docId: { type: [Number, { value: null }], optional: true },
+        // Phase 1：範本模式時改帶 templateId；兩者擇一，與後端 _resolve_edit_target 對齊
+        templateId: { type: [Number, { value: null }], optional: true },
         onClose: { type: Function, optional: true },
         onRestore: { type: Function, optional: true },
     };
@@ -52,7 +61,7 @@ export class DocVersionPanel extends Component {
         this.state.error = null;
         try {
             const result = await rpc("/dobtor_doc/versions/list", {
-                doc_id: this.props.docId,
+                ...this.targetParams,
             });
             this.state.versions = result.versions || [];
         } catch (e) {
@@ -66,7 +75,7 @@ export class DocVersionPanel extends Component {
         this.state.previewMessageId = messageId;
         try {
             const result = await rpc("/dobtor_doc/versions/get", {
-                doc_id: this.props.docId,
+                ...this.targetParams,
                 version_id: messageId,
             });
             if (result.error) {
@@ -87,7 +96,7 @@ export class DocVersionPanel extends Component {
         }
         try {
             const result = await rpc("/dobtor_doc/versions/restore", {
-                doc_id: this.props.docId,
+                ...this.targetParams,
                 version_id: messageId,
             });
             if (result.error) {
@@ -132,7 +141,7 @@ export class DocVersionPanel extends Component {
         if (!this.state.compareA || !this.state.compareB) return;
         try {
             const result = await rpc("/dobtor_doc/versions/diff", {
-                doc_id: this.props.docId,
+                ...this.targetParams,
                 version_id_a: this.state.compareA,
                 version_id_b: this.state.compareB,
             });

@@ -29,7 +29,14 @@ FIELD_TYPE_SELECTION = [
     ('radio',      '單選組'),
     ('signature',  '簽名'),
     ('initial',    '繕寫簽名'),
-    ('odoo_field', 'Odoo 欄位'),
+    # DEPRECATED（Phase 2 藥丸改版）：模型變數已改為「自描述的 label 藥丸元素」，
+    # 定義存在元素的 extension.dobtorField，不再需要後端欄位記錄。
+    #   原因：ir.model.access.csv:25 給 doc.template.field 的權限是 manager 才可寫，
+    #   一般編輯者把模型欄位拖進文件會被 ACL 擋下；而且那樣做會把個別文件的變數
+    #   寫進所有文件共用的範本，語意本來就不對。
+    # 選項值刻意保留到既有記錄遷移完成為止（見 migrations/18.0.2.4.0），
+    # 提前拿掉會讓尚未遷移的記錄落到不存在的 selection 值。
+    ('odoo_field', 'Odoo 欄位（已淘汰）'),
 ]
 
 # 「下拉/勾選/單選」這類控制項的選項來源
@@ -46,8 +53,15 @@ LAYOUT_MODE_SELECTION = [
 
 
 class DocTemplateField(models.Model):
+    """待填欄位（簽名／勾選／下拉／手寫）的定義。
+
+    Phase 2（藥丸改版）起語意收斂：本模型**只**負責「需要人填」的欄位——
+    這類欄位需要伺服器端狀態（必填、指派給誰、填寫請求追蹤），所以必須有記錄。
+    「從記錄帶值」的模型變數不走這裡，改為自描述的 label 藥丸元素。
+    """
+
     _name = 'doc.template.field'
-    _description = '文件範本欄位'
+    _description = '文件範本欄位（待填）'
     _order = 'template_id, page_no, id'
 
     template_id = fields.Many2one(
@@ -87,8 +101,9 @@ class DocTemplateField(models.Model):
     placeholder_text = fields.Char(string='佔位符', help='欄位空白時顯示的文字')
     font_size = fields.Integer(string='字型大小', default=12)
     odoo_field_name = fields.Char(
-        string='Odoo 欄位名稱',
-        help="field_type='odoo_field' 時對應 doc.template.model_id 上的欄位名（如 'partner_id.name'）",
+        string='Odoo 欄位名稱（已淘汰）',
+        help="DEPRECATED：模型變數改存於 label 元素的 extension.dobtorField.path。"
+             "本欄位僅供尚未遷移的舊記錄讀取，遷移完成後不再寫入。",
     )
 
     # ─── 下拉 / 勾選 / 單選控制項的選項設定（對應 canvas-editor select/checkbox/radio control）───

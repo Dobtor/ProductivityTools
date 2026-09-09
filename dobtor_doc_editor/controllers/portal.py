@@ -10,7 +10,7 @@
 權限：
     - portal user 只能看 collaborator_ids 包含自己的文件（ir.rule 已限制）
     - portal user 不能建立、不能刪除（ACL 鎖死）
-    - 寫入透過 doc.check_access_rule('write') 二次驗證
+    - 寫入透過 doc.check_access('write') 二次驗證
 """
 
 import json
@@ -142,9 +142,10 @@ class DobtorDocPortal(CustomerPortal):
         if not document_sudo:
             raise MissingError(f"找不到文件 id={doc_id}")
         try:
-            # 不用 sudo 觸發 ir.rule 檢查
-            request.env[model_name].browse(doc_id).check_access_rights('read')
-            request.env[model_name].browse(doc_id).check_access_rule('read')
+            # 不用 sudo 觸發 ACL + ir.rule 檢查。
+            # Odoo 18 把 check_access_rights / check_access_rule 併成 check_access，
+            # 兩段舊呼叫合併成一次即可（原本第一行只查 ACL、第二行只查 rule）。
+            request.env[model_name].browse(doc_id).check_access('read')
         except AccessError:
             if not access_token:
                 raise

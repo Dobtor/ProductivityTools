@@ -70,6 +70,35 @@
         </record>
 
         <!--
+            Phase 1（藥丸改版）：doc.template 多公司隔離
+
+            與 rule_doc_document_company 的差別是多了一條 company_id = False：
+            範本刻意允許「不指定公司＝所有公司共用」（見 doc_template.company_id 的
+            help）。既有範本升級後 company_id 為 NULL，靠這條才不會突然全部消失。
+
+            群組沿用 doc.document 的既有語意：只掛 group_doc_editor。
+            group_doc_manager implies group_doc_editor，但 manager 另有全存取規則，
+            跨群組 ir.rule 是 OR，因此管理者不受公司限制——與 doc.document 一致。
+        -->
+        <record id="rule_doc_template_company" model="ir.rule">
+            <field name="name">doc.template：公司隔離（未指定公司＝共用）</field>
+            <field name="model_id" ref="model_doc_template"/>
+            <field name="domain_force">[
+                '|',
+                ('company_id', '=', False),
+                ('company_id', 'in', company_ids)
+            ]</field>
+            <field name="groups" eval="[
+                (4, ref('dobtor_doc_editor.group_doc_editor')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!--
             Sprint 79：error_log / perf_metric user-isolation
             - Sprint 78 audit Finding A：write-only telemetry sink 沒 record rule
               → portal user 可寫 create_uid != self 的 log（偽造 audit trail）

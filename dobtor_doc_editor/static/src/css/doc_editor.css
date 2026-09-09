@@ -3027,3 +3027,144 @@
 }
 .o_dobtor_doc_editor.is-dark-mode .doc-table-picker-cell { background: #3a3a3d; border-color: #555; }
 .o_dobtor_doc_editor.is-dark-mode .doc-toolbar-dropdown-item { color: #e8e8e8; }
+
+/* ═══ Phase 6（藥丸改版）：左欄分頁與模型欄位調色盤 ═══════════════════ */
+
+.doc-left-tabs {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+    background: #fafafa;
+}
+.doc-left-tab {
+    flex: 1;
+    padding: 8px 4px;
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    color: #5f6368;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+.doc-left-tab:hover { background: #f1f3f4; }
+.doc-left-tab.is-active {
+    color: #1565c0;
+    border-bottom-color: #1565c0;
+    font-weight: 600;
+}
+
+.doc-field-palette { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+
+.doc-palette-hint {
+    margin: 8px;
+    padding: 8px 10px;
+    background: #fff4e5;
+    border: 1px solid #ffd8a8;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #8a5300;
+}
+
+.doc-field-palette-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+.doc-field-palette-filter i { color: #9aa0a6; font-size: 12px; }
+.doc-field-palette-filter input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 12px;
+}
+
+.doc-field-palette-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    overflow-y: auto;
+    flex: 1;
+}
+.doc-field-palette-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    cursor: grab;
+    border-left: 2px solid transparent;
+}
+.doc-field-palette-item:hover {
+    background: #e8f0fe;
+    border-left-color: #1565c0;
+}
+.doc-field-palette-item[draggable="false"] { cursor: not-allowed; opacity: .55; }
+.doc-field-palette-item.is-sub { padding-left: 24px; }
+.doc-field-palette-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #202124;
+}
+.doc-field-palette-type {
+    font-size: 10px;
+    color: #9aa0a6;
+    background: #f1f3f4;
+    border-radius: 3px;
+    padding: 0 4px;
+    flex: none;
+}
+.doc-field-palette-expand {
+    border: 0;
+    background: transparent;
+    padding: 0 2px;
+    color: #5f6368;
+    cursor: pointer;
+    flex: none;
+}
+.doc-field-palette-empty {
+    padding: 12px 8px;
+    font-size: 12px;
+    color: #9aa0a6;
+    text-align: center;
+}
+
+/* inspector：模型變數區的輔助文字與提示 */
+.doc-inspector-hint {
+    margin: 4px 0 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #80868b;
+}
+.doc-inspector-note {
+    margin: 12px 8px;
+    padding: 8px 10px;
+    background: #f1f3f4;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #5f6368;
+}
+
+/* 工具列：快照狀態 */
+.doc-snapshot-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #5f6368;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f1f3f4;
+    white-space: nowrap;
+}
+.doc-snapshot-badge.is-stale {
+    background: #fff4e5;
+    color: #8a5300;
+}

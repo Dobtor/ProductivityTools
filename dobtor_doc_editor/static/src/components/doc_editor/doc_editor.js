@@ -76,6 +76,43 @@ export function _lsSet(key, value, { json = false } = {}) {
     } catch (e) { return false; }
 }
 
+// ═══ Phase 4（藥丸改版）：模型變數藥丸 ═══════════════════════════════
+//
+// 綁定定義存在元素的 extension.dobtorField——canvas-editor 的官方擴充點，
+// 且在其序列化白名單內，能安然通過 getValue()/setValue() 進 content_json。
+// 鍵名必須與後端 doc_render_mixin.DOBTOR_FIELD_KEY 一致。
+export const DOBTOR_FIELD_KEY = "dobtorField";
+
+// canvas-editor 0.9.128 內建 ElementType.LABEL 與 labelParticle（畫圓角矩形），
+// 這組值即其預設值；抽成常數是為了讓 inspector 的色票有共同起點。
+export const PILL_STYLE = {
+    backgroundColor: "#e3f2fd",
+    color: "#1976d2",
+    borderRadius: 4,
+    padding: [2, 6, 2, 6],
+};
+
+// Phase 7：簽約人色票。doc.template.signer.color 是 Odoo 的 colour index（整數），
+// 這裡對應成待填欄位在畫布上的底色，讓「這格誰要填」一眼看得出來。
+// 取值刻意偏淡：control 底色是襯在文字後面的，太飽和會蓋掉字。
+export const SIGNER_COLORS = [
+    "#eceff1", "#ffcdd2", "#ffe0b2", "#fff9c4", "#dcedc8",
+    "#c8e6c9", "#b2dfdb", "#b3e5fc", "#d1c4e9", "#f8bbd0",
+    "#d7ccc8",
+];
+
+export function signerColor(index) {
+    const n = Number.isFinite(index) ? Math.abs(Math.trunc(index)) : 0;
+    return SIGNER_COLORS[n % SIGNER_COLORS.length];
+}
+
+/** 值來源：record 從記錄取、expression 任意 Jinja、static 固定文字。 */
+export const VALUE_SOURCES = [
+    { key: "record", label: "關聯記錄" },
+    { key: "expression", label: "表達式" },
+    { key: "static", label: "固定值" },
+];
+
 export const FIELD_TYPES = [
     { key: "name",       label: "名稱",     icon: "A",     ctrlType: "text" },
     { key: "email",      label: "電子郵件", icon: "A",     ctrlType: "text" },
@@ -97,6 +134,9 @@ export class DocEditor extends Component {
     static props = ["*"];
 
     static FIELD_TYPES = FIELD_TYPES;
+
+    // Phase 6：inspector 的「值來源」下拉用（QWeb 以 constructor.VALUE_SOURCES 取用）
+    static VALUE_SOURCES = VALUE_SOURCES;
 
     setup() {
         this.notification = useService("notification");
@@ -126,6 +166,9 @@ export class DocEditor extends Component {
 
         // 暴露 FIELD_TYPES 給 template 使用（QWeb t-foreach）
         this.FIELD_TYPES = FIELD_TYPES;
+        // 同上：OWL 模板的 bare name 解析成 this.X，static 不在 prototype 上，
+        // 所以要在 instance 上掛一份（沿用本檔既有慣例）
+        this.VALUE_SOURCES = VALUE_SOURCES;
         // Sprint Y5：暴露字型 / 字號清單給格式化工具列 t-foreach 使用
         this.FONT_OPTIONS = FONT_OPTIONS;
         this.FONT_SIZE_OPTIONS = FONT_SIZE_OPTIONS;
@@ -134,6 +177,8 @@ export class DocEditor extends Component {
         // public_component_service 會把 JSON 解析後當 props 傳進來。
         // backend client action 模式則走 this.props.action.context.doc_id（見下方）。
         this._isReadonly = this.props.readonly === true;
+        // 載入失敗旗標：擋住 autosave，避免用空白編輯器內容覆蓋既有記錄
+        this._loadFailed = false;
 
         // Canvas 編輯器容器 ref（始終存在於 DOM，不包在 t-if 內）
         this.canvasContainer = useRef("canvasContainer");
@@ -148,7 +193,13 @@ export class DocEditor extends Component {
             pageFormat: "A4",
             isOnline: true,
             // 模板引擎狀態
-            isTemplateMode: false,
+            // Phase 1（藥丸改版）編輯對象：'document' 編文件、'template' 編範本本身。
+            // 與下面的 hasDocxTemplate 是兩件事——後者指「這份文件上傳了 .docx 模板檔」。
+            editTarget: "document",
+            templateId: null,
+            // 舊名 isTemplateMode。正名原因：與新的「範本編輯模式」撞名，
+            // 兩個布林在同一個 component 裡會互相污染。
+            hasDocxTemplate: false,
             templateVariables: [],
             templateFilename: "",
             contextJson: "",
@@ -312,6 +363,21 @@ export class DocEditor extends Component {
             openToolbarMenu: null,
             // 標題樣式 select 當前值（''=內文；'first'|'second'|'third'）
             activeTitle: '',
+            // Phase 3：值凍結時間與過期旗標。攤在工具列上，因為快照語意最容易
+            // 造成的誤解就是「我改了來源記錄，怎麼文件沒變」。
+            snapshotDate: null,
+            snapshotIsStale: false,
+            // ─── Phase 6：模型欄位調色盤 ───────────────────────────
+            // 左欄兩個分頁：'pages' 頁面縮圖（原有）／'fields' 模型欄位清單（新增）
+            leftPanelTab: "pages",
+            modelFields: [],
+            modelFieldsLoading: false,
+            modelFieldFilter: "",
+            expandedRelations: [],
+            // Phase 4：目前選中的模型變數藥丸的綁定定義（extension.dobtorField 的複本）。
+            // 與 selectedFieldId（待填欄位的後端記錄 id）互斥——兩類欄位的定義
+            // 存在不同地方，inspector 也因此分兩區顯示。
+            selectedVariable: null,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -516,31 +582,53 @@ export class DocEditor extends Component {
         //   4. sessionStorage F5 恢復（backend 內按 F5 刷新時用）
         const context = this.props.action?.context || {};
         const _SESSION_KEY = "dobtor_doc_editor_last_id";
-        let _urlDocId = null;
-        try {
-            const _v = new URLSearchParams(window.location.search).get("doc_id");
-            const _n = _v ? parseInt(_v, 10) : 0;
-            if (_n > 0) {
-                _urlDocId = _n;
+        // Phase 1：解析「編輯哪一個對象」。template_id 優先於 doc_id——
+        // 兩者同時出現只可能是狀態殘留（例如 sessionStorage 舊值撞上新的 context），
+        // 後端 _resolve_edit_target 會直接擋下同時指定，所以這裡必須擇一送出。
+        const _urlParam = (key) => {
+            try {
+                const v = new URLSearchParams(window.location.search).get(key);
+                const n = v ? parseInt(v, 10) : 0;
+                return n > 0 ? n : null;
+            } catch (e) {
+                return null;  // 非瀏覽器環境或 URL 異常 → 交給下一層 fallback
             }
-        } catch (e) {
-            // ignore — fall through to next fallback
-        }
-        let _storedDocId = null;
+        };
+        // sessionStorage 格式："template:45" / "document:123"；
+        // 舊格式是裸數字，視為 document 以相容既有分頁。
+        let _storedTarget = null;
         const _stored = sessionStorage.getItem(_SESSION_KEY);
         if (_stored) {
-            _storedDocId = parseInt(_stored, 10);
+            const [a, b] = _stored.includes(":") ? _stored.split(":") : ["document", _stored];
+            const n = parseInt(b, 10);
+            if (n > 0) {
+                _storedTarget = { kind: a === "template" ? "template" : "document", id: n };
+            }
         }
-        const docId = this.props.docId || context.doc_id || _urlDocId || _storedDocId;
+        const templateId =
+            this.props.templateId || context.template_id || _urlParam("template_id") ||
+            (_storedTarget?.kind === "template" ? _storedTarget.id : null);
+        const docId = templateId
+            ? null
+            : (this.props.docId || context.doc_id || _urlParam("doc_id") ||
+               (_storedTarget?.kind === "document" ? _storedTarget.id : null));
+        if (templateId) {
+            this.state.editTarget = "template";
+            this.state.templateId = templateId;
+        } else if (docId) {
+            // 先寫進 state 讓 targetRpcParams 在首次載入時就可用。
+            // 載入失敗時 _loadFailed 會擋住 autosave，避免用空內容覆蓋既有文件。
+            this.state.docId = docId;
+        }
 
         // ── AutoSaveManager（以 content_json 為儲存單位）──
         this._autoSave = new AutoSaveManager({
             saveFn: async (json) => {
-                if (!this.state.docId) return;
+                if (!this.targetId || this._loadFailed) return;
                 // Readonly 模式（portal 唯讀 / 公開預覽）：不觸發後端寫入。
                 if (this._isReadonly) return;
                 const result = await rpc("/dobtor_doc/save", {
-                    doc_id: this.state.docId,
+                    ...this.targetRpcParams,
                     content_json: json,
                     // 同步攤平後的 content_html（含 control 已填值），供匯出/預覽鏈讀取
                     content_html: this._mainHtml(),
@@ -583,9 +671,9 @@ export class DocEditor extends Component {
         });
 
         onMounted(async () => {
-            // 1. 載入文件資料
-            if (docId) {
-                await this._loadDocument(docId);
+            // 1. 載入編輯對象（文件或範本）
+            if (docId || templateId) {
+                await this._loadTarget();
             } else {
                 this.state.editorReady = true;
             }
@@ -604,13 +692,26 @@ export class DocEditor extends Component {
             if (hasControlSpecs || (hasBoundRecord && hasAlias)) {
                 setTimeout(async () => {
                     if (!this.editor) return;
+                    // Phase 5：先把殘餘 alias token 升級成藥丸並存回。
+                    // 這是只有 content_html 的舊資料唯一的升級管道——
+                    // 伺服器端 migration 碰不到它們。
+                    const upgraded = this.upgradeTokensToPills();
+                    if (upgraded > 0) {
+                        this.notification.add(
+                            `已將 ${upgraded} 個變數升級為標籤，請確認後儲存。`,
+                            { type: "info" }
+                        );
+                    }
                     // 1) 先把已設定 control 的 token 升級成可互動 chip（含 《中文》 與 {{ var }} 兩格式，帶 record 當前值）
                     if (hasControlSpecs) {
                         await this._autoUpgradeConfiguredControls();
                     }
                     // 2) 再進預覽：把「殘餘」token（未設 control 的）換成實際值。
                     //    preview 傳入當前內容、且只替換 token 文字，故已建的 chip 會被保留 → chip 與值共存。
-                    if (hasBoundRecord && hasAlias && !this.state.previewMode) {
+                    // 已快照的文件內容就是實際值，不必再跑一次即時渲染；
+                    // 這條保留給尚未遷移／尚未快照的舊文件。
+                    if (hasBoundRecord && hasAlias && !this.state.previewMode
+                        && !this.state.snapshotDate) {
                         this.onTogglePreviewMode().catch(e => {
                             console.warn("[DocEditor] auto preview mode failed", e);
                         });
@@ -732,6 +833,25 @@ export class DocEditor extends Component {
         // readonly mode：portal 公開預覽或無寫入權限時走 EditorMode.READONLY
         const editorOptions = {
             pageMode: PageMode?.PAGING,
+            // Phase 4：模型變數藥丸的預設外觀（每個元素可用 element.label 覆寫）
+            label: {
+                defaultBackgroundColor: PILL_STYLE.backgroundColor,
+                defaultColor: PILL_STYLE.color,
+                defaultBorderRadius: PILL_STYLE.borderRadius,
+                defaultPadding: PILL_STYLE.padding,
+            },
+            // 待填欄位（control）：拿掉預設的 { } 大括號，改用底色標示。
+            // 使用者原本看到的是 {{{ partner_id.name }}}——括號來自 canvas-editor
+            // 的 prefix/postfix 預設值，外面再包一層我們寫進 placeholder 的 {{ }}。
+            control: {
+                prefix: "",
+                postfix: "",
+                placeholderColor: "#94a3b8",
+                bracketColor: "#94a3b8",
+                noValueBackgroundColor: "#fff4e5",
+                existValueBackgroundColor: "#eef7ee",
+                activeBackgroundColor: "#ffe0a3",
+            },
         };
         if (this._isReadonly && EditorMode?.READONLY) {
             editorOptions.mode = EditorMode.READONLY;
@@ -869,6 +989,18 @@ export class DocEditor extends Component {
                     if (Number.isFinite(fieldId) && this.state.selectedFieldId !== fieldId) {
                         this.state.selectedFieldId = fieldId;
                     }
+                }
+
+                // Phase 4：模型變數藥丸 → selectedVariable。
+                // 定義直接從元素身上讀（自描述），不需要任何 RPC。
+                const meta = this._elementFieldMeta(el);
+                if (meta) {
+                    this.state.selectedVariable = { ...meta, _elementValue: el.value || "" };
+                    this.state.selectedFieldId = null;
+                } else if (this.state.selectedVariable) {
+                    // 游標離開藥丸就收起面板——與 control 不同，這裡沒有
+                    // 「插入後 caret 自動跳到後面」的誤清問題（label 是單一元素）。
+                    this.state.selectedVariable = null;
                 }
 
                 // Sprint Y7：根據 selection 起點 element 的格式屬性、更新 format toolbar
@@ -1032,14 +1164,52 @@ export class DocEditor extends Component {
 
     // ─── 資料載入 ────────────────────────────────────────────────────
 
-    async _loadDocument(docId) {
+    // ─── Phase 1：編輯對象（文件 / 範本）共用存取器 ────────────────
+    //
+    // 所有以「編輯對象」為單位的 RPC（load / save / template_fields / versions）
+    // 一律展開 targetRpcParams，不要各自寫 doc_id。後端 _resolve_edit_target
+    // 拒絕同時收到兩個 id，這裡保證只送一個。
+
+    get targetId() {
+        return this.state.editTarget === "template"
+            ? this.state.templateId
+            : this.state.docId;
+    }
+
+    get targetRpcParams() {
+        return this.state.editTarget === "template"
+            ? { template_id: this.state.templateId }
+            : { doc_id: this.state.docId };
+    }
+
+    get isTemplateTarget() {
+        return this.state.editTarget === "template";
+    }
+
+    /**
+     * 載入當前編輯對象。取代舊的 _loadDocument(docId)——id 一律從 state 取，
+     * 避免呼叫端在範本模式下誤傳 docId=null。
+     */
+    async _loadTarget() {
         const stopLoadTimer = mark("load_doc_ms");
         try {
-            const data = await rpc("/dobtor_doc/load", { doc_id: docId });
-            this.state.docId = data.id;
+            const data = await rpc("/dobtor_doc/load", this.targetRpcParams);
+            this._loadFailed = false;
+            if (data.edit_target === "template") {
+                this.state.editTarget = "template";
+                this.state.templateId = data.id;
+                this.state.docId = null;
+            } else {
+                this.state.editTarget = "document";
+                this.state.docId = data.id;
+                this.state.templateId = null;
+            }
             this.state.docName = data.name;
-            // F5 恢復用
-            sessionStorage.setItem("dobtor_doc_editor_last_id", data.id);
+            // F5 恢復用（帶 kind 前綴，避免範本 id 與文件 id 撞號）
+            sessionStorage.setItem(
+                "dobtor_doc_editor_last_id",
+                `${this.state.editTarget}:${data.id}`
+            );
             this.state.pageFormat = data.page_format || "A4";
 
             // 暫存 content_json，供 _initCanvasEditor 使用
@@ -1055,14 +1225,17 @@ export class DocEditor extends Component {
             this.state.fieldAliases = data.field_aliases || {};
             this.state.templateFieldAliases = data.template_field_aliases || {};
             this.state.templateName = data.template_name || "";
+            // Phase 3 快照狀態（工具列顯示用）
+            this.state.snapshotDate = data.snapshot_date || null;
+            this.state.snapshotIsStale = !!data.snapshot_is_stale;
             // P2-2 樂觀鎖：記下伺服器當前 write_date
             this._lastSyncedWriteDate = data.write_date || null;
             // Phase 8 Template UI Builder（ADR-022）—— 載入範本 signer/field 狀態
             await this._loadTemplateFields();
 
-            // 模板引擎狀態恢復
+            // DOCX 模板引擎狀態恢復（與範本編輯模式無關）
             if (data.has_template) {
-                this.state.isTemplateMode = true;
+                this.state.hasDocxTemplate = true;
                 this.state.templateVariables = data.template_variables || [];
                 this.state.templateFilename = data.template_filename || "";
             }
@@ -1070,8 +1243,10 @@ export class DocEditor extends Component {
             this.state.editorReady = true;
             this.state.statusMsg = "已載入";
             this.state.statusType = "saved";
-            stopLoadTimer({ docId: this.state.docId });
+            stopLoadTimer({ docId: this.targetId, editTarget: this.state.editTarget });
         } catch (error) {
+            // 標記載入失敗：擋住 autosave，避免把空白編輯器內容寫回既有記錄
+            this._loadFailed = true;
             this.state.statusMsg = `載入失敗：${error.message || error}`;
             this.state.statusType = "error";
             this.state.editorReady = true; // 避免永遠顯示載入中
@@ -1081,7 +1256,7 @@ export class DocEditor extends Component {
                 type: "other",
                 message: `Load failed: ${error.message || error}`,
                 stackTrace: error?.stack || "",
-                docId,
+                docId: this.targetId,
             });
         }
     }
@@ -1090,12 +1265,12 @@ export class DocEditor extends Component {
 
     async _syncOfflineBuffer() {
         const ops = this._offlineManager.drainBuffer();
-        if (!ops.length || !this.state.docId) return;
+        if (!ops.length || !this.targetId) return;
         const lastSave = [...ops].reverse().find(op => op.type === "save");
         if (!lastSave) return;
         try {
             const result = await rpc("/dobtor_doc/save", {
-                doc_id: this.state.docId,
+                ...this.targetRpcParams,
                 content_json: lastSave.json,
                 if_unmodified_since: this._lastSyncedWriteDate,
             });
@@ -1135,7 +1310,7 @@ export class DocEditor extends Component {
             );
             // 自動 reload 後端最新內容
             if (this.state.docId) {
-                this._loadDocument(this.state.docId).then(() => {
+                this._loadTarget().then(() => {
                     if (this.editor && this._loadedContentJson) {
                         try {
                             const data = JSON.parse(this._loadedContentJson);
@@ -1161,7 +1336,10 @@ export class DocEditor extends Component {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
         }
-        sessionStorage.setItem("dobtor_doc_editor_last_id", this.state.docId);
+        sessionStorage.setItem(
+            "dobtor_doc_editor_last_id",
+            `${this.state.editTarget}:${this.targetId}`
+        );
         this.state.isSaving = true;
         this.state.statusMsg = "儲存中...";
         this.state.statusType = "saving";
@@ -1169,7 +1347,7 @@ export class DocEditor extends Component {
         try {
             const json = JSON.stringify(this.editor.command.getValue().data);
             const result = await rpc("/dobtor_doc/save", {
-                doc_id: this.state.docId,
+                ...this.targetRpcParams,
                 content_json: json,
                 content_html: this._mainHtml(),
                 if_unmodified_since: this._lastSyncedWriteDate,
@@ -1180,7 +1358,7 @@ export class DocEditor extends Component {
                 this.state.statusMsg = "已儲存";
                 this.state.statusType = "saved";
             }
-            stopSaveTimer({ docId: this.state.docId });
+            stopSaveTimer({ docId: this.targetId, editTarget: this.state.editTarget });
         } catch (error) {
             this.state.statusMsg = `儲存失敗：${error.message || error}`;
             this.state.statusType = "error";
@@ -1201,8 +1379,8 @@ export class DocEditor extends Component {
     onTitleChange(event) {
         const newName = event.target.value.trim() || "未命名文件";
         this.state.docName = newName;
-        if (this.state.docId) {
-            rpc("/dobtor_doc/save", { doc_id: this.state.docId, name: newName })
+        if (this.targetId) {
+            rpc("/dobtor_doc/save", { ...this.targetRpcParams, name: newName })
                 .catch(() => {});
         }
     }
@@ -1283,7 +1461,7 @@ export class DocEditor extends Component {
 
                 if (!result.success) throw new Error(result.error || "上傳失敗");
 
-                this.state.isTemplateMode = true;
+                this.state.hasDocxTemplate = true;
                 this.state.templateVariables = result.variables || [];
                 this.state.templateFilename = file.name;
                 this.state.statusMsg = `模板就緒（${result.variables.length} 個變數）`;
@@ -1380,7 +1558,7 @@ export class DocEditor extends Component {
 
     async onExportPdf() {
         // 模板模式：後端 docxtpl + LibreOffice headless → 高保真 PDF
-        if (this.state.isTemplateMode && this.state.docId) {
+        if (this.state.hasDocxTemplate && this.state.docId) {
             const ctx = this._promptTemplateContext();
             if (ctx === null) return;
             this.state.statusMsg = "匯出 PDF 中...";
@@ -1410,7 +1588,7 @@ export class DocEditor extends Component {
 
     async onExportDocx() {
         // 模板模式：後端 docxtpl → 填充後原始 DOCX（100% 保真）
-        if (this.state.isTemplateMode && this.state.docId) {
+        if (this.state.hasDocxTemplate && this.state.docId) {
             const ctx = this._promptTemplateContext();
             if (ctx === null) return;
             this.state.statusMsg = "匯出 DOCX 中...";
@@ -1432,12 +1610,56 @@ export class DocEditor extends Component {
             }
             return;
         }
-        // 非模板模式：canvas-editor 原生匯出
-        if (!this.editor) return;
+        // 非 DOCX-模板模式：改走伺服器匯出（補遺一）。
+        //
+        // 原本呼叫 canvas-editor plugin 的 executeExportDocx()，那條路徑完全
+        // 繞過伺服器的 _flatten_content_json()——plugin 遇到非標準的 label
+        // 元素會怎麼處理（原樣輸出網底？丟棄？）沒有保證。決策四要求匯出只
+        // 輸出值、不帶網底，只有伺服器那條路能保證做到。
+        if (!this.state.docId) {
+            this.notification.add(
+                "範本模式不支援 DOCX 匯出，請從使用此範本的文件匯出。",
+                { type: "warning" }
+            );
+            return;
+        }
+        this.state.statusMsg = "匯出 DOCX 中...";
+        this.state.statusType = "saving";
         try {
-            this.editor.command.executeExportDocx({ fileName: this.state.docName || "document" });
+            await this._flushPendingSave();
+            const result = await rpc("/dobtor_doc/export", {
+                doc_id: this.state.docId,
+                format: "docx",
+                quality: "high",
+            });
+            if (!result?.success) throw new Error(result?.error || "匯出失敗");
+            this._downloadBase64(result.content, result.filename, result.mimetype);
+            this.state.statusMsg = "就緒";
+            this.state.statusType = "saved";
         } catch (e) {
+            this.state.statusMsg = "就緒";
+            this.state.statusType = "saved";
             this.notification.add(`DOCX 匯出失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    /**
+     * 匯出前把未存的內容先寫回後端。
+     * 伺服器匯出讀的是 DB 裡的 content_json，不先 flush 會匯出到舊版本。
+     */
+    async _flushPendingSave() {
+        if (this._isReadonly || !this.targetId || !this.editor) return;
+        try {
+            const json = JSON.stringify(this.editor.command.getValue().data);
+            const result = await rpc("/dobtor_doc/save", {
+                ...this.targetRpcParams,
+                content_json: json,
+                content_html: this._mainHtml(),
+                if_unmodified_since: this._lastSyncedWriteDate,
+            });
+            this._handleSaveResult(result, json);
+        } catch (e) {
+            console.warn("[DocEditor] 匯出前存檔失敗，將匯出伺服器上的既有版本", e);
         }
     }
 
@@ -1912,9 +2134,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
     }
 
     onWorkspaceDragOver(ev) {
-        // 只接受我們自己工具列拖出的 field type；其他（外部檔案等）不攔
+        // 只接受我們自己拖出的兩種 payload；其他（外部檔案等）不攔
         const types = ev.dataTransfer && ev.dataTransfer.types;
-        if (!types || !Array.from(types).includes("text/x-doc-field-type")) return;
+        const accepted = ["text/x-doc-field-type", "text/x-doc-odoo-field"];
+        if (!types || !Array.from(types).some(t => accepted.includes(t))) return;
         ev.preventDefault();
         ev.dataTransfer.dropEffect = "copy";
         if (!this.state.isDropTarget) {
@@ -1931,6 +2154,23 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
     }
 
     async onWorkspaceDrop(ev) {
+        // 分支一：模型欄位 → 插入自描述藥丸（不建任何後端記錄）
+        const variableRaw = ev.dataTransfer.getData("text/x-doc-odoo-field");
+        if (variableRaw) {
+            ev.preventDefault();
+            this.state.isDropTarget = false;
+            let meta;
+            try {
+                meta = JSON.parse(variableRaw);
+            } catch (e) {
+                return;
+            }
+            this._moveCaretToPoint(ev.clientX, ev.clientY);
+            this.insertPill(meta);
+            return;
+        }
+
+        // 分支二：待填欄位型別 → 既有流程（後端建紀錄 + executeInsertControl）
         const fieldKey = ev.dataTransfer.getData("text/x-doc-field-type");
         if (!fieldKey) return;
         ev.preventDefault();
@@ -1939,7 +2179,6 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         // 把滑鼠位置映射到 canvas-editor 游標位置
         this._moveCaretToPoint(ev.clientX, ev.clientY);
 
-        // 走既有插入流程（後端建紀錄 + executeInsertControl）
         await this.onFieldButtonClick(fieldKey);
     }
 
@@ -1976,6 +2215,358 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      *   `{{ partner_id.name }}` 風格，讓 user 在文件上一眼看出這是動態變數
      *   （與既有 docxtpl `{{ object.xxx }}` jinja2 風格一致）。
      */
+    // ═══ Phase 6：模型欄位調色盤 ═════════════════════════════════════
+    //
+    // 使用者要的是「看著關聯模型的欄位清單，把〈客戶名稱〉拖進段落裡」。
+    // 資料沿用既有的 /dobtor_doc/fields（已支援 many2one 展開子欄位），
+    // 與 DocFieldPickerDialog 共用同一份，不另開端點。
+
+    async loadModelFields() {
+        if (this.state.modelFieldsLoading || this.state.modelFields.length) return;
+        if (!this._loadedModelName) return;
+        this.state.modelFieldsLoading = true;
+        try {
+            const fields = await rpc("/dobtor_doc/fields", {
+                model_name: this._loadedModelName,
+                doc_id: this.state.docId || null,
+            });
+            this.state.modelFields = Array.isArray(fields) ? fields : [];
+        } catch (e) {
+            console.warn("[DocEditor] 載入模型欄位失敗", e);
+            this.notification.add("載入模型欄位失敗", { type: "warning" });
+        } finally {
+            this.state.modelFieldsLoading = false;
+        }
+    }
+
+    onLeftPanelTab(tab) {
+        if (tab === "fields" && !this.showFieldPalette) return;
+        this.state.leftPanelTab = tab;
+        if (tab === "fields") this.loadModelFields();
+    }
+
+    onModelFieldFilterInput(value) {
+        this.state.modelFieldFilter = value;
+    }
+
+    toggleRelation(name) {
+        const list = this.state.expandedRelations;
+        const idx = list.indexOf(name);
+        if (idx >= 0) list.splice(idx, 1);
+        else list.push(name);
+    }
+
+    get filteredModelFields() {
+        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
+        if (!q) return this.state.modelFields;
+        return this.state.modelFields.filter(f =>
+            (f.label || "").toLowerCase().includes(q) ||
+            (f.name || "").toLowerCase().includes(q)
+        );
+    }
+
+    /**
+     * 是否在 portal 前台。
+     *
+     * 沿用本檔 setup 既有的偵測方式：action service 只存在於後台，
+     * portal frontend 拿不到（見 setup 內 useService("action") 的 try/catch）。
+     */
+    get isPortalContext() {
+        return !this.action;
+    }
+
+    /**
+     * 模型欄位是否可拖放。三個否決條件：
+     *
+     * 1. 唯讀（portal 非協作者 / 公開預覽）
+     * 2. overlay 版面——overlay 欄位不在 content_json 裡，_build_full_html 也不
+     *    處理它們，放在那裡的模型變數會在畫面上看得好好的、匯出時無聲消失。
+     * 3. portal 前台——變數綁定是「設計範本」的動作，不是協作者該做的事；
+     *    而且 /dobtor_doc/fields 讀 ir.model.fields，portal 群組多半沒有權限，
+     *    真讓他們點下去只會拿到一個永遠空白的清單。
+     */
+    get canPlaceVariables() {
+        return !this._isReadonly
+            && !this.isPortalContext
+            && this.state.layoutMode !== "overlay";
+    }
+
+    /** 左欄「欄位」分頁是否顯示。portal 直接不給這個分頁。 */
+    get showFieldPalette() {
+        return !this.isPortalContext && !this._isReadonly;
+    }
+
+    _metaForModelField(field, parent = null) {
+        const path = parent ? `${parent.name}.${field.name}` : field.name;
+        const labelText = parent
+            ? `${parent.label || parent.name}-${field.label || field.name}`
+            : (field.label || field.name);
+        const meta = { source: "record", path, labelText };
+        // Selection 欄位預設帶中文標籤而不是代碼，這幾乎總是使用者要的
+        if (field.type === "selection" && !parent) {
+            meta.source = "expression";
+            meta.expression = `selection_label('${field.name}')`;
+        }
+        return meta;
+    }
+
+    onModelFieldDragStart(ev, field, parent = null) {
+        if (!this.canPlaceVariables) {
+            ev.preventDefault();
+            return;
+        }
+        // 自訂 MIME：與工具列拖出的 text/x-doc-field-type（待填欄位型別）分流，
+        // 兩者在 drop handler 走不同分支
+        ev.dataTransfer.setData(
+            "text/x-doc-odoo-field",
+            JSON.stringify(this._metaForModelField(field, parent))
+        );
+        ev.dataTransfer.effectAllowed = "copy";
+    }
+
+    onModelFieldClick(field, parent = null) {
+        if (!this.canPlaceVariables) {
+            this.notification.add(
+                "浮動版面不支援模型變數（匯出時不會出現），請切回行內版面。",
+                { type: "warning" }
+            );
+            return;
+        }
+        this.insertPill(this._metaForModelField(field, parent));
+    }
+
+    // ═══ Phase 5：舊 alias token → 藥丸的開檔延遲升級 ════════════════
+    //
+    // 伺服器端 migration 只能處理已有 content_json 的資料。只有 content_html
+    // 的舊文件無法在伺服器端可靠轉換（HTML → IElement 需要 canvas-editor 的
+    // executeSetHTML，那是瀏覽器端的東西）。所以走這條：開檔時就地升級並存回，
+    // 使用者無感，開一次升一次。兩群都清空後正則路徑才能刪除。
+
+    _aliasMaps() {
+        const merged = {
+            ...(this.state.templateFieldAliases || {}),
+            ...(this.state.fieldAliases || {}),
+        };
+        const tokenMap = {};
+        const varMap = {};
+        for (const [key, expression] of Object.entries(merged)) {
+            const k = String(key).trim();
+            const expr = String(expression || "").trim();
+            if (!k || !expr) continue;
+            if (/^[A-Za-z_]\w*$/.test(k)) varMap[k] = expr;
+            else tokenMap[k] = expr;
+        }
+        return { tokenMap, varMap };
+    }
+
+    _metaFromExpression(expression, labelText) {
+        const plain = /^object\.([A-Za-z_][\w.]*)$/.exec((expression || "").trim());
+        if (plain) {
+            return { source: "record", path: plain[1], labelText };
+        }
+        return { source: "expression", expression: (expression || "").trim(), labelText };
+    }
+
+    /** 把單一文字元素中的 token 拆成 [文字, 藥丸, 文字…]；無 token 回 null。 */
+    _splitElementTokens(el, tokenMap, varMap) {
+        if (!el || (el.type && el.type !== "text")) return null;
+        const text = el.value || "";
+        if (!text || text === "\n") return null;
+
+        const matches = [];
+        const tokenRe = /《([^》]+)》/g;
+        const varRe = /\{\{\s*([A-Za-z_]\w*)\s*\}\}/g;
+        let m;
+        while ((m = tokenRe.exec(text)) !== null) {
+            const key = m[1].trim();
+            if (tokenMap[key]) matches.push([m.index, m.index + m[0].length, key, tokenMap[key]]);
+        }
+        while ((m = varRe.exec(text)) !== null) {
+            const key = m[1].trim();
+            if (varMap[key]) matches.push([m.index, m.index + m[0].length, key, varMap[key]]);
+        }
+        if (!matches.length) return null;
+        matches.sort((a, b) => a[0] - b[0]);
+
+        // 文字片段沿用原元素樣式，只換 value——否則被拆開的字會掉字型與顏色
+        const base = { ...el };
+        delete base.value;
+        delete base.type;
+        delete base.label;
+        delete base.extension;
+
+        const pieces = [];
+        let cursor = 0;
+        for (const [start, end, key, expression] of matches) {
+            if (start < cursor) continue;
+            if (start > cursor) pieces.push({ ...base, value: text.slice(cursor, start) });
+            pieces.push(this._buildPillElement(this._metaFromExpression(expression, key)));
+            cursor = end;
+        }
+        if (cursor < text.length) pieces.push({ ...base, value: text.slice(cursor) });
+        return pieces.length ? pieces : null;
+    }
+
+    /**
+     * 掃描目前內容，把殘餘 alias token 就地升級成藥丸。
+     * 回傳升級的藥丸數；0 表示沒東西可升。
+     */
+    upgradeTokensToPills() {
+        if (!this.editor) return 0;
+        const { tokenMap, varMap } = this._aliasMaps();
+        if (!Object.keys(tokenMap).length && !Object.keys(varMap).length) return 0;
+
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            return 0;
+        }
+        let created = 0;
+        const visit = (list) => {
+            if (!Array.isArray(list)) return;
+            let i = 0;
+            while (i < list.length) {
+                const el = list[i];
+                if (el && typeof el === "object") {
+                    if (Array.isArray(el.valueList)) visit(el.valueList);
+                    for (const row of el.trList || []) {
+                        for (const cell of row.tdList || []) visit(cell.value);
+                    }
+                }
+                const pieces = this._splitElementTokens(el, tokenMap, varMap);
+                if (pieces) {
+                    list.splice(i, 1, ...pieces);
+                    created += pieces.filter(p => p.type === "label").length;
+                    i += pieces.length;
+                } else {
+                    i += 1;
+                }
+            }
+        };
+        for (const zone of ["header", "main", "footer"]) visit(data[zone]);
+        if (!created) return 0;
+        try {
+            this.editor.command.executeSetValue(data);
+        } catch (e) {
+            console.error("[DocEditor] token 升級藥丸失敗", e);
+            return 0;
+        }
+        return created;
+    }
+
+    // ═══ Phase 4：模型變數藥丸 ═══════════════════════════════════════
+
+    /** 從元素身上讀綁定定義；不是模型變數藥丸回 null。 */
+    _elementFieldMeta(el) {
+        if (!el || el.type !== "label") return null;
+        const meta = (el.extension || {})[DOBTOR_FIELD_KEY];
+        return meta && typeof meta === "object" ? meta : null;
+    }
+
+    /**
+     * 依綁定定義建一個藥丸元素。
+     *
+     * value 是「給人看的標籤文字」，快照時才會被換成實際值；
+     * 綁定關係全部在 extension，改標籤文字不影響取值。
+     */
+    _buildPillElement(meta) {
+        const labelText = meta.labelText || meta.path || meta.expression || "變數";
+        return {
+            type: "label",
+            value: labelText,
+            label: { ...PILL_STYLE, ...(meta.style || {}) },
+            extension: { [DOBTOR_FIELD_KEY]: { ...meta, labelText } },
+        };
+    }
+
+    /**
+     * 在游標處插入模型變數藥丸。
+     *
+     * 用 executeInsertElementList 而不是 executeInsertControl——
+     * control 是「待人填寫」的互動元件，模型變數是唯讀顯示，兩者不同。
+     */
+    insertPill(meta) {
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return false;
+        }
+        try {
+            this.editor.command.executeInsertElementList([this._buildPillElement(meta)]);
+            return true;
+        } catch (e) {
+            console.error("[DocEditor] 插入變數藥丸失敗", e);
+            this.notification.add(`插入變數失敗：${e.message || e}`, { type: "danger" });
+            return false;
+        }
+    }
+
+    /**
+     * 更新目前選中藥丸的綁定定義（inspector 用）。
+     *
+     * canvas-editor 沒有「就地改單一元素屬性」的公開 API，故走
+     * 取整份 value → 依 extension 找到該元素 → 改寫 → setValue 回去。
+     * 為避免把 caret 位置弄丟，改寫後不重設選區（canvas-editor 自行處理）。
+     */
+    updateSelectedPill(patch) {
+        const current = this.state.selectedVariable;
+        if (!current || !this.editor) return;
+        const merged = { ...current, ...patch };
+        delete merged._elementValue;
+        if (patch.labelText !== undefined) {
+            merged.labelText = patch.labelText;
+        }
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            return;
+        }
+        let hit = false;
+        const visit = (list) => {
+            for (const el of list || []) {
+                if (!el || typeof el !== "object") continue;
+                const meta = this._elementFieldMeta(el);
+                if (meta && !hit && this._sameMeta(meta, current)) {
+                    el.extension = { [DOBTOR_FIELD_KEY]: merged };
+                    el.value = merged.labelText || el.value;
+                    el.label = { ...PILL_STYLE, ...(merged.style || {}) };
+                    hit = true;
+                }
+                if (Array.isArray(el.valueList)) visit(el.valueList);
+                for (const row of el.trList || []) {
+                    for (const cell of row.tdList || []) {
+                        if (Array.isArray(cell.value)) visit(cell.value);
+                    }
+                }
+            }
+        };
+        for (const zone of ["header", "main", "footer"]) {
+            if (Array.isArray(data[zone])) visit(data[zone]);
+        }
+        if (!hit) return;
+        try {
+            this.editor.command.executeSetValue(data);
+            this.state.selectedVariable = { ...merged };
+        } catch (e) {
+            console.error("[DocEditor] 更新變數定義失敗", e);
+        }
+    }
+
+    /** 兩份綁定定義是否指向同一個變數（用於在元素樹中定位）。 */
+    _sameMeta(a, b) {
+        if (!a || !b) return false;
+        return (a.source || "record") === (b.source || "record")
+            && (a.path || "") === (b.path || "")
+            && (a.expression || "") === (b.expression || "")
+            && (a.labelText || "") === (b.labelText || "");
+    }
+
+    /** inspector 事件：改綁定定義的單一鍵。 */
+    onVariablePropertyChange(key, value) {
+        this.updateSelectedPill({ [key]: value });
+    }
+
     /**
      * 取目前文件 body 的 HTML（含 control 已填值，攤平成純 HTML 供匯出鏈使用）。
      * canvas-editor getHTML() 回 { header, main, footer } 物件；content_html 只存 main。
@@ -1998,15 +2589,16 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      */
     async _loadControlSpecs() {
         this._controlSpecByVar = {};
-        if (!this.state.docId || !this._hasTemplate) return;
+        if (!this.targetId || !this._hasTemplate) return;
         const needSpec = (this._templateFieldsCache || []).some(
             f => ["select", "radio", "checkbox"].includes(f.field_type)
         );
         if (!needSpec) return;
         try {
-            const resp = await rpc("/dobtor_doc/template_fields/options", {
-                doc_id: this.state.docId,
-            });
+            const resp = await rpc(
+                "/dobtor_doc/template_fields/options",
+                this.targetRpcParams
+            );
             if (resp.success && Array.isArray(resp.specs)) {
                 for (const spec of resp.specs) {
                     const token = (spec.placeholder_text || "").trim();
@@ -2199,6 +2791,13 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 controlPayload.value = [{ value: "", code: conceptId, checked: false }];
             }
         }
+        // Phase 7：依簽約人上色。element.highlight 在 canvas-editor 內優先於
+        // options.control 的全域底色（lib 內判斷是 `a.highlight ||`），
+        // 所以同一份文件裡不同填寫者的欄位可以有各自的顏色。
+        const highlight = signerColor(signer?.color);
+        if (highlight) {
+            controlPayload.highlight = highlight;
+        }
         try {
             this.editor.command.executeInsertControl(controlPayload);
         } catch (e) {
@@ -2224,7 +2823,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             return local;  // 已是後端紀錄
         }
         const resp = await rpc("/dobtor_doc/template_fields/save_signer", {
-            doc_id: this.state.docId,
+            ...this.targetRpcParams,
             signer: {
                 name: local.name,
                 color: 0,
@@ -2273,11 +2872,12 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      * 在 _loadDocument 之後呼叫，把後端紀錄合併到 state（覆蓋 Phase 1 的 placeholder）。
      */
     async _loadTemplateFields() {
-        if (!this.state.docId) return;
+        if (!this.targetId) return;
         try {
-            const data = await rpc("/dobtor_doc/template_fields/load", {
-                doc_id: this.state.docId,
-            });
+            const data = await rpc(
+                "/dobtor_doc/template_fields/load",
+                this.targetRpcParams
+            );
             this._hasTemplate = !!data.has_template;
             if (!data.has_template) {
                 // 沒範本：保留 placeholder signers 給視覺，但點欄位按鈕時會擋下
@@ -2329,7 +2929,9 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      *       失敗時不擋編輯流程（autoSave 自己會處理）。
      */
     async _syncDeletedControls() {
-        if (!this.state.docId || !this._hasTemplate) return;
+        // 只處理 control（待填欄位）。模型變數是自描述的 label 元素、
+        // 沒有後端記錄，使用者按 Del 刪掉就沒了，不需要同步任何東西。
+        if (!this.targetId || !this._hasTemplate) return;
         if (this._syncingDeletes) return;  // 重入保護
         let list;
         try {
@@ -2643,109 +3245,6 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 }
             },
         });
-    }
-
-    /**
-     * L2-v2：alias 工具——對綁定 model 自動生成 alias 對映（保留既有 token）。
-     * doc 未設 model_id 時提示 user 先到後台設定。
-     */
-    async onAutoInitAliasesClick() {
-        if (!this.state.docId) return;
-        if (!this._loadedModelName) {
-            this.notification.add(
-                "此文件未綁定 Odoo 模型。請先到後台 doc.document 設定 model_id 後再使用。",
-                { type: "warning" }
-            );
-            return;
-        }
-        const hasTemplate = !!this.state.templateName;
-        const targetMsg = hasTemplate
-            ? `對映將寫入範本「${this.state.templateName}」，所有使用此範本的文件都會共享。\n\n` +
-              `按「確定」：寫入範本（推薦）。\n` +
-              `按「取消」：放棄此操作。`
-            : `對映將寫入此文件（無範本可共用）。\n\n` +
-              `按「確定」：保留現有對映，僅補新欄位。\n` +
-              `按「取消」：放棄此操作。`;
-        const ok = window.confirm(
-            `要從模型「${this._loadedModelName}」自動生成欄位對映嗎？\n\n${targetMsg}`,
-        );
-        if (!ok) return;
-        try {
-            const endpoint = hasTemplate
-                ? "/dobtor_doc/template_aliases/auto_init"
-                : "/dobtor_doc/aliases/auto_init";
-            const resp = await rpc(endpoint, {
-                doc_id: this.state.docId,
-                overwrite: false,
-            });
-            if (!resp || !resp.success) {
-                this.notification.add(`自動生成失敗：${resp && resp.error}`, { type: "danger" });
-                return;
-            }
-            if (hasTemplate) {
-                this.state.templateFieldAliases = { ...(resp.aliases || {}) };
-            } else {
-                this.state.fieldAliases = { ...(resp.aliases || {}) };
-            }
-            const addedCount = (resp.added || []).length;
-            const skippedCount = (resp.skipped || []).length;
-            this.notification.add(
-                `已新增 ${addedCount} 個對映、跳過 ${skippedCount} 個既有對映` +
-                (hasTemplate ? `（寫入範本「${this.state.templateName}」）` : ""),
-                { type: "success" }
-            );
-        } catch (e) {
-            console.error("[DocEditor] onAutoInitAliasesClick failed", e);
-            this.notification.add(`自動生成失敗：${e.message || e}`, { type: "danger" });
-        }
-    }
-
-    /**
-     * L2-v2：alias 工具——把文件內既有 `{{ expression }}` 文字反查 alias map 改寫成 《token》。
-     * 反查不到的 `{{ }}` 原樣保留。要先確保 alias map 已有對映（通常先按「自動生成」）。
-     */
-    async onScanConvertAliasesClick() {
-        if (!this.state.docId) return;
-        if (!this.state.fieldAliases || Object.keys(this.state.fieldAliases).length === 0) {
-            this.notification.add(
-                "尚無 alias 對映可供反查。請先按「自動生成」或手動插入欄位。",
-                { type: "warning" }
-            );
-            return;
-        }
-        const ok = window.confirm(
-            `將掃描文件內所有 {{ ... }} 文字，符合 alias map 的轉為 《中文》 token。\n\n` +
-            `⚠️ 會修改文件內容。建議先存檔備份。\n\n` +
-            `確定要繼續嗎？`
-        );
-        if (!ok) return;
-        try {
-            const resp = await rpc("/dobtor_doc/aliases/scan_convert", {
-                doc_id: this.state.docId,
-            });
-            if (!resp || !resp.success) {
-                this.notification.add(`掃描失敗：${resp && resp.error}`, { type: "danger" });
-                return;
-            }
-            this.notification.add(
-                `已轉換 ${resp.converted} 處變數為 《token》。略過 ${resp.skipped} 處（無對映）。` +
-                `\n要看到結果請重新整理頁面（會自動載入新版內容）。`,
-                { type: "success", sticky: true }
-            );
-            // 重新載入文件，讓 canvas-editor 取得最新 content_json
-            await this._loadDocument(this.state.docId);
-            // canvas-editor 也要 reset 內容（_loadDocument 已暫存 _loadedContentJson；強制 init）
-            if (this.editor && this._loadedContentJson) {
-                try {
-                    this.editor.command.executeSetValue(JSON.parse(this._loadedContentJson));
-                } catch (e) {
-                    console.warn("[DocEditor] executeSetValue 失敗，建議手動 F5 重新整理", e);
-                }
-            }
-        } catch (e) {
-            console.error("[DocEditor] onScanConvertAliasesClick failed", e);
-            this.notification.add(`掃描失敗：${e.message || e}`, { type: "danger" });
-        }
     }
 
     /**
@@ -4018,7 +4517,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             { type: "success" }
         );
         if (this.state.docId) {
-            await this._loadDocument(this.state.docId);
+            await this._loadTarget();
             // 用新內容重新初始化 canvas-editor
             if (this.editor && this._loadedContentJson) {
                 try {

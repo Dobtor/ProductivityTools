@@ -10,3 +10,5 @@ from . import test_bulk_import
 from . import test_template_autofill
 from . import test_font_serve  # Sprint 66 — Sprint 64b font_serve backend tests
 from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/field
+from . import test_template_edit  # Phase 1（藥丸改版）— 範本可直接編輯
+from . import test_pill_pipeline  # Phase 3-5（藥丸改版）— 快照/攤平/遷移

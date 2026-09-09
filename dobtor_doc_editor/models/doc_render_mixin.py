@@ -1,3 +1,5 @@
+import html as html_mod
+import json
 import re
 
 from jinja2.sandbox import SandboxedEnvironment
@@ -64,9 +66,7 @@ class DocRenderMixin(models.AbstractModel):
             return html or ''
         try:
             html = self._apply_field_aliases(html, with_chip=with_chip)
-            env = _DocSandboxedEnvironment()
-            for name, fn in self._get_render_helpers(record).items():
-                env.globals[name] = fn
+            env = self._get_sandbox_env(record)
             template = env.from_string(html)
             return template.render(object=record, user=self.env.user)
         except Exception as e:
@@ -242,7 +242,7 @@ class DocRenderMixin(models.AbstractModel):
             raise UserError(f"模型 '{model_name}' 不存在")
 
         try:
-            self.env[model_name].check_access_rights('read')
+            self.env[model_name].check_access('read')
         except AccessError:
             raise AccessError(f"您沒有讀取 '{model_name}' 的權限")
 
@@ -272,7 +272,7 @@ class DocRenderMixin(models.AbstractModel):
             if f.ttype == 'many2one' and f.relation and current_depth < max_depth:
                 if f.relation in self.env:
                     try:
-                        self.env[f.relation].check_access_rights('read')
+                        self.env[f.relation].check_access('read')
                         field_info['relation'] = f.relation
                         field_info['sub_fields'] = self._get_fields_for_model(
                             f.relation, max_depth, current_depth + 1
@@ -281,3 +281,325 @@ class DocRenderMixin(models.AbstractModel):
                         field_info['sub_fields'] = []
             result.append(field_info)
         return result
+
+    # ══════════════════════════════════════════════════════════════════
+    # Phase 3（藥丸改版）：content_json 為權威的快照 / 攤平管線
+    #
+    # 兩個動作，時間上徹底分離：
+    #   _snapshot_content_json()  建立文件時求值一次，把值寫進藥丸，藥丸結構保留
+    #   _flatten_content_json()   匯出時把藥丸攤平成純文字，不再求值
+    #
+    # 綁定定義存在元素的 extension.dobtorField（canvas-editor 的官方擴充點，
+    # 且在其序列化白名單內），不存在可見文字裡，也不需要後端欄位記錄——
+    # 見 security/ir.model.access.csv:25，一般編輯者對 doc.template.field 唯讀。
+    # ══════════════════════════════════════════════════════════════════
+
+    def _get_sandbox_env(self, record, undefined=None):
+        """唯一的 Jinja 沙箱建構點。
+
+        存在的理由：改版前 doc_controller.preview_content_json 自己 new 了一個
+        裸 SandboxedEnvironment，繞過 _DocSandboxedEnvironment 的 ORM 提權黑名單
+        （env / sudo / browse / write）。快照管線會執行來自舊 alias 遷移的任意
+        Jinja 字串，絕不能重蹈覆轍。所有需要沙箱的地方一律呼叫這裡。
+        """
+        kwargs = {'undefined': undefined} if undefined is not None else {}
+        env_j = _DocSandboxedEnvironment(**kwargs)
+        for name, fn in self._get_render_helpers(record).items():
+            env_j.globals[name] = fn
+        return env_j
+
+    # ─── 元素樹走訪 ──────────────────────────────────────────────────
+    #
+    # content_json 是 canvas-editor getValue().data，形狀為
+    #   {header: [...], main: [...], footer: [...]}
+    # 只走 main 會漏掉頁首頁尾的變數；不遞迴 trList/tdList 會漏掉表格內的變數。
+    # 快照、攤平、遷移三支共用這裡，不各寫一份。
+
+    _ELEMENT_ZONES = ('header', 'main', 'footer')
+
+    def _iter_element_lists(self, tree):
+        """yield 樹中每一個「元素串列」（含頁首/頁尾/表格儲存格/超連結子串）。
+
+        yield 的是 list 物件本身，呼叫端可就地改寫（攤平需要換掉元素）。
+        """
+        if isinstance(tree, dict):
+            roots = [tree[z] for z in self._ELEMENT_ZONES
+                     if isinstance(tree.get(z), list)]
+            if not roots and not any(z in tree for z in self._ELEMENT_ZONES):
+                # 少數舊資料直接存成單一 list 包在 dict 裡的情況，盡量容錯
+                roots = [v for v in tree.values() if isinstance(v, list)]
+        elif isinstance(tree, list):
+            roots = [tree]
+        else:
+            return
+
+        stack = list(roots)
+        while stack:
+            elements = stack.pop()
+            yield elements
+            for el in elements:
+                if not isinstance(el, dict):
+                    continue
+                # 超連結 / 日期等群組元素的子串
+                if isinstance(el.get('valueList'), list):
+                    stack.append(el['valueList'])
+                # 表格：trList → tdList → value（value 在儲存格內是元素串列）
+                for row in (el.get('trList') or []):
+                    if not isinstance(row, dict):
+                        continue
+                    for cell in (row.get('tdList') or []):
+                        if isinstance(cell, dict) and isinstance(cell.get('value'), list):
+                            stack.append(cell['value'])
+
+    def _iter_elements(self, tree):
+        """yield 樹中每一個元素 dict。"""
+        for elements in self._iter_element_lists(tree):
+            for el in elements:
+                if isinstance(el, dict):
+                    yield el
+
+    # ─── 藥丸綁定 meta ───────────────────────────────────────────────
+
+    DOBTOR_FIELD_KEY = 'dobtorField'
+
+    def _element_field_meta(self, element):
+        """取出元素的綁定定義；不是模型變數藥丸就回 None。"""
+        if not isinstance(element, dict) or element.get('type') != 'label':
+            return None
+        meta = (element.get('extension') or {}).get(self.DOBTOR_FIELD_KEY)
+        return meta if isinstance(meta, dict) else None
+
+    def _field_meta_expression(self, meta):
+        """把綁定 meta 轉成一段 Jinja 表達式；靜態值與空定義回 None。"""
+        source = (meta.get('source') or 'record').strip()
+        if source == 'static':
+            return None
+        expression = (meta.get('expression') or '').strip()
+        if expression:
+            return expression
+        path = (meta.get('path') or '').strip()
+        if not path:
+            return None
+        expression = f'object.{path}'
+        fmt = (meta.get('format') or '').strip()
+        if fmt:
+            # 目前只支援 strftime 形態；非日期欄位給了格式也不會炸（helper 會原樣回傳）
+            expression = "format_date(%s, '%s')" % (expression, fmt.replace("'", ''))
+        return expression
+
+    def _snapshot_content_json(self, tree, record):
+        """把模型變數藥丸求值後寫進 label 的 value（就地改寫並回傳 tree）。
+
+        決策一（建立時快照）：值在此凍結一次，之後改記錄不會動到文件。
+        決策三（空值印空白）：求值為 falsy 一律寫空字串，不印底線也不擋。
+
+        藥丸結構刻意保留——凍結後仍看得出哪些字是帶進來的、右側面板仍能顯示
+        來源欄位、也仍然可以按「重新帶值」重跑。快照時就攤平的話這三件事全失去。
+        """
+        if not tree or record is None:
+            return tree
+        env_j = self._get_sandbox_env(record)
+        cache = {}
+
+        def _eval(expression):
+            if expression in cache:
+                return cache[expression]
+            try:
+                rendered = env_j.from_string('{{ %s }}' % expression).render(
+                    object=record, user=self.env.user,
+                )
+            except Exception:
+                # 求值失敗（欄位被刪、表達式壞掉）→ 空字串。
+                # 這裡刻意不 raise：一個壞欄位不該讓整份文件產不出來。
+                rendered = ''
+            value = '' if rendered in (None, 'False', 'None') else str(rendered)
+            cache[expression] = value
+            return value
+
+        for element in self._iter_elements(tree):
+            meta = self._element_field_meta(element)
+            if not meta:
+                continue
+            if (meta.get('source') or 'record') == 'static':
+                element['value'] = meta.get('static') or ''
+                continue
+            expression = self._field_meta_expression(meta)
+            element['value'] = _eval(expression) if expression else ''
+        return tree
+
+    def _flatten_content_json(self, tree):
+        """把藥丸攤平成純文字元素（就地改寫並回傳 tree）。
+
+        決策四（只輸出值）：丟掉 label 樣式與 extension，網底屬編輯輔助，
+        不進正式文件。**不求值**——值應已由快照凍結在 value 裡。
+        """
+        if not tree:
+            return tree
+        for elements in self._iter_element_lists(tree):
+            for idx, el in enumerate(elements):
+                if not isinstance(el, dict) or el.get('type') != 'label':
+                    continue
+                plain = {k: v for k, v in el.items()
+                         if k not in ('type', 'label', 'extension', 'labelId')}
+                plain['value'] = el.get('value') or ''
+                elements[idx] = plain
+        return tree
+
+    # ─── 元素樹 → HTML（伺服器端匯出鏈用）────────────────────────────
+    #
+    # 前端有 canvas-editor 的 getHTML()，伺服器端沒有。匯出改以 content_json
+    # 為權威之後，這支轉換是必要的。涵蓋本模組實際會產生的元素類型；
+    # 未知類型退回「輸出其 value 的逸出文字」——最壞情況是掉格式，不是掉內容。
+
+    _ROW_FLEX_ALIGN = {
+        'left': 'left', 'center': 'center', 'right': 'right',
+        'alignment': 'justify', 'justify': 'justify',
+    }
+
+    def _element_style(self, el):
+        parts = []
+        if el.get('bold'):
+            parts.append('font-weight:bold')
+        if el.get('italic'):
+            parts.append('font-style:italic')
+        decos = []
+        if el.get('underline'):
+            decos.append('underline')
+        if el.get('strikeout'):
+            decos.append('line-through')
+        if decos:
+            parts.append('text-decoration:%s' % ' '.join(decos))
+        if el.get('color'):
+            parts.append('color:%s' % el['color'])
+        if el.get('highlight'):
+            parts.append('background-color:%s' % el['highlight'])
+        if el.get('size'):
+            parts.append('font-size:%spt' % el['size'])
+        if el.get('font'):
+            parts.append("font-family:'%s'" % str(el['font']).replace("'", ''))
+        return ';'.join(parts)
+
+    def _inline_element_html(self, el):
+        """單一行內元素 → HTML 片段。"""
+        etype = el.get('type') or 'text'
+        if etype == 'image':
+            src = el.get('value') or ''
+            if not src:
+                return ''
+            w = el.get('width')
+            h = el.get('height')
+            dims = ''
+            if w:
+                dims += ' width="%d"' % int(w)
+            if h:
+                dims += ' height="%d"' % int(h)
+            return '<img src="%s"%s/>' % (html_mod.escape(src, quote=True), dims)
+        if etype == 'separator':
+            return '<hr/>'
+        if etype == 'tab':
+            return '&emsp;'
+        if etype == 'checkbox':
+            checked = ((el.get('checkbox') or {}).get('value'))
+            return '☑' if checked else '☐'
+        if etype == 'radio':
+            checked = ((el.get('radio') or {}).get('value'))
+            return '◉' if checked else '○'
+        if etype == 'hyperlink':
+            inner = ''.join(
+                self._inline_element_html(c)
+                for c in (el.get('valueList') or []) if isinstance(c, dict)
+            ) or html_mod.escape(el.get('value') or '')
+            url = html_mod.escape(el.get('url') or '', quote=True)
+            return '<a href="%s">%s</a>' % (url, inner)
+
+        text = html_mod.escape(el.get('value') or '')
+        if not text:
+            return ''
+        style = self._element_style(el)
+        if etype == 'label':
+            # 理論上匯出前已攤平；萬一漏了也只輸出文字，不帶網底（決策四）
+            return text
+        return '<span style="%s">%s</span>' % (style, text) if style else text
+
+    def _table_to_html(self, el):
+        rows = []
+        for row in (el.get('trList') or []):
+            if not isinstance(row, dict):
+                continue
+            cells = []
+            for cell in (row.get('tdList') or []):
+                if not isinstance(cell, dict):
+                    continue
+                attrs = ''
+                if (cell.get('colspan') or 1) > 1:
+                    attrs += ' colspan="%d"' % int(cell['colspan'])
+                if (cell.get('rowspan') or 1) > 1:
+                    attrs += ' rowspan="%d"' % int(cell['rowspan'])
+                cells.append('<td%s>%s</td>' % (
+                    attrs, self._elements_to_html(cell.get('value') or []),
+                ))
+            if cells:
+                rows.append('<tr>%s</tr>' % ''.join(cells))
+        return '<table>%s</table>' % ''.join(rows) if rows else ''
+
+    def _elements_to_html(self, elements):
+        """元素串列 → HTML。
+
+        canvas-editor 的元素串列是扁平的，用 value == '\\n' 標示換行；
+        換行元素身上的 rowFlex 決定該段落的對齊。
+        """
+        out = []
+        buf = []
+
+        def _flush(row_el=None):
+            if not buf:
+                # 空段落也要保留，否則多個空行會被吃掉、版面走樣
+                out.append('<p><br/></p>')
+                return
+            align = self._ROW_FLEX_ALIGN.get((row_el or {}).get('rowFlex') or '')
+            style = ' style="text-align:%s"' % align if align else ''
+            out.append('<p%s>%s</p>' % (style, ''.join(buf)))
+            buf.clear()
+
+        for el in (elements or []):
+            if not isinstance(el, dict):
+                continue
+            etype = el.get('type') or 'text'
+            if etype == 'table':
+                if buf:
+                    _flush()
+                out.append(self._table_to_html(el))
+                continue
+            if etype == 'pageBreak':
+                if buf:
+                    _flush()
+                out.append('<div class="doc-page-break"></div>')
+                continue
+            if (el.get('value') or '') == '\n':
+                _flush(el)
+                continue
+            buf.append(self._inline_element_html(el))
+        if buf:
+            _flush()
+        return ''.join(out)
+
+    def _content_json_to_html(self, tree, zone='main'):
+        """content_json 的指定區域 → HTML。"""
+        if isinstance(tree, dict):
+            elements = tree.get(zone)
+        elif isinstance(tree, list) and zone == 'main':
+            elements = tree
+        else:
+            elements = None
+        return self._elements_to_html(elements or [])
+
+    def _parse_content_json(self, raw):
+        """content_json 欄位（字串或已解析物件）→ dict/list；失敗回 None。"""
+        if not raw:
+            return None
+        if isinstance(raw, (dict, list)):
+            return raw
+        try:
+            return json.loads(raw)
+        except Exception:
+            return None

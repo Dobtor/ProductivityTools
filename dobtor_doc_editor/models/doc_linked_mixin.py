@@ -185,6 +185,20 @@ class DocLinkedMixin(models.AbstractModel):
 
         doc = Doc.create(vals)
 
+        # Phase 3（藥丸改版）：建立時快照。
+        # 決策一——值在此凍結一次，之後改業務記錄不會動到已產生的文件。
+        # create() 內的 onchange 邏輯已把範本的 content_json 複製過來，
+        # 此時才有東西可以求值，順序不可對調。
+        try:
+            doc._apply_value_snapshot(record=self)
+        except Exception as e:
+            # 快照失敗不該讓「建立文件」整個失敗——文件仍可用，
+            # 使用者可在編輯器按「重新帶值」補救。
+            _logger.warning(
+                "[doc.linked.mixin] value snapshot failed for %s(%s): %s",
+                self._name, self.id, e,
+            )
+
         # 加協作者
         try:
             collaborators = self._doc_collaborators()

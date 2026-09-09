@@ -77,6 +77,13 @@
                             icon="fa-eye"
                             invisible="not model_id or not res_id"
                             help="不進編輯器直接看渲染結果（自動帶入關聯記錄資料）"/>
+                    <button name="action_refresh_values"
+                            string="重新帶值"
+                            type="object"
+                            icon="fa-refresh"
+                            invisible="not model_id or not res_id"
+                            confirm="重新帶值會依來源記錄的最新內容覆蓋文件中的變數，包含你在藥丸上做過的人工修改。確定繼續？"
+                            help="對目前綁定的記錄重跑一次快照"/>
                     <button name="action_export_pdf"
                             string="匯出 PDF"
                             type="object"
@@ -94,6 +101,18 @@
                          仍顯示舊範本內容。 -->
                     <field name="content_html" invisible="1"/>
                     <field name="content_json" invisible="1"/>
+                    <!-- Phase 3：快照語意最容易造成的誤解是「我改了來源記錄，
+                         怎麼文件沒變」。把凍結時間與過期狀態攤在表單上。 -->
+                    <field name="snapshot_is_stale" invisible="1"/>
+                    <div class="alert alert-warning mb-2" role="alert"
+                         invisible="not snapshot_is_stale">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        <strong>來源記錄已變更。</strong>
+                        文件中的值凍結於
+                        <field name="snapshot_date" readonly="1" nolabel="1"
+                               class="oe_inline"/>，
+                        之後來源記錄又被修改過。需要更新請按上方「重新帶值」。
+                    </div>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="文件名稱" required="1"/>
@@ -108,6 +127,8 @@
                                    string="使用範本"
                                    domain="[('model_id', '=', model_id)]"/>
                             <field name="page_format" string="頁面格式"/>
+                            <field name="snapshot_date" string="值凍結於" readonly="1"
+                                   invisible="not snapshot_date"/>
                         </group>
                         <group string="頁面邊距 (px)">
                             <field name="margin_top" string="上"/>
