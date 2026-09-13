@@ -125,7 +125,7 @@ class TestSecurityRules(TransactionCase):
     def test_05_weekly_report_user_specific(self):
         """測試週報告是用戶專屬的"""
         report = self.env['weekly.report'].with_user(self.user_activity).create({
-            'week_start_date': date.today(),
+            'week_start': date.today(),
         })
 
         # 另一個用戶不應該能看到

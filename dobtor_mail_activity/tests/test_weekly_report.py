@@ -20,7 +20,7 @@ class TestWeeklyReport(TransactionCase):
 
         report = self.env['weekly.report'].create({
             'user_id': self.user.id,
-            'week_start_date': week_start,
+            'week_start': week_start,
         })
 
         self.assertTrue(report.id)
@@ -34,7 +34,7 @@ class TestWeeklyReport(TransactionCase):
 
         report = self.env['weekly.report'].create({
             'user_id': self.user.id,
-            'week_start_date': week_start,
+            'week_start': week_start,
         })
 
         self.assertTrue(report.week_number)
@@ -47,7 +47,7 @@ class TestWeeklyReport(TransactionCase):
 
         report = self.env['weekly.report'].create({
             'user_id': self.user.id,
-            'week_start_date': week_start,
+            'week_start': week_start,
         })
 
         # 確認報告
@@ -69,7 +69,9 @@ class TestEfficiencyMetrics(TransactionCase):
         """測試建立效率指標"""
         metrics = self.env['activity.efficiency.metrics'].create({
             'user_id': self.user.id,
-            'date': date.today(),
+            # 模型的欄位是 period_start / period_end，不是 date
+            'period_start': date.today(),
+            'period_end': date.today(),
             'total_activities': 10,
             'completed_activities': 8,
             'total_estimated_hours': 20.0,
@@ -82,7 +84,9 @@ class TestEfficiencyMetrics(TransactionCase):
         """測試效率指標計算"""
         metrics = self.env['activity.efficiency.metrics'].create({
             'user_id': self.user.id,
-            'date': date.today(),
+            # 模型的欄位是 period_start / period_end，不是 date
+            'period_start': date.today(),
+            'period_end': date.today(),
             'total_activities': 10,
             'completed_activities': 8,
             'total_estimated_hours': 20.0,

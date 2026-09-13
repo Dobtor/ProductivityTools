@@ -774,22 +774,48 @@ class MailActivity(models.Model):
             tracking_disable=True,
         )
 
-        # 直接走官方 create。
+        # ☠️ 官方 create 的結尾對「整批都沒有指派人」會 UnboundLocalError。
         #
-        # 這裡曾有一段 _CREATE_BYPASS_APPLICABLE 的繞道，理由寫的是「Odoo 18 的
-        # mail.activity.create 有 UnboundLocalError bug」。對照 18.0 原始碼後確認
-        # 該 bug 不存在（readable_user_partners 兩個分支都有賦值），而本模組特有的
-        # 兩種資料形態也都被官方安全處理：
-        #   - 無關聯文件（需求七獨立待辦）：_classify_by_model() 會過濾掉 res 為空者
-        #     （mail/models/mail_activity.py:786），不會踩到 self.env[False]。
-        #   - 無指派人（未指派待辦）：官方雖會把它們送進 action_notify，但本模組的
-        #     action_notify 覆寫已先濾掉無 res / 無 user 者；systray 的 _bus_send
-        #     對空 recordset 也是 no-op。
-        # 繞道的代價是必須手工複製並持續同步官方約 60 行邏輯（通知、systray、
-        # 訂閱），且訂閱從官方的「依模型批次」退化成逐筆 message_subscribe。
-        # 若日後在某個 18.0 修訂版真的遇到官方 create 出錯，請在此處記錄實際的
-        # traceback 與版本，再考慮重新引入繞道。
-        activities = super(MailActivity, self_with_context).create(vals_list)
+        # 上一版的註解說「該 bug 不存在（readable_user_partners 兩個分支都有
+        # 賦值）」——檢查錯變數了。真正未定義的是 `activity`：
+        #
+        #   odoo/addons/mail/models/mail_activity.py（18.0）
+        #     for model, activity_data in activities._classify_by_model().items():
+        #         for activity in activity_data['activities'].filtered(
+        #                 lambda act: act.user_id):        # ← 唯一綁定 activity 的地方
+        #             ...
+        #     todo_activities = activities.filtered(
+        #         lambda act: act.date_deadline <= fields.Date.today())
+        #     if todo_activities:
+        #         activity.user_id._bus_send(...)          # ← line 308，未定義
+        #
+        # 觸發條件正好是本模組特有的資料形態：**未指派待辦**（user_id 空）
+        # 且 date_deadline <= 今天。內層 filtered 濾光 → activity 從未綁定 →
+        # 而 todo_activities 非空 → 當場 UnboundLocalError。
+        #
+        # 實際 traceback（2026-09-13，odoo 18.0，qa_probe）：
+        #   File ".../dobtor_mail_activity/models/mail_activity.py", line 792, in create
+        #   File ".../odoo/addons/mail/models/mail_activity.py", line 308, in create
+        #   UnboundLocalError: cannot access local variable 'activity'
+        # 影響 15 支測試。
+        #
+        # ★ 繞道只用在「整批都沒有指派人」這一種情況，不是全面複製官方邏輯。
+        #   對這種批次，官方結尾的每一段本來就是 no-op：
+        #     · action_notify()          本模組的覆寫先濾掉無 user 者
+        #     · 依模型批次訂閱            filtered(act.user_id) 是空的
+        #     · _bus_send                要通知的就是那個不存在的 user
+        #   所以跳過整段結尾不會少做任何事——少做的只有那一行崩潰。
+        #
+        #   有任何一筆帶指派人時一律走官方路徑：那時 activity 綁得到，
+        #   而通知與訂閱都是真的要做的。
+        if any(vals.get('user_id') for vals in vals_list):
+            activities = super(MailActivity, self_with_context).create(vals_list)
+        else:
+            # super() 指名官方 MailActivity，跳過它的 create、落到 models.Model
+            from odoo.addons.mail.models.mail_activity import (
+                MailActivity as CoreMailActivity)
+            activities = super(CoreMailActivity, self_with_context).create(
+                vals_list)
 
         # 需求五：未帶客戶者，依來源（res → 專案客戶）派生（不覆寫已帶入者）
         activities.filtered(lambda a: not a.partner_id)._derive_partner_from_source()
