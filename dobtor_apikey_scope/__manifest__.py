@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'API Key Permission Scope',
-    'version': '18.0.1.1.1',
+    'version': '18.0.1.1.2',
     'category': 'Technical',
     'summary': 'Restrict each API key to a subset of the owner user\'s access groups',
     'description': """

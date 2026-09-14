@@ -5,6 +5,7 @@ import threading
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.http import request
+from odoo.tools import SQL
 
 # Reuse the exact constant from core so key-row lookup stays in sync.
 from odoo.addons.base.models.res_users import INDEX_SIZE
@@ -157,6 +158,26 @@ class ApiKeyScope(models.Model):
 
 class ApiKeys(models.Model):
     _inherit = 'res.users.apikeys'
+
+    def init(self):
+        """Backfill core's ``expiration_date`` column on pre-existing tables.
+
+        ``res.users.apikeys`` is ``_auto = False``, so core builds its table
+        with a bare ``CREATE TABLE IF NOT EXISTS`` and the ORM never manages
+        its columns afterwards. On a database whose ``res_users_apikeys`` table
+        was created before the API-key expiry feature existed, the column is
+        therefore never added -- not even by upgrading ``base``, because the
+        table already exists -- and every key generation dies with
+        ``UndefinedColumn: column "expiration_date" ... does not exist``.
+        Adding it here is idempotent and re-runs on every update of this
+        module, which is what makes the expiry reachable from the UI.
+        """
+        super().init()
+        self.env.cr.execute(SQL(
+            "ALTER TABLE %s ADD COLUMN IF NOT EXISTS "
+            "expiration_date timestamp without time zone",
+            SQL.identifier(self._table),
+        ))
 
     def _check_expiration_date(self, date):
         """Override core: gate a NON-admin user's key duration by the global
