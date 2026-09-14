@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Approval (BPM 簽核引擎)',
-    'version': '18.0.1.3.0',
+    'version': '18.0.1.4.0',
     'category': 'Productivity',
     'summary': '台灣 BPM 簽核引擎：角色解析、Action 介入、token 執行、mail.activity 橋接、加簽/代理（T0–T6 能力開關）',
     'description': """
@@ -43,6 +43,9 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
     'assets': {
         'web.assets_backend': [
             # bpmn-js / dmn-js 直接打包進模組（vendored，不再 runtime load / CDN）
+            # ☠️ 這一支要在 bundle 裡，否則「已送出簽核」會以 Python
+            #    traceback 的樣子出現在使用者面前（見該檔開頭的說明）。
+            'dobtor_approval/static/src/js/pending_approval_notification.js',
             'dobtor_approval/static/lib/bpmn-io/bpmn-modeler.production.min.js',
             'dobtor_approval/static/lib/bpmn-io/assets/diagram-js.css',
             'dobtor_approval/static/lib/bpmn-io/assets/bpmn-js.css',
