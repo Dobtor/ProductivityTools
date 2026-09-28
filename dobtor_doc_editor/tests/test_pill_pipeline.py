@@ -155,6 +155,17 @@ class TestContentJsonToHtml(TransactionCase):
         self.assertIn('font-weight:bold', html)
         self.assertIn('color:#ff0000', html)
 
+    def test_font_size_unit_is_px_not_pt(self):
+        """canvas-editor 的 element.size 單位是 px（lib 組 font 字串時用 `${size}px`）。
+
+        寫成 pt 的話匯出的每段文字都會大 33%，而且完全無錯誤訊息——
+        這是實際發生過的缺陷，原本的樣式測試只驗粗體與顏色所以抓不到。
+        """
+        tree = {'main': [_text('十六級字', size=16)]}
+        html = self.Mixin._content_json_to_html(tree)
+        self.assertIn('font-size:16px', html)
+        self.assertNotIn('font-size:16pt', html)
+
     def test_table_rendered(self):
         tree = {'main': [{
             'type': 'table',

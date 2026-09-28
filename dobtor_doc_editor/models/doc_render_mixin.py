@@ -474,7 +474,10 @@ class DocRenderMixin(models.AbstractModel):
         if el.get('highlight'):
             parts.append('background-color:%s' % el['highlight'])
         if el.get('size'):
-            parts.append('font-size:%spt' % el['size'])
+            # canvas-editor 的 element.size 單位是 px——它組 canvas font 字串時是
+            # `${size}px`（見 lib 的 getElementFont）。這裡若寫 pt，匯出的每段文字
+            # 都會比畫面上大 33%（16px → 16pt = 21.3px），而且不會有任何錯誤訊息。
+            parts.append('font-size:%spx' % el['size'])
         if el.get('font'):
             parts.append("font-family:'%s'" % str(el['font']).replace("'", ''))
         return ';'.join(parts)

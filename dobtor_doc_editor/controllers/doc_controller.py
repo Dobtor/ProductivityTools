@@ -856,8 +856,18 @@ def _convert_ins_to_jinja(raw_bytes):
       +++FOR v IN $col++++     → {% tr for v in col %}   （表格列層級，表格內）
       +++END-FOR v++++         → {% endfor %}            （段落層級，表格外）
       +++END-FOR v++++         → {% tr endfor %}         （表格列層級，表格內）
+
+    缺 python-docx 時原樣回傳 raw_bytes：上傳仍然成功，只是舊語法不轉換。
+    擋掉整個上傳比較糟——使用者的檔案裡可能本來就寫 {{ }}，根本不需要轉換。
+    呼叫端會回報偵測到的變數數量，數量為 0 就是使用者看得到的訊號。
     """
-    import docx as python_docx
+    try:
+        import docx as python_docx
+    except ImportError:
+        _logger.warning(
+            'python-docx 未安裝，略過 +++INS+++ 舊語法轉換（pip install python-docx）'
+        )
+        return raw_bytes
 
     # +++INS $item.field+++ 或 +++INS $item. field+++（允許點號前後有空格，轉換時移除）
     _INS    = re.compile(r'\+{3}INS\s+\$?\s*([A-Za-z_][\w]*(?:\s*\.\s*[A-Za-z_][\w]*)*)\s*\+{3,4}')
@@ -1239,7 +1249,14 @@ class DocEditorController(http.Controller):
         用 docxtpl 填充模板，輸出 PDF（LibreOffice headless）或 DOCX。
         context：{variableName: value} 字典，對應模板中的 {{ variableName }}。
         """
-        from docxtpl import DocxTemplate
+        try:
+            from docxtpl import DocxTemplate
+        except ImportError:
+            return {
+                'success': False,
+                'error': 'DOCX 模板填值需要 docxtpl 套件，目前環境未安裝。'
+                         '請聯絡管理員執行：pip install docxtpl',
+            }
 
         doc = self._require_document(doc_id, 'read')
 

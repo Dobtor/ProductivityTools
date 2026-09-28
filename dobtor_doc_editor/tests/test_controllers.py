@@ -9,8 +9,14 @@ doc_controller.py 邊界 security 測試 — 紀律 #5 + #11 + #15 廣域應用�
 
 import io
 import json
+from importlib.util import find_spec
 
 from odoo.tests.common import HttpCase, TransactionCase, tagged
+
+# python-docx 是選用相依（見 __manifest__.py 的說明）：核心功能不需要它，
+# 但本檔有三則測試要用它產生合法的 DOCX bytes。沒裝就跳過那三則，
+# 不要讓整個測試類別因為一個選用套件而失敗。
+HAS_PYTHON_DOCX = find_spec('docx') is not None
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
@@ -130,6 +136,8 @@ class TestControllerSecurityBoundary(HttpCase):
         即使 filename 含 path separator,只是 DB 字段、不會被當檔案路徑使用。
         紀律 #5:深度防禦原則上應 sanitize、但 Odoo ORM 不洩漏 path 為當前可接受風險。
         """
+        if not HAS_PYTHON_DOCX:
+            self.skipTest('python-docx 未安裝（選用相依）')
         docx_bytes = _make_minimal_docx_bytes()
         resp = self.url_open(
             '/dobtor_doc/upload_template',
@@ -152,6 +160,8 @@ class TestControllerSecurityBoundary(HttpCase):
 
         本 test 驗證 Sprint 116 plus 後的新行為:400 + error message,不是 500。
         """
+        if not HAS_PYTHON_DOCX:
+            self.skipTest('python-docx 未安裝（選用相依）')
         docx_bytes = _make_minimal_docx_bytes()
         resp = self.url_open(
             '/dobtor_doc/upload_template',
@@ -187,6 +197,8 @@ class TestControllerSecurityBoundary(HttpCase):
         當前實作:engine not in ('libreoffice', 'ts', 'both') → 'libreoffice'。
         驗證白名單 enforcement,不洩漏 stack。
         """
+        if not HAS_PYTHON_DOCX:
+            self.skipTest('python-docx 未安裝（選用相依）')
         docx_bytes = _make_minimal_docx_bytes()
         # 用 zip guard 攔截(最小 docx 也是合法 zip、guard 放行,但接下來 LO 處理是另一層)。
         # 此 test 焦點是「engine 參數注入不該繞過白名單」、不關心 LO 結果。

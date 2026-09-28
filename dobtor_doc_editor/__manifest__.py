@@ -17,6 +17,12 @@ Dobtor Doc Editor v2.1
 - DOCX / ODT 匯入
 - 版本快照
 - 多公司隔離
+
+選用功能（需額外 pip 套件，未安裝時該功能停用、其餘正常）：
+- python-docx：DOCX 匯出 fallback、上傳 DOCX 時轉換 +++INS+++ 舊語法
+- docxtpl：上傳 .docx 模板填值
+- odfpy：.odt 匯入
+  pip install python-docx docxtpl odfpy
     """,
     'category': 'Productivity',
     'author': 'Dobtor',
@@ -29,13 +35,22 @@ Dobtor Doc Editor v2.1
         'bus',
         'portal',
     ],
-    # 外部 Python 套件（import 名稱，非 pip 名稱）：
-    #   docx    ← pip python-docx  （.docx 匯入/模板轉換）
-    #   docxtpl ← pip docxtpl       （fill_template 填充模板輸出 PDF/DOCX）
-    #   odf     ← pip odfpy         （.odt 匯入解析）
-    'external_dependencies': {
-        'python': ['docx', 'docxtpl', 'odf'],
-    },
+    # ─── 選用 Python 套件（刻意不寫進 external_dependencies）────────────
+    #
+    #   python-docx  DOCX 匯出的 fallback（LibreOffice 缺席時）、
+    #                上傳 DOCX 時把 +++INS+++ 舊語法轉成 {{ }}
+    #   docxtpl      fill_template（上傳 .docx 模板填值）
+    #   odfpy        .odt 匯入解析
+    #
+    # 為什麼不宣告成 external_dependencies：
+    #   這三個套件都只在函式內 lazy import，核心編輯器（canvas 編輯、存檔、
+    #   PDF 匯出、模型變數快照與匯出）完全不需要它們。宣告了會讓整個模組
+    #   因為「一個選用匯出格式的函式庫沒裝」而裝不起來——Odoo 18 的
+    #   check_python_external_dependency 是硬性阻擋，不是警告。
+    #
+    # 缺套件時的行為：對應功能回傳明確訊息並指名該裝哪個 pip 套件，
+    #   其餘功能照常。要啟用這些功能：
+    #   pip install python-docx docxtpl odfpy
     'data': [
         'security/doc_groups.xml',
         'security/ir.model.access.csv',
