@@ -9,3 +9,4 @@ from . import test_merge
 from . import test_schedule_week
 from . import test_tour
 from . import test_meeting_minutes
+from . import test_create_today

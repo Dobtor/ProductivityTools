@@ -256,8 +256,7 @@ class TestActivityMergeAccess(TransactionCase):
         return self.env['mail.activity'].with_user(user).create({
             'summary': summary,
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.note_model_id,
-            'res_id': self.note.id,
+            # 獨立待辦：note 屬 admin 個人，alice/bob 無權在其上建待辦（與合併權限無關）
             'date_deadline': date.today(),
             'user_id': (assignee or user).id,
         })

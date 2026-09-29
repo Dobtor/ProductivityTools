@@ -80,8 +80,8 @@ class TestActivityTours(HttpCase):
             'contenteditable="false" class="o_dobtor_activity_chip_host"></span></p>'
             % source.id
         )
-        source.note_ids = [(5, 0, 0)]
-        source.note_id = False
+        # 不變式 note_id ∈ note_ids：兩者須同一次 write 清掉
+        source.write({'note_id': False, 'note_ids': [(5, 0, 0)]})
 
         (master | source).action_merge(master)
         self.assertEqual(source.merged_into_id, master, '前置：合併已成立')

@@ -23,6 +23,16 @@ registry.category("web_tour.tours").add("dobtor_activity_chip_merge_tour", {
             "開啟個人筆記 App"
         ),
         {
+            // 動作預設 search_default_group_stage：清單依階段分組且群組收合
+            content: "展開階段群組",
+            trigger: ".o_group_header",
+            run() {
+                document
+                    .querySelectorAll(".o_group_header:not(.o_group_open)")
+                    .forEach((el) => el.click());
+            },
+        },
+        {
             content: "開啟含膠囊的測試筆記",
             trigger: ".o_data_row td:contains(Chip merge tour note)",
             run: "click",

@@ -87,6 +87,8 @@ class TestScheduleWeekDomain(TransactionCase):
         """關鍵：即使 stored 值被弄髒（模擬 cron 失效），篩選仍必須正確。"""
         planned = self.week_start + timedelta(days=2)   # 本週
         act = self._make('stale', planned=planned)
+        # 先把 create 排定的 stored compute 寫進 DB，否則之後的 flush 會蓋掉 99
+        act.flush_recordset()
         self.env.cr.execute(
             'UPDATE mail_activity SET schedule_week_number = %s WHERE id = %s',
             (99, act.id))

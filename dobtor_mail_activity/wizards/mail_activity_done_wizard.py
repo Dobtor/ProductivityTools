@@ -47,6 +47,18 @@ class MailActivityDoneWizard(models.TransientModel):
         string='Attachments',
     )
 
+    # ===== 工時表專案 / 模式 =====
+    log_only = fields.Boolean(
+        string='Log Only',
+        help='Opened from "Log Time": only log hours, do not complete the activity.',
+    )
+    timesheet_skipped = fields.Boolean(
+        string='Timesheet Will Be Skipped',
+        compute='_compute_timesheet_skipped',
+        help='Timesheet logging is enabled but no project can be found for this '
+             'activity: completing it will not log hours.',
+    )
+
     # ===== 刪除權限 =====
     can_delete = fields.Boolean(
         string='Can Delete',
@@ -61,6 +73,14 @@ class MailActivityDoneWizard(models.TransientModel):
         """計算已累計工時（activity.actual_hours）"""
         for wizard in self:
             wizard.accumulated_hours = wizard.activity_id.actual_hours or 0.0
+
+    @api.depends('activity_id')
+    def _compute_timesheet_skipped(self):
+        enabled = self.env.company.dobtor_activity_timesheet_enabled
+        for wizard in self:
+            wizard.timesheet_skipped = bool(
+                enabled and wizard.activity_id
+                and not wizard.activity_id._get_timesheet_project())
 
     @api.depends('activity_id')
     def _compute_can_delete(self):
@@ -112,32 +132,21 @@ class MailActivityDoneWizard(models.TransientModel):
         if not self.env.company.dobtor_activity_timesheet_enabled:
             # 工時記錄功能關閉 → 不建立工時表記錄
             return
+        if not self._get_timesheet_project():
+            # 找不到專案 → 跳過工時（待辦照常完成）。留痕以便日後掛上專案後，
+            # 於待辦「工時表」分頁「登錄工時」補登。
+            self.activity_id._message_log(body=_(
+                'Hours not logged: %(hours)s h (no project linked). '
+                'Link a project and use "Log Time" to log them later.',
+                hours=round(self.actual_hours, 2)))
+            return
         self._create_timesheet_entry()
 
     # ===== 工時表建立方法（原 dobtor_mail_activity_timesheet 併入）=====
 
     def _get_timesheet_project(self):
-        """取得工時表專案（優先級邏輯）"""
-        activity = self.activity_id
-
-        # 優先級 1: 關聯 task 的專案
-        if activity.res_model == 'project.task':
-            task = self.env['project.task'].browse(activity.res_id)
-            if task.exists() and task.project_id:
-                return task.project_id
-
-        # 優先級 2: 關聯 lead 的專案
-        if activity.res_model == 'crm.lead':
-            lead = self.env['crm.lead'].browse(activity.res_id)
-            if hasattr(lead, 'project_id') and lead.project_id:
-                return lead.project_id
-
-        # 優先級 3: 待辦本身的 project_id（需求二/三帶入）
-        if activity.project_id:
-            return activity.project_id
-
-        # 優先級 4: 公司預設專案
-        return self.env.company.default_timesheet_project_id
+        """取得工時表專案（邏輯在 mail.activity，與「登錄工時」按鈕共用）"""
+        return self.activity_id._get_timesheet_project()
 
     def _get_timesheet_task(self):
         """取得工時表任務"""
@@ -201,9 +210,12 @@ class MailActivityDoneWizard(models.TransientModel):
 
         if self.actual_hours <= 0:
             raise UserError(_('Please enter valid hours (must be greater than 0)'))
+        # 明確要求登錄：功能關閉或找不到專案時不可靜默跳過
+        if not self.env.company.dobtor_activity_timesheet_enabled:
+            raise UserError(_('Timesheet logging is disabled for this company.'))
 
-        # 記錄本次工時
-        self._log_hours()
+        # 記錄本次工時（找不到專案時 _create_timesheet_entry 會提示原因）
+        self._create_timesheet_entry()
 
         # 關閉精靈並刷新視圖
         return {

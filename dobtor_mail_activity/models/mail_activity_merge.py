@@ -154,16 +154,18 @@ class MailActivityMerge(models.Model):
         merge_ctx.write({'active': False, 'merged_into_id': master.id})
 
         # 5) 留痕：主待辦與各來源的 chatter，並通知原負責人
+        #    用 _message_log（純記錄）而非 message_post：後者會走寄信流程，
+        #    執行者沒設 email 時直接 UserError「請設定寄件人 email」→ 合併整筆失敗。
         master_link = Markup('<a href="#" data-oe-model="mail.activity" '
                              'data-oe-id="%d">%s</a>') % (
             master.id, master.summary or master.activity_type_id.name or master.id)
         for activity in sources:
-            activity.message_post(body=Markup('%s %s') % (
+            activity._message_log(body=Markup('%s %s') % (
                 _('Merged into:'), master_link))
             if activity.user_id and activity.user_id != self.env.user:
                 activity.user_id._bus_send('mail.activity/updated',
                                            {'activity_created': False})
-        master.message_post(body=Markup('%s %s') % (
+        master._message_log(body=Markup('%s %s') % (
             _('Merged in:'),
             Markup(', ').join(
                 Markup('%s') % (a.summary or a.activity_type_id.name or a.id)
@@ -188,7 +190,7 @@ class MailActivityMerge(models.Model):
                 'merged_into_id': False,
             })
             for activity in orphans:
-                activity.message_post(body=_(
+                activity._message_log(body=_(
                     'The master activity was deleted; this activity is active again.'))
         return super().unlink()
 
@@ -203,7 +205,7 @@ class MailActivityMerge(models.Model):
             'merged_into_id': False,
         })
         for activity in merged:
-            activity.message_post(body=_('Unmerged; this activity is active again.'))
+            activity._message_log(body=_('Unmerged; this activity is active again.'))
         return {'type': 'ir.actions.client', 'tag': 'reload'}
 
     @api.model

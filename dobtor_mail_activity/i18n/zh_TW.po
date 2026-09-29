@@ -5684,3 +5684,80 @@ msgstr "主待辦"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_merge_wizard_view_form
 msgid "Notes to Attach"
 msgstr "將併入的筆記數"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
+msgid ""
+"<i class=\"fa fa-exclamation-triangle\"/>\n"
+"                    <span class=\"ms-1\">No project is linked to this activity: hours will not be logged to the timesheet. Link a project later and use \"Log Time\" in the Timesheet tab.</span>"
+msgstr ""
+"<i class=\"fa fa-exclamation-triangle\"/>\n"
+"                    <span class=\"ms-1\">此待辦未關聯專案：工時不會登錄到工時表。之後關聯專案，可於「工時表」分頁按「登錄工時」補登。</span>"
+
+#. module: dobtor_mail_activity
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule_timesheet
+msgid ""
+"<i class=\"fa fa-info-circle\"/>\n"
+"                        <span class=\"ms-1\">Link a project to log time.</span>"
+msgstr ""
+"<i class=\"fa fa-info-circle\"/>\n"
+"                        <span class=\"ms-1\">關聯專案後即可登錄工時。</span>"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity__can_log_timesheet
+msgid "Can Log Timesheet"
+msgstr "可登錄工時"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+msgid ""
+"Cannot find a project to log time.\n"
+"Link this activity to a project (or a task/lead with a project), or configure a default timesheet project for the company."
+msgstr ""
+"找不到可登錄工時的專案。\n"
+"請將此待辦關聯專案（或關聯有專案的任務／商機），或為公司設定預設工時專案。"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid ""
+"Hours not logged: %(hours)s h (no project linked). Link a project and use "
+"\"Log Time\" to log them later."
+msgstr "未登錄工時：%(hours)s 小時（未關聯專案）。關聯專案後可於「工時表」分頁按「登錄工時」補登。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_done_wizard__log_only
+msgid "Log Only"
+msgstr "僅登錄工時"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/models/mail_activity.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_form_schedule_timesheet
+msgid "Log Time"
+msgstr "登錄工時"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_done_wizard__log_only
+msgid "Opened from \"Log Time\": only log hours, do not complete the activity."
+msgstr "由「登錄工時」開啟：只登錄工時，不完成待辦。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,field_description:dobtor_mail_activity.field_mail_activity_done_wizard__timesheet_skipped
+msgid "Timesheet Will Be Skipped"
+msgstr "將略過工時登錄"
+
+#. module: dobtor_mail_activity
+#. odoo-python
+#: code:addons/dobtor_mail_activity/wizards/mail_activity_done_wizard.py:0
+msgid "Timesheet logging is disabled for this company."
+msgstr "此公司未啟用工時記錄。"
+
+#. module: dobtor_mail_activity
+#: model:ir.model.fields,help:dobtor_mail_activity.field_mail_activity_done_wizard__timesheet_skipped
+msgid ""
+"Timesheet logging is enabled but no project can be found for this activity: "
+"completing it will not log hours."
+msgstr "已啟用工時記錄，但此待辦找不到專案：完成時不會登錄工時。"

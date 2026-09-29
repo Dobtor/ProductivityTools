@@ -132,6 +132,8 @@ class MailActivity(models.Model):
         'merged_into_id',
         string='Merged Activities',
         readonly=True,
+        # 被併入者必定 active=False；不關 active_test 會被 O2m 濾光 → merged_count 恆為 0
+        context={'active_test': False},
     )
     merged_count = fields.Integer(
         string='Merged Count',
@@ -321,6 +323,11 @@ class MailActivity(models.Model):
     timesheet_feature_enabled = fields.Boolean(
         string='Timesheet Feature Enabled',
         compute='_compute_timesheet_feature_enabled',
+    )
+    # 找得到工時專案才可登錄工時（完成時找不到會跳過工時，之後掛上專案可補登）
+    can_log_timesheet = fields.Boolean(
+        string='Can Log Timesheet',
+        compute='_compute_can_log_timesheet',
     )
 
     feedback = fields.Text(
@@ -808,7 +815,28 @@ class MailActivity(models.Model):
         #
         #   有任何一筆帶指派人時一律走官方路徑：那時 activity 綁得到，
         #   而通知與訂閱都是真的要做的。
-        if any(vals.get('user_id') for vals in vals_list):
+        #
+        # ☠️ 2026-09-29 補正：上面的條件只寫了一半。`activity` 綁定的迴圈是
+        #   for ... in activities._classify_by_model()   ← 已濾掉 res 為空者
+        #       for activity in ....filtered(act.user_id)
+        # 所以「有指派人、但沒有關聯文件」的**獨立待辦**（需求七；看板/清單/
+        # 系統匣「新增」不選目標文件就是這種）同樣綁不到 → 截止日選今天
+        # （或更早）當場 UnboundLocalError，選明天就正常——正是「無法建立
+        # 當天的待辦」。官方於 18.0 commit bc0e1275be（2025-06-25）改用
+        # grouped('user_id') 才修掉；早於此版的主機都會踩到。
+        #
+        # 判斷條件因此改為「整批是否至少有一筆會讓 activity 綁定」＝同時具備
+        # 關聯文件與指派人（本模組 user_id 預設為空；context 的 default_user_id
+        # 仍會被 ORM 套用，一併計入）。
+        default_user_id = self.env.context.get('default_user_id')
+
+        def _binds_core_loop(vals):
+            user_id = vals['user_id'] if 'user_id' in vals else default_user_id
+            has_res = vals.get('res_id') and (
+                vals.get('res_model_id') or vals.get('res_model'))
+            return bool(user_id and has_res)
+
+        if any(_binds_core_loop(vals) for vals in vals_list):
             activities = super(MailActivity, self_with_context).create(vals_list)
         else:
             # super() 指名官方 MailActivity，跳過它的 create、落到 models.Model
@@ -816,6 +844,16 @@ class MailActivity(models.Model):
                 MailActivity as CoreMailActivity)
             activities = super(CoreMailActivity, self_with_context).create(
                 vals_list)
+            # 繞道後補上官方結尾唯一「不是 no-op」的一段：系統匣計數。
+            # （通知：本模組 action_notify 本就略過無文件者；訂閱：無文件可訂閱。）
+            # count_diff 新舊前端皆相容（舊前端看 activity_created 即 +1）。
+            today = fields.Date.today()
+            todo = activities.filtered(
+                lambda a: a.active and a.user_id and a.date_deadline
+                and a.date_deadline <= today)
+            for user, user_acts in todo.grouped('user_id').items():
+                user._bus_send('mail.activity/updated', {
+                    'activity_created': True, 'count_diff': len(user_acts)})
 
         # 需求五：未帶客戶者，依來源（res → 專案客戶）派生（不覆寫已帶入者）
         activities.filtered(lambda a: not a.partner_id)._derive_partner_from_source()
@@ -957,6 +995,50 @@ class MailActivity(models.Model):
         enabled = self.env.company.dobtor_activity_timesheet_enabled
         for activity in self:
             activity.timesheet_feature_enabled = enabled
+
+    def _compute_can_log_timesheet(self):
+        enabled = self.env.company.dobtor_activity_timesheet_enabled
+        for activity in self:
+            activity.can_log_timesheet = bool(
+                enabled and activity._get_timesheet_project())
+
+    def _get_timesheet_project(self):
+        """工時表專案（優先級）：關聯任務的專案 > 關聯商機的專案 >
+        待辦本身的專案 > 公司預設工時專案。找不到回傳空 recordset。"""
+        self.ensure_one()
+        Project = self.env['project.project']
+        if self.res_model == 'project.task' and self.res_id:
+            task = self.env['project.task'].browse(self.res_id).exists()
+            if task.project_id:
+                return task.project_id
+        if self.res_model == 'crm.lead' and self.res_id:
+            lead = self.env['crm.lead'].browse(self.res_id).exists()
+            if lead and lead.project_id:
+                return lead.project_id
+        if self.project_id:
+            return self.project_id
+        return self.env.company.default_timesheet_project_id or Project
+
+    def action_log_timesheet(self):
+        """事後登錄工時（含已完成待辦）：以「只登錄」模式開啟完成精靈。"""
+        self.ensure_one()
+        if not self.can_log_timesheet:
+            raise UserError(_(
+                'Cannot find a project to log time.\n'
+                'Link this activity to a project (or a task/lead with a project), '
+                'or configure a default timesheet project for the company.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Log Time'),
+            'res_model': 'mail.activity.done.wizard',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'new',
+            'context': {
+                'default_activity_id': self.id,
+                'default_log_only': True,
+            },
+        }
 
     @api.depends('date_deadline', 'estimated_hours', 'schedule_status')
     def _compute_schedule_warning(self):
@@ -1711,10 +1793,9 @@ class MailActivity(models.Model):
             'user_id': self.env.user.id,
         })
 
-        # 使用 message_post 記錄領取事件（避免直接串接 Html 欄位）
-        self.message_post(
+        # 記錄領取事件（純記錄；message_post 在領取者未設 email 時會 UserError）
+        self._message_log(
             body=_('%(user)s claimed this activity.', user=self.env.user.name),
-            message_type='notification',
         )
 
         # 將領取者加入來源訊息所在的頻道

@@ -175,3 +175,34 @@ class TestNoteTag(TransactionCase):
         })
 
         self.assertEqual(child_tag.parent_id.id, parent_tag.id)
+
+
+@tagged('post_install', '-at_install')
+class TestNoteStageOwner(TransactionCase):
+    """代建筆記（cron / 他人建立 user_id=別人）時，階段必須屬於擁有者。"""
+
+    def test_note_created_for_other_user_uses_owner_stage(self):
+        owner = self.env['res.users'].create({
+            'name': 'Note Owner', 'login': 'note_owner_stage',
+            'groups_id': [(6, 0, [self.env.ref('base.group_user').id])],
+        })
+        # 以 OdooBot（cron 身分）替 owner 建立筆記
+        note = self.env['note.note'].create({'memo': '<p>weekly</p>', 'user_id': owner.id})
+        self.assertEqual(note.stage_id.user_id, owner)
+        # 擁有者讀取（含 stage 顯示名稱）不可 AccessError
+        as_owner = note.with_user(owner)
+        as_owner.invalidate_recordset()
+        self.assertTrue(as_owner.stage_id.display_name)
+        self.assertTrue(self.env['note.note'].with_user(owner).web_read_group(
+            [('user_id', '=', owner.id)], ['stage_id'], ['stage_id']))
+
+    def test_owner_moves_stage(self):
+        owner = self.env['res.users'].create({
+            'name': 'Note Mover', 'login': 'note_mover_stage',
+            'groups_id': [(6, 0, [self.env.ref('base.group_user').id])],
+        })
+        note = self.env['note.note'].with_user(owner).create({'memo': '<p>m</p>'})
+        stages = self.env['note.stage'].with_user(owner).search([('user_id', '=', owner.id)])
+        self.assertGreater(len(stages), 1)
+        note.stage_id = stages[-1]
+        self.assertEqual(note.stage_id, stages[-1])

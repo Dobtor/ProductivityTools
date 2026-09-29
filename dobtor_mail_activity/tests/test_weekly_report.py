@@ -45,15 +45,23 @@ class TestWeeklyReport(TransactionCase):
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
 
+        # 確認前必須先產生內容（至少一筆本週計畫快照）
+        self.env['mail.activity'].create({
+            'summary': '本週計畫',
+            'user_id': self.user.id,
+            'date_deadline': week_start + timedelta(days=6),
+            'planned_date': week_start + timedelta(days=1),
+            'schedule_status': 'tuesday',
+        })
         report = self.env['weekly.report'].create({
             'user_id': self.user.id,
             'week_start': week_start,
         })
+        report.action_generate_report()
+        self.assertTrue(report.this_week_snapshot_ids)
 
-        # 確認報告
-        if hasattr(report, 'action_confirm'):
-            report.action_confirm()
-            self.assertEqual(report.state, 'confirmed')
+        report.action_confirm()
+        self.assertEqual(report.state, 'confirmed')
 
 
 @tagged('post_install', '-at_install')
@@ -115,9 +123,9 @@ class TestWeeklyScheduleConfig(TransactionCase):
         """測試建立排程配置"""
         config = self.env['weekly.schedule.config'].create({
             'user_id': self.user.id,
-            'auto_create_report': True,
-            'report_day': '0',  # 週一
+            'auto_create_note': True,
+            'schedule_day': '0',  # 週一
         })
 
         self.assertTrue(config.id)
-        self.assertTrue(config.auto_create_report)
+        self.assertTrue(config.auto_create_note)

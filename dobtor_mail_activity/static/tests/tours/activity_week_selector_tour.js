@@ -38,7 +38,7 @@ registry.category("web_tour.tours").add("dobtor_activity_week_selector_tour", {
         },
         {
             content: "確認選擇器停在下週",
-            trigger: ".o_activity_week_selector select option[value='1']:checked",
+            trigger: ".o_activity_week_selector select option[value='1']:checked:not(:visible)",
         },
         {
             content: "打開篩選選單",
@@ -56,7 +56,7 @@ registry.category("web_tour.tours").add("dobtor_activity_week_selector_tour", {
         },
         {
             content: "★ 關鍵：加了 facet 之後，週次仍停在下週（舊版會被沖回本週）",
-            trigger: ".o_activity_week_selector select option[value='1']:checked",
+            trigger: ".o_activity_week_selector select option[value='1']:checked:not(:visible)",
         },
         {
             content: "切回「本週」",
@@ -69,7 +69,7 @@ registry.category("web_tour.tours").add("dobtor_activity_week_selector_tour", {
         },
         {
             content: "確認週次已切到本週",
-            trigger: ".o_activity_week_selector select option[value='0']:checked",
+            trigger: ".o_activity_week_selector select option[value='0']:checked:not(:visible)",
         },
         {
             content: "切到「全部」應清掉週次條件而不影響 facet",

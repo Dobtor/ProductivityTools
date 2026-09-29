@@ -2,7 +2,7 @@
 
 import logging
 
-from odoo import api, fields, models, _
+from odoo import api, fields, models, _, Command
 from odoo.tools import html2plaintext
 
 _logger = logging.getLogger(__name__)
@@ -74,7 +74,8 @@ class NoteNote(models.Model):
         compute='_compute_stage_id',
         inverse='_inverse_stage_id',
         store=True,
-        default=lambda self: self._get_default_stage_id(),
+        # 不設 default：default 會被當成明確寫入值而跳過 compute，
+        # 使代建筆記存成建立者的階段（見 _compute_stage_id）
         group_expand='_read_group_stage_ids',
     )
     stage_ids = fields.Many2many(
@@ -182,26 +183,40 @@ class NoteNote(models.Model):
             if note and note.id in note_ids
         }
 
-    @api.depends('stage_ids')
+    @api.depends('stage_ids', 'user_id')
     def _compute_stage_id(self):
-        """計算當前用戶的階段"""
-        first_user_stage = self.env['note.stage'].search(
-            [('user_id', '=', self.env.uid)],
-            limit=1,
-        )
+        """計算筆記「擁有者」的階段。
+
+        ☠️ 本欄位 store=True，曾以「目前使用者」計算：誰建立就存誰的階段。
+        週排程 cron 以 OdooBot 身分 auto_create_note 替使用者建週筆記 →
+        存成 OdooBot 的階段 → 擁有者讀不到該 note.stage（ir.rule 限本人）→
+        打開「個人筆記」整頁 Access Error。stored 值只能有一個，故以擁有者為準
+        （個人筆記的清單/看板本來就只列 user_id = uid）。
+        """
+        Stage = self.env['note.stage'].sudo()
+        first_stage_by_owner = {}
         for note in self:
-            user_stages = note.stage_ids.filtered(
-                lambda stage: stage.user_id == self.env.user
+            owner = note.user_id or self.env.user
+            own_stages = note.sudo().stage_ids.filtered(
+                lambda stage: stage.user_id == owner
             )
-            note.stage_id = user_stages[:1] or first_user_stage
+            if own_stages:
+                note.stage_id = own_stages[:1].id
+                continue
+            if owner.id not in first_stage_by_owner:
+                Stage._ensure_user_stages(owner.id)
+                first_stage_by_owner[owner.id] = Stage.search(
+                    [('user_id', '=', owner.id)], limit=1).id
+            note.stage_id = first_stage_by_owner[owner.id]
 
     def _inverse_stage_id(self):
-        """更新用戶階段關聯"""
+        """更新階段關聯：只替換「新階段所屬使用者」的那一筆，保留其他人的。"""
         for note in self.filtered('stage_id'):
-            other_user_stages = note.stage_ids.filtered(
-                lambda stage: stage.user_id != self.env.user
+            new_stage = note.stage_id.sudo()
+            kept = note.sudo().stage_ids.filtered(
+                lambda stage: stage.user_id != new_stage.user_id
             )
-            note.stage_ids = note.stage_id | other_user_stages
+            note.stage_ids = [Command.set((new_stage | kept).ids)]
 
     # ===== 預設值方法 =====
     def _get_default_stage_id(self):
