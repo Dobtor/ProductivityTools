@@ -7,21 +7,21 @@
              Default stages for admin user
              ===================================================== -->
 
-        <record id="note_stage_draft" model="note.stage">
+        <record id="note_stage_draft" model="note.stage" forcecreate="0">
             <field name="name">暫記</field>
             <field name="sequence">1</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <record id="note_stage_planning" model="note.stage">
+        <record id="note_stage_planning" model="note.stage" forcecreate="0">
             <field name="name">規劃中</field>
             <field name="sequence">5</field>
             <field name="user_id" ref="base.user_admin"/>
             <field name="fold">False</field>
         </record>
 
-        <record id="note_stage_published" model="note.stage">
+        <record id="note_stage_published" model="note.stage" forcecreate="0">
             <field name="name">定稿發佈</field>
             <field name="sequence">10</field>
             <field name="user_id" ref="base.user_admin"/>

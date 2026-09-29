@@ -85,5 +85,6 @@ to-do lists inside notes, weekly schedule notes.
     'auto_install': False,
     'application': True,
     'license': 'LGPL-3',
+    'pre_init_hook': '_pre_init_hook',
     'post_init_hook': '_post_init_hook',
 }
