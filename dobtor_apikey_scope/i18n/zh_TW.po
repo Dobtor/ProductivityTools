@@ -1,0 +1,288 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* dobtor_apikey_scope
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0-20260908\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-29 14:11+0000\n"
+"PO-Revision-Date: 2026-09-29 14:11+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Language: zh_TW\n"
+"Plural-Forms: \n"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__1
+msgid "1 Day"
+msgstr "1 天"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__30
+msgid "1 Month"
+msgstr "1 個月"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__7
+msgid "1 Week"
+msgstr "1 週"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__365
+msgid "1 Year"
+msgstr "1 年"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__90
+msgid "3 Months"
+msgstr "3 個月"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__180
+msgid "6 Months"
+msgstr "6 個月"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.constraint,message:dobtor_apikey_scope.constraint_res_users_apikeys_scope_apikey_uniq
+msgid "A permission scope already exists for this API key."
+msgstr "這把 API 金鑰已經有權限範圍了。"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__apikey_id
+msgid "API Key"
+msgstr "API 金鑰"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_res_users_apikeys_description
+msgid "API Key Description"
+msgstr "API 密鑰描述"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_res_users_apikeys_scope
+msgid "API Key Permission Scope"
+msgstr "API 金鑰權限範圍"
+
+#. module: dobtor_apikey_scope
+#: model:ir.actions.act_window,name:dobtor_apikey_scope.action_apikey_scope
+#: model:ir.ui.menu,name:dobtor_apikey_scope.menu_apikey_scope
+msgid "API Key Permissions"
+msgstr "API 金鑰權限"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_config_settings__apikey_max_duration
+msgid "API Key maximum duration"
+msgstr "API 金鑰最長有效期"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_config_settings__apikey_max_group_ids
+msgid "API Key maximum permission scope"
+msgstr "API 金鑰最大權限範圍"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.res_config_settings_view_form_apikey_scope
+msgid "API Key 允許最大時間"
+msgstr "API Key 允許最大時間"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.res_config_settings_view_form_apikey_scope
+msgid "API Key 最大權限範圍"
+msgstr "API Key 最大權限範圍"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.view_users_form_simple_modif_apikey_scope
+msgid "Adjust the permission scope of this key"
+msgstr "調整這把金鑰的權限範圍"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_description__scope_group_ids
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__group_ids
+msgid "Allowed Groups"
+msgstr "允許的群組"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_res_config_settings
+msgid "Config Settings"
+msgstr "配置設定"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__create_uid
+msgid "Created by"
+msgstr "創建人"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__create_date
+msgid "Created on"
+msgstr "建立於"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__custom
+msgid "Custom Date"
+msgstr "自訂日期"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__key_name
+msgid "Description"
+msgstr "說明"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__display_name
+msgid "Display Name"
+msgstr "顯示名稱"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__expiration_date
+msgid "Expiration Date"
+msgstr "到期日"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,help:dobtor_apikey_scope.field_res_users_apikeys_scope__available_group_ids
+msgid ""
+"Groups the owner user actually has. A key can never grant more than the user"
+" owns."
+msgstr "金鑰擁有者實際擁有的群組。金鑰給出去的權限永遠不會超過擁有者自己的。"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__id
+msgid "ID"
+msgstr "ID"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__write_uid
+msgid "Last Updated by"
+msgstr "最後更新者"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__write_date
+msgid "Last Updated on"
+msgstr "最後更新於"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__restrict
+msgid "Limit Permissions"
+msgstr "限制權限"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_description__scope_restrict
+msgid "Limit permissions"
+msgstr "限制權限"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.form_res_users_key_description_scope
+msgid "Limit this key to a subset of my access groups"
+msgstr "把這把金鑰限制在我的部分存取群組內"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_ir_model_access
+msgid "Model Access"
+msgstr "模型存取"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.actions.act_window,help:dobtor_apikey_scope.action_apikey_scope
+msgid "No API key permission scopes yet"
+msgstr "還沒有任何 API 金鑰權限範圍"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__available_group_ids
+msgid "Owner Groups"
+msgstr "擁有者的群組"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.form_res_users_key_description_scope
+msgid "Permission scope"
+msgstr "權限範圍"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.view_users_form_simple_modif_apikey_scope
+msgid "Permissions"
+msgstr "權限"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields.selection,name:dobtor_apikey_scope.selection__res_config_settings__apikey_max_duration__persistent
+msgid "Persistent Key"
+msgstr "長期金鑰"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_ir_rule
+msgid "Record Rule"
+msgstr "規則"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,help:dobtor_apikey_scope.field_res_users_apikeys_description__scope_restrict
+msgid ""
+"Restrict this key to a subset of your access groups. When off, the key "
+"carries your full permissions (standard behaviour)."
+msgstr "把這把金鑰限制在你的部分存取群組內。關閉時金鑰帶著你的全部權限（原生行為）。"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.actions.act_window,help:dobtor_apikey_scope.action_apikey_scope
+msgid ""
+"Scopes are created automatically when you generate a key with\n"
+"               \"Limit permissions\" enabled. You can adjust each key here."
+msgstr ""
+"產生金鑰時勾了「限制權限」，範圍就會自動建立。\n"
+"               每一把金鑰都可以在這裡調整。"
+
+#. module: dobtor_apikey_scope
+#. odoo-python
+#: code:addons/dobtor_apikey_scope/models/apikey_scope.py:0
+msgid "The API key must have an expiration date."
+msgstr "API 金鑰一定要有到期日。"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.form_res_users_key_description_scope
+msgid ""
+"The key will only carry the groups ticked below (intersected\n"
+"                    with your own groups). Your base user type is always kept."
+msgstr ""
+"金鑰只會帶著下面勾起來的群組（再與你自己的群組取交集）。\n"
+"                    你的基本使用者類型一定會保留。"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_res_users
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_scope__user_id
+msgid "User"
+msgstr "使用者"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model,name:dobtor_apikey_scope.model_res_users_apikeys
+msgid "Users API Keys"
+msgstr "用戶 API密鑰"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,help:dobtor_apikey_scope.field_res_users_apikeys_scope__restrict
+msgid ""
+"When enabled, any request authenticated with this API key only carries the "
+"selected access groups (intersected with the owner user's real groups), "
+"regardless of the user's full permissions. Disable to fall back to standard "
+"behaviour (full user rights)."
+msgstr "開啟後，用這把 API 金鑰認證的每一個請求都只帶著選取的存取群組（再與擁有者實際的群組取交集），不管那位使用者本身有多少權限。關閉則回到原生行為（完整的使用者權限）。"
+
+#. module: dobtor_apikey_scope
+#. odoo-python
+#: code:addons/dobtor_apikey_scope/models/apikey_scope.py:0
+msgid "You cannot exceed %(days)s days."
+msgstr "不可以超過 %(days)s 天。"
+
+#. module: dobtor_apikey_scope
+#: model:ir.model.fields,field_description:dobtor_apikey_scope.field_res_users_apikeys_description__available_group_ids
+msgid "Your Groups"
+msgstr "你的群組"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.res_config_settings_view_form_apikey_scope
+msgid "一般使用者的 API Key 最多只能含這些存取群組（再與其本身擁有的群組取交集）。留空＝不限制。"
+msgstr "一般使用者的 API Key 最多只能含這些存取群組（再與其本身擁有的群組取交集）。留空＝不限制。"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.res_config_settings_view_form_apikey_scope
+msgid "決定一般使用者建立 Key 時可選的最長有效期限與到期日上限；預設「Persistent Key」＝開放全部選項（含永久／自訂日期）。"
+msgstr "決定一般使用者建立 Key 時可選的最長有效期限與到期日上限；預設「Persistent Key」＝開放全部選項（含永久／自訂日期）。"
+
+#. module: dobtor_apikey_scope
+#: model_terms:ir.ui.view,arch_db:dobtor_apikey_scope.res_config_settings_view_form_apikey_scope
+msgid "限縮一般使用者建立 API Key 時可授出的權限與有效期限。系統管理員不受此限。"
+msgstr "限縮一般使用者建立 API Key 時可授出的權限與有效期限。系統管理員不受此限。"

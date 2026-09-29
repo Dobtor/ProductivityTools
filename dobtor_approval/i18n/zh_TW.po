@@ -1,0 +1,4534 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* dobtor_approval
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0-20260908\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-29 14:11+0000\n"
+"PO-Revision-Date: 2026-09-29 14:11+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Language: zh_TW\n"
+"Plural-Forms: \n"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_lateral_wizard.py:0
+msgid "%(user)s 將「%(node)s」%(mode)s 給：%(to)s"
+msgstr "%(user)s 將「%(node)s」%(mode)s 給：%(to)s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_delegate_wizard.py:0
+msgid "%(user)s 將「%(node)s」委派給 %(to)s 代簽。"
+msgstr "%(user)s 將「%(node)s」委派給 %(to)s 代簽。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "%(user)s 將節點「%(node)s」上呈加簽給 %(target)s。理由：%(reason)s"
+msgstr "%(user)s 將節點「%(node)s」上呈加簽給 %(target)s。理由：%(reason)s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_lateral_wizard.py:0
+msgid "%(user)s 已回覆會辦/徵詢：%(reply)s"
+msgstr "%(user)s 已回覆會辦/徵詢：%(reply)s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "%s（轉自核決權限表）"
+msgstr "%s（轉自核決權限表）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "(依序)"
+msgstr "(依序)"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "(會簽)"
+msgstr "(會簽)"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "+ 條件"
+msgstr "+ 條件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_node_config__manager_act_levels
+msgid "0＝不開放主管代批准/駁回；1＝直屬主管可代決；2＝上兩級…（依 HR parent_id 鏈）"
+msgstr "0＝不開放主管代批准/駁回；1＝直屬主管可代決；2＝上兩級…（依 HR parent_id 鏈）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix_line__amount_max
+msgid "0＝無上限"
+msgstr "0＝無上限"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_needaction
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_needaction
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_needaction
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_needaction
+msgid "Action Needed"
+msgstr "需要採取行動"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_action_gate
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "Action 攔截閘門"
+msgstr "Action 攔截閘門"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_action_gate
+msgid "Action 簽核閘門"
+msgstr "Action 簽核閘門"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_action_gate
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__gate_ids
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_action_gate
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "Action 閘門"
+msgstr "Action 閘門"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__active
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__active
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__active
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__active
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__active
+msgid "Active"
+msgstr "啟用"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_mail_activity
+msgid "Activity"
+msgstr "活動"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__any
+msgid "Any（多命中輸出須相同）"
+msgstr "Any（多命中輸出須相同）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_attachment_count
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_attachment_count
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_attachment_count
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_attachment_count
+msgid "Attachment Count"
+msgstr "附件計數"
+
+#. module: dobtor_approval
+#: model:ir.module.category,name:dobtor_approval.module_category_bpmn_approval
+msgid "BPM 簽核"
+msgstr "BPM 簽核"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "BPMN XML"
+msgstr "BPMN XML"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "BPMN XML 解析失敗：%s"
+msgstr "BPMN XML 解析失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__bpmn_element_id
+msgid "BPMN 元素 ID"
+msgstr "BPMN 元素 ID"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_token
+msgid "BPMN 執行 Token"
+msgstr "BPMN 執行 Token"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_process_instance
+msgid "BPMN 流程實例"
+msgstr "BPMN 流程實例"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_node_type_registry
+msgid "BPMN 節點型別註冊表（擴充注入點）"
+msgstr "BPMN 節點型別註冊表（擴充注入點）"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_node_config
+msgid "BPMN 節點執行規格 (overlay)"
+msgstr "BPMN 節點執行規格 (overlay)"
+
+#. module: dobtor_approval
+#: model:mail.activity.type,name:dobtor_approval.activity_type_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "BPMN 簽核"
+msgstr "BPMN 簽核"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_activity_link
+msgid "BPMN 簽核活動連結"
+msgstr "BPMN 簽核活動連結"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_role
+msgid "BPMN 簽核角色 / 簽核人解析來源"
+msgstr "BPMN 簽核角色 / 簽核人解析來源"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_config_settings
+msgid "BPMN 簽核設定"
+msgstr "BPMN 簽核設定"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_mail_activity__bpmn_link_id
+msgid "BPMN 簽核連結"
+msgstr "BPMN 簽核連結"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_base
+msgid "Base"
+msgstr "計稅基數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__clause_input_id
+msgid "Clause Input"
+msgstr "輸入條件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__clause_output_id
+msgid "Clause Output"
+msgstr "輸出結果"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__collect
+msgid "Collect（收集全部）"
+msgstr "Collect（收集全部）"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_res_company
+msgid "Companies"
+msgstr "公司"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_res_config_settings
+msgid "Config Settings"
+msgstr "配置設定"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__create_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__create_uid
+msgid "Created by"
+msgstr "創建人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__create_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__create_date
+msgid "Created on"
+msgstr "建立於"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__dmn_xml
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "DMN XML"
+msgstr "DMN XML"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "DMN XML 解析失敗：%s"
+msgstr "DMN XML 解析失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__dmn_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__dmn_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__dmn_id
+msgid "DMN 元素 ID"
+msgstr "DMN 元素 ID"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_bkm
+msgid "DMN 商業知識模型"
+msgstr "DMN 商業知識模型"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model,name:dobtor_approval.model_dmn_decision
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__dmn_decision_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__decision_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__dmn_decision
+msgid "DMN 決策"
+msgstr "DMN 決策"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_dmn
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "DMN 決策求值（總開關）"
+msgstr "DMN 決策求值（總開關）"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_decision_table
+msgid "DMN 決策表"
+msgstr "DMN 決策表"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_dmn_decision_table
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "DMN 決策表編輯器"
+msgstr "DMN 決策表編輯器"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_decision_table_rule
+msgid "DMN 決策表規則列"
+msgstr "DMN 決策表規則列"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_decision_table_input
+msgid "DMN 決策表輸入欄"
+msgstr "DMN 決策表輸入欄"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_decision_table_output
+msgid "DMN 決策表輸出欄"
+msgstr "DMN 決策表輸出欄"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_decision_preview.py:0
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+#: model:ir.model,name:dobtor_approval.model_dmn_decision_preview
+msgid "DMN 決策試算"
+msgstr "DMN 決策試算"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__dmn_outputs
+msgid "DMN 決策輸出 (JSON)"
+msgstr "DMN 決策輸出 (JSON)"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_definitions
+msgid "DMN 決策集"
+msgstr "DMN 決策集"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_dmn_drd
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "DMN 決策需求圖（DRD 編排）"
+msgstr "DMN 決策需求圖（DRD 編排）"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_rule_entry
+msgid "DMN 規則格"
+msgstr "DMN 規則格"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__variable
+msgid "DMN 變數名"
+msgstr "DMN 變數名"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_input_binding
+msgid "DMN 變數綁定（執行期注入）"
+msgstr "DMN 變數綁定（執行期注入）"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_input_data
+msgid "DMN 輸入資料"
+msgstr "DMN 輸入資料"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_dmn_requirement
+msgid "DMN 需求邊（DRD）"
+msgstr "DMN 需求邊（DRD）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__decision_count
+msgid "Decision Count"
+msgstr "決策數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__definitions_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__definitions_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__definitions_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__definitions_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__definitions_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__definitions_id
+msgid "Definitions"
+msgstr "定義"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__display_name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__display_name
+msgid "Display Name"
+msgstr "顯示名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__text
+msgid "FEEL"
+msgstr "FEEL"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__expression
+msgid "FEEL 取值式"
+msgstr "FEEL 取值式"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "FEEL 取值式引用的變數來源（白名單，僅可讀宣告過的欄位）。"
+msgstr "FEEL 取值式引用的變數來源（白名單，僅可讀宣告過的欄位）。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_input_binding__variable
+msgid "FEEL 取值式所引用的變數 / 輸入資料名"
+msgstr "FEEL 取值式所引用的變數 / 輸入資料名"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__literal_expression
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__literal_expression
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_bkm__logic_type__literal_expression
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__logic_type__literal_expression
+msgid "FEEL 運算式"
+msgstr "FEEL 運算式"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_dmn_feel
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "FEEL 運算式（進階）"
+msgstr "FEEL 運算式（進階）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__first
+msgid "First（取第一條）"
+msgstr "First（取第一條）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_follower_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_follower_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_follower_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_follower_ids
+msgid "Followers"
+msgstr "關注者"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_partner_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_partner_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_partner_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "關注者（業務夥伴）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__has_message
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__has_message
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__has_message
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__has_message
+msgid "Has Message"
+msgstr "有訊息"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__id
+msgid "ID"
+msgstr "ID"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__message_needaction
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__message_needaction
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__message_needaction
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_definitions__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "勾選代表有新訊息需要您處理。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__message_has_error
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__message_has_sms_error
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__message_has_error
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__message_has_sms_error
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__message_has_error
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__message_has_sms_error
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_definitions__message_has_error
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_definitions__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "勾選代表有訊息發送失敗。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_is_follower
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_is_follower
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_is_follower
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_is_follower
+msgid "Is Follower"
+msgstr "是關注者"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__is_reply
+msgid "Is Reply"
+msgstr "是回覆"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__kind
+msgid "Kind"
+msgstr "種類"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__res_config_settings__bpmn_plan_level__l1
+msgid "L1 輕簡（小微·填表）"
+msgstr "L1 輕簡（小微·填表）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__res_config_settings__bpmn_plan_level__l2
+msgid "L2 標準（中小·拖拉）"
+msgstr "L2 標準（中小·拖拉）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__res_config_settings__bpmn_plan_level__l3
+msgid "L3 進階（成長·設計）"
+msgstr "L3 進階（成長·設計）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__res_config_settings__bpmn_plan_level__l4
+msgid "L4 企業治理（大型·公民+治理）"
+msgstr "L4 企業治理（大型·公民+治理）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__write_uid
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__write_uid
+msgid "Last Updated by"
+msgstr "最後更新者"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__write_date
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__write_date
+msgid "Last Updated on"
+msgstr "最後更新於"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__matrix_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__matrix_id
+msgid "Matrix"
+msgstr "矩陣"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_has_error
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_has_error
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_has_error
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_has_error
+msgid "Message Delivery error"
+msgstr "訊息傳遞錯誤"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_ids
+msgid "Messages"
+msgstr "訊息"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__model_name
+msgid "Model"
+msgstr "模型"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_needaction_counter
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_needaction_counter
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_needaction_counter
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_needaction_counter
+msgid "Number of Actions"
+msgstr "動作數量"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_has_error_counter
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_has_error_counter
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_has_error_counter
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_has_error_counter
+msgid "Number of errors"
+msgstr "錯誤數量"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__message_needaction_counter
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__message_needaction_counter
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__message_needaction_counter
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_definitions__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "需要處理的訊息數量"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__message_has_error_counter
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__message_has_error_counter
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__message_has_error_counter
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_definitions__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "傳送失敗的訊息數量"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__output_order
+msgid "Output order（依輸出序）"
+msgstr "Output order（依輸出序）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__phase
+msgid "Phase"
+msgstr "階段"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__priority
+msgid "Priority（依優先序取一）"
+msgstr "Priority（依優先序取一）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__expression
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_role_form
+msgid "Python 運算式"
+msgstr "Python 運算式"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__expression
+msgid "Python 運算式 (safe_eval)"
+msgstr "Python 運算式 (safe_eval)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_expression_resolver
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "Python 運算式簽核人解析"
+msgstr "Python 運算式簽核人解析"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__rule_id
+msgid "Rule"
+msgstr "規則"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__rule_order
+msgid "Rule order（依規則序）"
+msgstr "Rule order（依規則序）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_sla_timer
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "SLA 逾時事件"
+msgstr "SLA 逾時事件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__message_has_sms_error
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__message_has_sms_error
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__message_has_sms_error
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "簡訊傳遞錯誤"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__sequence
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_rule_entry__sequence
+msgid "Sequence"
+msgstr "序號"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t0
+msgid "T0 入門"
+msgstr "T0 入門"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t1
+msgid "T1"
+msgstr "T1"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "T1 條件分歧"
+msgstr "T1 條件分歧"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t2
+msgid "T2"
+msgstr "T2"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "T2 Action 攔截閘門"
+msgstr "T2 Action 攔截閘門"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t3
+msgid "T3"
+msgstr "T3"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t4
+msgid "T4"
+msgstr "T4"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t5
+msgid "T5"
+msgstr "T5"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__capability_level__t6
+msgid "T6"
+msgstr "T6"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__table_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__table_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__table_id
+msgid "Table"
+msgstr "決策表"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__token_id
+msgid "Token"
+msgstr "權杖"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__token_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_form
+msgid "Tokens"
+msgstr "權杖"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__hit_policy__unique
+msgid "Unique（唯一命中）"
+msgstr "Unique（唯一命中）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__website_message_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__website_message_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__website_message_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__website_message_ids
+msgid "Website Messages"
+msgstr "網站訊息"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__website_message_ids
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__website_message_ids
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__website_message_ids
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_definitions__website_message_ids
+msgid "Website communication history"
+msgstr "網站溝通記錄"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "[簽核] %(node)s%(suffix)s"
+msgstr "[簽核] %(node)s%(suffix)s"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "amount_total"
+msgstr "amount_total"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_role__matrix_id
+msgid "authority_matrix 用：依單據（金額/類別/部門）決定簽核人"
+msgstr "authority_matrix 用：依單據（金額/類別/部門）決定簽核人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_action_gate__execution_mode
+msgid ""
+"auto_replay：實例核准即以申請人身分自動回放原動作（含變動防護）；manual_by_submitter：核准後通知申請人、原按鈕恢復由其手動執行（高風險動作建議）"
+msgstr "auto_replay：實例核准即以申請人身分自動回放原動作（含變動防護）；manual_by_submitter：核准後通知申請人、原按鈕恢復由其手動執行（高風險動作建議）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "bpmn-js 已隨模組打包（"
+msgstr "bpmn-js 已隨模組打包（"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__dmn_outputs
+msgid "businessRuleTask 求值結果，供後續 instance_ctx 綁定 / 閘道條件引用"
+msgstr "businessRuleTask 求值結果，供後續 instance_ctx 綁定 / 閘道條件引用"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_node_config__dmn_write_to_record
+msgid "business_rule：把決策輸出（同名欄位）寫回單據"
+msgstr "business_rule：把決策輸出（同名欄位）寫回單據"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_node_config__dmn_decision_id
+msgid "business_rule：求值此決策（輸出存實例 ctx／可寫回單據）；互斥閘道：求值後以 dmn_result 注入出線條件"
+msgstr "business_rule：求值此決策（輸出存實例 ctx／可寫回單據）；互斥閘道：求值後以 dmn_result 注入出線條件"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "department_id"
+msgstr "department_id"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "dmn-js 未載入（"
+msgstr "dmn-js 未載入（"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "dmn-js 決策表 + 求值，需先啟用「DMN 決策求值」"
+msgstr "dmn-js 決策表 + 求值，需先啟用「DMN 決策求值」"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_role__decision_id
+msgid "dmn_decision 用：依 DMN 決策表輸出 approver 鏈決定簽核人"
+msgstr "dmn_decision 用：依 DMN 決策表輸出 approver 鏈決定簽核人"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "dmn_result"
+msgstr "dmn_result"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_node_config__flow_conditions
+msgid "exclusive gateway 出線條件，key=目標元素id"
+msgstr "exclusive gateway 出線條件，key=目標元素id"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_role__record_field
+msgid "field_on_record 用，如 'user_id'"
+msgstr "field_on_record 用，如 'user_id'"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_rule_entry__text
+msgid "input 為 unary test（如 \">= 50000\"、\"[1000..5000]\"、\"-\"）；output 為 FEEL 運算式"
+msgstr "input 為 unary test（如 \">= 50000\"、\"[1000..5000]\"、\"-\"）；output 為 FEEL 運算式"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "level"
+msgstr "level"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix_line__level
+msgid "manager_level 用"
+msgstr "manager_level 用"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_role__level
+msgid "manager_level 用：往上爬幾級主管"
+msgstr "manager_level 用：往上爬幾級主管"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision_table_output__allowed_values
+msgid "priority/output_order 用，逗號分隔由高到低"
+msgstr "priority/output_order 用，逗號分隔由高到低"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "resolver"
+msgstr "resolver"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_activity_link__sequence
+msgid "sequential 模式的簽核順序"
+msgstr "sequential 模式的簽核順序"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_input_binding__record_field
+msgid "source_kind=單據欄位；如 amount_total、partner_id.country_id.code"
+msgstr "source_kind=單據欄位；如 amount_total、partner_id.country_id.code"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_input_binding__instance_key
+msgid "source_kind=流程實例變數"
+msgstr "source_kind=流程實例變數"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "v"
+msgstr "v"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "window.BpmnJS"
+msgstr "window.BpmnJS"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "window.DmnJS"
+msgstr "window.DmnJS"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "{\"amount\": 600000}"
+msgstr "{\"amount\": 600000}"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "· 待簽："
+msgstr "· 待簽："
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "· 送出"
+msgstr "· 送出"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "— 請選擇 —"
+msgstr "— 請選擇 —"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "① 設計介面"
+msgstr "① 設計介面"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "② 客戶方案"
+msgstr "② 客戶方案"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "③ L2 標準（中小·拖拉）"
+msgstr "③ L2 標準（中小·拖拉）"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "③ L3 進階（成長·設計）"
+msgstr "③ L3 進階（成長·設計）"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "③ L4 企業治理（大型·公民+治理）"
+msgstr "③ L4 企業治理（大型·公民+治理）"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "④ 專家能力包（SI / 實作者）"
+msgstr "④ 專家能力包（SI / 實作者）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/mail_activity.py:0
+msgid "「主管自主加簽」能力尚未啟用。"
+msgstr "「主管自主加簽」能力尚未啟用。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "「向上加簽」能力尚未啟用（T3）。"
+msgstr "「向上加簽」能力尚未啟用（T3）。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "「往上加簽」需啟用 T3 能力"
+msgstr "「往上加簽」需啟用 T3 能力"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "「會簽 / 依序」需啟用 T1 能力"
+msgstr "「會簽 / 依序」需啟用 T1 能力"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__kind__normal
+msgid "一般簽核"
+msgstr "一般簽核"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/mail_activity.py:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__decision__escalated
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_escalate_wizard_form
+msgid "上呈加簽"
+msgstr "上呈加簽"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_escalate_wizard
+msgid "上呈加簽精靈"
+msgstr "上呈加簽精靈"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__parent_link_id
+msgid "上層加簽來源"
+msgstr "上層加簽來源"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "上簽/加簽"
+msgstr "上簽/加簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__escalate_allowed_by
+msgid "上簽/加簽可由"
+msgstr "上簽/加簽可由"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid ""
+"不存在）。dmn-js 已隨模組打包，\n"
+"                請確認資產已更新：升級模組並清除瀏覽器快取後重試。"
+msgstr ""
+"不存在）。dmn-js 已隨模組打包，\n"
+"                請確認資產已更新：升級模組並清除瀏覽器快取後重試。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "且"
+msgstr "且"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__parallel_gw
+msgid "並行閘道(AND)"
+msgstr "並行閘道(AND)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__manager_act_levels
+msgid "主管代決層級"
+msgstr "主管代決層級"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_escalation
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "主管自主加簽 / 上呈"
+msgstr "主管自主加簽 / 上呈"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "事件「%s」仍有會辦未回覆，需待回覆後才能核准。"
+msgstr "事件「%s」仍有會辦未回覆，需待回覆後才能核准。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "事件「%s」已被收回。"
+msgstr "事件「%s」已被收回。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__summary
+msgid "事件摘要"
+msgstr "事件摘要"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__kind
+msgid "事件類型"
+msgstr "事件類型"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__exclusive_gw
+msgid "互斥閘道(XOR)"
+msgstr "互斥閘道(XOR)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__user_task
+msgid "人工簽核"
+msgstr "人工簽核"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__delegate_user_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__delegate_id
+msgid "代理人"
+msgstr "代理人"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_delegation.py:0
+msgid "代理人不可與原簽核人相同。"
+msgstr "代理人不可與原簽核人相同。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision_preview__input_json
+msgid "以 binding 變數名為鍵，如 {\"amount\": 600000, \"category\": \"差旅\"}"
+msgstr "以 binding 變數名為鍵，如 {\"amount\": 600000, \"category\": \"差旅\"}"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__use_applicant_department
+msgid "以申請人部門比對"
+msgstr "以申請人部門比對"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__approval_mode__any
+msgid "任一人核准即過"
+msgstr "任一人核准即過"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__source_kind
+msgid "來源"
+msgstr "來源"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__link_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__link_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__link_id
+msgid "來源事件"
+msgstr "來源事件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__source_dmn_id
+msgid "來源元素 ID"
+msgstr "來源元素 ID"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__link_id
+msgid "來源簽核"
+msgstr "來源簽核"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__gate_id
+msgid "來源閘門"
+msgstr "來源閘門"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "例：action_confirm"
+msgstr "例：action_confirm"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "例：hr.leave"
+msgstr "例：hr.leave"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "例：請假申請簽核"
+msgstr "例：請假申請簽核"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "依已開能力反推；一鍵套用只增不減，此處顯示真實狀態。"
+msgstr "依已開能力反推；一鍵套用只增不減，此處顯示真實狀態。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__approval_mode__sequential
+msgid "依序簽核"
+msgstr "依序簽核"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "依序逐關核決"
+msgstr "依序逐關核決"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "值"
+msgstr "值"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "值：數字直接填、文字直接填、日期用 YYYY-MM-DD、清單(屬於)用逗號分隔；可用欄位"
+msgstr "值：數字直接填、文字直接填、日期用 YYYY-MM-DD、清單(屬於)用逗號分隔；可用欄位"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__note
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "備註"
+msgstr "備註"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "僅待簽事件可收回。"
+msgstr "僅待簽事件可收回。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__delegate_allowed_by__approver
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__escalate_allowed_by__approver
+msgid "僅簽核人本人"
+msgstr "僅簽核人本人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix__hit_policy__priority
+msgid "優先 Priority（取序最前一筆）"
+msgstr "優先 Priority（取序最前一筆）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__allowed_values
+msgid "優先序值"
+msgstr "優先序值"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "儲存"
+msgstr "儲存"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "儲存失敗：%s"
+msgstr "儲存失敗：%s"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "儲存此節點"
+msgstr "儲存此節點"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_mail_activity__bpmn_allow_escalation
+msgid "允許上呈加簽"
+msgstr "允許上呈加簽"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "允許主管自主往上加簽"
+msgstr "允許主管自主往上加簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__allow_escalation
+msgid "允許往上加簽"
+msgstr "允許往上加簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__lateral_allowed
+msgid "允許會辦/徵詢"
+msgstr "允許會辦/徵詢"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__approval_mode__all
+msgid "全部核准(會簽)"
+msgstr "全部核准(會簽)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__company_id
+msgid "公司"
+msgstr "公司"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_scope
+msgid "公民 scope 權限限制"
+msgstr "公民 scope 權限限制"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "公民 scope 權限限制 roadmap"
+msgstr "公民 scope 權限限制 roadmap"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "出線條件"
+msgstr "出線條件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__flow_conditions
+msgid "出線條件 (JSON)"
+msgstr "出線條件 (JSON)"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_search
+msgid "分組"
+msgstr "分組"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__allowed_values
+msgid "列舉約束"
+msgstr "列舉約束"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "刪除"
+msgstr "刪除"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "加簽"
+msgstr "加簽"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "加簽/送簽子事件"
+msgstr "加簽/送簽子事件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__child_link_ids
+msgid "加簽子節點"
+msgstr "加簽子節點"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__target_type
+msgid "加簽對象"
+msgstr "加簽對象"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__return_after
+msgid "加簽後退回我續簽"
+msgstr "加簽後退回我續簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__return_after_escalate
+msgid "加簽後退回續簽"
+msgstr "加簽後退回續簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__reason
+msgid "加簽理由"
+msgstr "加簽理由"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "加簽鏈已達上限 %s 層，不可再上呈。"
+msgstr "加簽鏈已達上限 %s 層，不可再上呈。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__aggregation__sum
+msgid "加總"
+msgstr "加總"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__gate_timing
+msgid "動作時機"
+msgstr "動作時機"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "動作節點「%s」未選目標方法"
+msgstr "動作節點「%s」未選目標方法"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__use_applicant_department
+msgid "勾選＝用申請人 employee 的部門；取消＝改用下方單據部門欄位"
+msgstr "勾選＝用申請人 employee 的部門；取消＝改用下方單據部門欄位"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__inclusive_gw
+msgid "包容閘道(OR)"
+msgstr "包容閘道(OR)"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "即時試算"
+msgstr "即時試算"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_lint
+msgid "即時驗證 (bpmnlint)"
+msgstr "即時驗證 (bpmnlint)"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "即時驗證 (bpmnlint) roadmap"
+msgstr "即時驗證 (bpmnlint) roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__delegator_id
+msgid "原簽核人"
+msgstr "原簽核人"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "參數"
+msgstr "參數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__category_field
+msgid "取其字串值比對；未設則類別不限"
+msgstr "取其字串值比對；未設則類別不限"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__field_on_record
+msgid "取單據上的欄位"
+msgstr "取單據上的欄位"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "取單據上的欄位（如 user_id）為簽核人"
+msgstr "取單據上的欄位（如 user_id）為簽核人"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_process_instance__state__cancelled
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_delegate_wizard_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_escalate_wizard_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_lateral_wizard_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_reject_wizard_form
+msgid "取消"
+msgstr "取消"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_form
+msgid "取消流程"
+msgstr "取消流程"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_restricted_palette
+msgid "受限調色盤（公民模式）"
+msgstr "受限調色盤（公民模式）"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "受限調色盤（公民模式）roadmap"
+msgstr "受限調色盤（公民模式）roadmap"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "只有申請人、該關簽核人或管理者可收回此事件。"
+msgstr "只有申請人、該關簽核人或管理者可收回此事件。"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_executable_process
+msgid "可執行簽核流程"
+msgstr "可執行簽核流程"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_action_gate__condition
+msgid "可用變數：record、user、env。留空=總是觸發。例：record.amount_total > 10000"
+msgstr "可用變數：record、user、env。留空=總是觸發。例：record.amount_total > 10000"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_role__expression
+msgid ""
+"可用變數：record（單據）、applicant（申請人 res.users）、employee（申請人 hr.employee）、env。需回傳 "
+"res.users recordset。"
+msgstr "可用變數：record（單據）、applicant（申請人 res.users）、employee（申請人 hr.employee）、env。需回傳 res.users recordset。"
+
+#. module: dobtor_approval
+#: model:ir.module.category,description:dobtor_approval.module_category_bpmn_approval
+msgid "台灣 BPM 簽核引擎權限"
+msgstr "台灣 BPM 簽核引擎權限"
+
+#. module: dobtor_approval
+#: model:ir.model.constraint,message:dobtor_approval.constraint_bpmn_node_config_uniq_process_element
+msgid "同一流程內，每個 BPMN 元素 ID 只能有一筆執行規格。"
+msgstr "同一流程內，每個 BPMN 元素 ID 只能有一筆執行規格。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "同群組以「且」結合，「或」起新群組（群組間 OR）；留空＝預設線。"
+msgstr "同群組以「且」結合，「或」起新群組（群組間 OR）；留空＝預設線。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__name
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__name
+msgid "名稱"
+msgstr "名稱"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__kind__escalate
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "向上加簽"
+msgstr "向上加簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__hit_policy
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__hit_policy
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "命中策略"
+msgstr "命中策略"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix__hit_policy__unique
+msgid "唯一 Unique（應恰好命中一筆）"
+msgstr "唯一 Unique（應恰好命中一筆）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__business_rule
+msgid "商業規則(DMN)"
+msgstr "商業規則(DMN)"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "商業規則「%(d)s」求值：%(o)s"
+msgstr "商業規則「%(d)s」求值：%(o)s"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "商業規則任務（DMN）"
+msgstr "商業規則任務（DMN）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_dmn_business_rule
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "商業規則任務（求值寫回）"
+msgstr "商業規則任務（求值寫回）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "商業規則求值失敗：%s"
+msgstr "商業規則求值失敗：%s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "商業規則節點「%(node)s」尚未綁定 DMN 決策。"
+msgstr "商業規則節點「%(node)s」尚未綁定 DMN 決策。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "商業規則節點「%s」尚未綁定 DMN 決策"
+msgstr "商業規則節點「%s」尚未綁定 DMN 決策"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "商業規則節點「%s」未綁定 DMN 決策"
+msgstr "商業規則節點「%s」未綁定 DMN 決策"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/res_config_settings.py:0
+msgid "啟用「%(feat)s」需先啟用：%(deps)s。"
+msgstr "啟用「%(feat)s」需先啟用：%(deps)s。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+msgid "啟用中"
+msgstr "啟用中"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__apply_substitute
+msgid "啟用職務代理人"
+msgstr "啟用職務代理人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__res_name
+msgid "單據"
+msgstr "單據"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__res_id
+msgid "單據 ID"
+msgstr "單據 ID"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__res_name
+msgid "單據名稱"
+msgstr "單據名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__res_model
+msgid "單據模型"
+msgstr "單據模型"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_binding__source_kind__record_field
+msgid "單據欄位"
+msgstr "單據欄位"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__record_field
+msgid "單據欄位名稱"
+msgstr "單據欄位名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_field_resolver
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "單據欄位簽核人解析"
+msgstr "單據欄位簽核人解析"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__department_field
+msgid "單據部門欄位"
+msgstr "單據部門欄位"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "單據關鍵欄位於送簽後已變動，未自動執行「%s」，請重新送簽。"
+msgstr "單據關鍵欄位於送簽後已變動，未自動執行「%s」，請重新送簽。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "回放原動作失敗：%s"
+msgstr "回放原動作失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__reply
+msgid "回覆意見"
+msgstr "回覆意見"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "回覆會辦/徵詢"
+msgstr "回覆會辦/徵詢"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__type_ref
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__type_ref
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_data__type_ref
+msgid "型別"
+msgstr "型別"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_migration
+msgid "執行中實例遷移"
+msgstr "執行中實例遷移"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "執行中實例遷移 roadmap"
+msgstr "執行中實例遷移 roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__xml
+msgid "執行用 BPMN XML"
+msgstr "執行用 BPMN XML"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_basic_approval
+msgid "基本簽核"
+msgstr "基本簽核"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "多決策依賴編排，需先啟用「DMN 決策表編輯器」"
+msgstr "多決策依賴編排，需先啟用「DMN 決策表編輯器」"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_incident
+msgid "失敗重試 (Incident)"
+msgstr "失敗重試 (Incident)"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "失敗重試 (Incident) roadmap"
+msgstr "失敗重試 (Incident) roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_action_gate__method_name
+msgid "如 action_confirm / action_post / button_approve"
+msgstr "如 action_confirm / action_post / button_approve"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__amount_field
+msgid "如 amount_total；未設則金額一律 0"
+msgstr "如 amount_total；未設則金額一律 0"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision_table_input__expression
+msgid "如 amount、record.amount_total"
+msgstr "如 amount、record.amount_total"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__department_field
+msgid "如 department_id（hr.department）"
+msgstr "如 department_id（hr.department）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision_table_output__name
+msgid "如 resolver、sla_hours"
+msgstr "如 resolver、sla_hours"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "如：採購核決權限"
+msgstr "如：採購核決權限"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_delegate_wizard_form
+msgid "委派"
+msgstr "委派"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+#: model:ir.model,name:dobtor_approval.model_bpmn_delegate_wizard
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__kind__delegate
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_delegate_wizard_form
+msgid "委派代簽"
+msgstr "委派代簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegate_wizard__reason
+msgid "委派理由"
+msgstr "委派理由"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_call_activity
+msgid "子流程複用 (Call Activity)"
+msgstr "子流程複用 (Call Activity)"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "子流程複用 (Call Activity) roadmap"
+msgstr "子流程複用 (Call Activity) roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__string
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__string
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__string
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__string
+msgid "字串"
+msgstr "字串"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "完成"
+msgstr "完成"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix__state__frozen
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "定版"
+msgstr "定版"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__definition_version
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__definition_version
+msgid "定義版本"
+msgstr "定義版本"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_plan_level
+msgid "客戶方案"
+msgstr "客戶方案"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "實例"
+msgstr "實例"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__name
+msgid "實例名稱"
+msgstr "實例名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__instance_count
+msgid "實例數"
+msgstr "實例數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__instance_key
+msgid "實例變數鍵"
+msgstr "實例變數鍵"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_activity_link__decided_date
+msgid "實際批准/駁回的時間，供單據內簽核時間軸顯示"
+msgstr "實際批准/駁回的時間，供單據內簽核時間軸顯示"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__decided_by
+msgid "實際簽核人"
+msgstr "實際簽核人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__state__archived
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+msgid "封存"
+msgstr "封存"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_expert_mode
+msgid "專家完整調色盤"
+msgstr "專家完整調色盤"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "專家完整調色盤 roadmap"
+msgstr "專家完整調色盤 roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision__dmn_id
+msgid "對應 DMN XML 的 decision id"
+msgstr "對應 DMN XML 的 decision id"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_node_config__bpmn_element_id
+msgid "對應設計圖 XML 中的 element id"
+msgstr "對應設計圖 XML 中的 element id"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "小時"
+msgstr "小時"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__decision__delegated
+msgid "已代簽"
+msgstr "已代簽"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+msgid "已停用"
+msgstr "已停用"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+msgid "已儲存決策。"
+msgstr "已儲存決策。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "已儲存流程結構。"
+msgstr "已儲存流程結構。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "已儲存節點設定。"
+msgstr "已儲存節點設定。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "已完成"
+msgstr "已完成"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_definitions__state__archived
+msgid "已封存"
+msgstr "已封存"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "已核准"
+msgstr "已核准"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "已核准。請送簽人 %s 於單據上手動執行「%s」。"
+msgstr "已核准。請送簽人 %s 於單據上手動執行「%s」。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "已核准但單據已變動 → 未自動執行，請重新送簽。"
+msgstr "已核准但單據已變動 → 未自動執行，請重新送簽。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_token__state__consumed
+msgid "已消耗"
+msgstr "已消耗"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "已產生簽核流程，請繼續設定或發佈。"
+msgstr "已產生簽核流程，請繼續設定或發佈。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__state__published
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_definitions__state__published
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+msgid "已發佈"
+msgstr "已發佈"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "已發佈的決策集不可直接修改，請先轉草稿或升版。"
+msgstr "已發佈的決策集不可直接修改，請先轉草稿或升版。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "已轉為 DMN 決策集「%s」。"
+msgstr "已轉為 DMN 決策集「%s」。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.js:0
+msgid "已送出簽核「%s」。"
+msgstr "已送出簽核「%s」。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "已逾期"
+msgstr "已逾期"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "已駁回"
+msgstr "已駁回"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__boolean
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__boolean
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__boolean
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__boolean
+msgid "布林"
+msgstr "布林"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_binding__source_kind__constant
+msgid "常數"
+msgstr "常數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__constant_value
+msgid "常數值"
+msgstr "常數值"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_parallel_gw
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "平行 / 包容閘道"
+msgstr "平行 / 包容閘道"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "引導式表單，不懂 BPMN 也能建流程"
+msgstr "引導式表單，不懂 BPMN 也能建流程"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "引用（如 欄位=dmn_result、=、值=approve）。"
+msgstr "引用（如 欄位=dmn_result、=、值=approve）。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__level
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__level
+msgid "往上層級"
+msgstr "往上層級"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "往上第 %s 級主管"
+msgstr "往上第 %s 級主管"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix_line__resolver_type__manager_level
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__manager_level
+msgid "往上第 N 級主管"
+msgstr "往上第 N 級主管"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "往上第幾級"
+msgstr "往上第幾級"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_form
+msgid "待回放動作"
+msgstr "待回放動作"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__pending_action
+msgid "待回放動作 (JSON)"
+msgstr "待回放動作 (JSON)"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "待我簽"
+msgstr "待我簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__decision__pending
+msgid "待簽"
+msgstr "待簽"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "待設定"
+msgstr "待設定"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__gate_timing__after
+msgid "後置：執行後觸發"
+msgstr "後置：執行後觸發"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__kind__lateral_info
+msgid "徵詢(不等待)"
+msgstr "徵詢(不等待)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_lateral_wizard__mode__info
+msgid "徵詢（不等待，僅參考）"
+msgstr "徵詢（不等待，僅參考）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "您沒有執行此動作的權限。"
+msgstr "您沒有執行此動作的權限。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "意見"
+msgstr "意見"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "應存在）。若仍出現此訊息，請升級模組並清除瀏覽器快取後重試。"
+msgstr "應存在）。若仍出現此訊息，請升級模組並清除瀏覽器快取後重試。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_search
+msgid "我的申請"
+msgstr "我的申請"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "我送出的"
+msgstr "我送出的"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "或"
+msgstr "或"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__bpmn_element_id
+msgid "所在節點 (element id)"
+msgstr "所在節點 (element id)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__process_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__process_id
+msgid "所屬流程"
+msgstr "所屬流程"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "才能設定動作插入點。"
+msgstr "才能設定動作插入點。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "才能設定閘道條件。"
+msgstr "才能設定閘道條件。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "批准"
+msgstr "批准"
+
+#. module: dobtor_approval
+#: model:ir.actions.server,name:dobtor_approval.action_server_batch_approve
+msgid "批次核准"
+msgstr "批次核准"
+
+#. module: dobtor_approval
+#: model:ir.actions.server,name:dobtor_approval.action_server_batch_reject
+msgid "批次駁回"
+msgstr "批次駁回"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "找不到您的直屬主管對應的使用者。"
+msgstr "找不到您的直屬主管對應的使用者。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+msgid "找不到模型「%s」，請確認技術名稱。"
+msgstr "找不到模型「%s」，請確認技術名稱。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "找不到決策：%s"
+msgstr "找不到決策：%s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "找不到節點 %s"
+msgstr "找不到節點 %s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "找不到開始節點"
+msgstr "找不到開始節點"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "把簽核掛上 Odoo 按鈕：攔截→簽核→回放"
+msgstr "把簽核掛上 Odoo 按鈕：攔截→簽核→回放"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "抽回"
+msgstr "抽回"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "拖拉畫布 + 右側簽核設定面板"
+msgstr "拖拉畫布 + 右側簽核設定面板"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "拖曳排序"
+msgstr "拖曳排序"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "指定 %s 人"
+msgstr "指定 %s 人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__target_user_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_escalate_wizard__target_type__specific_user
+msgid "指定人員"
+msgstr "指定人員"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "指定人員（可多選）"
+msgstr "指定人員（可多選）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__user_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__user_ids
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix_line__resolver_type__specific_user
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__specific_user
+msgid "指定使用者"
+msgstr "指定使用者"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__group_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__group
+msgid "指定權限群組"
+msgstr "指定權限群組"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__job_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__job_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix_line__resolver_type__job_position
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__job_position
+msgid "指定職位"
+msgstr "指定職位"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_escalate_wizard__target_role_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_escalate_wizard__target_type__role
+msgid "指定角色"
+msgstr "指定角色"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "指定角色解析不到簽核人。"
+msgstr "指定角色解析不到簽核人。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__specific_department_id
+msgid "指定部門"
+msgstr "指定部門"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__department_specific
+msgid "指定部門之經理"
+msgstr "指定部門之經理"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__target_element
+msgid "指定關卡 (element id)"
+msgstr "指定關卡 (element id)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__approver_user_id
+msgid "指派簽核人"
+msgstr "指派簽核人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_requirement__req_type__authority
+msgid "授權需求"
+msgstr "授權需求"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "推進步數超過上限，疑似流程有環"
+msgstr "推進步數超過上限，疑似流程有環"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.js:0
+msgid "操作失敗：%s"
+msgstr "操作失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__code
+msgid "攔截時可用代碼比對"
+msgstr "攔截時可用代碼比對"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__method_name
+msgid "攔截的方法/按鈕"
+msgstr "攔截的方法/按鈕"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__gate_timing__before
+msgid "攔截：先簽核後執行"
+msgstr "攔截：先簽核後執行"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "收合"
+msgstr "收合"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "收回/抽單"
+msgstr "收回/抽單"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/fields/method_select.xml:0
+msgid "改用下拉"
+msgstr "改用下拉"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "政策說明、版本變更原因…"
+msgstr "政策說明、版本變更原因…"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "數"
+msgstr "數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__number
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__number
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__number
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__number
+msgid "數值"
+msgstr "數值"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "數值 %(a)s–%(b)s 無規則覆蓋。"
+msgstr "數值 %(a)s–%(b)s 無規則覆蓋。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "數值 %s 以上無規則覆蓋。"
+msgstr "數值 %s 以上無規則覆蓋。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "文"
+msgstr "文"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "新增綁定"
+msgstr "新增綁定"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "新增關卡"
+msgstr "新增關卡"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "方案等級"
+msgstr "方案等級"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/fields/method_select.xml:0
+msgid "方法名"
+msgstr "方法名"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "日"
+msgstr "日"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__date
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__date
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__date
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__date
+msgid "日期"
+msgstr "日期"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_mail_activity__is_bpmn_approval
+msgid "是否簽核活動"
+msgstr "是否簽核活動"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__time
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__time
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__time
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__time
+msgid "時間"
+msgstr "時間"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "時間軸"
+msgstr "時間軸"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__aggregation__max
+msgid "最大"
+msgstr "最大"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__aggregation__min
+msgid "最小"
+msgstr "最小"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_cosign
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "會簽 / 依序簽核"
+msgstr "會簽 / 依序簽核"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "會辦"
+msgstr "會辦"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__kind__lateral_consult
+msgid "會辦(等待)"
+msgstr "會辦(等待)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__consult_reply
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "會辦/徵詢回覆"
+msgstr "會辦/徵詢回覆"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__has_open_consult
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "會辦中"
+msgstr "會辦中"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_lateral_wizard__mode__consult
+msgid "會辦（需回覆，本關等待）"
+msgstr "會辦（需回覆，本關等待）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__duration
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__duration
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__duration
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__duration
+msgid "期間"
+msgstr "期間"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__date_deadline
+msgid "期限"
+msgstr "期限"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "未支援的節點型別 %s"
+msgstr "未支援的節點型別 %s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision__requires_ids
+msgid "本決策求值前須先求值的上游決策"
+msgstr "本決策求值前須先求值的上游決策"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__capability_level
+msgid "本流程可使用的最高 Tier，不可超過公司全域已開的最高 Tier"
+msgstr "本流程可使用的最高 Tier，不可超過公司全域已開的最高 Tier"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_executable_process__xml
+msgid "本流程自身的 BPMN XML（可由設計圖複製帶入後獨立編輯）"
+msgstr "本流程自身的 BPMN XML（可由設計圖複製帶入後獨立編輯）"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "本流程自身的執行用 BPMN XML（可由設計圖複製帶入後獨立編輯）"
+msgstr "本流程自身的執行用 BPMN XML（可由設計圖複製帶入後獨立編輯）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__decision__approved
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "核准"
+msgstr "核准"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_process_instance__state__approved
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_search
+msgid "核准完成"
+msgstr "核准完成"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_action_gate__execution_mode__manual_by_submitter
+msgid "核准後交回送簽人手動執行"
+msgstr "核准後交回送簽人手動執行"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__execution_mode
+msgid "核准後執行方式"
+msgstr "核准後執行方式"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__gate_timing__replace
+msgid "核准後才執行原動作"
+msgstr "核准後才執行原動作"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_action_gate__execution_mode__auto_replay
+msgid "核准後自動連動執行（預設）"
+msgstr "核准後自動連動執行（預設）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_authority_matrix
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__matrix_id
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_authority_matrix
+msgid "核決權限表"
+msgstr "核決權限表"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "核決權限表「%(m)s」的欄位「%(f)s」不存在於模型 %(mod)s。"
+msgstr "核決權限表「%(m)s」的欄位「%(f)s」不存在於模型 %(mod)s。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "核決權限表「%s」有規則列未指定使用者。"
+msgstr "核決權限表「%s」有規則列未指定使用者。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "核決權限表「%s」有規則列未指定職位。"
+msgstr "核決權限表「%s」有規則列未指定職位。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "核決權限表「%s」沒有任何規則列。"
+msgstr "核決權限表「%s」沒有任何規則列。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_activity_link__phase
+msgid "核決權限表分階：同 phase＝會簽，跨 phase＝依序（0＝非分階）"
+msgstr "核決權限表分階：同 phase＝會簽，跨 phase＝依序（0＝非分階）"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_authority_matrix_line
+msgid "核決權限表規則列"
+msgstr "核決權限表規則列"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+#: model:ir.model,name:dobtor_approval.model_bpmn_authority_matrix_preview
+msgid "核決權限表試算"
+msgstr "核決權限表試算"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_authority_matrix
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_authority_matrix
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__authority_matrix
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "核決權限表（決策矩陣）"
+msgstr "核決權限表（決策矩陣）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_conditional
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "條件分歧（互斥閘道）"
+msgstr "條件分歧（互斥閘道）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__model_name
+msgid "模型技術名"
+msgstr "模型技術名"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_lateral_wizard_form
+msgid "橫向送簽"
+msgstr "橫向送簽"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_lateral_wizard
+msgid "橫向送簽（會辦/徵詢）"
+msgstr "橫向送簽（會辦/徵詢）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "欄位"
+msgstr "欄位"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "欄位 / 值"
+msgstr "欄位 / 值"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "欄位「%(f)s」列舉值未覆蓋：%(v)s"
+msgstr "欄位「%(f)s」列舉值未覆蓋：%(v)s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_input_binding__record_field
+msgid "欄位點路徑"
+msgstr "欄位點路徑"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_input_data.py:0
+msgid "欄位點路徑「%s」不可包含 __。"
+msgstr "欄位點路徑「%s」不可包含 __。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "權限群組"
+msgstr "權限群組"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "此事件已處理（%s），無法再操作。"
+msgstr "此事件已處理（%s），無法再操作。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_guard_mixin.py:0
+#: code:addons/dobtor_approval/static/src/gate/form_gate_patch.js:0
+msgid "此動作需經簽核。已送出簽核流程「%s」，核准後將自動執行。"
+msgstr "此動作需經簽核。已送出簽核流程「%s」，核准後將自動執行。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "此單據動作需簽核："
+msgstr "此單據動作需簽核："
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "此實例沒有關聯單據。"
+msgstr "此實例沒有關聯單據。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix__model_id
+msgid "此決策表評估的目標單據（如 purchase.order）"
+msgstr "此決策表評估的目標單據（如 purchase.order）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/mail_activity.py:0
+msgid "此活動不是待簽核的 BPMN 活動。"
+msgstr "此活動不是待簽核的 BPMN 活動。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "此流程用到尚未啟用的功能：%s。請先至『設定 → BPMN 簽核』開啟，或移除這些元素。"
+msgstr "此流程用到尚未啟用的功能：%s。請先至『設定 → BPMN 簽核』開啟，或移除這些元素。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "此節點型別（"
+msgstr "此節點型別（"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix_line__name
+msgid "此規則列代表的簽核關，如「部門經理關」"
+msgstr "此規則列代表的簽核關，如「部門經理關」"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "此閘道無出線。"
+msgstr "此閘道無出線。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "每關期限（小時）"
+msgstr "每關期限（小時）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "求值後可於下方出線條件以欄位"
+msgstr "求值後可於下方出線條件以欄位"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "求值結果存入流程變數（供後續閘道/綁定引用），可選寫回單據。"
+msgstr "求值結果存入流程變數（供後續閘道/綁定引用），可選寫回單據。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__decision_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__decision_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "決策"
+msgstr "決策"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "決策「%(d)s」輸入式引用未綁定變數「%(v)s」。"
+msgstr "決策「%(d)s」輸入式引用未綁定變數「%(v)s」。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "決策「%s」FEEL 運算式為空。"
+msgstr "決策「%s」FEEL 運算式為空。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "決策「%s」缺輸出欄。"
+msgstr "決策「%s」缺輸出欄。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__name
+msgid "決策名稱"
+msgstr "決策名稱"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "決策節點「%s」解析不到任何簽核人"
+msgstr "決策節點「%s」解析不到任何簽核人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__table_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__table_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_bkm__logic_type__decision_table
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__logic_type__decision_table
+msgid "決策表"
+msgstr "決策表"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__definitions_id
+msgid "決策集"
+msgstr "決策集"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "決策集「%s」沒有任何決策。"
+msgstr "決策集「%s」沒有任何決策。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "決策集名稱"
+msgstr "決策集名稱"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+msgid "決策集已發佈。"
+msgstr "決策集已發佈。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_definitions.py:0
+msgid "決策集已發佈（版本 %s）。"
+msgstr "決策集已發佈（版本 %s）。"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_dmn_definitions
+#: model:ir.ui.menu,name:dobtor_approval.menu_dmn_definitions
+msgid "決策（DMN）"
+msgstr "決策（DMN）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__decided_date
+msgid "決行時間"
+msgstr "決行時間"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_sandbox
+msgid "沙箱模擬 (dry-run)"
+msgstr "沙箱模擬 (dry-run)"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "沙箱模擬 (dry-run) roadmap"
+msgstr "沙箱模擬 (dry-run) roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_token__state__active
+msgid "活躍"
+msgstr "活躍"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_search
+msgid "流程"
+msgstr "流程"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "流程「%(proc)s」需要您的簽核。"
+msgstr "流程「%(proc)s」需要您的簽核。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "流程「%s」尚未發佈，無法啟動實例。"
+msgstr "流程「%s」尚未發佈，無法啟動實例。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "流程「%s」沒有可發佈的 BPMN XML。"
+msgstr "流程「%s」沒有可發佈的 BPMN XML。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "流程「%s」缺少結束節點。"
+msgstr "流程「%s」缺少結束節點。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "流程「%s」缺少開始節點。"
+msgstr "流程「%s」缺少開始節點。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+msgid "流程「%s」非草稿狀態，不可修改結構。"
+msgstr "流程「%s」非草稿狀態，不可修改結構。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__code
+msgid "流程代碼"
+msgstr "流程代碼"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__name
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "流程名稱"
+msgstr "流程名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__process_id
+msgid "流程定義"
+msgstr "流程定義"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__instance_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__instance_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__instance_id
+msgid "流程實例"
+msgstr "流程實例"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_binding__source_kind__instance_ctx
+msgid "流程實例變數"
+msgstr "流程實例變數"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "流程已取消。"
+msgstr "流程已取消。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "流程已發佈。"
+msgstr "流程已發佈。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "流程已發佈，版本 v%s。"
+msgstr "流程已發佈，版本 v%s。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "流程核准完成。"
+msgstr "流程核准完成。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "流程異常：%s"
+msgstr "流程異常：%s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "流程經 %(user)s 駁回，退回關卡「%(node)s」重簽。"
+msgstr "流程經 %(user)s 駁回，退回關卡「%(node)s」重簽。"
+
+#. module: dobtor_approval
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_config
+msgid "流程設定"
+msgstr "流程設定"
+
+#. module: dobtor_approval
+#: model:ir.module.category,name:dobtor_approval.module_category_dobtor_bpmn
+msgid "流程設計 (BPMN)"
+msgstr "流程設計 (BPMN)"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "流程遭 %(user)s 駁回。"
+msgstr "流程遭 %(user)s 駁回。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__applicant_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__applicant_id
+msgid "測試申請人"
+msgstr "測試申請人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__department_id
+msgid "測試部門"
+msgstr "測試部門"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__amount
+msgid "測試金額"
+msgstr "測試金額"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__category
+msgid "測試類別"
+msgstr "測試類別"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__aggregation__none
+msgid "無"
+msgstr "無"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__version
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__version
+msgid "版本"
+msgstr "版本"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__state
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__state
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__state
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__state
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__state
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_search
+msgid "狀態"
+msgstr "狀態"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "產生失敗：%s"
+msgstr "產生失敗：%s"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "產生流程"
+msgstr "產生流程"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "由誰簽"
+msgstr "由誰簽"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "申請"
+msgstr "申請"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__applicant_user_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__applicant_user_id
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_binding__source_kind__applicant
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "申請人"
+msgstr "申請人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix_line__resolver_type__direct_manager
+msgid "申請人直屬主管"
+msgstr "申請人直屬主管"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__direct_manager
+msgid "申請人直屬主管 (employee.parent_id)"
+msgstr "申請人直屬主管 (employee.parent_id)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix_line__resolver_type__department_manager
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_role__resolver_type__department_manager
+msgid "申請人部門經理"
+msgstr "申請人部門經理"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_kanban
+msgid "申請人："
+msgstr "申請人："
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "申請："
+msgstr "申請："
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_delegation__definition_ids
+msgid "留空 = 所有流程；指定 = 僅這些流程代理"
+msgstr "留空 = 所有流程；指定 = 僅這些流程代理"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_action_gate_form
+msgid "留空 = 總是觸發。例：record.amount_total > 10000"
+msgstr "留空 = 總是觸發。例：record.amount_total > 10000"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix_line__category_value
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix_line__department_id
+msgid "留空＝不限"
+msgstr "留空＝不限"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "留空＝類別不限"
+msgstr "留空＝類別不限"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_process_instance__state__incident
+msgid "異常"
+msgstr "異常"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__incident_message
+msgid "異常訊息"
+msgstr "異常訊息"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix__hit_policy__collect
+msgid "疊加 Collect（全部命中 → 會簽/鏈）"
+msgstr "疊加 Collect（全部命中 → 會簽/鏈）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "發佈"
+msgstr "發佈"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.js:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "發佈失敗：%s"
+msgstr "發佈失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_effective_plan_label
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "目前實際等級"
+msgstr "目前實際等級"
+
+#. module: dobtor_approval
+#: model_terms:ir.actions.act_window,help:dobtor_approval.action_bpmn_activity_link
+msgid "目前沒有待您簽核的事件"
+msgstr "目前沒有待您簽核的事件"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__target_dmn_id
+msgid "目標元素 ID"
+msgstr "目標元素 ID"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__gate_method
+msgid "目標方法/按鈕"
+msgstr "目標方法/按鈕"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__model_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__gate_model_id
+msgid "目標模型"
+msgstr "目標模型"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "真會簽 (Multi-instance 比例通過) roadmap"
+msgstr "真會簽 (Multi-instance 比例通過) roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_multi_instance
+msgid "真會簽 (Multi-instance)"
+msgstr "真會簽 (Multi-instance)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__bkm_ids
+msgid "知識模型"
+msgstr "知識模型"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_requirement__req_type__knowledge
+msgid "知識需求"
+msgstr "知識需求"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_reject_wizard_form
+msgid "確認駁回"
+msgstr "確認駁回"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "第"
+msgstr "第"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+msgid "第 %s 關"
+msgstr "第 %s 關"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "第 %s 關請選擇人員。"
+msgstr "第 %s 關請選擇人員。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "第 %s 關請選擇職位。"
+msgstr "第 %s 關請選擇職位。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.js:0
+msgid "第 %s/%s 關"
+msgstr "第 %s/%s 關"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "第%s關"
+msgstr "第%s關"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid ""
+"等即視為\n"
+"                        approver 慣例，送單時依命中列分階逐關核決。"
+msgstr ""
+"等即視為\n"
+"                        approver 慣例，送單時依命中列分階逐關核決。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__bpmn_element_id
+msgid "節點 (element id)"
+msgstr "節點 (element id)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__name
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__node_name
+msgid "節點名稱"
+msgstr "節點名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__node_type
+msgid "節點型別"
+msgstr "節點型別"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__node_config_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "節點執行規格"
+msgstr "節點執行規格"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "簽核中"
+msgstr "簽核中"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_activity_link
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_activity_link
+msgid "簽核事件"
+msgstr "簽核事件"
+
+#. module: dobtor_approval
+#: model_terms:ir.actions.act_window,help:dobtor_approval.action_bpmn_activity_link
+msgid "簽核事件以 Odoo 原生活動為基礎；可在此核准/駁回，或向上加簽、橫向送簽（會辦/徵詢）、委派、收回。"
+msgstr "簽核事件以 Odoo 原生活動為基礎；可在此核准/駁回，或向上加簽、橫向送簽（會辦/徵詢）、委派、收回。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__resolver_type
+msgid "簽核人"
+msgstr "簽核人"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__delegate_allowed_by__approver_manager
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__escalate_allowed_by__approver_manager
+msgid "簽核人 + 其主管"
+msgstr "簽核人 + 其主管"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "簽核人由 DMN 決策表的 approver 輸出鏈決定，"
+msgstr "簽核人由 DMN 決策表的 approver 輸出鏈決定，"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "簽核人由決策表依單據（金額/類別/部門）決定，命中各級"
+msgstr "簽核人由決策表依單據（金額/類別/部門）決定，命中各級"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__is_approver_output
+msgid "簽核人輸出"
+msgstr "簽核人輸出"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "簽核人鏈：決策表輸出欄含"
+msgstr "簽核人鏈：決策表輸出欄含"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision__output_type_ref__approver
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_input__type_ref__approver
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table_output__type_ref__approver
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_input_data__type_ref__approver
+msgid "簽核人（鏈）"
+msgstr "簽核人（鏈）"
+
+#. module: dobtor_approval
+#: model:res.groups,name:dobtor_approval.group_bpmn_approval_user
+msgid "簽核使用者"
+msgstr "簽核使用者"
+
+#. module: dobtor_approval
+#: model:res.groups,name:dobtor_approval.group_bpmn_implementer
+msgid "簽核實作者 (SI/顧問)"
+msgstr "簽核實作者 (SI/顧問)"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_process_instance
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_instance
+msgid "簽核實例"
+msgstr "簽核實例"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "簽核對象"
+msgstr "簽核對象"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__feedback
+msgid "簽核意見"
+msgstr "簽核意見"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+msgid "簽核意見…"
+msgstr "簽核意見…"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__approval_mode
+msgid "簽核方式"
+msgstr "簽核方式"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "簽核期限 (SLA)"
+msgstr "簽核期限 (SLA)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__sla_hours
+msgid "簽核期限(小時)"
+msgstr "簽核期限(小時)"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__activity_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__activity_link_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_form
+msgid "簽核活動"
+msgstr "簽核活動"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_token__activity_link_ids
+msgid "簽核活動連結"
+msgstr "簽核活動連結"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__process_id
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__process_id
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_approval_root
+msgid "簽核流程"
+msgstr "簽核流程"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_executable_process
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_executable_process
+msgid "簽核流程定義"
+msgstr "簽核流程定義"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "簽核異常"
+msgstr "簽核異常"
+
+#. module: dobtor_approval
+#: model:res.groups,name:dobtor_approval.group_bpmn_approval_manager
+msgid "簽核管理者"
+msgstr "簽核管理者"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "簽核節點 %s 未綁定角色"
+msgstr "簽核節點 %s 未綁定角色"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "簽核節點「%(node)s」尚未綁定簽核角色。"
+msgstr "簽核節點「%(node)s」尚未綁定簽核角色。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "簽核節點「%(node)s」選了 DMN 決策但未綁定。"
+msgstr "簽核節點「%(node)s」選了 DMN 決策但未綁定。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "簽核節點「%(node)s」選了核決權限表但未綁定。"
+msgstr "簽核節點「%(node)s」選了核決權限表但未綁定。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "簽核節點「%s」尚未設定簽核人"
+msgstr "簽核節點「%s」尚未設定簽核人"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "簽核節點「%s」解析不到任何簽核人"
+msgstr "簽核節點「%s」解析不到任何簽核人"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "簽核節點「%s」選了 DMN 決策但未綁定"
+msgstr "簽核節點「%s」選了 DMN 決策但未綁定"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__decision
+msgid "簽核結果"
+msgstr "簽核結果"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_role
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__role_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__role_id
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_role
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "簽核角色"
+msgstr "簽核角色"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+msgid "簽核設定"
+msgstr "簽核設定"
+
+#. module: dobtor_approval
+#: model:res.groups,name:dobtor_approval.group_bpmn_approval_designer
+msgid "簽核設計者"
+msgstr "簽核設計者"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_form
+msgid "簽核軌跡"
+msgstr "簽核軌跡"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "簽核關卡（拖曳左側手柄調整順序）"
+msgstr "簽核關卡（拖曳左側手柄調整順序）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "精靈建立"
+msgstr "精靈建立"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_wizard
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "精靈建立流程"
+msgstr "精靈建立流程"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "精靈與視覺編輯器預設皆啟用；如不需要可隱藏其一。"
+msgstr "精靈與視覺編輯器預設皆啟用；如不需要可隱藏其一。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__service_task
+msgid "系統動作"
+msgstr "系統動作"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_instance.py:0
+msgid "系統動作執行失敗：%s"
+msgstr "系統動作執行失敗：%s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_executable_process.py:0
+msgid "系統動作節點「%(node)s」尚未綁定 Server Action 或方法。"
+msgstr "系統動作節點「%(node)s」尚未綁定 Server Action 或方法。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "級"
+msgstr "級"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__end
+msgid "結束"
+msgstr "結束"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__date_end
+msgid "結束日期"
+msgstr "結束日期"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_delegation.py:0
+msgid "結束日期不可早於開始日期。"
+msgstr "結束日期不可早於開始日期。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_search
+msgid "結果"
+msgstr "結果"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "結構儲存失敗：%s"
+msgstr "結構儲存失敗：%s"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "綁 DMN 決策（選用）"
+msgstr "綁 DMN 決策（選用）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__server_action_id
+msgid "綁定 Server Action"
+msgstr "綁定 Server Action"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_input_data.py:0
+msgid "綁定「%s」來源為單據欄位，須填欄位點路徑。"
+msgstr "綁定「%s」來源為單據欄位，須填欄位點路徑。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "綁定單據時，請填寫觸發動作。"
+msgstr "綁定單據時，請填寫觸發動作。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "綁定單據（模型技術名）"
+msgstr "綁定單據（模型技術名）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__bound_method
+msgid "綁定方法名"
+msgstr "綁定方法名"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__aggregation
+msgid "聚合（Collect）"
+msgstr "聚合（Collect）"
+
+#. module: dobtor_approval
+#: model:ir.actions.act_window,name:dobtor_approval.action_bpmn_delegation
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_delegation
+msgid "職務代理"
+msgstr "職務代理"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_delegation
+msgid "職務代理 / 代簽核授權"
+msgstr "職務代理 / 代簽核授權"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_delegation
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "職務代理（代簽核）"
+msgstr "職務代理（代簽核）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_executable_process__capability_level
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+msgid "能力上限"
+msgstr "能力上限"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "自由 FEEL 運算式，需先啟用「DMN 決策表編輯器」"
+msgstr "自由 FEEL 運算式，需先啟用「DMN 決策表編輯器」"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "至少需保留一個簽核關卡。"
+msgstr "至少需保留一個簽核關卡。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_preview_form
+msgid "與規則列「類別 =」相同字串"
+msgstr "與規則列「類別 =」相同字串"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_authority_matrix_preview__category
+msgid "與規則列「類別 =」相同的字串"
+msgstr "與規則列「類別 =」相同的字串"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_authority_matrix__state__draft
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_executable_process__state__draft
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_definitions__state__draft
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_search
+msgid "草稿"
+msgstr "草稿"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__line_ids
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__rule_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "規則列"
+msgstr "規則列"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__line_count
+msgid "規則數"
+msgstr "規則數"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__entry_ids
+msgid "規則格"
+msgstr "規則格"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_visual_editor
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "視覺流程編輯器"
+msgstr "視覺流程編輯器"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_role.py:0
+msgid "角色「%(name)s」往上層級必須介於 1 與 %(max)s 之間。"
+msgstr "角色「%(name)s」往上層級必須介於 1 與 %(max)s 之間。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_role.py:0
+msgid "角色「%(name)s」的運算式執行失敗：%(err)s"
+msgstr "角色「%(name)s」的運算式執行失敗：%(err)s"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_role.py:0
+msgid "角色「%(name)s」運算式必須回傳 res.users recordset。"
+msgstr "角色「%(name)s」運算式必須回傳 res.users recordset。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__name
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_role_form
+msgid "角色名稱"
+msgstr "角色名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_role__resolver_type
+msgid "解析方式"
+msgstr "解析方式"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "觸發動作（方法/按鈕）"
+msgstr "觸發動作（方法/按鈕）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__gate_condition
+msgid "觸發條件 (JSON)"
+msgstr "觸發條件 (JSON)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__condition
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_action_gate_form
+msgid "觸發條件 (Python 運算式)"
+msgstr "觸發條件 (Python 運算式)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_decision_table__aggregation__count
+msgid "計數"
+msgstr "計數"
+
+#. module: dobtor_approval
+#: model:ir.ui.menu,name:dobtor_approval.menu_bpmn_settings
+msgid "設定"
+msgstr "設定"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "設定完整"
+msgstr "設定完整"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "設為草稿"
+msgstr "設為草稿"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "設為草稿（升版）"
+msgstr "設為草稿（升版）"
+
+#. module: dobtor_approval
+#: model:res.groups,name:dobtor_approval.group_bpmn_diagram_user
+msgid "設計圖：使用者（檢視）"
+msgstr "設計圖：使用者（檢視）"
+
+#. module: dobtor_approval
+#: model:res.groups,name:dobtor_approval.group_bpmn_diagram_manager
+msgid "設計圖：設計師（建立/編輯）"
+msgstr "設計圖：設計師（建立/編輯）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_preview_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_decision_preview_form
+msgid "試算"
+msgstr "試算"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "試算失敗：%s"
+msgstr "試算失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_preview__result_html
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__result_html
+msgid "試算結果"
+msgstr "試算結果"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "試算誰會簽："
+msgstr "試算誰會簽："
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "試算（先存檔）"
+msgstr "試算（先存檔）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__reason
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_rule__description
+msgid "說明"
+msgstr "說明"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "誰會簽（試算）"
+msgstr "誰會簽（試算）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "請先啟用"
+msgstr "請先啟用"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "請先於「設定 → BPMN 簽核」啟用"
+msgstr "請先於「設定 → BPMN 簽核」啟用"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "請先於「設定 → 能力分級」啟用"
+msgstr "請先於「設定 → 能力分級」啟用"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_reject_wizard.py:0
+msgid "請填入要退回的關卡 element id。"
+msgstr "請填入要退回的關卡 element id。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "請指定加簽人員。"
+msgstr "請指定加簽人員。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "請指定加簽角色。"
+msgstr "請指定加簽角色。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+msgid "請至少新增一個簽核關卡。"
+msgstr "請至少新增一個簽核關卡。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_process_editor.py:0
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.js:0
+msgid "請輸入流程名稱。"
+msgstr "請輸入流程名稱。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_lateral_wizard.py:0
+msgid "請選擇送簽對象。"
+msgstr "請選擇送簽對象。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_action_gate__snapshot_fields
+msgid "變動防護欄位"
+msgstr "變動防護欄位"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "變數"
+msgstr "變數"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__binding_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "變數綁定"
+msgstr "變數綁定"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_requirement__req_type__information
+msgid "資訊需求"
+msgstr "資訊需求"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__requires_ids
+msgid "資訊需求（依賴決策）"
+msgstr "資訊需求（依賴決策）"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "跨方案的深技術加值，通常由 SI/顧問依專案加開；最終客戶通常不自行設定。"
+msgstr "跨方案的深技術加值，通常由 SI/顧問依專案加開；最終客戶通常不自行設定。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "載入中…"
+msgstr "載入中…"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_rule_entry__kind__input
+msgid "輸入"
+msgstr "輸入"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_decision_preview.py:0
+msgid "輸入 JSON 格式錯誤：%s"
+msgstr "輸入 JSON 格式錯誤：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__input_ids
+msgid "輸入欄"
+msgstr "輸入欄"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_preview__input_json
+msgid "輸入變數 (JSON)"
+msgstr "輸入變數 (JSON)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__input_data_ids
+msgid "輸入資料"
+msgstr "輸入資料"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/dmn_decision_preview.py:0
+msgid "輸入須為 JSON 物件。"
+msgstr "輸入須為 JSON 物件。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__dmn_rule_entry__kind__output
+msgid "輸出"
+msgstr "輸出"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__output_type_ref
+msgid "輸出型別"
+msgstr "輸出型別"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "輸出寫回單據同名欄位"
+msgstr "輸出寫回單據同名欄位"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__dmn_write_to_record
+msgid "輸出寫回單據欄位"
+msgstr "輸出寫回單據欄位"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table__output_ids
+msgid "輸出欄"
+msgstr "輸出欄"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__name
+msgid "輸出變數名"
+msgstr "輸出變數名"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "轉為 DMN 決策"
+msgstr "轉為 DMN 決策"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "轉簽"
+msgstr "轉簽"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__delegate_allowed_by
+msgid "轉簽可由"
+msgstr "轉簽可由"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "轉草稿"
+msgstr "轉草稿"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "返回"
+msgstr "返回"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_reject_wizard__destination__previous
+msgid "退回上一關"
+msgstr "退回上一關"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_reject_wizard__destination__node
+msgid "退回指定關卡"
+msgstr "退回指定關卡"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_reject_wizard__destination__applicant
+msgid "退回申請人"
+msgstr "退回申請人"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_lateral_wizard_form
+msgid "送出"
+msgstr "送出"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_escalate_wizard_form
+msgid "送出加簽"
+msgstr "送出加簽"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+msgid "送出簽核："
+msgstr "送出簽核："
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_res_config_settings__bpmn_enable_governance
+msgid "送審生命週期"
+msgstr "送審生命週期"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "送審生命週期 roadmap"
+msgstr "送審生命週期 roadmap"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_escalate_wizard__target_type__direct_manager
+msgid "送我的直屬主管"
+msgstr "送我的直屬主管"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.js:0
+msgid "送簽失敗：%s"
+msgstr "送簽失敗：%s"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__user_ids
+msgid "送簽對象"
+msgstr "送簽對象"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_process_instance__gate_snapshot
+msgid "送簽快照 (JSON)"
+msgstr "送簽快照 (JSON)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_lateral_wizard__mode
+msgid "送簽方式"
+msgstr "送簽方式"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_process_instance__gate_snapshot
+msgid "送簽當下閘門欄位快照，回放前比對防止「批准 A 執行 B」"
+msgstr "送簽當下閘門欄位快照，回放前比對防止「批准 A 執行 B」"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_bpmn_action_gate__snapshot_fields
+msgid "逗號分隔的欄位名；送簽時快照、回放前比對，變動則不自動執行。留空＝以條件運算式涉及的欄位為準（無條件則不防護）"
+msgstr "逗號分隔的欄位名；送簽時快照、回放前比對，變動則不自動執行。留空＝以條件運算式涉及的欄位為準（無條件則不防護）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_dmn_decision_table_input__allowed_values
+msgid "逗號分隔；供 UI 下拉與覆蓋分析"
+msgstr "逗號分隔；供 UI 下拉與覆蓋分析"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_process_instance__state__running
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_search
+msgid "進行中"
+msgstr "進行中"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "進階（選填）"
+msgstr "進階（選填）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_node_config__sla_action
+msgid "逾時動作"
+msgstr "逾時動作"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "逾時動作…"
+msgstr "逾時動作…"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__sla_action__remind
+msgid "逾時提醒"
+msgstr "逾時提醒"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__sla_action__escalate
+msgid "逾時自動加簽上級"
+msgstr "逾時自動加簽上級"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__sla_action__auto_approve
+msgid "逾時視為核准"
+msgstr "逾時視為核准"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__sla_action__reject
+msgid "逾時退回"
+msgstr "逾時退回"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "逾期處理"
+msgstr "逾期處理"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "運算式"
+msgstr "運算式"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__model_id
+msgid "適用單據模型"
+msgstr "適用單據模型"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid "適用單據與輸入"
+msgstr "適用單據與輸入"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__definition_ids
+msgid "適用流程"
+msgstr "適用流程"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_delegation_form
+msgid "適用流程（留空=全部）"
+msgstr "適用流程（留空=全部）"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,help:dobtor_approval.field_res_config_settings__bpmn_plan_level
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "選一個最貼近你組織的方案，一鍵套用該級（含以下各級）全部能力；下方可再細調。"
+msgstr "選一個最貼近你組織的方案，一鍵套用該級（含以下各級）全部能力；下方可再細調。"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "選申請人…"
+msgstr "選申請人…"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_bkm__logic_type
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision__logic_type
+msgid "邏輯型別"
+msgstr "邏輯型別"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__department_id
+msgid "部門 ="
+msgstr "部門 ="
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "金額 %(a)s–%(b)s 無基礎規則對應（可能解析不到簽核人）。"
+msgstr "金額 %(a)s–%(b)s 無基礎規則對應（可能解析不到簽核人）。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_authority_matrix.py:0
+msgid "金額 %s 以上無基礎規則對應。"
+msgstr "金額 %s 以上無基礎規則對應。"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__amount_max
+msgid "金額 <"
+msgstr "金額 <"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__amount_min
+msgid "金額 ≥"
+msgstr "金額 ≥"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "金額/類別/部門 → 簽核人；DMN 決策表的垂直切片，已可用"
+msgstr "金額/類別/部門 → 簽核人；DMN 決策表的垂直切片，已可用"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__amount_field
+msgid "金額欄位"
+msgstr "金額欄位"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_form
+msgid ""
+"金額：<b>金額 ≥ 下界</b> 且 <b>金額 &lt; 上界</b>（上界 0＝無上限）；\n"
+"                                類別/部門留空＝不限。Collect＝全部命中列的簽核人會簽。"
+msgstr ""
+"金額：<b>金額 ≥ 下界</b> 且 <b>金額 &lt; 上界</b>（上界 0＝無上限）；\n"
+"                                類別/部門留空＝不限。Collect＝全部命中列的簽核人會簽。"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_process_instance_form
+msgid "開啟單據"
+msgstr "開啟單據"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_definitions_form
+msgid "開啟決策編輯器"
+msgstr "開啟決策編輯器"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_executable_process_form
+msgid "開啟簽核設定編輯器"
+msgstr "開啟簽核設定編輯器"
+
+#. module: dobtor_approval
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_node_config__node_type__start
+msgid "開始"
+msgstr "開始"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_delegation__date_start
+msgid "開始日期"
+msgstr "開始日期"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_action_gate_form
+msgid "閘門名稱"
+msgstr "閘門名稱"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__node_name
+msgid "關卡"
+msgstr "關卡"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__name
+msgid "關卡/說明"
+msgstr "關卡/說明"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "關卡名稱"
+msgstr "關卡名稱"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_authority_matrix_preview_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_dmn_decision_preview_form
+msgid "關閉"
+msgstr "關閉"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「Action 攔截閘門」"
+msgstr "需先啟用「Action 攔截閘門」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「DMN 決策表編輯器」與「Action 攔截閘門」"
+msgstr "需先啟用「DMN 決策表編輯器」與「Action 攔截閘門」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「受限調色盤」"
+msgstr "需先啟用「受限調色盤」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「單據欄位簽核人解析」"
+msgstr "需先啟用「單據欄位簽核人解析」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「會簽 / 依序簽核」"
+msgstr "需先啟用「會簽 / 依序簽核」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「條件分歧」"
+msgstr "需先啟用「條件分歧」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「視覺流程編輯器」"
+msgstr "需先啟用「視覺流程編輯器」"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「視覺流程編輯器」；前端 palette 整合為 roadmap"
+msgstr "需先啟用「視覺流程編輯器」；前端 palette 整合為 roadmap"
+
+#. module: dobtor_approval
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.res_config_settings_view_form_bpmn
+msgid "需先啟用「送審生命週期」"
+msgstr "需先啟用「送審生命週期」"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_requirement__req_type
+msgid "需求型別"
+msgstr "需求型別"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_definitions__requirement_ids
+msgid "需求邊"
+msgstr "需求邊"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.js:0
+msgid "預覽失敗：%s"
+msgstr "預覽失敗：%s"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "預覽走訪"
+msgstr "預覽走訪"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__default_value
+msgid "預設值 (FEEL)"
+msgstr "預設值 (FEEL)"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix_line__category_value
+msgid "類別 ="
+msgstr "類別 ="
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_authority_matrix__category_field
+msgid "類別欄位"
+msgstr "類別欄位"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_input__label
+#: model:ir.model.fields,field_description:dobtor_approval.field_dmn_decision_table_output__label
+msgid "顯示名"
+msgstr "顯示名"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+#: code:addons/dobtor_approval/static/src/gate/approval_bar.xml:0
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_activity_link__decision__rejected
+#: model:ir.model.fields.selection,name:dobtor_approval.selection__bpmn_process_instance__state__rejected
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_activity_link_form
+#: model_terms:ir.ui.view,arch_db:dobtor_approval.view_bpmn_reject_wizard_form
+msgid "駁回"
+msgstr "駁回"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__destination
+msgid "駁回去向"
+msgstr "駁回去向"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_activity_link__reject_to_element
+msgid "駁回去向節點"
+msgstr "駁回去向節點"
+
+#. module: dobtor_approval
+#: model:ir.model.fields,field_description:dobtor_approval.field_bpmn_reject_wizard__reason
+msgid "駁回理由"
+msgstr "駁回理由"
+
+#. module: dobtor_approval
+#: model:ir.model,name:dobtor_approval.model_bpmn_reject_wizard
+msgid "駁回簽核事件"
+msgstr "駁回簽核事件"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "點選流程圖上的節點以設定簽核控制項。"
+msgstr "點選流程圖上的節點以設定簽核控制項。"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "（加簽後續簽）"
+msgstr "（加簽後續簽）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_escalate_wizard.py:0
+msgid "（加簽）"
+msgstr "（加簽）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/res_config_settings.py:0
+msgid "（另開 %s 項越級/專家能力）"
+msgstr "（另開 %s 項越級/專家能力）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "（存檔後才有可試算的決策）"
+msgstr "（存檔後才有可試算的決策）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/models/bpmn_activity_link.py:0
+msgid "（已由 %s 收回）"
+msgstr "（已由 %s 收回）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_lateral_wizard.py:0
+msgid "（徵詢）"
+msgstr "（徵詢）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/fields/method_select.xml:0
+msgid "（手動輸入…）"
+msgstr "（手動輸入…）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/fields/method_select.xml:0
+msgid "（手動）"
+msgstr "（手動）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "（按試算顯示）"
+msgstr "（按試算顯示）"
+
+#. module: dobtor_approval
+#. odoo-python
+#: code:addons/dobtor_approval/wizards/bpmn_lateral_wizard.py:0
+msgid "（會辦）"
+msgstr "（會辦）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "（未啟用時，產生後發佈會被擋；可先到「設定」開啟）"
+msgstr "（未啟用時，產生後發佈會被擋；可先到「設定」開啟）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/components/flow_wizard/flow_wizard.xml:0
+msgid "（解析不到簽核人）"
+msgstr "（解析不到簽核人）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/dmn_editor/dmn_editor.xml:0
+msgid "（試算申請人…）"
+msgstr "（試算申請人…）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "（非草稿，唯讀；如需修改請先在流程上「設為草稿」）"
+msgstr "（非草稿，唯讀；如需修改請先在流程上「設為草稿」）"
+
+#. module: dobtor_approval
+#. odoo-javascript
+#: code:addons/dobtor_approval/static/src/editor/process_editor.xml:0
+msgid "）暫無可設定的簽核控制項。"
+msgstr "）暫無可設定的簽核控制項。"
