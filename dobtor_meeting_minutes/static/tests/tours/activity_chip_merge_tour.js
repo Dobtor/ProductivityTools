@@ -19,7 +19,7 @@ registry.category("web_tour.tours").add("dobtor_activity_chip_merge_tour", {
     url: "/odoo",
     steps: () => [
         ...stepUtils.goToAppSteps(
-            "dobtor_mail_activity.menu_notebook_root",
+            "dobtor_meeting_minutes.menu_notebook_root",
             "開啟個人筆記 App"
         ),
         {

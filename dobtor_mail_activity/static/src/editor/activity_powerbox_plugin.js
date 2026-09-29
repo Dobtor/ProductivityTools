@@ -8,9 +8,9 @@
  *   - 活動清單：在頁面內插入一個「即時內嵌活動清單」區塊（embedded component）。
  *
  * 依情境決定關聯（與後端 wizard 預設一致）：
- *   - 在 note.note 內：清單綁 note_id、wizard note_id 預設此筆記。
- *   - 在業務記錄內：清單綁 res_id、wizard target 預設此記錄、note_id 預設個人筆記。
- *   - 無對應記錄：綁個人待辦筆記。
+ *   - 在 note.note 內（需 dobtor_meeting_minutes）：清單綁本筆記、wizard 的關聯筆記預設此筆記。
+ *   - 在業務記錄內：清單綁 res_id、wizard target 預設此記錄。
+ *   - 無對應記錄：綁目前使用者的獨立待辦。
  */
 import { Plugin } from "@html_editor/plugin";
 import { _t } from "@web/core/l10n/translation";
@@ -153,7 +153,7 @@ export class ActivityPowerboxPlugin extends Plugin {
 
     /** 指令①：建立待辦 —— 摘要取自「/」之前整段文字。
      *  依需求：powerbox 一律顯示 target 輸入、不帶入當前 res（不傳 active_model）；
-     *  但若在 note.note 內，帶入當前 note_id（活動以 note_id 關聯本筆記）。 */
+     *  但若在 note.note 內，以 default_note_id 帶入當前筆記（欄位由 dobtor_meeting_minutes 提供）。 */
     openCreateTodoWizard() {
         const selection = this.dependencies.selection.getEditableSelection();
         const block = closestBlock(selection.anchorNode);

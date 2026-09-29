@@ -19,7 +19,7 @@ class MailActivityDoneWizard(models.TransientModel):
 
     # 待辦資訊（activity_id / summary / activity_type_name / date_deadline /
     # planned_date / estimated_hours / urgency / importance / assignee_id /
-    # res_display / note_id）由 mail.activity.action.wizard.mixin 提供。
+    # res_display）由 mail.activity.action.wizard.mixin 提供（note_id 由 dobtor_meeting_minutes 擴充）。
 
     # ===== 完成資訊 =====
     feedback = fields.Text(

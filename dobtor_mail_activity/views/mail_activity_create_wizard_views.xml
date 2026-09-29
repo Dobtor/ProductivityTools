@@ -76,8 +76,6 @@
                                placeholder="Leave empty for a standalone to-do"/>
                         <field name="res_display" string="Related Document"
                                readonly="1" invisible="not res_known"/>
-                        <field name="note_id"
-                               options="{'no_create': True}"/>
                     </group>
                 </group>
 

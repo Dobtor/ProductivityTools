@@ -17,7 +17,7 @@ registry.category("command_categories").add("dobtor-activity", {}, { sequence: 1
  *
  * Features:
  * - Alt+Shift+A: Quick create new activity
- * - Alt+Shift+N: Quick create new note
+ * （Alt+Shift+N 新增筆記在 dobtor_meeting_minutes）
  */
 patch(ActivityMenu.prototype, {
     setup() {
@@ -38,20 +38,6 @@ patch(ActivityMenu.prototype, {
                 global: true,
             }
         );
-
-        // Global hotkey Alt+Shift+N: Add new note
-        useCommand(
-            _t("New Note"),
-            () => {
-                document.body.click(); // Close command palette
-                this.createNote();
-            },
-            {
-                category: "dobtor-activity",
-                hotkey: "alt+shift+n",
-                global: true,
-            }
-        );
     },
 
     /**
@@ -61,20 +47,6 @@ patch(ActivityMenu.prototype, {
         // 統一走「建立待辦」wizard（無目標文件 → 顯示 target 輸入）
         await openActivityWizard(this.actionService, ACTIVITY_WIZARDS.create, {
             default_activity_user_id: user.userId,
-        });
-    },
-
-    /**
-     * Create a new note via quick action
-     */
-    async createNote() {
-        await this.actionService.doAction({
-            type: "ir.actions.act_window",
-            name: _t("New Note"),
-            res_model: "note.note",
-            view_mode: "form",
-            views: [[false, "form"]],
-            target: "new",
         });
     },
 });

@@ -18,53 +18,20 @@ class TestActivityMerge(TransactionCase):
             'name': 'Merge Test Type',
             'category': 'default',
         })
-        cls.note_a = cls.env['note.note'].create({'memo': '<p>Note A</p>'})
-        cls.note_b = cls.env['note.note'].create({'memo': '<p>Note B</p>'})
-        cls.note_model_id = cls.env['ir.model']._get('note.note').id
+        cls.target = cls.env['res.partner'].create({'name': 'Merge target'})
+        cls.target_model_id = cls.env['ir.model']._get('res.partner').id
 
     def _make(self, summary, **vals):
         base = {
             'summary': summary,
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.note_model_id,
-            'res_id': self.note_a.id,
+            'res_model_id': self.target_model_id,
+            'res_id': self.target.id,
             'date_deadline': date.today(),
             'user_id': self.env.user.id,
         }
         base.update(vals)
         return self.Activity.create(base)
-
-    # ===== 不變式：note_id 必為 note_ids 成員 =====
-
-    def test_01_note_id_joins_note_ids_on_create(self):
-        act = self._make('with source note', note_id=self.note_a.id)
-        self.assertIn(self.note_a, act.note_ids,
-                      'create 應自動把 note_id 併入 note_ids')
-
-    def test_02_note_id_joins_note_ids_on_write(self):
-        act = self._make('no note yet')
-        act.write({'note_id': self.note_b.id})
-        self.assertIn(self.note_b, act.note_ids,
-                      'write 應自動把 note_id 併入 note_ids')
-
-    def test_03_constraint_rejects_broken_invariant(self):
-        act = self._make('constrained', note_id=self.note_a.id)
-        with self.assertRaises(ValidationError):
-            # 直接清空 note_ids 會讓 note_id 落單
-            act.write({'note_ids': [(5, 0, 0)]})
-
-    # ===== 合併規則 =====
-
-    def test_04_merge_unions_notes(self):
-        master = self._make('master', note_id=self.note_a.id)
-        source = self._make('source', note_id=self.note_b.id)
-        (master | source).action_merge(master)
-
-        self.assertIn(self.note_a, master.note_ids)
-        self.assertIn(self.note_b, master.note_ids,
-                      '被併入者的筆記應併進主待辦')
-        self.assertEqual(source.note_ids, self.note_b,
-                         '來源自己的 note_ids 保留不動，解除合併才回得去')
 
     def test_05_merge_archives_source_and_sets_pointer(self):
         master = self._make('master')
@@ -151,20 +118,6 @@ class TestActivityMerge(TransactionCase):
         self.assertEqual(entry['id'], act.id)
         self.assertFalse(entry['redirected_from'])
 
-    def test_13_chips_in_note_memo_are_rewritten(self):
-        master = self._make('master')
-        source = self._make('source', note_id=self.note_b.id)
-        self.note_b.memo = (
-            '<p>before<span data-embedded-props=\'{"activityId": %d}\' '
-            'data-embedded="activityChip"></span>after</p>' % source.id
-        )
-        (master | source).action_merge(master)
-
-        self.assertIn('"activityId": %d' % master.id, self.note_b.memo,
-                      '筆記內的膠囊應就地改寫成主待辦')
-        self.assertIn('before', self.note_b.memo)
-        self.assertIn('after', self.note_b.memo, '其餘內容應保留')
-
     # ===== 解除合併 =====
 
     def test_14_unmerge_restores(self):
@@ -241,8 +194,6 @@ class TestActivityMergeAccess(TransactionCase):
         cls.activity_type = cls.env['mail.activity.type'].create({
             'name': 'Access Test Type', 'category': 'default',
         })
-        cls.note = cls.env['note.note'].create({'memo': '<p>n</p>'})
-        cls.note_model_id = cls.env['ir.model']._get('note.note').id
         cls.alice = cls.env['res.users'].create({
             'name': 'Alice', 'login': 'merge_alice',
             'groups_id': [(6, 0, [cls.env.ref('base.group_user').id])],
@@ -256,7 +207,6 @@ class TestActivityMergeAccess(TransactionCase):
         return self.env['mail.activity'].with_user(user).create({
             'summary': summary,
             'activity_type_id': self.activity_type.id,
-            # 獨立待辦：note 屬 admin 個人，alice/bob 無權在其上建待辦（與合併權限無關）
             'date_deadline': date.today(),
             'user_id': (assignee or user).id,
         })

@@ -1,21 +1,18 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Advanced Activity Management',
-    'version': '18.0.2.0.0',
+    'version': '18.0.3.0.0',
     'category': 'Productivity',
-    'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
+    'summary': 'Advanced activity management: activities, weekly reports and efficiency analytics',
     'description': """
 Advanced Activity Management (Productivity Tool)
 =================================================
-Complete activity management system integrating mail.activity + note.note
+Complete activity management system built on mail.activity
 
 Main Features:
 --------------
-* Note Features
-  - Archive mechanism
-  - Related display (CRM/Task)
-  - Activity integration
-  - Hierarchical tags
+* Notes (note.note) now live in dobtor_meeting_minutes, which depends on
+  this module and adds the activity ↔ note integration.
 
 * Activity Assignment
   - Assignment filters (assigned by me/assigned to me/all)
@@ -69,7 +66,6 @@ Main Features:
         # Data
         'data/mail_activity_data.xml',
         'data/mail_activity_transfer_config_data.xml',
-        'data/note_data.xml',
         'data/cron_data.xml',
         # Wizards
         'views/wizard_views.xml',
@@ -80,15 +76,11 @@ Main Features:
         'views/mail_activity_type_views.xml',
         'views/mail_activity_schedule_views.xml',
         'views/mail_activity_transfer_config_views.xml',
-        'views/note_tag_views.xml',
-        'views/note_stage_views.xml',
-        'views/note_views.xml',
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
         'views/res_users_views.xml',
         'views/res_config_settings_views.xml',
         'views/weekly_schedule_config_views.xml',
-        'views/calendar_event_views.xml',
         'views/menu_views.xml',
     ],
     'assets': {
@@ -101,8 +93,6 @@ Main Features:
             'dobtor_mail_activity/static/src/core/**/*',
             # Shared utilities
             'dobtor_mail_activity/static/src/utils/**/*',
-            # Components
-            'dobtor_mail_activity/static/src/components/**/*',
             # Views
             'dobtor_mail_activity/static/src/views/**/*',
             # System integration (patches)
@@ -122,5 +112,4 @@ Main Features:
     'auto_install': False,
     'application': True,
     'license': 'LGPL-3',
-    'post_init_hook': '_post_init_hook',
 }

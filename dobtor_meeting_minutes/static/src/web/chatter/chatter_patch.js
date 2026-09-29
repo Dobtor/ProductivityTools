@@ -1,7 +1,7 @@
 /** @odoo-module */
 
 import { Chatter } from "@mail/chatter/web_portal/chatter";
-import { RelatedNotes } from "@dobtor_mail_activity/components/related_notes/related_notes";
+import { RelatedNotes } from "@dobtor_meeting_minutes/components/related_notes/related_notes";
 
 /**
  * Chatter Patch - 添加關聯筆記顯示

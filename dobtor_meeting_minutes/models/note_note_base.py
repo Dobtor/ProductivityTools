@@ -56,17 +56,6 @@ class NoteNote(models.Model):
         ('note', 'Note'),
     ], string='Type', default='note', tracking=True)
 
-    # ===== 會議記錄 =====
-    # 由日曆事件 popover 的「會議記錄」按鈕建立（見 models/calendar_event.py）。
-    # set null 而非 cascade：會議被刪除後，記錄本身仍有保存價值。
-    calendar_event_id = fields.Many2one(
-        'calendar.event',
-        string='Meeting',
-        index=True,
-        ondelete='set null',
-        help='Calendar event these meeting minutes belong to.',
-    )
-
     # ===== 階段欄位 =====
     stage_id = fields.Many2one(
         'note.stage',
@@ -217,6 +206,40 @@ class NoteNote(models.Model):
                 lambda stage: stage.user_id != new_stage.user_id
             )
             note.stage_ids = [Command.set((new_stage | kept).ids)]
+
+    @api.model
+    def _recompute_owner_stages(self):
+        """修正「階段不屬於擁有者」的既有筆記（冪等）。
+
+        舊版 stage_id 以建立者計算並 store（cron 代建的週筆記存成 OdooBot 的階段
+        → 擁有者開「個人筆記」AccessError）。原本由 dobtor_mail_activity 18.0.1.9.0
+        的 migration 修正；筆記搬到本模組後，跨版升級時那支已無法執行，改由本模組
+        的 migration 與 post-init hook 呼叫這裡。
+        """
+        self.env.cr.execute("""
+            SELECT n.id
+              FROM note_note n
+              LEFT JOIN note_stage s ON s.id = n.stage_id
+             WHERE n.user_id IS NOT NULL
+               AND (s.id IS NULL OR s.user_id IS DISTINCT FROM n.user_id)
+        """)
+        notes = self.with_context(active_test=False).browse([r[0] for r in self.env.cr.fetchall()])
+        if notes:
+            self.env.add_to_compute(self._fields['stage_id'], notes)
+            notes.flush_recordset(['stage_id'])
+        return len(notes)
+
+    @api.model
+    def _recompute_calendar_note_counts(self):
+        """重算 calendar.event.note_count（stored）。舊版 note.calendar_event_id 的
+        關聯由 dobtor_mail_activity 的 migration 以 SQL 補進多對多表，不會觸發重算。"""
+        self.env.cr.execute("SELECT DISTINCT event_id FROM calendar_event_note_rel")
+        events = self.env['calendar.event'].with_context(active_test=False).browse(
+            [r[0] for r in self.env.cr.fetchall()])
+        if events:
+            self.env.add_to_compute(self.env['calendar.event']._fields['note_count'], events)
+            events.flush_recordset(['note_count'])
+        return len(events)
 
     # ===== 預設值方法 =====
     def _get_default_stage_id(self):

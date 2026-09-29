@@ -14,40 +14,6 @@
               sequence="24"/>
 
     <!-- ============================================================ -->
-    <!-- 筆記本（第一層選單）                                            -->
-    <!-- ============================================================ -->
-    <menuitem id="menu_notebook_root"
-              name="Personal Notes"
-              web_icon="dobtor_mail_activity,static/description/icon.png"
-              action="action_note_only"
-              sequence="25"/>
-
-    <menuitem id="menu_note_notes"
-              name="All Notes"
-              parent="menu_notebook_root"
-              action="action_note_note"
-              sequence="10"/>
-
-    <!-- 筆記設定 -->
-    <menuitem id="menu_notebook_configuration"
-              name="Settings"
-              parent="menu_notebook_root"
-              sequence="90"
-              groups="dobtor_mail_activity.group_activity_manager"/>
-
-    <menuitem id="menu_note_stage"
-              name="Note Stages"
-              parent="menu_notebook_configuration"
-              action="action_note_stage"
-              sequence="10"/>
-
-    <menuitem id="menu_note_tag"
-              name="Note Tags"
-              parent="menu_notebook_configuration"
-              action="action_note_tag"
-              sequence="20"/>
-
-    <!-- ============================================================ -->
     <!-- 待認領的待辦 - 所有人可見                                       -->
     <!-- ============================================================ -->
     <menuitem id="menu_mail_activity_unassigned"

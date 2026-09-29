@@ -5,7 +5,7 @@
     <!-- Calendar Popover Footer Extension                             -->
     <!-- 日曆 Popover 頁腳擴展 - 增加會議記錄功能按鈕                    -->
     <!-- ============================================================ -->
-    <t t-name="dobtor_mail_activity.AttendeeCalendarCommonPopover.footer"
+    <t t-name="dobtor_meeting_minutes.AttendeeCalendarCommonPopover.footer"
        t-inherit="calendar.AttendeeCalendarCommonPopover.footer"
        t-inherit-mode="extension">
 

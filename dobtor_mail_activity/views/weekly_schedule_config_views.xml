@@ -33,8 +33,6 @@
                     <group>
                         <group name="target" string="Related Document">
                             <field name="target_model"/>
-                            <field name="note_id" invisible="target_model != 'note.note'"/>
-                            <field name="auto_create_note" invisible="target_model != 'note.note'"/>
                         </group>
                         <group name="content" string="Content Settings">
                             <field name="summary_template"/>

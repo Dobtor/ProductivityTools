@@ -73,25 +73,12 @@ class WeeklyScheduleConfig(models.Model):
         help='Deadline = Schedule Day + Offset Days. 0 means due on the same day.',
     )
 
+    # 「筆記」選項（note.note）由 dobtor_meeting_minutes 以 selection_add 擴充
     target_model = fields.Selection([
-        ('note.note', 'Note'),
         ('res.users', 'User'),
         ('weekly.report', 'Weekly Report'),
     ], string='Target Document Type', default='res.users', required=True,
        help='Activity will be linked to this type of document')
-
-    note_id = fields.Many2one(
-        'note.note',
-        string='Specified Note',
-        domain="[('user_id', '=', user_id)]",
-        help='When target document type is "Note", specify the note to link',
-    )
-
-    auto_create_note = fields.Boolean(
-        string='Auto Create Note',
-        default=False,
-        help='When target document type is "Note" and no note is specified, automatically create a new note',
-    )
 
     summary_template = fields.Char(
         string='Summary Template',
@@ -141,15 +128,6 @@ class WeeklyScheduleConfig(models.Model):
             else:
                 record.name = _('Weekly Schedule')
 
-    # ========== Onchange Methods ==========
-
-    @api.onchange('target_model')
-    def _onchange_target_model(self):
-        """當關聯文件類型變更時，清除筆記本選擇"""
-        if self.target_model != 'note.note':
-            self.note_id = False
-            self.auto_create_note = False
-
     # ========== Business Methods ==========
 
     def action_create_activity_now(self):
@@ -178,27 +156,6 @@ class WeeklyScheduleConfig(models.Model):
 
         if self.target_model == 'res.users':
             return ('res.users', self.user_id.id)
-
-        elif self.target_model == 'note.note':
-            if self.note_id:
-                return ('note.note', self.note_id.id)
-            elif self.auto_create_note:
-                # 自動建立筆記本
-                today = fields.Date.today()
-                iso_year, iso_week, _dow = today.isocalendar()
-                week_str = '%d-W%02d' % (iso_year, iso_week)
-                note = self.env['note.note'].create({
-                    'user_id': self.user_id.id,
-                    'memo': _('<p>Weekly Schedule - %(week)s</p><p>This week work plan</p>', week=week_str),
-                })
-                return ('note.note', note.id)
-            else:
-                # 沒有指定筆記本，使用用戶
-                _logger.warning(
-                    'Weekly schedule config %s: no note specified, falling back to user.',
-                    self.id
-                )
-                return ('res.users', self.user_id.id)
 
         elif self.target_model == 'weekly.report':
             # 找到或建立本週的週報告

@@ -117,15 +117,19 @@ class TestWeeklyScheduleConfig(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = cls.env.ref('base.user_demo')
+        # 每位使用者只能有一份配置 → 用獨立使用者，不受既有資料影響
+        cls.user = cls.env['res.users'].create({
+            'name': 'Schedule Config User', 'login': 'schedule_config_user',
+            'groups_id': [(6, 0, [cls.env.ref('base.group_user').id])],
+        })
 
     def test_01_create_config(self):
         """測試建立排程配置"""
         config = self.env['weekly.schedule.config'].create({
             'user_id': self.user.id,
-            'auto_create_note': True,
+            'target_model': 'res.users',
             'schedule_day': '0',  # 週一
         })
 
         self.assertTrue(config.id)
-        self.assertTrue(config.auto_create_note)
+        self.assertEqual(config._get_target_record(), ('res.users', self.user.id))

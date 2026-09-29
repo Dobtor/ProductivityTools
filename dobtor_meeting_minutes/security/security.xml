@@ -2,6 +2,64 @@
 <odoo>
     <data noupdate="1">
 
+        <!-- 筆記（note.note / note.stage）記錄規則：自 dobtor_mail_activity 搬入 -->
+        <!-- ==========================================
+             note.note 記錄規則
+             ========================================== -->
+
+        <!-- 用戶只能存取自己的筆記 -->
+        <record id="note_note_rule_user" model="ir.rule">
+            <field name="name">Note: User Access Own Notes Only</field>
+            <field name="model_id" ref="model_note_note"/>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 管理者可存取所有筆記 -->
+        <record id="note_note_rule_manager" model="ir.rule">
+            <field name="name">Note: Manager Access All Notes</field>
+            <field name="model_id" ref="model_note_note"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- ==========================================
+             note.stage 記錄規則
+             ========================================== -->
+
+        <!-- 用戶只能存取自己的階段 -->
+        <record id="note_stage_rule_user" model="ir.rule">
+            <field name="name">Note Stage: User Access Own Stages Only</field>
+            <field name="model_id" ref="model_note_stage"/>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 管理者可存取所有階段 -->
+        <record id="note_stage_rule_manager" model="ir.rule">
+            <field name="name">Note Stage: Manager Access All Stages</field>
+            <field name="model_id" ref="model_note_stage"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('dobtor_mail_activity.group_activity_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+
         <!-- ============================================================ -->
         <!-- note.signature Record Rules                                   -->
         <!-- ============================================================ -->
@@ -133,7 +191,7 @@
         <!-- ============================================================ -->
         <record id="note_note_rule_portal" model="ir.rule">
             <field name="name">note.note: portal own meetings</field>
-            <field name="model_id" ref="dobtor_mail_activity.model_note_note"/>
+            <field name="model_id" ref="model_note_note"/>
             <field name="domain_force">[
                 '&amp;',
                 ('note_type', '=', 'meeting'),

@@ -23,9 +23,9 @@ class MailActivityCreateWizard(models.TransientModel):
       - 未知：res_known=False，顯示 target_ref 輸入；留空 → 建立無關聯的
         獨立待辦（需求七：不再 fallback 預設個人筆記本）。
 
-    note_id 為獨立關聯，各情境皆可編輯。urgency / importance /
-    estimated_hours / note_id 透過 activity_schedule 的 **act_values 寫入
-    mail.activity（皆為本模組既有欄位）。
+    urgency / importance / estimated_hours 透過 activity_schedule 的
+    **act_values 寫入 mail.activity；其他模組以 _prepare_extra_activity_values
+    擴充（如 dobtor_meeting_minutes 的關聯筆記 note_id）。
     """
     _name = 'mail.activity.create.wizard'
     _inherit = 'mail.activity.schedule'
@@ -67,13 +67,7 @@ class MailActivityCreateWizard(models.TransientModel):
              'must be chosen instead of falling back to the personal note.',
     )
 
-    # ===== 獨立關聯筆記 =====
-    note_id = fields.Many2one(
-        'note.note',
-        string='Related Note',
-        help='Note whose to-do list will show this activity '
-             '(independent of the target document).',
-    )
+    # 關聯筆記 note_id 由 dobtor_meeting_minutes 擴充
 
     # ===== 來源訊息（由訊息建立時保留追蹤）=====
     source_message_id = fields.Many2one('mail.message', string='Source Message')
@@ -187,14 +181,6 @@ class MailActivityCreateWizard(models.TransientModel):
         # 需求七：未知情境不再回填預設筆記；未選 target_ref 即建立「獨立待辦」
         # （res 為空），由 _action_schedule_activities 直接建立 mail.activity。
 
-        # note_id 預設（來源參考）：僅在 context 明確帶入、或編輯 note.note 時帶入
-        if 'note_id' in fields_list and not res.get('note_id'):
-            note_id = ctx.get('default_note_id')
-            if note_id:
-                res['note_id'] = note_id
-            elif active_model == 'note.note' and active_id:
-                res['note_id'] = active_id
-
         # 待辦類型預設：待辦事項
         if 'activity_type_id' in fields_list and not res.get('activity_type_id'):
             todo = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
@@ -224,8 +210,6 @@ class MailActivityCreateWizard(models.TransientModel):
             'importance': self.importance,
             'estimated_hours': self.estimated_hours,
         }
-        if self.note_id:
-            act_values['note_id'] = self.note_id.id
         if self.source_message_id:
             act_values['source_message_id'] = self.source_message_id.id
         # 擴充欄位（如專案橋接的 project_id）；兩條建立路徑皆帶入
@@ -285,6 +269,6 @@ class MailActivityCreateWizard(models.TransientModel):
                 'activity_id': activity.id,
                 'res_model': activity.res_model,
                 'res_id': activity.res_id,
-                'note_id': activity.note_id.id,
+                'note_id': activity.note_id.id if 'note_id' in activity._fields else False,
             },
         }

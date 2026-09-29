@@ -16,6 +16,11 @@ def migrate(cr, version):
     if not version:
         return
     env = api.Environment(cr, SUPERUSER_ID, {'active_test': False})
+    # 18.0.3.0.0 起 note.note 由 dobtor_meeting_minutes 定義；跨版升級時本模組
+    # 載入當下 registry 沒有它 → 由 dobtor_meeting_minutes 的 18.0.3.0.0 migration
+    # 與 post-init hook（note.note._recompute_owner_stages）補做。
+    if 'note.note' not in env:
+        return
     Note = env['note.note']
     cr.execute("""
         SELECT n.id

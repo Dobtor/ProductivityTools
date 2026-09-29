@@ -265,17 +265,7 @@
                                    placeholder="Leave empty for a standalone to-do"/>
                             <field name="res_document_display" string="Related Document" readonly="1"
                                    invisible="not (res_model_id and res_id)"/>
-                            <field name="note_id"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
-                                   options="{'no_create': True}"/>
-                            <!-- 合併會把被併入者的筆記併進來，故可能多於一張；
-                                 note_id（來源）必定是其中一員 -->
-                            <field name="note_count" invisible="1"/>
-                            <field name="note_ids" widget="many2many_tags"
-                                   string="Referenced Notes"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
-                                   options="{'no_create': True}"
-                                   invisible="note_count &lt; 2"/>
+                            <!-- 來源參考／引用筆記由 dobtor_meeting_minutes 插入 -->
                         </group>
 
                         <!-- 排程資訊 -->
@@ -420,7 +410,6 @@
                 <field name="estimated_hours"/>
                 <field name="schedule_warning"/>
                 <field name="partner_id"/>
-                <field name="note_id"/>
                 <field name="postpone_count"/>
                 <field name="create_date"/>
                 <field name="create_uid"/>
@@ -485,13 +474,9 @@
                                 </div>
                             </div>
 
-                            <!-- 第三列：關聯資訊（筆記/文件/客戶）-->
-                            <!-- 不綁定特定模組：有筆記顯示筆記，否則顯示來源文件連結 -->
+                            <!-- 第三列：關聯資訊（文件/客戶；筆記由 dobtor_meeting_minutes 插入）-->
                             <div class="text-muted small mb-1">
-                                <span t-if="record.note_id.raw_value" class="me-2" title="Note">
-                                    <i class="fa fa-sticky-note-o text-warning"/> <field name="note_id"/>
-                                </span>
-                                <span t-if="!record.note_id.raw_value and record.res_document_display.raw_value">
+                                <span name="activity_document_link" t-if="record.res_document_display.raw_value">
                                     <a type="object" name="action_open_document" title="Open Document">
                                         <i class="fa fa-external-link"/> <field name="res_document_display"/>
                                     </a>
@@ -598,7 +583,6 @@
                 <field name="partner_id" optional="hide"/>
                 <field name="summary" string="Summary"/>
                 <field name="res_document_display" string="Related Document" optional="show"/>
-                <field name="note_id" optional="show"/>
                 <!-- 緊急/重要/排程 已於左側 search panel 篩選，清單表頭預設不再顯示（可由欄位選單開啟）-->
                 <field name="urgency" string="Urgency" widget="badge" optional="hide"
                        decoration-danger="urgency == 'urgent'"

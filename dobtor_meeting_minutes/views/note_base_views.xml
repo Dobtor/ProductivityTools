@@ -13,7 +13,7 @@
             <kanban default_group_by="stage_id"
                     class="o_kanban_small_column"
                     on_create="quick_create"
-                    quick_create_view="dobtor_mail_activity.view_note_note_quick_create"
+                    quick_create_view="dobtor_meeting_minutes.view_note_note_quick_create"
                     archivable="true"
                     sample="1">
                 <field name="color"/>

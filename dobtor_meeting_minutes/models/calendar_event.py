@@ -25,10 +25,14 @@ class CalendarEvent(models.Model):
     note_count = fields.Integer(
         string='Minutes Count',
         compute='_compute_note_count',
+        # 必須 store：日曆 popover 的「會議記錄」按鈕由 rawRecord 讀它
+        # （static/src/views/calendar_popover/）。
+        store=True,
     )
 
     # ===== 計算方法 =====
-    @api.depends('note_ids')
+    # stored：封存筆記也要重算（note_ids 只讀未封存者，與 action_view_notes 一致）
+    @api.depends('note_ids', 'note_ids.active')
     def _compute_note_count(self):
         """計算關聯筆記數量"""
         for event in self:

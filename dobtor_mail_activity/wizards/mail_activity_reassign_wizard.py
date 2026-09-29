@@ -91,10 +91,6 @@ class MailActivityReassignWizard(models.TransientModel):
             'transferred_from_id': activity.id,
         }
 
-        # 保留筆記關聯
-        if activity.note_id:
-            vals['note_id'] = activity.note_id.id
-
         # 保留來源訊息關聯
         if activity.source_message_id:
             vals['source_message_id'] = activity.source_message_id.id

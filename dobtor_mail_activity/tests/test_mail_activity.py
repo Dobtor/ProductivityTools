@@ -20,18 +20,15 @@ class TestMailActivity(TransactionCase):
             'category': 'default',
         })
 
-        # 建立測試用筆記（作為待辦目標）
-        cls.note = cls.env['note.note'].create({
-            'memo': '<p>測試筆記內容</p>',
-            'user_id': cls.user.id,
-        })
+        # 待辦目標文件（核心不含筆記，以聯絡人當目標）
+        cls.note = cls.env['res.partner'].create({'name': '待辦目標文件'})
 
     def test_01_create_activity(self):
         """測試建立待辦"""
         activity = self.env['mail.activity'].create({
             'summary': '測試待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
         })
@@ -46,7 +43,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '無指派人待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': False,
@@ -60,7 +57,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '緊急重要待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'urgency': 'urgent',
@@ -75,7 +72,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '排程測試',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'schedule_status': 'monday',
@@ -90,7 +87,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '待完成待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -108,7 +105,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '待取消待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
         })
@@ -126,7 +123,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '待恢復待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
         })
@@ -149,7 +146,7 @@ class TestMailActivity(TransactionCase):
         activity_this_week = self.env['mail.activity'].create({
             'summary': '本週待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': today,
             'planned_date': current_week_start,
@@ -161,7 +158,7 @@ class TestMailActivity(TransactionCase):
         activity_next_week = self.env['mail.activity'].create({
             'summary': '下週待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': today + timedelta(days=7),
             'planned_date': current_week_start + timedelta(days=7),
@@ -179,7 +176,7 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '指派測試',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -194,28 +191,12 @@ class TestMailActivity(TransactionCase):
         self.assertEqual(history.previous_user_id.id, self.user.id)
         self.assertEqual(history.new_user_id.id, user2.id)
 
-    def test_10_note_relation(self):
-        """測試筆記關聯"""
-        activity = self.env['mail.activity'].create({
-            'summary': '關聯筆記測試',
-            'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
-            'res_id': self.note.id,
-            'date_deadline': date.today(),
-            'note_id': self.note.id,
-        })
-
-        self.assertEqual(activity.note_id.id, self.note.id)
-
-        # 檢查筆記的待辦計數（透過 note_id 關聯）
-        self.assertGreaterEqual(self.note.note_activity_count, 1)
-
     def test_11_estimated_hours(self):
         """測試工時相關欄位"""
         activity = self.env['mail.activity'].create({
             'summary': '工時測試',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'estimated_hours': 2.5,
@@ -246,21 +227,20 @@ class TestMailActivity(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '待轉移待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
-            'note_id': self.note.id,
         })
 
         # 確認初始狀態
         self.assertFalse(activity.is_transferred)
-        self.assertEqual(activity.res_model, 'note.note')
+        self.assertEqual(activity.res_model, 'res.partner')
         self.assertEqual(activity.res_id, self.note.id)
 
         # 使用 wizard 轉移
         wizard = self.env['mail.activity.transfer.wizard'].create({
             'activity_id': activity.id,
-            'source_model': 'note.note',
+            'source_model': 'res.partner',
             'source_id': self.note.id,
             'target_ref': f'res.partner,{partner.id}',
         })
@@ -270,42 +250,16 @@ class TestMailActivity(TransactionCase):
         self.assertTrue(activity.is_transferred)
         self.assertEqual(activity.res_model, 'res.partner')
         self.assertEqual(activity.res_id, partner.id)
-        self.assertEqual(activity.transferred_from_model, 'note.note')
+        self.assertEqual(activity.transferred_from_model, 'res.partner')
         self.assertEqual(activity.transferred_from_id, self.note.id)
-        self.assertEqual(activity.note_id.id, self.note.id)  # note_id 應保留
         self.assertEqual(activity.schedule_origin, 'transferred')
-
-    def test_14_get_related_notes(self):
-        """測試取得關聯筆記 API"""
-        # 建立目標文件
-        partner = self.env['res.partner'].create({
-            'name': '測試客戶',
-        })
-
-        # 建立筆記待辦並轉移
-        activity = self.env['mail.activity'].create({
-            'summary': '筆記關聯待辦',
-            'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('res.partner').id,
-            'res_id': partner.id,
-            'date_deadline': date.today(),
-            'note_id': self.note.id,
-        })
-
-        # 取得關聯筆記
-        notes = self.env['mail.activity'].get_related_notes('res.partner', partner.id)
-
-        self.assertEqual(len(notes), 1)
-        self.assertEqual(notes[0]['id'], self.note.id)
-        self.assertEqual(notes[0]['total_count'], 1)
-        self.assertEqual(notes[0]['active_count'], 1)
 
     def test_15_continue_new_activity(self):
         """已完成待辦『延續新增待辦』：開建立精靈並帶入標題/類型/關聯"""
         activity = self.env['mail.activity'].create({
             'summary': '母待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'partner_id': self.partner.id,
@@ -321,5 +275,5 @@ class TestMailActivity(TransactionCase):
         self.assertEqual(ctx['default_activity_type_id'], self.activity_type.id)
         self.assertEqual(ctx['default_partner_id'], self.partner.id)
         # 關聯文件以 active_model/id 帶入（新精靈視為已知目標）
-        self.assertEqual(ctx['active_model'], 'note.note')
+        self.assertEqual(ctx['active_model'], 'res.partner')
         self.assertEqual(ctx['active_id'], self.note.id)

@@ -2,7 +2,8 @@
 
 ## 概述
 
-`dobtor_mail_activity` 是一個整合待辦管理、筆記本、週報告與效率分析的完整生產力管理系統，專為 Odoo 18 設計。
+`dobtor_mail_activity` 是一個整合待辦管理、週報告與效率分析的生產力管理系統，專為 Odoo 18 設計。
+筆記（個人筆記 App、會議記錄）在 `dobtor_meeting_minutes`（相依本模組）。
 
 ## 功能特色
 
@@ -24,11 +25,11 @@
 - **訊息/編輯器整合**：從 Discuss 訊息建立待辦（自動帶入客戶公司）、
   富文字編輯器 powerbox 與內嵌待辦清單
 
-### 筆記本功能
-- **自建 note 模組**：替代 Odoo 18 已移除的 note 模組
-- **看板管理**：支援個人化的階段設定
-- **標籤分類**：階層式標籤管理
-- **待辦整合**：筆記可關聯多個待辦
+### 筆記（18.0.3.0.0 起移至 `dobtor_meeting_minutes`）
+`note.note` / `note.stage` / `note.tag`、「個人筆記」App、待辦的「參考來源／引用筆記」、
+chatter 相關筆記、合併時改寫筆記膠囊、週排程自動建立週筆記、Alt+Shift+N 新增筆記，
+全部由 `dobtor_meeting_minutes` 提供。本模組的編輯器內嵌待辦對任何 HTML 欄位有效；
+在筆記內使用時，「引用本筆記」的待辦由該模組擴充列出。
 
 ### 週報告功能
 - **週計畫快照**：記錄每週開始時的計畫狀態
@@ -54,7 +55,8 @@
 
 | 模組 | 相依 | 安裝方式 | 內容 |
 |---|---|---|---|
-| `dobtor_mail_activity` | mail, calendar, portal, hr | 手動 | 待辦、筆記、週報、效率分析、關聯圖（無專案時以客戶為根）、自有「待辦事項」App |
+| `dobtor_mail_activity` | mail, calendar, portal, hr | 手動 | 待辦、週報、效率分析、關聯圖（無專案時以客戶為根）、自有「待辦事項」App |
+| `dobtor_meeting_minutes` | 核心 + calendar + portal | 手動（升級核心時若未裝會自動安裝，以保留既有筆記） | 筆記、會議記錄、待辦↔筆記整合 |
 | `dobtor_mail_activity_project` | 核心 + project + project_todo + hr_timesheet | **自動**（裝了工時表即安裝） | 待辦的專案欄位、完成時登錄工時、事後「登錄工時」補登、預設工時專案、隱藏 project_todo 的同名 App |
 | `dobtor_mail_activity_crm` | 專案橋接 + crm + sale_crm | **自動** | 商機的專案、建立專案、銷售訂單回寫商機專案、商機待辦以商機專案登錄工時 |
 
@@ -69,9 +71,6 @@
 | `mail.activity.assignment.history` | 指派歷史 |
 | `mail.activity.postpone.history` | 延期歷史 |
 | `mail.activity.transfer.config` | 轉移目標配置 |
-| `note.note` | 筆記本 |
-| `note.stage` | 筆記階段 |
-| `note.tag` | 筆記標籤 |
 | `weekly.report` | 週報告 |
 | `weekly.report.snapshot.line` | 計畫快照明細 |
 | `weekly.report.review.line` | 執行回顧明細 |
@@ -91,7 +90,7 @@
 | 快捷鍵 | 功能 |
 |--------|------|
 | `Alt+Shift+A` | 新增待辦 |
-| `Alt+Shift+N` | 新增筆記 |
+| `Alt+Shift+N` | 新增筆記（需 `dobtor_meeting_minutes`） |
 
 ### 週天排程
 
@@ -124,7 +123,7 @@
 | `models/mail_activity_merge.py` | `unlink` | 同上 | 18.0 | 低 — 呼叫 `super()` |
 | `models/res_users.py` | `_get_activity_groups` | `mail/models/res_users.py` | 18.0 | 中 — 系統匣待辦分組，另行併入獨立待辦 |
 | `dobtor_mail_activity_crm/models/crm_lead.py` | `create` / `write` | `crm/models/crm_lead.py` | 18.0 | 低 |
-| `models/note_note.py` | `name_create` | — | 18.0 | 低 |
+| `dobtor_meeting_minutes/models/note_note_base.py` | `name_create` | — | 18.0 | 低 |
 | `models/weekly_report.py`、四個 wizard | `default_get` | — | 18.0 | 低 |
 
 ### 前端：patch core 元件
@@ -159,7 +158,7 @@
 
 ## 版本資訊
 
-- **版本**：18.0.2.0.0
+- **版本**：18.0.3.0.0
 - **相容性**：Odoo 18
 - **授權**：LGPL-3
 

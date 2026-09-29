@@ -242,9 +242,6 @@
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="note_id"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
-                                   options="{'no_create': True}"/>
                         </group>
 
                         <!-- 右側：排程資訊（被指派者可挑空值日期） -->
@@ -545,7 +542,6 @@
                 <field name="partner_id" optional="hide"/>
                 <field name="res_document_display" string="Related Document" optional="show"/>
                 <field name="summary" string="Summary"/>
-                <field name="note_id" optional="show"/>
                 <!-- 緊急/重要/排程 已於左側 search panel 篩選，清單表頭預設不再顯示（可由欄位選單開啟）-->
                 <field name="urgency" string="Urgency" widget="badge" optional="hide"
                        decoration-danger="urgency == 'urgent'"
@@ -659,9 +655,6 @@
                                    invisible="not (res_model_id and res_id)"/>
                             <field name="partner_id" readonly="1"
                                    invisible="not partner_id"/>
-                            <field name="note_id"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"
-                                   options="{'no_create': True}"/>
                         </group>
 
                         <!-- 右側：排程資訊 -->

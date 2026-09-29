@@ -8,7 +8,7 @@
     <record id="view_note_note_form_meeting" model="ir.ui.view">
         <field name="name">note.note.form.meeting</field>
         <field name="model">note.note</field>
-        <field name="inherit_id" ref="dobtor_mail_activity.view_note_note_form"/>
+        <field name="inherit_id" ref="view_note_note_form"/>
         <field name="arch" type="xml">
 
             <!-- ===== Header: 會議記錄模式隱藏筆記 stage statusbar ===== -->
@@ -293,7 +293,7 @@
     <record id="view_note_note_list_meeting" model="ir.ui.view">
         <field name="name">note.note.list.meeting</field>
         <field name="model">note.note</field>
-        <field name="inherit_id" ref="dobtor_mail_activity.view_note_note_list"/>
+        <field name="inherit_id" ref="view_note_note_list"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='tag_ids']" position="after">
                 <field name="state" string="Status" widget="badge"
@@ -315,7 +315,7 @@
         <field name="view_mode">list,kanban,form</field>
         <field name="domain">[('note_type', '=', 'meeting')]</field>
         <field name="context">{'search_default_open_true': 1, 'default_note_type': 'meeting', 'hide_stage': True}</field>
-        <field name="search_view_id" ref="dobtor_mail_activity.view_note_note_search"/>
+        <field name="search_view_id" ref="view_note_note_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first meeting minutes</p>
             <p>Record meeting discussions, decisions, and action items.</p>

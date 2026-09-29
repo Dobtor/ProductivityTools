@@ -1,27 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- 筆記 App 與筆記選單：自 dobtor_mail_activity 搬入（沿用原 XML ID） -->
+    <!-- ============================================================ -->
+    <!-- 筆記本（第一層選單）                                            -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_notebook_root"
+              name="Personal Notes"
+              web_icon="dobtor_meeting_minutes,static/description/notebook_icon.png"
+              action="action_note_only"
+              sequence="25"/>
+
+    <menuitem id="menu_note_notes"
+              name="All Notes"
+              parent="menu_notebook_root"
+              action="action_note_note"
+              sequence="10"/>
+
+    <!-- 筆記設定 -->
+    <menuitem id="menu_notebook_configuration"
+              name="Settings"
+              parent="menu_notebook_root"
+              sequence="90"
+              groups="dobtor_mail_activity.group_activity_manager"/>
+
+    <menuitem id="menu_note_stage"
+              name="Note Stages"
+              parent="menu_notebook_configuration"
+              action="action_note_stage"
+              sequence="10"/>
+
+    <menuitem id="menu_note_tag"
+              name="Note Tags"
+              parent="menu_notebook_configuration"
+              action="action_note_tag"
+              sequence="20"/>
+
     <!-- ============================================================ -->
     <!-- Meeting Minutes Menu                                          -->
     <!-- 會議記錄選單                                                   -->
     <!-- ============================================================ -->
     <menuitem id="menu_meeting_minutes"
               name="Meeting Minutes"
-              parent="dobtor_mail_activity.menu_notebook_root"
+              parent="menu_notebook_root"
               action="action_meeting_minutes"
               sequence="20"/>
 
     <!-- Technical sub-menu for admins -->
     <menuitem id="menu_meeting_minutes_technical"
               name="Transcription Logs"
-              parent="dobtor_mail_activity.menu_notebook_root"
+              parent="menu_notebook_root"
               action="action_note_transcribe_log"
               groups="dobtor_mail_activity.group_activity_manager"
               sequence="90"/>
 
     <menuitem id="menu_meeting_minutes_jobs"
               name="Transcription Jobs"
-              parent="dobtor_mail_activity.menu_notebook_root"
+              parent="menu_notebook_root"
               action="action_note_transcribe_job"
               groups="dobtor_mail_activity.group_activity_manager"
               sequence="93"/>

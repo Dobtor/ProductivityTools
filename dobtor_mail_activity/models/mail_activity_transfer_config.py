@@ -145,8 +145,8 @@ class MailActivityTransferConfig(models.Model):
 
         預設允許的模型（含指向 project.project 的 FK 欄位 project_field，
         供關聯圖 / 客戶推導 / 專案推導使用）:
-        - note.note / res.partner / purchase.order / account.move /
-          helpdesk.ticket：無專案 FK
+        - res.partner / purchase.order / account.move / helpdesk.ticket：無專案 FK
+        （note.note 的設定由 dobtor_meeting_minutes 的資料檔建立）
         - crm.lead / project.task / sale.order：project_id
         - project.project：本身即專案（project_field 留空）
 
@@ -154,7 +154,6 @@ class MailActivityTransferConfig(models.Model):
         """
         # (model_name, project_field)
         default_models = [
-            ('note.note', False),
             ('res.partner', False),
             ('crm.lead', 'project_id'),
             ('project.project', False),

@@ -136,7 +136,7 @@
                 <field name="create_date" interval="day" type="row"/>
                 <field name="provider" type="col"/>
                 <field name="state" type="col"/>
-                <field name="id" type="measure" string="Count"/>
+                <!-- 筆數：pivot 預設即有 Count；Odoo 18 不接受 id 當 measure（會 OwlError） -->
                 <field name="request_latency_ms" type="measure"/>
                 <field name="audio_duration" type="measure"/>
             </pivot>

@@ -1,4 +1,8 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_note_note,note.note,model_note_note,base.group_user,1,1,1,1
+access_note_stage,note.stage,model_note_stage,base.group_user,1,1,1,1
+access_note_tag_user,note.tag.user,model_note_tag,base.group_user,1,1,1,0
+access_note_tag_admin,note.tag.admin,model_note_tag,base.group_system,1,1,1,1
 access_note_signature_user,note.signature.user,model_note_signature,base.group_user,1,1,1,1
 access_note_signature_portal,note.signature.portal,model_note_signature,base.group_portal,1,0,0,0
 access_note_recording_user,note.recording.user,model_note_recording,base.group_user,1,1,1,1

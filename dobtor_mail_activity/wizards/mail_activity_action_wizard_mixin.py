@@ -73,12 +73,6 @@ class MailActivityActionWizardMixin(models.AbstractModel):
         string='Related Document',
         compute='_compute_res_display',
     )
-    note_id = fields.Many2one(
-        'note.note',
-        string='Related Note',
-        related='activity_id.note_id',
-        readonly=True,
-    )
 
     @api.depends('activity_id')
     def _compute_res_display(self):

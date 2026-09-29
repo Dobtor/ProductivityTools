@@ -34,7 +34,8 @@
 
         <record id="ir_cron_reencrypt_api_keys" model="ir.cron">
             <field name="name">Re-encrypt API Keys After Rotation</field>
-            <field name="model_id" ref="base.model_res_company"/>
+            <!-- 方法在 res.config.settings（models/res_company.py 的 ResConfigSettings），不在 res.company -->
+            <field name="model_id" ref="base.model_res_config_settings"/>
             <field name="state">code</field>
             <field name="code">model._cron_reencrypt_api_keys()</field>
             <field name="interval_number">1</field>

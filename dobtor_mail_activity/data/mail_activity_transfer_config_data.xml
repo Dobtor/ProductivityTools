@@ -1,15 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="1">
-
-        <!-- 預設允許轉移到筆記 -->
-        <record id="transfer_config_note" model="mail.activity.transfer.config">
-            <field name="model_id" ref="dobtor_mail_activity.model_note_note"/>
-            <field name="sequence">10</field>
-        </record>
-
-    </data>
-
     <!-- 安裝/升級時補齊預設可作為「目標文件」的模型（含 project.task / project.project /
          res.partner / crm.lead / sale.order ... 未安裝的模組自動略過、已存在者略過）。
          置於非 noupdate 區塊，使每次 -u 升級都會補上新近安裝模組的設定。 -->

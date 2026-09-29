@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <t t-name="dobtor_mail_activity.RelatedNotes">
+    <t t-name="dobtor_meeting_minutes.RelatedNotes">
         <div class="o_related_notes" t-if="state.notes.length > 0 || state.isLoading">
             <!-- Loading -->
             <div t-if="state.isLoading" class="p-3 text-center text-muted">

@@ -40,7 +40,7 @@ patch(Message.prototype, {
 
         // Message 元件在串列虛擬捲動/切換 thread 時會被重用：同一實例只換 props、
         // 不重跑 onMounted。少了這段，捲動後會顯示上一則訊息的待辦。
-        // （related_notes.js 早已有同樣的修正，這裡先前漏了。）
+        // （dobtor_meeting_minutes 的 related_notes.js 早已有同樣的修正，這裡先前漏了。）
         onWillUpdateProps((nextProps) => {
             if (nextProps.message?.id !== this.props.message?.id) {
                 this.createdActivitiesState.activities = [];

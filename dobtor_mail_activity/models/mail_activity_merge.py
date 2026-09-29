@@ -5,17 +5,11 @@
 轉向（見 mail_activity_editor.py 的 get_chip_data）並支援解除合併。
 """
 
-import json
-import logging
-
-from lxml import etree
-from lxml import html as lxml_html
 from markupsafe import Markup
 
-from odoo import api, models, Command, _
+from odoo import api, models, _
 from odoo.exceptions import UserError
 
-_logger = logging.getLogger(__name__)
 
 
 class MailActivityMerge(models.Model):
@@ -67,7 +61,6 @@ class MailActivityMerge(models.Model):
         規則（已定案）：
           - estimated_hours：取主待辦（不加總）→ 不在此回傳
           - date_deadline / urgency / importance：取最嚴重
-          - note_ids：union
           - note / feedback：附加，不覆蓋
           - actual_hours：不直接寫（stored compute），改搬 timesheet_ids
         """
@@ -91,15 +84,6 @@ class MailActivityMerge(models.Model):
             key=lambda i: importance_rank.get(i, 99), default=False)
         if worst_importance and worst_importance != master.importance:
             vals['importance'] = worst_importance
-
-        # 筆記引用聯集
-        note_ids = set(master.note_ids.ids)
-        for activity in self:
-            note_ids |= set(activity.note_ids.ids)
-            if activity.note_id:
-                note_ids.add(activity.note_id.id)
-        if note_ids != set(master.note_ids.ids):
-            vals['note_ids'] = [Command.set(sorted(note_ids))]
 
         # 待辦註記（HTML）／完成回饋（Text）：附加而非覆蓋
         note_parts = [p for p in (
@@ -147,10 +131,8 @@ class MailActivityMerge(models.Model):
             if timesheets:
                 timesheets.sudo().write({'activity_id': master.id})
 
-        # 3) 筆記內的膠囊就地改寫成主待辦（僅處理引用到的筆記；
-        #    其餘位置由 get_chip_data 的讀取時轉向兜底）
-        self._rewrite_note_chips(sources.ids, master.id,
-                                 sources.mapped('note_ids') | sources.mapped('note_id'))
+        # 3) 其他模組的合併副作用（hook；如 dobtor_meeting_minutes 改寫筆記膠囊）
+        sources._merge_extra(master)
 
         # 4) 封存來源並留下指標
         merge_ctx.write({'active': False, 'merged_into_id': master.id})
@@ -211,37 +193,7 @@ class MailActivityMerge(models.Model):
         return {'type': 'ir.actions.client', 'tag': 'reload'}
 
     @api.model
-    def _rewrite_note_chips(self, old_ids, new_id, notes):
-        """把 note.memo 內指向 old_ids 的膠囊，就地改寫成 new_id。
+    def _merge_extra(self, master):
+        """合併副作用 hook（封存來源之前呼叫）。self = 被併入者。"""
+        return True
 
-        僅為資料整潔（讓 HTML 與實際狀態一致）；正確性不依賴它 ——
-        沒改到的膠囊由 get_chip_data 在讀取時轉向。
-        以 lxml 解析 data-embedded-props 的 JSON，不用正則碰 HTML。
-        """
-        if not notes or not old_ids:
-            return
-        old_ids = set(old_ids)
-        for note in notes:
-            if not note.memo:
-                continue
-            try:
-                tree = lxml_html.fragment_fromstring(note.memo, create_parent='div')
-            except (etree.ParserError, ValueError):
-                _logger.warning('Cannot parse note %s memo, chips left untouched.', note.id)
-                continue
-            changed = False
-            for el in tree.xpath('//*[@data-embedded="activityChip"]'):
-                try:
-                    props = json.loads(el.get('data-embedded-props') or '{}')
-                except ValueError:
-                    continue
-                if props.get('activityId') in old_ids:
-                    props['activityId'] = new_id
-                    el.set('data-embedded-props', json.dumps(props))
-                    changed = True
-            if changed:
-                inner = ''.join(
-                    [tree.text or ''] +
-                    [lxml_html.tostring(child, encoding='unicode') for child in tree]
-                )
-                note.sudo().write({'memo': inner})

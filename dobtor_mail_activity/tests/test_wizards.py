@@ -18,17 +18,14 @@ class TestActivityDoneWizard(TransactionCase):
             'category': 'default',
         })
 
-        cls.note = cls.env['note.note'].create({
-            'memo': '<p>Wizard 測試筆記</p>',
-            'user_id': cls.user.id,
-        })
+        cls.note = cls.env['res.partner'].create({'name': 'Wizard target note'})
 
     def test_01_done_wizard_create(self):
         """測試建立完成 Wizard"""
         activity = self.env['mail.activity'].create({
             'summary': '待完成',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -48,7 +45,7 @@ class TestActivityDoneWizard(TransactionCase):
         activity = self.env['mail.activity'].create({
             'summary': '待完成2',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -80,16 +77,13 @@ class TestActivityCancelWizard(TransactionCase):
             'category': 'default',
         })
 
-        cls.note = cls.env['note.note'].create({
-            'memo': '<p>Cancel Wizard 測試筆記</p>',
-            'user_id': cls.user.id,
-        })
+        cls.note = cls.env['res.partner'].create({'name': 'Wizard target note'})
 
     def _make_activity(self, summary='待取消'):
         return self.env['mail.activity'].create({
             'summary': summary,
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -136,17 +130,14 @@ class TestActivityPostponeWizard(TransactionCase):
             'category': 'default',
         })
 
-        cls.note = cls.env['note.note'].create({
-            'memo': '<p>延期測試筆記</p>',
-            'user_id': cls.user.id,
-        })
+        cls.note = cls.env['res.partner'].create({'name': 'Wizard target note'})
 
     def test_01_postpone_wizard(self):
         """測試延期 Wizard"""
         activity = self.env['mail.activity'].create({
             'summary': '待延期',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -172,7 +163,7 @@ class TestActivityPostponeWizard(TransactionCase):
             return self.env['mail.activity'].create({
                 'summary': summary,
                 'activity_type_id': self.activity_type.id,
-                'res_model_id': self.env['ir.model']._get('note.note').id,
+                'res_model_id': self.env['ir.model']._get('res.partner').id,
                 'res_id': self.note.id,
                 'date_deadline': date.today(),
                 'user_id': self.user.id,
@@ -213,22 +204,16 @@ class TestActivityTransferWizard(TransactionCase):
             'category': 'default',
         })
 
-        cls.note1 = cls.env['note.note'].create({
-            'memo': '<p>來源筆記</p>',
-            'user_id': cls.user.id,
-        })
+        cls.note1 = cls.env['res.partner'].create({'name': 'Wizard target note1'})
 
-        cls.note2 = cls.env['note.note'].create({
-            'memo': '<p>目標筆記</p>',
-            'user_id': cls.user.id,
-        })
+        cls.note2 = cls.env['res.partner'].create({'name': 'Wizard target note2'})
 
     def test_01_transfer_wizard(self):
         """測試轉移 Wizard"""
         activity = self.env['mail.activity'].create({
             'summary': '待轉移',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note1.id,
             'date_deadline': date.today(),
             'user_id': self.user.id,
@@ -236,7 +221,7 @@ class TestActivityTransferWizard(TransactionCase):
 
         wizard = self.env['mail.activity.transfer.wizard'].create({
             'activity_id': activity.id,
-            'target_ref': f'note.note,{self.note2.id}',
+            'target_ref': f'res.partner,{self.note2.id}',
         })
 
         wizard.action_transfer()
@@ -262,17 +247,14 @@ class TestActivityReassignWizard(TransactionCase):
             'category': 'default',
         })
 
-        cls.note = cls.env['note.note'].create({
-            'memo': '<p>指派測試筆記</p>',
-            'user_id': cls.user1.id,
-        })
+        cls.note = cls.env['res.partner'].create({'name': 'Wizard target note'})
 
     def test_01_reassign_wizard(self):
         """測試重新指派 Wizard"""
         activity = self.env['mail.activity'].create({
             'summary': '待重新指派',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
+            'res_model_id': self.env['ir.model']._get('res.partner').id,
             'res_id': self.note.id,
             'date_deadline': date.today(),
             'user_id': self.user1.id,
@@ -289,7 +271,7 @@ class TestActivityReassignWizard(TransactionCase):
         # 改派會取消原待辦並為新負責人建立一筆新待辦
         self.assertFalse(activity.active)
         new_activity = self.env['mail.activity'].search([
-            ('res_model', '=', 'note.note'),
+            ('res_model', '=', 'res.partner'),
             ('res_id', '=', self.note.id),
             ('user_id', '=', self.user2.id),
             ('active', '=', True),

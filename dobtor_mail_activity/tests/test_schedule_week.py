@@ -21,8 +21,8 @@ class TestScheduleWeekDomain(TransactionCase):
         cls.activity_type = cls.env['mail.activity.type'].create({
             'name': 'Week Test Type', 'category': 'default',
         })
-        cls.note = cls.env['note.note'].create({'memo': '<p>week</p>'})
-        cls.note_model_id = cls.env['ir.model']._get('note.note').id
+        cls.note = cls.env['res.partner'].create({'name': 'Week target'})
+        cls.note_model_id = cls.env['ir.model']._get('res.partner').id
         today = date.today()
         cls.week_start = today - timedelta(days=today.weekday())
 

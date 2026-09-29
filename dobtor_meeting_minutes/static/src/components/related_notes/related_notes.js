@@ -5,7 +5,7 @@ import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 
 export class RelatedNotes extends Component {
-    static template = "dobtor_mail_activity.RelatedNotes";
+    static template = "dobtor_meeting_minutes.RelatedNotes";
     static props = {
         resModel: { type: String },
         resId: { type: [Number, { value: false }], optional: true },

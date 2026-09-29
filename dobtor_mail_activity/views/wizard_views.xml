@@ -50,7 +50,6 @@
                 </group>
                 <group string="Related Information">
                     <field name="res_display"/>
-                    <field name="note_id"/>
                 </group>
 
                 <!-- 工時（Time Information）由 dobtor_mail_activity_project 插入於此 -->
@@ -117,7 +116,6 @@
                 </group>
                 <group string="Related Information">
                     <field name="res_display"/>
-                    <field name="note_id"/>
                 </group>
 
                 <div class="alert alert-warning" role="alert">
@@ -189,7 +187,6 @@
                 </group>
                 <group string="Related Information" invisible="is_batch">
                     <field name="res_display"/>
-                    <field name="note_id"/>
                 </group>
 
                 <!-- 延期專屬（單筆）-->
@@ -258,7 +255,6 @@
                 </group>
                 <group string="Related Information">
                     <field name="res_display" string="Source Document"/>
-                    <field name="note_id"/>
                 </group>
 
                 <!-- 轉移專屬：目標 -->
@@ -319,7 +315,6 @@
                 </group>
                 <group string="Related Information">
                     <field name="res_display"/>
-                    <field name="note_id"/>
                 </group>
 
                 <!-- 改派專屬：新指派 -->
@@ -363,11 +358,10 @@
             <form string="Merge Activities">
                 <div class="alert alert-info" role="alert">
                     <i class="fa fa-info-circle"/>
-                    <span class="ms-1">
+                    <span class="ms-1" name="merge_intro">
                         The master activity survives. All other selected activities are
-                        archived, their referenced notes are attached to the master, and
-                        chips inside those notes start pointing at the master. This can be
-                        undone from the merged activity ("Unmerge").
+                        archived and point at the master. This can be undone from the
+                        merged activity ("Unmerge").
                     </span>
                 </div>
 
@@ -375,7 +369,6 @@
                     <field name="activity_count" invisible="1"/>
                     <field name="master_id"
                            options="{'no_create': True, 'no_open': True}"/>
-                    <field name="merged_note_count" string="Notes to Attach"/>
                 </group>
 
                 <!-- 跨負責人：合併等於讓別人的待辦消失，明確警示 -->

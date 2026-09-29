@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 待辦 ↔ 筆記：把「來源參考／引用筆記」放回 dobtor_mail_activity 的   -->
+    <!-- 待辦表單、看板、清單與各精靈（核心本身不含筆記）                  -->
+    <!-- ============================================================ -->
+
+    <record id="mail_activity_view_form_schedule_note" model="ir.ui.view">
+        <field name="name">mail.activity.note.mail_activity_view_form_schedule_note</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_document_display']" position="after">
+                <field name="note_id"
+                       readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                       options="{'no_create': True}"/>
+                <!-- 合併會把被併入者的筆記併進來，故可能多於一張；note_id（來源）必定是其中一員 -->
+                <field name="note_count" invisible="1"/>
+                <field name="note_ids" widget="many2many_tags"
+                       string="Referenced Notes"
+                       readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                       options="{'no_create': True}"
+                       invisible="note_count &lt; 2"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_kanban_schedule_note" model="ir.ui.view">
+        <field name="name">mail.activity.note.mail_activity_view_kanban_schedule_note</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_kanban_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban/field[@name='partner_id']" position="after">
+                <field name="note_id"/>
+            </xpath>
+            <!-- 有筆記顯示筆記，否則顯示來源文件連結 -->
+            <xpath expr="//span[@name='activity_document_link']" position="before">
+                <span t-if="record.note_id.raw_value" class="me-2" title="Note">
+                    <i class="fa fa-sticky-note-o text-warning"/> <field name="note_id"/>
+                </span>
+            </xpath>
+            <xpath expr="//span[@name='activity_document_link']" position="attributes">
+                <attribute name="t-if">!record.note_id.raw_value and record.res_document_display.raw_value</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_list_schedule_note" model="ir.ui.view">
+        <field name="name">mail.activity.note.mail_activity_view_list_schedule_note</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_list_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_document_display']" position="after">
+                <field name="note_id" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_form_created_note" model="ir.ui.view">
+        <field name="name">mail.activity.note.mail_activity_view_form_created_note</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_created"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="note_id"
+                       readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                       options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_form_unassigned_note" model="ir.ui.view">
+        <field name="name">mail.activity.note.mail_activity_view_form_unassigned_note</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_unassigned"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="note_id"
+                       readonly="not (can_edit_as_creator or can_edit_as_assignee)"
+                       options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_list_unassigned_note" model="ir.ui.view">
+        <field name="name">mail.activity.note.mail_activity_view_list_unassigned_note</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_list_unassigned"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='summary']" position="after">
+                <field name="note_id" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_create_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.create.wizard.note.mail_activity_create_wizard_view_form_note</field>
+        <field name="model">mail.activity.create.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_create_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_display']" position="after">
+                <field name="note_id" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_done_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.done.wizard.note.mail_activity_done_wizard_view_form_note</field>
+        <field name="model">mail.activity.done.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_done_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_display']" position="after">
+                <field name="note_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_cancel_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.cancel.wizard.note.mail_activity_cancel_wizard_view_form_note</field>
+        <field name="model">mail.activity.cancel.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_cancel_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_display']" position="after">
+                <field name="note_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_postpone_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.postpone.wizard.note.mail_activity_postpone_wizard_view_form_note</field>
+        <field name="model">mail.activity.postpone.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_postpone_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_display']" position="after">
+                <field name="note_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_transfer_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.transfer.wizard.note.mail_activity_transfer_wizard_view_form_note</field>
+        <field name="model">mail.activity.transfer.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_transfer_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_display']" position="after">
+                <field name="note_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_reassign_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.reassign.wizard.note.mail_activity_reassign_wizard_view_form_note</field>
+        <field name="model">mail.activity.reassign.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_reassign_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='res_display']" position="after">
+                <field name="note_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_merge_wizard_view_form_note" model="ir.ui.view">
+        <field name="name">mail.activity.merge.wizard.note.mail_activity_merge_wizard_view_form_note</field>
+        <field name="model">mail.activity.merge.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_merge_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='master_id']" position="after">
+                <field name="merged_note_count" string="Notes to Attach"/>
+            </xpath>
+            <xpath expr="//span[@name='merge_intro']" position="after">
+                <span class="ms-1">Their referenced notes are attached to the master, and chips inside those notes start pointing at the master.</span>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="weekly_schedule_config_view_form_note" model="ir.ui.view">
+        <field name="name">weekly.schedule.config.note.weekly_schedule_config_view_form_note</field>
+        <field name="model">weekly.schedule.config</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.weekly_schedule_config_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='target_model']" position="after">
+                <field name="note_id" invisible="target_model != 'note.note'"/>
+                <field name="auto_create_note" invisible="target_model != 'note.note'"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

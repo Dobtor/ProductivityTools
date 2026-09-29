@@ -4,13 +4,12 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 18.0-20250428\n"
+"Project-Id-Version: Odoo Server 18.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-28 15:08+0000\n"
-"PO-Revision-Date: 2026-06-28 15:08+0000\n"
+"POT-Creation-Date: 2026-09-29 16:06+0000\n"
+"PO-Revision-Date: 2026-09-29 16:06+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
-"Language: zh_TW\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: \n"
@@ -59,6 +58,7 @@ msgstr ""
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_calendar_event_form_inherit
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_kanban
 msgid "(No Title)"
 msgstr "（無標題）"
 
@@ -107,7 +107,7 @@ msgid ""
 "    </p>\n"
 "\n"
 "    <p style=\"margin: 16px 0px; padding: 0px;\">\n"
-"        <a href=\"%7B%7B%20ctx.get('signer_portal_url',%20object.get_portal_url())%20%7D%7D\" style=\"display: inline-block; padding: 10px 20px; background-color: #875A7B; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n"
+"        <a href=\"{{%20ctx.get('signer_portal_url',%20object.get_portal_url())%20}}\" style=\"display: inline-block; padding: 10px 20px; background-color: #875A7B; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n"
 "            View &amp; Sign Meeting Minutes\n"
 "        </a>\n"
 "    </p>\n"
@@ -115,7 +115,7 @@ msgid ""
 "    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n"
 "        <strong>Note:</strong> If the button above doesn't work, you can copy and paste the following link into your browser:\n"
 "        <br/>\n"
-"        <a href=\"%7B%7B%20ctx.get('signer_portal_url',%20object.get_portal_url())%20%7D%7D\">{{ ctx.get('signer_portal_url', object.get_portal_url()) }}</a>\n"
+"        <a href=\"{{%20ctx.get('signer_portal_url',%20object.get_portal_url())%20}}\">{{ ctx.get('signer_portal_url', object.get_portal_url()) }}</a>\n"
 "    </p>\n"
 "\n"
 "    <p style=\"margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;\">\n"
@@ -126,7 +126,7 @@ msgid ""
 "    </p>\n"
 "</div>\n"
 "            "
-msgstr "<div style=\"margin: 0px; padding: 0px;\">\n    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n        {{ ctx.get('signer_name', 'Participant') }} 您好，\n        <br/><br/>\n        <strong>{{ object.name }}</strong> 的會議記錄已準備好，敬請審閱並簽署。\n    </p>\n\n    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n        <strong>會議詳情：</strong>\n    </p>\n\n    {% set first_event = object.calendar_event_ids[:1] %}\n    <table style=\"border-collapse: collapse; font-size: 13px;\">\n        {% if first_event %}\n        <tr>\n            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>日期：</strong></td>\n            <td style=\"padding: 4px 0;\">{{ first_event.start.strftime('%Y-%m-%d %H:%M') if first_event.start else '-' }}</td>\n        </tr>\n        {% endif %}\n        {% if first_event and first_event.location %}\n        <tr>\n            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>地點：</strong></td>\n            <td style=\"padding: 4px 0;\">{{ first_event.location }}</td>\n        </tr>\n        {% endif %}\n        {% if object.available_signer_ids %}\n        <tr>\n            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>與會者：</strong></td>\n            <td style=\"padding: 4px 0;\">{{ ', '.join(object.available_signer_ids.mapped('name')) }}</td>\n        </tr>\n        {% endif %}\n        <tr>\n            <td style=\"padding: 4px 16px 4px 0; vertical-align: top;\"><strong>記錄者：</strong></td>\n            <td style=\"padding: 4px 0;\">{{ object.user_id.name }}</td>\n        </tr>\n    </table>\n\n    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n        請點擊下方按鈕審閱會議記錄並完成簽署：\n    </p>\n\n    <p style=\"margin: 16px 0px; padding: 0px;\">\n        <a href=\"%7B%7B%20ctx.get('signer_portal_url',%20object.get_portal_url())%20%7D%7D\" style=\"display: inline-block; padding: 10px 20px; background-color: #875A7B; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n            檢視並簽署會議記錄\n        </a>\n    </p>\n\n    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n        <strong>注意：</strong>若上方按鈕無法使用，您可以複製下列連結並貼到瀏覽器中：\n        <br/>\n        <a href=\"%7B%7B%20ctx.get('signer_portal_url',%20object.get_portal_url())%20%7D%7D\">{{ ctx.get('signer_portal_url', object.get_portal_url()) }}</a>\n    </p>\n\n    <p style=\"margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;\">\n        感謝您的配合。\n        <br/><br/>\n        敬祝順心，<br/>\n        {{ object.user_id.name }}\n    </p>\n</div>\n            "
+msgstr ""
 
 #. module: dobtor_meeting_minutes
 #: model:mail.template,body_html:dobtor_meeting_minutes.mail_template_meeting_signed
@@ -164,7 +164,7 @@ msgid ""
 "    </p>\n"
 "\n"
 "    <p style=\"margin: 16px 0px; padding: 0px;\">\n"
-"        <a href=\"%7B%7B%20object.get_portal_url()%20%7D%7D\" style=\"display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n"
+"        <a href=\"{{%20object.get_portal_url()%20}}\" style=\"display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n"
 "            View Signed Meeting Minutes\n"
 "        </a>\n"
 "    </p>\n"
@@ -175,7 +175,7 @@ msgid ""
 "    </p>\n"
 "</div>\n"
 "            "
-msgstr "<div style=\"margin: 0px; padding: 0px;\">\n    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n        {{ object.user_id.name }} 您好，\n        <br/><br/>\n        所有必要簽名者皆已簽署 <strong>{{ object.name }}</strong> 的會議記錄。\n    </p>\n\n    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n        <strong>簽名摘要：</strong>\n    </p>\n\n    <table style=\"border-collapse: collapse; font-size: 13px; width: 100%; max-width: 500px;\">\n        <thead>\n            <tr style=\"background-color: #f5f5f5;\">\n                <th style=\"padding: 8px; text-align: left; border: 1px solid #ddd;\">簽名者</th>\n                <th style=\"padding: 8px; text-align: left; border: 1px solid #ddd;\">簽署於</th>\n            </tr>\n        </thead>\n        <tbody>\n            {% for sig in object.signature_ids.filtered('is_signed') %}\n            <tr>\n                <td style=\"padding: 8px; border: 1px solid #ddd;\">{{ sig.partner_id.name }}</td>\n                <td style=\"padding: 8px; border: 1px solid #ddd;\">{{ sig.signed_on.strftime('%Y-%m-%d %H:%M') if sig.signed_on else '-' }}</td>\n            </tr>\n            {% endfor %}\n        </tbody>\n    </table>\n\n    <p style=\"margin: 16px 0px; padding: 0px; font-size: 13px;\">\n        點擊下方按鈕即可檢視完整的已簽署會議記錄：\n    </p>\n\n    <p style=\"margin: 16px 0px; padding: 0px;\">\n        <a href=\"%7B%7B%20object.get_portal_url()%20%7D%7D\" style=\"display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;\">\n            檢視已簽署的會議記錄\n        </a>\n    </p>\n\n    <p style=\"margin: 16px 0px 0px 0px; padding: 0px; font-size: 13px;\">\n        敬祝順心，<br/>\n        {{ object.company_id.name or 'The System' }}\n    </p>\n</div>\n            "
+msgstr ""
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -202,14 +202,18 @@ msgstr "<i class=\"fa fa-download me-1\"/> 下載 PDF"
 msgid ""
 "<i class=\"fa fa-exclamation-triangle me-2\" title=\"Error\"/>\n"
 "                        <strong>Last error:</strong>"
-msgstr "<i class=\"fa fa-exclamation-triangle me-2\" title=\"錯誤\"/>\n                        <strong>最近錯誤：</strong>"
+msgstr ""
+"<i class=\"fa fa-exclamation-triangle me-2\" title=\"錯誤\"/>\n"
+"                        <strong>最近錯誤：</strong>"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 msgid ""
 "<i class=\"fa fa-exclamation-triangle me-2\" title=\"Error\"/>\n"
 "                        <strong>Latest error:</strong>"
-msgstr "<i class=\"fa fa-exclamation-triangle me-2\" title=\"錯誤\"/>\n                        <strong>最新錯誤：</strong>"
+msgstr ""
+"<i class=\"fa fa-exclamation-triangle me-2\" title=\"錯誤\"/>\n"
+"                        <strong>最新錯誤：</strong>"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
@@ -221,7 +225,9 @@ msgstr "<i class=\"fa fa-fw fa-check\"/> 全部簽署"
 msgid ""
 "<i class=\"fa fa-info-circle fa-fw\"/>\n"
 "                                        狀態："
-msgstr "<i class=\"fa fa-info-circle fa-fw\"/>\n                                        狀態："
+msgstr ""
+"<i class=\"fa fa-info-circle fa-fw\"/>\n"
+"                                        狀態："
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -230,7 +236,11 @@ msgid ""
 "                    <strong>Link a calendar event to enable meeting minutes features.</strong>\n"
 "                    Use the \"Calendar Events\" tab below to link an existing event or schedule a new meeting.\n"
 "                    The meeting attendees will become available as signers."
-msgstr "<i class=\"fa fa-info-circle me-2\" title=\"資訊\"/>\n                    <strong>連結日曆活動以啟用會議記錄功能。</strong>\n                    請使用下方的「日曆活動」分頁連結既有活動或安排新會議。\n                    會議出席者將可被選為簽名者。"
+msgstr ""
+"<i class=\"fa fa-info-circle me-2\" title=\"資訊\"/>\n"
+"                    <strong>連結日曆活動以啟用會議記錄功能。</strong>\n"
+"                    請使用下方的「日曆活動」分頁連結既有活動或安排新會議。\n"
+"                    會議出席者將可被選為簽名者。"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -239,7 +249,11 @@ msgid ""
 "                    <strong>This meeting minutes is locked.</strong>\n"
 "                    Content cannot be modified after sending for signature.\n"
 "                    To make changes, please click \"Reset to Draft\" (this will clear all existing signatures)."
-msgstr "<i class=\"fa fa-lock me-2\" title=\"已鎖定\"/>\n                    <strong>此會議記錄已鎖定。</strong>\n                    送出簽署後即無法修改內容。\n                    如需變更，請點擊「重設為草稿」（此動作將清除所有現有簽名）。"
+msgstr ""
+"<i class=\"fa fa-lock me-2\" title=\"已鎖定\"/>\n"
+"                    <strong>此會議記錄已鎖定。</strong>\n"
+"                    送出簽署後即無法修改內容。\n"
+"                    如需變更，請點擊「重設為草稿」（此動作將清除所有現有簽名）。"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -251,7 +265,9 @@ msgstr "<i class=\"fa fa-microphone fa-2x me-3\" title=\"錄音\"/>"
 msgid ""
 "<i class=\"fa fa-pencil fa-fw\"/>\n"
 "                                        記錄者："
-msgstr "<i class=\"fa fa-pencil fa-fw\"/>\n                                        記錄者："
+msgstr ""
+"<i class=\"fa fa-pencil fa-fw\"/>\n"
+"                                        記錄者："
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -263,7 +279,20 @@ msgstr "<i class=\"fa fa-pencil me-1\"/> 確認並簽署"
 msgid ""
 "<i class=\"fa fa-shield me-1\"/>\n"
 "                            Key is stored masked. Changing this field will overwrite the current key — all changes are audited."
-msgstr "<i class=\"fa fa-shield me-1\"/>\n                            金鑰以遮罩方式儲存。變更此欄位將覆寫目前的金鑰 — 所有變更皆會被稽核。"
+msgstr ""
+"<i class=\"fa fa-shield me-1\"/>\n"
+"                            金鑰以遮罩方式儲存。變更此欄位將覆寫目前的金鑰 — 所有變更皆會被稽核。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_kanban
+msgid "<i class=\"fa fa-tasks\" title=\"Activities\"/>"
+msgstr "<i class=\"fa fa-tasks\" title=\"待辦\"/>"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/weekly_schedule_config.py:0
+msgid "<p>Weekly Schedule - %(week)s</p><p>This week work plan</p>"
+msgstr "<p>週計畫 - %(week)s</p><p>本週工作計畫</p>"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -295,7 +324,19 @@ msgid ""
 "                            <span class=\"badge text-bg-danger\" invisible=\"transcript_state != 'error'\">\n"
 "                                <i class=\"fa fa-exclamation-triangle me-1\"/>Error\n"
 "                            </span>"
-msgstr "<span class=\"badge text-bg-warning\" invisible=\"transcript_state != 'processing'\">\n                                <i class=\"fa fa-spinner fa-spin me-1\"/>處理中…\n                            </span>\n                            <span class=\"badge text-bg-success\" invisible=\"transcript_state != 'done'\">\n                                <i class=\"fa fa-check me-1\"/>轉錄完成\n                            </span>\n                            <span class=\"badge text-bg-warning\" invisible=\"transcript_state != 'partial'\">\n                                <i class=\"fa fa-exclamation-circle me-1\"/>部分完成\n                            </span>\n                            <span class=\"badge text-bg-danger\" invisible=\"transcript_state != 'error'\">\n                                <i class=\"fa fa-exclamation-triangle me-1\"/>錯誤\n                            </span>"
+msgstr ""
+"<span class=\"badge text-bg-warning\" invisible=\"transcript_state != 'processing'\">\n"
+"                                <i class=\"fa fa-spinner fa-spin me-1\"/>處理中…\n"
+"                            </span>\n"
+"                            <span class=\"badge text-bg-success\" invisible=\"transcript_state != 'done'\">\n"
+"                                <i class=\"fa fa-check me-1\"/>轉錄完成\n"
+"                            </span>\n"
+"                            <span class=\"badge text-bg-warning\" invisible=\"transcript_state != 'partial'\">\n"
+"                                <i class=\"fa fa-exclamation-circle me-1\"/>部分完成\n"
+"                            </span>\n"
+"                            <span class=\"badge text-bg-danger\" invisible=\"transcript_state != 'error'\">\n"
+"                                <i class=\"fa fa-exclamation-triangle me-1\"/>錯誤\n"
+"                            </span>"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -340,9 +381,78 @@ msgid "Access Token"
 msgstr "存取權杖"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__access_warning
+msgid "Access warning"
+msgstr "存取警告"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_needaction
+msgid "Action Needed"
+msgstr "需要處理"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__active
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__active
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_list
+msgid "Active"
+msgstr "啟用"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
 msgid "Active (pending/running)"
 msgstr "進行中（待處理／執行中）"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_kanban
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+msgid "Active Activities"
+msgstr "進行中待辦"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__note_active_activity_count
+msgid "Active Note Activities"
+msgstr "進行中的筆記待辦"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_ids
+msgid "Activities"
+msgstr "待辦"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__note_activity_ids
+msgid "Activities referencing this note (including those created from it)"
+msgstr "透過 note_id 關聯的待辦（從筆記建立）"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_mail_activity
+msgid "Activity"
+msgstr "活動"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_mail_activity_action_wizard_mixin
+msgid "Activity Action Wizard Common Info"
+msgstr "待辦動作精靈共用資訊"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "待辦例外裝飾"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_state
+msgid "Activity State"
+msgstr "待辦狀態"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "待辦類型圖示"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_weekly_schedule_config__target_model
+msgid "Activity will be linked to this type of document"
+msgstr "待辦將關聯到此類型的文件"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -351,9 +461,28 @@ msgid "All"
 msgstr "全部"
 
 #. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.xml:0
+msgid "All Done"
+msgstr "全部完成"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_note_note
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_note_notes
+msgid "All Notes"
+msgstr "筆記本"
+
+#. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__all_signed
 msgid "All Signed"
 msgstr "全部已簽署"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity__note_ids
+msgid ""
+"All notes referencing this activity (always includes the source reference). "
+"Merging an activity moves its notes here."
+msgstr "所有參照到這筆待辦的筆記（一定含來源參照）。合併待辦時，被合併那幾筆的參照會一起帶過來。"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -389,6 +518,18 @@ msgstr "所有轉錄皆已成功完成。"
 #: code:addons/dobtor_meeting_minutes/models/note_transcribe_job.py:0
 msgid "Another active job already exists for this recording (job #%s)."
 msgstr "此錄音已有另一個進行中的工作（工作 #%s）。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_kanban
+msgid "Archive"
+msgstr "封存"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_search
+msgid "Archived"
+msgstr "已封存"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__provider__assemblyai
@@ -451,13 +592,26 @@ msgid ""
 "AssemblyAI: cloud API with built-in speaker diarization, no deployment needed.\n"
 "OpenAI Whisper: cloud API, no speaker diarization.\n"
 "Remote whisperX: self-hosted Docker service with GPU."
-msgstr "AssemblyAI：內建發言者辨識的雲端 API，無需部署。\nOpenAI Whisper：雲端 API，不含發言者辨識。\nRemote whisperX：使用 GPU 的自架 Docker 服務。"
+msgstr ""
+"AssemblyAI：內建發言者辨識的雲端 API，無需部署。\n"
+"OpenAI Whisper：雲端 API，不含發言者辨識。\n"
+"Remote whisperX：使用 GPU 的自架 Docker 服務。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
 #: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
 msgid "AssemblyAI: no transcript ID returned."
 msgstr "AssemblyAI：未回傳逐字稿 ID。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Assignee"
+msgstr "負責人"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_attachment_count
+msgid "Attachment Count"
+msgstr "附件數量"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -510,6 +664,11 @@ msgstr "音訊檔案已成功上傳。"
 #: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
 msgid "Audio upload failed."
 msgstr "音訊上傳失敗。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_weekly_schedule_config__auto_create_note
+msgid "Auto Create Note"
+msgstr "自動建立筆記"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_speaker_mapping__speaker_label
@@ -577,6 +736,8 @@ msgid "Cancel"
 msgstr "取消"
 
 #. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.xml:0
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__cancelled
 msgid "Cancelled"
 msgstr "已取消"
@@ -595,6 +756,12 @@ msgstr "無法連線：%s"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_tag.py:0
+msgid "Cannot create circular tag hierarchy."
+msgstr "無法建立循環標籤層級。"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
 #: code:addons/dobtor_meeting_minutes/models/note_note.py:0
 msgid ""
 "Cannot modify locked meeting minutes.\n"
@@ -605,7 +772,21 @@ msgid ""
 "- Type\n"
 "\n"
 "To modify, please reset to draft first (this will clear all signatures)."
-msgstr "無法修改已鎖定的會議記錄。\n\n送出簽署後，下列欄位將被鎖定：\n- 內容（備註）\n- 必要簽名者\n- 類型\n\n如需修改，請先重設為草稿（此動作將清除所有簽名）。"
+msgstr ""
+"無法修改已鎖定的會議記錄。\n"
+"\n"
+"送出簽署後，下列欄位將被鎖定：\n"
+"- 內容（備註）\n"
+"- 必要簽名者\n"
+"- 類型\n"
+"\n"
+"如需修改，請先重設為草稿（此動作將清除所有簽名）。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__child_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_form
+msgid "Child Tags"
+msgstr "子標籤"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
@@ -634,6 +815,19 @@ msgid "Close"
 msgstr "關閉"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_list
+msgid "Color"
+msgstr "顏色"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__color
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__color
+msgid "Color Index"
+msgstr "顏色索引"
+
+#. module: dobtor_meeting_minutes
 #: model:ir.model,name:dobtor_meeting_minutes.model_res_company
 msgid "Companies"
 msgstr "公司"
@@ -651,6 +845,17 @@ msgid ""
 "settings from this company instead of the executing user's company "
 "(important for cron)."
 msgstr "擁有此會議記錄的公司。轉錄／摘要工作會讀取此公司的設定，而非執行使用者的公司（對排程作業很重要）。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+msgid "Completed"
+msgstr "已完成"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+msgid "Completed Date"
+msgstr "完成日期"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__confidence
@@ -697,7 +902,9 @@ msgstr "聯絡人"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__text
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
 msgid "Content"
 msgstr "內容"
@@ -708,11 +915,18 @@ msgid "Count"
 msgstr "數量"
 
 #. module: dobtor_meeting_minutes
+#. odoo-javascript
 #. odoo-python
 #: code:addons/dobtor_meeting_minutes/models/calendar_event.py:0
+#: code:addons/dobtor_meeting_minutes/static/src/views/calendar_popover/calendar_popover_patch.xml:0
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_calendar_event_form_inherit
 msgid "Create Meeting Minutes"
 msgstr "建立會議記錄"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_mail_activity_create_wizard
+msgid "Create To-do Wizard"
+msgstr "建立待辦精靈"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_meeting_minutes
@@ -720,15 +934,35 @@ msgid "Create your first meeting minutes"
 msgstr "建立您的第一筆會議記錄"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_note
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_only
+msgid "Create your first note"
+msgstr "建立您的第一個筆記"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_stage
+msgid "Create your first stage"
+msgstr "建立您的第一個階段"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_tag
+msgid "Create your first tag"
+msgstr "建立您的第一個標籤"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_list
 msgid "Created"
 msgstr "建立"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__create_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__create_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__create_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__create_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__create_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__create_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__create_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__create_uid
@@ -736,14 +970,22 @@ msgid "Created by"
 msgstr "建立者"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__create_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__create_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__create_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__create_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__create_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__create_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__create_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__create_date
 msgid "Created on"
 msgstr "建立於"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__access_url
+msgid "Customer Portal URL"
+msgstr "客戶入口網址"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -757,6 +999,11 @@ msgid "Day"
 msgstr "日"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_kanban
+msgid "Delete"
+msgstr "刪除"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
 msgid "Discussion"
 msgstr "討論"
@@ -768,10 +1015,13 @@ msgid "Dismiss"
 msgstr "關閉"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__display_name_override
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__display_name
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__display_name
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__display_name
@@ -781,11 +1031,18 @@ msgid "Display Name"
 msgstr "顯示名稱"
 
 #. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.xml:0
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__done
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__done
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
 msgid "Done"
 msgstr "完成"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__date_done
+msgid "Done Date"
+msgstr "完成日期"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -800,6 +1057,11 @@ msgstr "下載 PDF"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
 msgid "Draft"
 msgstr "草稿"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Due Date"
+msgstr "截止日期"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -838,6 +1100,16 @@ msgstr "結束於"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
 msgid "Enter new key or leave the ●●●● to keep existing"
 msgstr "輸入新金鑰，或保留 ●●●● 以沿用現有金鑰"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Enter note content here..."
+msgstr "在此輸入筆記內容..."
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_quick_create
+msgid "Enter note content..."
+msgstr "輸入筆記內容..."
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__transcript_state__error
@@ -912,6 +1184,12 @@ msgstr "無法存取麥克風："
 
 #. module: dobtor_meeting_minutes
 #. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.js:0
+msgid "Failed to load related notes."
+msgstr "無法載入關聯筆記。"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
 #: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
 msgid "Failed to upload file: "
 msgstr "檔案上傳失敗："
@@ -954,6 +1232,28 @@ msgid "First 2KB of HTTP response body (sensitive data masked)."
 msgstr "HTTP 回應內文的前 2KB（敏感資料已遮罩）。"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__fold
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_list
+msgid "Folded by Default"
+msgstr "預設摺疊"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_follower_ids
+msgid "Followers"
+msgstr "追蹤者"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "追蹤者（合作夥伴）"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__activity_type_icon
+msgid "Font awesome icon e.g. fa-tasks"
+msgstr "Font Awesome 圖示，例如 fa-tasks"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
 msgid "Format"
@@ -973,7 +1273,9 @@ msgid "Get your API key at"
 msgstr "取得您的 API 金鑰於"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_search
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
 msgid "Group By"
@@ -983,6 +1285,11 @@ msgstr "分組依據"
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__http_error
 msgid "HTTP Error"
 msgstr "HTTP 錯誤"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__has_message
+msgid "Has Message"
+msgstr "有訊息"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -1000,14 +1307,51 @@ msgid "Http Url"
 msgstr "HTTP URL"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__id
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__id
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__id
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__id
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__id
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__id
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__id
 msgid "ID"
 msgstr "ID"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_exception_icon
+msgid "Icon"
+msgstr "圖示"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "用於標示例外待辦的圖示。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "如果勾選，新訊息需要您的關注。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__message_has_error
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "如果勾選，部分訊息有傳送錯誤。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "In Progress"
+msgstr "進行中"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.js:0
+msgid ""
+"Includes %s merged activity(ies) already represented by their master "
+"activity."
+msgstr "含 %s 筆已合併的待辦，它們已經由各自的主待辦代表。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -1043,6 +1387,11 @@ msgstr "無效的簽名資料。"
 #: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
 msgid "Invalid signature request."
 msgstr "無效的簽名請求。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_is_follower
+msgid "Is Follower"
+msgstr "是追蹤者"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__is_signed
@@ -1094,9 +1443,12 @@ msgid "Last Transcript Error"
 msgstr "最近逐字稿錯誤"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__write_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__write_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__write_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__write_uid
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__write_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__write_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__write_uid
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__write_uid
@@ -1104,9 +1456,12 @@ msgid "Last Updated by"
 msgstr "最後更新者"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__write_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__write_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_signature__write_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_speaker_mapping__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__write_date
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__write_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__write_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__write_date
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__write_date
@@ -1131,6 +1486,12 @@ msgid "Link notes..."
 msgstr "連結筆記…"
 
 #. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.xml:0
+msgid "Loading related notes..."
+msgstr "載入關聯筆記中…"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 msgid "Location"
 msgstr "地點"
@@ -1152,9 +1513,20 @@ msgid "Logs"
 msgstr "紀錄"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__main_tag_id
+msgid "Main Tag"
+msgstr "主要標籤"
+
+#. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_speaker_mapping__display_name_override
 msgid "Manual name override (used when not mapped to a contact)"
 msgstr "手動覆寫名稱（未對應聯絡人時使用）"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_users.py:0
+msgid "Manuals"
+msgstr "手冊"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_speaker_mapping__partner_id
@@ -1207,8 +1579,11 @@ msgid "Meeting"
 msgstr "會議"
 
 #. module: dobtor_meeting_minutes
+#. odoo-javascript
 #. odoo-python
 #: code:addons/dobtor_meeting_minutes/models/calendar_event.py:0
+#: code:addons/dobtor_meeting_minutes/models/res_users.py:0
+#: code:addons/dobtor_meeting_minutes/static/src/views/calendar_popover/calendar_popover_patch.xml:0
 #: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_meeting_minutes
 #: model:ir.actions.report,name:dobtor_meeting_minutes.action_report_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_calendar_event__note_ids
@@ -1308,6 +1683,32 @@ msgid "Meeting minutes viewed by %s"
 msgstr "會議記錄已由 %s 檢視"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_mail_activity_merge_wizard
+msgid "Merge Activities Wizard"
+msgstr "合併待辦精靈"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.xml:0
+msgid "Merged"
+msgstr "已合併"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Merged Into"
+msgstr "已併入"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_has_error
+msgid "Message Delivery error"
+msgstr "訊息傳送錯誤"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_ids
+msgid "Messages"
+msgstr "訊息"
+
+#. module: dobtor_meeting_minutes
 #. odoo-javascript
 #: code:addons/dobtor_meeting_minutes/static/src/components/meeting_recorder/meeting_recorder.js:0
 msgid ""
@@ -1326,6 +1727,17 @@ msgstr "會議記錄數"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
 msgid "Model Size"
 msgstr "模型大小"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "我的待辦截止日期"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_note_only
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+msgid "My Notes"
+msgstr "筆記"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -1351,6 +1763,37 @@ msgstr "網路錯誤"
 #: code:addons/dobtor_meeting_minutes/static/src/views/fields/meeting_recorder_widget/meeting_recorder_widget.js:0
 msgid "Network error."
 msgstr "網路錯誤。"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/web/activity/activity_menu_note_patch.js:0
+msgid "New Note"
+msgstr "新增筆記"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+msgid "Next Activity"
+msgstr "下一個待辦"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_calendar_event_id
+msgid "Next Activity Calendar Event"
+msgstr "下一個待辦行事曆"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "下一個待辦截止日期"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_summary
+msgid "Next Activity Summary"
+msgstr "下一個待辦摘要"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_type_id
+msgid "Next Activity Type"
+msgstr "下一個待辦類型"
 
 #. module: dobtor_meeting_minutes
 #. odoo-javascript
@@ -1392,8 +1835,101 @@ msgstr "無"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model,name:dobtor_meeting_minutes.model_note_note
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_note__note_type__note
+#: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__weekly_schedule_config__target_model__note_note
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.mail_activity_view_kanban_schedule_note
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
 msgid "Note"
 msgstr "筆記"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__note_activity_ids
+msgid "Note Activities"
+msgstr "筆記待辦"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__note_activity_count
+msgid "Note Activity Count"
+msgstr "筆記待辦數量"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__memo
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_quick_create
+msgid "Note Content"
+msgstr "筆記內容"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_stage
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_form
+msgid "Note Stage"
+msgstr "筆記階段"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_note_stage
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_note_stage
+msgid "Note Stages"
+msgstr "筆記階段"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__name
+msgid "Note Summary"
+msgstr "筆記摘要"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_note_tag
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_form
+msgid "Note Tag"
+msgstr "筆記標籤"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.actions.act_window,name:dobtor_meeting_minutes.action_note_tag
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_note_tag
+msgid "Note Tags"
+msgstr "筆記標籤"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Note title..."
+msgstr "筆記標題..."
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_create_wizard__note_id
+msgid ""
+"Note whose to-do list will show this activity (independent of the target "
+"document)."
+msgstr "其待辦清單會顯示此待辦的筆記（與目標文件無關）。"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_users.py:0
+msgid "Notes"
+msgstr "筆記"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_merge_wizard__merged_note_count
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.mail_activity_merge_wizard_view_form_note
+msgid "Notes to Attach"
+msgstr "將併入的筆記數"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_needaction_counter
+msgid "Number of Actions"
+msgstr "操作次數"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_has_error_counter
+msgid "Number of errors"
+msgstr "錯誤數量"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "需要處理的訊息數量"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "有傳送錯誤的訊息數量"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__worker_pid
@@ -1434,6 +1970,9 @@ msgid "Only used for Remote whisperX mode."
 msgstr "僅用於 Remote whisperX 模式。"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__open
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
 msgid "Open"
 msgstr "開啟"
@@ -1465,6 +2004,35 @@ msgstr "OpenAI Whisper 回應不是有效的 JSON。"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 msgid "Organizer"
 msgstr "主辦人"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__user_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__user_id
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_list
+msgid "Owner"
+msgstr "擁有者"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_stage__user_id
+msgid "Owner of the stage, each user can have their own stage settings."
+msgstr "階段的擁有者，每位使用者可以有自己的階段設定。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__parent_id
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_search
+msgid "Parent Category"
+msgstr "父分類"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__parent_path
+msgid "Parent Path"
+msgstr "父路徑"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__parse_error
@@ -1513,6 +2081,11 @@ msgstr "已暫停"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
 msgid "Pending"
 msgstr "待處理"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_notebook_root
+msgid "Personal Notes"
+msgstr "個人筆記"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_job__picked_at
@@ -1583,6 +2156,11 @@ msgstr "請至少從日曆活動出席者中指定一位簽名者。"
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_job__log_id
 msgid "Populated after execution with the resulting log entry."
 msgstr "執行後會填入產生的紀錄項目。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__access_url
+msgid "Portal Access URL"
+msgstr "入口存取網址"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -1674,6 +2252,11 @@ msgstr "輪替後重新加密 API 金鑰"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 msgid "Re-transcribe"
 msgstr "重新轉錄"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_mail_activity_reassign_wizard
+msgid "Reassign Activity Wizard"
+msgstr "重新指派待辦精靈"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.actions.server,name:dobtor_meeting_minutes.ir_cron_reclaim_stale_jobs_ir_actions_server
@@ -1768,10 +2351,51 @@ msgid "Recordings"
 msgstr "錄音"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity__note_count
+msgid "Referenced Note Count"
+msgstr "引用筆記數量"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity__note_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.mail_activity_view_form_schedule_note
+msgid "Referenced Notes"
+msgstr "引用筆記"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/res_users.py:0
+msgid "References"
+msgstr "參照"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/note_note_base.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Related Activities"
+msgstr "相關待辦"
+
+#. module: dobtor_meeting_minutes
 #. odoo-python
 #: code:addons/dobtor_meeting_minutes/models/note_note.py:0
 msgid "Related Events"
 msgstr "相關活動"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_action_wizard_mixin__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_cancel_wizard__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_create_wizard__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_done_wizard__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_postpone_wizard__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_reassign_wizard__note_id
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity_transfer_wizard__note_id
+msgid "Related Note"
+msgstr "相關筆記"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/components/related_notes/related_notes.xml:0
+msgid "Related Notes"
+msgstr "關聯筆記"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__provider__remote
@@ -1819,6 +2443,11 @@ msgid "Response Snippet"
 msgstr "回應片段"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__activity_user_id
+msgid "Responsible User"
+msgstr "負責使用者"
+
+#. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcribe_log__state
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_search
 msgid "Result"
@@ -1849,6 +2478,11 @@ msgid "Retry Transcription"
 msgstr "重試轉錄"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_search
+msgid "Root Tags"
+msgstr "根標籤"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
 msgid "Run Test"
 msgstr "執行測試"
@@ -1857,6 +2491,11 @@ msgstr "執行測試"
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_job__state__running
 msgid "Running"
 msgstr "執行中"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "SMS 傳送錯誤"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -1871,9 +2510,24 @@ msgid "Scheduled At"
 msgstr "排定於"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+msgid "Search Notes"
+msgstr "搜尋筆記"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_signature_search
 msgid "Search Signatures"
 msgstr "搜尋簽名"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_search
+msgid "Search Tags"
+msgstr "搜尋標籤"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__access_token
+msgid "Security Token"
+msgstr "安全權杖"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
@@ -1905,9 +2559,26 @@ msgid "Sent"
 msgstr "已寄出"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__sequence
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__sequence
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_form
+msgid "Sequence"
+msgstr "序號"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
 msgid "Service URL"
 msgstr "服務 URL"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_tag__active
+msgid "Set to inactive to hide this tag without deleting it."
+msgstr "設為停用以隱藏此標籤而不刪除。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.ui.menu,name:dobtor_meeting_minutes.menu_notebook_configuration
+msgid "Settings"
+msgstr "設定"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
@@ -1999,6 +2670,22 @@ msgid "Size"
 msgstr "大小"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_mail_activity__note_id
+msgid "Source Reference"
+msgstr "參考來源"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity__note_id
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_action_wizard_mixin__note_id
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_cancel_wizard__note_id
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_done_wizard__note_id
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_postpone_wizard__note_id
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_reassign_wizard__note_id
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_mail_activity_transfer_wizard__note_id
+msgid "Source note this activity originated from"
+msgstr "此待辦引用的來源筆記"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcript_segment_list
 msgid "Speaker"
@@ -2028,6 +2715,25 @@ msgstr "發言者對應"
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_transcript_segment__speaker_name
 msgid "Speaker Name"
 msgstr "發言者名稱"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_weekly_schedule_config__note_id
+msgid "Specified Note"
+msgstr "指定筆記"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__stage_id
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+msgid "Stage"
+msgstr "階段"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_stage__name
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_stage_list
+msgid "Stage Name"
+msgstr "階段名稱"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__stale_worker
@@ -2080,11 +2786,25 @@ msgstr "狀態"
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_recording__state
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.meeting_portal_template
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list_meeting
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_list
 msgid "Status"
 msgstr "狀態"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"基於待辦的狀態\n"
+"逾期：截止日期已過\n"
+"今天：待辦日期為今天\n"
+"已計畫：未來的待辦。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-javascript
@@ -2105,6 +2825,11 @@ msgid "Successes"
 msgstr "成功"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Summary"
+msgstr "摘要"
+
+#. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__error_message
 msgid ""
 "Summary from the latest transcription attempt. See Transcription History for"
@@ -2112,9 +2837,45 @@ msgid ""
 msgstr "最近一次轉錄嘗試的摘要。完整詳情請見轉錄歷程。"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+msgid "Tag"
+msgstr "標籤"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_tag__name
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_tag_search
+msgid "Tag Name"
+msgstr "標籤名稱"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.constraint,message:dobtor_meeting_minutes.constraint_note_tag_name_parent_uniq
+msgid "Tag name must be unique within the same category!"
+msgstr "標籤名稱在同一分類中必須唯一！"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__tag_ids
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
+msgid "Tags"
+msgstr "標籤"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_weekly_schedule_config__target_model
+msgid "Target Document Type"
+msgstr "目標文件類型"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
 msgid "Test Connection"
 msgstr "測試連線"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__main_tag_id
+msgid "The first tag of the note, used for the left tree filter panel."
+msgstr "筆記的第一個標籤，用於左側樹狀篩選面板。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -2129,6 +2890,15 @@ msgid ""
 "The last %(n)d transcription attempts on this meeting minutes have all "
 "failed with code \"%(code)s\". Latest message: %(msg)s"
 msgstr "此會議記錄最近 %(n)d 次轉錄嘗試皆以代碼「%(code)s」失敗。最新訊息：%(msg)s"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/mail_activity_note.py:0
+msgid ""
+"The source reference note must also be one of the referenced notes. Activity"
+" \"%(summary)s\" points at note \"%(note)s\" which is missing from its "
+"referenced notes."
+msgstr "來源參照的那則筆記也必須在「參照筆記」清單裡。待辦「%(summary)s」指到一則沒有列進去的筆記。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
@@ -2173,6 +2943,9 @@ msgstr "逾時"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_meetings
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_search
 msgid "Title"
 msgstr "標題"
 
@@ -2341,6 +3114,16 @@ msgid "Transcription service URL is not configured."
 msgstr "尚未設定轉錄服務 URL。"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
+msgid "Transfer"
+msgstr "轉移"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_mail_activity_transfer_wizard
+msgid "Transfer Activity Wizard"
+msgstr "轉移待辦精靈"
+
+#. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_config_settings__transcription_api_key_is_set
 msgid "True when an API key is already configured."
 msgstr "當已設定 API 金鑰時為真。"
@@ -2353,8 +3136,14 @@ msgstr "當 state=error 且最新紀錄可重試並未超過最大嘗試次數�
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__note_type
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form
 msgid "Type"
 msgstr "類型"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "記錄上的例外待辦類型。"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_res_company__transcription_service_url
@@ -2367,6 +3156,12 @@ msgstr "whisperX 轉錄服務的 URL（例如 http://gpu-server:8765）"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.res_config_settings_view_form_meeting_minutes
 msgid "URL of the whisperX transcription service."
 msgstr "whisperX 轉錄服務的 URL。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__active
+msgid ""
+"Uncheck to archive this note, archived notes will not appear in the list."
+msgstr "取消勾選以封存此筆記，封存的筆記將不會顯示在列表中。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-javascript
@@ -2393,9 +3188,20 @@ msgstr "未知供應商：%s"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
+#: code:addons/dobtor_meeting_minutes/models/mail_activity_note.py:0
+msgid "Unnamed Note"
+msgstr "未命名筆記"
+
+#. module: dobtor_meeting_minutes
+#. odoo-python
 #: code:addons/dobtor_meeting_minutes/models/note_recording.py:0
 msgid "Unsupported transcription provider: %s"
 msgstr "不支援的轉錄供應商：%s"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_list
+msgid "Updated"
+msgstr "更新日期"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields.selection,name:dobtor_meeting_minutes.selection__note_transcribe_log__state__upload_failed
@@ -2426,16 +3232,53 @@ msgid "Uploading recording..."
 msgstr "正在上傳錄音…"
 
 #. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_stage
+msgid ""
+"Use stages to organize your notes, e.g.: Pending, In Progress, Completed."
+msgstr "使用階段來組織您的筆記，例如：待處理、進行中、已完成。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_tag
+msgid "Use tags to categorize your notes with hierarchical structure support."
+msgstr "使用標籤分類您的筆記，支援層級結構。"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_note
+#: model_terms:ir.actions.act_window,help:dobtor_meeting_minutes.action_note_only
+msgid ""
+"Use the notebook to record ideas, activities, and important information."
+msgstr "使用筆記本記錄想法、待辦和重要資訊。"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_note_form_meeting
 msgid ""
 "Use the recording button below to record meeting audio directly from your browser.\n"
 "                                After uploading, click \"Start Transcription\" to convert speech to text."
-msgstr "使用下方的錄音按鈕，直接從瀏覽器錄製會議音訊。\n                                上傳後，點擊「開始轉錄」即可將語音轉換為文字。"
+msgstr ""
+"使用下方的錄音按鈕，直接從瀏覽器錄製會議音訊。\n"
+"                                上傳後，點擊「開始轉錄」即可將語音轉換為文字。"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_stage__sequence
+msgid "Used to sort the stages."
+msgstr "用於排序階段。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_res_users
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_job_search
 msgid "User"
 msgstr "使用者"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__stage_ids
+msgid "User Stages"
+msgstr "使用者階段"
+
+#. module: dobtor_meeting_minutes
+#. odoo-javascript
+#: code:addons/dobtor_meeting_minutes/static/src/views/calendar_popover/calendar_popover_patch.xml:0
+msgid "View Meeting Minutes"
+msgstr "查看會議記錄"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.portal_my_home_meeting
@@ -2449,6 +3292,21 @@ msgid "Warning"
 msgstr "警告"
 
 #. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__website_message_ids
+msgid "Website Messages"
+msgstr "網站訊息"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_note__website_message_ids
+msgid "Website communication history"
+msgstr "網站通訊歷史"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model,name:dobtor_meeting_minutes.model_weekly_schedule_config
+msgid "Weekly Schedule Configuration"
+msgstr "週計畫設定"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_recording_form
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.view_note_transcribe_log_list
 msgid "When"
@@ -2458,6 +3316,23 @@ msgstr "時間"
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_transcribe_job__picked_at
 msgid "When a worker atomically claimed this job."
 msgstr "工作程序原子性地領取此工作的時間。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_stage__fold
+msgid "When checked, this stage will be folded by default in kanban view."
+msgstr "勾選時，此階段在看板視圖中預設為摺疊。"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_weekly_schedule_config__auto_create_note
+msgid ""
+"When target document type is \"Note\" and no note is specified, "
+"automatically create a new note"
+msgstr "當目標文件類型為「筆記」且未指定筆記時，自動建立新筆記"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,help:dobtor_meeting_minutes.field_weekly_schedule_config__note_id
+msgid "When target document type is \"Note\", specify the note to link"
+msgstr "當目標文件類型為「筆記」時，指定要關聯的筆記"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model.fields,help:dobtor_meeting_minutes.field_note_recording__worker_started_at
@@ -2563,6 +3438,11 @@ msgid "完全簽名"
 msgstr "完全簽名"
 
 #. module: dobtor_meeting_minutes
+#: model:note.stage,name:dobtor_meeting_minutes.note_stage_published
+msgid "定稿發佈"
+msgstr "定稿發佈"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
 msgid "已寄送"
 msgstr "已寄送"
@@ -2576,6 +3456,11 @@ msgstr "待辦事項"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
 msgid "截止日期"
 msgstr "截止日期"
+
+#. module: dobtor_meeting_minutes
+#: model:note.stage,name:dobtor_meeting_minutes.note_stage_draft
+msgid "暫記"
+msgstr "暫記"
 
 #. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
@@ -2633,6 +3518,11 @@ msgid "草稿"
 msgstr "草稿"
 
 #. module: dobtor_meeting_minutes
+#: model:note.stage,name:dobtor_meeting_minutes.note_stage_planning
+msgid "規劃中"
+msgstr "規劃中"
+
+#. module: dobtor_meeting_minutes
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes
 msgid "記錄資訊"
 msgstr "記錄資訊"
@@ -2652,3 +3542,10 @@ msgstr "部分簽名"
 #: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.report_meeting_minutes_content
 msgid "開始"
 msgstr "開始"
+
+#. module: dobtor_meeting_minutes
+#: model_terms:ir.ui.view,arch_db:dobtor_meeting_minutes.mail_activity_merge_wizard_view_form_note
+msgid ""
+"<span class=\"ms-1\">Their referenced notes are attached to the master, and "
+"chips inside those notes start pointing at the master.</span>"
+msgstr "<span class=\"ms-1\">被併入待辦引用的筆記會一併掛到主待辦，筆記內的待辦膠囊也會改指向主待辦。</span>"

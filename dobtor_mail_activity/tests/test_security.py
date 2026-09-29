@@ -48,15 +48,9 @@ class TestSecurityRules(TransactionCase):
 
     def test_01_user_can_see_own_activities(self):
         """測試用戶可以看到自己的待辦"""
-        note = self.env['note.note'].with_user(self.user_activity).create({
-            'memo': '<p>用戶1筆記</p>',
-        })
-
         activity = self.env['mail.activity'].with_user(self.user_activity).create({
             'summary': '用戶1待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
-            'res_id': note.id,
             'date_deadline': date.today(),
             'user_id': self.user_activity.id,
         })
@@ -67,35 +61,11 @@ class TestSecurityRules(TransactionCase):
         ])
         self.assertEqual(len(activities), 1)
 
-    def test_02_user_own_notes(self):
-        """測試用戶只能看到自己的筆記"""
-        # 用戶1建立筆記
-        note1 = self.env['note.note'].with_user(self.user_activity).create({
-            'memo': '<p>用戶1私人筆記</p>',
-        })
-
-        # 用戶2建立筆記
-        note2 = self.env['note.note'].with_user(self.user_other).create({
-            'memo': '<p>用戶2私人筆記</p>',
-        })
-
-        # 用戶1搜尋筆記
-        notes = self.env['note.note'].with_user(self.user_activity).search([])
-
-        # 用戶1應該能看到自己的筆記
-        self.assertIn(note1.id, notes.ids)
-
     def test_03_manager_can_see_all(self):
         """測試管理者可以看到所有待辦"""
-        note = self.env['note.note'].with_user(self.user_activity).create({
-            'memo': '<p>管理者測試筆記</p>',
-        })
-
         activity = self.env['mail.activity'].with_user(self.user_activity).create({
             'summary': '普通用戶待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
-            'res_id': note.id,
             'date_deadline': date.today(),
             'user_id': self.user_activity.id,
         })
@@ -105,22 +75,6 @@ class TestSecurityRules(TransactionCase):
             ('id', '=', activity.id)
         ])
         self.assertEqual(len(activities), 1)
-
-    def test_04_note_stage_user_specific(self):
-        """測試筆記階段是用戶專屬的"""
-        # 用戶1建立階段
-        stage1 = self.env['note.stage'].with_user(self.user_activity).create({
-            'name': '用戶1階段',
-        })
-
-        # 用戶2建立階段
-        stage2 = self.env['note.stage'].with_user(self.user_other).create({
-            'name': '用戶2階段',
-        })
-
-        # 用戶1搜尋階段，應該只看到自己的
-        stages = self.env['note.stage'].with_user(self.user_activity).search([])
-        self.assertIn(stage1.id, stages.ids)
 
     def test_05_weekly_report_user_specific(self):
         """測試週報告是用戶專屬的"""
@@ -139,17 +93,10 @@ class TestSecurityRules(TransactionCase):
 
     def test_06_unassigned_activities_visible(self):
         """測試未指派待辦的可見性"""
-        note = self.env['note.note'].sudo().create({
-            'memo': '<p>未指派測試</p>',
-            'user_id': self.user_activity.id,
-        })
-
         # 建立未指派待辦
         activity = self.env['mail.activity'].sudo().create({
             'summary': '未指派待辦',
             'activity_type_id': self.activity_type.id,
-            'res_model_id': self.env['ir.model']._get('note.note').id,
-            'res_id': note.id,
             'date_deadline': date.today(),
             'user_id': False,  # 未指派
         })

@@ -7,7 +7,7 @@ from datetime import timedelta
 from markupsafe import Markup
 
 from odoo import api, fields, models, Command, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from odoo.tools import html2plaintext
 
 _logger = logging.getLogger(__name__)
@@ -96,26 +96,6 @@ class MailActivity(models.Model):
         ('merged', 'Merged'),
     ], string='Activity Status', compute='_compute_activity_status', store=True)
 
-    # ===== 來源參考（需求四：note_id 顯示為「來源參考 / Source Reference」）=====
-    # note_id  = 這張待辦「從哪張筆記長出來」—— 語意單一，轉移精靈記的就是它。
-    # note_ids = 「有哪些筆記引用這張待辦」—— 合併時把被併入者的筆記併進主待辦，
-    #            所以必須是多筆。不變式：note_id 若有值，必定是 note_ids 的成員
-    #            （由 create/write 維護，見 _sync_note_ids）。
-    note_id = fields.Many2one(
-        'note.note',
-        string='Source Reference',
-        index=True,
-        ondelete='set null',
-        help='Source note this activity originated from',
-    )
-    note_ids = fields.Many2many(
-        'note.note',
-        'mail_activity_note_rel', 'activity_id', 'note_id',
-        string='Referenced Notes',
-        help='All notes referencing this activity (always includes the source '
-             'reference). Merging an activity moves its notes here.',
-    )
-
     # ===== 合併 =====
     # 被併入者不刪除：保留記錄 + merged_into_id 指標，讓膠囊可在讀取時轉向，
     # 並支援解除合併。指標可成鏈（A→B→C），解析一律走到終點。
@@ -139,13 +119,6 @@ class MailActivity(models.Model):
         string='Merged Count',
         compute='_compute_merged_count',
     )
-    # 視圖條件用：py.js 沒有 len() builtin，不能在 invisible 裡寫 len(note_ids)
-    # （伺服端 ast.parse 會過，瀏覽器才炸）
-    note_count = fields.Integer(
-        string='Referenced Note Count',
-        compute='_compute_note_count',
-    )
-
     # 需求四：核心 note（HTML）欄位顯示為「待辦註記 / Todo Note」
     note = fields.Html(string='Todo Note')
 
@@ -434,30 +407,7 @@ class MailActivity(models.Model):
         for activity in self:
             activity.merged_count = len(activity.merged_activity_ids)
 
-    @api.depends('note_ids')
-    def _compute_note_count(self):
-        for activity in self:
-            activity.note_count = len(activity.note_ids)
-
     # ===== 約束 =====
-
-    @api.constrains('note_id', 'note_ids')
-    def _check_note_id_in_note_ids(self):
-        """守住「來源筆記必為引用集合成員」的不變式。
-
-        create/write 會自動維護，但 API 匯入、批次 UPDATE 或未來新增的寫入路徑
-        可能繞過。不變式一破，note.note 端只看 note_ids 的計數與清單就會漏掉
-        那筆待辦（筆記上明明有來源關聯，統計卻是 0）。
-        """
-        for activity in self:
-            if activity.note_id and activity.note_id not in activity.note_ids:
-                raise ValidationError(_(
-                    'The source reference note must also be one of the referenced '
-                    'notes. Activity "%(summary)s" points at note "%(note)s" which '
-                    'is missing from its referenced notes.',
-                    summary=activity.summary or activity.activity_type_id.name or activity.id,
-                    note=activity.note_id.display_name,
-                ))
 
     @api.depends('res_model', 'res_id')
     def _compute_res_name(self):
@@ -730,12 +680,6 @@ class MailActivity(models.Model):
                         _logger.warning('Invalid target_ref format: %s', target_ref)
 
             # 需求七：不再自動關聯預設筆記；res 允許為空（獨立待辦）。
-
-            # 不變式：來源筆記（note_id）必定也在引用集合（note_ids）內，
-            # 讓筆記端的計數/清單只需要看 note_ids 一個欄位。
-            if vals.get('note_id'):
-                vals.setdefault('note_ids', [])
-                vals['note_ids'] = list(vals['note_ids']) + [Command.link(vals['note_id'])]
 
             # 設定預設的 activity_type_id（如果未提供）
             if not vals.get('activity_type_id'):
@@ -1041,13 +985,14 @@ class MailActivity(models.Model):
                 return None  # CREATE / UPDATE / DELETE：無法比對，視為已變更
         return result
 
+    def _guarded_related_fields(self):
+        """「相關文件／筆記」類欄位：建立者或被指派者才可改（hook）。
+        dobtor_meeting_minutes 補上 note_id / note_ids。"""
+        # target_ref（computed Reference，inverse 寫 res_model_id/res_id）一併納入
+        return {'res_model_id', 'res_id', 'target_ref'}
+
     def write(self, vals):
         """覆寫 write 方法以記錄指派變更"""
-        # 不變式：來源筆記（note_id）必定也在引用集合（note_ids）內。
-        if vals.get('note_id'):
-            vals = dict(vals)
-            vals['note_ids'] = list(vals.get('note_ids') or []) + [Command.link(vals['note_id'])]
-
         # 驗證：欄位層級編輯權限（建立者 vs 被指派者）。
         # 建立者可改：類型/急迫/重要（截止日另有專屬守衛）；
         # 被指派者可改：預估工時；相關文件/筆記兩者皆可。
@@ -1057,8 +1002,7 @@ class MailActivity(models.Model):
         if not self.env.su and not self.env.user.has_group('base.group_system'):
             creator_only = {'urgency', 'importance', 'activity_type_id'}
             assignee_only = {'estimated_hours'}
-            # target_ref（computed Reference，inverse 寫 res_model_id/res_id）一併納入
-            related_fields = {'res_model_id', 'res_id', 'note_id', 'note_ids', 'target_ref'}
+            related_fields = self._guarded_related_fields()
             guarded = creator_only | assignee_only | related_fields
             is_transfer = 'transferred_from_model' in vals
             is_merge = bool(self.env.context.get('activity_merge'))
@@ -1079,7 +1023,7 @@ class MailActivity(models.Model):
                         # 'model,id' 字串。需還原成同格式再比，否則恆判定為已變更。
                         cur = ('%s,%s' % (cur._name, cur.id)) if cur else False
                         newv = newv or False
-                    elif f == 'note_ids':
+                    elif self._fields[f].type in ('many2many', 'one2many'):
                         # x2many：把 command list 套到現有集合再比，避免送同一組
                         # 值也判定為已變更；無法解析的命令（create/update）→ 視為變更。
                         newv = self._apply_x2m_commands(cur.ids, newv)
@@ -1541,7 +1485,7 @@ class MailActivity(models.Model):
           - 完成精靈的「完成並排程下一個」（完成後鏈式建立）
           - 已完成待辦表單的「延續新增待辦」按鈕
         本待辦即使已封存（完成/取消），summary / activity_type_id / res /
-        partner / project / note 等欄位仍在，直接讀取即可。
+        partner 等欄位仍在，直接讀取即可（專案／筆記由其他模組覆寫補上）。
         """
         self.ensure_one()
         ctx = {
@@ -1559,10 +1503,6 @@ class MailActivity(models.Model):
             })
         if self.partner_id:
             ctx['default_partner_id'] = self.partner_id.id
-        if self.note_id:
-            ctx['default_note_id'] = self.note_id.id
-        elif self.note_ids:
-            ctx['default_note_id'] = self.note_ids[0].id
         return {
             'type': 'ir.actions.act_window',
             'name': _('Create To-do'),
@@ -1613,81 +1553,6 @@ class MailActivity(models.Model):
         return plain_text
 
     # ========== 關聯筆記 API ==========
-
-    @api.model
-    def get_related_notes(self, res_model, res_id):
-        """取得指定文件的待辦所關聯的 Notes
-
-        注意：一張待辦可引用多張筆記（note_ids），因此同一張待辦會同時出現在
-        多個筆記分組底下 —— 各分組 total_count 的**加總會大於實際待辦數**，
-        呼叫端（related_notes.js）不應把它們相加當作總數。
-        """
-        activities = self.with_context(active_test=False).search([
-            ('res_model', '=', res_model),
-            ('res_id', '=', res_id),
-            ('note_ids', '!=', False),
-        ])
-
-        notes_activities = defaultdict(list)
-        for activity in activities:
-            if activity.merged_into_id:
-                activity_state = 'merged'
-            elif activity.active:
-                activity_state = 'active'
-            elif activity.done_date:
-                activity_state = 'done'
-            elif activity.cancel_date:
-                activity_state = 'cancelled'
-            else:
-                activity_state = 'archived'
-
-            for note in activity.note_ids:
-                notes_activities[note.id].append({
-                    'id': activity.id,
-                    'summary': activity.summary or '',
-                    'state': activity_state,
-                    'note': note,
-                })
-
-        notes_data = []
-        for note_id, activity_list in notes_activities.items():
-            note = activity_list[0]['note']
-            note_name = note.name
-            if not note_name and note.memo:
-                note_name = self._html_to_text(note.memo, max_length=50)
-
-            active_count = sum(1 for a in activity_list if a['state'] == 'active')
-            done_count = sum(1 for a in activity_list if a['state'] in ('done', 'cancelled'))
-            # 已合併者仍列出（顯示但標示），但它與主待辦是同一件事 —— 單獨算出來，
-            # 讓前端能說明分母為何比實際件數大。
-            merged_count = sum(1 for a in activity_list if a['state'] == 'merged')
-            total_count = len(activity_list)
-
-            activities_info = [{
-                'id': a['id'],
-                'summary': a['summary'],
-                'state': a['state'],
-            } for a in activity_list]
-
-            notes_data.append({
-                'id': note_id,
-                'name': note_name or _('Unnamed Note'),
-                'activities': activities_info,
-                'total_count': total_count,
-                'active_count': active_count,
-                'done_count': done_count,
-                'merged_count': merged_count,
-                # 只有「已合併空殼」的筆記不算全部完成（實際內容在別處的主待辦上）
-                'is_all_done': active_count == 0 and (total_count - merged_count) > 0,
-            })
-
-        return notes_data
-
-    # ========== 週轉換定時任務 ==========
-
-
-    # ========== 頻道工具方法 ==========
-
 
     # ========== 領取與變更指派 ==========
 

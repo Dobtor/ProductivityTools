@@ -65,18 +65,12 @@ class MailActivityEditor(models.Model):
     def _editor_activity_domain(self, bind, res_model=False, res_id=False, note_id=False):
         """編輯器內嵌清單/時鐘共用的綁定 domain。
 
-        :param bind: 'note' 綁 note_id、'res' 綁 res_model/res_id、其他綁個人筆記
+        :param bind: 'note' 綁筆記、'res' 綁 res_model/res_id、其他綁個人獨立待辦
+        （bind='note' 的「引用本筆記」擴充在 dobtor_meeting_minutes；核心只當作
+        res 指向該筆記。）
         """
         if bind == 'note' and note_id:
-            note_id = int(note_id)
-            # note.note 編輯器：除了 res 指向本筆記，也以 note_ids 引用顯示
-            # （即使活動 res 指向其他文件，只要引用了本筆記也納入）。
-            # note_ids 已涵蓋 note_id（見 create/write 的不變式）。
-            return [
-                '|',
-                '&', ('res_model', '=', 'note.note'), ('res_id', '=', note_id),
-                ('note_ids', 'in', note_id),
-            ]
+            return [('res_model', '=', 'note.note'), ('res_id', '=', int(note_id))]
         if bind == 'res' and res_model and res_id:
             return [('res_model', '=', res_model), ('res_id', '=', int(res_id))]
         # 需求七：無預設筆記 —— 退回「目前使用者的獨立待辦（無關聯文件）」

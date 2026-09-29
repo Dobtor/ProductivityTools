@@ -114,31 +114,6 @@
 }
 
 // ============================================
-// Related Notes Section
-// ============================================
-.o_related_notes {
-    .o_related_notes_header {
-        cursor: pointer;
-
-        &:hover {
-            background-color: color-mix(in srgb, $light, black 5%) !important;
-        }
-    }
-
-    .o_related_note_item {
-        .o_note_activities {
-            border-left: 2px solid $secondary;
-        }
-    }
-
-    .o_activity_item {
-        &:hover {
-            background-color: $light;
-        }
-    }
-}
-
-// ============================================
 // Control Panel Button
 // ============================================
 .btn-chatter.activity_toggle_chatter {

@@ -5,10 +5,6 @@ access_mail_activity_postpone_wizard,mail.activity.postpone.wizard,model_mail_ac
 access_mail_activity_transfer_wizard,mail.activity.transfer.wizard,model_mail_activity_transfer_wizard,base.group_user,1,1,1,1
 access_mail_activity_reassign_wizard,mail.activity.reassign.wizard,model_mail_activity_reassign_wizard,base.group_user,1,1,1,1
 access_mail_activity_create_wizard,mail.activity.create.wizard,model_mail_activity_create_wizard,base.group_user,1,1,1,1
-access_note_note,note.note,model_note_note,base.group_user,1,1,1,1
-access_note_stage,note.stage,model_note_stage,base.group_user,1,1,1,1
-access_note_tag_user,note.tag.user,model_note_tag,base.group_user,1,1,1,0
-access_note_tag_admin,note.tag.admin,model_note_tag,base.group_system,1,1,1,1
 access_mail_activity_transfer_config_user,mail.activity.transfer.config.user,model_mail_activity_transfer_config,base.group_user,1,0,0,0
 access_mail_activity_transfer_config_admin,mail.activity.transfer.config.admin,model_mail_activity_transfer_config,base.group_system,1,1,1,1
 access_mail_activity_assignment_history_user,mail.activity.assignment.history.user,model_mail_activity_assignment_history,base.group_user,1,0,0,0

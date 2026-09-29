@@ -102,10 +102,6 @@ class MailActivityTransferWizard(models.TransientModel):
             'schedule_origin': 'transferred',  # 標記為轉移來源
         }
 
-        # 如果來源是 note.note，保留 note_id 關聯
-        if self.source_model == 'note.note':
-            vals['note_id'] = self.source_id
-
         return vals
 
     def action_transfer(self):

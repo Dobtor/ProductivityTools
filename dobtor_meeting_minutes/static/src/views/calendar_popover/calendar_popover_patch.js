@@ -7,7 +7,7 @@ import { patch } from "@web/core/utils/patch";
  * 在日曆事件 popover 加上「會議記錄」入口。
  *
  * 後端在 models/calendar_event.py：note_count / action_create_note /
- * action_view_notes；關聯欄位是 note.note.calendar_event_id。
+ * action_view_notes；關聯欄位是 note.note.calendar_event_ids（多對多）。
  *
  * note_count 必須是 stored 欄位，且要在日曆視圖 arch 內宣告
  * （views/calendar_event_views.xml 的繼承），popover 的 record.rawRecord 才讀得到。

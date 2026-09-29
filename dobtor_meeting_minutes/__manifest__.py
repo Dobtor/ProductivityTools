@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Meeting Minutes',
-    'version': '18.0.2.0.0',
+    'version': '18.0.3.0.0',
     'category': 'Productivity',
-    'summary': 'Meeting minutes with recording, transcription and speaker diarization',
+    'summary': 'Notes and meeting minutes: personal notes, recording, transcription and signatures',
     'description': """
-Meeting Minutes
-===============
-Complete meeting minutes management system:
+Notes & Meeting Minutes
+=======================
+Personal notes (note.note: stages, tags, archive, "Personal Notes" app) and
+complete meeting minutes management. Integrates with dobtor_mail_activity:
+source note / referenced notes on activities, related notes in chatter,
+to-do lists inside notes, weekly schedule notes.
 
 * Recording & Transcription
   - Browser-based audio recording
@@ -46,9 +49,15 @@ Complete meeting minutes management system:
         'report/ir_actions_report.xml',
         'report/report_meeting_minutes_templates.xml',
         # Data
+        'data/note_stage_data.xml',
+        'data/transfer_config_data.xml',
         'data/mail_template_data.xml',
         'data/cron_data.xml',
-        # Views
+        # Views — 筆記本體（自 dobtor_mail_activity 搬入）先於會議記錄擴充
+        'views/note_base_views.xml',
+        'views/note_stage_views.xml',
+        'views/note_tag_views.xml',
+        'views/mail_activity_note_views.xml',
         'views/calendar_event_views.xml',
         'views/note_views.xml',
         'views/note_recording_views.xml',
@@ -65,11 +74,16 @@ Complete meeting minutes management system:
         'web.assets_backend': [
             'dobtor_meeting_minutes/static/src/components/**/*',
             'dobtor_meeting_minutes/static/src/views/**/*',
+            'dobtor_meeting_minutes/static/src/web/**/*',
             'dobtor_meeting_minutes/static/src/scss/**/*',
+        ],
+        'web.assets_tests': [
+            'dobtor_meeting_minutes/static/tests/tours/**/*',
         ],
     },
     'installable': True,
     'auto_install': False,
-    'application': False,
+    'application': True,
     'license': 'LGPL-3',
+    'post_init_hook': '_post_init_hook',
 }

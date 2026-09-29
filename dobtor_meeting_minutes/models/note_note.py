@@ -25,7 +25,7 @@ class NoteNote(models.Model):
     - 簽名流程（Portal 多方簽名）
     - PDF 報告
 
-    portal.mixin 透過 dobtor_mail_activity 的 base model 繼承鏈已包含，
+    portal.mixin 已由本模組的 note_note_base.py 混入，
     此處不重複混入以避免 Many2many 欄位衝突。
     """
     _inherit = 'note.note'
