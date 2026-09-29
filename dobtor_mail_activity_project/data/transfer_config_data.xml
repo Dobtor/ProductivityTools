@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 裝上專案後補齊 project.project / project.task 等可作為「目標文件」的模型設定
+         （含 project_field；已存在者略過、不覆蓋手改值）。 -->
+    <function model="mail.activity.transfer.config" name="create_default_configs"/>
+</odoo>

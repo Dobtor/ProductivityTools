@@ -8,7 +8,7 @@ class AccountAnalyticLine(models.Model):
     新增 activity_id 欄位，用於關聯工時記錄與待辦事項。
     支援從待辦完成精靈多次登錄工時。
 
-    （原 dobtor_mail_activity_timesheet 併入；本模組硬相依 hr_timesheet。）
+    （dobtor_mail_activity_project：待辦 × 工時表整合。）
     """
     _inherit = 'account.analytic.line'
 

@@ -60,9 +60,7 @@
                     <group>
                         <field name="partner_id" options="{'no_create': True}"/>
                     </group>
-                    <group>
-                        <field name="project_id" options="{'no_create': True}"/>
-                    </group>
+                    <!-- 專案（project_id）由 dobtor_mail_activity_project 插入 -->
                     <field name="relation_diagram_anchor"
                            widget="activity_relation_diagram" nolabel="1"
                            colspan="2" invisible="res_known"/>

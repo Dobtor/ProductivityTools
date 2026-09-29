@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 待辦表單／清單：專案欄位與實際工時                              -->
+    <!-- （核心 dobtor_mail_activity 不相依專案，於此補上）              -->
+    <!-- ============================================================ -->
+
+    <!-- 快速彈窗：客戶旁加專案（col=4 → 同列並排） -->
+    <record id="mail_activity_view_form_popup_project" model="ir.ui.view">
+        <field name="name">mail.activity.view.form.popup.project</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_popup_inherit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='activity_project_relation']/field[@name='partner_id']" position="after">
+                <field name="project_id" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 排程表單：客戶旁加專案（各自巢狀 group → 等寬）、預估工時下加實際工時 -->
+    <record id="mail_activity_view_form_schedule_project" model="ir.ui.view">
+        <field name="name">mail.activity.form.schedule.project</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_form_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='activity_project_relation']/group[field[@name='partner_id']]" position="after">
+                <group>
+                    <field name="project_id" options="{'no_create': True}"
+                           readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
+                </group>
+            </xpath>
+            <xpath expr="//field[@name='estimated_hours']" position="after">
+                <field name="actual_hours" string="Actual Hours"
+                       widget="float_time" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_list_schedule_project" model="ir.ui.view">
+        <field name="name">mail.activity.list.schedule.project</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_list_schedule"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='estimated_hours']" position="after">
+                <field name="actual_hours" string="Actual Hours" widget="float_time" sum="Total" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="mail_activity_view_list_history_project" model="ir.ui.view">
+        <field name="name">mail.activity.list.history.project</field>
+        <field name="model">mail.activity</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_view_list_history"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='cancel_date']" position="after">
+                <field name="actual_hours" widget="float_time" string="Actual Hours"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 建立待辦精靈：客戶旁加專案                                       -->
+    <!-- ============================================================ -->
+    <record id="mail_activity_create_wizard_view_form_project" model="ir.ui.view">
+        <field name="name">mail.activity.create.wizard.form.project</field>
+        <field name="model">mail.activity.create.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_create_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='activity_project_relation']/group[field[@name='partner_id']]" position="after">
+                <group>
+                    <field name="project_id" options="{'no_create': True}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 完成精靈：工時、登錄後繼續、事後補登（log_only）                  -->
+    <!-- ============================================================ -->
+    <record id="mail_activity_done_wizard_view_form_project" model="ir.ui.view">
+        <field name="name">mail.activity.done.wizard.form.project</field>
+        <field name="model">mail.activity.done.wizard</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.mail_activity_done_wizard_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_delete_activity']" position="attributes">
+                <attribute name="invisible">not can_delete or log_only</attribute>
+            </xpath>
+            <xpath expr="//field[@name='activity_id']" position="after">
+                <field name="log_only" invisible="1"/>
+                <field name="timesheet_skipped" invisible="1"/>
+
+                <!-- 找不到專案：完成時跳過工時（之後掛上專案可於待辦「工時表」分頁補登）-->
+                <div class="alert alert-warning" role="alert"
+                     invisible="not timesheet_skipped or log_only">
+                    <i class="fa fa-exclamation-triangle"/>
+                    <span class="ms-1">No project is linked to this activity: hours will not be logged to the timesheet. Link a project later and use "Log Time" in the Timesheet tab.</span>
+                </div>
+            </xpath>
+            <xpath expr="//group[field[@name='res_display']]" position="after">
+                <group string="Time Information">
+                    <field name="accumulated_hours" widget="float_time" readonly="1"/>
+                    <field name="actual_hours" widget="float_time"/>
+                </group>
+            </xpath>
+            <xpath expr="//page[@name='attachments']" position="attributes">
+                <attribute name="invisible">log_only</attribute>
+            </xpath>
+            <xpath expr="//footer/button[@name='action_done']" position="attributes">
+                <attribute name="invisible">log_only</attribute>
+            </xpath>
+            <xpath expr="//footer/button[@name='action_done']" position="after">
+                <!-- 「登錄工時」模式（含已完成待辦補登）：只登錄，不完成 -->
+                <button string="Log Time" name="action_log_and_continue" type="object"
+                        class="btn-primary" invisible="not log_only"/>
+                <button string="Log and Continue" name="action_log_and_continue" type="object"
+                        class="btn-secondary" title="Log time only, do not complete activity"
+                        invisible="log_only or timesheet_skipped"/>
+            </xpath>
+            <xpath expr="//footer/button[@name='action_done_and_schedule_next']" position="attributes">
+                <attribute name="invisible">log_only</attribute>
+            </xpath>
+            <xpath expr="//footer/button[@name='action_postpone']" position="attributes">
+                <attribute name="invisible">log_only</attribute>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

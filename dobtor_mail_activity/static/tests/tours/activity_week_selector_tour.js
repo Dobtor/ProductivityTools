@@ -19,7 +19,7 @@ registry.category("web_tour.tours").add("dobtor_activity_week_selector_tour", {
     url: "/odoo",
     steps: () => [
         ...stepUtils.goToAppSteps(
-            "project_todo.menu_todo_todos",
+            "dobtor_mail_activity.menu_todo_root",
             "開啟待辦事項 App"
         ),
         {

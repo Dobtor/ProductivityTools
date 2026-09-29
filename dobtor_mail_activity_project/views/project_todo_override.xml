@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 隱藏 project_todo 的「待辦事項」App：dobtor_mail_activity 已有自己的同名 App
+         （dobtor_mail_activity.menu_todo_root）。群組說明見 security/security.xml。 -->
+    <record id="project_todo.menu_todo_todos" model="ir.ui.menu">
+        <field name="groups_id" eval="[(4, ref('group_hide_project_todo_app'))]"/>
+    </record>
+
+</odoo>

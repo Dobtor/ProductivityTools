@@ -8,11 +8,10 @@ class MailActivityDoneWizard(models.TransientModel):
     """完成待辦精靈
 
     功能說明:
-    - 記錄實際執行工時（支援多次登錄）
     - 添加完成回饋和附件
     - 可選擇安排下一次待辦
-    - 「登錄後繼續」不完成待辦，只登錄工時
-    - 觸發工時表記錄建立
+    工時（登錄、「登錄後繼續」、補登）由 dobtor_mail_activity_project 擴充；
+    核心不記工時。
     """
     _name = 'mail.activity.done.wizard'
     _inherit = 'mail.activity.action.wizard.mixin'
@@ -21,18 +20,6 @@ class MailActivityDoneWizard(models.TransientModel):
     # 待辦資訊（activity_id / summary / activity_type_name / date_deadline /
     # planned_date / estimated_hours / urgency / importance / assignee_id /
     # res_display / note_id）由 mail.activity.action.wizard.mixin 提供。
-
-    # ===== 工時資訊 =====
-    accumulated_hours = fields.Float(
-        string='Accumulated Hours',
-        compute='_compute_accumulated_hours',
-        readonly=True,
-    )
-    actual_hours = fields.Float(
-        string='Hours to Log',
-        required=True,
-        help='Time spent on this activity (hours)',
-    )
 
     # ===== 完成資訊 =====
     feedback = fields.Text(
@@ -47,18 +34,6 @@ class MailActivityDoneWizard(models.TransientModel):
         string='Attachments',
     )
 
-    # ===== 工時表專案 / 模式 =====
-    log_only = fields.Boolean(
-        string='Log Only',
-        help='Opened from "Log Time": only log hours, do not complete the activity.',
-    )
-    timesheet_skipped = fields.Boolean(
-        string='Timesheet Will Be Skipped',
-        compute='_compute_timesheet_skipped',
-        help='Timesheet logging is enabled but no project can be found for this '
-             'activity: completing it will not log hours.',
-    )
-
     # ===== 刪除權限 =====
     can_delete = fields.Boolean(
         string='Can Delete',
@@ -67,20 +42,6 @@ class MailActivityDoneWizard(models.TransientModel):
     )
 
     # ===== 計算方法 =====
-
-    @api.depends('activity_id', 'activity_id.actual_hours')
-    def _compute_accumulated_hours(self):
-        """計算已累計工時（activity.actual_hours）"""
-        for wizard in self:
-            wizard.accumulated_hours = wizard.activity_id.actual_hours or 0.0
-
-    @api.depends('activity_id')
-    def _compute_timesheet_skipped(self):
-        enabled = self.env.company.dobtor_activity_timesheet_enabled
-        for wizard in self:
-            wizard.timesheet_skipped = bool(
-                enabled and wizard.activity_id
-                and not wizard.activity_id._get_timesheet_project())
 
     @api.depends('activity_id')
     def _compute_can_delete(self):
@@ -92,111 +53,11 @@ class MailActivityDoneWizard(models.TransientModel):
                 is_admin or activity.create_uid.id == self.env.uid
             )
 
-    @api.model
-    def default_get(self, fields_list):
-        """預設值處理：取得 activity_id（mixin）後預填執行工時"""
-        res = super().default_get(fields_list)
-
-        # 預填執行工時：預估工時減去已累計工時
-        if res.get('activity_id'):
-            activity = self.env['mail.activity'].browse(res['activity_id'])
-            if activity.exists() and activity.estimated_hours:
-                remaining = activity.estimated_hours - activity.actual_hours
-                res['actual_hours'] = max(remaining, 0)
-
-        return res
-
-    # ===== 驗證方法 =====
-
-    def _validate_actual_hours(self):
-        """驗證執行工時"""
-        self.ensure_one()
-        if self.actual_hours < 0:
-            raise UserError(_('Hours cannot be negative.'))
-
-    # ===== 工時記錄方法 =====
+    # ===== 工時 hook =====
 
     def _log_hours(self):
-        """記錄本次執行工時（核心 hook）。
-
-        本模組硬相依 hr_timesheet：登錄工時 = 建立 account.analytic.line
-        工時表記錄，actual_hours 由工時表加總自動更新（見 mail.activity
-        _compute_actual_hours）。
-
-        受「啟用工時記錄」開關（res.company.dobtor_activity_timesheet_enabled）
-        控制：關閉時不建立工時表記錄（等同不追蹤工時）。
-        """
+        """記錄本次執行工時（hook）。核心不記工時；專案橋接實作工時表登錄。"""
         self.ensure_one()
-        if self.actual_hours <= 0:
-            return
-        if not self.env.company.dobtor_activity_timesheet_enabled:
-            # 工時記錄功能關閉 → 不建立工時表記錄
-            return
-        if not self._get_timesheet_project():
-            # 找不到專案 → 跳過工時（待辦照常完成）。留痕以便日後掛上專案後，
-            # 於待辦「工時表」分頁「登錄工時」補登。
-            self.activity_id._message_log(body=_(
-                'Hours not logged: %(hours)s h (no project linked). '
-                'Link a project and use "Log Time" to log them later.',
-                hours=round(self.actual_hours, 2)))
-            return
-        self._create_timesheet_entry()
-
-    # ===== 工時表建立方法（原 dobtor_mail_activity_timesheet 併入）=====
-
-    def _get_timesheet_project(self):
-        """取得工時表專案（邏輯在 mail.activity，與「登錄工時」按鈕共用）"""
-        return self.activity_id._get_timesheet_project()
-
-    def _get_timesheet_task(self):
-        """取得工時表任務"""
-        activity = self.activity_id
-        if activity.res_model == 'project.task':
-            return activity.res_id
-        return False
-
-    def _create_timesheet_entry(self):
-        """建立工時表記錄"""
-        activity = self.activity_id
-        employee = self.env.user.employee_id
-
-        if not employee:
-            raise UserError(_('You do not have an employee record and cannot log time.'))
-
-        if not employee.active:
-            raise UserError(_('Your employee record is inactive and cannot log time.'))
-
-        # 決定專案
-        project = self._get_timesheet_project()
-        if not project:
-            raise UserError(_(
-                'Cannot find a project to log time.\n'
-                'Please ensure the activity is linked to a project task/lead, or the company has a default timesheet project configured.'
-            ))
-
-        if not project.allow_timesheets:
-            raise UserError(_('Project "%(project)s" does not have timesheets enabled.', project=project.name))
-
-        # Odoo 18: analytic_account_id 已改為 account_id
-        analytic_account = project.account_id
-        if not analytic_account or not analytic_account.active:
-            raise UserError(_('Project "%(project)s" is missing a valid analytic account. Please configure it in project settings.', project=project.name))
-
-        # 建立工時記錄
-        timesheet_vals = {
-            'date': activity.planned_date or fields.Date.context_today(self),
-            'name': self.feedback or activity.summary or _('Activity Execution'),
-            'unit_amount': self.actual_hours,
-            'employee_id': employee.id,
-            'user_id': self.env.user.id,
-            'project_id': project.id,
-            'task_id': self._get_timesheet_task(),
-            'account_id': analytic_account.id,
-            'activity_id': activity.id,  # 關聯待辦
-            'company_id': analytic_account.company_id.id or project.company_id.id,
-        }
-
-        return self.env['account.analytic.line'].sudo().create(timesheet_vals)
 
     def _get_attachment_ids(self):
         """取得附件 ID 列表"""
@@ -204,35 +65,13 @@ class MailActivityDoneWizard(models.TransientModel):
 
     # ===== Action 方法 =====
 
-    def action_log_and_continue(self):
-        """登錄工時後繼續（不完成待辦）"""
-        self.ensure_one()
-
-        if self.actual_hours <= 0:
-            raise UserError(_('Please enter valid hours (must be greater than 0)'))
-        # 明確要求登錄：功能關閉或找不到專案時不可靜默跳過
-        if not self.env.company.dobtor_activity_timesheet_enabled:
-            raise UserError(_('Timesheet logging is disabled for this company.'))
-
-        # 記錄本次工時（找不到專案時 _create_timesheet_entry 會提示原因）
-        self._create_timesheet_entry()
-
-        # 關閉精靈並刷新視圖
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'soft_reload',
-        }
-
     def action_done(self):
         """完成待辦"""
         self.ensure_one()
-        self._validate_actual_hours()
-
         activity = self.activity_id
 
-        # 先記錄本次工時（如果有填寫且大於 0）
-        if self.actual_hours > 0:
-            self._log_hours()
+        # 先記錄本次工時（hook；核心為 no-op）
+        self._log_hours()
 
         # 執行完成動作
         activity._action_done(
@@ -255,13 +94,10 @@ class MailActivityDoneWizard(models.TransientModel):
         使用者於新精靈編輯後儲存。
         """
         self.ensure_one()
-        self._validate_actual_hours()
-
         activity = self.activity_id
 
-        # 記錄本次工時（如有）並完成當前待辦
-        if self.actual_hours > 0:
-            self._log_hours()
+        # 記錄本次工時（hook）並完成當前待辦
+        self._log_hours()
         activity._action_done(
             feedback=self.feedback,
             attachment_ids=self._get_attachment_ids(),

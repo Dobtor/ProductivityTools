@@ -357,8 +357,9 @@ export const activityRelationDiagramField = {
     component: ActivityRelationDiagramField,
     supportedTypes: ["boolean"],
     // 讓 widget 自足：不論 arch 是否列出這些欄位，皆抓取並在變動時反應。
+    // project_id 不列入：核心不相依專案（無此欄位）；裝了 dobtor_mail_activity_project
+    // 時由其視圖在 arch 中放入 project_id，record.data 即會帶上。
     fieldDependencies: [
-        { name: "project_id", type: "many2one" },
         { name: "partner_id", type: "many2one" },
         { name: "res_id", type: "integer" },
         { name: "res_model", type: "char" },

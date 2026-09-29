@@ -18,7 +18,7 @@ class SaleOrder(models.Model):
     - 商機已有非預設專案且與 SO 專案不同 → 僅發 chatter 通知
     - SO 有多個專案 → 不自動回寫，發通知讓使用者手動選擇
 
-    （原 dobtor_mail_activity_timesheet 併入。）
+    （dobtor_mail_activity_crm。）
     """
     _inherit = 'sale.order'
 

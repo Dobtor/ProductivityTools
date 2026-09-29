@@ -71,7 +71,7 @@
                     <!-- 攤平成 col=4：每個帶標籤欄位佔 2 格，客戶+專案剛好同一列（並排）。
                          移除多餘的 string 覆寫→改用欄位自身標籤（已翻譯為 客戶/專案）。 -->
                     <field name="partner_id" options="{'no_create': True}"/>
-                    <field name="project_id" options="{'no_create': True}"/>
+                    <!-- project_id 由 dobtor_mail_activity_project 插入 -->
                     <field name="relation_diagram_anchor" widget="activity_relation_diagram"
                            nolabel="1" colspan="4"/>
                 </group>
@@ -216,8 +216,6 @@
                             <field name="estimated_hours" string="Estimated Hours"
                                    widget="float_time"
                                    readonly="not can_edit_as_assignee"/>
-                            <field name="actual_hours" string="Actual Hours"
-                                   widget="float_time" readonly="1"/>
                             <field name="state" string="Status" widget="badge"
                                    decoration-info="state == 'planned'"
                                    decoration-warning="state == 'today'"
@@ -251,10 +249,7 @@
                             <field name="partner_id"
                                    readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
                         </group>
-                        <group>
-                            <field name="project_id" options="{'no_create': True}"
-                                   readonly="not (can_edit_as_creator or can_edit_as_assignee)"/>
-                        </group>
+                        <!-- 專案（project_id）由 dobtor_mail_activity_project 插入 -->
                         <field name="relation_diagram_anchor" widget="activity_relation_diagram"
                                nolabel="1" colspan="2"/>
                     </group>
@@ -611,7 +606,6 @@
                        decoration-success="urgency == 'flexible'"/>
                 <field name="importance" string="Importance" optional="hide"/>
                 <field name="estimated_hours" string="Estimated Hours" widget="float_time" sum="Total"/>
-                <field name="actual_hours" string="Actual Hours" widget="float_time" sum="Total" optional="show"/>
                 <field name="can_edit_as_assignee" column_invisible="1"/>
                 <field name="planned_date" string="Planned Date" optional="show"
                        widget="planned_date_picker"/>
@@ -704,7 +698,6 @@
                 <field name="date_deadline" string="Due Date"/>
                 <field name="done_date" string="Completed Date"/>
                 <field name="cancel_date" string="Cancelled Date"/>
-                <field name="actual_hours" widget="float_time" string="Actual Hours"/>
                 <field name="feedback" string="Feedback"/>
                 <button name="action_restore" type="object" string="Restore"
                         icon="fa-undo" class="btn-secondary"/>

@@ -31,10 +31,13 @@ class MailActivityRelationDiagram(models.Model):
 
         節點 data 帶 {res_model, res_id}，供前端點擊回填 res。
         """
-        Project = self.env['project.project']
-        project = Project.browse(project_id).exists() if project_id else Project
-        if not project and res_model and res_id:
-            project = self._project_from_res(res_model, res_id)
+        # 未安裝專案模組 → 一律以客戶為根
+        project = False
+        if 'project.project' in self.env:
+            Project = self.env['project.project']
+            project = Project.browse(project_id).exists() if project_id else Project
+            if not project and res_model and res_id:
+                project = self._project_from_res(res_model, res_id)
 
         # 方案 C：無專案且前端未傳 partner 時，由 res(如 crm.lead)反推客戶，
         # 確保「CRM 尚未建專案但有客戶」仍能顯示客戶為根的關聯樹。
@@ -188,6 +191,7 @@ class MailActivityRelationDiagram(models.Model):
         - project.project 本身作為巢狀節點，不另列平列群組。
         """
         relation_map = self.env['mail.activity.transfer.config']._get_relation_map()
+        has_project = 'project.project' in self.env
         # 分類設定模型
         project_fk_models = {}   # model -> project_field
         flat_models = []         # 無 project_field、但可依 partner 過濾的模型
@@ -201,7 +205,7 @@ class MailActivityRelationDiagram(models.Model):
                 'partner_id' if 'partner_id' in Model._fields else False)
             if not partner_field or partner_field not in Model._fields:
                 continue
-            proj_field = cfg.get('project_field')
+            proj_field = cfg.get('project_field') if has_project else False
             if proj_field and proj_field in Model._fields:
                 project_fk_models[model_name] = (proj_field, partner_field)
             else:
@@ -235,13 +239,15 @@ class MailActivityRelationDiagram(models.Model):
 
         children = []
 
-        # 專案節點：客戶自己的專案 ∪ 被紀錄引用到的專案
-        Project = self.env['project.project']
-        own_projects = Project.search(
-            [('partner_id', '=', partner.id)], limit=self._RELATION_TREE_LIMIT + 1)
-        project_ids = list(dict.fromkeys(own_projects.ids + list(referenced_project_ids)))
+        # 專案節點：客戶自己的專案 ∪ 被紀錄引用到的專案（未安裝專案模組則略過）
+        Project = self.env['project.project'] if has_project else None
+        project_ids = []
+        if Project is not None:
+            own_projects = Project.search(
+                [('partner_id', '=', partner.id)], limit=self._RELATION_TREE_LIMIT + 1)
+            project_ids = list(dict.fromkeys(own_projects.ids + list(referenced_project_ids)))
         project_acts = self._incomplete_activities_by_res('project.project', project_ids)
-        for proj in Project.browse(project_ids).exists():
+        for proj in (Project.browse(project_ids).exists() if Project is not None else []):
             subgroups = []
             for model_name in project_fk_models:
                 recs = by_project.get((proj.id, model_name))

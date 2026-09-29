@@ -1,0 +1,135 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* dobtor_mail_activity_crm
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-29 09:22+0000\n"
+"PO-Revision-Date: 2026-09-29 09:22+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/project_project.py:0
+msgid "%(name)s's Leads"
+msgstr "%(name)s 的線索"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model,name:dobtor_mail_activity_crm.model_mail_activity
+msgid "Activity"
+msgstr "活動"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model.fields,field_description:dobtor_mail_activity_crm.field_project_project__lead_ids
+msgid "CRM Leads"
+msgstr "CRM 線索"
+
+#. module: dobtor_mail_activity_crm
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity_crm.crm_lead_view_form_inherit_productivity
+msgid "Create Project"
+msgstr "建立專案"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model.fields,field_description:dobtor_mail_activity_crm.field_project_project__lead_count
+msgid "Lead Count"
+msgstr "線索數"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model,name:dobtor_mail_activity_crm.model_crm_lead
+msgid "Lead/Opportunity"
+msgstr "潛在商機/商機"
+
+#. module: dobtor_mail_activity_crm
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity_crm.project_project_view_form_inherit_productivity
+msgid "Leads"
+msgstr "線索"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+msgid "Migrated %(count)s timesheet entries from project \"%(old)s\" to \"%(new)s\"."
+msgstr "已將 %(count)s 筆工時記錄從專案「%(old)s」遷移至「%(new)s」。"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+msgid "New Project"
+msgstr "新專案"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+#: model:ir.model,name:dobtor_mail_activity_crm.model_project_project
+#: model:ir.model.fields,field_description:dobtor_mail_activity_crm.field_crm_lead__project_id
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity_crm.crm_lead_view_form_inherit_productivity
+msgid "Project"
+msgstr "專案"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model.fields,help:dobtor_mail_activity_crm.field_crm_lead__project_id
+msgid "Project associated with this lead for timesheet tracking."
+msgstr "為工時追蹤而與此線索關聯的專案。"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+msgid ""
+"Project removed. %(count)s timesheet entries remain in project "
+"\"%(project)s\"."
+msgstr "已移除專案。%(count)s 筆工時記錄仍保留於專案「%(project)s」。"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model,name:dobtor_mail_activity_crm.model_sale_order
+msgid "Sales Order"
+msgstr "銷售訂單"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/sale_order.py:0
+msgid ""
+"Sales order %(order)s created %(count)s projects. Please manually select the"
+" appropriate project for this lead."
+msgstr "銷售訂單 %(order)s 已建立 %(count)s 個專案。請手動為此線索選擇適當的專案。"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/sale_order.py:0
+msgid ""
+"Sales order %(order)s is associated with project \"%(so_project)s\", which "
+"differs from current project \"%(lead_project)s\"."
+msgstr "銷售訂單 %(order)s 關聯的專案「%(so_project)s」與目前專案「%(lead_project)s」不同。"
+
+#. module: dobtor_mail_activity_crm
+#: model:ir.model.fields,field_description:dobtor_mail_activity_crm.field_crm_lead__task_count
+msgid "Task Count"
+msgstr "任務數"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+#: model_terms:ir.ui.view,arch_db:dobtor_mail_activity_crm.crm_lead_view_form_inherit_productivity
+msgid "Tasks"
+msgstr "任務"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+msgid ""
+"Timesheet migration skipped: project \"%(project)s\" does not have "
+"timesheets enabled."
+msgstr "略過工時遷移：專案「%(project)s」尚未啟用工時表。"
+
+#. module: dobtor_mail_activity_crm
+#. odoo-python
+#: code:addons/dobtor_mail_activity_crm/models/crm_lead.py:0
+msgid ""
+"Timesheet migration skipped: project \"%(project)s\" is missing a valid "
+"analytic account."
+msgstr "略過工時遷移：專案「%(project)s」缺少有效的分析帳戶。"

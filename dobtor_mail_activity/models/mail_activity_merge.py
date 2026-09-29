@@ -141,9 +141,11 @@ class MailActivityMerge(models.Model):
             master_ctx.write(vals)
 
         # 2) 工時表記錄跟著走（actual_hours 是 stored compute，不能直接寫）
-        timesheets = sources.mapped('timesheet_ids')
-        if timesheets:
-            timesheets.sudo().write({'activity_id': master.id})
+        #    僅在裝了 dobtor_mail_activity_project（有 timesheet_ids）時
+        if 'timesheet_ids' in sources._fields:
+            timesheets = sources.mapped('timesheet_ids')
+            if timesheets:
+                timesheets.sudo().write({'activity_id': master.id})
 
         # 3) 筆記內的膠囊就地改寫成主待辦（僅處理引用到的筆記；
         #    其餘位置由 get_chip_data 的讀取時轉向兜底）

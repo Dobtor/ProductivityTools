@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""來源推導：由關聯文件 / 專案自動帶出專案與客戶。
+"""來源推導：由關聯文件自動帶出客戶（專案部分由 dobtor_mail_activity_project 擴充）。
 
 不綁定特定模組 —— 允許的模型與其專案 FK 欄位由 mail.activity.transfer.config
 設定驅動（見 _selection_target_model），新增可關聯的模型不需要改這裡的程式碼。
@@ -26,7 +26,8 @@ class MailActivitySource(models.Model):
         來源優先序（每筆待辦）：
         1. res 記錄的 partner 欄位（transfer.config.partner_field，或自動探測
            res 模型上的 'partner_id'）
-        2. 待辦 project_id 的客戶（project.partner_id）—— 需求五「以專案客戶帶入」
+        2. _fallback_partner_id()：核心無；dobtor_mail_activity_project 覆寫為
+           待辦專案的客戶（需求五「以專案客戶帶入」）
         3. 皆無 → 不動（保留手填/留空）
 
         預設只在「partner 尚未設定」時填入（force=False），以免覆寫手填值；
@@ -68,18 +69,25 @@ class MailActivitySource(models.Model):
         # 依 candidate 分組後批次 write（同 partner 一次寫），避免逐筆 N 次 write
         to_write = defaultdict(lambda: self.env['mail.activity'])
         for activity in self:
-            candidate = res_partner.get(activity.id) or activity.project_id.partner_id.id
+            candidate = res_partner.get(activity.id) or activity._fallback_partner_id()
             if candidate and (force or not activity.partner_id):
                 to_write[candidate] |= activity
         for candidate, activities in to_write.items():
             activities.partner_id = candidate
 
+    def _fallback_partner_id(self):
+        """res 推不出客戶時的後備客戶 id（hook）。核心無；專案橋接回傳專案客戶。"""
+        self.ensure_one()
+        return False
+
     def _project_from_res(self, res_model, res_id):
         """依 transfer.config.project_field 由 res 記錄反推 project（需求三）。
 
         res 為 project.project 本身 → 回傳自身；否則讀該模型的 project_field。
-        回傳 project.project 記錄集（可能為空）。
+        回傳 project.project 記錄集（可能為空）；未安裝專案模組時回傳 False。
         """
+        if 'project.project' not in self.env:
+            return False
         Project = self.env['project.project']
         if not res_model or not res_id or res_model not in self.env:
             return Project
@@ -126,22 +134,8 @@ class MailActivitySource(models.Model):
 
     @api.onchange('res_model_id', 'res_id')
     def _onchange_res_fill_project_partner(self):
-        """需求三/五：選定 res 後，反推專案並派生客戶。
-
-        - project_id 空時由 res 反推帶入（force 專案，因 res 明確變更）
-        - partner 依 _derive_partner_from_source（res 客戶 > 專案客戶）
-        """
+        """需求五：選定 res 後派生客戶（res 客戶 > 後備客戶）。
+        專案反推由 dobtor_mail_activity_project 覆寫本方法補上（先設專案再呼叫 super）。"""
         for activity in self:
             if activity.res_model and activity.res_id:
-                if not activity.project_id:
-                    project = activity._project_from_res(activity.res_model, activity.res_id)
-                    if project:
-                        activity.project_id = project.id
                 activity._derive_partner_from_source(force=True)
-
-    @api.onchange('project_id')
-    def _onchange_project_fill_partner(self):
-        """需求五：選定/變更專案後，若客戶尚未設定則以專案客戶帶入。"""
-        for activity in self:
-            if activity.project_id and not activity.partner_id:
-                activity._derive_partner_from_source(force=False)

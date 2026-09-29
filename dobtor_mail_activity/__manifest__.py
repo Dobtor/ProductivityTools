@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Advanced Activity Management',
-    'version': '18.0.1.9.0',
+    'version': '18.0.2.0.0',
     'category': 'Productivity',
     'summary': 'Advanced activity management system integrating activities, notes, weekly reports and efficiency analytics',
     'description': """
@@ -58,17 +58,9 @@ Main Features:
         'calendar',
         'portal',
         'hr',
-        'project',
-        # 併入 dobtor_mail_activity_timesheet 後新增的硬相依：
-        # crm     → crm.lead.project_id（恆可選，與工時開關無關）
-        # sale_crm→ 銷售訂單確認回寫商機專案
-        # project_todo → 待辦事項 app 選單父節點與 My Activities 動作覆寫
-        # hr_timesheet → 工時表整合（Timesheet 分頁/工時加總/done 精靈）
-        #               「啟用工時記錄」為功能開關，非條件安裝
-        'crm',
-        'sale_crm',
-        'project_todo',
-        'hr_timesheet',
+        # 不相依 project / hr_timesheet / crm / sale_crm / project_todo。
+        # 專案與工時整合 → dobtor_mail_activity_project（auto_install）
+        # CRM／銷售整合   → dobtor_mail_activity_crm（auto_install）
     ],
     'data': [
         # Security
@@ -94,15 +86,9 @@ Main Features:
         'views/weekly_report_views.xml',
         'views/efficiency_views.xml',
         'views/res_users_views.xml',
-        'views/res_company_views.xml',
         'views/res_config_settings_views.xml',
         'views/weekly_schedule_config_views.xml',
-        # 併入自 dobtor_mail_activity_timesheet（crm/專案/工時整合）
-        'views/crm_lead_views.xml',
-        'views/project_project_views.xml',
-        'views/mail_activity_timesheet_views.xml',
         'views/calendar_event_views.xml',
-        'views/project_todo_override.xml',
         'views/menu_views.xml',
     ],
     'assets': {

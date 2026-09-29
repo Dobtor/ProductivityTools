@@ -22,19 +22,10 @@
                     <field name="can_delete" invisible="1"/>
                     <button name="action_delete_activity" type="object"
                             string="Delete" class="btn-danger"
-                            invisible="not can_delete or log_only"
+                            invisible="not can_delete"
                             confirm="Delete this to-do permanently? This cannot be undone."/>
                 </header>
                 <field name="activity_id" invisible="1"/>
-                <field name="log_only" invisible="1"/>
-                <field name="timesheet_skipped" invisible="1"/>
-
-                <!-- 找不到專案：完成時跳過工時（之後掛上專案可於待辦「工時表」分頁補登）-->
-                <div class="alert alert-warning" role="alert"
-                     invisible="not timesheet_skipped or log_only">
-                    <i class="fa fa-exclamation-triangle"/>
-                    <span class="ms-1">No project is linked to this activity: hours will not be logged to the timesheet. Link a project later and use "Log Time" in the Timesheet tab.</span>
-                </div>
 
                 <!-- 摘要 -->
                 <div class="oe_title">
@@ -62,33 +53,22 @@
                     <field name="note_id"/>
                 </group>
 
-                <!-- 完成專屬：工時 -->
-                <group string="Time Information">
-                    <field name="accumulated_hours" widget="float_time" readonly="1"/>
-                    <field name="actual_hours" widget="float_time"/>
-                </group>
+                <!-- 工時（Time Information）由 dobtor_mail_activity_project 插入於此 -->
 
                 <notebook>
                     <page string="Feedback" name="feedback">
                         <field name="feedback" nolabel="1" placeholder="Enter completion feedback or description..."/>
                     </page>
-                    <page string="Attachments" name="attachments" invisible="log_only">
+                    <page string="Attachments" name="attachments">
                         <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
                     </page>
                 </notebook>
                 <footer>
-                    <button string="Complete" name="action_done" type="object" class="btn-primary"
-                            invisible="log_only"/>
-                    <!-- 「登錄工時」模式（含已完成待辦補登）：只登錄，不完成 -->
-                    <button string="Log Time" name="action_log_and_continue" type="object"
-                            class="btn-primary" invisible="not log_only"/>
-                    <button string="Log and Continue" name="action_log_and_continue" type="object"
-                            class="btn-secondary" title="Log time only, do not complete activity"
-                            invisible="log_only or timesheet_skipped"/>
+                    <button string="Complete" name="action_done" type="object" class="btn-primary"/>
+                    <!-- 「登錄後繼續」/「登錄工時」由 dobtor_mail_activity_project 插入 -->
                     <button string="Complete and Schedule Next" name="action_done_and_schedule_next" type="object"
-                            class="btn-secondary" invisible="log_only"/>
-                    <button string="Postpone to Next Week" name="action_postpone" type="object" class="btn-secondary"
-                            invisible="log_only"/>
+                            class="btn-secondary"/>
+                    <button string="Postpone to Next Week" name="action_postpone" type="object" class="btn-secondary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

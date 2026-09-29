@@ -44,9 +44,9 @@ class MailActivityCreateWizard(models.TransientModel):
     res_id = fields.Many2oneReference(
         string='Related Document ID', model_field='res_model')
 
-    # ===== 客戶 / 專案（與 mail.activity form 一致；選 res 後可自動帶入）=====
+    # ===== 客戶（與 mail.activity form 一致；選 res 後可自動帶入）=====
+    # 專案欄位 project_id 由 dobtor_mail_activity_project 擴充
     partner_id = fields.Many2one('res.partner', string='Customer')
-    project_id = fields.Many2one('project.project', string='Project')
 
     # 關聯圖錨點（dummy Boolean，供 activity_relation_diagram widget 綁定）
     relation_diagram_anchor = fields.Boolean(default=False)
@@ -151,33 +151,21 @@ class MailActivityCreateWizard(models.TransientModel):
                 wiz.res_id = False
                 wiz.res_model = False
 
-    @api.onchange('project_id')
-    def _onchange_wizard_project(self):
-        """選/改專案 → 客戶空則以專案客戶帶入（不覆蓋已選客戶）。"""
-        for wiz in self:
-            if wiz.project_id and not wiz.partner_id and wiz.project_id.partner_id:
-                wiz.partner_id = wiz.project_id.partner_id.id
-
     def _wizard_fill_project_partner(self):
-        """選定 res 後：專案/客戶「空時」由文件反推帶入（不覆蓋使用者已選）。
-
-        規則對照使用者確認之情境：
-          選客戶先 → 選 doc → 帶入專案（客戶已填、保持）
-          選專案先 → 選 doc → 帶入客戶（專案已填、保持）
-        重用 mail.activity 的 _project_from_res / _partner_from_res。
-        """
+        """選定 res 後：客戶「空時」由文件反推帶入（不覆蓋使用者已選）。
+        專案反推由 dobtor_mail_activity_project 覆寫（先帶專案再呼叫 super）。"""
         self.ensure_one()
         if not self.res_model or not self.res_id:
             return
-        Act = self.env['mail.activity']
-        if not self.project_id:
-            project = Act._project_from_res(self.res_model, self.res_id)
-            if project:
-                self.project_id = project.id
         if not self.partner_id:
-            partner_id = Act._partner_from_res(self.res_model, self.res_id)
+            partner_id = self.env['mail.activity']._partner_from_res(
+                self.res_model, self.res_id)
             if partner_id:
                 self.partner_id = partner_id
+
+    def _prepare_extra_activity_values(self):
+        """寫入 mail.activity 的額外欄位（hook；專案橋接補 project_id）。"""
+        return {}
 
     @api.model
     def default_get(self, fields_list):
@@ -240,9 +228,8 @@ class MailActivityCreateWizard(models.TransientModel):
             act_values['note_id'] = self.note_id.id
         if self.source_message_id:
             act_values['source_message_id'] = self.source_message_id.id
-        # 客戶/專案（wizard 上選定或由文件自動帶入）；兩條建立路徑皆帶入
-        if self.project_id:
-            act_values['project_id'] = self.project_id.id
+        # 擴充欄位（如專案橋接的 project_id）；兩條建立路徑皆帶入
+        act_values.update(self._prepare_extra_activity_values())
         # 需求八：discuss 建立時 context 帶入 default_partner_id；wizard 選定者優先
         partner_id = self.partner_id.id or self.env.context.get('default_partner_id')
         if partner_id:
@@ -261,7 +248,7 @@ class MailActivityCreateWizard(models.TransientModel):
             )
 
         # 獨立待辦（無關聯文件）：直接建立 mail.activity
-        # （partner_id/project_id 已含於 act_values）
+        # （partner_id 與擴充欄位已含於 act_values）
         vals = {
             'activity_type_id': self.activity_type_id.id,
             'summary': self.summary,

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_activity_timesheet" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.activity.timesheet</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="dobtor_mail_activity.res_config_settings_view_form_inherit_productivity"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='activity_weekly_report_settings']" position="after">
+                <block title="Timesheet Recording" name="activity_timesheet_settings">
+                    <setting id="activity_timesheet_enabled_setting"
+                             string="Timesheet Recording"
+                             help="When enabled, completing an activity logs time into timesheet entries and shows the Timesheet tab on the activity form. CRM project selection is unaffected by this switch.">
+                        <field name="dobtor_activity_timesheet_enabled"/>
+                    </setting>
+                    <setting id="default_timesheet_project_setting"
+                             string="Default Timesheet Project"
+                             help="When an activity is completed without a linked project, use this default project to create timesheet entries."
+                             invisible="not dobtor_activity_timesheet_enabled">
+                        <field name="timesheet_project_id"
+                               domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

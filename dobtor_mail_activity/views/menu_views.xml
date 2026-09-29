@@ -2,9 +2,16 @@
 <odoo>
 
     <!-- ============================================================ -->
-    <!-- 所有選單整合到 project_todo.menu_todo_todos 下                  -->
+    <!-- 「待辦事項」App（本模組自有；不相依 project_todo）               -->
     <!-- 主選單點擊直接開啟「我的待辦事項」(action_mail_activity_my_schedule) -->
+    <!-- 裝了專案時，dobtor_mail_activity_project 會隱藏 project_todo 的    -->
+    <!-- 同名 App，避免出現兩個「待辦事項」。                             -->
     <!-- ============================================================ -->
+    <menuitem id="menu_todo_root"
+              name="To-dos"
+              web_icon="dobtor_mail_activity,static/description/todo_icon.png"
+              action="action_mail_activity_my_schedule"
+              sequence="24"/>
 
     <!-- ============================================================ -->
     <!-- 筆記本（第一層選單）                                            -->
@@ -45,7 +52,7 @@
     <!-- ============================================================ -->
     <menuitem id="menu_mail_activity_unassigned"
               name="Unassigned"
-              parent="project_todo.menu_todo_todos"
+              parent="menu_todo_root"
               action="action_mail_activity_unassigned"
               sequence="15"/>
 
@@ -54,7 +61,7 @@
     <!-- ============================================================ -->
     <menuitem id="menu_mail_activity_created_by_me"
               name="All To-dos"
-              parent="project_todo.menu_todo_todos"
+              parent="menu_todo_root"
               action="action_mail_activity_created_by_me"
               sequence="18"/>
 
@@ -67,7 +74,7 @@
     <!-- ============================================================ -->
     <menuitem id="menu_weekly_report_my"
               name="My Reports"
-              parent="project_todo.menu_todo_todos"
+              parent="menu_todo_root"
               action="action_weekly_report"
               sequence="12"
               groups="dobtor_mail_activity.group_weekly_report"/>
@@ -77,7 +84,7 @@
     <!-- ============================================================ -->
     <menuitem id="menu_efficiency_root"
               name="Efficiency Analysis"
-              parent="project_todo.menu_todo_todos"
+              parent="menu_todo_root"
               sequence="40"/>
 
     <menuitem id="menu_efficiency_personal"
@@ -97,7 +104,7 @@
     <!-- ============================================================ -->
     <menuitem id="menu_management"
               name="Management"
-              parent="project_todo.menu_todo_todos"
+              parent="menu_todo_root"
               sequence="90"
               groups="dobtor_mail_activity.group_activity_manager"/>
 
@@ -146,7 +153,7 @@
     <!-- ============================================================ -->
     <menuitem id="menu_configuration"
               name="Settings"
-              parent="project_todo.menu_todo_todos"
+              parent="menu_todo_root"
               sequence="100"
               groups="dobtor_mail_activity.group_activity_manager"/>
 

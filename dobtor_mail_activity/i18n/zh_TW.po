@@ -5761,3 +5761,8 @@ msgid ""
 "Timesheet logging is enabled but no project can be found for this activity: "
 "completing it will not log hours."
 msgstr "已啟用工時記錄，但此待辦找不到專案：完成時不會登錄工時。"
+
+#. module: dobtor_mail_activity
+#: model:ir.ui.menu,name:dobtor_mail_activity.menu_todo_root
+msgid "To-dos"
+msgstr "待辦事項"
