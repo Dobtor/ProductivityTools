@@ -34,8 +34,9 @@ FIELD_TYPE_SELECTION = [
     #   原因：ir.model.access.csv:25 給 doc.template.field 的權限是 manager 才可寫，
     #   一般編輯者把模型欄位拖進文件會被 ACL 擋下；而且那樣做會把個別文件的變數
     #   寫進所有文件共用的範本，語意本來就不對。
-    # 選項值刻意保留到既有記錄遷移完成為止（見 migrations/18.0.2.4.0），
-    # 提前拿掉會讓尚未遷移的記錄落到不存在的 selection 值。
+    # 選項值暫時保留：本模組目前沒有任何既有安裝，理論上可直接移除，
+    # 但整套 alias 退場機制（field_aliases / 正則渲染路徑 / 相關路由）
+    # 要一起清才有意義，另案處理。
     ('odoo_field', 'Odoo 欄位（已淘汰）'),
 ]
 
