@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_knowledge_root" name="方案知識" sequence="60"
+              parent="dobtor_infrastructure.menu_infrastructure"
+              groups="group_knowledge_editor"/>
+    <menuitem id="menu_knowledge_catalog" name="事實層" sequence="10"
+              parent="menu_knowledge_root"/>
+    <menuitem id="menu_knowledge_outlets" name="出口" sequence="20"
+              parent="menu_knowledge_root"/>
+    <menuitem id="menu_knowledge_ops" name="作業" sequence="30"
+              parent="menu_knowledge_root"/>
+</odoo>

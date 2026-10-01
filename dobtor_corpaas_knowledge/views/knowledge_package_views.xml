@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ★ 知識人員專用的方案畫面：PAAS 的方案表單含範本版本等欄位，知識編輯／核准／管理者
+         沒有那些模型的讀取權，一打開就 Access Error。這裡只放知識相關欄位。
+         情境與能力的歸屬在它們自己的表單上維護（寫入方案記錄需要基礎建設權限）。 -->
+    <record id="view_kb_package_list" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.list.knowledge</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0">
+                <field name="product_tmpl_id"/>
+                <field name="knowledge_enabled"/>
+                <field name="knowledge_last_refresh"/>
+                <field name="knowledge_feature_count" string="功能點"/>
+                <field name="knowledge_event_count" string="待處理事件"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_package_form" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.knowledge.only</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0" edit="0">
+                <header>
+                    <button name="action_knowledge_refresh" string="立即全量更新" type="object"
+                            class="btn-primary" invisible="knowledge_blocker"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                    <button name="action_knowledge_ai_select" string="AI 圈選情境與能力" type="object"
+                            invisible="knowledge_blocker"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning" role="alert" invisible="not knowledge_blocker">
+                        <field name="knowledge_blocker"/>
+                    </div>
+                    <div class="oe_title"><h1><field name="product_tmpl_id" readonly="1"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="knowledge_enabled" readonly="1"/>
+                            <field name="knowledge_last_refresh"/>
+                        </group>
+                        <group>
+                            <field name="knowledge_feature_count" string="功能點"/>
+                            <field name="knowledge_event_count" string="待處理事件"/>
+                        </group>
+                    </group>
+                    <group string="情境與能力（在各自的表單上加入或移除方案）">
+                        <field name="knowledge_scenario_ids" widget="many2many_tags" readonly="1"/>
+                        <field name="knowledge_capability_ids" widget="many2many_tags" readonly="1"/>
+                    </group>
+                    <field name="knowledge_sandbox_ids" readonly="1">
+                        <list>
+                            <field name="db_name"/>
+                            <field name="scenario_id"/>
+                            <field name="state"/>
+                            <field name="ready_at"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_package" model="ir.actions.act_window">
+        <field name="name">方案</field>
+        <field name="res_model">infrastructure.solution.package</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_kb_package_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_kb_package_form')})]"/>
+    </record>
+    <menuitem id="menu_kb_package" action="action_kb_package" sequence="5"
+              parent="menu_knowledge_catalog"/>
+</odoo>

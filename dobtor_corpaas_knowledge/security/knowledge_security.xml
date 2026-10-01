@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_knowledge" model="ir.module.category">
+        <field name="name">CorPaaS 方案知識</field>
+        <field name="sequence">60</field>
+    </record>
+
+    <!-- 三層：編輯（改能力、情境、文章草稿）→ 核准（發佈、宣稱簽核）→ 管理（設定、預算、說明主機） -->
+    <record id="group_knowledge_editor" model="res.groups">
+        <field name="name">知識編輯</field>
+        <field name="category_id" ref="module_category_knowledge"/>
+        <field name="implied_ids" eval="[(4, ref('dobtor_infrastructure.group_user'))]"/>
+    </record>
+    <record id="group_knowledge_approver" model="res.groups">
+        <field name="name">知識核准</field>
+        <field name="category_id" ref="module_category_knowledge"/>
+        <field name="implied_ids" eval="[(4, ref('group_knowledge_editor'))]"/>
+    </record>
+    <record id="group_knowledge_manager" model="res.groups">
+        <field name="name">知識管理</field>
+        <field name="category_id" ref="module_category_knowledge"/>
+        <field name="implied_ids" eval="[(4, ref('group_knowledge_approver'))]"/>
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+</odoo>

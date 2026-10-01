@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_corpaas_knowledge_proposal" model="ir.sequence">
+            <field name="name">服務建議書</field>
+            <field name="code">corpaas.knowledge.proposal</field>
+            <field name="prefix">PRO/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+        <!-- 報價單上導入服務／客製開發工項用的產品（數量＝人天）；設定頁可換成別的產品 -->
+        <record id="product_implementation_service" model="product.product">
+            <field name="name">導入服務（人天）</field>
+            <field name="type">service</field>
+            <field name="uom_id" ref="uom.product_uom_day"/>
+            <field name="uom_po_id" ref="uom.product_uom_day"/>
+            <field name="list_price">12000</field>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="invoice_policy">order</field>
+        </record>
+    </data>
+</odoo>

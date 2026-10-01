@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_knowledge_proposal" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.knowledge.proposal</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.res_config_settings_view_form_knowledge"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='knowledge_block']" position="after">
+                <block title="服務建議書（評估報價／預估成本）" name="knowledge_proposal_block">
+                    <setting string="人天費率" help="估算明細在「計算估算」當下複製這兩個值；之後改設定不影響已算好的建議書。">
+                        <field name="proposal_day_rate"/>
+                        <field name="proposal_internal_day_cost"/>
+                    </setting>
+                    <setting string="導入服務產品" help="建立報價單時，工項明細用這個產品（數量＝人天）。">
+                        <field name="proposal_service_product_id"/>
+                    </setting>
+                    <setting string="基礎設施單價" help="主機沒有可信成本（dobtor_infrastructure_cost）時用每 CCU 月成本；能力資源特徵換算用每 GB／每 worker 月成本。">
+                        <field name="proposal_cost_per_ccu_monthly"/>
+                        <field name="proposal_cost_per_gb_monthly"/>
+                        <field name="proposal_cost_per_worker_monthly"/>
+                        <field name="proposal_worker_mb"/>
+                    </setting>
+                    <setting string="第三方與 AI" help="能力寫了第三方費用但沒寫金額時的預設月費；AI 點數的每點成本。">
+                        <field name="proposal_third_party_default_monthly"/>
+                        <field name="proposal_ai_point_cost"/>
+                    </setting>
+                    <setting string="工時回寫" help="timesheet 小時換人天；工時範本移動平均的視窗大小。">
+                        <field name="proposal_hours_per_day"/>
+                        <field name="proposal_calibration_window"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

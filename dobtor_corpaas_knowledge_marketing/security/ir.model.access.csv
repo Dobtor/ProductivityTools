@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_kb_pitch_editor,kb.pitch.editor,model_corpaas_knowledge_pitch,dobtor_corpaas_knowledge.group_knowledge_editor,1,1,1,0
+access_kb_pitch_manager,kb.pitch.manager,model_corpaas_knowledge_pitch,dobtor_corpaas_knowledge.group_knowledge_manager,1,1,1,1
+access_kb_claim_editor,kb.claim.editor,model_corpaas_knowledge_claim,dobtor_corpaas_knowledge.group_knowledge_editor,1,1,1,1
+access_kb_release_note_editor,kb.release_note.editor,model_corpaas_knowledge_release_note,dobtor_corpaas_knowledge.group_knowledge_editor,1,1,1,0
+access_kb_release_note_manager,kb.release_note.manager,model_corpaas_knowledge_release_note,dobtor_corpaas_knowledge.group_knowledge_manager,1,1,1,1

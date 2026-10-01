@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_pitch_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.pitch.list</field>
+        <field name="model">corpaas.knowledge.pitch</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="product_tmpl_id"/>
+                <field name="capability_id"/>
+                <field name="headline"/>
+                <field name="scenario_id" optional="show"/>
+                <field name="claim_check_count" optional="show"/>
+                <field name="images_hidden" optional="hide"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"
+                       decoration-muted="state == 'retired'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kb_pitch_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.pitch.form</field>
+        <field name="model">corpaas.knowledge.pitch</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_ai_draft" string="AI 起草行銷文案" type="object"
+                            invisible="state == 'retired'"/>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale', 'published')"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_retire" string="下架" type="object"
+                            invisible="state in ('retired', 'draft')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="headline" placeholder="一句講成果的標題"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="product_tmpl_id"/>
+                            <field name="package_id" domain="[('product_tmpl_id', '=', product_tmpl_id)]"
+                                   options="{'no_create': True}"/>
+                            <field name="capability_id"/>
+                            <field name="scenario_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="images_hidden" invisible="not images_hidden"/>
+                            <field name="claim_check_count" invisible="not claim_check_count"/>
+                            <field name="stale_reason" invisible="not stale_reason"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="內文" name="body">
+                            <field name="body_html"/>
+                        </page>
+                        <page string="宣稱" name="claims">
+                            <field name="claim_ids">
+                                <list editable="bottom" decoration-warning="state == 'check'">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="text"/>
+                                    <field name="feature_ids" widget="many2many_tags"/>
+                                    <field name="state" widget="badge" decoration-warning="state == 'check'"/>
+                                    <field name="reason" optional="show"/>
+                                    <button name="action_mark_ok" string="確認無誤" type="object" icon="fa-check"
+                                            invisible="state != 'check'"
+                                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="截圖" name="assets">
+                            <field name="capability_feature_ids" invisible="1"/>
+                            <field name="asset_ids">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="feature_id"/>
+                                    <field name="scenario_id"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="待核差異" name="review" invisible="state != 'review'">
+                            <field name="review_diff"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_kb_pitch_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.pitch.search</field>
+        <field name="model">corpaas.knowledge.pitch</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="headline"/>
+                <field name="product_tmpl_id"/>
+                <field name="capability_id"/>
+                <filter name="to_review" string="待核" domain="[('state', '=', 'review')]"/>
+                <filter name="stale" string="失效" domain="[('state', '=', 'stale')]"/>
+                <filter name="images_hidden" string="圖片撤下中" domain="[('images_hidden', '=', True)]"/>
+                <group>
+                    <filter name="group_product" string="方案商品" context="{'group_by': 'product_tmpl_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_kb_pitch" model="ir.actions.act_window">
+        <field name="name">能力卡片</field>
+        <field name="res_model">corpaas.knowledge.pitch</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_kb_pitch_search"/>
+    </record>
+
+    <record id="view_kb_claim_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.claim.list</field>
+        <field name="model">corpaas.knowledge.claim</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-warning="state == 'check'">
+                <field name="product_tmpl_id"/>
+                <field name="pitch_id"/>
+                <field name="text"/>
+                <field name="capability_id" optional="show"/>
+                <field name="feature_ids" widget="many2many_tags"/>
+                <field name="state" widget="badge" decoration-warning="state == 'check'"/>
+                <field name="reason"/>
+                <button name="action_mark_ok" string="確認無誤" type="object" icon="fa-check"
+                        invisible="state != 'check'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kb_claim_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.claim.search</field>
+        <field name="model">corpaas.knowledge.claim</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="text"/>
+                <field name="feature_ids"/>
+                <field name="pitch_id"/>
+                <filter name="check" string="待查" domain="[('state', '=', 'check')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_kb_claim" model="ir.actions.act_window">
+        <field name="name">宣稱</field>
+        <field name="res_model">corpaas.knowledge.claim</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_kb_claim_search"/>
+        <field name="context">{'search_default_check': 1}</field>
+    </record>
+</odoo>

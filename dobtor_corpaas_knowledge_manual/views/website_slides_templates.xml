@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ★ 同一篇文章在多個方案 channel 各有一張 slide：canonical 指向主要位置，
+         避免搜尋引擎把它們當成重複內容。不是方案知識的頁面 kb_canonical_url 為空，
+         沿用 website 原本的 canonical（不另加第二個 canonical 標籤）。 -->
+    <template id="layout_knowledge_canonical" inherit_id="website.layout"
+              name="Knowledge manual canonical">
+        <xpath expr="//link[@rel='canonical']" position="attributes">
+            <attribute name="t-att-href">kb_canonical_url or url_localized(lang_code=lang,canonical_domain=canonical_domain)</attribute>
+        </xpath>
+    </template>
+
+    <template id="slide_main_knowledge_canonical" inherit_id="website_slides.slide_main"
+              name="Slide: knowledge canonical">
+        <xpath expr="//t[@t-call='website.layout']" position="before">
+            <t t-set="kb_canonical_url" t-value="slide._knowledge_canonical_url()"/>
+        </xpath>
+    </template>
+
+    <!-- ☠️ 全螢幕模式自己在 head 另放一個 canonical（指向本張 slide），而且也會走
+         website.layout：兩處都要改成主要位置，否則同一頁出現兩個互相矛盾的 canonical。 -->
+    <template id="slide_fullscreen_knowledge_canonical" inherit_id="website_slides.slide_fullscreen"
+              name="Slide fullscreen: knowledge canonical">
+        <xpath expr="//t[@t-set='head']" position="before">
+            <t t-set="kb_canonical_url" t-value="slide._knowledge_canonical_url()"/>
+        </xpath>
+        <xpath expr="//t[@t-set='head']/link[@rel='canonical']" position="attributes">
+            <attribute name="t-att-href">kb_canonical_url or slide.website_url</attribute>
+        </xpath>
+    </template>
+</odoo>

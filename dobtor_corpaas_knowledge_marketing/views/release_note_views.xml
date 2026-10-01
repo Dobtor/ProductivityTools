@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_release_note_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.release_note.list</field>
+        <field name="model">corpaas.knowledge.release_note</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="product_tmpl_id"/>
+                <field name="title"/>
+                <field name="package_id" optional="hide"/>
+                <field name="published_date"/>
+                <field name="ai_pending" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"
+                       decoration-muted="state == 'retired'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kb_release_note_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.release_note.form</field>
+        <field name="model">corpaas.knowledge.release_note</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_ai_draft" string="AI 重新起草" type="object"
+                            invisible="state == 'retired' or not feature_ids or not package_id"/>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale', 'published')"/>
+                    <button name="action_notify_subscribers" string="發給既有訂戶" type="object"
+                            invisible="state != 'published'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_retire" string="下架" type="object"
+                            invisible="state in ('retired', 'draft')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="title" placeholder="本期新增標題"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="product_tmpl_id"/>
+                            <field name="package_id"/>
+                            <field name="published_date"/>
+                        </group>
+                        <group>
+                            <field name="refresh_token"/>
+                            <field name="ai_pending" invisible="not ai_pending"/>
+                            <field name="stale_reason" invisible="not stale_reason"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="內文" name="body">
+                            <field name="body_html"/>
+                        </page>
+                        <page string="新增功能點" name="features">
+                            <field name="feature_ids"/>
+                        </page>
+                        <page string="待核差異" name="review" invisible="state != 'review'">
+                            <field name="review_diff"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_kb_release_note" model="ir.actions.act_window">
+        <field name="name">本期新增</field>
+        <field name="res_model">corpaas.knowledge.release_note</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

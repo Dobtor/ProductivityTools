@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_kb_marketing" name="產品行銷" sequence="20"
+              parent="dobtor_corpaas_knowledge.menu_knowledge_outlets"/>
+    <menuitem id="menu_kb_pitch" action="action_kb_pitch" sequence="10"
+              parent="menu_kb_marketing"/>
+    <menuitem id="menu_kb_claim" action="action_kb_claim" sequence="20"
+              parent="menu_kb_marketing"/>
+    <menuitem id="menu_kb_release_note" action="action_kb_release_note" sequence="30"
+              parent="menu_kb_marketing"/>
+</odoo>

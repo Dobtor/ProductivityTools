@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_placement_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.placement.list</field>
+        <field name="model">corpaas.knowledge.placement</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-warning="sync_error">
+                <field name="channel_id"/>
+                <field name="article_id"/>
+                <field name="package_id" optional="show"/>
+                <field name="capability_id"/>
+                <field name="sequence"/>
+                <field name="is_canonical"/>
+                <field name="slide_published"/>
+                <field name="manual_retired" optional="show"/>
+                <field name="last_synced_rev" optional="hide"/>
+                <field name="synced_at" optional="hide"/>
+                <field name="sync_error" optional="show"/>
+                <button name="action_set_canonical" string="設為主要" type="object" class="btn-link"
+                        invisible="is_canonical"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_placement_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.placement.form</field>
+        <field name="model">corpaas.knowledge.placement</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_set_canonical" string="設為主要位置" type="object"
+                            invisible="is_canonical"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="article_id" readonly="1"/>
+                            <field name="channel_id" readonly="1"/>
+                            <field name="package_id" readonly="1"/>
+                            <field name="capability_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="is_canonical" readonly="1"/>
+                            <field name="slide_id"/>
+                            <field name="slide_url" widget="url"/>
+                            <field name="slide_published"/>
+                            <field name="manual_retired"/>
+                            <field name="last_synced_rev"/>
+                            <field name="synced_at"/>
+                            <field name="sync_error" invisible="not sync_error"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_placement" model="ir.actions.act_window">
+        <field name="name">發佈位置</field>
+        <field name="res_model">corpaas.knowledge.placement</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'group_by': 'channel_id'}</field>
+    </record>
+    <menuitem id="menu_kb_placement" action="action_kb_placement" sequence="40"
+              parent="menu_manual_root"/>
+
+    <record id="view_kb_channel_section_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.channel_section.list</field>
+        <field name="model">corpaas.knowledge.channel_section</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="channel_id"/>
+                <field name="name"/>
+                <field name="capability_id"/>
+                <field name="slide_id"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_channel_section" model="ir.actions.act_window">
+        <field name="name">章節</field>
+        <field name="res_model">corpaas.knowledge.channel_section</field>
+        <field name="view_mode">list</field>
+    </record>
+    <menuitem id="menu_kb_channel_section" action="action_kb_channel_section" sequence="45"
+              parent="menu_manual_root"/>
+
+    <record id="action_kb_channel" model="ir.actions.act_window">
+        <field name="name">說明 channel</field>
+        <field name="res_model">slide.channel</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('knowledge_managed', '=', True)]</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+    <menuitem id="menu_kb_channel" action="action_kb_channel" sequence="50"
+              parent="menu_manual_root"/>
+
+    <record id="view_slide_channel_form_knowledge" model="ir.ui.view">
+        <field name="name">slide.channel.form.knowledge</field>
+        <field name="model">slide.channel</field>
+        <field name="inherit_id" ref="website_slides.view_slide_channel_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='options']" position="after">
+                <page string="方案知識" name="knowledge" invisible="not knowledge_managed"
+                      groups="dobtor_corpaas_knowledge.group_knowledge_editor">
+                    <div class="alert alert-warning" role="alert">
+                        本課程由方案知識自動同步：內容、章節與排序會在每次發佈時被覆寫。
+                    </div>
+                    <group>
+                        <field name="knowledge_managed"/>
+                        <field name="knowledge_product_tmpl_id"/>
+                    </group>
+                    <button name="action_knowledge_renumber" string="重新編號" type="object"
+                            class="btn-secondary"/>
+                    <field name="knowledge_section_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="slide_id"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

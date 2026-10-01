@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_manual_root" name="操作說明" sequence="10"
+              parent="dobtor_corpaas_knowledge.menu_knowledge_outlets"/>
+</odoo>

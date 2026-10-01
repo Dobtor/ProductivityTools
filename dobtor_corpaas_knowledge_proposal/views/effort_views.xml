@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_effort_template_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.effort_template.list</field>
+        <field name="model">corpaas.knowledge.effort_template</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="capability_id" placeholder="通用"/>
+                <field name="activity"/>
+                <field name="base_days"/>
+                <field name="driver"/>
+                <field name="per_unit_days" invisible="driver == 'none'"/>
+                <field name="unit_size" invisible="driver == 'none'"/>
+                <field name="calibration_count" decoration-warning="calibration_count == 0"/>
+                <field name="initial_base_days" optional="hide"/>
+                <field name="note" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_effort_template_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.effort_template.form</field>
+        <field name="model">corpaas.knowledge.effort_template</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="capability_id" placeholder="通用（每張建議書一次）"/>
+                            <field name="activity"/>
+                            <field name="note"/>
+                        </group>
+                        <group>
+                            <field name="base_days"/>
+                            <field name="initial_base_days"/>
+                            <field name="driver"/>
+                            <field name="per_unit_days" invisible="driver == 'none'"/>
+                            <field name="unit_size" invisible="driver == 'none'"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">人天 = 基礎人天 + ceil(驅動量 ÷ 單位大小) × 每單位人天</div>
+                    <field name="calibration_ids" readonly="1">
+                        <list>
+                            <field name="create_date"/>
+                            <field name="proposal_id"/>
+                            <field name="driver_qty"/>
+                            <field name="estimated_days"/>
+                            <field name="actual_days"/>
+                            <field name="observed_base"/>
+                            <field name="old_base_days"/>
+                            <field name="new_base_days"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_effort_template_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.effort_template.search</field>
+        <field name="model">corpaas.knowledge.effort_template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="capability_id"/>
+                <field name="activity"/>
+                <filter name="generic" string="通用工項" domain="[('capability_id', '=', False)]"/>
+                <filter name="uncalibrated" string="未校正" domain="[('calibration_count', '=', 0)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_capability" string="能力" context="{'group_by': 'capability_id'}"/>
+                    <filter name="group_activity" string="工項" context="{'group_by': 'activity'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_kb_effort_template" model="ir.actions.act_window">
+        <field name="name">工時範本</field>
+        <field name="res_model">corpaas.knowledge.effort_template</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_kb_effort_calibration_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.effort_calibration.list</field>
+        <field name="model">corpaas.knowledge.effort_calibration</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="create_date"/>
+                <field name="template_id"/>
+                <field name="proposal_id"/>
+                <field name="driver_qty"/>
+                <field name="estimated_days"/>
+                <field name="actual_days"/>
+                <field name="observed_base"/>
+                <field name="old_base_days"/>
+                <field name="new_base_days"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_effort_calibration" model="ir.actions.act_window">
+        <field name="name">工時校正歷史</field>
+        <field name="res_model">corpaas.knowledge.effort_calibration</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

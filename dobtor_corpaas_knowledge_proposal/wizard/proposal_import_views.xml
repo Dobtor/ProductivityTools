@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_proposal_import_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.proposal.import.form</field>
+        <field name="model">corpaas.knowledge.proposal.import</field>
+        <field name="arch" type="xml">
+            <form>
+                <div class="text-muted">
+                    每張部門表：第 1 列標題、第 2 列表頭、第 3 列起資料（# ／ 客戶提問／痛點 ／ 現況說明 ／ 解決方案 ／ 現有 or 客製 ／ 對應原生功能／模組 ／ 報價重點）。
+                    只匯入表頭有「客戶提問／痛點」與「現有 or 客製」欄的部門表（總覽、彙總、待確認事項、延伸分析表會略過）；
+                    往下合併的痛點會併成一筆。⚪待確認＝不給四色（要人工判斷），🟣企業版＝客製。
+                </div>
+                <group>
+                    <field name="proposal_id" invisible="1"/>
+                    <field name="file" filename="filename"/>
+                    <field name="filename" invisible="1"/>
+                    <field name="replace"/>
+                </group>
+                <footer>
+                    <button name="action_import" string="匯入" type="object" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

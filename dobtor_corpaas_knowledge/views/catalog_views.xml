@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 內容狀態列：各出口的表單也照這個樣式放（D4） -->
+    <record id="view_kb_capability_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.capability.list</field>
+        <field name="model">corpaas.knowledge.capability</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="color"/>
+                <field name="package_ids" widget="many2many_tags" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"
+                       decoration-muted="state == 'retired'"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_capability_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.capability.form</field>
+        <field name="model">corpaas.knowledge.capability</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale')"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_retire" string="下架" type="object"
+                            invisible="state in ('retired', 'draft')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="name" placeholder="能力名稱，例如：線上報名收費一條龍"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="color"/>
+                            <field name="roles"/>
+                        </group>
+                        <group>
+                            <field name="package_ids" widget="many2many_tags"/>
+                            <field name="scenario_ids" widget="many2many_tags"/>
+                            <field name="stale_reason" invisible="not stale_reason"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="價值" name="value">
+                            <group>
+                                <field name="pain"/>
+                                <field name="outcome"/>
+                                <field name="differentiator"/>
+                            </group>
+                        </page>
+                        <page string="功能點" name="features">
+                            <field name="feature_ids"/>
+                            <group><field name="required_module_names"/></group>
+                        </page>
+                        <page string="估算與成本" name="estimate">
+                            <group>
+                                <field name="master_data_models"/>
+                                <field name="third_party_costs"/>
+                                <field name="resource_profile"/>
+                                <field name="ai_points_monthly"/>
+                            </group>
+                        </page>
+                        <page string="待核差異" name="review" invisible="state != 'review'">
+                            <field name="review_diff"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_capability" model="ir.actions.act_window">
+        <field name="name">能力</field>
+        <field name="res_model">corpaas.knowledge.capability</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_capability" action="action_kb_capability" sequence="20"
+              parent="menu_knowledge_catalog"/>
+
+    <record id="view_kb_scenario_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.scenario.list</field>
+        <field name="model">corpaas.knowledge.scenario</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="is_base"/>
+                <field name="parent_id"/>
+                <field name="package_ids" widget="many2many_tags" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_scenario_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.scenario.form</field>
+        <field name="model">corpaas.knowledge.scenario</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale')"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_ai_draft_seed" string="AI 起草示範資料" type="object"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_editor"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="is_base"/>
+                            <field name="parent_id"/>
+                            <field name="role_ids" widget="many2many_tags"/>
+                        </group>
+                        <group>
+                            <field name="package_ids" widget="many2many_tags"/>
+                            <field name="clean_approvals"/>
+                            <field name="auto_text_after"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="敘事與用語" name="narrative">
+                            <group>
+                                <field name="narrative"/>
+                                <field name="glossary" placeholder="客戶=會員"/>
+                                <field name="required_module_names"/>
+                            </group>
+                        </page>
+                        <page string="示範資料腳本" name="seed">
+                            <field name="seed_json" widget="code" options="{'mode': 'javascript'}"/>
+                            <group><field name="seed_error" invisible="not seed_error"/></group>
+                        </page>
+                        <page string="待核差異" name="review" invisible="state != 'review'">
+                            <field name="review_diff"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_scenario" model="ir.actions.act_window">
+        <field name="name">情境</field>
+        <field name="res_model">corpaas.knowledge.scenario</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_scenario" action="action_kb_scenario" sequence="30"
+              parent="menu_knowledge_catalog"/>
+
+    <record id="view_kb_role_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.role.list</field>
+        <field name="model">corpaas.knowledge.role</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="group_xmlids"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_role" model="ir.actions.act_window">
+        <field name="name">情境角色</field>
+        <field name="res_model">corpaas.knowledge.role</field>
+        <field name="view_mode">list</field>
+    </record>
+    <menuitem id="menu_kb_role" action="action_kb_role" sequence="40"
+              parent="menu_knowledge_catalog"/>
+
+    <record id="view_kb_selection_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.selection.list</field>
+        <field name="model">corpaas.knowledge.selection</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="package_id"/>
+                <field name="kind"/>
+                <field name="scenario_id" optional="show"/>
+                <field name="capability_id" optional="show"/>
+                <field name="feature_id" optional="show"/>
+                <field name="proposal_json" optional="hide"/>
+                <field name="score"/>
+                <field name="reason"/>
+                <field name="state"/>
+                <button name="action_approve" string="核准" type="object" class="btn-link"
+                        invisible="state != 'proposed'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                <button name="action_exclude" string="排除" type="object" class="btn-link"
+                        invisible="state != 'proposed'"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_selection" model="ir.actions.act_window">
+        <field name="name">AI 圈選提案</field>
+        <field name="res_model">corpaas.knowledge.selection</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('state', '=', 'proposed')]</field>
+    </record>
+    <menuitem id="menu_kb_selection" action="action_kb_selection" sequence="10"
+              parent="menu_knowledge_ops"/>
+
+    <record id="view_kb_asset_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.asset.list</field>
+        <field name="model">corpaas.knowledge.asset</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="name"/>
+                <field name="feature_id"/>
+                <field name="scenario_id"/>
+                <field name="phash" optional="hide"/>
+                <field name="state"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_asset_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.asset.form</field>
+        <field name="model">corpaas.knowledge.asset</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="feature_id"/>
+                            <field name="scenario_id"/>
+                            <field name="state"/>
+                        </group>
+                        <group>
+                            <field name="scope_hash"/>
+                            <field name="phash"/>
+                            <field name="width"/>
+                            <field name="height"/>
+                        </group>
+                    </group>
+                    <field name="attachment_id"/>
+                    <field name="regions_json"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_asset" model="ir.actions.act_window">
+        <field name="name">素材</field>
+        <field name="res_model">corpaas.knowledge.asset</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'current')]</field>
+    </record>
+    <menuitem id="menu_kb_asset" action="action_kb_asset" sequence="50"
+              parent="menu_knowledge_catalog"/>
+
+    <record id="view_kb_ai_call_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.ai.call.list</field>
+        <field name="model">corpaas.knowledge.ai.call</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-danger="not ok">
+                <field name="create_date"/>
+                <field name="purpose"/>
+                <field name="package_id"/>
+                <field name="cost_usd" sum="合計"/>
+                <field name="ok"/>
+                <field name="error" optional="hide"/>
+                <field name="refresh_token" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_ai_call" model="ir.actions.act_window">
+        <field name="name">AI 呼叫與成本</field>
+        <field name="res_model">corpaas.knowledge.ai.call</field>
+        <field name="view_mode">list</field>
+    </record>
+    <menuitem id="menu_kb_ai_call" action="action_kb_ai_call" sequence="40"
+              parent="menu_knowledge_ops" groups="group_knowledge_manager"/>
+
+    <record id="view_kb_help_log_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.help.log.list</field>
+        <field name="model">corpaas.knowledge.help.log</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-warning="missed">
+                <field name="create_date"/>
+                <field name="package_id"/>
+                <field name="database" optional="hide"/>
+                <field name="query"/>
+                <field name="action_xmlid" optional="hide"/>
+                <field name="hits"/>
+                <field name="top_score"/>
+                <field name="missed"/>
+                <field name="handled"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_help_log" model="ir.actions.act_window">
+        <field name="name">說明查詢紀錄</field>
+        <field name="res_model">corpaas.knowledge.help.log</field>
+        <field name="view_mode">list</field>
+    </record>
+    <menuitem id="menu_kb_help_log" action="action_kb_help_log" sequence="50"
+              parent="menu_knowledge_ops"/>
+</odoo>

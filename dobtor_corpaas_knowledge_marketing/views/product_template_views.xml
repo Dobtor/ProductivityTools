@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_template_form_view_knowledge_marketing" model="ir.ui.view">
+        <field name="name">product.template.form.knowledge.marketing</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="方案知識行銷" name="knowledge_marketing"
+                      groups="dobtor_corpaas_knowledge.group_knowledge_editor">
+                    <field name="knowledge_pitch_ids" readonly="1">
+                        <list>
+                            <field name="sequence" widget="handle"/>
+                            <field name="capability_id"/>
+                            <field name="headline"/>
+                            <field name="state" widget="badge" decoration-success="state == 'published'"
+                                   decoration-warning="state in ('review', 'stale')"/>
+                        </list>
+                    </field>
+                    <field name="knowledge_release_note_ids" readonly="1">
+                        <list>
+                            <field name="title"/>
+                            <field name="published_date"/>
+                            <field name="state" widget="badge" decoration-success="state == 'published'"
+                                   decoration-warning="state in ('review', 'stale')"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

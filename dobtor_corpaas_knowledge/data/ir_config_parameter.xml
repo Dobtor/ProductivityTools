@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- ★ 用 function 而不是 record：ir.config_parameter 的 key 已存在時，
+         用 record 種參數會撞 UniqueViolation（見 Odoo 通用雷區）。 -->
+    <function model="ir.config_parameter" name="set_param"
+              eval="('corpaas_knowledge.budget_usd_per_refresh', '20')"/>
+    <function model="ir.config_parameter" name="set_param"
+              eval="('corpaas_knowledge.phash_threshold', '10')"/>
+    <function model="ir.config_parameter" name="set_param"
+              eval="('corpaas_knowledge.rename_threshold', '0.6')"/>
+    <function model="ir.config_parameter" name="set_param"
+              eval="('corpaas_knowledge.public_base_url', 'https://www.corpaas.com')"/>
+    <!-- 知識更新與 AI 工作共用的佇列 channel：同時只跑一張（Chromium 很吃資源） -->
+    <function model="ir.config_parameter" name="set_param"
+              eval="('corpaas.queue_channel_cap_knowledge', '1')"/>
+    <function model="ir.config_parameter" name="set_param"
+              eval="('corpaas_knowledge.help_require_signature', 'True')"/>
+</odoo>

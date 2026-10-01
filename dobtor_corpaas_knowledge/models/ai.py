@@ -1,0 +1,168 @@
+# -*- coding: utf-8 -*-
+"""AI 呼叫的單一入口：設定、預算、記帳、JSON 解析。
+
+所有出口都經過 `env['corpaas.knowledge.ai'].ask(...)`，預算才算得準。
+"""
+import logging
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+from ..services import hub_client, txn
+
+_logger = logging.getLogger(__name__)
+
+#: 共通的系統指示。Runner 對 content 模式沒有系統提示（SYSTEM_PROMPTS 沒有這個鍵），
+#: 所以角色與輸出格式全部寫在這裡，由 Hub 原樣轉交。
+BASE_INSTRUCTIONS = """你是 CorPaaS 的產品知識編輯。規則：
+1. 一律使用繁體中文（台灣用語）。
+2. 只根據提供的資料作答；資料沒有的事實不要編造（功能、欄位、數字、價格）。
+3. 回覆只包含一個 ```json 區塊，格式照題目指定；不要多餘說明。
+4. 不要輸出任何網址或連結——連結由系統產生。
+"""
+
+
+class KnowledgeAi(models.AbstractModel):
+    _name = 'corpaas.knowledge.ai'
+    _description = '知識 AI 呼叫'
+
+    @api.model
+    def _conf(self):
+        icp = self.env['ir.config_parameter'].sudo()
+        return {
+            'hub_url': icp.get_param('corpaas_knowledge.hub_url') or '',
+            'hub_key': icp.get_param('corpaas_knowledge.hub_key') or '',
+            'budget': float(icp.get_param('corpaas_knowledge.budget_usd_per_refresh') or 20.0),
+        }
+
+    @api.model
+    def spent(self, refresh_token):
+        if not refresh_token:
+            return 0.0
+        # ★ 帳是用獨立游標寫的；佇列作業的主交易是 REPEATABLE READ，看不到之後才
+        #   commit 的帳——同一個游標讀會永遠低估，預算形同虛設。
+        query = ("SELECT COALESCE(SUM(cost_usd), 0) FROM corpaas_knowledge_ai_call "
+                 "WHERE refresh_token = %s")
+        if txn.in_tests(self.env):
+            self.env.flush_all()
+            self.env.cr.execute(query, (refresh_token,))
+            return float(self.env.cr.fetchone()[0] or 0.0)
+        with self.env.registry.cursor() as cr:
+            cr.execute(query, (refresh_token,))
+            return float(cr.fetchone()[0] or 0.0)
+
+    @api.model
+    def ask(self, purpose, prompt, package=None, refresh_token=None, record=None,
+            expect_json=True, context=None):
+        """送出並等待；回傳解析後的 JSON（或純文字）。
+
+        超出本次 refresh 預算時拋 BudgetExceeded——呼叫端應把工作留到下一次，
+        而不是當成失敗。
+        """
+        conf = self._conf()
+        if refresh_token and self.spent(refresh_token) >= conf['budget']:
+            raise hub_client.BudgetExceeded(
+                _('本次更新的 AI 預算（%s USD）已用完') % conf['budget'])
+        vals = {'purpose': purpose, 'refresh_token': refresh_token,
+                'package_id': package.id if package else False,
+                'res_model': record._name if record else False,
+                'res_id': record.id if record else 0}
+        try:
+            text, cost, run_id = hub_client.call(
+                conf['hub_url'], conf['hub_key'], purpose,
+                BASE_INSTRUCTIONS + '\n' + prompt, context=context)
+        except hub_client.HubError as e:
+            self._log_call(dict(vals, ok=False, error=str(e)[:2000]))
+            raise
+        self._log_call(dict(vals, ok=True, cost_usd=cost, run_id=run_id))
+        if not expect_json:
+            return text
+        return hub_client.extract_json(text)
+
+    @api.model
+    def _log_call(self, vals):
+        """記帳用獨立游標立即 commit：錢已經花了，後面整個作業失敗回滾也不能讓帳消失。"""
+        if not txn.in_tests(self.env):
+            with self.env.registry.cursor() as cr:
+                # ★ 方案本身還沒 commit（同一交易剛建立）時，獨立游標看不到它，
+                #   直接 INSERT 會撞外鍵——先確認看得到，看不到就記在目前交易。
+                pid = vals.get('package_id')
+                visible = True
+                if pid:
+                    cr.execute('SELECT 1 FROM infrastructure_solution_package WHERE id = %s',
+                               (pid,))
+                    visible = bool(cr.fetchone())
+                if visible:
+                    self.env(cr=cr)['corpaas.knowledge.ai.call'].sudo().create(vals)
+                    return
+        self.env['corpaas.knowledge.ai.call'].sudo().create(vals)
+
+    @api.model
+    def enqueue(self, record, method_name, package, note=''):
+        """按鈕觸發的 AI 工作一律走佇列。
+
+        ☠️ 不能在 HTTP 請求裡同步等 AI：一次呼叫最多等 15 分鐘，而 worker 的
+          limit_time_real 預設 120 秒——請求被殺、交易回滾、帳也跟著消失。
+        """
+        record.ensure_one()
+        if not package:
+            raise UserError(_('找不到對應的方案，無法排入 AI 工作。'))
+        job = self.env['corpaas.knowledge.ai.job'].sudo().create({
+            'res_model': record._name, 'res_id': record.id, 'method': method_name,
+            'package_id': package.id, 'user_id': self.env.uid, 'note': note})
+        q = self.env['corpaas.queue'].sudo()._enqueue(
+            package, 'knowledge_ai_job', {'job_id': job.id})
+        q.channel = 'knowledge'
+        job.queue_id = q.id
+        return {
+            'type': 'ir.actions.client', 'tag': 'display_notification',
+            'params': {'type': 'info', 'sticky': False,
+                       'title': _('已排入 AI 工作'),
+                       'message': _('%s：完成後結果會出現在紀錄裡。') % (note or method_name)},
+        }
+
+
+class KnowledgeAiJob(models.Model):
+    _name = 'corpaas.knowledge.ai.job'
+    _description = '按鈕觸發的 AI 工作'
+    _order = 'id desc'
+
+    res_model = fields.Char(required=True)
+    res_id = fields.Integer(required=True)
+    method = fields.Char(required=True)
+    package_id = fields.Many2one('infrastructure.solution.package', ondelete='cascade')
+    user_id = fields.Many2one('res.users')
+    queue_id = fields.Many2one('corpaas.queue', ondelete='set null')
+    note = fields.Char()
+    state = fields.Selection([('pending', '排隊中'), ('done', '完成'), ('failed', '失敗')],
+                             default='pending', index=True)
+    error = fields.Text()
+
+    _ALLOWED_PREFIX = '_'
+
+    def _run(self):
+        self.ensure_one()
+        if not (self.method.startswith(self._ALLOWED_PREFIX) and self.method.endswith('_run')):
+            raise UserError(_('不允許的 AI 工作方法：%s') % self.method)
+        user = self.user_id or self.env.user
+        record = self.env[self.res_model].with_user(user).browse(self.res_id).exists()
+        if not record:
+            self.write({'state': 'failed', 'error': _('記錄已不存在')})
+            return
+        try:
+            with self.env.cr.savepoint():
+                getattr(record, self.method)()
+            self.state = 'done'
+            self._post(record, _('AI 工作完成：%s') % (self.note or self.method))
+        except Exception as e:  # noqa: BLE001 - 失敗記在工作上，不讓佇列重試燒預算
+            _logger.warning('[knowledge] AI 工作 %s 失敗：%s', self.id, e)
+            self.write({'state': 'failed', 'error': str(e)[:4000]})
+            self._post(record, _('AI 工作失敗：%s') % e)
+
+    @staticmethod
+    def _post(record, body):
+        if hasattr(record, 'message_post'):
+            try:
+                record.sudo().message_post(body=body)
+            except Exception:  # noqa: BLE001
+                pass

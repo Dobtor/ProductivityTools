@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_feature_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feature.list</field>
+        <field name="model">corpaas.knowledge.feature</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="missing">
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="module"/>
+                <field name="menu_path" optional="show"/>
+                <field name="model" optional="hide"/>
+                <field name="usage_score" optional="show"/>
+                <field name="capability_ids" widget="many2many_tags" optional="show"/>
+                <field name="missing"/>
+                <field name="feature_key" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_feature_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feature.form</field>
+        <field name="model">corpaas.knowledge.feature</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="已消失" bg_color="text-bg-danger" invisible="not missing"/>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="feature_key"/>
+                            <field name="kind"/>
+                            <field name="module"/>
+                            <field name="anchor"/>
+                            <field name="missing"/>
+                        </group>
+                        <group>
+                            <field name="model"/>
+                            <field name="view_mode"/>
+                            <field name="view_xmlid"/>
+                            <field name="action_xmlid"/>
+                            <field name="menu_path"/>
+                            <field name="usage_score"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="問法與能力" name="intents">
+                            <group>
+                                <field name="capability_ids" widget="many2many_tags"/>
+                                <field name="prerequisite_ids" widget="many2many_tags"/>
+                                <field name="package_ids" widget="many2many_tags"/>
+                            </group>
+                            <field name="intents" placeholder="一行一個使用者問法"/>
+                        </page>
+                        <page string="指紋" name="fingerprints">
+                            <field name="fingerprint_ids">
+                                <list>
+                                    <field name="package_id"/>
+                                    <field name="role_code"/>
+                                    <field name="scope_hash"/>
+                                    <field name="form_hash" optional="hide"/>
+                                    <field name="current"/>
+                                    <field name="error" optional="show"/>
+                                    <field name="computed_at"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_feature_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feature.search</field>
+        <field name="model">corpaas.knowledge.feature</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="feature_key"/>
+                <field name="module"/>
+                <field name="intents"/>
+                <field name="package_ids"/>
+                <filter name="present" string="現存" domain="[('missing', '=', False)]"/>
+                <filter name="gone" string="已消失" domain="[('missing', '=', True)]"/>
+                <filter name="no_cap" string="未歸入能力" domain="[('capability_ids', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_module" string="模組" context="{'group_by': 'module'}"/>
+                    <filter name="g_kind" string="種類" context="{'group_by': 'kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_kb_feature" model="ir.actions.act_window">
+        <field name="name">功能點</field>
+        <field name="res_model">corpaas.knowledge.feature</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_present': 1}</field>
+    </record>
+    <menuitem id="menu_kb_feature" action="action_kb_feature" sequence="10"
+              parent="menu_knowledge_catalog"/>
+
+    <record id="view_kb_event_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.event.list</field>
+        <field name="model">corpaas.knowledge.event</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-muted="processed">
+                <field name="create_date"/>
+                <field name="type"/>
+                <field name="package_id"/>
+                <field name="feature_id"/>
+                <field name="scenario_id" optional="show"/>
+                <field name="role_code" optional="hide"/>
+                <field name="payload" optional="hide"/>
+                <field name="processed"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_event" model="ir.actions.act_window">
+        <field name="name">失效事件</field>
+        <field name="res_model">corpaas.knowledge.event</field>
+        <field name="view_mode">list</field>
+    </record>
+    <menuitem id="menu_kb_event" action="action_kb_event" sequence="20"
+              parent="menu_knowledge_ops"/>
+
+    <record id="view_kb_rename_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.rename.list</field>
+        <field name="model">corpaas.knowledge.rename</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="old_feature_id"/>
+                <field name="new_feature_id"/>
+                <field name="similarity"/>
+                <field name="state"/>
+                <button name="action_accept" string="確認是改名" type="object"
+                        class="btn-link" invisible="state != 'proposed'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                <button name="action_reject" string="不是改名" type="object"
+                        class="btn-link" invisible="state != 'proposed'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_rename" model="ir.actions.act_window">
+        <field name="name">改名候選</field>
+        <field name="res_model">corpaas.knowledge.rename</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('state', '=', 'proposed')]</field>
+    </record>
+    <menuitem id="menu_kb_rename" action="action_kb_rename" sequence="30"
+              parent="menu_knowledge_ops"/>
+
+    <record id="view_kb_revision_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.revision.list</field>
+        <field name="model">corpaas.knowledge.revision</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="rev_no"/>
+                <field name="change_kind"/>
+                <field name="was_published"/>
+                <field name="author_id"/>
+                <field name="create_date"/>
+                <field name="note"/>
+                <button name="action_restore" string="還原" type="object" class="btn-link"
+                        invisible="not was_published"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+            </list>
+        </field>
+    </record>
+</odoo>

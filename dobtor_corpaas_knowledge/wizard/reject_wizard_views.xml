@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_reject_wizard_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.reject.wizard.form</field>
+        <field name="model">corpaas.knowledge.reject.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="res_model" invisible="1"/>
+                <field name="res_ids" invisible="1"/>
+                <field name="reason" placeholder="退回理由（會記在內容的訊息紀錄）"/>
+                <footer>
+                    <button name="action_confirm" string="退回" type="object" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

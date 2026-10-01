@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ai_hub_source_form_content" model="ir.ui.view">
+        <field name="name">ai.hub.source.form.content</field>
+        <field name="model">ai.hub.source</field>
+        <field name="inherit_id" ref="dobtor_ai_hub.view_ai_hub_source_form"/>
+        <field name="arch" type="xml">
+            <!-- ☠️ 上行通道那一組在 L0 時整組隱藏，但知識內容不需要 L1／L2 ——
+                 不放寬的話，專給主控台用的 L0 來源永遠按不到「產生上行金鑰」。 -->
+            <xpath expr="//group[field[@name='uplink_enabled']]" position="attributes">
+                <attribute name="invisible">capability_level == 'l0' and not content_enabled</attribute>
+            </xpath>
+            <xpath expr="//group[field[@name='uplink_enabled']]" position="after">
+                <group string="知識內容（CorPaaS 主控台）">
+                    <field name="content_enabled"/>
+                    <field name="content_max_chars" invisible="not content_enabled"/>
+                    <div class="text-muted small" colspan="2" invisible="not content_enabled">
+                        主控台以上面的<b>上行金鑰</b>呼叫，每日次數與成本上限照算。
+                        這個模式不寫對方系統，所以不需要 L2；與網站編輯各自授權。
+                    </div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_capability_form_marketing" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.capability.form.marketing</field>
+        <field name="model">corpaas.knowledge.capability</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_kb_capability_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/field[@name='state']" position="before">
+                <button name="action_ai_draft_pitch" string="AI 起草行銷文案" type="object"
+                        invisible="state == 'retired'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_editor"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_pitches" type="object" class="oe_stat_button" icon="fa-bullhorn"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_editor">
+                    <field name="pitch_count" widget="statinfo" string="能力卡片"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

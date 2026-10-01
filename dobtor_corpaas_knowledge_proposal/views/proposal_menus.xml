@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_kb_proposal_root" name="建議書" sequence="30"
+              parent="dobtor_corpaas_knowledge.menu_knowledge_outlets"/>
+    <menuitem id="menu_kb_proposal" name="服務建議書" sequence="10"
+              parent="menu_kb_proposal_root" action="action_kb_proposal"/>
+    <menuitem id="menu_kb_effort_template" name="工時範本" sequence="20"
+              parent="menu_kb_proposal_root" action="action_kb_effort_template"/>
+    <menuitem id="menu_kb_effort_calibration" name="工時校正歷史" sequence="30"
+              parent="menu_kb_proposal_root" action="action_kb_effort_calibration"/>
+
+    <!-- 業務不一定有知識編輯權限：銷售 > 訂單下也放一個入口 -->
+    <menuitem id="menu_kb_proposal_sale" name="服務建議書" sequence="15"
+              parent="sale.sale_order_menu" action="action_kb_proposal"
+              groups="sales_team.group_sale_salesman"/>
+</odoo>

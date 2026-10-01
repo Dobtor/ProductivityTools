@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_step_block_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.step_block.list</field>
+        <field name="model">corpaas.knowledge.step_block</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="feature_id"/>
+                <field name="anchor"/>
+                <field name="fingerprint" optional="hide"/>
+                <field name="derived_from_id" optional="show"/>
+                <field name="article_count" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"
+                       decoration-muted="state == 'retired'"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_step_block_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.step_block.form</field>
+        <field name="model">corpaas.knowledge.step_block</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale')"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_retire" string="下架" type="object"
+                            invisible="state in ('retired', 'draft')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                        <button name="action_open_articles" type="object" class="oe_stat_button" icon="fa-file-text-o">
+                            <field name="article_count" widget="statinfo" string="文章"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="feature_id"/>
+                            <field name="anchor"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="fingerprint"/>
+                            <field name="derived_from_id"/>
+                            <field name="stale_reason" invisible="not stale_reason"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="待核差異" name="review" invisible="state != 'review'">
+                            <field name="review_diff"/>
+                        </page>
+                        <page string="步驟" name="html">
+                            <div class="text-muted small mb-2">只寫操作步驟（跨情境共用）。圖片位置用獨立一段 [[shot:截圖名稱]]；步驟標題用 h4，id 由系統自動補上。</div>
+                            <field name="html"/>
+                        </page>
+                        <page string="分岔" name="forks">
+                            <field name="derived_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="fingerprint"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_step_block" model="ir.actions.act_window">
+        <field name="name">步驟區塊</field>
+        <field name="res_model">corpaas.knowledge.step_block</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_step_block" action="action_kb_step_block" sequence="20"
+              parent="menu_manual_root"/>
+
+    <record id="view_kb_step_block_merge_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.step_block.merge.list</field>
+        <field name="model">corpaas.knowledge.step_block.merge</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="feature_id"/>
+                <field name="fingerprint" optional="hide"/>
+                <field name="keep_id"/>
+                <field name="merge_ids" widget="many2many_tags"/>
+                <field name="state"/>
+                <button name="action_merge" string="合併" type="object" class="btn-link"
+                        invisible="state != 'proposed'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                <button name="action_reject" string="不合併" type="object" class="btn-link"
+                        invisible="state != 'proposed'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_step_block_merge_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.step_block.merge.form</field>
+        <field name="model">corpaas.knowledge.step_block.merge</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_merge" string="合併" type="object" class="btn-primary"
+                            invisible="state != 'proposed'"
+                            confirm="引用被併入區塊的文章會改指保留的區塊，被併入的區塊下架。確定？"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_reject" string="不合併" type="object"
+                            invisible="state != 'proposed'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="feature_id" readonly="1"/>
+                            <field name="fingerprint" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="keep_id" readonly="state != 'proposed'"/>
+                            <field name="merge_ids" widget="many2many_tags" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="diff_html"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_step_block_merge" model="ir.actions.act_window">
+        <field name="name">步驟區塊合併提案</field>
+        <field name="res_model">corpaas.knowledge.step_block.merge</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'proposed')]</field>
+    </record>
+    <menuitem id="menu_kb_step_block_merge" action="action_kb_step_block_merge" sequence="25"
+              parent="menu_manual_root"/>
+</odoo>

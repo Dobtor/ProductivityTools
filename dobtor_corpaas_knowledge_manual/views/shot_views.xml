@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_shot_template_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.shot_template.list</field>
+        <field name="model">corpaas.knowledge.shot_template</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="feature_id"/>
+                <field name="login_role"/>
+                <field name="source"/>
+                <field name="repair_count" optional="show"/>
+                <field name="fingerprint" optional="hide"/>
+                <field name="derived_from_id" optional="hide"/>
+                <field name="write_date" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_shot_template_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.shot_template.form</field>
+        <field name="model">corpaas.knowledge.shot_template</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="feature_id"/>
+                            <field name="login_role"/>
+                            <field name="source"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="fingerprint"/>
+                            <field name="derived_from_id" invisible="not derived_from_id"/>
+                            <field name="repair_count"/>
+                            <field name="note"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="步驟" name="steps">
+                            <div class="text-muted small mb-2">步驟詞彙見 dobtor_corpaas_knowledge/shot_runner/run.py；示範記錄用佔位符 "{名稱}"，在情境繫結對到 xmlid。</div>
+                            <field name="steps_json" widget="code" options="{'mode': 'javascript'}"/>
+                        </page>
+                        <page string="推導" name="derived">
+                            <group>
+                                <field name="placeholders"/>
+                                <field name="elements"/>
+                            </group>
+                        </page>
+                        <page string="情境繫結" name="bindings">
+                            <field name="binding_ids">
+                                <list editable="bottom">
+                                    <field name="scenario_id"/>
+                                    <field name="bindings_json"/>
+                                    <field name="roles_json" optional="hide"/>
+                                    <field name="state"/>
+                                    <field name="last_shot_at" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_shot_template" model="ir.actions.act_window">
+        <field name="name">截圖腳本範本</field>
+        <field name="res_model">corpaas.knowledge.shot_template</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_shot_template" action="action_kb_shot_template" sequence="30"
+              parent="menu_manual_root"/>
+
+    <record id="view_kb_shot_binding_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.shot_binding.list</field>
+        <field name="model">corpaas.knowledge.shot_binding</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state == 'failed'" decoration-muted="state == 'pending'">
+                <field name="feature_id"/>
+                <field name="scenario_id"/>
+                <field name="template_id" optional="hide"/>
+                <field name="state"/>
+                <field name="asset_count"/>
+                <field name="last_shot_at"/>
+                <field name="needs_repair" optional="show"/>
+                <field name="last_error" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_shot_binding_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.shot_binding.form</field>
+        <field name="model">corpaas.knowledge.shot_binding</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_reset" string="下次重拍" type="object"
+                            invisible="state == 'pending'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_assets" type="object" class="oe_stat_button" icon="fa-picture-o">
+                            <field name="asset_count" widget="statinfo" string="素材"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="template_id"/>
+                            <field name="feature_id"/>
+                            <field name="scenario_id"/>
+                        </group>
+                        <group>
+                            <field name="last_shot_at"/>
+                            <field name="last_token"/>
+                            <field name="shot_scope_hash"/>
+                            <field name="needs_repair"/>
+                            <field name="repair_attempts"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="bindings_json" widget="code" options="{'mode': 'javascript'}"/>
+                        <field name="roles_json" widget="code" options="{'mode': 'javascript'}"/>
+                    </group>
+                    <notebook>
+                        <page string="錯誤" name="error" invisible="not last_error">
+                            <field name="last_error"/>
+                        </page>
+                        <page string="上次結果" name="result">
+                            <field name="last_result"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_shot_binding" model="ir.actions.act_window">
+        <field name="name">情境繫結</field>
+        <field name="res_model">corpaas.knowledge.shot_binding</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_shot_binding" action="action_kb_shot_binding" sequence="35"
+              parent="menu_manual_root"/>
+</odoo>

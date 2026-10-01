@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_article_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.article.list</field>
+        <field name="model">corpaas.knowledge.article</field>
+        <field name="arch" type="xml">
+            <list>
+                <header>
+                    <button name="action_approve_by_scenario" string="依情境批次核准" type="object"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"
+                            confirm="同情境所有待核文章會一起核准（含一起送審的新步驟區塊），確定？"/>
+                </header>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="feature_id"/>
+                <field name="scenario_id"/>
+                <field name="capability_id"/>
+                <field name="fingerprint" optional="hide"/>
+                <field name="placement_count" optional="show"/>
+                <field name="pending_change" optional="hide"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"
+                       decoration-muted="state == 'retired'"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_article_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.article.search</field>
+        <field name="model">corpaas.knowledge.article</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="feature_id"/>
+                <field name="scenario_id"/>
+                <field name="capability_id"/>
+                <filter name="to_review" string="待核" domain="[('state', '=', 'review')]"/>
+                <filter name="stale" string="失效" domain="[('state', '=', 'stale')]"/>
+                <filter name="live" string="上線中" domain="[('state', 'in', ('published', 'stale'))]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_scenario" string="情境" context="{'group_by': 'scenario_id'}"/>
+                    <filter name="by_capability" string="能力" context="{'group_by': 'capability_id'}"/>
+                    <filter name="by_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="view_kb_article_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.article.form</field>
+        <field name="model">corpaas.knowledge.article</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale')"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_approve_by_scenario" string="依情境批次核准" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"
+                            confirm="同情境所有待核文章會一起核准（含一起送審的新步驟區塊），確定？"/>
+                    <button name="action_retire" string="下架" type="object"
+                            invisible="state in ('retired', 'draft')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_ai_rewrite_scenario" string="AI 重寫情境區塊" type="object"
+                            invisible="state == 'retired'"
+                            confirm="會排入 AI 作業重寫情境區塊，完成後送審，確定？"/>
+                    <button name="action_resync" string="重新推送到 slide" type="object"
+                            invisible="state not in ('published', 'stale')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                        <button name="action_open_placements" type="object" class="oe_stat_button" icon="fa-map-marker">
+                            <field name="placement_count" widget="statinfo" string="發佈位置"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="name" placeholder="文章標題（情境用語）"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="feature_id"/>
+                            <field name="scenario_id"/>
+                            <field name="capability_id"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="shot_binding_id"/>
+                            <field name="fingerprint"/>
+                            <field name="manual_forked_from_id" invisible="not manual_forked_from_id"/>
+                            <field name="manual_waiting_shots" invisible="not manual_waiting_shots"/>
+                            <field name="pending_change" invisible="not pending_change"/>
+                            <field name="stale_reason" invisible="not stale_reason"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="審核" name="review" invisible="state != 'review'">
+                            <div class="text-muted small mb-2">文字差異（文章與步驟區塊分開）、截圖前後對照（dHash 差距）、會同步到哪些 channel。</div>
+                            <field name="manual_review_html"/>
+                        </page>
+                        <page string="情境區塊" name="scenario">
+                            <field name="scenario_html"/>
+                        </page>
+                        <page string="步驟區塊" name="steps">
+                            <field name="step_block_ids">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="anchor"/>
+                                    <field name="fingerprint" optional="hide"/>
+                                    <field name="derived_from_id" optional="show"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="截圖預覽" name="preview">
+                            <field name="preview_html" readonly="1"/>
+                        </page>
+                        <page string="素材" name="assets">
+                            <field name="asset_ids">
+                                <list>
+                                    <field name="shot_name"/>
+                                    <field name="name"/>
+                                    <field name="state"/>
+                                    <field name="create_date"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="發佈位置" name="placements">
+                            <field name="placement_ids" readonly="1">
+                                <list>
+                                    <field name="channel_id"/>
+                                    <field name="package_id"/>
+                                    <field name="capability_id"/>
+                                    <field name="is_canonical"/>
+                                    <field name="slide_published"/>
+                                    <field name="manual_retired"/>
+                                    <field name="sync_error"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_article" model="ir.actions.act_window">
+        <field name="name">操作說明文章</field>
+        <field name="res_model">corpaas.knowledge.article</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_kb_article_search"/>
+    </record>
+    <record id="action_kb_article_review" model="ir.actions.act_window">
+        <field name="name">待核文章</field>
+        <field name="res_model">corpaas.knowledge.article</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_kb_article_search"/>
+        <field name="context">{'search_default_to_review': 1}</field>
+    </record>
+    <menuitem id="menu_kb_article" action="action_kb_article" sequence="10"
+              parent="menu_manual_root"/>
+    <menuitem id="menu_kb_article_review" action="action_kb_article_review" sequence="15"
+              parent="menu_manual_root"
+              groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+</odoo>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_solution_package_form_knowledge" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.knowledge</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_product.infrastructure_module_integrations_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="方案知識" name="knowledge"
+                      groups="dobtor_corpaas_knowledge.group_knowledge_editor">
+                    <div class="alert alert-warning" role="alert" invisible="not knowledge_blocker">
+                        <field name="knowledge_blocker"/>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="knowledge_enabled"/>
+                            <field name="knowledge_last_refresh"/>
+                            <field name="knowledge_feature_count"/>
+                            <field name="knowledge_event_count"/>
+                        </group>
+                        <group>
+                            <button name="action_knowledge_refresh" string="立即全量更新" type="object"
+                                    class="btn-primary" invisible="knowledge_blocker"
+                                    groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                            <button name="action_knowledge_ai_select" string="AI 圈選情境與能力" type="object"
+                                    invisible="knowledge_blocker"
+                                    groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                        </group>
+                    </group>
+                    <group string="情境與能力">
+                        <field name="knowledge_scenario_ids" widget="many2many_tags"/>
+                        <field name="knowledge_capability_ids" widget="many2many_tags"/>
+                    </group>
+                    <field name="knowledge_sandbox_ids" readonly="1">
+                        <list>
+                            <field name="db_name"/>
+                            <field name="scenario_id"/>
+                            <field name="state"/>
+                            <field name="ready_at"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

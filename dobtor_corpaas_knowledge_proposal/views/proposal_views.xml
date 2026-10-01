@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_proposal_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.proposal.list</field>
+        <field name="model">corpaas.knowledge.proposal</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="product_tmpl_id"/>
+                <field name="tier" optional="show"/>
+                <field name="user_id" optional="show" widget="many2one_avatar_user"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="total" sum="合計"/>
+                <field name="margin_rate" optional="show"/>
+                <field name="cost_is_estimate" optional="hide"/>
+                <field name="state" widget="badge" decoration-info="state == 'sent'"
+                       decoration-success="state == 'won'" decoration-muted="state == 'lost'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kb_proposal_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.proposal.form</field>
+        <field name="model">corpaas.knowledge.proposal</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_open_import" string="匯入痛點" type="object"
+                            invisible="state != 'draft'"/>
+                    <button name="action_ai_match" string="AI 比對能力" type="object"
+                            invisible="state != 'draft'"/>
+                    <button name="action_compute_estimate" string="計算估算" type="object"
+                            invisible="state != 'draft'"/>
+                    <button name="action_render_html" string="產生建議書" type="object"
+                            invisible="state != 'draft'"/>
+                    <button name="action_create_sale_order" string="建立報價單" type="object"
+                            invisible="sale_order_id or state == 'lost'"/>
+                    <button name="action_send" string="送出" type="object" class="btn-primary"
+                            invisible="state != 'draft'"
+                            confirm="送出後建議書內容會凍結、不能再修改。確定送出？"/>
+                    <button name="action_mark_won" string="成交" type="object" class="btn-primary"
+                            invisible="state != 'sent'"/>
+                    <button name="action_mark_lost" string="未成交" type="object"
+                            invisible="state != 'sent'"/>
+                    <button name="action_feedback_actuals" string="工時回寫" type="object"
+                            invisible="state not in ('sent', 'won') or not sale_order_id"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_editor"/>
+                    <button name="action_copy_new_version" string="複製新版" type="object"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,sent,won"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_sale_order" type="object" class="oe_stat_button"
+                                icon="fa-dollar" invisible="not sale_order_id">
+                            <div class="o_stat_info"><span class="o_stat_text">報價單</span></div>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <field name="sale_order_id" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <group>
+                        <group string="客戶與方案">
+                            <field name="partner_id" readonly="state != 'draft'"/>
+                            <field name="user_id" readonly="state != 'draft'"/>
+                            <field name="product_tmpl_id" readonly="state != 'draft'"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="package_id" readonly="state != 'draft'"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="scenario_id" readonly="state != 'draft'"
+                                   domain="[('package_ids', 'in', package_id)]"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="company_id" groups="base.group_multi_company"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group string="訂閱規格">
+                            <field name="tier" readonly="state != 'draft'"/>
+                            <field name="ccu" readonly="state != 'draft'"/>
+                            <field name="billing_cycle" readonly="state != 'draft'"/>
+                            <field name="storage_gb" readonly="state != 'draft'"/>
+                            <field name="committed_qty" readonly="state != 'draft'"/>
+                            <field name="committed_usage" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="報價（首年）">
+                            <field name="subscription_monthly"/>
+                            <field name="subscription_amount"/>
+                            <field name="addon_amount"/>
+                            <field name="implementation_days"/>
+                            <field name="implementation_amount"/>
+                            <field name="custom_days"/>
+                            <field name="custom_amount"/>
+                            <field name="total" class="fw-bold"/>
+                            <field name="pricing_note"/>
+                        </group>
+                        <group string="成本與毛利">
+                            <field name="cost_is_estimate" widget="boolean_toggle" readonly="1"/>
+                            <field name="internal_cost"/>
+                            <field name="margin"/>
+                            <field name="margin_rate"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="痛點" name="pains">
+                            <field name="pain_ids" readonly="state != 'draft'">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="department"/>
+                                    <field name="description"/>
+                                    <field name="color_hint" optional="show"/>
+                                    <field name="module_hint" optional="hide"/>
+                                    <field name="quote_note" optional="hide"/>
+                                    <field name="source" optional="hide"/>
+                                </list>
+                                <form>
+                                    <group>
+                                        <group>
+                                            <field name="department"/>
+                                            <field name="color_hint"/>
+                                            <field name="module_hint"/>
+                                            <field name="source"/>
+                                        </group>
+                                        <group>
+                                            <field name="quote_note"/>
+                                        </group>
+                                    </group>
+                                    <group>
+                                        <field name="description"/>
+                                        <field name="current_state"/>
+                                        <field name="proposed_solution"/>
+                                    </group>
+                                    <field name="mapping_ids">
+                                        <list editable="bottom">
+                                            <field options="{'no_open': True}" name="capability_id"/>
+                                            <field name="color"/>
+                                            <field name="addon_product_ids" widget="many2many_tags" optional="show"/>
+                                            <field name="custom_days_low" optional="show"/>
+                                            <field name="custom_days_high" optional="show"/>
+                                            <field name="note"/>
+                                            <field name="confirmed" widget="boolean_toggle"/>
+                                        </list>
+                                    </field>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="能力對應" name="mappings">
+                            <field name="mapping_ids" readonly="state != 'draft'">
+                                <list editable="bottom" create="0"
+                                      decoration-muted="color == 'as_is'"
+                                      decoration-danger="color == 'custom'">
+                                    <field name="pain_id" readonly="1"/>
+                                    <field options="{'no_open': True}" name="capability_id"/>
+                                    <field name="color"/>
+                                    <field name="addon_product_ids" widget="many2many_tags" optional="show"/>
+                                    <field name="custom_days_low" optional="show"/>
+                                    <field name="custom_days_high" optional="show"/>
+                                    <field name="note"/>
+                                    <field name="source" optional="hide"/>
+                                    <field name="confirmed" widget="boolean_toggle"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="驅動因子與資料移轉" name="drivers">
+                            <group>
+                                <group>
+                                    <field name="company_count" readonly="state != 'draft'"/>
+                                    <field name="user_count" readonly="state != 'draft'"/>
+                                    <field name="role_count" readonly="state != 'draft'"/>
+                                </group>
+                                <group>
+                                    <field name="integration_count" readonly="state != 'draft'"/>
+                                    <field name="training_sessions" readonly="state != 'draft'"/>
+                                </group>
+                            </group>
+                            <div class="text-muted">資料移轉檢核表：「計算估算」會從情境示範資料與能力宣告的主資料模型補齊；請填預估筆數。</div>
+                            <field name="master_data_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="model_label"/>
+                                    <field name="model"/>
+                                    <field name="record_count"/>
+                                    <field name="provided"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="估算" name="estimate">
+                            <field name="estimate_line_ids" readonly="state != 'draft'">
+                                <list editable="bottom" create="0"
+                                      decoration-danger="is_custom">
+                                    <field options="{'no_open': True}" name="capability_id" readonly="1"/>
+                                    <field name="activity" readonly="1"/>
+                                    <field name="template_id" optional="hide" readonly="1"/>
+                                    <field name="driver_qty" readonly="1"/>
+                                    <field name="days" sum="人天"/>
+                                    <field name="day_rate" optional="show"/>
+                                    <field name="internal_day_cost" optional="hide"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="amount" sum="金額"/>
+                                    <field name="internal_cost" optional="hide" sum="成本"/>
+                                    <field name="is_custom" readonly="1"/>
+                                    <field name="note" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="建議書" name="html">
+                            <field name="html" readonly="1"/>
+                        </page>
+                        <page string="成本頁" name="cost">
+                            <group>
+                                <group>
+                                    <field name="labor_cost"/>
+                                    <field name="infra_monthly_cost"/>
+                                    <field name="third_party_monthly"/>
+                                    <field name="ai_monthly_cost"/>
+                                </group>
+                                <group>
+                                    <field name="cost_note" invisible="not cost_note"/>
+                                </group>
+                            </group>
+                            <field name="cost_html" readonly="1"/>
+                        </page>
+                        <page string="快照" name="snapshot" invisible="not snapshot_json">
+                            <field name="snapshot_json"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_kb_proposal_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.proposal.search</field>
+        <field name="model">corpaas.knowledge.proposal</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="product_tmpl_id"/>
+                <field name="user_id"/>
+                <filter name="mine" string="我的" domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <filter name="draft" string="草稿" domain="[('state', '=', 'draft')]"/>
+                <filter name="sent" string="已送出" domain="[('state', '=', 'sent')]"/>
+                <filter name="won" string="成交" domain="[('state', '=', 'won')]"/>
+                <separator/>
+                <filter name="estimate" string="成本為估算值" domain="[('cost_is_estimate', '=', True)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="group_product" string="方案" context="{'group_by': 'product_tmpl_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_kb_proposal" model="ir.actions.act_window">
+        <field name="name">服務建議書</field>
+        <field name="res_model">corpaas.knowledge.proposal</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_mine': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一份服務建議書</p>
+            <p>輸入或匯入客戶痛點，AI 會把痛點對應到方案能力，再依工時範本算出導入人天、報價與成本。</p>
+        </field>
+    </record>
+</odoo>

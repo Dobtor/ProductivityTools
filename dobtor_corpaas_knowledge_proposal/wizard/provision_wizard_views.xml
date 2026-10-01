@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_provision_wizard_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.provision.wizard.form</field>
+        <field name="model">corpaas.knowledge.provision.wizard</field>
+        <field name="arch" type="xml">
+            <form string="確認開通">
+                <sheet>
+                    <div class="alert alert-warning" role="alert" invisible="not existing_instance_ids">
+                        這位客戶已經有平台。請確認是要另開一座新平台，還是疊加／換層級到既有平台。
+                    </div>
+                    <group>
+                        <group>
+                            <field name="order_id" readonly="1"/>
+                            <field name="order_state" invisible="1"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="existing_instance_ids" widget="many2many_tags"
+                                   invisible="not existing_instance_ids"/>
+                            <field name="mode" widget="radio" required="1"/>
+                            <field name="instance_id"
+                                   invisible="mode in (False, 'new')"
+                                   required="mode in ('stack', 'change_tier')"
+                                   domain="[('id', 'in', existing_instance_ids)]"
+                                   options="{'no_create': True}"/>
+                            <field name="env_name" invisible="mode != 'new'"/>
+                        </group>
+                        <group>
+                            <field name="product_id" readonly="1"/>
+                            <field name="package_tier" readonly="mode != 'change_tier'"/>
+                            <field name="concurrent_users" readonly="1"/>
+                            <field name="storage_gb" readonly="1"/>
+                        </group>
+                    </group>
+                    <div class="text-muted" invisible="order_state != 'sale'">
+                        報價單已確認：只能放行為新平台（疊加／換層級的計價不同，需在確認報價單前選定）。
+                    </div>
+                    <div class="text-muted" invisible="order_state == 'sale'">
+                        報價階段：模式會寫到這張報價單上，<b>確認報價單</b>時依此開通／疊加／換層級。
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_apply" type="object" string="確認開通" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

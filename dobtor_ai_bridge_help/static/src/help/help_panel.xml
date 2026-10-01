@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- ★ 說明連結的呈現只有一份：「此畫面說明」與「提問後附的說明」共用，
+         兩份會漂，而漂掉的通常是那句「你的畫面可能與說明不同」。
+         ☠️ 模板裡拿不到 Boolean、JSON 這類全域（OWL 會當成元件屬性找，得到 undefined），
+            判斷一律寫成運算式或元件方法。 -->
+    <t t-name="dobtor_ai_bridge_help.Links">
+        <div class="o_daih_links d-flex flex-column gap-1">
+            <t t-foreach="links" t-as="item" t-key="item_index">
+                <t t-set="href" t-value="helpHref(item)"/>
+                <a t-if="href" t-att-href="href" target="_blank" rel="noopener noreferrer"
+                   class="o_daih_link btn btn-light btn-sm text-start">
+                    <i class="fa fa-book me-1"/>
+                    <t t-esc="item.title"/>
+                    <span t-if="item.kind === 'upsell'" class="badge text-bg-warning ms-1 align-middle">加購功能</span>
+                    <span t-if="item.scenario" class="text-muted ms-1">· <t t-esc="item.scenario"/></span>
+                    <i class="fa fa-external-link ms-1 text-muted"/>
+                    <div t-if="item.diverged" class="o_daih_diverged small text-warning">
+                        <i class="fa fa-exclamation-triangle me-1"/>你的畫面可能與說明不同
+                    </div>
+                </a>
+            </t>
+        </div>
+    </t>
+
+    <t t-inherit="dobtor_ai_bridge.Panel" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_dai_ctx')]" position="inside">
+            <button t-if="helpEnabled" class="o_daih_screen_btn btn btn-link btn-sm p-0 ms-2"
+                    t-on-click="toggleScreenHelp" title="查這個畫面的操作說明（不經過 AI）">
+                <i class="fa fa-question-circle me-1"/>此畫面說明
+            </button>
+        </xpath>
+        <xpath expr="//div[hasclass('o_dai_ctx')]" position="after">
+            <div t-if="helpEnabled and screenHelp.open" class="o_daih_screen px-2 py-2 small">
+                <div t-if="screenHelp.loading" class="text-muted">
+                    <i class="fa fa-spinner fa-spin me-1"/>查詢說明中…
+                </div>
+                <t t-elif="screenHelp.results.length">
+                    <t t-call="dobtor_ai_bridge_help.Links">
+                        <t t-set="links" t-value="screenHelp.results"/>
+                    </t>
+                </t>
+                <div t-elif="screenHelp.error" class="text-muted" t-esc="screenHelp.error"/>
+                <div t-else="" class="text-muted">這個畫面還沒有說明。</div>
+            </div>
+        </xpath>
+        <!-- ★ 放在 AI 回答的下方、工具列上方：看完回答接著就是「想看完整操作」的入口。 -->
+        <xpath expr="//div[@t-if='msg.artifacts and msg.artifacts.length']" position="after">
+            <div t-if="msg.helpLinks and msg.helpLinks.length" class="o_daih_msg small mt-2">
+                <div class="text-muted mb-1"><i class="fa fa-book me-1"/>相關說明</div>
+                <t t-call="dobtor_ai_bridge_help.Links">
+                    <t t-set="links" t-value="msg.helpLinks"/>
+                </t>
+            </div>
+        </xpath>
+    </t>
+</templates>

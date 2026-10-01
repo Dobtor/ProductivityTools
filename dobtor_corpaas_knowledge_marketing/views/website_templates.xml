@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 商品頁的方案知識區塊：能力卡片（已核准的 pitch）、本期新增、加購可得。
+         ★ 只用 Bootstrap 5／Odoo snippet class；沒有 style／script／svg。
+         ★ 資料由 product.template._knowledge_marketing_values() 以 sudo 讀核准快照，公開訪客不需要模型權限。
+         呼叫前要 t-set kb_tmpl（product.template）與 kb_variant（product.product，決定方案與分支）。 -->
+    <template id="product_knowledge_block" name="方案知識：能力／本期新增／加購可得">
+        <t t-set="kb" t-value="kb_tmpl._knowledge_marketing_values(kb_variant) if kb_tmpl else False"/>
+        <section t-if="kb and (kb['pitches'] or kb['release_note'] or kb['addons'])"
+                 id="kb_marketing" class="mt-4 mb-4">
+            <div t-if="kb['pitches']" class="mb-4">
+                <h3 class="h4 mb-3">這個方案能幫你做到</h3>
+                <div class="row g-3">
+                    <t t-foreach="kb['pitches']" t-as="card">
+                        <div class="col-md-6 col-lg-4" t-att-id="card['anchor']">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h4 class="card-title h5" t-esc="card['headline']"/>
+                                    <t t-foreach="card['images']" t-as="img">
+                                        <img t-att-src="img['url']" t-att-alt="img['alt']" loading="lazy"
+                                             class="img-fluid rounded border mb-3"/>
+                                    </t>
+                                    <div t-out="card['body_html']"/>
+                                    <ul t-if="card['claims']" class="list-unstyled mb-0">
+                                        <li t-foreach="card['claims']" t-as="claim" class="d-flex gap-2 mb-1">
+                                            <span class="badge text-bg-primary">✓</span>
+                                            <span t-esc="claim"/>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <div t-if="kb['release_note']" class="s_alert alert alert-info mb-4" role="status">
+                <div class="d-flex gap-2 align-items-center mb-2">
+                    <span class="badge text-bg-primary">本期新增</span>
+                    <strong t-esc="kb['release_note']['title']"/>
+                    <small t-if="kb['release_note']['date']" class="text-muted ms-auto"
+                           t-esc="kb['release_note']['date']"/>
+                </div>
+                <div t-out="kb['release_note']['body_html']"/>
+            </div>
+
+            <div t-if="kb['addons']" class="mb-4">
+                <h3 class="h4 mb-3">加購可得</h3>
+                <div class="row g-3">
+                    <t t-foreach="kb['addons']" t-as="addon">
+                        <div class="col-md-6" t-att-id="addon['anchor']">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex gap-2 align-items-center mb-2">
+                                        <span class="badge text-bg-primary">加購</span>
+                                        <h4 class="card-title h6 mb-0" t-esc="addon['name']"/>
+                                    </div>
+                                    <p t-if="addon['outcome']" class="card-text" t-esc="addon['outcome']"/>
+                                    <div t-if="addon['modules']" class="d-flex flex-wrap gap-2">
+                                        <t t-foreach="addon['modules']" t-as="mod">
+                                            <a t-att-href="mod['url']" class="btn btn-outline-primary btn-sm" t-esc="mod['name']"/>
+                                        </t>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </section>
+    </template>
+
+    <!-- ★ CorPaaS 方案商品頁不是 /shop 的 website_sale.product，而是 dobtor_corpaas_website 自己的
+         /corpaas/solution/<product.product id>（corpaas_solution_content）。錨點：「產品簡介」區塊之後。 -->
+    <template id="corpaas_solution_content_knowledge" inherit_id="dobtor_corpaas_website.corpaas_solution_content"
+              name="方案商品頁：方案知識區塊">
+        <xpath expr="//div[hasclass('soldx-intro')]" position="after">
+            <t t-call="dobtor_corpaas_knowledge_marketing.product_knowledge_block">
+                <t t-set="kb_tmpl" t-value="product_template"/>
+                <t t-set="kb_variant" t-value="product"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- 經由 /shop 進來的同一個商品也顯示（商品描述下方）。 -->
+    <template id="website_sale_product_knowledge" inherit_id="website_sale.product"
+              name="商品頁：方案知識區塊">
+        <xpath expr="//div[@id='product_full_description']" position="after">
+            <div class="container">
+                <t t-call="dobtor_corpaas_knowledge_marketing.product_knowledge_block">
+                    <t t-set="kb_tmpl" t-value="product"/>
+                    <t t-set="kb_variant" t-value="product_variant"/>
+                </t>
+            </div>
+        </xpath>
+    </template>
+</odoo>

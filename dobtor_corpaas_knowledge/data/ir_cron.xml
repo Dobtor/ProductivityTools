@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cron_knowledge_monthly" model="ir.cron">
+        <field name="name">知識：每月全量重拍（保底）</field>
+        <field name="model_id" ref="dobtor_corpaas_product.model_infrastructure_solution_package"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_knowledge_monthly()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">months</field>
+    </record>
+    <record id="cron_knowledge_image_watch" model="ir.cron">
+        <field name="name">知識：偵測母體映像變更</field>
+        <field name="model_id" ref="dobtor_corpaas_product.model_infrastructure_solution_package"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_knowledge_image_watch()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="cron_knowledge_gc" model="ir.cron">
+        <field name="name">知識：清理舊修訂與被取代素材</field>
+        <field name="model_id" ref="model_corpaas_knowledge_asset"/>
+        <field name="state">code</field>
+        <field name="code">model._gc_superseded(30)
+env['corpaas.knowledge.revision']._gc_keep_last(5)
+env['corpaas.knowledge.fingerprint']._gc(30)</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="cron_knowledge_help_misses" model="ir.cron">
+        <field name="name">知識：找不到答案的問句交給 AI 補同義詞</field>
+        <field name="model_id" ref="model_corpaas_knowledge_help_log"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_feed_misses()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+    <record id="cron_knowledge_push_help_keys" model="ir.cron">
+        <field name="name">知識：下發租戶的說明查詢金鑰</field>
+        <field name="model_id" ref="dobtor_infrastructure.model_infrastructure_database"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_knowledge_push_help_keys()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+    </record>
+</odoo>

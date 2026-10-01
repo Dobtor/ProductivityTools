@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ai_help_config_settings" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.ai.bridge.help</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="dobtor_ai_bridge.view_ai_bridge_config_settings"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='ai_assistant']" position="after">
+                <block title="此畫面說明（CorPaaS 主控台）" name="ai_help">
+                    <setting string="主控台網址"
+                             help="本站伺服器向它查說明連結；瀏覽器不會直接連過去。主控台下發金鑰時會一併寫入。">
+                        <field name="ai_help_console_url" placeholder="https://admin.corpaas.com"/>
+                    </setting>
+                    <setting string="主控台簽章金鑰"
+                             help="由主控台下發，本站向主控台查詢時以它簽章。這裡只顯示有沒有，不顯示金鑰內容。">
+                        <field name="ai_help_key_set" readonly="1"/>
+                        <div class="alert alert-warning mt-2 mb-0" role="alert"
+                             invisible="ai_help_key_set">
+                            尚未收到主控台下發的金鑰：請求會以未簽章送出，主控台可能回 unsigned 而查不到說明。
+                            請由主控台管理者替本庫下發金鑰（主控台每日排程也會自動補發）。
+                        </div>
+                    </setting>
+                    <setting string="本庫名稱"
+                             help="留空＝目前資料庫名稱。主控台用它找出本庫屬於哪個方案。">
+                        <field name="ai_help_database"/>
+                    </setting>
+                    <setting string="公開說明網域"
+                             help="逗號分隔。只顯示這些網域與主控台本身的 https 連結；其他一律丟掉。">
+                        <field name="ai_help_public_domains" placeholder="www.corpaas.com"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>
