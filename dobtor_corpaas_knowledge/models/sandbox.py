@@ -58,6 +58,9 @@ class KnowledgeSandbox(models.Model):
     purge_report = fields.Text(readonly=True)
     seed_report = fields.Text(readonly=True)
     error = fields.Text(readonly=True)
+    selftest_ok = fields.Boolean(string='自我檢查通過', readonly=True)
+    selftest_at = fields.Datetime(string='自我檢查時間', readonly=True)
+    selftest_report = fields.Text(string='自我檢查結果', readonly=True)
 
     _sql_constraints = [('db_unique', 'unique(db_name)', '說明庫名稱重複')]
 
@@ -192,6 +195,56 @@ class KnowledgeSandbox(models.Model):
     def action_drop(self):
         return self._enqueue_op('drop')
 
+    def action_selftest(self):
+        """截圖流程端到端自我檢查（優化 7）：在這座說明庫真的跑一次 Playwright。"""
+        return self._enqueue_op('selftest')
+
+    def selftest(self):
+        """登入 → 打開使用者清單 → 探測 → 截圖 → 打開一筆記錄再探測，檢查：
+        容器起得來、登入成功、截圖有內容、探測抓得到元素、狀態列讀值（有的話）、中文字型。
+        結果寫在 selftest_report；不改任何資料。"""
+        from ..services import shooter
+        self.ensure_one()
+        logins = json.loads(self.role_logins or '{}')
+        checks = []
+        if not logins:
+            self.write({'selftest_ok': False, 'selftest_at': fields.Datetime.now(),
+                        'selftest_report': _('說明庫沒有角色帳號，請先重建。')})
+            return False
+        uid_xid = 'base.partner_admin'
+        ids = self.resolve_xmlids([uid_xid]).get(uid_xid)
+        steps = [{'goto': {'action': 'base.action_res_users'}}, {'probe': 'entry'},
+                 {'shot': 'selftest_list'}]
+        if ids:
+            steps += [{'open': {'model': ids[0], 'res_id': ids[1]}}, {'probe': 'record'}]
+        shot = {'id': 'selftest', 'login': next(iter(logins.values())),
+                'password': self.sudo().password, 'steps': steps}
+        try:
+            result, files = shooter.run_shots(
+                self.env, self, [shot], self.env['res.config.settings'].knowledge_shot_settings())
+        except Exception as e:  # noqa: BLE001
+            self.write({'selftest_ok': False, 'selftest_at': fields.Datetime.now(),
+                        'selftest_report': _('截圖容器執行失敗：%s') % str(e)[:2000]})
+            return False
+        r = (result.get('shots') or {}).get('selftest') or {}
+        checks.append((_('登入與步驟'), bool(r.get('ok')), r.get('error') or ''))
+        imgs = r.get('images') or []
+        shot_img = next((i for i in imgs if i.get('name') == 'selftest_list'), None)
+        size = len(files.get(shot_img['file'], b'')) if shot_img else 0
+        checks.append((_('截圖有內容'), size > 10000, _('%s bytes') % size))
+        probe = next((i.get('probe') for i in imgs if i.get('is_probe')), None) or {}
+        checks.append((_('探測抓得到元素'), bool(probe.get('fields') or probe.get('buttons')),
+                       _('%(f)s 欄位／%(b)s 按鈕', f=len(probe.get('fields') or []),
+                         b=len(probe.get('buttons') or []))))
+        fonts = result.get('cjk_fonts') or []
+        checks.append((_('中文字型'), bool(fonts),
+                       ', '.join(fonts[:5]) or result.get('cjk_fonts_error') or _('找不到')))
+        ok = all(c[1] for c in checks)
+        report = '\n'.join('%s %s：%s' % ('✓' if c[1] else '✗', c[0], c[2]) for c in checks)
+        self.write({'selftest_ok': ok, 'selftest_at': fields.Datetime.now(),
+                    'selftest_report': report})
+        return ok
+
     def _enqueue_op(self, op):
         """☠️ 不在網頁請求裡跑：複製＋三輪清除＋示範資料要好幾分鐘，worker 被
         limit_time_real 砍掉時交易回滾，狀態與密碼消失，但實體庫已經被覆蓋了。"""
@@ -206,4 +259,5 @@ class KnowledgeSandbox(models.Model):
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'type': 'info', 'title': _('已排入佇列'),
                            'message': _('說明庫%s會在背景執行。') % (
-                               _('重建') if op == 'rebuild' else _('刪除'))}}
+                               {'rebuild': _('重建'), 'drop': _('刪除'),
+                                'selftest': _('截圖自我檢查')}.get(op, op))}}

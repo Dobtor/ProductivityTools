@@ -311,6 +311,15 @@ def main():
         job = json.load(fh)
     os.makedirs(OUT_DIR, exist_ok=True)
     result = {'shots': {}, 'started': time.time()}
+    # 自我檢查：容器裡有沒有中文字型（沒掛字型時中文會變方框，截圖看得出來但流程不會失敗）
+    try:
+        import subprocess
+        out = subprocess.run(['fc-list', ':lang=zh-tw', 'family'], capture_output=True,
+                             text=True, timeout=20).stdout
+        result['cjk_fonts'] = sorted({l.split(',')[0].strip() for l in out.splitlines()
+                                      if l.strip()})[:20]
+    except Exception as e:  # noqa: BLE001
+        result['cjk_fonts_error'] = str(e)[:300]
     base = job['base_url'].rstrip('/')
     args = ['--host-resolver-rules=%s' % job['resolver_rule']] if job.get('resolver_rule') else []
     with sync_playwright() as p:

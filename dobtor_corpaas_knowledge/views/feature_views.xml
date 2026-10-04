@@ -46,6 +46,20 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="功能分類" name="classes">
+                            <field name="class_ids">
+                                <list create="0" delete="0">
+                                    <field name="package_id"/>
+                                    <field name="classification"/>
+                                    <field name="core"/>
+                                    <field name="tier" optional="hide"/>
+                                    <field name="basis"/>
+                                    <field name="toggle_ids" widget="many2many_tags"/>
+                                    <field name="behavior_toggle_ids" widget="many2many_tags" optional="show"/>
+                                    <field name="advanced_elements" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="入口" name="entries" invisible="not entry_ids">
                             <field name="entry_ids">
                                 <list>
@@ -98,8 +112,8 @@
                 <filter name="gone" string="已消失" domain="[('missing', '=', True)]"/>
                 <filter name="no_cap" string="未歸入能力" domain="[('capability_ids', '=', False)]"/>
                 <separator/>
-                <filter name="origin_custom" string="自有模組" domain="[('module_origin', '=', 'custom')]"/>
-                <filter name="origin_odoo" string="Odoo 官方" domain="[('module_origin', '=', 'odoo')]"/>
+                <filter name="origin_custom" string="專用" domain="[('module_origin', '=', 'custom')]"/>
+                <filter name="origin_odoo" string="標準" domain="[('module_origin', '=', 'odoo')]"/>
                 <group expand="0" string="分組">
                     <filter name="g_origin" string="模組來源" context="{'group_by': 'module_origin'}"/>
                     <filter name="g_module" string="模組" context="{'group_by': 'module'}"/>

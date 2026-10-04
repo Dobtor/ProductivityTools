@@ -61,7 +61,7 @@ class _RefreshBase(TransactionCase):
             {'product_tmpl_id': tmpl.id, 'knowledge_enabled': True})
         cls.master = _FakeMaster({'base': 'abc'})
 
-    def _exec_shell(self, env, instance, db_name, script):
+    def _exec_shell(self, env, instance, db_name, script, **kw):
         readonly = 'env.cr.rollback()' in script
         script = script.replace('env.cr.rollback()', 'pass').replace('env.cr.commit()', 'pass')
         printed = []
@@ -182,10 +182,10 @@ class TestOfficialScope(_RefreshBase):
         self._refresh()
         mail = self._features('mail')
         self.assertTrue(mail, '範圍內的官方模組（mail）要盤到選單')
-        self.assertEqual(set(mail.mapped('kind')) - {'action', 'client'}, set(),
-                         '官方模組只盤畫面，不盤報表、按鈕、精靈、設定')
+        self.assertEqual(set(mail.mapped('kind')) - {'action', 'client', 'setting'}, set(),
+                         '官方模組只盤畫面（加上已設定的參數型開關），不盤報表、按鈕、精靈')
         self.assertEqual(set(mail.mapped('module_origin')), {'odoo'})
-        for f in mail:
+        for f in mail.filtered(lambda f: f.kind != 'setting'):
             self.assertIn('menu', f.entry_ids.mapped('kind'),
                           '官方畫面只收有選單入口的：%s' % f.feature_key)
         tech = self.env.ref('mail.mail_alias_menu', raise_if_not_found=False)
@@ -230,18 +230,18 @@ class TestOfficialScope(_RefreshBase):
         self.assertTrue(first, '第一次沒有基準：全算')
         self.assertEqual(self._fp_keys(), set(), '沒有模組變動：一個都不重算')
         # 挑一個確實出現在某些畫面繼承鏈、但不是全部畫面都有的模組來「改版」
-        feats = self._features().filtered('view_modules')
+        feats = self._features().filtered(lambda f: f.attr_for(self.pkg, 'view_modules'))
+        mods_of = {f: f.attr_for(self.pkg, 'view_modules').split(',') for f in feats}
         counts = {}
         for f in feats:
-            for m in f.view_modules.split(','):
+            for m in mods_of[f]:
                 counts[m] = counts.get(m, 0) + 1
         mod = next(m for m, c in sorted(counts.items(), key=lambda x: -x[1])
                    if c < len(feats))
         self.master.manifest[mod] = 'changed'
         self.addCleanup(self.master.manifest.pop, mod, None)
         third = self._fp_keys()
-        expected = set(feats.filtered(
-            lambda f: mod in f.view_modules.split(',')).mapped('feature_key'))
+        expected = set(f.feature_key for f in feats if mod in mods_of[f])
         self.assertEqual(third, expected, '%s 改版：只重算繼承鏈含它的畫面' % mod)
 
     def test_image_change_forces_full_fingerprint(self):
@@ -314,7 +314,7 @@ class TestOfficialScope(_RefreshBase):
         Pkg = type(self.pkg)
         real = self._exec_shell
 
-        def shell(env, instance, db_name, script):
+        def shell(env, instance, db_name, script, **kw):
             if "'features'" in script and 'OFFICIAL' in script:
                 return {'features': []}
             return real(env, instance, db_name, script)

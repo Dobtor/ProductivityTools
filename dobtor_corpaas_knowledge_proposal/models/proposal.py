@@ -74,6 +74,8 @@ AI_MATCH_PROMPT = """任務：把客戶痛點對應到方案的能力，作為�
 4. 售前填的 color_hint、module_hint、quote_note 只是參考，以能力資料為準。
 5. note 用一兩句說明這個痛點怎麼被解決；不要寫網址。
 6. capability_id 只能用下面清單裡的 id；不要自創能力。
+7. 能力的 feature_classes 是它在方案裡的功能分類：主要靠「標準功能」解決 → native；
+   「專用功能」→ dobtor；需要「標準進階／專用進階」（設定頁開啟的功能）→ tuning。
 
 輸入：
 ```json
@@ -603,6 +605,7 @@ class KnowledgeProposal(models.Model):
                 'capability_id': c.id, 'name': c.name, 'code': c.code or '',
                 'pain': c.pain or '', 'outcome': c.outcome or '', 'color': c.color,
                 'availability': c.availability_for(self.package_id.sudo())[0],
+                'feature_classes': self._feature_classes(c),
             } for c in caps.sudo()],
         }
         prompt = AI_MATCH_PROMPT % json.dumps(payload, ensure_ascii=False, indent=1)
@@ -772,6 +775,19 @@ class KnowledgeProposal(models.Model):
             scoped = pitches.filtered(lambda p: p.scenario_id == self.scenario_id)
             pitches = scoped or pitches.filtered(lambda p: not p.scenario_id)
         return pitches[:1]
+
+    def _feature_classes(self, cap):
+        """{分類: 功能點數}，加上是否含方案核心。"""
+        out = {}
+        pkg = self.package_id.sudo()
+        if not pkg:
+            return out
+        for c in self.env['corpaas.knowledge.feature.class'].sudo().search([
+                ('package_id', '=', pkg.id), ('feature_id', 'in', cap.feature_ids.ids)]):
+            out[c.classification] = out.get(c.classification, 0) + 1
+            if c.core:
+                out['core'] = True
+        return out
 
     def _flow_html(self, cap):
         """能力底下的作業流程（K26）：已核准的流程依步驟列出，給客戶看「實際怎麼走」。"""

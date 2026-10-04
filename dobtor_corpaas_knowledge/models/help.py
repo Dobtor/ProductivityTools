@@ -62,7 +62,7 @@ class KnowledgeHelp(models.AbstractModel):
             #   給他連結只會讓他去找一個不存在的選單。
             # 入口也要看得到：畫面本身沒限群組、但唯一的選單只開給主管，一般使用者照樣找不到。
             scored = [(f, sc) for f, sc in scored if f.visible_to(groups)]
-        scored.sort(key=lambda x: (-x[1], -x[0].usage_score))
+        scored.sort(key=lambda x: (-x[1], -(x[0].attr_for(package, 'usage_score') or 0)))
         return scored[:limit * 3]
 
 
@@ -102,8 +102,8 @@ class KnowledgeHelpLog(models.Model):
             if not pkg:
                 recs.write({'handled': True})
                 continue
-            feats = Feature.search([('package_ids', 'in', pkg.id), ('missing', '=', False)],
-                                   order='usage_score desc', limit=200)
+            feats = Feature.search([('package_ids', 'in', pkg.id), ('missing', '=', False)]).sorted(
+                lambda f: -(f.attr_for(pkg, 'usage_score') or 0))[:200]
             prompt = (
                 "使用者在方案「%s」問了以下問題但找不到說明。請判斷每個問題對應哪個功能點（用 key），"
                 "並給出應補的問法；真的沒有對應功能就回 null。\n"

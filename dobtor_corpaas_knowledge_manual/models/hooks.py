@@ -93,11 +93,14 @@ class KnowledgeHooks(models.AbstractModel):
     # 共用
     # ------------------------------------------------------------------
     @api.model
-    def _manual_feature_dict(self, feature):
+    def _manual_feature_dict(self, feature, package=None):
         delta = []
-        if feature.module_origin == 'odoo' and feature.customized and feature.custom_elements:
+        # 「改過」與改了什麼依方案的黃金庫而定（方案屬性層）
+        custom = feature.attr_for(package, 'customized')
+        elements = feature.attr_for(package, 'custom_elements')
+        if feature.module_origin == 'odoo' and custom and elements:
             try:
-                delta = json.loads(feature.custom_elements)
+                delta = json.loads(elements)
             except ValueError:
                 delta = []
         return {'key': feature.feature_key, 'name': feature.name, 'kind': feature.kind,
@@ -151,12 +154,12 @@ class KnowledgeHooks(models.AbstractModel):
         # ★ 沒被改過的官方畫面不寫文章（K21）：說明連到 Odoo 官方文件，不重寫一份。
         return {f: c for f, c in out.items()
                 if f.model and f not in renamed_to and f.is_present_in(package)
-                and not (f.module_origin == 'odoo' and not f.customized)}
+                and not (f.module_origin == 'odoo' and not f.attr_for(package, 'customized'))}
 
     @api.model
     def _manual_sorted_candidates(self, package):
         return sorted(self._manual_candidates(package).items(),
-                      key=lambda kv: (-kv[0].usage_score, kv[0].id))
+                      key=lambda kv: (-(kv[0].attr_for(package, 'usage_score') or 0), kv[0].id))
 
     @api.model
     def _manual_scenarios_for(self, package, capability):
@@ -378,7 +381,7 @@ class KnowledgeHooks(models.AbstractModel):
                 return Binding
             data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
                 'manual_bind', prompts.bind_prompt(
-                    self._manual_feature_dict(tmpl.feature_id), tmpl.steps(),
+                    self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(),
                     tmpl.placeholder_list(), self._manual_demo(scenario)),
                 package=package, refresh_token=token, record=tmpl), 'manual_bind')
             bindings = ai_str_map(data.get('bindings'))
@@ -398,7 +401,7 @@ class KnowledgeHooks(models.AbstractModel):
         screen = self._manual_probe(sandbox, feature)
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
             'manual_explore', prompts.explore_prompt(
-                self._manual_feature_dict(feature), archs, self._manual_demo(scenario), roles,
+                self._manual_feature_dict(feature, package), archs, self._manual_demo(scenario), roles,
                 screen=screen),
             package=package, refresh_token=token, record=feature), 'manual_explore')
         steps = data.get('steps')
@@ -618,7 +621,7 @@ class KnowledgeHooks(models.AbstractModel):
         roles = [{'code': r.code, 'name': r.name} for r in binding.scenario_id.all_roles()]
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
             'manual_repair', prompts.repair_prompt(
-                self._manual_feature_dict(tmpl.feature_id), tmpl.steps(), binding.bindings(),
+                self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
                 binding.last_error, last.get('dom_text'), last.get('url'), roles,
                 self._manual_demo(binding.scenario_id)),
             package=package, refresh_token=token, record=tmpl), 'manual_repair')
@@ -869,7 +872,7 @@ class KnowledgeHooks(models.AbstractModel):
             return json.loads(fp.found_json or '[]') if fp else []
         data = self.env['corpaas.knowledge.ai'].ask(
             'manual_fork', prompts.fork_prompt(
-                self._manual_feature_dict(feature), old.html, found(old.fingerprint),
+                self._manual_feature_dict(feature, package), old.html, found(old.fingerprint),
                 found(new_hash), tmpl.steps() if tmpl else []),
             package=package, refresh_token=token, record=old)
         data = ai_dict(data, 'manual_fork')
@@ -922,7 +925,7 @@ class KnowledgeHooks(models.AbstractModel):
                                                stop) or Block
         data = self.env['corpaas.knowledge.ai'].ask(
             'manual_step_block', prompts.step_block_prompt(
-                self._manual_feature_dict(feature), tmpl.steps(), tmpl.shot_names(),
+                self._manual_feature_dict(feature, package), tmpl.steps(), tmpl.shot_names(),
                 tmpl.elements_list()),
             package=package, refresh_token=token, record=tmpl)
         data = ai_dict(data, 'manual_step_block')
@@ -938,10 +941,15 @@ class KnowledgeHooks(models.AbstractModel):
     def _manual_write_scenario(self, package, scenario, feature, capability, blocks, token):
         """情境區塊：回傳 (標題, HTML)。★ 帶入既有步驟區塊，禁止重寫步驟。"""
         steps_html = ''.join(b.html or '' for b in blocks)
+        fdict = self._manual_feature_dict(feature, package)
+        cls = feature.class_for(package) if package else None
+        if cls:
+            # ★ 分類寫在情境說明（每個方案一篇），不寫進跨方案共用的步驟區塊：方案核心因方案而異
+            fdict['class'] = cls.as_payload()
         data = self.env['corpaas.knowledge.ai'].ask(
             'manual_scenario', prompts.scenario_prompt(
                 {'name': scenario.name, 'narrative': scenario.narrative},
-                scenario.glossary_map(), self._manual_feature_dict(feature),
+                scenario.glossary_map(), fdict,
                 {'name': capability.name, 'pain': capability.pain,
                  'outcome': capability.outcome} if capability else {},
                 steps_html),

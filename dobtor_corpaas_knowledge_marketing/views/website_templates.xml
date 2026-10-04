@@ -16,6 +16,14 @@
                             <div class="card h-100">
                                 <div class="card-body">
                                     <h4 class="card-title h5" t-esc="card['headline']"/>
+                                    <div t-if="card.get('classes')" class="d-flex flex-wrap gap-1 mb-2">
+                                        <t t-foreach="card['classes']" t-as="cls">
+                                            <span class="badge text-bg-primary">
+                                                <t t-esc="cls['label']"/>
+                                                <t t-if="cls['core']">・方案核心</t>
+                                            </span>
+                                        </t>
+                                    </div>
                                     <t t-foreach="card['images']" t-as="img">
                                         <img t-att-src="img['url']" t-att-alt="img['alt']" loading="lazy"
                                              class="img-fluid rounded border mb-3"/>

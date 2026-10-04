@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_toggle_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.toggle.list</field>
+        <field name="model">corpaas.knowledge.toggle</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0">
+                <field name="label"/>
+                <field name="kind"/>
+                <field name="module_origin"/>
+                <field name="path"/>
+                <field name="value" optional="show"/>
+                <field name="module" optional="hide"/>
+                <field name="downstream" optional="show"/>
+                <field name="package_ids" widget="many2many_tags" optional="show"/>
+                <field name="name" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_toggle_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.toggle.form</field>
+        <field name="model">corpaas.knowledge.toggle</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <sheet>
+                    <div class="oe_title"><h1><field name="label"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="target"/>
+                            <field name="module"/>
+                            <field name="module_origin"/>
+                            <field name="value"/>
+                        </group>
+                        <group>
+                            <field name="path"/>
+                            <field name="doc_url" widget="url"/>
+                            <field name="downstream"/>
+                            <field name="affected_models" invisible="kind != 'param'"/>
+                            <field name="package_ids" widget="many2many_tags"/>
+                            <field name="last_seen"/>
+                        </group>
+                    </group>
+                    <field name="help_text"/>
+                    <field name="elements_json" invisible="kind != 'group'"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_toggle_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.toggle.search</field>
+        <field name="model">corpaas.knowledge.toggle</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="label"/>
+                <field name="name"/>
+                <field name="package_ids"/>
+                <filter name="k_module" string="安裝模組" domain="[('kind', '=', 'module')]"/>
+                <filter name="k_group" string="開啟群組" domain="[('kind', '=', 'group')]"/>
+                <filter name="k_param" string="參數" domain="[('kind', '=', 'param')]"/>
+                <separator/>
+                <filter name="own" string="專用" domain="[('module_origin', '=', 'custom')]"/>
+                <filter name="std" string="標準" domain="[('module_origin', '=', 'odoo')]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_kind" string="類型" context="{'group_by': 'kind'}"/>
+                    <filter name="g_app" string="應用" context="{'group_by': 'app'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_kb_toggle" model="ir.actions.act_window">
+        <field name="name">設定開關</field>
+        <field name="res_model">corpaas.knowledge.toggle</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_toggle" action="action_kb_toggle" sequence="18"
+              parent="menu_knowledge_catalog"/>
+</odoo>

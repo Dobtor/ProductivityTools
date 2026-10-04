@@ -42,3 +42,9 @@ access_kb_coverage_editor,kb.coverage.editor,model_corpaas_knowledge_coverage,gr
 access_kb_coverage_manager,kb.coverage.manager,model_corpaas_knowledge_coverage,group_knowledge_manager,1,1,1,1
 access_kb_gap_editor,kb.gap.editor,model_corpaas_knowledge_gap,group_knowledge_editor,1,1,0,0
 access_kb_gap_manager,kb.gap.manager,model_corpaas_knowledge_gap,group_knowledge_manager,1,1,1,1
+access_kb_toggle_editor,kb.toggle.editor,model_corpaas_knowledge_toggle,group_knowledge_editor,1,0,0,0
+access_kb_toggle_manager,kb.toggle.manager,model_corpaas_knowledge_toggle,group_knowledge_manager,1,1,1,1
+access_kb_feature_class_editor,kb.feature.class.editor,model_corpaas_knowledge_feature_class,group_knowledge_editor,1,0,0,0
+access_kb_feature_class_manager,kb.feature.class.manager,model_corpaas_knowledge_feature_class,group_knowledge_manager,1,1,1,1
+access_kb_toggle_state_editor,kb.toggle.state.editor,model_corpaas_knowledge_toggle_state,group_knowledge_editor,1,0,0,0
+access_kb_toggle_state_manager,kb.toggle.state.manager,model_corpaas_knowledge_toggle_state,group_knowledge_manager,1,1,1,1

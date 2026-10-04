@@ -146,6 +146,31 @@ def fork_prompt(feature, old_html, old_found, new_found, steps):
     }
 
 
+def _class_note(feature):
+    """功能分類（基礎／進階 × 標準／專用 ＋ 方案核心）要寫進情境說明的部分。"""
+    c = feature.get('class') or {}
+    if not c:
+        return ''
+    lines = ["\n★ 功能分類：%s%s。文章標題前加上【%s】。" % (
+        c.get('classification_label') or '', '（方案核心）' if c.get('core') else '',
+        c.get('classification_label') or '')]
+    if c.get('tier') == 'advanced' and c.get('toggle_paths'):
+        lines.append("開頭第一句寫明：「此功能於 %s 開啟（方案預設已開啟）」。"
+                     % '、'.join(c['toggle_paths']))
+    if c.get('tier') == 'advanced' and (c.get('core') or c.get('downstream_bom')):
+        extra = ('，並一併移除：%s' % '、'.join(c['downstream_bom'])) if c.get('downstream_bom') \
+            else ''
+        lines.append("加一段警示（s_alert alert alert-info）：「此為方案核心功能，關閉上述設定會移除"
+                     "本功能%s，請勿關閉。」" % extra)
+    if c.get('advanced_elements'):
+        lines.append("畫面上這些元素屬於進階功能，提到時標註「（進階）」並說明由哪個設定開啟：%s。"
+                     % _j(c['advanced_elements']))
+    if c.get('behavior'):
+        lines.append("這個功能的行為受下列設定影響，用一句話註明（例如「此行為由設定 ○○ 決定，"
+                     "方案預設：△△」）：%s。" % _j(c['behavior']))
+    return '\n'.join(lines) + '\n'
+
+
 def scenario_prompt(scenario, glossary, feature, capability, step_html):
     """情境區塊：在這個情境下為什麼這樣做；帶入既有步驟區塊，禁止重寫步驟。"""
     return (
@@ -154,13 +179,14 @@ def scenario_prompt(scenario, glossary, feature, capability, step_html):
         "2. 套用用語對照（左邊是系統原詞，右邊是這個情境的說法）。\n"
         "3. ★ 不得另寫一套完整操作步驟——操作步驟已經在下面，會原樣放在你的說明後面。"
         "最多用一兩句話提示「照下方步驟操作」。\n"
-        "4. 100–250 字。%(allowed)s\n\n"
+        "4. 100–250 字。%(allowed)s\n%(cls)s\n"
         "回覆格式：{\"title\":\"<文章標題，用情境用語>\",\"html\":\"…\"}\n\n"
         "情境敘事：%(narrative)s\n\n用語對照：%(glossary)s\n\n"
         "所屬能力：%(cap)s（痛點：%(pain)s；成果：%(outcome)s）\n\n"
         "既有操作步驟（不要重寫）：%(steps)s"
     ) % {
         'sc': scenario.get('name'), 'name': feature.get('name'), 'allowed': ALLOWED_HTML,
+        'cls': _class_note(feature),
         'narrative': (scenario.get('narrative') or '')[:3000], 'glossary': _j(glossary),
         'cap': capability.get('name') or '', 'pain': capability.get('pain') or '',
         'outcome': capability.get('outcome') or '', 'steps': step_html or '',

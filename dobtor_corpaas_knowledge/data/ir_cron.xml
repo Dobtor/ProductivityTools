@@ -50,4 +50,15 @@ env['corpaas.knowledge.fingerprint']._gc(30)</field>
         <field name="interval_number">1</field>
         <field name="interval_type">weeks</field>
     </record>
+    <!-- ★ 新的清理排程用新 xmlid：這個檔是 noupdate，改舊排程的 code 對既有資料庫無效。 -->
+    <record id="cron_knowledge_gc_logs" model="ir.cron">
+        <field name="name">知識：清理 AI 快取回應、舊查詢紀錄與不處理的缺口</field>
+        <field name="model_id" ref="model_corpaas_knowledge_ai_call"/>
+        <field name="state">code</field>
+        <field name="code">model._gc_cache()
+env['corpaas.knowledge.help.log']._gc(180)
+env['corpaas.knowledge.gap']._gc(180)</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
 </odoo>

@@ -176,13 +176,8 @@ for m in E['ir.model'].sudo().search([('transient', '=', True)]):
     if hit:
         _feat('wizard', m.model, hit[0], name=m.name, model=m.model)
 
-# 設定
-for f in E['ir.model.fields'].sudo().search([('model', '=', 'res.config.settings')]):
-    mods = set((f.modules or '').replace(' ', '').split(','))
-    hit = sorted(mods & MODS)
-    if hit and not f.name.startswith('module_'):
-        _feat('setting', f.name, hit[0], name=f.field_description,
-              model='res.config.settings')
+# 設定：不在這裡盤。只有「已開啟」的參數型開關才是功能點（toggle_script，進階）；
+#   沒勾的設定不屬於方案預設範圍。
 
 # 前台：方案模組的網站選單
 if 'website.menu' in E:
@@ -659,3 +654,254 @@ for model in MODELS:
 env.cr.rollback()
 print(MARK + json.dumps({'flows': out}))
 """
+
+
+def toggle_script(scope, lang='zh_TW'):
+    """盤點設定開關（唯讀）。只回「已開啟」的：module_ 已裝、group_ 已勾、參數不是預設值。
+
+    scope: 方案範圍內的模組（BOM ∪ 範圍內官方模組）。開關的「提供者」不在範圍內的不收：
+      安裝模組型看目標模組，其他看定義設定欄位的模組。
+    另外回傳「沒勾的群組開關」的群組——受它控制的畫面不屬於方案預設範圍，盤點要排除。
+    """
+    return _HEAD + (
+        "SCOPE = set(json.loads(%r))\n"
+        "LANG = _lang(%r)\n"
+    ) % (json.dumps(sorted(scope)), lang) + _TOGGLE_BODY
+
+
+_TOGGLE_BODY = r"""
+import ast
+import os
+import xml.etree.ElementTree as ET
+from odoo.modules.module import get_module_path
+E = env(context=dict(env.context, lang=LANG))
+S = E['res.config.settings'].sudo()
+Imd = E['ir.model.data'].sudo()
+Mod = E['ir.module.module'].sudo()
+cls = S._get_classified_fields()
+values = S.default_get(list(S._fields))
+
+# 設定頁結構：欄位 → (app, block, setting) 標題、說明、官方文件
+meta = {}
+try:
+    arch = S.get_views([(False, 'form')])['views']['form']['arch']
+    root = ET.fromstring(arch)
+    parent = {c: p for p in root.iter() for c in p}
+    for f in root.iter('field'):
+        name = f.attrib.get('name')
+        if not name or name in meta:
+            continue
+        app = block = setting = None
+        cur = parent.get(f)
+        while cur is not None:
+            if cur.tag == 'setting' and setting is None:
+                setting = cur
+            elif cur.tag == 'block' and block is None:
+                block = cur
+            elif cur.tag == 'app' and app is None:
+                app = cur
+            cur = parent.get(cur)
+        parts = [x for x in (
+            app.attrib.get('string') if app is not None else None,
+            block.attrib.get('title') if block is not None else None,
+            (setting.attrib.get('string') if setting is not None else None)) if x]
+        meta[name] = {
+            'app': app.attrib.get('name') if app is not None else '',
+            'path': parts,
+            'label': setting.attrib.get('string') if setting is not None and setting.attrib.get('string') else '',
+            'help': setting.attrib.get('help') if setting is not None else '',
+            'doc': setting.attrib.get('documentation') if setting is not None else '',
+        }
+except Exception:
+    pass
+
+def _field_module(name):
+    return getattr(S._fields[name], '_module', '') or ''
+
+def _label(name):
+    m = meta.get(name) or {}
+    return m.get('label') or S._fields[name].string or name
+
+def _base(name, kind, target, provider):
+    m = meta.get(name) or {}
+    path = list(m.get('path') or [])
+    if not path or path[-1] != _label(name):
+        path.append(_label(name))
+    return {'name': name, 'kind': kind, 'target': target, 'module': provider,
+            'defined_in': _field_module(name), 'label': _label(name),
+            'help': m.get('help') or S._fields[name].help or '',
+            'path': path, 'doc': m.get('doc') or '', 'app': m.get('app') or ''}
+
+out, off_groups = [], []
+installed = Mod.search([('state', '=', 'installed')])
+graph = {m.name: m.dependencies_id.mapped('name') for m in installed}
+
+# 安裝模組型
+for mod in cls['module']:
+    name = 'module_' + mod.name
+    if mod.state != 'installed' or mod.name not in SCOPE:
+        continue
+    t = _base(name, 'module', mod.name, mod.name)
+    t['downstream'] = sorted(mod.downstream_dependencies().filtered(
+        lambda m: m.state == 'installed').mapped('name'))
+    t['value'] = 'on'
+    out.append(t)
+
+# 開啟群組型
+def _gated(xid):
+    els, menus = [], []
+    V = E['ir.ui.view'].sudo()
+    for v in V.search([('arch_db', 'ilike', xid)]):
+        try:
+            r = ET.fromstring(v.arch_db or '<x/>')
+        except ET.ParseError:
+            continue
+        base = v
+        while base.inherit_id and base.mode != 'primary':
+            base = base.inherit_id
+        vmod = (Imd.search([('model', '=', 'ir.ui.view'), ('res_id', '=', v.id)], limit=1).module
+                or '')
+        for n in r.iter():
+            g = [x.strip() for x in (n.attrib.get('groups') or '').split(',')]
+            if xid in g and n.tag in ('field', 'button', 'page') and n.attrib.get('name'):
+                els.append({'model': v.model or '', 'view': _xid(base),
+                            'element': '%s:%s' % (n.tag, n.attrib['name']), 'module': vmod})
+    return els
+
+for name, groups, implied in cls['group']:
+    xid = _xid(implied)
+    if not xid:
+        continue
+    on = bool(values.get(name))
+    if not on:
+        off_groups.append(xid)
+        continue
+    provider = _field_module(name)
+    if provider not in SCOPE:
+        continue
+    t = _base(name, 'group', xid, provider)
+    t['value'] = 'on'
+    t['elements'] = _gated(xid)
+    out.append(t)
+
+# 參數型：config_parameter、default_、與公司相關的可寫欄位；只收「不是預設值」的
+def _default_of(field):
+    d = field.default
+    try:
+        return d(S) if callable(d) else d
+    except Exception:
+        return None
+
+def _is_set(field, val):
+    if field.type == 'boolean':
+        return bool(val)
+    if val in (False, None, '', 0, 0.0):
+        return False
+    dv = _default_of(field)
+    if field.type == 'many2one':
+        dv = getattr(dv, 'id', dv)
+        val = getattr(val, 'id', val)
+    return val != dv
+
+param_names = [(n, key) for n, key in cls['config']]
+param_names += [(n, None) for n, _m, _f in cls['default']]
+param_names += [(n, None) for n in cls['other']
+                if S._fields[n].related and not S._fields[n].readonly
+                and S._fields[n].type in ('boolean', 'selection', 'integer', 'float', 'char', 'many2one')]
+by_key = {}
+for name, key in param_names:
+    field = S._fields[name]
+    provider = _field_module(name)
+    if provider not in SCOPE or not _is_set(field, values.get(name)):
+        continue
+    val = values.get(name)
+    if field.type == 'selection':
+        val = dict(field._description_selection(E)).get(val, val)
+    elif field.type == 'many2one' and val:
+        val = E[field.comodel_name].browse(getattr(val, 'id', val)).display_name
+    t = _base(name, 'param', key or name, provider)
+    t['value'] = str(val)[:80]
+    t['models'] = []
+    out.append(t)
+    if key:
+        by_key[key] = t
+
+# 參數會影響哪些模型：在範圍內模組的原始碼裡找讀取這個 key 的類別（_name／_inherit）
+if by_key:
+    for mod in sorted(SCOPE):
+        path = get_module_path(mod, display_warning=False)
+        if not path:
+            continue
+        for dirpath, _dirs, files in os.walk(path):
+            if '/tests' in dirpath or '/migrations' in dirpath:
+                continue
+            for fn in files:
+                if not fn.endswith('.py'):
+                    continue
+                fp = os.path.join(dirpath, fn)
+                try:
+                    src = open(fp, encoding='utf-8').read()
+                except Exception:
+                    continue
+                keys = [k for k in by_key if k in src]
+                if not keys:
+                    continue
+                try:
+                    tree = ast.parse(src)
+                except SyntaxError:
+                    continue
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.ClassDef):
+                        continue
+                    hit = {c.value for c in ast.walk(node)
+                           if isinstance(c, ast.Constant) and c.value in by_key}
+                    if not hit:
+                        continue
+                    models = []
+                    for st in node.body:
+                        if isinstance(st, ast.Assign) and any(
+                                isinstance(tg, ast.Name) and tg.id in ('_name', '_inherit')
+                                for tg in st.targets):
+                            v = st.value
+                            vals = [v] if isinstance(v, ast.Constant) else getattr(v, 'elts', [])
+                            models += [x.value for x in vals if isinstance(x, ast.Constant)
+                                       and isinstance(x.value, str)]
+                    for k in hit:
+                        for m in models:
+                            if m not in by_key[k]['models'] and m != 'res.config.settings':
+                                by_key[k]['models'].append(m)
+
+env.cr.rollback()
+print(MARK + json.dumps({'toggles': out, 'off_groups': off_groups, 'graph': graph}))
+"""
+
+
+def analysis_script(modules, official=(), lang='zh_TW'):
+    """一次 odoo shell 跑完「盤點＋設定開關＋流程」（唯讀）。
+
+    ★ 每一次 odoo shell 都要重新載入整個 registry（幾百個模組，15–40 秒），而且是在母體
+      容器裡多開一個 Odoo 程序。分開跑三支腳本＝三次載入；合併後只載入一次。
+    三支腳本的內容不變，只把各自的 print(MARK + …) 收集起來、最後合併輸出一次：
+      features（盤點）、toggles／off_groups／graph（開關）、flows（流程）。
+    流程的模型取自這次盤點出來的畫面。
+    """
+    scope = sorted(set(modules) | set(official or ()))
+    return _HEAD + (
+        "MODS = set(json.loads(%r))\n"
+        "OFFICIAL = set(json.loads(%r)) - MODS\n"
+        "SCOPE = set(json.loads(%r))\n"
+        "LANG = _lang(%r)\n"
+        "__OUT = {}\n"
+        "__print = print\n"
+        "def print(s):\n"
+        "    if isinstance(s, str) and s.startswith(MARK):\n"
+        "        __OUT.update(json.loads(s[len(MARK):]))\n"
+        "    else:\n"
+        "        __print(s)\n"
+    ) % (json.dumps(sorted(modules)), json.dumps(sorted(official or ())), json.dumps(scope),
+         lang) + _INVENTORY_BODY + (
+        "\nMODELS = sorted({d.get('model') for d in __OUT.get('features') or []\n"
+        "                  if d.get('kind') == 'action' and d.get('model')})\n"
+    ) + _TOGGLE_BODY + _FLOW_BODY + (
+        "\n__print(MARK + json.dumps(__OUT))\n"
+    )

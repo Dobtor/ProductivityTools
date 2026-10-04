@@ -11,6 +11,8 @@
                 <field name="kind"/>
                 <field name="module_origin" optional="show"/>
                 <field name="customized" optional="show"/>
+                <field name="classification"/>
+                <field name="core" optional="show"/>
                 <field name="usage_score"/>
                 <field name="usage_source" optional="show"/>
                 <field name="capability_names" optional="show"/>
@@ -40,9 +42,10 @@
                 <field name="package_id"/>
                 <filter name="missing" string="缺說明" domain="[('status', '=', 'missing')]"/>
                 <filter name="used" string="有人用" domain="[('usage_score', '>', 0)]"/>
-                <filter name="own" string="自有模組" domain="[('module_origin', '=', 'custom')]"/>
+                <filter name="own" string="專用" domain="[('module_origin', '=', 'custom')]"/>
                 <group expand="0" string="分組">
                     <filter name="g_status" string="狀態" context="{'group_by': 'status'}"/>
+                    <filter name="g_class" string="功能分類" context="{'group_by': 'classification'}"/>
                     <filter name="g_package" string="方案" context="{'group_by': 'package_id'}"/>
                     <filter name="g_flow" string="流程" context="{'group_by': 'flow_id'}"/>
                 </group>

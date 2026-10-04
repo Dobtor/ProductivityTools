@@ -29,7 +29,7 @@ class KnowledgeFeature(models.Model):
     # ★ 方案自有模組 vs Odoo 官方模組（相依帶進來的 sale、account…）。官方功能點只盤
     #   選單與選單動作；AI 歸類排在自有之後；說明書不自動為它寫文章。盤點時寫入。
     module_origin = fields.Selection(
-        [('custom', '自有模組'), ('odoo', 'Odoo 官方')], string='模組來源',
+        [('custom', '專用'), ('odoo', '標準')], string='模組來源',
         default='custom', required=True, index=True, readonly=True)
     kind = fields.Selection(FEATURE_KINDS, required=True, readonly=True)
     anchor = fields.Char(required=True, readonly=True)
@@ -49,7 +49,7 @@ class KnowledgeFeature(models.Model):
                                help='畫面（含繼承）涉及的模組，逗號分隔；變動模組有交集才重算指紋')
     # 官方畫面被我們改過嗎（K19）：自有模組在它的繼承鏈上加了欄位或按鈕
     customized = fields.Boolean(
-        string='自有模組改過', readonly=True, index=True,
+        string='專用模組改過', readonly=True, index=True,
         help='官方畫面：有自有模組的繼承視圖加了欄位或按鈕。沒改過的官方畫面不寫文章、'
              '說明連到 Odoo 官方文件；改過的只寫差異。')
     custom_modules = fields.Char(string='改動的自有模組', readonly=True)
@@ -278,6 +278,8 @@ EVENT_TYPES = [
     ('divergence', '租戶畫面分歧'),
     ('code_changed', '程式碼改版'),
     ('modules_changed', '盤點模組範圍變動'),
+    ('toggle_changed', '設定開關變動'),
+    ('class_changed', '功能分類變動'),
 ]
 
 
@@ -385,7 +387,7 @@ class KnowledgeHooks(models.AbstractModel):
         by_feature = {d.feature_id.id: d for d in docs}
         for feature, _score in matches:
             doc = by_feature.get(feature.id)
-            if doc and not feature.customized:
+            if doc and not feature.attr_for(package, 'customized'):
                 out.append({'feature_key': feature.feature_key,
                             'title': doc.title or feature.name, 'url': doc.url,
                             'kind': 'official', 'scenario': '', 'anchor': '',

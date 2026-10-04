@@ -26,9 +26,18 @@
                     <button name="action_drop" string="刪除說明庫" type="object"
                             invisible="state == 'dropped'" confirm="確定刪除？"
                             groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                    <button name="action_selftest" string="截圖自我檢查" type="object"
+                            invisible="state != 'ready' and state != 'done'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
+                    <div class="alert alert-info" role="status" invisible="not selftest_at">
+                        <strong>截圖自我檢查</strong>
+                        （<field name="selftest_at" readonly="1" class="d-inline"/>）
+                        <field name="selftest_ok" invisible="1"/>
+                        <field name="selftest_report" readonly="1"/>
+                    </div>
                     <group>
                         <group>
                             <field name="db_name"/>

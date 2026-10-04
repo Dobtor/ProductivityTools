@@ -24,7 +24,7 @@ class TestPresenceAndRebaseline(TestRefresh):
         Pkg = type(self.pkg)
         Feature = self.env['corpaas.knowledge.feature']
 
-        def shell(env, inst, db, script):
+        def shell(env, inst, db, script, **kw):
             res = self._exec_shell(env, inst, db, script)
             if 'MODS' in script:
                 res['features'] = [i for i in res['features'] if Feature.make_key(

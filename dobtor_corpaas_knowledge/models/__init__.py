@@ -8,6 +8,7 @@ from . import ai
 from . import sandbox
 from . import help
 from . import help_key
+from . import toggle
 from . import solution_package
 from . import coverage
 from . import corpaas_queue

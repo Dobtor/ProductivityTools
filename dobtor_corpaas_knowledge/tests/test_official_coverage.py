@@ -21,12 +21,14 @@ class TestCustomizedOfficial(base._RefreshBase):
             self._refresh()
         feats = self.env['corpaas.knowledge.feature'].search(
             [('package_ids', 'in', self.pkg.id), ('module_origin', '=', 'odoo')])
-        custom = feats.filtered('customized')
+        custom = feats.filtered(lambda f: f.attr_for(self.pkg, 'customized'))
         self.assertTrue(custom, '有被非官方模組繼承的官方畫面')
-        elements = json.loads(custom[0].custom_elements)
+        row = custom[0].class_for(self.pkg)
+        self.assertTrue(row, '「改過」記在方案屬性層')
+        elements = json.loads(row.custom_elements)
         self.assertTrue(elements and all(':' in e for e in elements))
-        self.assertTrue(custom[0].custom_modules)
-        self.assertNotIn('base', custom[0].custom_modules.split(','))
+        self.assertTrue(row.custom_modules)
+        self.assertNotIn('base', row.custom_modules.split(','))
 
 
 @tagged('post_install', '-at_install')

@@ -29,7 +29,41 @@ def _db_helper(env):
     return env['infrastructure.database'].sudo()
 
 
-def shell_exec(env, instance, db_name, script):
+def _isolated_enabled(env):
+    val = env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.isolated_analysis', '1')
+    return str(val).strip().lower() not in ('0', 'false', 'off', 'no')
+
+
+def _isolated_cmd(env, instance, db_name, tmp):
+    """一次性分析容器：同一個映像、唯讀掛同一份程式碼與設定，限記憶體，跑完即刪。
+
+    ★ 不 docker exec 進母體：那是正在服務共享租戶的正式容器，每次分析都在裡面多開一個
+      完整 Odoo（數百 MB），還會和它的 worker 搶 CPU。
+    ★ --entrypoint odoo：官方映像的 entrypoint 會依環境變數補 --db_host 等參數，蓋掉設定檔。
+    """
+    inst = instance.sudo()
+    img = inst.odoo_image_id
+    image = '%s:%s' % (img.pull_name, inst.odoo_image_tag_id.name)
+    etc = img.odoo_etc_dir or '/etc/odoo'
+    addons = img.odoo_extra_addons_dir or '/mnt/extra-addons'
+    Database = _db_helper(env)
+    conf = Database._instance_conf_path(instance)
+    mem = env['ir.config_parameter'].sudo().get_param(
+        'corpaas_knowledge.analysis_memory') or '1g'
+    return (
+        "cat %(tmp)s | docker run --rm -i --network %(net)s --memory %(mem)s --cpus 1 "
+        "-v %(conf_dir)s:%(etc)s:ro -v %(src)s:%(addons)s:ro --entrypoint odoo %(image)s "
+        "shell -c %(conf)s --no-http --logfile=/dev/stderr --stop-after-init -d %(db)s%(pg)s"
+    ) % {
+        'tmp': shlex.quote(tmp), 'net': shlex.quote(inst.server_id.docker_network_name or 'bridge'),
+        'mem': shlex.quote(mem), 'conf_dir': shlex.quote(inst.conf_path), 'etc': shlex.quote(etc),
+        'src': shlex.quote(inst.sources_path), 'addons': shlex.quote(addons),
+        'image': shlex.quote(image), 'conf': shlex.quote(conf), 'db': shlex.quote(db_name),
+        'pg': Database._pg_direct_cli_args(instance=instance),
+    }
+
+
+def shell_exec(env, instance, db_name, script, isolated=False):
     """在 `instance` 的 Odoo 容器內，對 `db_name` 跑 odoo shell；回傳 stdout。
 
     腳本不 commit 就不會留下任何東西（shell 結束時 rollback）。
@@ -44,12 +78,15 @@ def shell_exec(env, instance, db_name, script):
     with instance.server_id.get_connect() as c:
         _put(c, tmp, script.encode('utf-8'))
         try:
-            cmd = (
-                "cat %s | docker exec -i %s odoo shell -c %s --no-http "
-                "--logfile=/dev/stderr --stop-after-init -d %s%s" % (
-                    shlex.quote(tmp), container, shlex.quote(conf), shlex.quote(db_name),
-                    Database._pg_direct_cli_args(instance=instance)))
-            res = custom_sudo(c, cmd)
+            if isolated:
+                cmd = _isolated_cmd(env, instance, db_name, tmp)
+            else:
+                cmd = (
+                    "cat %s | docker exec -i %s odoo shell -c %s --no-http "
+                    "--logfile=/dev/stderr --stop-after-init -d %s%s" % (
+                        shlex.quote(tmp), container, shlex.quote(conf), shlex.quote(db_name),
+                        Database._pg_direct_cli_args(instance=instance)))
+            res = custom_sudo(c, cmd, dont_raise=isolated)
         finally:
             custom_sudo(c, 'rm -f %s' % shlex.quote(tmp), dont_raise=True)
     return getattr(res, 'stdout', '') or ''
@@ -73,7 +110,19 @@ def parse_marker(out):
     return result
 
 
-def shell_json(env, instance, db_name, script):
+def shell_json(env, instance, db_name, script, isolated=False):
+    """isolated=True：唯讀分析優先用一次性容器；起不來（映像沒拉、掛載路徑不對…）就記一筆
+    警告、退回 docker exec 進母體，分析照樣完成。"""
+    if isolated and _isolated_enabled(env):
+        try:
+            out = shell_exec(env, instance, db_name, script, isolated=True)
+            res = parse_marker(out)
+            if res is not None:
+                return res
+            _logger.warning('[knowledge] 一次性分析容器沒有回傳結果，改用母體容器：%s',
+                            (out or '')[-500:])
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] 一次性分析容器失敗，改用母體容器：%s', e)
     out = shell_exec(env, instance, db_name, script)
     res = parse_marker(out)
     if res is None:

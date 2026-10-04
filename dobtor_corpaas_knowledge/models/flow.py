@@ -6,6 +6,8 @@
 ★ 和功能點一樣是全域的：同一個模型被多個方案共用時是同一個流程，package_ids 記
   它出現在哪些方案。
 """
+import json
+
 from odoo import api, fields, models
 
 EVIDENCE_HELP = '靜態：原始碼分析；租戶：租戶庫實際發生的狀態變更；截圖：說明庫操作時觀察到'
@@ -36,7 +38,8 @@ class KnowledgeFlow(models.Model):
     capability_id = fields.Many2one('corpaas.knowledge.capability', string='所屬能力',
                                     ondelete='set null')
     usage_score = fields.Float(string='租戶使用量', readonly=True,
-                               help='轉換次數總和（租戶實測）；沒有就是入口畫面的使用量')
+                               help='各方案中最大的一個（彙總顯示）；各方案的值在 usage_json')
+    usage_json = fields.Text(readonly=True, help='{方案 id: 使用量}（方案屬性層）')
     structure_hash = fields.Char(readonly=True,
                                  help='步驟＋轉換的雜湊：結構變了才請 AI 重新命名')
     named_hash = fields.Char(readonly=True, help='AI 命名時的結構雜湊')
@@ -50,6 +53,16 @@ class KnowledgeFlow(models.Model):
     def _compute_name(self):
         for rec in self:
             rec.name = rec.ai_name or rec.model_name or rec.model
+
+    def _package_usage(self, package):
+        self.ensure_one()
+        return json.loads(self.usage_json or '{}').get(str(package.id), 0)
+
+    def _set_package_usage(self, package, value):
+        for rec in self:
+            data = json.loads(rec.usage_json or '{}')
+            data[str(package.id)] = value
+            rec.write({'usage_json': json.dumps(data), 'usage_score': max(data.values() or [0])})
 
     def action_approve_proposals(self):
         """批次層：一次核准這個流程的流程提案，以及流程上功能點的待審歸類提案。"""
@@ -137,7 +150,27 @@ class KnowledgeFlowTransition(models.Model):
     ev_static = fields.Boolean(string='靜態', help=EVIDENCE_HELP)
     ev_tenant = fields.Boolean(string='租戶', help=EVIDENCE_HELP)
     ev_shot = fields.Boolean(string='截圖', help=EVIDENCE_HELP)
-    usage_count = fields.Integer(string='租戶次數', readonly=True)
+    usage_count = fields.Integer(string='租戶次數', readonly=True, help='各方案相加')
+    usage_json = fields.Text(readonly=True, help='{方案 id: 次數}（方案屬性層）')
+    package_ids = fields.Many2many(
+        'infrastructure.solution.package', 'corpaas_knowledge_flow_transition_package_rel',
+        'transition_id', 'package_id', string='靜態推得出的方案', readonly=True)
+
+    def _package_usage(self, package):
+        self.ensure_one()
+        return json.loads(self.usage_json or '{}').get(str(package.id), 0)
+
+    def _set_package_usage(self, package, value):
+        """只改本方案的次數；租戶證據＝任一方案有次數。"""
+        for rec in self:
+            data = json.loads(rec.usage_json or '{}')
+            if value:
+                data[str(package.id)] = value
+            else:
+                data.pop(str(package.id), None)
+            total = sum(data.values())
+            rec.write({'usage_json': json.dumps(data) if data else False,
+                       'usage_count': total, 'ev_tenant': bool(total)})
 
     _sql_constraints = [
         ('transition_unique',

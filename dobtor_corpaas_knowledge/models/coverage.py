@@ -34,12 +34,16 @@ class KnowledgeCoverage(models.Model):
     kind = fields.Selection(related='feature_id.kind', store=True)
     module = fields.Char(related='feature_id.module', store=True)
     module_origin = fields.Selection(related='feature_id.module_origin', store=True)
-    customized = fields.Boolean(related='feature_id.customized', store=True)
+    customized = fields.Boolean(string='專用模組改過', help='依這個方案的黃金庫')
     usage_score = fields.Float(readonly=True)
     usage_source = fields.Selection(related='feature_id.usage_source', store=True)
     capability_names = fields.Char(string='能力', readonly=True)
     flow_id = fields.Many2one('corpaas.knowledge.flow', string='流程', ondelete='set null')
     status = fields.Selection(COVERAGE_STATES, required=True, index=True)
+    classification = fields.Selection(
+        [('own_adv', '專用進階'), ('own_base', '專用功能'),
+         ('std_adv', '標準進階'), ('std_base', '標準功能')], string='功能分類', index=True)
+    core = fields.Boolean(string='方案核心')
     status_rank = fields.Integer(help='排序：缺說明在前')
     computed_at = fields.Datetime(readonly=True)
 
@@ -62,6 +66,14 @@ class KnowledgeGap(models.Model):
         self.write({'state': 'planned'})
         return True
 
+    @api.model
+    def _gc(self, days=180):
+        old = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+        recs = self.search([('state', '=', 'dismissed'), ('write_date', '<', old)])
+        n = len(recs)
+        recs.unlink()
+        return n
+
     def action_dismiss(self):
         self.write({'state': 'dismissed'})
         return True
@@ -72,6 +84,16 @@ class KnowledgeHelpLog(models.Model):
 
     unmatched = fields.Boolean(index=True, help='AI 判定方案裡沒有對應功能（同義詞補不了）')
     clustered = fields.Boolean(help='已分群進缺口主題')
+
+    @api.model
+    def _gc(self, days=180):
+        """處理過的查詢紀錄（已補同義詞、已分群、或有命中）留半年。"""
+        old = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+        recs = self.search([('create_date', '<', old), '|', '|', ('handled', '=', True),
+                            ('clustered', '=', True), ('missed', '=', False)])
+        n = len(recs)
+        recs.unlink()
+        return n
 
     @api.model
     def _cron_cluster_gaps(self, batch=200):
@@ -162,20 +184,26 @@ class SolutionPackage(models.Model):
             for flow in flows:
                 for f in flow.feature_ids:
                     flow_of.setdefault(f.id, flow.id)
+            classes = {c.feature_id.id: c for c in self.env['corpaas.knowledge.feature.class']
+                       .sudo().search([('package_id', '=', rec.id)])}
             now = fields.Datetime.now()
             Cov.search([('package_id', '=', rec.id)]).unlink()
             vals = []
             for f in feats:
                 if f.id in covered:
                     status = 'article'
-                elif f.id in official and not f.customized:
+                elif f.id in official and not f.attr_for(rec, 'customized'):
                     status = 'official'
                 else:
                     status = 'missing'
                 vals.append({
-                    'package_id': rec.id, 'feature_id': f.id, 'usage_score': f.usage_score,
+                    'package_id': rec.id, 'feature_id': f.id,
+                    'usage_score': f.attr_for(rec, 'usage_score') or 0,
+                    'customized': bool(f.attr_for(rec, 'customized')),
                     'capability_names': ', '.join(f.capability_ids.mapped('name')) or False,
                     'flow_id': flow_of.get(f.id, False), 'status': status,
+                    'classification': classes[f.id].classification if f.id in classes else False,
+                    'core': classes[f.id].core if f.id in classes else False,
                     'status_rank': {'missing': 0, 'official': 1, 'article': 2}[status],
                     'computed_at': now})
             Cov.create(vals)

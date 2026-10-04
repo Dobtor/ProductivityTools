@@ -237,8 +237,8 @@ class KnowledgeScenario(models.Model):
         master = package._knowledge_master()
         golden = master._corpaas_golden_db()
         features = self.env['corpaas.knowledge.feature'].search(
-            [('package_ids', 'in', package.id), ('model', '!=', False)],
-            order='usage_score desc', limit=60)
+            [('package_ids', 'in', package.id), ('model', '!=', False)]).sorted(
+            lambda f: -(f.attr_for(package, 'usage_score') or 0))[:60]
         models = set(features.mapped('model')) | {'res.partner'}
         for cap in package.knowledge_capability_ids:
             models |= {m.strip() for m in (cap.master_data_models or '').splitlines() if m.strip()}
@@ -611,3 +611,17 @@ class KnowledgeAiCall(models.Model):
     prompt_hash = fields.Char(index=True, help='purpose＋prompt 的雜湊（快取鍵）')
     response_text = fields.Text(help='可快取用途的原始回應')
     cached = fields.Boolean(help='命中快取，沒有實際呼叫 AI')
+
+    @api.model
+    def _gc_cache(self):
+        """過了快取期限的原始回應清掉（帳務欄位保留）；命中快取的零成本紀錄留 90 天。"""
+        days = int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.ai_cache_days') or 30)
+        old = fields.Datetime.subtract(fields.Datetime.now(), days=max(days, 1))
+        stale = self.search([('response_text', '!=', False), ('create_date', '<', old)])
+        stale.write({'response_text': False})
+        hits = self.search([('cached', '=', True), ('create_date', '<', fields.Datetime.subtract(
+            fields.Datetime.now(), days=90))])
+        n = len(hits)
+        hits.unlink()
+        return len(stale) + n

@@ -86,7 +86,25 @@ class KnowledgeHelpApi(http.Controller):
             'top_score': matches[0][1] if matches else 0.0,
         })
         return {'ok': True, 'package': package.display_name,
-                'results': self._trim(results, limit)}
+                'results': self._enrich(env, package, self._trim(results, limit))}
+
+    @staticmethod
+    def _enrich(env, package, results):
+        """每筆結果帶功能分類：租戶端可以顯示「專用進階」等標籤，看不到時提示可能已在設定關閉。"""
+        keys = [r.get('feature_key') for r in results if r.get('feature_key')]
+        if not keys:
+            return results
+        classes = env['corpaas.knowledge.feature.class'].search([
+            ('package_id', '=', package.id), ('feature_id.feature_key', 'in', keys)])
+        by_key = {c.feature_id.feature_key: c for c in classes}
+        for r in results:
+            c = by_key.get(r.get('feature_key'))
+            if c:
+                p = c.as_payload()
+                r.update({'classification': p['classification'],
+                          'classification_label': p['classification_label'],
+                          'core': p['core'], 'toggle_paths': p['toggle_paths']})
+        return results
 
     @staticmethod
     def _verify(env, database):

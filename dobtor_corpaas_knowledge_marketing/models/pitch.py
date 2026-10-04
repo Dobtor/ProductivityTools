@@ -312,8 +312,33 @@ class KnowledgePitch(models.Model):
         assets = self._live_assets_map(lives)
         fids = {f for p in self for _item, ids in p._live_claim_items(lives[p.id]) for f in ids}
         features = self.env['corpaas.knowledge.feature'].sudo().browse(sorted(fids)).exists()
-        return [p._website_card(lives[p.id], assets[p.id], p.package_id or package, features)
-                for p in self]
+        cards = [p._website_card(lives[p.id], assets[p.id], p.package_id or package, features)
+                 for p in self]
+        # 功能分類徽章：整批查一次（公開頁，查詢數不能跟卡片數成正比）
+        pkgs = {(p.package_id or package).id for p in self if (p.package_id or package)}
+        caps_feats = {f.id for p in self for f in p.capability_id.sudo().feature_ids}
+        classes = self.env['corpaas.knowledge.feature.class'].sudo().search([
+            ('package_id', 'in', list(pkgs)), ('feature_id', 'in', list(caps_feats))]) \
+            if pkgs and caps_feats else self.env['corpaas.knowledge.feature.class']
+        for p, card in zip(self, cards):
+            pkg = p.package_id or package
+            mine = classes.filtered(lambda c: c.package_id == pkg
+                                    and c.feature_id in p.capability_id.feature_ids)
+            card['classes'] = self._class_badges(mine)
+        return cards
+
+    @staticmethod
+    def _class_badges(classes):
+        """[{label, count, core}]，依 專用進階→專用功能→標準進階→標準功能 排序。"""
+        from odoo.addons.dobtor_corpaas_knowledge.models.toggle import CLASSIFICATIONS, CLASS_RANK
+        labels = dict(CLASSIFICATIONS)
+        out = []
+        for code in sorted({c.classification for c in classes if c.classification},
+                           key=lambda x: CLASS_RANK.get(x, 9)):
+            mine = classes.filtered(lambda c: c.classification == code)
+            out.append({'label': labels[code], 'count': len(mine),
+                        'core': any(mine.mapped('core'))})
+        return out
 
     def _website_card(self, live=None, assets=None, package=None, features=None):
         self.ensure_one()
@@ -359,7 +384,11 @@ class KnowledgePitch(models.Model):
     def _ai_prompt(self):
         self.ensure_one()
         cap, sc = self.capability_id, self.scenario_id
-        features = [{'key': f.feature_key, 'name': f.name, 'menu_path': f.menu_path or ''}
+        features = [{'key': f.feature_key, 'name': f.name, 'menu_path': f.menu_path or '',
+                     'classification': (f.class_for(self.package_id).classification
+                                        if self.package_id and f.class_for(self.package_id)
+                                        else False),
+                     'core': bool(self.package_id and f.class_for(self.package_id).core)}
                     for f in self._ai_features()]
         scenario = {'name': sc.name, 'narrative': sc.narrative or '',
                     'glossary': sc.glossary_map()} if sc else None
