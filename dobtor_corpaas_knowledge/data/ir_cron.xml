@@ -42,4 +42,12 @@ env['corpaas.knowledge.fingerprint']._gc(30)</field>
         <field name="interval_number">1</field>
         <field name="interval_type">hours</field>
     </record>
+    <record id="cron_knowledge_gap_cluster" model="ir.cron">
+        <field name="name">知識：沒有對應功能的問句分群成缺口主題</field>
+        <field name="model_id" ref="model_corpaas_knowledge_help_log"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_cluster_gaps()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">weeks</field>
+    </record>
 </odoo>

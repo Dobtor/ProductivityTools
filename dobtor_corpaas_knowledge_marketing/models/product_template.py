@@ -55,7 +55,7 @@ class ProductTemplate(models.Model):
         caps = package.knowledge_capability_ids.filtered(lambda c: c.state in SHOWN_STATES)
         if not caps:
             return []
-        have = set(package._provision_module_names())
+        have = package._knowledge_available_modules()
         lacking = {}
         for cap in caps:
             need = cap.required_modules() | set(filter(None, cap.feature_ids.mapped('module')))

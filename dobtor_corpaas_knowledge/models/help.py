@@ -42,15 +42,16 @@ class KnowledgeHelp(models.AbstractModel):
                                             ('anchor', '=', action_xmlid)])
         if model and not exact:
             exact |= Feature.search(base + [('model', '=', model),
-                                            ('kind', 'in', ('action', 'menu'))])
+                                            ('kind', 'in', ('action', 'menu', 'client'))])
         scored = [(f, 1.0) for f in exact]
         if query:
             seen = set(exact.ids)
             for f in Feature.search(base):
                 if f.id in seen:
                     continue
+                paths = ' '.join(filter(None, [f.menu_path] + f.entry_ids.mapped('path')))
                 s = search_lib.score(query, [
-                    (f.name, 3.0), (f.menu_path or '', 2.0), (f.intents or '', 3.0),
+                    (f.name, 3.0), (paths, 2.0), (f.intents or '', 3.0),
                     (' '.join(f.capability_ids.mapped('name')), 1.0)])
                 if model and f.model == model:
                     s += 0.15
@@ -59,9 +60,8 @@ class KnowledgeHelp(models.AbstractModel):
         if groups is not None:
             # ★ 角色過濾：功能點本身有群組限制、而使用者一個都沒有 → 他在畫面上看不到，
             #   給他連結只會讓他去找一個不存在的選單。
-            have = set(groups)
-            scored = [(f, sc) for f, sc in scored
-                      if not f.group_xmlids or have & set(f.group_xmlids.split(','))]
+            # 入口也要看得到：畫面本身沒限群組、但唯一的選單只開給主管，一般使用者照樣找不到。
+            scored = [(f, sc) for f, sc in scored if f.visible_to(groups)]
         scored.sort(key=lambda x: (-x[1], -x[0].usage_score))
         return scored[:limit * 3]
 
@@ -118,9 +118,13 @@ class KnowledgeHelpLog(models.Model):
                 continue
             by_key = {f.feature_key: f for f in feats}
             for item in (data or {}).get('items') or []:
+                if not item.get('key') and item.get('query'):
+                    # AI 判定方案裡沒有對應功能：同義詞補不了，交給缺口分群（K24）
+                    recs.filtered(lambda r: r.query == item['query']).write({'unmatched': True})
+                    continue
                 f = by_key.get(item.get('key'))
                 intents = [i for i in item.get('intents') or [] if isinstance(i, str)]
                 if f and intents:
-                    f.intents = '\n'.join(filter(None, [f.intents] + intents))
+                    f._knowledge_add_intents(intents)
             recs.write({'handled': True})
         return True

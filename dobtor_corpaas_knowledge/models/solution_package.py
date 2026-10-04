@@ -8,6 +8,8 @@
   不在其他主機部署截圖容器。
 ★ 黃金庫全程唯讀：盤點與指紋腳本結尾 rollback；拍攝一律在說明庫。
 """
+import fnmatch
+import hashlib
 import json
 import logging
 import uuid
@@ -15,12 +17,19 @@ import uuid
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from ..services import fingerprint_lib, hub_client, remote, scripts, txn
+from ..services import fingerprint_lib, hub_client, remote, scripts, search_lib, txn
 
 _logger = logging.getLogger(__name__)
 
 FP_CHUNK = 120
 RENAME_THRESHOLD_DEFAULT = 0.6
+# 官方模組預設不盤的：框架、技術、在地化、整合與佈景——它們沒有使用者會「學怎麼用」
+# 的畫面，盤進來只會稀釋 AI 歸類與說明。可在設定頁（全域）與方案（追加）調整。
+OFFICIAL_EXCLUDE_DEFAULT = (
+    'base, base_*, web, web_*, bus, auth_*, iap, iap_*, l10n_*, theme_*, test_*, '
+    '*_test, *_tests, http_routing, mail_bot*, google_*, microsoft_*, payment_*, '
+    'snailmail*, onboarding, digest, utm, resource, uom, phone_validation, '
+    'partner_autocomplete, social_media')
 
 
 class SolutionPackage(models.Model):
@@ -41,6 +50,21 @@ class SolutionPackage(models.Model):
     knowledge_image_digest = fields.Char(readonly=True, copy=False)
     knowledge_pending_full = fields.Boolean(readonly=True, copy=False,
                                             help='待執行的更新要做全量（多個觸發合併成一張）')
+    knowledge_include_official = fields.Boolean(
+        string='納入 Odoo 官方模組', default=True,
+        help='盤點範圍除了方案模組，再加上黃金庫實際安裝的 Odoo 官方模組（扣除排除清單）；'
+             '官方模組只盤選單與選單動作。')
+    knowledge_official_exclude = fields.Char(
+        string='追加排除的官方模組',
+        help='逗號分隔，可用萬用字元（例如 website_*）；與設定頁的全域排除清單合併。')
+    knowledge_fp_manifest = fields.Text(
+        readonly=True, copy=False,
+        help='上一次算指紋時黃金庫的程式碼與模組版本（JSON），增量重算的比較基準')
+    knowledge_fp_image = fields.Char(readonly=True, copy=False,
+                                     help='上一次算指紋時的母體映像 digest')
+    knowledge_scope_snapshot = fields.Text(
+        readonly=True, copy=False,
+        help='上一次盤點的模組範圍（JSON），用來偵測範圍變動')
     knowledge_blocker = fields.Char(compute='_compute_knowledge_blocker',
                                     string='無法更新的原因')
     knowledge_feature_count = fields.Integer(compute='_compute_knowledge_counts')
@@ -169,7 +193,9 @@ class SolutionPackage(models.Model):
                 raise UserError(_('母體「%s」沒有已驗證的黃金庫。') % master.display_name)
         with self._op_step('kb_golden_sync'):
             with golden._corpaas_golden_lock():
-                changed = golden._corpaas_golden_sync_code()
+                # 同步會重讀黃金庫模組狀態；本次盤點就會涵蓋變動，不要再排一張更新。
+                changed = golden.with_context(
+                    knowledge_skip_modules_trigger=True)._corpaas_golden_sync_code()
             if changed:
                 Event.create({'type': 'code_changed', 'package_id': self.id,
                               'refresh_token': token,
@@ -179,8 +205,15 @@ class SolutionPackage(models.Model):
         with self._op_step('kb_fingerprint'):
             self._knowledge_fingerprint(golden, token, full=full)
             self._knowledge_detect_renames(added, removed, token)
+        with self._op_step('kb_flows'):
+            try:
+                self._knowledge_flows(golden, token)
+            except Exception as e:  # noqa: BLE001 - 流程是輔助資料，失敗不擋說明更新
+                _logger.warning('[knowledge] %s 流程推導失敗：%s', self.display_name, e)
         with self._op_step('kb_ai_catalog'):
             self._knowledge_ai_catalog(added, token)
+            self._knowledge_official_docs(token)
+            self._knowledge_flow_names(token)
         events = Event.search([('refresh_token', '=', token)])
         hooks = self.env['corpaas.knowledge.hooks']
         with self._op_step('kb_sandbox'):
@@ -206,6 +239,10 @@ class SolutionPackage(models.Model):
             hooks._knowledge_dispatch_events(self, events, ctx)
             events.write({'processed': True})
         with self._op_step('kb_cleanup'):
+            try:
+                self._knowledge_rebuild_coverage()
+            except Exception as e:  # noqa: BLE001 - 報表失敗不影響這次更新
+                _logger.warning('[knowledge] %s 覆蓋率重算失敗：%s', self.display_name, e)
             self._knowledge_bookkeep({'knowledge_last_refresh': fields.Datetime.now(),
                                       'knowledge_last_token': token})
         return True
@@ -235,17 +272,93 @@ class SolutionPackage(models.Model):
             return bool(cr.fetchone())
 
     # ------------------------------------------------------------------
+    # 盤點範圍
+    # ------------------------------------------------------------------
+    def _knowledge_official_exclude_patterns(self):
+        self.ensure_one()
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.official_exclude', OFFICIAL_EXCLUDE_DEFAULT)
+        raw = '%s,%s' % (raw or '', self.knowledge_official_exclude or '')
+        return [p.strip() for p in raw.replace('\n', ',').split(',') if p.strip()]
+
+    def _knowledge_is_official_excluded(self, name, patterns=None):
+        patterns = self._knowledge_official_exclude_patterns() if patterns is None \
+            else patterns
+        return any(fnmatch.fnmatchcase(name, p) for p in patterns)
+
+    def _knowledge_scope_modules(self, golden):
+        """(BOM 模組, 範圍內的官方模組, 黃金庫全部已安裝的官方模組)。
+
+        官方模組＝黃金庫追蹤列上 module_type='odoo' 且已安裝的（碼池裡的官方列＋
+        相依／手動裝進來的 extra 列，見 infrastructure.database_module）。
+        BOM 裡的官方模組算 BOM（全種類盤點），不重複列在官方範圍。
+        """
+        self.ensure_one()
+        bom = self._provision_module_names()
+        installed_official = self._knowledge_golden_installed(golden, official_only=True)
+        official = []
+        if self.knowledge_include_official:
+            patterns = self._knowledge_official_exclude_patterns()
+            official = sorted(n for n in installed_official - set(bom)
+                              if not self._knowledge_is_official_excluded(n, patterns))
+        return bom, official, installed_official
+
+    @api.model
+    def _knowledge_golden_installed(self, golden, official_only=False):
+        """黃金庫上已安裝模組的技術名集合（讀 infrastructure.database_module 追蹤列）。"""
+        domain = [('database_id', '=', golden.id), ('state', '=', 'installed')]
+        if official_only:
+            domain.append(('module_type', '=', 'odoo'))
+        rows = self.env['infrastructure.database_module'].sudo().search(domain)
+        return set(n for n in rows.mapped('technical_name') if n)
+
+    def _knowledge_available_modules(self):
+        """方案客戶實際拿得到的模組：BOM ∪ 說明主機母體黃金庫上已安裝的模組。
+
+        ★ 不能只看 BOM：sale、account 這類官方模組多半是被方案模組相依裝進來的，
+          不在 BOM 裡。能力的功能點納入官方模組之後，只看 BOM 會把「方案本來就有」
+          的能力誤判成加購或缺少。
+        """
+        self.ensure_one()
+        have = set(self._provision_module_names())
+        master = self._knowledge_master(raise_if_missing=False)
+        golden = master._corpaas_golden_db() if master else None
+        if golden:
+            have |= self._knowledge_golden_installed(golden)
+        return have
+
+    def _knowledge_record_scope(self, scope, token):
+        """範圍和上一次盤點不同 → 發一筆 modules_changed（第一次只記錄）。"""
+        self.ensure_one()
+        try:
+            prev = json.loads(self.knowledge_scope_snapshot or 'null')
+        except ValueError:
+            prev = None
+        if prev == scope:
+            return
+        if prev is not None:
+            old, new = set(prev), set(scope)
+            self.env['corpaas.knowledge.event'].sudo().create({
+                'type': 'modules_changed', 'package_id': self.id,
+                'refresh_token': token,
+                'payload': json.dumps({'added': sorted(new - old),
+                                       'removed': sorted(old - new)})})
+        self._knowledge_bookkeep({'knowledge_scope_snapshot': json.dumps(scope)})
+
+    # ------------------------------------------------------------------
     # 盤點
     # ------------------------------------------------------------------
     def _knowledge_inventory(self, golden, token):
         """回傳 (新增的 feature, 消失的 feature)。"""
         self.ensure_one()
-        modules = self._provision_module_names()
+        modules, official, installed_official = self._knowledge_scope_modules(golden)
         res = remote.shell_json(self.env, golden.instance_id, golden.name,
-                                scripts.inventory_script(modules))
+                                scripts.inventory_script(modules, official=official))
+        self._knowledge_record_scope(sorted(set(modules) | set(official)), token)
         Feature = self.env['corpaas.knowledge.feature'].sudo().with_context(
             active_test=False)
         Event = self.env['corpaas.knowledge.event'].sudo()
+        Selection = self.env['corpaas.knowledge.selection'].sudo()
         now = fields.Datetime.now()
         seen = Feature
         added = Feature
@@ -260,45 +373,126 @@ class SolutionPackage(models.Model):
                 'button_name': item.get('button_name') or False,
                 'menu_path': item.get('menu_path') or False,
                 'group_xmlids': ','.join(item.get('groups') or []) or False,
+                'module_origin': 'odoo' if item['module'] in installed_official
+                else 'custom',
                 'last_seen': now, 'active': True,
             }
             rec = Feature.search([('feature_key', '=', key)], limit=1)
             if rec:
+                # 指紋範圍會看選單路徑與視圖設定：這些變了，增量重算也一定要算它。
+                if any((rec[f] or False) != vals[f]
+                       for f in ('menu_path', 'view_mode', 'view_xmlid')):
+                    vals['fp_dirty'] = True
                 rec.write(vals)
             else:
                 rec = Feature.create(dict(vals, feature_key=key, module=item['module'],
                                           kind=item['kind'], anchor=item['anchor']))
             # ★ 「新增」以方案為單位：已存在於別的方案的功能點，對這個方案仍是新的。
             if self not in rec.package_ids:
+                # ★ 已在別的方案歸類過：同義詞是全域的、不再請 AI；能力歸類沿用（K11）。
+                reuse = rec.ai_classified
                 rec.write({'package_ids': [(4, self.id)],
                            'missing_package_ids': [(3, self.id)],
-                           'classify_pending': True})
+                           'classify_pending': not reuse})
+                if reuse:
+                    for cap in rec.capability_ids:
+                        Selection._knowledge_upsert({
+                            'package_id': self.id, 'kind': 'feature', 'feature_id': rec.id,
+                            'capability_id': cap.id, 'source': 'reuse',
+                            'reason': _('沿用其他方案已核准的歸類')})
                 added |= rec
                 Event.create({'type': 'feature_added', 'package_id': self.id,
                               'feature_id': rec.id, 'refresh_token': token})
+            self._knowledge_sync_entries(rec, item.get('entries') or [],
+                                         set(modules) | set(official), now)
             seen |= rec
-        stale = Feature.search([('package_ids', 'in', self.id),
-                                ('module', 'in', modules), ('id', 'not in', seen.ids)])
+        # ★ 消失＝這次沒盤到（不再限定 BOM 模組）：模組被移出範圍（拿出 BOM、官方
+        #   模組被卸載或加進排除清單）時它的功能點也要下架，限定模組就永遠不會。
+        #   一筆都沒盤到多半是腳本那端出了事，不能據此把整個方案的功能點下架。
+        if not seen:
+            _logger.warning('[knowledge] %s 盤點結果是空的，略過消失判定',
+                            self.display_name)
+            stale = Feature
+        else:
+            stale = Feature.search([('package_ids', 'in', self.id),
+                                    ('id', 'not in', seen.ids)])
         for rec in stale:
             rec.write({'package_ids': [(3, self.id)], 'missing_package_ids': [(4, self.id)]})
             Event.create({'type': 'feature_removed', 'package_id': self.id,
                           'feature_id': rec.id, 'refresh_token': token})
+        Selection.search([('package_id', '=', self.id), ('source', '=', 'reuse'),
+                          ('state', '=', 'proposed')])._knowledge_auto_approve()
         self._knowledge_update_usage(seen)
         return added, stale
 
+    @api.model
+    def _knowledge_sync_entries(self, feature, entries, scope, now):
+        """同步一個畫面的入口。只刪「本方案範圍內模組」的入口：別的方案的模組帶來的
+        入口（同一個畫面被兩個方案共用）不歸這次盤點管。"""
+        Entry = self.env['corpaas.knowledge.feature.entry'].sudo()
+        existing = {(e.kind, e.anchor): e for e in feature.entry_ids}
+        seen = set()
+        for e in entries:
+            k = (e['kind'], e['anchor'])
+            if k in seen:
+                continue
+            seen.add(k)
+            vals = {'name': e.get('name') or False, 'path': e.get('path') or False,
+                    'module': e['module'],
+                    'group_xmlids': ','.join(e.get('groups') or []) or False,
+                    'last_seen': now}
+            if k in existing:
+                existing[k].write(vals)
+            else:
+                Entry.create(dict(vals, feature_id=feature.id, kind=e['kind'],
+                                  anchor=e['anchor']))
+        gone = [e for k, e in existing.items() if k not in seen and e.module in scope]
+        if gone:
+            Entry.browse([e.id for e in gone]).unlink()
+
+    def _knowledge_tenant_databases(self):
+        """這個方案的租戶庫：從範本誕生的庫，加上共享母體上的租戶。"""
+        self.ensure_one()
+        return self.env['infrastructure.database'].sudo().search([
+            '|', ('born_from_version_id.package_id', '=', self.id),
+            ('instance_id.template_package_id', '=', self.id)])
+
     def _knowledge_update_usage(self, features):
-        """租戶使用量（依 dobtor_database_activity_stats，未安裝就略過）。"""
+        """租戶使用量（K18）：
+
+        · 有租戶端計數（dobtor_database_tools → activity_stats 的 database.activity.usage）：
+          畫面＝動作 xmlid 的開啟次數、按鈕＝(模型, 方法) 的呼叫次數，來源記「實測」；
+        · 沒有：退回模型層級的異動數（同模型的功能點分數相同），來源記「模型層級」。
+        取近 30 天。
+        """
         if 'database.activity.stats' not in self.env:
             return
+        dbs = self._knowledge_tenant_databases()
         Stats = self.env['database.activity.stats'].sudo()
-        stats = Stats.search(['|',
-                              ('database_id.born_from_version_id.package_id', '=', self.id),
-                              ('database_id.instance_id.template_package_id', '=', self.id)])
         by_model = {}
-        for s in stats:
+        for s in Stats.search([('database_id', 'in', dbs.ids)]):
             by_model[s.model_name] = by_model.get(s.model_name, 0) + (s.month_count or 0)
+        actions, buttons = {}, {}
+        if 'database.activity.usage' in self.env and dbs:
+            since = fields.Date.subtract(fields.Date.today(), days=30)
+            for u in self.env['database.activity.usage'].sudo().search([
+                    ('database_id', 'in', dbs.ids), ('day', '>=', since)]):
+                if u.kind == 'action':
+                    actions[u.name] = actions.get(u.name, 0) + u.count
+                else:
+                    k = (u.model or '', u.name)
+                    buttons[k] = buttons.get(k, 0) + u.count
         for f in features:
-            f.usage_score = by_model.get(f.model or '', 0)
+            measured = None
+            if f.kind in ('action', 'menu', 'client') and f.action_xmlid in actions:
+                measured = actions[f.action_xmlid]
+            elif f.kind == 'button' and (f.model or '', f.button_name) in buttons:
+                measured = buttons[(f.model or '', f.button_name)]
+            if measured is not None:
+                f.write({'usage_score': measured, 'usage_source': 'measured'})
+            else:
+                f.write({'usage_score': by_model.get(f.model or '', 0),
+                         'usage_source': 'model'})
 
     # ------------------------------------------------------------------
     # 指紋
@@ -312,21 +506,55 @@ class SolutionPackage(models.Model):
         features = Feature.search([('package_ids', 'in', self.id),
                                    ('missing', '=', False), ('model', '!=', False)])
         roles = self._knowledge_roles()
-        manifest = json.dumps(golden.instance_id._corpaas_code_manifest(), sort_keys=True)
+        code_manifest = golden.instance_id._corpaas_code_manifest()
+        manifest = json.dumps(code_manifest, sort_keys=True)
+        state = self._knowledge_fp_state(golden, code_manifest)
+        changed = None if full else self._knowledge_fp_changed(state)
+        prev_elements = {}
+        for fp in FP.search([('package_id', '=', self.id), ('current', '=', True),
+                             ('feature_id', 'in', features.ids)]):
+            prev_elements.setdefault(fp.feature_id.id, fp.elements_json or '[]')
         items = []
         for f in features:
             views = f.views_for_fingerprint()
             if not views:
                 continue
+            elements = hooks._knowledge_elements_for(f, self) or []
+            if changed is not None and not self._knowledge_fp_needed(
+                    f, changed, prev_elements.get(f.id), json.dumps(elements)):
+                continue
             items.append({'key': f.feature_key, 'model': f.model, 'views': views,
-                          'elements': hooks._knowledge_elements_for(f, self) or [],
+                          'elements': elements,
                           'menu_path': f.menu_path or '', 'view_mode': f.view_mode or ''})
+        _logger.info('[knowledge] %s 指紋：%s／%s 個功能點需要計算（%s）',
+                     self.display_name, len(items), len(features),
+                     '全量' if changed is None else '增量，變動模組 %s' % (
+                         ', '.join(sorted(changed)) or '無'))
         by_key = {f.feature_key: f for f in features}
         now = fields.Datetime.now()
+        official = self._knowledge_golden_installed(golden, official_only=True) \
+            if golden.id else set()
         for start in range(0, len(items), FP_CHUNK):
             chunk = items[start:start + FP_CHUNK]
             res = remote.shell_json(self.env, golden.instance_id, golden.name,
                                     scripts.fingerprint_script(chunk, roles))
+            mods_of = res.get('modules') or {}
+            for it in chunk:
+                feature = by_key.get(it['key'])
+                if feature:
+                    # get_views 失敗（各角色都沒權限等）拿不到繼承鏈：退回功能點自己的模組，
+                    # 否則它每次增量都被當成「未知」而重算。
+                    mods = mods_of.get(it['key']) or [feature.module]
+                    vals = {'view_modules': ','.join(mods), 'fp_dirty': False}
+                    if feature.module_origin == 'odoo':
+                        parts = (res.get('parts') or {}).get(it['key']) or {}
+                        mine = {m: e for m, e in parts.items() if m not in official}
+                        vals.update(
+                            customized=bool(mine),
+                            custom_modules=','.join(sorted(mine)) or False,
+                            custom_elements=json.dumps(sorted(
+                                {x for e in mine.values() for x in e})) if mine else False)
+                    feature.write(vals)
             for key, per in (res.get('items') or {}).items():
                 feature = by_key.get(key)
                 if not feature:
@@ -377,6 +605,198 @@ class SolutionPackage(models.Model):
                     if prev:
                         prev.current = False
                     FP.create(vals)
+        # 全部算完才記基準：中途失敗下次就全算，不會漏。
+        self._knowledge_bookkeep({
+            'knowledge_fp_manifest': json.dumps(state, sort_keys=True),
+            'knowledge_fp_image': self.knowledge_image_digest or False})
+
+    # ------------------------------------------------------------------
+    # 任務流程（K14）
+    # ------------------------------------------------------------------
+    def _knowledge_flows(self, golden, token):
+        """從黃金庫推導本方案畫面所屬模型的狀態流程，更新流程／步驟／轉換。"""
+        self.ensure_one()
+        Feature = self.env['corpaas.knowledge.feature'].sudo()
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        feats = Feature.search([('package_ids', 'in', self.id), ('missing', '=', False)])
+        models_ = sorted({f.model for f in feats if f.kind in ('action', 'menu') and f.model})
+        res = remote.shell_json(self.env, golden.instance_id, golden.name,
+                                scripts.flow_script(models_)) if models_ else {}
+        now = fields.Datetime.now()
+        seen = Flow
+        for model, d in (res.get('flows') or {}).items():
+            flow = Flow.search([('model', '=', model), ('state_field', '=', d['field'])],
+                               limit=1) or Flow.create({'model': model,
+                                                        'state_field': d['field']})
+            flow.write({'model_name': d.get('model_name') or model,
+                        'field_type': d.get('field_type'), 'last_seen': now,
+                        'package_ids': [(4, self.id)]})
+            self._knowledge_flow_steps(flow, d)
+            self._knowledge_flow_transitions(flow, d, feats)
+            self._knowledge_flow_tenant(flow)
+            seen |= flow
+        for flow in seen:
+            for t in flow.transition_ids.filtered('opens_model'):
+                target = Flow.search([('model', '=', t.opens_model)], limit=1)
+                if t.opens_flow_id != target:
+                    t.opens_flow_id = target
+        for flow in Flow.search([('package_ids', 'in', self.id), ('id', 'not in', seen.ids)]):
+            flow.package_ids = [(3, self.id)]
+        self._knowledge_flow_usage(seen, feats)
+        return seen
+
+    @api.model
+    def _knowledge_flow_steps(self, flow, d):
+        Step = self.env['corpaas.knowledge.flow.step'].sudo()
+        bar = set(d.get('statusbar_visible') or [])
+        existing = {s.value: s for s in flow.step_ids}
+        keep = set()
+        for seq, st in enumerate(d.get('steps') or []):
+            vals = {'sequence': seq, 'label': st.get('label') or st['value'],
+                    'on_statusbar': not bar or st['value'] in bar}
+            keep.add(st['value'])
+            if st['value'] in existing:
+                existing[st['value']].write(vals)
+            else:
+                Step.create(dict(vals, flow_id=flow.id, value=st['value']))
+        Step.browse([s.id for v, s in existing.items() if v not in keep]).unlink()
+
+    def _knowledge_flow_transitions(self, flow, d, feats):
+        """靜態轉換：按鈕在哪些狀態看得到 × 方法寫入的終點狀態。
+
+        ★ 起點空白＝每個狀態都看得到；終點空白＝推不出來或不改狀態。
+        ★ 只拿掉「只有靜態證據、這次又沒推出來」的轉換：租戶或截圖觀察到的保留。
+        """
+        Trans = self.env['corpaas.knowledge.flow.transition'].sudo()
+        no_feature = self.env['corpaas.knowledge.feature']
+        buttons = feats.filtered(lambda f: f.kind == 'button' and f.model == flow.model)
+        by_name = {}
+        for f in buttons.sorted(lambda f: f.view_mode != 'form'):
+            by_name.setdefault(f.button_name, f)
+        static = {}
+        for b in d.get('buttons') or []:
+            froms = b['visible'] if b.get('visible') is not None else ['']
+            for fr in froms or ['']:
+                for to in b.get('targets') or ['']:
+                    if to and fr == to:
+                        continue
+                    static[(fr, to, b['name'])] = b
+        existing = {(t.from_value or '', t.to_value or '', t.button_name or ''): t
+                    for t in flow.transition_ids}
+        for key, b in static.items():
+            vals = {'ev_static': True, 'button_label': b.get('label'),
+                    'conditional': bool(b.get('conditional')),
+                    'opens_model': (b.get('opens') or [False])[0],
+                    'button_feature_id': by_name.get(b['name'], no_feature).id}
+            if key in existing:
+                existing[key].write(vals)
+            else:
+                Trans.create(dict(vals, flow_id=flow.id, from_value=key[0], to_value=key[1],
+                                  button_name=key[2]))
+        for key, t in existing.items():
+            if key not in static and t.ev_static:
+                if t.ev_tenant or t.ev_shot:
+                    t.ev_static = False
+                else:
+                    t.unlink()
+        # 流程上的功能點：入口畫面、按鈕、按鈕打開的精靈／畫面、報表
+        opens = set(flow.transition_ids.mapped('opens_model')) - {False}
+        reports = set(d.get('reports') or [])
+        mine = feats.filtered(lambda f: (
+            (f.kind in ('action', 'menu') and f.model == flow.model)
+            or f in flow.transition_ids.mapped('button_feature_id')
+            or (f.kind in ('wizard', 'action') and f.model in opens)
+            or (f.kind == 'report' and f.anchor in reports)))
+        # 別的方案帶進來的功能點不歸這次管
+        others = flow.feature_ids.filtered(lambda f: self not in f.package_ids)
+        flow.feature_ids = [(6, 0, (mine | others).ids)]
+        flow.structure_hash = hashlib.sha256(json.dumps(
+            [[s.value for s in flow.step_ids.sorted('sequence')],
+             sorted(static)], sort_keys=True).encode()).hexdigest()[:32]
+
+    def _knowledge_flow_tenant(self, flow):
+        """租戶證據（K15）：近 30 天實際發生的「舊狀態→新狀態」次數。
+
+        · 對得上靜態轉換的：標「租戶」、記次數（多顆按鈕觸發同一條時平均分攤）；
+        · 靜態推不出來的：新增一條只有租戶證據的轉換（按鈕不明）；
+        · 按鈕沒有實測呼叫次數時，用分攤到的轉換次數當推估使用量。
+        """
+        if 'database.activity.transition' not in self.env:
+            return
+        dbs = self._knowledge_tenant_databases()
+        if not dbs:
+            return
+        since = fields.Date.subtract(fields.Date.today(), days=30)
+        counts = {}
+        for t in self.env['database.activity.transition'].sudo().search([
+                ('database_id', 'in', dbs.ids), ('model', '=', flow.model),
+                ('field', '=', flow.state_field), ('day', '>=', since)]):
+            k = (t.from_value or '', t.to_value or '')
+            counts[k] = counts.get(k, 0) + t.count
+        Trans = self.env['corpaas.knowledge.flow.transition'].sudo()
+        for t in flow.transition_ids.filtered('ev_tenant'):
+            if (t.from_value or '', t.to_value or '') not in counts:
+                t.write({'ev_tenant': False, 'usage_count': 0})
+        for (fr, to), n in counts.items():
+            if not to or fr == to:
+                continue
+            matches = flow.transition_ids.filtered(
+                lambda t: (t.to_value or '') == to and (t.from_value or '') in (fr, ''))
+            matches = matches.filtered(lambda t: t.ev_static) or matches
+            if not matches:
+                Trans.create({'flow_id': flow.id, 'from_value': fr, 'to_value': to,
+                              'button_name': '', 'ev_tenant': True, 'usage_count': n})
+                continue
+            share = n // len(matches)
+            for t in matches:
+                t.write({'ev_tenant': True, 'usage_count': share})
+                f = t.button_feature_id
+                if f and f.usage_source != 'measured':
+                    f.write({'usage_score': share, 'usage_source': 'estimated'})
+
+    @api.model
+    def _knowledge_flow_usage(self, flows, feats):
+        for flow in flows:
+            tenant = sum(flow.transition_ids.mapped('usage_count'))
+            entry = max(flow.feature_ids.filtered(
+                lambda f: f.kind in ('action', 'menu')).mapped('usage_score') or [0])
+            flow.usage_score = tenant or entry
+
+    def _knowledge_fp_state(self, golden, code_manifest):
+        """指紋比較基準：程式碼 revision ＋ 黃金庫已安裝模組的 DB 版本（官方模組沒有
+        revision，映像更新只反映在版本上）。"""
+        state = {k: v or '' for k, v in (code_manifest or {}).items()}
+        if golden.id:
+            rows = self.env['infrastructure.database_module'].sudo().search([
+                ('database_id', '=', golden.id), ('state', '=', 'installed')])
+            for r in rows:
+                if r.technical_name:
+                    state['v:' + r.technical_name] = r.db_version or ''
+        return state
+
+    def _knowledge_fp_changed(self, state):
+        """與上一次算指紋時相比變動的模組；回 None＝要全算（沒有基準或映像換了）。"""
+        self.ensure_one()
+        try:
+            prev = json.loads(self.knowledge_fp_manifest or 'null')
+        except ValueError:
+            prev = None
+        if not isinstance(prev, dict):
+            return None
+        if (self.knowledge_fp_image or '') != (self.knowledge_image_digest or ''):
+            return None
+        keys = set(prev) | set(state)
+        return {k[2:] if k.startswith('v:') else k
+                for k in keys if prev.get(k) != state.get(k)}
+
+    @api.model
+    def _knowledge_fp_needed(self, feature, changed, prev_elements, elements):
+        """增量時這個功能點要不要重算。"""
+        if prev_elements is None or feature.fp_dirty or not feature.view_modules:
+            return True
+        if prev_elements != elements:
+            return True  # 截圖範本換了元素清單：要換基準
+        return bool(set(feature.view_modules.split(',')) & changed)
 
     def _knowledge_detect_renames(self, added, removed, token):
         """D3：舊鍵消失、同模組同種類出現新鍵、元素簽章相似 → 改名候選。"""
@@ -395,7 +815,7 @@ class SolutionPackage(models.Model):
 
         # ★ 只對有自己畫面的種類提候選：設定、精靈、報表共用同一張表單，簽章相同；
         #   簽章為空（沒有指紋）時 similarity([], []) = 1.0，任何一對都會變成候選。
-        for old in removed.filtered(lambda f: f.kind in ('menu', 'action', 'button')):
+        for old in removed.filtered(lambda f: f.kind in ('menu', 'action', 'client', 'button')):
             best, best_score = None, 0.0
             old_sig = sig(old)
             if not old_sig:
@@ -423,6 +843,10 @@ class SolutionPackage(models.Model):
 
         ★ 待歸類的是「classify_pending」的功能點，不只本次新增的：超出單次上限（80）
           或預算用完的，下一次更新接著做；只看本次事件會讓它們永遠不被歸類。
+        ★ 能力清單給「方案能力＋全域能力」（都帶 code）：AI 只能用 code 指名既有能力，
+          只給方案能力時，別的方案已有的能力會被當成新能力再提一次。
+        ★ 同一批提出的新能力先依名稱相似度合併成一筆「新能力」提案（帶功能點清單），
+          核准者看到的是一個候選能力，而不是十個名稱略有不同的提案。
         """
         self.ensure_one()
         pending = self.env['corpaas.knowledge.feature'].sudo().search(
@@ -430,20 +854,24 @@ class SolutionPackage(models.Model):
         if not pending:
             return
         Ai = self.env['corpaas.knowledge.ai']
-        caps = self.knowledge_capability_ids
-        todo = pending.sorted(lambda f: -f.usage_score)
+        Cap = self.env['corpaas.knowledge.capability'].sudo()
+        mine = self.knowledge_capability_ids
+        caps = Cap.search([('code', '!=', False)])
+        # 自有模組優先（方案的賣點），同來源再依租戶使用量。
+        todo = pending.sorted(lambda f: (f.module_origin == 'odoo', -f.usage_score))
+        batch = todo[:80]
         payload = [{'key': f.feature_key, 'kind': f.kind, 'name': f.name,
-                    'menu_path': f.menu_path, 'model': f.model} for f in todo[:80]]
+                    'menu_path': f.menu_path, 'model': f.model} for f in batch]
         prompt = (
-            "以下是方案「%s」改版後新增的功能點，以及方案既有的能力。\n"
-            "請為每個功能點：(1) 建議歸入哪個能力（用能力 code；都不適合就給 new_capability "
-            "名稱）；(2) 產生 3–6 個使用者可能的問法或同義詞。\n"
+            "以下是方案「%s」改版後新增的功能點，以及既有的能力（in_package 表示已在本方案）。\n"
+            "請為每個功能點：(1) 建議歸入哪個能力（用能力 code；優先用本方案的，其次全域既有的；"
+            "都不適合才給 new_capability 名稱）；(2) 產生 3–6 個使用者可能的問法或同義詞。\n"
             "回覆格式：{\"items\":[{\"key\":…,\"capability\":…|null,"
             "\"new_capability\":…|null,\"reason\":…,\"intents\":[…]}]}\n\n"
             "能力：%s\n\n功能點：%s"
         ) % (self.display_name,
-             json.dumps([{'code': c.code, 'name': c.name, 'outcome': c.outcome}
-                         for c in caps], ensure_ascii=False),
+             json.dumps([{'code': c.code, 'name': c.name, 'outcome': c.outcome,
+                          'in_package': c in mine} for c in caps], ensure_ascii=False),
              json.dumps(payload, ensure_ascii=False))
         try:
             data = Ai.ask('classify_features', prompt, package=self, refresh_token=token)
@@ -453,10 +881,11 @@ class SolutionPackage(models.Model):
         except hub_client.HubError as e:
             _logger.warning('[knowledge] 功能點分類略過：%s', e)
             return
-        todo[:80].write({'classify_pending': False})
+        batch.write({'classify_pending': False, 'ai_classified': True})
         Selection = self.env['corpaas.knowledge.selection'].sudo()
-        by_key = {f.feature_key: f for f in todo}
-        by_code = {c.code: c for c in caps if c.code}
+        by_key = {f.feature_key: f for f in batch}
+        by_code = {c.code: c for c in caps}
+        groups = []  # [(代表名稱, [items])]
         for item in (data or {}).get('items') or []:
             feature = by_key.get(item.get('key'))
             if not feature:
@@ -464,16 +893,144 @@ class SolutionPackage(models.Model):
             intents = [i for i in item.get('intents') or [] if isinstance(i, str)]
             if intents:
                 # 同義詞只影響檢索，自動生效（第 3 項閘門）。
-                feature.intents = '\n'.join(filter(None, [feature.intents] + intents))
+                feature._knowledge_add_intents(intents)
             cap = by_code.get(item.get('capability'))
-            Selection.create({
-                'package_id': self.id, 'kind': 'feature', 'feature_id': feature.id,
+            new_name = item.get('new_capability') if not cap else None
+            if new_name and isinstance(new_name, str):
+                existing = Cap._knowledge_find_by_name(new_name)
+                if existing:
+                    cap, new_name = existing, None
+            if cap or not new_name:
+                Selection._knowledge_upsert({
+                    'package_id': self.id, 'kind': 'feature', 'feature_id': feature.id,
+                    'capability_id': cap.id if cap else False,
+                    'reason': item.get('reason'), 'score': feature.usage_score})
+                continue
+            for group in groups:
+                if search_lib.similarity(group[0], new_name) >= 0.5:
+                    group[1].append((feature, item))
+                    break
+            else:
+                groups.append((new_name, [(feature, item)]))
+        for name, members in groups:
+            Selection._knowledge_upsert({
+                'package_id': self.id, 'kind': 'capability',
+                'proposal_json': json.dumps({
+                    'new_capability': name,
+                    'features': [f.feature_key for f, _i in members],
+                    'aliases': sorted({i.get('new_capability') for _f, i in members} - {name}),
+                }, ensure_ascii=False),
+                'reason': '\n'.join(filter(None, (i.get('reason') for _f, i in members)))[:2000],
+                'score': sum(f.usage_score for f, _i in members)})
+
+    def _knowledge_flow_names(self, token, batch=10):
+        """流程結構變了（或從沒命名過）→ 請 AI 用業務語言命名、寫摘要、建議能力（K25）。
+
+        結果是「流程」提案，核准後才生效；同一個流程已有待審提案就先不問。
+        以流程為單位歸類能力：一次掛一整組功能點，比逐個按鈕歸類少很多呼叫、也少很多重複能力。
+        """
+        self.ensure_one()
+        Sel = self.env['corpaas.knowledge.selection'].sudo()
+        flows = self.env['corpaas.knowledge.flow'].sudo().search([
+            ('package_ids', 'in', self.id), ('structure_hash', '!=', False)])
+        waiting = set(Sel.search([('package_id', '=', self.id), ('kind', '=', 'flow'),
+                                  ('state', '=', 'proposed')]).mapped('flow_id').ids)
+        todo = flows.filtered(lambda f: f.structure_hash != f.named_hash
+                              and f.id not in waiting)[:batch]
+        if not todo:
+            return Sel
+        Cap = self.env['corpaas.knowledge.capability'].sudo()
+        caps = Cap.search([('code', '!=', False)])
+        mine = self.knowledge_capability_ids
+        prompt = (
+            "以下是方案「%s」裡的任務流程（狀態步驟與觸發按鈕）。請為每個流程：(1) 取一個使用者"
+            "看得懂的業務名稱（4–12 字）；(2) 用 1–2 句寫出這個流程在做什麼；(3) 建議歸入哪個能力"
+            "（用能力 code；優先本方案的；都不適合才給 new_capability 名稱）。\n"
+            "格式：{\"items\":[{\"model\":…,\"name\":…,\"summary\":…,"
+            "\"capability\":…|null,\"new_capability\":…|null,\"reason\":…}]}\n\n"
+            "能力：%s\n\n流程：%s"
+        ) % (self.display_name,
+             json.dumps([{'code': c.code, 'name': c.name, 'in_package': c in mine}
+                         for c in caps], ensure_ascii=False),
+             json.dumps([f.as_outline() for f in todo], ensure_ascii=False))
+        try:
+            data = self.env['corpaas.knowledge.ai'].ask('flow_name', prompt, package=self,
+                                                        refresh_token=token)
+        except hub_client.BudgetExceeded as e:
+            self._knowledge_budget_notice(e)
+            return Sel
+        except hub_client.HubError as e:
+            _logger.warning('[knowledge] 流程命名略過：%s', e)
+            return Sel
+        by_model = {f.model: f for f in todo}
+        by_code = {c.code: c for c in caps}
+        out = Sel
+        for item in (data or {}).get('items') or []:
+            flow = by_model.get(item.get('model'))
+            if not flow:
+                continue
+            cap = by_code.get(item.get('capability'))
+            new_cap = item.get('new_capability') if not cap else None
+            if new_cap:
+                existing = Cap._knowledge_find_by_name(new_cap)
+                if existing:
+                    cap, new_cap = existing, None
+            out |= Sel._knowledge_upsert({
+                'package_id': self.id, 'kind': 'flow', 'flow_id': flow.id,
                 'capability_id': cap.id if cap else False,
-                'proposal_json': json.dumps({'new_capability': item.get('new_capability')},
-                                            ensure_ascii=False)
-                if not cap and item.get('new_capability') else False,
-                'reason': item.get('reason'), 'score': feature.usage_score,
-            })
+                'proposal_json': json.dumps({
+                    'name': item.get('name'), 'summary': item.get('summary'),
+                    'new_capability': new_cap}, ensure_ascii=False),
+                'reason': item.get('reason'), 'score': flow.usage_score})
+        return out
+
+    def _knowledge_official_docs(self, token, batch=40):
+        """沒被改過的官方畫面 → 請 AI 提議 Odoo 官方文件網址，系統驗證後自動核准（K20）。
+
+        已經有對照（含被否決的）就不再問：被否決代表人工判斷過，不該每次又冒出來。
+        """
+        self.ensure_one()
+        Doc = self.env['corpaas.knowledge.official_doc'].sudo()
+        todo = self.env['corpaas.knowledge.feature'].sudo().search([
+            ('package_ids', 'in', self.id), ('missing', '=', False),
+            ('module_origin', '=', 'odoo'), ('customized', '=', False),
+            ('kind', 'in', ('action', 'client'))], order='usage_score desc')
+        done = set(Doc.search([('feature_id', 'in', todo.ids)]).mapped('feature_id').ids)
+        todo = todo.filtered(lambda f: f.id not in done)[:batch]
+        if not todo:
+            return Doc
+        base = Doc._base()
+        prompt = (
+            "以下是 Odoo 18 官方模組的畫面（沒有被客製）。請為每個畫面找出 Odoo 18 官方使用說明"
+            "最對應的章節網址。★ 本題例外：請輸出網址，系統會逐一連線驗證；"
+            "網址必須以 %s 開頭，找不到把握的就回 null，不要猜。\n"
+            "格式：{\"items\":[{\"key\":…,\"url\":…|null,\"title\":…}]}\n\n畫面：%s"
+        ) % (base, json.dumps([{'key': f.feature_key, 'module': f.module, 'name': f.name,
+                                'menu_path': f.menu_path, 'model': f.model} for f in todo],
+                              ensure_ascii=False))
+        try:
+            data = self.env['corpaas.knowledge.ai'].ask('official_doc', prompt, package=self,
+                                                        refresh_token=token)
+        except hub_client.BudgetExceeded as e:
+            self._knowledge_budget_notice(e)
+            return Doc
+        except hub_client.HubError as e:
+            _logger.warning('[knowledge] 官方文件對照略過：%s', e)
+            return Doc
+        by_key = {f.feature_key: f for f in todo}
+        out = Doc
+        for item in (data or {}).get('items') or []:
+            f = by_key.get(item.get('key'))
+            url = item.get('url')
+            if not f or not isinstance(url, str) or not url.strip():
+                continue
+            url = url.strip()
+            ok = Doc._verify_url(url)
+            out |= Doc.create({'feature_id': f.id, 'url': url,
+                               'title': (item.get('title') or '')[:200] or False,
+                               'verified': ok, 'auto_approved': ok,
+                               'state': 'approved' if ok else 'proposed'})
+        return out
 
     # ------------------------------------------------------------------
     # 說明庫
@@ -561,8 +1118,16 @@ class SolutionPackage(models.Model):
     def _knowledge_ai_select_run(self):
         self.ensure_one()
         Feature = self.env['corpaas.knowledge.feature']
-        features = Feature.search([('package_ids', 'in', self.id), ('missing', '=', False)],
-                                  order='usage_score desc', limit=150)
+        base = [('package_ids', 'in', self.id), ('missing', '=', False)]
+        # 自有模組優先，官方模組保留配額（最多 30）：納入官方畫面後，只依使用量排序會把
+        # 方案自己的功能擠出名單。
+        own = Feature.search(base + [('module_origin', '=', 'custom')],
+                             order='usage_score desc', limit=150)
+        off = Feature.search(base + [('module_origin', '=', 'odoo')],
+                             order='usage_score desc', limit=150)
+        quota = min(30, len(off))
+        own = own[:150 - quota]
+        features = own | off[:150 - len(own)]
         scenarios = self.env['corpaas.knowledge.scenario'].search([])
         caps = self.env['corpaas.knowledge.capability'].search([])
         tmpl = self.product_tmpl_id
@@ -585,7 +1150,7 @@ class SolutionPackage(models.Model):
         sc_by_code = {s.code: s for s in scenarios}
         cap_by_code = {c.code: c for c in caps if c.code}
         for item in (data or {}).get('scenarios') or []:
-            Selection.create({
+            Selection._knowledge_upsert({
                 'package_id': self.id, 'kind': 'scenario',
                 'scenario_id': sc_by_code.get(item.get('code')).id
                 if sc_by_code.get(item.get('code')) else False,
@@ -593,7 +1158,7 @@ class SolutionPackage(models.Model):
                 if item.get('new') else False,
                 'reason': item.get('reason'), 'score': item.get('score') or 0})
         for item in (data or {}).get('capabilities') or []:
-            Selection.create({
+            Selection._knowledge_upsert({
                 'package_id': self.id, 'kind': 'capability',
                 'capability_id': cap_by_code.get(item.get('code')).id
                 if cap_by_code.get(item.get('code')) else False,
@@ -640,9 +1205,36 @@ class SolutionPackage(models.Model):
             if not digest or digest == pkg.knowledge_image_digest:
                 continue
             if pkg.knowledge_image_digest:
-                pkg.knowledge_enqueue_refresh(full=True, reason='image')
+                # 增量即可：指紋會找出真的變了的畫面，只重拍那些；全量重拍留給每月保底。
+                pkg.knowledge_enqueue_refresh(full=False, reason='image')
             # ★ 只有真的變了才寫：每天無條件寫會更新 write_date、跟正在跑的更新搶這一列。
             pkg._knowledge_bookkeep({'knowledge_image_digest': digest})
+
+
+class Database(models.Model):
+    _inherit = 'infrastructure.database'
+
+    def _on_installed_modules_changed(self, added, removed):
+        """說明主機母體的黃金庫安裝集合變了，而且變動落在盤點範圍內 → 排增量更新。"""
+        res = super()._on_installed_modules_changed(added, removed)
+        if self.env.context.get('knowledge_skip_modules_trigger'):
+            return res
+        for rec in self.filtered('is_golden_template'):
+            master = rec.instance_id
+            pkg = master.template_package_id
+            if not (pkg and pkg.knowledge_enabled and master._knowledge_is_doc_master()):
+                continue
+            bom = set(pkg._provision_module_names())
+            patterns = pkg._knowledge_official_exclude_patterns()
+            relevant = [n for n in list(added) + list(removed)
+                        if n in bom or (pkg.knowledge_include_official
+                                        and not pkg._knowledge_is_official_excluded(
+                                            n, patterns))]
+            if relevant:
+                _logger.info('[knowledge] %s 黃金庫模組變動：%s', pkg.display_name,
+                             ', '.join(relevant))
+                pkg.knowledge_enqueue_refresh(full=False, reason='modules')
+        return res
 
 
 class Instance(models.Model):

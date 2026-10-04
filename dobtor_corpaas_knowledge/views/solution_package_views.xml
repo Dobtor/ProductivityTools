@@ -17,6 +17,9 @@
                             <field name="knowledge_last_refresh"/>
                             <field name="knowledge_feature_count"/>
                             <field name="knowledge_event_count"/>
+                            <field name="knowledge_coverage_rate"/>
+                            <field name="knowledge_pending_count"/>
+                            <field name="knowledge_pending_days"/>
                         </group>
                         <group>
                             <button name="action_knowledge_refresh" string="立即全量更新" type="object"
@@ -25,7 +28,14 @@
                             <button name="action_knowledge_ai_select" string="AI 圈選情境與能力" type="object"
                                     invisible="knowledge_blocker"
                                     groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                            <button name="action_knowledge_coverage" string="說明覆蓋率" type="object"/>
                         </group>
+                    </group>
+                    <group string="盤點範圍">
+                        <field name="knowledge_include_official"/>
+                        <field name="knowledge_official_exclude"
+                               invisible="not knowledge_include_official"
+                               placeholder="例如 website_*, event"/>
                     </group>
                     <group string="情境與能力">
                         <field name="knowledge_scenario_ids" widget="many2many_tags"/>

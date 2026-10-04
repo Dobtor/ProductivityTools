@@ -6,6 +6,7 @@ KNOWLEDGE_STEPS = [
     {'code': 'kb_golden_sync', 'name': '黃金庫對齊母體程式碼', 'est': 60},
     {'code': 'kb_inventory', 'name': '盤點功能點（唯讀）', 'est': 40},
     {'code': 'kb_fingerprint', 'name': '計算畫面指紋並比對', 'est': 90},
+    {'code': 'kb_flows', 'name': '推導任務流程（狀態與按鈕）', 'est': 20},
     {'code': 'kb_ai_catalog', 'name': 'AI 歸類新功能與同義詞', 'est': 120},
     {'code': 'kb_sandbox', 'name': '重建說明庫（清除＋示範資料）', 'est': 180},
     {'code': 'kb_shoot', 'name': '無頭瀏覽器截圖', 'est': 300},

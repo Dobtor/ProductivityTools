@@ -32,6 +32,16 @@ def _j(value):
     return json.dumps(value, ensure_ascii=False)
 
 
+def _delta_note(feature):
+    """改過的官方畫面（K21）：只說明我們加的部分，標準操作交給 Odoo 官方文件。"""
+    delta = feature.get('delta') or []
+    if not delta:
+        return ''
+    return ("\n★ 這是 Odoo 官方畫面，我們的模組只加了這些元素：%s。"
+            "只需要拍出並說明這些差異；標準操作不要重寫，寫一句「其餘操作同 Odoo 官方說明」即可。\n"
+            % _j(delta))
+
+
 def explore_prompt(feature, archs, demo, roles, screen=None):
     """沒有截圖腳本範本的功能：看畫面結構與示範資料，寫出範本與繫結。"""
     return (
@@ -44,14 +54,14 @@ def explore_prompt(feature, archs, demo, roles, screen=None):
         "2. 只用畫面上確實看得到的欄位、按鈕、分頁名稱：以「實際畫面」為準（那是用示範帳號"
         "真的打開畫面抓到的），arch 只當參考；實際畫面沒有的元素不要用。\n"
         "3. 需要既有記錄時，用佔位符並在 bindings 對應到下列示範資料的 xmlid。\n"
-        "4. login_role 從角色清單挑最適合操作這個功能的一個 code。\n\n"
+        "4. login_role 從角色清單挑最適合操作這個功能的一個 code。\n%(delta)s\n"
         "回覆格式：{\"login_role\":\"<code>\",\"steps\":[…],"
         "\"bindings\":{\"<佔位符名>\":\"<xmlid>\"},\"note\":\"<一句話說明>\"}\n\n"
         "角色：%(roles)s\n\n示範資料（xmlid, model）：%(demo)s\n\n"
         "實際畫面（entry＝打開功能後、record＝打開一筆示範記錄）：%(screen)s\n\n"
         "畫面結構（arch）：%(archs)s"
     ) % {
-        'screen': _j(screen or {})[:20000],
+        'screen': _j(screen or {})[:20000], 'delta': _delta_note(feature),
         'name': feature.get('name'), 'key': feature.get('key'), 'kind': feature.get('kind'),
         'model': feature.get('model') or '', 'menu': feature.get('menu_path') or '',
         'action': feature.get('action_xmlid') or '', 'button': feature.get('button_name') or '',
@@ -106,13 +116,14 @@ def step_block_prompt(feature, steps, shots, elements):
         "2. 依截圖腳本的順序分成數個步驟；每步一個短標題＋說明。\n"
         "3. 截圖上的紅框編號在說明裡以「（圖中 1）」這樣引用。\n"
         "4. 在適當的步驟說明裡放截圖標記 [[shot:<截圖名稱>]]（單獨一段），每張圖只放一次。\n"
-        "5. %(allowed)s\n\n"
+        "5. %(allowed)s\n%(delta)s\n"
         "回覆格式：{\"title\":\"<區塊標題>\",\"steps\":[{\"title\":\"…\",\"html\":\"…\"}]}\n\n"
         "功能鍵：%(key)s；選單路徑：%(menu)s\n\n截圖名稱：%(shots)s\n\n"
         "標註元素：%(elements)s\n\n截圖腳本：%(steps)s"
     ) % {
         'name': feature.get('name'), 'key': feature.get('key'),
         'menu': feature.get('menu_path') or '', 'allowed': ALLOWED_HTML,
+        'delta': _delta_note(feature),
         'shots': _j(shots), 'elements': _j(elements), 'steps': _j(steps),
     }
 

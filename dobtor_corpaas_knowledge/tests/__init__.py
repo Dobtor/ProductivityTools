@@ -7,3 +7,7 @@ from . import test_refresh
 from . import test_fixes
 from . import test_signature_e2e
 from . import test_client_guard
+from . import test_ai_quality
+from . import test_flows
+from . import test_usage_flow
+from . import test_official_coverage

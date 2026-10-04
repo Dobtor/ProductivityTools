@@ -94,9 +94,16 @@ class KnowledgeHooks(models.AbstractModel):
     # ------------------------------------------------------------------
     @api.model
     def _manual_feature_dict(self, feature):
+        delta = []
+        if feature.module_origin == 'odoo' and feature.customized and feature.custom_elements:
+            try:
+                delta = json.loads(feature.custom_elements)
+            except ValueError:
+                delta = []
         return {'key': feature.feature_key, 'name': feature.name, 'kind': feature.kind,
                 'model': feature.model, 'menu_path': feature.menu_path,
-                'action_xmlid': feature.action_xmlid, 'button_name': feature.button_name}
+                'action_xmlid': feature.action_xmlid, 'button_name': feature.button_name,
+                'delta': delta}
 
     @api.model
     def _manual_package_hashes(self, package, feature):
@@ -141,8 +148,10 @@ class KnowledgeHooks(models.AbstractModel):
                 out.setdefault(feature, cap)
         renamed_to = self.env['corpaas.knowledge.rename'].sudo().search(
             [('state', '=', 'proposed')]).mapped('new_feature_id')
+        # ★ 沒被改過的官方畫面不寫文章（K21）：說明連到 Odoo 官方文件，不重寫一份。
         return {f: c for f, c in out.items()
-                if f.model and f not in renamed_to and f.is_present_in(package)}
+                if f.model and f not in renamed_to and f.is_present_in(package)
+                and not (f.module_origin == 'odoo' and not f.customized)}
 
     @api.model
     def _manual_sorted_candidates(self, package):
@@ -422,7 +431,8 @@ class KnowledgeHooks(models.AbstractModel):
         seed = self._manual_seed(sandbox.scenario_id)
         record_xid = next((r['xmlid'] for r in seed if r['model'] == feature.model), None)
         steps = []
-        if feature.kind in ('action', 'menu') and (feature.action_xmlid or feature.kind == 'action'):
+        if feature.kind in ('action', 'menu', 'client') and (
+                feature.action_xmlid or feature.kind == 'action'):
             steps += [{'goto': {'action': feature.action_xmlid or feature.anchor}},
                       {'probe': 'entry'}]
         if record_xid:
@@ -519,6 +529,9 @@ class KnowledgeHooks(models.AbstractModel):
                 self._manual_fail(b, r.get('error') or '', result=r)
                 failed |= b
                 continue
+            if r.get('transitions') and b.template_id.feature_id.model:
+                self.env['corpaas.knowledge.flow'].sudo()._knowledge_record_observations(
+                    b.template_id.feature_id.model, r['transitions'])
             errors = self._manual_adopt_images(sandbox, b, r.get('images') or [], files,
                                                threshold)
             vals = {'last_result': json.dumps(r, ensure_ascii=False)[:100000],
@@ -1079,6 +1092,19 @@ class KnowledgeHooks(models.AbstractModel):
     # ------------------------------------------------------------------
     # 功能點生命週期
     # ------------------------------------------------------------------
+    @api.model
+    def _knowledge_covered_features(self, package, features):
+        """有上線中位置（這個方案的 channel）的文章所說明的功能點。"""
+        res = set(super()._knowledge_covered_features(package, features) or ())
+        if not features or not package.product_tmpl_id:
+            return res
+        arts = self.env['corpaas.knowledge.article'].sudo().search([
+            ('feature_id', 'in', features.ids), ('published_rev_no', '>', 0)])
+        for art in arts:
+            if any(p.package_id == package and p._manual_is_live() for p in art.placement_ids):
+                res.add(art.feature_id.id)
+        return res
+
     @api.model
     def _knowledge_rename_feature(self, old, new):
         res = super()._knowledge_rename_feature(old, new)

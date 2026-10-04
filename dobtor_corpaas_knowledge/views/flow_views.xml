@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_flow_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.flow.list</field>
+        <field name="model">corpaas.knowledge.flow</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="name"/>
+                <field name="model"/>
+                <field name="state_field" optional="hide"/>
+                <field name="capability_id" optional="show"/>
+                <field name="package_ids" widget="many2many_tags" optional="show"/>
+                <field name="usage_score"/>
+                <field name="last_seen" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_flow_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.flow.form</field>
+        <field name="model">corpaas.knowledge.flow</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_approve_proposals" string="核准此流程的待審提案" type="object"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="ai_name"/>
+                            <field name="model"/>
+                            <field name="model_name"/>
+                            <field name="state_field"/>
+                            <field name="field_type"/>
+                        </group>
+                        <group>
+                            <field name="capability_id"/>
+                            <field name="usage_score"/>
+                            <field name="package_ids" widget="many2many_tags"/>
+                            <field name="last_seen"/>
+                        </group>
+                    </group>
+                    <field name="summary" placeholder="業務摘要（AI 起草、核准後生效）"/>
+                    <notebook>
+                        <page string="步驟" name="steps">
+                            <field name="step_ids">
+                                <list create="0" delete="0">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="label"/>
+                                    <field name="value"/>
+                                    <field name="on_statusbar"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="轉換" name="transitions">
+                            <field name="transition_ids">
+                                <list create="0" delete="0">
+                                    <field name="from_value"/>
+                                    <field name="to_value"/>
+                                    <field name="button_label"/>
+                                    <field name="button_feature_id" optional="show"/>
+                                    <field name="opens_model" optional="show"/>
+                                    <field name="opens_flow_id" optional="show"/>
+                                    <field name="conditional" optional="show"/>
+                                    <field name="ev_static"/>
+                                    <field name="ev_tenant"/>
+                                    <field name="ev_shot"/>
+                                    <field name="usage_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="功能點" name="features">
+                            <field name="feature_ids">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="kind"/>
+                                    <field name="feature_key"/>
+                                    <field name="usage_score"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_flow" model="ir.actions.act_window">
+        <field name="name">任務流程</field>
+        <field name="res_model">corpaas.knowledge.flow</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_flow" action="action_kb_flow" sequence="15"
+              parent="menu_knowledge_catalog"/>
+</odoo>

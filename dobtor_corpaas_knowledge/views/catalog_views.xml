@@ -28,6 +28,8 @@
                     <button name="action_approve" string="核准" type="object" class="btn-primary"
                             invisible="state != 'review'"
                             groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_approve_proposals" string="核准歸入此能力的提案" type="object"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
                     <button name="action_open_reject" string="退回" type="object"
                             invisible="state != 'review'"
                             groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
@@ -202,15 +204,27 @@
         <field name="model">corpaas.knowledge.selection</field>
         <field name="arch" type="xml">
             <list create="0">
+                <header>
+                    <button name="action_approve" string="批次核准" type="object"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_exclude" string="批次排除" type="object"/>
+                </header>
                 <field name="package_id"/>
                 <field name="kind"/>
+                <field name="source" optional="show"/>
                 <field name="scenario_id" optional="show"/>
                 <field name="capability_id" optional="show"/>
+                <field name="proposal_name" optional="show"/>
+                <field name="similar_capability_ids" widget="many2many_tags" optional="show"/>
                 <field name="feature_id" optional="show"/>
+                <field name="flow_id" optional="show"/>
                 <field name="proposal_json" optional="hide"/>
                 <field name="score"/>
                 <field name="reason"/>
                 <field name="state"/>
+                <field name="auto_approved" optional="hide"/>
+                <button name="action_use_similar" string="改用相近能力" type="object"
+                        class="btn-link" invisible="state != 'proposed' or not similar_capability_ids"/>
                 <button name="action_approve" string="核准" type="object" class="btn-link"
                         invisible="state != 'proposed'"
                         groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>

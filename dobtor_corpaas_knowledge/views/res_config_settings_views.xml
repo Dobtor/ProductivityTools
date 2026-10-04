@@ -25,6 +25,9 @@
                         <field name="knowledge_phash_threshold"/>
                         <field name="knowledge_rename_threshold"/>
                     </setting>
+                    <setting string="官方模組排除清單" help="黃金庫裝的 Odoo 官方模組預設納入知識盤點（只盤選單與選單動作）；列在這裡的不盤。逗號分隔、可用萬用字元；各方案可再追加。">
+                        <field name="knowledge_official_exclude"/>
+                    </setting>
                     <setting string="說明頁網址前綴" help="help API 回傳的連結前綴。">
                         <field name="knowledge_public_base_url" placeholder="https://www.corpaas.com"/>
                     </setting>

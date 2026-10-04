@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models
 
+from .solution_package import OFFICIAL_EXCLUDE_DEFAULT
+
 
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
@@ -27,6 +29,10 @@ class ResConfigSettings(models.TransientModel):
     knowledge_fonts_dir = fields.Char(
         string='中文字型目錄（主機）', config_parameter='corpaas_knowledge.fonts_dir',
         default='/usr/share/fonts/opentype/noto')
+    knowledge_official_exclude = fields.Char(
+        string='官方模組排除清單', default=OFFICIAL_EXCLUDE_DEFAULT,
+        config_parameter='corpaas_knowledge.official_exclude',
+        help='逗號分隔，可用萬用字元。這些 Odoo 官方模組不納入知識盤點；清空會回到預設清單。')
     knowledge_public_base_url = fields.Char(
         string='說明頁網址前綴', config_parameter='corpaas_knowledge.public_base_url',
         help='help API 回傳的連結前綴，例如 https://www.corpaas.com')

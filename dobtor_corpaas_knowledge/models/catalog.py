@@ -3,6 +3,8 @@
 import json
 import re
 
+from ..services import search_lib
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
@@ -23,10 +25,11 @@ class KnowledgeCapability(models.Model):
 
     sequence = fields.Integer(default=10)
     name = fields.Char(required=True, tracking=True)
-    code = fields.Char(help='穩定代碼，章節對應與商品頁錨點用')
+    code = fields.Char(help='穩定代碼，章節對應與商品頁錨點用；沒填自動產生')
     feature_ids = fields.Many2many(
         'corpaas.knowledge.feature', 'corpaas_knowledge_capability_feature_rel',
         'capability_id', 'feature_id', string='功能點')
+    flow_ids = fields.One2many('corpaas.knowledge.flow', 'capability_id', string='流程')
     required_module_names = fields.Text(string='必要模組', help='一行一個技術名')
     scenario_ids = fields.Many2many('corpaas.knowledge.scenario', string='適用情境')
     package_ids = fields.Many2many(
@@ -45,8 +48,59 @@ class KnowledgeCapability(models.Model):
     resource_profile = fields.Text(string='資源特徵', help='JSON：heavy_cron / storage_per_record_kb / extra_worker_mb')
     ai_points_monthly = fields.Float(string='每月 AI 點數估計')
 
+    _sql_constraints = [('code_unique', 'unique(code)', '能力代碼重複')]
+
     def _knowledge_revision_fields(self):
         return ['name', 'pain', 'outcome', 'differentiator', 'color']
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """★ 能力一定要有 code：AI 歸類只能用 code 指名既有能力，沒有 code 的能力
+        AI 永遠指名不到，下次又提一個新的——重複就是這樣累積出來的。"""
+        recs = super().create(vals_list)
+        for rec in recs.filtered(lambda r: not r.code):
+            rec.code = rec._knowledge_make_code()
+        return recs
+
+    def _knowledge_make_code(self):
+        self.ensure_one()
+        base = re.sub(r'[^a-z0-9]+', '_', (self.name or '').lower()).strip('_')
+        code = base if base and len(base) >= 3 else 'cap_%s' % self.id
+        if self.search_count([('code', '=', code), ('id', '!=', self.id)]):
+            code = '%s_%s' % (code, self.id)
+        return code
+
+    def _knowledge_flow_outlines(self, package):
+        """這個能力在方案裡的已核准流程（有業務名稱的）精簡結構，給出口展開步驟（K26）。"""
+        self.ensure_one()
+        flows = self.sudo().flow_ids.filtered(
+            lambda f: f.ai_name and (not package or package in f.package_ids))
+        return [f.as_outline() for f in flows.sorted(lambda f: -f.usage_score)]
+
+    def action_approve_proposals(self):
+        """批次層：一次核准所有「歸入這個能力」的待審功能提案。"""
+        props = self.env['corpaas.knowledge.selection'].search([
+            ('capability_id', 'in', self.ids), ('state', '=', 'proposed')])
+        return props.action_approve()
+
+    @api.model
+    def _knowledge_find_by_name(self, name):
+        """名稱正規化後相同的既有能力（「訂單 管理」＝「訂單管理」）。"""
+        key = search_lib.normalize_name(name)
+        if not key:
+            return self.browse()
+        return self.search([]).filtered(
+            lambda c: search_lib.normalize_name(c.name) == key)[:1]
+
+    @api.model
+    def _knowledge_similar(self, name, limit=3, threshold=0.4):
+        """名稱相近的既有能力（核准新能力前的查重提示），相似度高的在前。"""
+        if not name:
+            return self.browse()
+        scored = [(c, search_lib.similarity(name, c.name)) for c in self.search([])]
+        scored = [x for x in scored if x[1] >= threshold]
+        scored.sort(key=lambda x: -x[1])
+        return self.browse([c.id for c, _s in scored[:limit]])
 
     def required_modules(self):
         self.ensure_one()
@@ -60,7 +114,7 @@ class KnowledgeCapability(models.Model):
           只缺可單獨販售的模組 → addon（加購可得）；其他 → missing。
         """
         self.ensure_one()
-        have = set(package._provision_module_names())
+        have = package._knowledge_available_modules()
         need = self.required_modules() | set(self.feature_ids.mapped('module'))
         lacking = need - have
         if not lacking:
@@ -270,8 +324,10 @@ class KnowledgeScenario(models.Model):
         for rec in self:
             need = {m.strip() for m in (rec.required_module_names or '').splitlines()
                     if m.strip()}
+            if not need:
+                continue
             for pkg in rec.package_ids:
-                lacking = need - set(pkg._provision_module_names())
+                lacking = need - pkg._knowledge_available_modules()
                 if lacking:
                     raise UserError(_('方案「%(p)s」缺少情境「%(s)s」需要的模組：%(m)s',
                                       p=pkg.display_name, s=rec.name,
@@ -328,7 +384,8 @@ class KnowledgeSelection(models.Model):
     package_id = fields.Many2one('infrastructure.solution.package', required=True,
                                  ondelete='cascade', index=True)
     kind = fields.Selection([('scenario', '情境'), ('feature', '功能'),
-                             ('capability', '能力')], required=True)
+                             ('capability', '能力'), ('flow', '流程')], required=True)
+    flow_id = fields.Many2one('corpaas.knowledge.flow', ondelete='cascade')
     scenario_id = fields.Many2one('corpaas.knowledge.scenario', ondelete='cascade')
     feature_id = fields.Many2one('corpaas.knowledge.feature', ondelete='cascade')
     capability_id = fields.Many2one('corpaas.knowledge.capability', ondelete='cascade')
@@ -337,10 +394,119 @@ class KnowledgeSelection(models.Model):
     reason = fields.Text()
     state = fields.Selection([('proposed', '提議'), ('approved', '核准'),
                               ('excluded', '排除')], default='proposed', index=True)
+    source = fields.Selection([('ai', 'AI 提議'), ('reuse', '沿用其他方案'),
+                               ('manual', '人工')], default='ai', required=True)
+    auto_approved = fields.Boolean(readonly=True, help='依核准分級自動核准（不經人工）')
+    approved_date = fields.Datetime(readonly=True)
+    proposal_name = fields.Char(compute='_compute_proposal_name', string='新項目名稱')
+    similar_capability_ids = fields.Many2many(
+        'corpaas.knowledge.capability', compute='_compute_similar_capabilities',
+        string='相近的既有能力', help='新能力提案：名稱相近的既有能力，核准前先確認是否重複')
+
+    @api.depends('proposal_json', 'kind')
+    def _compute_proposal_name(self):
+        for rec in self:
+            try:
+                data = json.loads(rec.proposal_json or '{}')
+            except ValueError:
+                data = {}
+            if not isinstance(data, dict):
+                rec.proposal_name = False
+            elif rec.kind == 'flow':
+                rec.proposal_name = data.get('new_capability') or False
+            else:
+                rec.proposal_name = data.get('new_capability') or data.get('name')
+
+    @api.depends('proposal_name', 'capability_id')
+    def _compute_similar_capabilities(self):
+        Cap = self.env['corpaas.knowledge.capability']
+        for rec in self:
+            rec.similar_capability_ids = Cap._knowledge_similar(rec.proposal_name) \
+                if rec.proposal_name and not rec.capability_id and rec.state == 'proposed' \
+                else Cap
+
+    # ------------------------------------------------------------------
+    @api.model
+    def _knowledge_key(self, vals):
+        name = ''
+        if vals.get('proposal_json') and not vals.get('capability_id'):
+            try:
+                data = json.loads(vals['proposal_json'])
+                if isinstance(data, dict):
+                    name = data.get('new_capability') or data.get('name') or ''
+            except ValueError:
+                pass
+        return (vals.get('package_id'), vals.get('kind'), vals.get('feature_id') or False,
+                vals.get('scenario_id') or False, vals.get('capability_id') or False,
+                search_lib.normalize_name(name), vals.get('flow_id') or False)
+
+    @api.model
+    def _knowledge_upsert(self, vals):
+        """建立提案，但同方案同對象已有提案就不重複：
+
+        · 已有「提議」→ 更新理由與分數（新能力提案再合併功能點清單）；
+        · 已「核准」或「排除」→ 不再提（被排除的不能每次更新又冒出來）。
+        """
+        key = self._knowledge_key(vals)
+        candidates = self.search([('package_id', '=', key[0]), ('kind', '=', key[1]),
+                                  ('feature_id', '=', key[2]), ('scenario_id', '=', key[3]),
+                                  ('flow_id', '=', key[6])])
+        if key[1] == 'flow':
+            # 流程提案以流程為單位：同一個流程只留一筆待審（內容以最新一次為準）
+            same = candidates
+        else:
+            candidates = candidates.filtered(lambda r: r.capability_id.id == (key[4] or False))
+            same = candidates.filtered(lambda r: self._knowledge_key({
+                'package_id': r.package_id.id, 'kind': r.kind,
+                'feature_id': r.feature_id.id, 'scenario_id': r.scenario_id.id,
+                'capability_id': r.capability_id.id, 'proposal_json': r.proposal_json,
+                'flow_id': r.flow_id.id}) == key)
+        if not same:
+            return self.create(vals)
+        rec = same.sorted(lambda r: r.state != 'proposed')[:1]
+        if rec.state != 'proposed':
+            return rec
+        upd = {k: vals[k] for k in ('reason', 'score') if vals.get(k) is not None}
+        if key[1] == 'flow':
+            upd.update({k: vals.get(k) or False for k in ('proposal_json', 'capability_id')})
+            rec.write(upd)
+            return rec
+        if vals.get('proposal_json') and rec.proposal_json:
+            try:
+                old, new = json.loads(rec.proposal_json), json.loads(vals['proposal_json'])
+                if isinstance(old, dict) and isinstance(new, dict):
+                    feats = list(dict.fromkeys((old.get('features') or [])
+                                               + (new.get('features') or [])))
+                    if feats:
+                        old['features'] = feats
+                        upd['proposal_json'] = json.dumps(old, ensure_ascii=False)
+            except ValueError:
+                pass
+        rec.write(upd)
+        return rec
+
+    def action_use_similar(self):
+        """新能力提案改指最相近的既有能力（仍待核准）：避免核准出重複的能力。"""
+        for rec in self.filtered(lambda r: r.state == 'proposed' and r.similar_capability_ids):
+            rec.capability_id = rec.similar_capability_ids[:1]
+        return True
 
     def action_approve(self):
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_approver'):
             raise AccessError(_('只有知識核准者可以核准圈選提案。'))
+        return self._knowledge_approve()
+
+    def _knowledge_auto_approve(self):
+        """核准分級的「自動」層：沿用其他方案已核准的歸類。系統流程呼叫，不檢查群組。"""
+        # 只自動核准「能力已在這個方案上」的：能力掛不掛方案（商品頁賣點）是產品負責人的決定，
+        # 系統不替他把能力加進方案。
+        recs = self.filtered(lambda r: r.state == 'proposed' and r.source == 'reuse'
+                             and r.capability_id in r.package_id.knowledge_capability_ids)
+        recs._knowledge_approve()
+        recs.write({'auto_approved': True})
+        return recs
+
+    def _knowledge_approve(self):
         for rec in self.filtered(lambda r: r.state == 'proposed'):
             if rec.kind == 'scenario':
                 sc = rec.scenario_id or rec._create_proposed_scenario()
@@ -352,14 +518,41 @@ class KnowledgeSelection(models.Model):
                 if cap:
                     cap.package_ids = [(4, rec.package_id.id)]
                     rec.capability_id = cap
+            elif rec.kind == 'flow' and rec.flow_id:
+                rec._knowledge_apply_flow()
             elif rec.kind == 'feature' and rec.feature_id:
                 cap = rec.capability_id or rec._create_proposed_capability()
                 if cap:
                     cap.feature_ids = [(4, rec.feature_id.id)]
                     cap.package_ids = [(4, rec.package_id.id)]
                     rec.capability_id = cap
-            rec.state = 'approved'
+            rec.write({'state': 'approved', 'approved_date': fields.Datetime.now()})
         return True
+
+    def _knowledge_apply_flow(self):
+        """核准流程提案：寫入業務名稱與摘要；有能力就把流程上的功能點一次掛進去。"""
+        self.ensure_one()
+        try:
+            data = json.loads(self.proposal_json or '{}')
+        except ValueError:
+            data = {}
+        data = data if isinstance(data, dict) else {}
+        flow = self.flow_id.sudo()
+        vals = {'named_hash': flow.structure_hash}
+        if data.get('name'):
+            vals['ai_name'] = data['name']
+        if data.get('summary'):
+            vals['summary'] = data['summary']
+        # ★ 流程提案的 name 是流程名稱，不是能力名稱：只有明確提了 new_capability 才建能力。
+        cap = self.capability_id or (self._create_proposed_capability()
+                                     if data.get('new_capability') else self.capability_id)
+        if cap:
+            vals['capability_id'] = cap.id
+            mine = flow.feature_ids.filtered(lambda f: self.package_id in f.package_ids)
+            cap.feature_ids = [(4, f.id) for f in mine]
+            cap.package_ids = [(4, self.package_id.id)]
+            self.capability_id = cap
+        flow.write(vals)
 
     def _create_proposed_scenario(self):
         """AI 提議的新情境：建立草稿（示範資料另外起草、走情境自己的核准）。"""
@@ -386,7 +579,7 @@ class KnowledgeSelection(models.Model):
         if not name:
             return self.env['corpaas.knowledge.capability']
         Cap = self.env['corpaas.knowledge.capability'].sudo()
-        cap = Cap.search([('name', '=', name)], limit=1) or Cap.create({
+        cap = Cap._knowledge_find_by_name(name) or Cap.create({
             'name': name, 'pain': data.get('pain'), 'outcome': data.get('outcome'),
             'package_ids': [(4, self.package_id.id)]})
         keys = [k for k in data.get('features') or [] if isinstance(k, str)]
@@ -415,3 +608,6 @@ class KnowledgeAiCall(models.Model):
     error = fields.Text()
     res_model = fields.Char()
     res_id = fields.Integer()
+    prompt_hash = fields.Char(index=True, help='purpose＋prompt 的雜湊（快取鍵）')
+    response_text = fields.Text(help='可快取用途的原始回應')
+    cached = fields.Boolean(help='命中快取，沒有實際呼叫 AI')

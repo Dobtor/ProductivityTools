@@ -58,6 +58,13 @@ PROBE_JS = r'''() => {
   return out;
 }'''
 
+#: 狀態列目前的值（流程的「截圖觀察」證據：點按鈕前後不同＝看到一次狀態轉換）
+STATUS_JS = r'''() => {
+  const b = document.querySelector('.o_statusbar_status [aria-checked="true"], '
+                                   + '.o_statusbar_status .o_arrow_button_current');
+  return b ? (b.getAttribute('data-value') || (b.innerText || '').trim()) : null;
+}'''
+
 CALL_KW = re.compile(r'/web/dataset/call_kw/([^/]+)/([^/?]+)')
 
 
@@ -226,8 +233,16 @@ def login(page, base, login_name, password):
     _settle(page)
 
 
-def run_steps(page, base, shot, out_dir, recorder):
+def _status(page):
+    try:
+        return page.evaluate(STATUS_JS)
+    except Exception:  # noqa: BLE001 - 觀察失敗不影響拍攝
+        return None
+
+
+def run_steps(page, base, shot, out_dir, recorder, observed=None):
     images, regions = [], []
+    observed = observed if observed is not None else []
     for idx, step in enumerate(shot.get('steps') or []):
         kind = next(iter(step))
         arg = step[kind]
@@ -246,8 +261,13 @@ def run_steps(page, base, shot, out_dir, recorder):
             page.goto(base + '/odoo/%s/%s' % (arg['model'], arg['res_id']))
             _settle(page)
         elif kind == 'click':
+            before = _status(page) if isinstance(arg, dict) and arg.get('button') else None
             _locate(page, arg).click()
             _settle(page)
+            if before is not None:
+                after = _status(page)
+                if after and after != before:
+                    observed.append({'button': arg['button'], 'from': before, 'to': after})
         elif kind == 'fill':
             target = _locate(page, arg)
             inner = target.locator('input, textarea').first
@@ -324,8 +344,9 @@ def main():
             try:
                 login(page, base, shot['login'], shot['password'])
                 recorder.reset()
-                images = run_steps(page, base, shot, out_dir, recorder)
-                result['shots'][sid] = {'ok': True, 'images': images}
+                observed = []
+                images = run_steps(page, base, shot, out_dir, recorder, observed)
+                result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed}
                 _log(sid, 'ok', len(images))
             except Exception as e:  # noqa: BLE001
                 err_png = os.path.join(out_dir, '_error.png')

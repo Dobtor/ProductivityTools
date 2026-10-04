@@ -19,13 +19,22 @@ class TestPresenceAndRebaseline(TestRefresh):
         self._refresh()
         f = self.env['corpaas.knowledge.feature'].search([('package_ids', 'in', self.pkg.id)], limit=1)
         f.package_ids = [(4, pkg_b.id)]
-        # 在 A 方案「消失」：用一個不存在的盤點結果模擬（把 A 的 BOM 換成沒有 base）
+        # 在 A 方案「消失」：盤點結果少了這一個功能點。
+        # ★ 不能用「整個盤點是空的」模擬：空結果多半是腳本那端出事，核心刻意不據此下架。
         Pkg = type(self.pkg)
+        Feature = self.env['corpaas.knowledge.feature']
+
+        def shell(env, inst, db, script):
+            res = self._exec_shell(env, inst, db, script)
+            if 'MODS' in script:
+                res['features'] = [i for i in res['features'] if Feature.make_key(
+                    i['module'], i['kind'], i['anchor']) != f.feature_key]
+            return res
+
         with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: self.master), \
                 patch.object(Pkg, '_provision_module_names', lambda s: ['base']), \
                 patch('odoo.addons.dobtor_corpaas_knowledge.services.remote.shell_json',
-                      side_effect=lambda env, inst, db, script: {'features': []}
-                      if 'MODS' in script else self._exec_shell(env, inst, db, script)):
+                      side_effect=shell):
             self.pkg.solution_package_knowledge_refresh()
         self.assertNotIn(self.pkg, f.package_ids)
         self.assertIn(self.pkg, f.missing_package_ids)

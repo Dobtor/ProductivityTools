@@ -3,6 +3,7 @@
 
 所有出口都經過 `env['corpaas.knowledge.ai'].ask(...)`，預算才算得準。
 """
+import hashlib
 import logging
 
 from odoo import _, api, fields, models
@@ -20,6 +21,13 @@ BASE_INSTRUCTIONS = """你是 CorPaaS 的產品知識編輯。規則：
 3. 回覆只包含一個 ```json 區塊，格式照題目指定；不要多餘說明。
 4. 不要輸出任何網址或連結——連結由系統產生。
 """
+
+
+#: 可快取的用途：輸入相同、結果就該相同的歸類／圈選類工作。
+#: ☠️ 起草、修補類不快取——它們的結果會被驗證，驗證失敗後重試同一個 prompt，
+#:   快取會讓它永遠拿到同一份壞結果。
+CACHEABLE = {'classify_features', 'select', 'help_misses', 'flow_name', 'official_doc',
+             'gap_cluster'}
 
 
 class KnowledgeAi(models.AbstractModel):
@@ -60,6 +68,17 @@ class KnowledgeAi(models.AbstractModel):
         而不是當成失敗。
         """
         conf = self._conf()
+        cacheable = purpose in CACHEABLE
+        phash = hashlib.sha256(('%s\n%s' % (purpose, prompt)).encode('utf-8')).hexdigest()[:40] \
+            if cacheable else False
+        if cacheable:
+            hit = self._cache_get(purpose, phash)
+            if hit is not None:
+                self._log_call({'purpose': purpose, 'refresh_token': refresh_token,
+                                'package_id': package.id if package else False,
+                                'ok': True, 'cost_usd': 0.0, 'cached': True,
+                                'prompt_hash': phash})
+                return hub_client.extract_json(hit) if expect_json else hit
         if refresh_token and self.spent(refresh_token) >= conf['budget']:
             raise hub_client.BudgetExceeded(
                 _('本次更新的 AI 預算（%s USD）已用完') % conf['budget'])
@@ -74,10 +93,24 @@ class KnowledgeAi(models.AbstractModel):
         except hub_client.HubError as e:
             self._log_call(dict(vals, ok=False, error=str(e)[:2000]))
             raise
-        self._log_call(dict(vals, ok=True, cost_usd=cost, run_id=run_id))
+        self._log_call(dict(vals, ok=True, cost_usd=cost, run_id=run_id,
+                            prompt_hash=phash, response_text=text if cacheable else False))
         if not expect_json:
             return text
         return hub_client.extract_json(text)
+
+    @api.model
+    def _cache_get(self, purpose, phash):
+        days = int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.ai_cache_days') or 30)
+        if days <= 0:
+            return None
+        since = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+        call = self.env['corpaas.knowledge.ai.call'].sudo().search([
+            ('purpose', '=', purpose), ('prompt_hash', '=', phash), ('ok', '=', True),
+            ('cached', '=', False), ('response_text', '!=', False),
+            ('create_date', '>=', since)], order='id desc', limit=1)
+        return call.response_text if call else None
 
     @api.model
     def _log_call(self, vals):

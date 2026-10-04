@@ -8,6 +8,7 @@
                 <field name="name"/>
                 <field name="kind"/>
                 <field name="module"/>
+                <field name="module_origin" optional="show"/>
                 <field name="menu_path" optional="show"/>
                 <field name="model" optional="hide"/>
                 <field name="usage_score" optional="show"/>
@@ -30,6 +31,7 @@
                             <field name="feature_key"/>
                             <field name="kind"/>
                             <field name="module"/>
+                            <field name="module_origin"/>
                             <field name="anchor"/>
                             <field name="missing"/>
                         </group>
@@ -40,9 +42,22 @@
                             <field name="action_xmlid"/>
                             <field name="menu_path"/>
                             <field name="usage_score"/>
+                            <field name="view_modules" groups="base.group_no_one"/>
                         </group>
                     </group>
                     <notebook>
+                        <page string="入口" name="entries" invisible="not entry_ids">
+                            <field name="entry_ids">
+                                <list>
+                                    <field name="kind"/>
+                                    <field name="name"/>
+                                    <field name="path"/>
+                                    <field name="module"/>
+                                    <field name="group_xmlids" optional="hide"/>
+                                    <field name="anchor" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="問法與能力" name="intents">
                             <group>
                                 <field name="capability_ids" widget="many2many_tags"/>
@@ -82,7 +97,11 @@
                 <filter name="present" string="現存" domain="[('missing', '=', False)]"/>
                 <filter name="gone" string="已消失" domain="[('missing', '=', True)]"/>
                 <filter name="no_cap" string="未歸入能力" domain="[('capability_ids', '=', False)]"/>
+                <separator/>
+                <filter name="origin_custom" string="自有模組" domain="[('module_origin', '=', 'custom')]"/>
+                <filter name="origin_odoo" string="Odoo 官方" domain="[('module_origin', '=', 'odoo')]"/>
                 <group expand="0" string="分組">
+                    <filter name="g_origin" string="模組來源" context="{'group_by': 'module_origin'}"/>
                     <filter name="g_module" string="模組" context="{'group_by': 'module'}"/>
                     <filter name="g_kind" string="種類" context="{'group_by': 'kind'}"/>
                 </group>

@@ -3,6 +3,8 @@ access_kb_revision_editor,kb.revision.editor,model_corpaas_knowledge_revision,gr
 access_kb_revision_manager,kb.revision.manager,model_corpaas_knowledge_revision,group_knowledge_manager,1,1,1,1
 access_kb_feature_editor,kb.feature.editor,model_corpaas_knowledge_feature,group_knowledge_editor,1,1,0,0
 access_kb_feature_manager,kb.feature.manager,model_corpaas_knowledge_feature,group_knowledge_manager,1,1,1,1
+access_kb_feature_entry_editor,kb.feature.entry.editor,model_corpaas_knowledge_feature_entry,group_knowledge_editor,1,0,0,0
+access_kb_feature_entry_manager,kb.feature.entry.manager,model_corpaas_knowledge_feature_entry,group_knowledge_manager,1,1,1,1
 access_kb_role_editor,kb.role.editor,model_corpaas_knowledge_role,group_knowledge_editor,1,1,1,0
 access_kb_role_manager,kb.role.manager,model_corpaas_knowledge_role,group_knowledge_manager,1,1,1,1
 access_kb_fingerprint_editor,kb.fingerprint.editor,model_corpaas_knowledge_fingerprint,group_knowledge_editor,1,0,0,0
@@ -27,3 +29,16 @@ access_kb_help_log_manager,kb.help.log.manager,model_corpaas_knowledge_help_log,
 access_kb_reject_wizard_approver,kb.reject.wizard.approver,model_corpaas_knowledge_reject_wizard,group_knowledge_approver,1,1,1,1
 access_kb_ai_job_editor,kb.ai.job.editor,model_corpaas_knowledge_ai_job,group_knowledge_editor,1,0,0,0
 access_kb_ai_job_manager,kb.ai.job.manager,model_corpaas_knowledge_ai_job,group_knowledge_manager,1,1,1,1
+access_kb_flow_editor,kb.flow.editor,model_corpaas_knowledge_flow,group_knowledge_editor,1,0,0,0
+access_kb_flow_manager,kb.flow.manager,model_corpaas_knowledge_flow,group_knowledge_manager,1,1,1,1
+access_kb_flow_step_editor,kb.flow.step.editor,model_corpaas_knowledge_flow_step,group_knowledge_editor,1,0,0,0
+access_kb_flow_step_manager,kb.flow.step.manager,model_corpaas_knowledge_flow_step,group_knowledge_manager,1,1,1,1
+access_kb_flow_transition_editor,kb.flow.transition.editor,model_corpaas_knowledge_flow_transition,group_knowledge_editor,1,0,0,0
+access_kb_flow_transition_manager,kb.flow.transition.manager,model_corpaas_knowledge_flow_transition,group_knowledge_manager,1,1,1,1
+access_kb_official_doc_editor,kb.official.doc.editor,model_corpaas_knowledge_official_doc,group_knowledge_editor,1,0,0,0
+access_kb_official_doc_approver,kb.official.doc.approver,model_corpaas_knowledge_official_doc,group_knowledge_approver,1,1,0,0
+access_kb_official_doc_manager,kb.official.doc.manager,model_corpaas_knowledge_official_doc,group_knowledge_manager,1,1,1,1
+access_kb_coverage_editor,kb.coverage.editor,model_corpaas_knowledge_coverage,group_knowledge_editor,1,0,0,0
+access_kb_coverage_manager,kb.coverage.manager,model_corpaas_knowledge_coverage,group_knowledge_manager,1,1,1,1
+access_kb_gap_editor,kb.gap.editor,model_corpaas_knowledge_gap,group_knowledge_editor,1,1,0,0
+access_kb_gap_manager,kb.gap.manager,model_corpaas_knowledge_gap,group_knowledge_manager,1,1,1,1

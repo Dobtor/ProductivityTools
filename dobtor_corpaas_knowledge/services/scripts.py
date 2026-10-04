@@ -31,91 +31,179 @@ _HEAD = (
 ) % MARK
 
 
-def inventory_script(modules, lang='zh_TW'):
-    """盤點功能點（唯讀）。modules: 方案 BOM 的技術名清單。"""
+def inventory_script(modules, lang='zh_TW', official=()):
+    """盤點功能點（唯讀）。
+
+    ★ 以「畫面」為單位：一個視窗動作＝一個功能點；選單、按鈕（type=action）、智慧按鈕
+      都只是走進這個畫面的「入口」（entries）。同一個畫面被三個選單打開仍是一筆，
+      指紋、截圖、文章也都對著畫面。非視窗動作的選單（儀表板、client action）
+      另成 kind=client：沒有模型、不算指紋。
+
+    modules: 方案 BOM 的技術名清單——全部種類都盤。
+    official: 範圍內的 Odoo 官方模組（不在 BOM 裡、相依或手動裝進來的）——只盤
+      使用者會從選單走進去的畫面。技術選單（整條路徑上有一層只開給 技術功能／設定
+      群組）不算；報表、按鈕、精靈、設定也不盤，否則一個 sale 就是上百個功能點，
+      淹掉方案自己的功能。
+    """
     return _HEAD + (
-        "MODS = set(%r)\n"
+        "MODS = set(json.loads(%r))\n"
+        "OFFICIAL = set(json.loads(%r)) - MODS\n"
         "LANG = _lang(%r)\n"
-        "E = env(context=dict(env.context, lang=LANG, active_test=False))\n"
-        "out = []\n"
-        "def _mod(xid):\n"
-        "    return xid.split('.', 1)[0] if xid else ''\n"
-        "def _groups(recs):\n"
-        "    return sorted(filter(None, (_xid(g) for g in recs)))\n"
-        "Imd = E['ir.model.data'].sudo()\n"
-        "def _ids(model):\n"
-        "    return Imd.search([('model', '=', model), ('module', 'in', list(MODS))])\n"
-        # 選單
-        "for d in _ids('ir.ui.menu'):\n"
-        "    m = E['ir.ui.menu'].browse(d.res_id).exists()\n"
-        "    if not m or not m.action:\n"
-        "        continue\n"
-        "    act = m.action\n"
-        "    xid = d.module + '.' + d.name\n"
-        "    out.append({'kind': 'menu', 'module': d.module, 'anchor': xid,\n"
-        "        'name': m.name, 'menu_path': m.complete_name or m.name,\n"
-        "        'model': getattr(act, 'res_model', '') or '',\n"
-        "        'view_mode': getattr(act, 'view_mode', '') or '',\n"
-        "        'action_xmlid': _xid(act), 'groups': _groups(m.groups_id)})\n"
-        # 視窗動作
-        "for d in _ids('ir.actions.act_window'):\n"
-        "    a = E['ir.actions.act_window'].browse(d.res_id).exists()\n"
-        "    if not a:\n"
-        "        continue\n"
-        "    out.append({'kind': 'action', 'module': d.module,\n"
-        "        'anchor': d.module + '.' + d.name, 'name': a.name,\n"
-        "        'model': a.res_model or '', 'view_mode': a.view_mode or '',\n"
-        "        'view_xmlid': _xid(a.view_id) if a.view_id else '',\n"
-        "        'groups': _groups(a.groups_id)})\n"
-        # 報表
-        "for d in _ids('ir.actions.report'):\n"
-        "    r = E['ir.actions.report'].browse(d.res_id).exists()\n"
-        "    if r:\n"
-        "        out.append({'kind': 'report', 'module': d.module,\n"
-        "            'anchor': d.module + '.' + d.name, 'name': r.name,\n"
-        "            'model': r.model or '', 'groups': _groups(r.groups_id)})\n"
-        # 按鈕：每個模組自己的 form 視圖（含繼承）裡具名的 button
-        "import xml.etree.ElementTree as ET\n"
-        "for d in _ids('ir.ui.view'):\n"
-        "    v = E['ir.ui.view'].browse(d.res_id).exists()\n"
-        "    if not v or v.type != 'form':\n"
-        "        continue\n"
-        "    try:\n"
-        "        root = ET.fromstring(v.arch_db or '<x/>')\n"
-        "    except ET.ParseError:\n"
-        "        continue\n"
-        "    vx = d.module + '.' + d.name\n"
-        "    base = v\n"
-        "    while base.inherit_id and base.mode != 'primary':\n"
-        "        base = base.inherit_id\n"
-        "    for b in root.iter('button'):\n"
-        "        name = b.attrib.get('name')\n"
-        "        if not name:\n"
-        "            continue\n"
-        "        out.append({'kind': 'button', 'module': d.module,\n"
-        "            'anchor': '%%s/button[%%s]' %% (vx, name),\n"
-        "            'name': b.attrib.get('string') or name, 'model': v.model or '',\n"
-        "            'view_xmlid': _xid(base), 'button_name': name,\n"
-        "            'button_type': b.attrib.get('type') or '',\n"
-        "            'groups': sorted(filter(None, (b.attrib.get('groups') or '').split(',')))})\n"
-        # 精靈
-        "for m in E['ir.model'].sudo().search([('transient', '=', True)]):\n"
-        "    mods = set((m.modules or '').replace(' ', '').split(','))\n"
-        "    hit = sorted(mods & MODS)\n"
-        "    if hit:\n"
-        "        out.append({'kind': 'wizard', 'module': hit[0], 'anchor': m.model,\n"
-        "            'name': m.name, 'model': m.model, 'groups': []})\n"
-        # 設定
-        "for f in E['ir.model.fields'].sudo().search([('model', '=', 'res.config.settings')]):\n"
-        "    mods = set((f.modules or '').replace(' ', '').split(','))\n"
-        "    hit = sorted(mods & MODS)\n"
-        "    if hit and not f.name.startswith('module_'):\n"
-        "        out.append({'kind': 'setting', 'module': hit[0], 'anchor': f.name,\n"
-        "            'name': f.field_description, 'model': 'res.config.settings',\n"
-        "            'groups': []})\n"
-        "env.cr.rollback()\n"
-        "print(MARK + json.dumps({'features': out}))\n"
-    ) % (sorted(modules), lang)
+    ) % (json.dumps(sorted(modules)), json.dumps(sorted(official or ())), lang) + _INVENTORY_BODY
+
+
+_INVENTORY_BODY = r"""
+import xml.etree.ElementTree as ET
+TECH = {'base.group_no_one', 'base.group_system', 'base.group_erp_manager'}
+E = env(context=dict(env.context, lang=LANG, active_test=False))
+Imd = E['ir.model.data'].sudo()
+feats = {}
+
+def _groups(recs):
+    return sorted(filter(None, (_xid(g) for g in recs)))
+
+def _ids(model, mods):
+    return Imd.search([('model', '=', model), ('module', 'in', list(mods))])
+
+def _technical(m):
+    while m:
+        g = set(_groups(m.groups_id))
+        if g and g <= TECH:
+            return True
+        m = m.parent_id
+    return False
+
+def _feat(kind, anchor, module, **vals):
+    d = feats.setdefault((module, kind, anchor), {
+        'kind': kind, 'module': module, 'anchor': anchor, 'entries': []})
+    for k, v in vals.items():
+        if v and not d.get(k):
+            d[k] = v
+    return d
+
+def _act_feature(act):
+    axid = _xid(act)
+    if not axid:
+        return None
+    return _feat('action', axid, axid.split('.', 1)[0], name=act.name,
+                 model=act.res_model or '', view_mode=act.view_mode or '',
+                 view_xmlid=_xid(act.view_id) if act.view_id else '',
+                 action_xmlid=axid, groups=_groups(act.groups_id))
+
+def _resolve_action(name):
+    if not name:
+        return None
+    if name.isdigit():
+        a = E['ir.actions.actions'].sudo().browse(int(name)).exists()
+        return E[a.type].sudo().browse(a.id) if a and a.type in E else None
+    if name.startswith('%(') and name.endswith(')d'):
+        return E.ref(name[2:-2], raise_if_not_found=False)
+    return None
+
+# 選單 → 入口
+for d in _ids('ir.ui.menu', MODS | OFFICIAL):
+    m = E['ir.ui.menu'].browse(d.res_id).exists()
+    if not m or not m.action:
+        continue
+    if d.module in OFFICIAL and _technical(m):
+        continue
+    act = m.action
+    entry = {'kind': 'menu', 'anchor': d.module + '.' + d.name, 'module': d.module,
+             'name': m.name, 'path': m.complete_name or m.name,
+             'groups': _groups(m.groups_id)}
+    if act._name == 'ir.actions.act_window':
+        f = _act_feature(act)
+    else:
+        axid = _xid(act) or entry['anchor']
+        f = _feat('client', axid, axid.split('.', 1)[0], name=m.name,
+                  action_xmlid=_xid(act))
+    if f is not None:
+        f['entries'].append(entry)
+
+# 方案模組自己的視窗動作（沒有選單、只從按鈕打開的也算畫面）
+for d in _ids('ir.actions.act_window', MODS):
+    a = E['ir.actions.act_window'].browse(d.res_id).exists()
+    if a:
+        _act_feature(a)
+
+# 報表
+for d in _ids('ir.actions.report', MODS):
+    r = E['ir.actions.report'].browse(d.res_id).exists()
+    if r:
+        _feat('report', d.module + '.' + d.name, d.module, name=r.name,
+              model=r.model or '', groups=_groups(r.groups_id))
+
+# 按鈕：表單、清單、看板視圖（含繼承）裡的具名按鈕。
+#   type=action → 那個畫面的入口（智慧按鈕／一般按鈕）；type=object → 按鈕功能點。
+for d in _ids('ir.ui.view', MODS):
+    v = E['ir.ui.view'].browse(d.res_id).exists()
+    if not v or v.type not in ('form', 'list', 'kanban'):
+        continue
+    try:
+        root = ET.fromstring(v.arch_db or '<x/>')
+    except ET.ParseError:
+        continue
+    vx = d.module + '.' + d.name
+    base = v
+    while base.inherit_id and base.mode != 'primary':
+        base = base.inherit_id
+    for b in root.iter('button'):
+        name = b.attrib.get('name')
+        if not name:
+            continue
+        label = b.attrib.get('string') or b.attrib.get('title') or name
+        groups = sorted(filter(None, (b.attrib.get('groups') or '').split(',')))
+        anchor = '%s/button[%s]' % (vx, name)
+        if b.attrib.get('type') == 'action':
+            act = _resolve_action(name)
+            if act is not None and act._name == 'ir.actions.act_window':
+                f = _act_feature(act)
+                if f is not None:
+                    smart = 'oe_stat_button' in (b.attrib.get('class') or '')
+                    f['entries'].append({
+                        'kind': 'smart_button' if smart else 'button', 'anchor': anchor,
+                        'module': d.module, 'name': label, 'path': _xid(base) or vx,
+                        'groups': groups})
+            continue
+        _feat('button', anchor, d.module, name=label, model=v.model or '',
+              view_xmlid=_xid(base), button_name=name, view_mode=v.type,
+              button_type=b.attrib.get('type') or '', groups=groups)
+
+# 精靈
+for m in E['ir.model'].sudo().search([('transient', '=', True)]):
+    mods = set((m.modules or '').replace(' ', '').split(','))
+    hit = sorted(mods & MODS)
+    if hit:
+        _feat('wizard', m.model, hit[0], name=m.name, model=m.model)
+
+# 設定
+for f in E['ir.model.fields'].sudo().search([('model', '=', 'res.config.settings')]):
+    mods = set((f.modules or '').replace(' ', '').split(','))
+    hit = sorted(mods & MODS)
+    if hit and not f.name.startswith('module_'):
+        _feat('setting', f.name, hit[0], name=f.field_description,
+              model='res.config.settings')
+
+# 前台：方案模組的網站選單
+if 'website.menu' in E:
+    for d in _ids('website.menu', MODS):
+        wm = E['website.menu'].browse(d.res_id).exists()
+        if wm and wm.url and wm.url not in ('/', '#'):
+            _feat('route', wm.url, d.module, name=wm.name, menu_path=wm.name)
+
+out = []
+for d in feats.values():
+    uniq = {}
+    for e in d['entries']:
+        uniq.setdefault((e['kind'], e['anchor']), e)  # 同一顆按鈕在一張視圖裡出現多次
+    entries = sorted(uniq.values(), key=lambda e: (e['kind'] != 'menu', len(e['path'] or '')))
+    if not d.get('menu_path') and entries and entries[0]['kind'] == 'menu':
+        d['menu_path'] = entries[0]['path']
+    d['entries'] = entries
+    out.append(d)
+env.cr.rollback()
+print(MARK + json.dumps({'features': out}))
+"""
 
 
 def fingerprint_script(items, roles, lang='zh_TW'):
@@ -144,6 +232,11 @@ def fingerprint_script(items, roles, lang='zh_TW'):
         "    users[r['code']] = Users.create({'name': 'kbfp ' + r['code'],\n"
         "        'login': 'kbfp_%%s_%%s' %% (r['code'], uuid.uuid4().hex[:8]),\n"
         "        'groups_id': [(6, 0, gids)]})\n"
+        "Imd = env['ir.model.data'].sudo()\n"
+        "V = env['ir.ui.view'].sudo()\n"
+        "mods_of = {}\n"
+        "parts_of = {}\n"
+        "import xml.etree.ElementTree as ET\n"
         "for it in ITEMS:\n"
         "    per = {}\n"
         "    for code, u in users.items():\n"
@@ -155,6 +248,26 @@ def fingerprint_script(items, roles, lang='zh_TW'):
         "                views.append((vid, vt))\n"
         "            data = Model.get_views(views)\n"
         "            archs = {vt: data['views'][vt]['arch'] for vt in data.get('views', {})}\n"
+        # 畫面涉及的模組（主視圖＋所有繼承視圖），角色無關，每個功能點算一次
+        "            if it['key'] not in mods_of:\n"
+        "                vids = [v.get('id') for v in data.get('views', {}).values() if v.get('id')]\n"
+        "                vs = V.browse(vids).exists()\n"
+        "                vs |= vs._get_inheriting_views()\n"
+        "                imds = Imd.search([('model', '=', 'ir.ui.view'), ('res_id', 'in', vs.ids)])\n"
+        "                mods_of[it['key']] = sorted(set(imds.mapped('module')))\n"
+        "                mod_by_view = {d.res_id: d.module for d in imds}\n"
+        "                parts = {}\n"
+        "                for iv in vs.filtered(lambda x: x.inherit_id):\n"
+        "                    try:\n"
+        "                        r = ET.fromstring(iv.arch_db or '<x/>')\n"
+        "                    except ET.ParseError:\n"
+        "                        continue\n"
+        "                    els = parts.setdefault(mod_by_view.get(iv.id, ''), set())\n"
+        "                    for n in r.iter():\n"
+        "                        if n.tag in ('field', 'button') and n.attrib.get('name') \\\n"
+        "                                and 'position' not in n.attrib:\n"
+        "                            els.add('%%s:%%s' %% (n.tag, n.attrib['name']))\n"
+        "                parts_of[it['key']] = {m: sorted(e) for m, e in parts.items() if m and e}\n"
         "            sh, found = scope_hash(archs, it.get('elements') or [],\n"
         "                                   it.get('menu_path') or '', it.get('view_mode') or '')\n"
         "            per[code] = {'form': form_hash(archs), 'scope': sh,\n"
@@ -163,7 +276,8 @@ def fingerprint_script(items, roles, lang='zh_TW'):
         "            per[code] = {'error': str(e)[:300]}\n"
         "    res[it['key']] = per\n"
         "env.cr.rollback()\n"
-        "print(MARK + json.dumps({'version': FINGERPRINT_VERSION, 'lang': LANG, 'items': res}))\n"
+        "print(MARK + json.dumps({'version': FINGERPRINT_VERSION, 'lang': LANG, 'items': res,\n"
+        "                         'modules': mods_of, 'parts': parts_of}))\n"
     ) % (json.dumps(items), json.dumps(roles), lang)
 
 
@@ -374,3 +488,174 @@ def fields_script(models):
         "env.cr.rollback()\n"
         "print(MARK + json.dumps(out))\n"
     ) % (json.dumps(sorted(set(models))),)
+
+
+def flow_script(models, lang='zh_TW'):
+    """推導任務流程（唯讀，不執行任何按鈕）。
+
+    每個有狀態列（widget="statusbar"）的模型：
+      · 步驟：狀態欄位的選項（many2one 的階段用名稱，跨庫才比得起來）；
+      · 按鈕在哪些狀態看得到：把 invisible 運算式逐一代入狀態值求值，運算式還牽涉其他
+        欄位的標「條件可見」；
+      · 按鈕會轉到哪個狀態：AST 讀按鈕方法的原始碼，找寫入狀態欄位的常數（追一層
+        self 上的方法呼叫）；many2one 階段不推（引用的是 xmlid／記錄）；
+      · 按鈕打開什麼：type=action 的動作模型，或方法原始碼裡的 'res_model' 常數；
+      · 報表：綁在這個模型上的 ir.actions.report。
+    """
+    return _HEAD + (
+        "MODELS = json.loads(%r)\n"
+        "LANG = _lang(%r)\n"
+    ) % (json.dumps(sorted(models)), lang) + _FLOW_BODY
+
+
+_FLOW_BODY = r"""
+import ast
+import inspect
+import textwrap
+import xml.etree.ElementTree as ET
+E = env(context=dict(env.context, lang=LANG))
+SAFE_NAMES = {'True', 'False', 'None', 'context', 'uid', 'parent', 'id'}
+
+def _expr_names(expr):
+    try:
+        tree = ast.parse(expr, mode='eval')
+    except SyntaxError:
+        return None
+    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+
+class _Ctx(dict):
+    def __missing__(self, key):
+        return None
+
+def _visible_states(expr, fname, values):
+    # 回傳 (看得到的狀態, 是否條件可見)；None 表示每個狀態都看得到
+    if not expr:
+        return None, False
+    names = _expr_names(expr)
+    if names is None:
+        return None, True
+    others = names - {fname} - SAFE_NAMES
+    vis = []
+    for v in values:
+        ctx = _Ctx({fname: v, 'True': True, 'False': False, 'None': None, 'context': {}})
+        try:
+            hidden = eval(compile(expr, '<invisible>', 'eval'), {'__builtins__': {}}, ctx)
+        except Exception:
+            return None, True
+        if not hidden:
+            vis.append(v)
+    if fname not in names:
+        return (None if vis else []), bool(others)
+    return vis, bool(others)
+
+def _method_asts(model_cls, name):
+    # 整條 MRO 上每一個定義了這個方法的類別：覆寫多半只有 super()，真正寫狀態的在原始模組
+    out = []
+    for klass in model_cls.__mro__:
+        meth = klass.__dict__.get(name)
+        if meth is None or not callable(meth):
+            continue
+        try:
+            out.append(ast.parse(textwrap.dedent(inspect.getsource(meth))))
+        except (OSError, TypeError, SyntaxError, IndentationError):
+            continue
+    return out
+
+def _targets(model_cls, name, fname, values, depth=1, seen=None):
+    seen = seen if seen is not None else set()
+    if name in seen:
+        return set(), set()
+    seen.add(name)
+    found, opens = set(), set()
+    nodes = [n for tree in _method_asts(model_cls, name) for n in ast.walk(tree)]
+    for node in nodes:
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values):
+                if isinstance(k, ast.Constant) and isinstance(v, ast.Constant):
+                    if k.value == fname and v.value in values:
+                        found.add(v.value)
+                    if k.value == 'res_model' and isinstance(v.value, str):
+                        opens.add(v.value)
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Attribute) and t.attr == fname \
+                        and isinstance(node.value, ast.Constant) and node.value.value in values:
+                    found.add(node.value.value)
+        elif isinstance(node, ast.Call) and depth > 0:
+            fn = node.func
+            if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name) \
+                    and fn.value.id in ('self', 'rec', 'record', 'order', 'records') \
+                    and isinstance(fn.attr, str):
+                f2, o2 = _targets(model_cls, fn.attr, fname, values, depth - 1, seen)
+                found |= f2
+                opens |= o2
+    return found, opens
+
+out = {}
+for model in MODELS:
+    if model not in E:
+        continue
+    M = E[model].sudo()
+    try:
+        arch = M.get_views([(False, 'form')])['views']['form']['arch']
+        root = ET.fromstring(arch)
+    except Exception:
+        continue
+    sb = next((n for n in root.iter('field') if n.attrib.get('widget') == 'statusbar'), None)
+    if sb is None:
+        continue
+    fname = sb.attrib.get('name')
+    field = M._fields.get(fname)
+    if field is None:
+        continue
+    if field.type == 'selection':
+        sel = field._description_selection(E)
+        steps = [{'value': k, 'label': lbl} for k, lbl in sel]
+        values = [k for k, _l in sel]
+        static = True
+    elif field.type == 'many2one':
+        Stage = E[field.comodel_name].sudo()
+        recs = Stage.search([], limit=40)
+        steps = [{'value': r.display_name, 'label': r.display_name} for r in recs]
+        values = [s['value'] for s in steps]
+        static = False
+    else:
+        continue
+    visible_bar = [v.strip() for v in (sb.attrib.get('statusbar_visible') or '').split(',')
+                   if v.strip()]
+    buttons = []
+    seen_btn = set()
+    for b in root.iter('button'):
+        name = b.attrib.get('name')
+        btype = b.attrib.get('type') or ''
+        if not name or name in seen_btn or btype not in ('object', 'action'):
+            continue
+        seen_btn.add(name)
+        vis, cond = _visible_states(b.attrib.get('invisible'), fname, values) \
+            if static else (None, bool(b.attrib.get('invisible')))
+        if vis == []:
+            continue  # 任何狀態都看不到
+        targets, opens = set(), set()
+        if btype == 'object':
+            if static:
+                targets, opens = _targets(type(M), name, fname, set(values))
+            else:
+                _t, opens = _targets(type(M), name, fname, set())
+        elif name.isdigit():
+            a = E['ir.actions.actions'].sudo().browse(int(name)).exists()
+            if a and a.type == 'ir.actions.act_window':
+                res_model = E['ir.actions.act_window'].sudo().browse(a.id).res_model
+                if res_model:
+                    opens.add(res_model)
+        buttons.append({'name': name, 'type': btype,
+                        'label': b.attrib.get('string') or b.attrib.get('title') or name,
+                        'visible': vis, 'conditional': cond,
+                        'targets': sorted(targets), 'opens': sorted(opens - {model})})
+    reports = [_xid(r) for r in E['ir.actions.report'].sudo().search([('model', '=', model)])
+               if _xid(r)]
+    out[model] = {'field': fname, 'field_type': field.type, 'steps': steps,
+                  'statusbar_visible': visible_bar, 'buttons': buttons, 'reports': reports,
+                  'model_name': E['ir.model']._get(model).name}
+env.cr.rollback()
+print(MARK + json.dumps({'flows': out}))
+"""

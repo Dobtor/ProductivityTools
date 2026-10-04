@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_coverage_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.coverage.list</field>
+        <field name="model">corpaas.knowledge.coverage</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0" decoration-danger="status == 'missing'"
+                  decoration-muted="status == 'official'">
+                <field name="package_id"/>
+                <field name="feature_id"/>
+                <field name="kind"/>
+                <field name="module_origin" optional="show"/>
+                <field name="customized" optional="show"/>
+                <field name="usage_score"/>
+                <field name="usage_source" optional="show"/>
+                <field name="capability_names" optional="show"/>
+                <field name="flow_id" optional="show"/>
+                <field name="status"/>
+                <field name="status_rank" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_coverage_pivot" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.coverage.pivot</field>
+        <field name="model">corpaas.knowledge.coverage</field>
+        <field name="arch" type="xml">
+            <pivot>
+                <field name="package_id" type="row"/>
+                <field name="status" type="col"/>
+                <field name="usage_score" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_kb_coverage_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.coverage.search</field>
+        <field name="model">corpaas.knowledge.coverage</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="feature_id"/>
+                <field name="package_id"/>
+                <filter name="missing" string="缺說明" domain="[('status', '=', 'missing')]"/>
+                <filter name="used" string="有人用" domain="[('usage_score', '>', 0)]"/>
+                <filter name="own" string="自有模組" domain="[('module_origin', '=', 'custom')]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_status" string="狀態" context="{'group_by': 'status'}"/>
+                    <filter name="g_package" string="方案" context="{'group_by': 'package_id'}"/>
+                    <filter name="g_flow" string="流程" context="{'group_by': 'flow_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_kb_coverage" model="ir.actions.act_window">
+        <field name="name">說明覆蓋率</field>
+        <field name="res_model">corpaas.knowledge.coverage</field>
+        <field name="view_mode">list,pivot</field>
+        <field name="context">{'search_default_missing': 1, 'search_default_used': 1}</field>
+    </record>
+    <menuitem id="menu_kb_coverage" action="action_kb_coverage" sequence="5"
+              parent="menu_knowledge_ops"/>
+
+    <record id="view_kb_gap_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.gap.list</field>
+        <field name="model">corpaas.knowledge.gap</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="package_id"/>
+                <field name="topic"/>
+                <field name="query_count"/>
+                <field name="samples" optional="show"/>
+                <field name="last_seen" optional="hide"/>
+                <field name="state"/>
+                <button name="action_plan" string="排入" type="object" class="btn-link"
+                        invisible="state != 'new'"/>
+                <button name="action_dismiss" string="不處理" type="object" class="btn-link"
+                        invisible="state != 'new'"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_gap" model="ir.actions.act_window">
+        <field name="name">缺口主題</field>
+        <field name="res_model">corpaas.knowledge.gap</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('state', '!=', 'dismissed')]</field>
+    </record>
+    <menuitem id="menu_kb_gap" action="action_kb_gap" sequence="6"
+              parent="menu_knowledge_ops"/>
+
+    <record id="view_kb_official_doc_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.official_doc.list</field>
+        <field name="model">corpaas.knowledge.official_doc</field>
+        <field name="arch" type="xml">
+            <list create="0" editable="bottom">
+                <field name="feature_id" readonly="1"/>
+                <field name="url" widget="url"/>
+                <field name="title"/>
+                <field name="verified"/>
+                <field name="auto_approved" optional="hide"/>
+                <field name="state" readonly="1"/>
+                <button name="action_approve" string="核准" type="object" class="btn-link"
+                        invisible="state == 'approved'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                <button name="action_reject" string="不採用" type="object" class="btn-link"
+                        invisible="state == 'rejected'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_official_doc" model="ir.actions.act_window">
+        <field name="name">官方文件對照</field>
+        <field name="res_model">corpaas.knowledge.official_doc</field>
+        <field name="view_mode">list</field>
+    </record>
+    <menuitem id="menu_kb_official_doc" action="action_kb_official_doc" sequence="25"
+              parent="menu_knowledge_catalog"/>
+</odoo>

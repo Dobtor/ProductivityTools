@@ -6,8 +6,10 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
 FEATURE_KINDS = [
-    ('menu', '選單'),
-    ('action', '動作'),
+    # ★ 'menu' 只留給舊資料：自 18.0.1.1.0 起選單是畫面（action）的入口，不再是功能點。
+    ('menu', '選單（舊）'),
+    ('action', '畫面'),
+    ('client', '非視窗頁面'),
     ('button', '按鈕'),
     ('wizard', '精靈'),
     ('setting', '設定'),
@@ -24,6 +26,11 @@ class KnowledgeFeature(models.Model):
     feature_key = fields.Char(required=True, index=True, readonly=True,
                               help='D3：<模組>.<種類>:<錨點>，建立後不變')
     module = fields.Char(required=True, index=True, readonly=True)
+    # ★ 方案自有模組 vs Odoo 官方模組（相依帶進來的 sale、account…）。官方功能點只盤
+    #   選單與選單動作；AI 歸類排在自有之後；說明書不自動為它寫文章。盤點時寫入。
+    module_origin = fields.Selection(
+        [('custom', '自有模組'), ('odoo', 'Odoo 官方')], string='模組來源',
+        default='custom', required=True, index=True, readonly=True)
     kind = fields.Selection(FEATURE_KINDS, required=True, readonly=True)
     anchor = fields.Char(required=True, readonly=True)
     name = fields.Char(required=True)
@@ -34,6 +41,22 @@ class KnowledgeFeature(models.Model):
     button_name = fields.Char(readonly=True)
     menu_path = fields.Char()
     group_xmlids = fields.Char(readonly=True, help='逗號分隔')
+    entry_ids = fields.One2many('corpaas.knowledge.feature.entry', 'feature_id',
+                                string='入口', readonly=True)
+    entry_count = fields.Integer(compute='_compute_entry_count', string='入口數')
+    # 指紋增量重算（K3）
+    view_modules = fields.Char(readonly=True,
+                               help='畫面（含繼承）涉及的模組，逗號分隔；變動模組有交集才重算指紋')
+    # 官方畫面被我們改過嗎（K19）：自有模組在它的繼承鏈上加了欄位或按鈕
+    customized = fields.Boolean(
+        string='自有模組改過', readonly=True, index=True,
+        help='官方畫面：有自有模組的繼承視圖加了欄位或按鈕。沒改過的官方畫面不寫文章、'
+             '說明連到 Odoo 官方文件；改過的只寫差異。')
+    custom_modules = fields.Char(string='改動的自有模組', readonly=True)
+    custom_elements = fields.Text(string='自有模組加的元素', readonly=True,
+                                  help='JSON：["field:x_foo", "button:action_bar", …]')
+    fp_dirty = fields.Boolean(readonly=True,
+                              help='盤點時入口路徑或視圖設定變了：下次指紋一定重算')
     intents = fields.Text(string='問法與同義詞', help='一行一個；AI 產生，help_search 使用')
     prerequisite_ids = fields.Many2many(
         'corpaas.knowledge.feature', 'corpaas_knowledge_feature_prereq_rel',
@@ -57,13 +80,47 @@ class KnowledgeFeature(models.Model):
     fingerprint_ids = fields.One2many('corpaas.knowledge.fingerprint', 'feature_id')
     classify_pending = fields.Boolean(string='待 AI 歸類', readonly=True, index=True,
                                       help='新增到某方案後還沒歸入能力；下一次更新接續')
+    ai_classified = fields.Boolean(
+        string='AI 已歸類過', readonly=True,
+        help='任一方案已請 AI 歸類過（同義詞是全域的）：加入別的方案時沿用，不再請 AI')
     usage_score = fields.Float(string='租戶使用量', readonly=True,
                                help='依 dobtor_database_activity_stats；決定 AI 優先順序')
+    usage_source = fields.Selection(
+        [('model', '模型層級'), ('measured', '實測'), ('estimated', '推估')],
+        string='使用量來源', readonly=True,
+        help='實測：租戶的畫面開啟／按鈕呼叫次數；推估：由狀態轉換次數分攤；'
+             '模型層級：只知道這個模型有多少異動，同模型的功能點分數相同')
     active = fields.Boolean(default=True)
 
     _sql_constraints = [
         ('key_unique', 'unique(feature_key)', '功能點鍵重複'),
     ]
+
+    def _knowledge_add_intents(self, lines):
+        """加入問法／同義詞：正規化後去重，保留原有順序。所有寫入點都走這裡。"""
+        from ..services import search_lib
+        for rec in self:
+            merged = search_lib.merge_lines(rec.intents, lines)
+            if merged != (rec.intents or ''):
+                rec.intents = merged or False
+
+    def _compute_entry_count(self):
+        for rec in self:
+            rec.entry_count = len(rec.entry_ids)
+
+    def visible_to(self, groups):
+        """使用者群組（xmlid 集合）看得到這個功能嗎：畫面本身的群組＋至少一個入口看得到。
+
+        沒有入口的畫面（只從程式或其他畫面打開）只看畫面群組。
+        """
+        self.ensure_one()
+        have = set(groups or ())
+        if self.group_xmlids and not have & set(self.group_xmlids.split(',')):
+            return False
+        if not self.entry_ids:
+            return True
+        return any(not e.group_xmlids or have & set(e.group_xmlids.split(','))
+                   for e in self.entry_ids)
 
     @api.depends('package_ids', 'missing_package_ids')
     def _compute_missing(self):
@@ -93,7 +150,8 @@ class KnowledgeFeature(models.Model):
                 views[0][0] = self.view_xmlid
             return views
         if self.kind == 'button':
-            return [[self.view_xmlid or False, 'form']]
+            vt = self.view_mode if self.view_mode in ('form', 'list', 'kanban') else 'form'
+            return [[self.view_xmlid or False, vt]]
         if self.kind in ('wizard', 'setting'):
             return [[False, 'form']]
         return []
@@ -123,6 +181,34 @@ class KnowledgeFeature(models.Model):
     def action_mark_used_in(self, packages):
         for rec in self:
             rec.package_ids = [(4, p.id) for p in packages]
+
+
+ENTRY_KINDS = [
+    ('menu', '選單'),
+    ('button', '按鈕'),
+    ('smart_button', '智慧按鈕'),
+]
+
+
+class KnowledgeFeatureEntry(models.Model):
+    """走進一個畫面的入口：選單、按鈕（type=action）、智慧按鈕。盤點時同步。"""
+    _name = 'corpaas.knowledge.feature.entry'
+    _description = '功能點入口'
+    _order = 'feature_id, kind, path'
+
+    feature_id = fields.Many2one('corpaas.knowledge.feature', required=True,
+                                 ondelete='cascade', index=True)
+    kind = fields.Selection(ENTRY_KINDS, required=True)
+    anchor = fields.Char(required=True, help='選單 xmlid，或 <視圖xmlid>/button[名稱]')
+    module = fields.Char(required=True, index=True)
+    name = fields.Char()
+    path = fields.Char(help='選單完整路徑，或按鈕所在的視圖')
+    group_xmlids = fields.Char(help='逗號分隔')
+    last_seen = fields.Datetime()
+
+    _sql_constraints = [
+        ('entry_unique', 'unique(feature_id, kind, anchor)', '入口重複'),
+    ]
 
 
 class KnowledgeRole(models.Model):
@@ -191,6 +277,7 @@ EVENT_TYPES = [
     ('rename_candidate', '改名候選'),
     ('divergence', '租戶畫面分歧'),
     ('code_changed', '程式碼改版'),
+    ('modules_changed', '盤點模組範圍變動'),
 ]
 
 
@@ -239,10 +326,8 @@ class KnowledgeRenameCandidate(models.Model):
         self._check_approver()
         for rec in self.filtered(lambda r: r.state == 'proposed'):
             old, new = rec.old_feature_id, rec.new_feature_id
-            new.write({
-                'intents': '\n'.join(filter(None, [old.intents, new.intents])),
-                'capability_ids': [(4, c.id) for c in old.capability_ids],
-            })
+            new._knowledge_add_intents(old.intents)
+            new.write({'capability_ids': [(4, c.id) for c in old.capability_ids]})
             self.env['corpaas.knowledge.hooks']._knowledge_rename_feature(old, new)
             old.active = False
             rec.state = 'accepted'
@@ -287,8 +372,25 @@ class KnowledgeHooks(models.AbstractModel):
 
     @api.model
     def _knowledge_help_links(self, package, matches, query, ctx):
-        """help API：把命中的功能點轉成連結。回傳 list of dict。"""
-        return []
+        """help API：把命中的功能點轉成連結。回傳 list of dict。
+
+        核心提供：沒被改過的官方畫面 → 已核准的 Odoo 官方文件（K21）。出口模組 super()
+        後接著加自己的連結。
+        """
+        out = []
+        if not matches:
+            return out
+        docs = self.env['corpaas.knowledge.official_doc'].sudo().search([
+            ('feature_id', 'in', [f.id for f, _s in matches]), ('state', '=', 'approved')])
+        by_feature = {d.feature_id.id: d for d in docs}
+        for feature, _score in matches:
+            doc = by_feature.get(feature.id)
+            if doc and not feature.customized:
+                out.append({'feature_key': feature.feature_key,
+                            'title': doc.title or feature.name, 'url': doc.url,
+                            'kind': 'official', 'scenario': '', 'anchor': '',
+                            'fingerprint': {}})
+        return out
 
     @api.model
     def _knowledge_scenarios_needing_shots(self, package, events):
@@ -305,6 +407,11 @@ class KnowledgeHooks(models.AbstractModel):
         """腳本範圍元素換了（例如第一次建立截圖範本、AI 修過範本）→ 指紋的「定義」變了，
         畫面沒變。出口把引用 old 的東西改指 new，不分岔、不重拍、不送審。"""
         return True
+
+    @api.model
+    def _knowledge_covered_features(self, package, features):
+        """覆蓋率報表：這些功能點裡，哪些在這個方案有上線中的說明（出口覆寫）。回傳 id 集合。"""
+        return set()
 
     @api.model
     def _knowledge_check_feature_ref(self, feature):

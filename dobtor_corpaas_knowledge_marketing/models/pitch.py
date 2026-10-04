@@ -376,7 +376,9 @@ class KnowledgePitch(models.Model):
             'product': self.product_tmpl_id.name, 'cap': cap.name, 'rules': HTML_RULES,
             'cap_json': json.dumps({'name': cap.name, 'pain': cap.pain or '',
                                     'outcome': cap.outcome or '',
-                                    'differentiator': cap.differentiator or ''},
+                                    'differentiator': cap.differentiator or '',
+                                    # 已核准的作業流程：讓文案講「實際怎麼走」，而不是空泛形容
+                                    'flows': cap._knowledge_flow_outlines(self.package_id)},
                                    ensure_ascii=False),
             'features': json.dumps(features, ensure_ascii=False),
             'scenario': json.dumps(scenario, ensure_ascii=False),

@@ -773,6 +773,18 @@ class KnowledgeProposal(models.Model):
             pitches = scoped or pitches.filtered(lambda p: not p.scenario_id)
         return pitches[:1]
 
+    def _flow_html(self, cap):
+        """能力底下的作業流程（K26）：已核准的流程依步驟列出，給客戶看「實際怎麼走」。"""
+        outlines = cap._knowledge_flow_outlines(self.package_id.sudo())
+        if not outlines:
+            return Markup('')
+        out = Markup('<p><strong>%s</strong></p>') % _('作業流程：')
+        for fl in outlines:
+            steps = [s['label'] for s in fl['steps'] if s.get('on_statusbar')] \
+                or [s['label'] for s in fl['steps']]
+            out += Markup('<p>%s：%s</p>') % (fl['name'], ' → '.join(steps))
+        return out
+
     @staticmethod
     def _pitch_live(pitch):
         """★ 只讀核准快照，絕不讀草稿欄位（headline／body_html 可能是還沒核准的改寫）。"""
@@ -832,6 +844,7 @@ class KnowledgeProposal(models.Model):
                     if claims:
                         out += Markup('<ul>%s</ul>') % Markup('').join(
                             Markup('<li>%s</li>') % c for c in claims)
+                    out += self._flow_html(cap)
                     continue
                 out += Markup('<h3>%s %s</h3>') % (cap.name, badge(cap.color))
                 if cap.pain:
@@ -839,6 +852,7 @@ class KnowledgeProposal(models.Model):
                 if cap.outcome:
                     out += Markup('<p><strong>%s</strong>%s</p>') % (_('帶來的成果：'),
                                                                     para(cap.outcome))
+                out += self._flow_html(cap)
 
         out += Markup('<h2>%s</h2>') % _('三、報價')
         out += head(_('項目'), _('內容'), _('金額（首年）'))
