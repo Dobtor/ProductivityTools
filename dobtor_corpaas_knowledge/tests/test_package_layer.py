@@ -141,7 +141,28 @@ class TestFreshCursorBookkeep(TransactionCase):
         self.registry.enter_test_mode(self.env.cr)
         self.addCleanup(self.registry.leave_test_mode)
         with patch.object(txn, 'in_tests', lambda env: False):
-            pkg._knowledge_bookkeep({'knowledge_last_token': 'fresh-ok'})
+            pkg.with_context(knowledge_fresh_cursor=True)._knowledge_bookkeep(
+                {'knowledge_last_token': 'fresh-ok'})
         self.env.cr.execute('SELECT knowledge_last_token FROM infrastructure_solution_package '
                             'WHERE id = %s', (pkg.id,))
         self.assertEqual(self.env.cr.fetchone()[0], 'fresh-ok')
+
+
+@tagged('post_install', '-at_install')
+class TestBookkeepOutsideRefresh(TransactionCase):
+    """短交易（按鈕、上架）裡簿記寫在自己的交易，不另開游標（否則撞 40001）。"""
+
+    def test_button_writes_in_own_transaction(self):
+        from ..services import txn
+        pkg = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create(
+                {'name': 'BK2', 'type': 'service'}).id})
+        opened = []
+        orig = type(self.registry).cursor
+        with patch.object(txn, 'in_tests', lambda env: False), \
+                patch.object(type(self.registry), 'cursor',
+                             lambda s, *a, **k: opened.append(1) or orig(s, *a, **k)):
+            pkg.write({'knowledge_enabled': True})
+            pkg._knowledge_bookkeep({'knowledge_pending_full': True})
+        self.assertFalse(opened, '不在知識更新作業裡：不另開游標')
+        self.assertTrue(pkg.knowledge_pending_full)

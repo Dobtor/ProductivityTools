@@ -185,6 +185,8 @@ class SolutionPackage(models.Model):
     def solution_package_knowledge_refresh(self, package_id=None, full=False, reason='',
                                            after=None):
         self.ensure_one()
+        # 這個作業跑很久而且不寫方案這一列：簿記改走獨立游標（見 _knowledge_bookkeep）
+        self = self.with_context(knowledge_fresh_cursor=True)
         full = full or self._knowledge_take_pending_full()
         token = uuid.uuid4().hex
         Event = self.env['corpaas.knowledge.event'].sudo()
@@ -262,7 +264,11 @@ class SolutionPackage(models.Model):
         「立即全量更新」按鈕、映像監看排程、上架流程寫同一列都會卡住或撞序列化衝突。
         簿記欄位用獨立游標寫、立即 commit。"""
         for rec in self:
-            if txn.in_tests(self.env):
+            # ★ 只有在「知識更新作業」裡才用獨立游標：那個作業刻意不寫方案這一列，獨立游標
+            #   才不會和它相撞。按鈕、上架、排程這些短交易自己就寫了方案這一列（啟用旗標、
+            #   上架版本），若再用獨立游標寫同一列，主交易 commit 時撞 40001（或互等卡死）
+            #   ——寫在自己的交易裡即可。
+            if txn.in_tests(self.env) or not self.env.context.get('knowledge_fresh_cursor'):
                 rec.sudo().write(vals)
                 continue
             with self.env.registry.cursor() as cr:
