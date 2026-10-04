@@ -65,7 +65,12 @@ class InfrastructureDatabase(models.Model):
                 rec.write(vals)
             else:
                 with self.env.registry.cursor() as cr:
-                    self.env(cr=cr)[self._name].sudo().browse(rec.id).write(vals)
+                    # ★ 環境留在變數裡並明確 flush（transaction 以 WeakSet 記環境，臨時環境
+                    #   被回收後 commit 不會 flush）：否則金鑰已下發到租戶，主控台這邊卻沒存，
+                    #   之後的簽章驗證一律失敗。
+                    env = self.env(cr=cr)
+                    env[self._name].sudo().browse(rec.id).write(vals)
+                    env.flush_all()
         if failed and len(self) == 1:
             raise UserError(_('下發失敗：%s（詳見伺服器紀錄）') % ', '.join(failed))
         return True

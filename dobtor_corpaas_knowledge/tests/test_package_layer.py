@@ -126,3 +126,22 @@ class TestCleanup(TransactionCase):
                         '帳留著，原始回應清掉')
         self.assertFalse(hit.exists(), '命中快取的零成本紀錄過期刪除')
         self.assertEqual(fresh.response_text, 'y')
+
+
+@tagged('post_install', '-at_install')
+class TestFreshCursorBookkeep(TransactionCase):
+    """獨立游標簿記真的寫進去（實機在 odoo shell 佇列裡靜默遺失過）。"""
+
+    def test_bookkeep_persists_through_fresh_cursor(self):
+        from ..services import txn
+        pkg = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create(
+                {'name': 'BK', 'type': 'service'}).id})
+        self.env.flush_all()
+        self.registry.enter_test_mode(self.env.cr)
+        self.addCleanup(self.registry.leave_test_mode)
+        with patch.object(txn, 'in_tests', lambda env: False):
+            pkg._knowledge_bookkeep({'knowledge_last_token': 'fresh-ok'})
+        self.env.cr.execute('SELECT knowledge_last_token FROM infrastructure_solution_package '
+                            'WHERE id = %s', (pkg.id,))
+        self.assertEqual(self.env.cr.fetchone()[0], 'fresh-ok')

@@ -266,7 +266,11 @@ class SolutionPackage(models.Model):
                 rec.sudo().write(vals)
                 continue
             with self.env.registry.cursor() as cr:
-                self.env(cr=cr)[self._name].sudo().browse(rec.id).write(vals)
+                # ★ 環境要留在變數裡並明確 flush：transaction 用 WeakSet 記環境，一行寫完
+                #   臨時環境就被回收，commit 時找不到要 flush 的環境，寫入靜默消失。
+                env = self.env(cr=cr)
+                env[self._name].sudo().browse(rec.id).write(vals)
+                env.flush_all()
 
     def _knowledge_take_pending_full(self):
         self.ensure_one()
