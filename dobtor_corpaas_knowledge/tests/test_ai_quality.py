@@ -286,6 +286,23 @@ class TestAiQuality(TransactionCase):
         self.assertEqual(sc.role_ids.filtered(lambda r: r.code == 'admin').group_xmlids,
                          'base.group_system')
 
+    def test_select_does_not_propose_capabilities_when_already_clustered(self):
+        """實機：7 個能力還在待審時跑圈選，又多提了 18 個細分能力。"""
+        self._feature('x_rl.f2')
+        self.Sel.create({'package_id': self.pkg.id, 'kind': 'capability',
+                         'proposal_json': json.dumps({'new_capability': '銷售'})})
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        prompts = []
+        reply = {'scenarios': [], 'capabilities': [{'new': {'name': '銷售報價與訂單管理'}}]}
+        with patch.object(Ai, 'ask', lambda s, p, prompt, **kw: prompts.append(prompt) or reply), \
+                patch.object(type(self.pkg), '_knowledge_master',
+                             lambda s, raise_if_missing=True: True):
+            self.pkg._knowledge_ai_select_run()
+        self.assertIn('不要再提能力', prompts[0])
+        self.assertIn('銷售', prompts[0])
+        caps = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'capability')])
+        self.assertEqual(len(caps), 1, 'AI 仍回了能力也不收')
+
     # K11 -----------------------------------------------------------------
     def _inventory_into(self, pkg, feature):
         """模擬盤點把既有功能點加進 pkg。"""

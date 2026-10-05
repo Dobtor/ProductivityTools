@@ -1723,10 +1723,22 @@ class SolutionPackage(models.Model):
         groups = sorted({g.strip() for f in self.env['corpaas.knowledge.feature'].search(base)
                          for g in (f.group_xmlids or '').split(',') if g.strip()}
                         | {'base.group_system', 'base.group_user'})
+        # ★ 能力已經有了（方案已掛能力，或歸類步驟剛分好、還在待審）→ 只提情境與角色。
+        #   實機：7 個能力還在待審時跑圈選，AI 看不到它們，又提了 18 個細分能力。
+        Selection = self.env['corpaas.knowledge.selection'].sudo()
+        waiting_caps = [n for n in Selection.search([
+            ('package_id', '=', self.id), ('kind', '=', 'capability'),
+            ('state', '=', 'proposed')]).mapped('proposal_name') if n]
+        caps_settled = bool(self.knowledge_capability_ids or waiting_caps)
+        cap_ask = (
+            "(2) 能力已經分好（既有能力＋待審的能力提案：%s），capabilities 回傳空陣列，"
+            "不要再提能力。\n" % '、'.join(self.knowledge_capability_ids.mapped('name')
+                                        + waiting_caps)) if caps_settled else (
+            "(2) 此方案的能力清單（沿用既有能力用 code，新能力給名稱、痛點、成果、包含的功能點 key）。\n")
         prompt = (
             "方案：%s\n定位描述：%s\n\n既有情境：%s\n\n既有能力：%s\n\n功能點（依使用量排序）：%s\n\n"
             "請提議：(1) 此方案該引用哪些既有情境，或需要新增什麼專屬情境（說明要延伸哪個基底）；"
-            "(2) 此方案的能力清單（沿用既有能力用 code，新能力給名稱、痛點、成果、包含的功能點 key）。\n"
+            + cap_ask.replace('%', '%%') +
             "新情境要附上拍操作畫面用的角色 roles：每個角色一個英數 code（業務 sales、採購 purchase、"
             "倉管 stock、會計 account、系統管理員 admin，其他職務自取英數）、中文 name、"
             "groups（只能從下方「可用群組」挑）；一定要有 admin（base.group_system）。\n"
@@ -1743,7 +1755,6 @@ class SolutionPackage(models.Model):
                          for f in features], ensure_ascii=False),
              json.dumps(groups, ensure_ascii=False))
         data = self.env['corpaas.knowledge.ai'].ask('select', prompt, package=self)
-        Selection = self.env['corpaas.knowledge.selection'].sudo()
         sc_by_code = {s.code: s for s in scenarios}
         cap_by_code = {c.code: c for c in caps if c.code}
         for item in (data or {}).get('scenarios') or []:
@@ -1754,7 +1765,7 @@ class SolutionPackage(models.Model):
                 'proposal_json': json.dumps(item.get('new'), ensure_ascii=False)
                 if item.get('new') else False,
                 'reason': item.get('reason'), 'score': item.get('score') or 0})
-        for item in (data or {}).get('capabilities') or []:
+        for item in [] if caps_settled else (data or {}).get('capabilities') or []:
             Selection._knowledge_upsert({
                 'package_id': self.id, 'kind': 'capability',
                 'capability_id': cap_by_code.get(item.get('code')).id
