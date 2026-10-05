@@ -315,6 +315,7 @@ class KnowledgeHooks(models.AbstractModel):
         scenario = sandbox.scenario_id
         Template = self.env['corpaas.knowledge.shot_template'].sudo()
         for feature, cap in self._manual_sorted_candidates(package):
+            package._knowledge_heartbeat('kb_shoot', feature.name)
             if scenario not in self._manual_scenarios_for(package, cap):
                 continue
             hashes = self._manual_package_hashes(package, feature)
@@ -489,6 +490,7 @@ class KnowledgeHooks(models.AbstractModel):
     @api.model
     def _manual_run_batch(self, package, sandbox, bindings, token, ctx):
         """步驟 2 後半～4：解析 → 一批拍完 → 採用圖片。回傳失敗、要 AI 修的繫結。"""
+        package._knowledge_heartbeat('kb_shoot', _('拍攝 %s 個畫面') % len(bindings))
         Binding = self.env['corpaas.knowledge.shot_binding']
         xmlids = sorted({x for b in bindings for x in b.bindings().values()
                          if isinstance(x, str)})
@@ -597,6 +599,7 @@ class KnowledgeHooks(models.AbstractModel):
     @api.model
     def _manual_repair_bindings(self, package, bindings, token, stop):
         for b in bindings.filtered(lambda x: x.state == 'failed' and x.needs_repair):
+            package._knowledge_heartbeat('kb_shoot', _('修補截圖腳本'))
             if stop['ai']:
                 return
             if b.repair_attempts >= MAX_REPAIRS:
@@ -687,6 +690,7 @@ class KnowledgeHooks(models.AbstractModel):
         Template = self.env['corpaas.knowledge.shot_template'].sudo()
         cache = {}
         for feature, cap in self._manual_sorted_candidates(package):
+            package._knowledge_heartbeat('kb_outlets', feature.name)
             hashes = self._manual_package_hashes(package, feature)
             if not hashes:
                 continue

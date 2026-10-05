@@ -12,6 +12,7 @@ import fnmatch
 import hashlib
 import json
 import logging
+import time
 import uuid
 
 from odoo import _, api, fields, models
@@ -293,6 +294,26 @@ class SolutionPackage(models.Model):
         if feature.module_origin != 'odoo' or feature.attr_for(self, 'customized'):
             return True
         return bool(self.knowledge_document_native)
+
+    _HEARTBEAT_AT = {}
+
+    def _knowledge_heartbeat(self, step, message=None):
+        """長步驟裡定期送佇列心跳（每分鐘最多一次）。
+
+        ☠️ 佇列 watchdog 以 last_step_at 判斷作業死活，預設 120 分鐘沒心跳就判逾時；
+          截圖步驟逐一探索 100 多個畫面要兩個多小時，中間沒有心跳就被標成錯誤
+          （背景執行緒其實還在跑）。"""
+        qid = self.env.context.get('corpaas_queue_id')
+        if not qid or txn.in_tests(self.env):
+            return
+        now = time.monotonic()
+        if now - self._HEARTBEAT_AT.get(qid, 0) < 60:
+            return
+        self._HEARTBEAT_AT[qid] = now
+        try:
+            self.env['corpaas.queue'].sudo().browse(qid)._notify(step, 'running', message)
+        except Exception as e:  # noqa: BLE001 — 心跳失敗不影響作業
+            _logger.warning('[knowledge] 佇列心跳失敗：%s', e)
 
     def _knowledge_take_pending_full(self):
         self.ensure_one()
