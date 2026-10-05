@@ -299,6 +299,7 @@ class TestAiQuality(TransactionCase):
                              lambda s, raise_if_missing=True: True):
             self.pkg._knowledge_ai_select_run()
         self.assertIn('不要再提能力', prompts[0])
+        self.assertIn('原則上只提一個情境', prompts[0])
         self.assertIn('銷售', prompts[0])
         caps = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'capability')])
         self.assertEqual(len(caps), 1, 'AI 仍回了能力也不收')
