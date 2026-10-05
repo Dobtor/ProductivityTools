@@ -66,6 +66,26 @@ class TestScripts(TransactionCase):
         self.assertEqual(b.parent_id, self.env.ref('__doc_scenario_t.partner_a'))
         self.assertEqual(res['users']['sales'], 'doc_sales')
 
+    def test_seed_script_users_first_and_calls(self):
+        """角色帳號先建（單據可指定給它）；動作依序呼叫；不允許的方法擋下。"""
+        src = scripts.seed_script(
+            '__doc_scenario_t2',
+            [{'xmlid': 'p1', 'model': 'res.partner',
+              'values': {'name': '示範', 'user_id': '__ref__:user_sales'}},
+             {'xmlid': 'p1_archive', 'model': 'res.partner', 'call': 'action_archive',
+              'ref': 'p1'},
+             {'xmlid': 'bad', 'model': 'res.partner', 'call': 'unlink', 'ref': 'p1'}],
+            [{'code': 'sales', 'name': '業務', 'groups': ['base.group_user']}], 'pw-123456')
+        src = src.replace('env.cr.commit()', 'pass')
+        printed = []
+        exec(compile(src, '<seed>', 'exec'), {'env': self.env, 'print': printed.append})
+        import json
+        res = json.loads(printed[-1][len(scripts.MARK):])
+        p1 = self.env.ref('__doc_scenario_t2.p1').with_context(active_test=False)
+        self.assertEqual(p1.user_id, self.env.ref('__doc_scenario_t2.user_sales'))
+        self.assertFalse(p1.active, '動作有執行')
+        self.assertEqual([e['xmlid'] for e in res['errors']], ['bad'], '只允許 action_／button_')
+
     def test_gate_script_flags_customer_records(self):
         customer = self.env['res.partner'].create({'name': '真實客戶'})
         src = scripts.gate_script({'res.partner': [customer.id,

@@ -350,12 +350,12 @@ class KnowledgeHooks(models.AbstractModel):
     @api.model
     def _manual_demo(self, scenario):
         return [{'xmlid': r['xmlid'], 'model': r['model']}
-                for r in self._manual_seed(scenario)][:300]
+                for r in self._manual_seed(scenario) if not r.get('call')][:300]
 
     @api.model
     def _manual_binding_fits(self, bindings, scenario):
         """繫結能否直接沿用到另一個情境：情境示範資料的 xmlid 都在，模組 xmlid 一律可用。"""
-        seed = {r['xmlid'] for r in self._manual_seed(scenario)}
+        seed = {r['xmlid'] for r in self._manual_seed(scenario) if not r.get('call')}
         return all(isinstance(x, str) and (not x.startswith('__doc_scenario_') or x in seed)
                    for x in bindings.values())
 
@@ -434,7 +434,8 @@ class KnowledgeHooks(models.AbstractModel):
         if not logins or not feature.model:
             return {}
         seed = self._manual_seed(sandbox.scenario_id)
-        record_xid = next((r['xmlid'] for r in seed if r['model'] == feature.model), None)
+        record_xid = next((r['xmlid'] for r in seed
+                           if r['model'] == feature.model and not r.get('call')), None)
         steps = []
         if feature.kind in ('action', 'menu', 'client') and (
                 feature.action_xmlid or feature.kind == 'action'):
@@ -532,7 +533,19 @@ class KnowledgeHooks(models.AbstractModel):
         for sid, b in by_id.items():
             r = (result.get('shots') or {}).get(sid) or {'ok': False, 'error': _('沒有結果')}
             if not r.get('ok'):
+                if (r.get('error') or '').startswith('畫面出現錯誤對話框'):
+                    self._manual_retire_assets(b)
                 self._manual_fail(b, r.get('error') or '', result=r)
+                failed |= b
+                continue
+            empty = [i.get('name') for i in r.get('images') or []
+                     if i.get('empty') and not i.get('is_probe')]
+            if empty:
+                # ★ 空白引導頁不採用：入門說明拍一張「目前沒有資料」沒有意義。
+                #   原因幾乎都是示範資料不足（或篩選把資料濾掉），AI 改腳本修不好，不送 AI 修補。
+                self._manual_retire_assets(b)
+                self._manual_fail(b, _('畫面是空白引導頁（示範資料不足或被篩選濾掉）：%s')
+                                  % ', '.join(empty), result=r, repair=False)
                 failed |= b
                 continue
             if r.get('transitions') and b.template_id.feature_id.model:
@@ -553,6 +566,14 @@ class KnowledgeHooks(models.AbstractModel):
                         shot_scope_hash=b.template_id.fingerprint)
             b.write(vals)
         return failed
+
+    @api.model
+    def _manual_retire_assets(self, binding):
+        """撤下這個繫結目前採用的截圖（重拍確認畫面是空白或錯誤對話框時）：
+        不然文章仍配著先前拍到的壞圖。"""
+        assets = binding.current_assets()
+        if assets:
+            assets.sudo().write({'state': 'superseded', 'superseded_at': fields.Datetime.now()})
 
     @api.model
     def _manual_adopt_images(self, sandbox, binding, images, files, threshold):

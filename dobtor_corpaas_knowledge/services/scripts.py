@@ -373,9 +373,16 @@ def seed_script(module, records, roles, password):
     records: [{'xmlid': 'name', 'model', 'values': {...}}]，values 裡
       '__ref__:<xmlid>' 會解析成 id；list of refs 解析成 [(6,0,ids)]。
       xmlid 不含點時自動加上 module 前綴。
+      動作：{'xmlid': '<步驟名>', 'model', 'call': 'action_confirm', 'ref': '<xmlid>'}
+        依序呼叫記錄的方法（確認訂單、過帳發票…）；方法名只允許 action_／button_ 開頭。
+        ☠️ 只能建記錄時，示範庫裡沒有已確認訂單、已過帳發票、已完成移動，
+          銷售／採購分析、日記帳項目這類畫面全是空的（實機約 35 張空白引導頁）。
     roles: [{'code', 'name', 'groups': [...]}] → 建 res.users（xmlid user_<code>）。
+      ★ 先建帳號再建記錄：單據才能指定給角色帳號（__ref__:user_sales），
+        否則「我的報價單」這類預設篩選拍出來是空的。
     """
     return _HEAD + (
+        "import re\n"
         "MODULE = %r\n"
         "RECORDS = json.loads(%r)\n"
         "ROLES = json.loads(%r)\n"
@@ -389,16 +396,6 @@ def seed_script(module, records, roles, password):
         "        return [(6, 0, [env.ref(_full(x[8:])).id for x in v])]\n"
         "    return v\n"
         "done, errors = 0, []\n"
-        "for rec in RECORDS:\n"
-        "    try:\n"
-        "        with env.cr.savepoint():\n"
-        "            vals = {k: _resolve(v) for k, v in (rec.get('values') or {}).items()}\n"
-        "            env[rec['model']].sudo().with_context(tracking_disable=True,\n"
-        "                mail_create_nolog=True, no_reset_password=True)._load_records([\n"
-        "                {'xml_id': _full(rec['xmlid']), 'values': vals, 'noupdate': False}])\n"
-        "        done += 1\n"
-        "    except Exception as e:\n"
-        "        errors.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model'), 'error': str(e)[:500]})\n"
         "users = {}\n"
         "for r in ROLES:\n"
         "    try:\n"
@@ -412,6 +409,23 @@ def seed_script(module, records, roles, password):
         "            users[r['code']] = u.login\n"
         "    except Exception as e:\n"
         "        errors.append({'xmlid': 'user_' + r['code'], 'model': 'res.users', 'error': str(e)[:500]})\n"
+        "for rec in RECORDS:\n"
+        "    try:\n"
+        "        with env.cr.savepoint():\n"
+        "            if rec.get('call'):\n"
+        "                if not re.match(r'^(action|button)_[a-z0-9_]+$', rec['call']):\n"
+        "                    raise ValueError('不允許的方法：%%s' %% rec['call'])\n"
+        "                target = env.ref(_full(rec['ref'])).sudo().with_context(\n"
+        "                    tracking_disable=True, mail_create_nolog=True, mail_notrack=True)\n"
+        "                getattr(target, rec['call'])()\n"
+        "            else:\n"
+        "                vals = {k: _resolve(v) for k, v in (rec.get('values') or {}).items()}\n"
+        "                env[rec['model']].sudo().with_context(tracking_disable=True,\n"
+        "                    mail_create_nolog=True, no_reset_password=True)._load_records([\n"
+        "                    {'xml_id': _full(rec['xmlid']), 'values': vals, 'noupdate': False}])\n"
+        "        done += 1\n"
+        "    except Exception as e:\n"
+        "        errors.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model'), 'error': str(e)[:500]})\n"
         "env.cr.commit()\n"
         "print(MARK + json.dumps({'done': done, 'errors': errors, 'users': users}))\n"
     ) % (module, json.dumps(records), json.dumps(roles), password)

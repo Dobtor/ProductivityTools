@@ -138,6 +138,23 @@ def _settle(page, extra_ms=400):
     except Exception:  # noqa: BLE001 - 沒有這些元素就算穩定
         pass
     page.wait_for_timeout(extra_ms)
+    _fail_on_error_dialog(page)
+
+
+def _fail_on_error_dialog(page):
+    """畫面跳出 Odoo 的錯誤對話框（動作不存在、權限不足…）就讓這張圖失敗。
+
+    ☠️ 沒有這道檢查時，AI 猜錯動作代號拍到的「缺漏動作」對話框照樣被採用（實機 5 張）。
+    """
+    dlg = page.locator('.o_error_dialog')
+    if dlg.count():
+        title = ''
+        try:
+            title = dlg.first.locator('.modal-title').inner_text(timeout=1000)
+            body = dlg.first.locator('.modal-body').inner_text(timeout=1000)[:200]
+        except Exception:  # noqa: BLE001
+            body = ''
+        raise RuntimeError('畫面出現錯誤對話框：%s %s' % (title.strip(), body.strip()))
 
 
 class Recorder:
@@ -325,10 +342,14 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None)
         elif kind == 'shot':
             name = arg if isinstance(arg, str) else arg.get('name')
             path = os.path.join(out_dir, '%s.png' % name)
+            _fail_on_error_dialog(page)
             page.screenshot(path=path, full_page=False)
             pairs, refs = recorder.dump()
+            # 空白引導頁（沒有資料的清單／看板／報表）：照拍，但標記出來由控制台決定不採用
+            empty = bool(page.locator('.o_view_nocontent:visible').count())
             images.append({'name': name, 'file': os.path.relpath(path, OUT_DIR),
-                           'regions': regions, 'records': pairs, 'refs': refs})
+                           'regions': regions, 'records': pairs, 'refs': refs,
+                           'empty': empty})
             regions = []
         else:
             raise ValueError('未知步驟：%s' % kind)
