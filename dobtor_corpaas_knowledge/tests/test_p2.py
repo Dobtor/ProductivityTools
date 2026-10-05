@@ -344,3 +344,64 @@ class TestProposalReview(TransactionCase):
         self.assertEqual(sel.proposal_outcome, '賣得更快')
         action = self.env.ref('dobtor_corpaas_knowledge.action_kb_selection')
         self.assertIn('search_default_kind_capability', action.context)
+
+
+@tagged('post_install', '-at_install')
+class TestAutoChain(TransactionCase):
+    """核准後自動接續：情境提案 → AI 起草示範資料；示範資料核准 → 全量更新。"""
+
+    def setUp(self):
+        super().setUp()
+        tmpl = self.env['product.template'].create({'name': 'CHAIN', 'type': 'service'})
+        self.pkg = self.env['infrastructure.solution.package'].sudo().create(
+            {'product_tmpl_id': tmpl.id, 'knowledge_enabled': True})
+        self.approver = self.env['res.users'].create({
+            'name': 'kb chain approver', 'login': 'kb_chain_approver',
+            'groups_id': [(6, 0, [self.env.ref('base.group_user').id,
+                                  self.env.ref('dobtor_corpaas_knowledge.group_knowledge_approver').id])]})
+
+    def test_scenario_proposal_approval_drafts_seed(self):
+        Sc = type(self.env['corpaas.knowledge.scenario'])
+        drafted = []
+        sel = self.env['corpaas.knowledge.selection'].sudo().create({
+            'package_id': self.pkg.id, 'kind': 'scenario',
+            'proposal_json': json.dumps({'name': '晨光', 'code': 'kbt_chain',
+                                         'roles': [{'code': 'sales', 'name': '業務',
+                                                    'groups': ['sales_team.group_sale_salesman']}]})})
+        with patch.object(Sc, 'action_ai_draft_seed', lambda s: drafted.append(s.code)):
+            sel._knowledge_approve()
+        self.assertEqual(drafted, ['kbt_chain'])
+
+    def test_failed_auto_draft_does_not_block_approval(self):
+        Sc = type(self.env['corpaas.knowledge.scenario'])
+        sel = self.env['corpaas.knowledge.selection'].sudo().create({
+            'package_id': self.pkg.id, 'kind': 'scenario',
+            'proposal_json': json.dumps({'name': '晨光2', 'code': 'kbt_chain2'})})
+
+        def boom(s):
+            raise UserError('母體沒有黃金庫')
+        with patch.object(Sc, 'action_ai_draft_seed', boom):
+            sel._knowledge_approve()
+        self.assertEqual(sel.state, 'approved')
+        self.assertTrue(sel.scenario_id)
+
+    def test_seed_approval_enqueues_full_refresh_once(self):
+        Pkg = type(self.pkg)
+        Sc = type(self.env['corpaas.knowledge.scenario'])
+        calls = []
+        sc = self.env['corpaas.knowledge.scenario'].sudo().create({
+            'name': '晨光3', 'code': 'kbt_chain3', 'narrative': 'n',
+            'package_ids': [(6, 0, self.pkg.ids)],
+            'seed_json': _seed({'xmlid': 'p', 'model': 'res.partner', 'values': {'name': 'A'}})})
+        with patch.object(Sc, '_enqueue_seed_check', lambda s, **kw: False), \
+                patch.object(Pkg, 'knowledge_enqueue_refresh',
+                             lambda s, **kw: calls.append((s.ids, kw))):
+            sc.knowledge_propose('new')
+            self.assertEqual(sc.state, 'review')
+            sc.with_user(self.approver).action_approve()
+            self.assertEqual(calls, [([self.pkg.id], {'full': True, 'reason': 'seed_approved'})])
+            # 只改敘事再核准：不排更新
+            sc.narrative = '改敘事'
+            sc.knowledge_propose('new')
+            sc.with_user(self.approver).action_approve()
+            self.assertEqual(len(calls), 1)

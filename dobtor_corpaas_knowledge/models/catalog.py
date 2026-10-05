@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """能力、情境、示範資料包、素材、圈選提案。"""
 import html as html_mod
+import logging
 import json
 import re
 
@@ -8,6 +9,8 @@ from ..services import search_lib
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+
+_logger = logging.getLogger(__name__)
 
 SEED_CHECK_STATES = [('queued', '排隊中'), ('running', '檢查中'), ('ok', '通過'),
                      ('issues', '有問題'), ('failed', '檢查失敗')]
@@ -308,6 +311,36 @@ class KnowledgeScenario(models.Model):
         return (live.get('seed_json') or '[]') != (self.seed_json or '[]') \
             or sorted(live.get('pack_ids') or []) != sorted(self.pack_ids.ids)
 
+    def _knowledge_auto_draft_seed(self):
+        """核准圈選提案後自動接續：沒有示範資料的情境排 AI 起草；排不了只記一筆，不擋核准。"""
+        for sc in self.filtered(lambda r: not r.seed_json and r.package_ids):
+            try:
+                with self.env.cr.savepoint():
+                    sc.sudo().action_ai_draft_seed()
+            except Exception as e:  # noqa: BLE001 — 母體沒準備好之類：人可以之後再按
+                _logger.warning('[knowledge] 情境 %s 自動起草示範資料略過：%s', sc.code, e)
+        return True
+
+    def action_approve(self):
+        """核准示範資料後自動接續：排一次全量更新（建說明庫、拍照、起草說明）。
+
+        ★ 只在人工核准時接續：AI 修補示範資料在更新中途自動上線，再觸發更新會循環。"""
+        seeded = self.filtered(lambda r: r._seed_changed())
+        res = super().action_approve()
+        seeded._knowledge_refresh_packages()
+        return res
+
+    def _knowledge_refresh_packages(self, reason='seed_approved'):
+        packages = self.mapped('package_ids').filtered('knowledge_enabled')
+        if not packages:
+            return packages
+        try:
+            with self.env.cr.savepoint():
+                packages.sudo().knowledge_enqueue_refresh(full=True, reason=reason)
+        except Exception as e:  # noqa: BLE001 — 排不了只記一筆，核准照樣成立
+            _logger.warning('[knowledge] 示範資料核准後排更新失敗：%s', e)
+        return packages
+
     def action_seed_check(self):
         self.ensure_one()
         self._enqueue_seed_check(raise_if_no_package=True)
@@ -573,6 +606,11 @@ class KnowledgeSeedPack(models.Model):
             visit(pack)
         return out
 
+    def action_approve(self):
+        res = super().action_approve()
+        self.mapped('scenario_ids')._knowledge_refresh_packages(reason='pack_approved')
+        return res
+
     def knowledge_propose(self, change, note=None):
         """資料包改了：用到它的情境各自重播檢查一次（A3）。"""
         res = super().knowledge_propose(change, note=note)
@@ -797,6 +835,8 @@ class KnowledgeSelection(models.Model):
                 if sc:
                     sc.package_ids = [(4, rec.package_id.id)]
                     rec.scenario_id = sc
+                    # ★ 自動接續：新情境還沒有示範資料 → 直接排 AI 起草（結果送審）
+                    sc._knowledge_auto_draft_seed()
             elif rec.kind == 'capability':
                 cap = rec.capability_id or rec._create_proposed_capability()
                 if cap:
