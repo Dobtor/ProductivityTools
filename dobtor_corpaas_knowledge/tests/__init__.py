@@ -14,3 +14,4 @@ from . import test_official_coverage
 from . import test_toggles
 from . import test_package_layer
 from . import test_isolated
+from . import test_doc_server_components

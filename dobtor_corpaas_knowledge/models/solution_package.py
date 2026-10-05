@@ -57,6 +57,12 @@ class SolutionPackage(models.Model):
         string='納入 Odoo 官方模組', default=True,
         help='盤點範圍除了方案模組，再加上黃金庫實際安裝的 Odoo 官方模組（扣除排除清單）；'
              '官方模組只盤選單與選單動作。')
+    knowledge_document_native = fields.Boolean(
+        string='原生畫面也製作操作說明',
+        help='預設（不勾）：沒被客製過的 Odoo 原生畫面不寫操作說明，說明查詢改連 Odoo 官方文件'
+             '（不重寫一份官方已有的內容）。\n'
+             '勾選：原生畫面也截圖並起草操作說明——適合「帶客戶認識原生功能」的方案'
+             '（例如原生進銷存導覽）。')
     knowledge_official_exclude = fields.Char(
         string='追加排除的官方模組',
         help='逗號分隔，可用萬用字元（例如 website_*）；與設定頁的全域排除清單合併。')
@@ -277,6 +283,16 @@ class SolutionPackage(models.Model):
                 env = self.env(cr=cr)
                 env[self._name].sudo().browse(rec.id).write(vals)
                 env.flush_all()
+
+    def _knowledge_documents_feature(self, feature):
+        """這個方案要不要替這個功能製作操作說明（K21＋原生開關）。
+
+        沒被客製過的官方畫面預設不寫（連 Odoo 官方文件）；方案勾了「原生畫面也製作
+        操作說明」就照寫。"""
+        self.ensure_one()
+        if feature.module_origin != 'odoo' or feature.attr_for(self, 'customized'):
+            return True
+        return bool(self.knowledge_document_native)
 
     def _knowledge_take_pending_full(self):
         self.ensure_one()

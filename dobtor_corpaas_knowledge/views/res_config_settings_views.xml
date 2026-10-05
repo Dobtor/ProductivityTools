@@ -9,6 +9,11 @@
                 <block title="方案知識（說明書／行銷／建議書）" name="knowledge_block">
                     <setting string="說明主機" help="只在這台主機上的方案母體製作素材；方案沒有在這台上架就擋下。">
                         <field name="knowledge_doc_server_id"/>
+                        <div class="mt-2" invisible="not knowledge_doc_server_id">
+                            <button name="action_knowledge_prepare_doc_server" type="object"
+                                    string="準備說明主機" icon="fa-download" class="btn-link"
+                                    confirm="會檢查說明主機的元件（中文字型、截圖映像），缺的排入佇列安裝。確定？"/>
+                        </div>
                     </setting>
                     <setting string="AI Hub" help="content 模式的網址與金鑰（ai.hub.source 的 uplink 金鑰）。">
                         <field name="knowledge_hub_url" placeholder="https://ai.corpaas.com"/>

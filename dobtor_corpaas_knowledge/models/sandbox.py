@@ -104,6 +104,10 @@ class KnowledgeSandbox(models.Model):
             if not golden or golden.golden_state != 'verified':
                 raise UserError(_('母體「%s」沒有已驗證的黃金庫，不能建立說明庫。')
                                 % master.display_name)
+            # 複製黃金庫一次吃好幾 GB：主機硬碟紅燈或空間不夠先擋下（PAAS 硬碟閘）
+            server = master.server_id
+            if hasattr(server, '_assert_disk_room'):
+                server._assert_disk_room(_('建立說明庫'), need_gb=2)
             scenario = self.scenario_id
             # ★ 只重播核准過的示範資料：AI 修補後還在待核的腳本不能拿來拍對外的圖。
             seed = scenario.live_seed()
@@ -224,7 +228,8 @@ class KnowledgeSandbox(models.Model):
                 self.env, self, [shot], self.env['res.config.settings'].knowledge_shot_settings())
         except Exception as e:  # noqa: BLE001
             self.write({'selftest_ok': False, 'selftest_at': fields.Datetime.now(),
-                        'selftest_report': _('截圖容器執行失敗：%s') % str(e)[:2000]})
+                        'selftest_report': _('截圖容器執行失敗：%s') % str(e)[:2000]
+                        + self._selftest_component_hint()})
             return False
         r = (result.get('shots') or {}).get('selftest') or {}
         checks.append((_('登入與步驟'), bool(r.get('ok')), r.get('error') or ''))
@@ -241,9 +246,22 @@ class KnowledgeSandbox(models.Model):
                        ', '.join(fonts[:5]) or result.get('cjk_fonts_error') or _('找不到')))
         ok = all(c[1] for c in checks)
         report = '\n'.join('%s %s：%s' % ('✓' if c[1] else '✗', c[0], c[2]) for c in checks)
+        if not ok:
+            report += self._selftest_component_hint()
         self.write({'selftest_ok': ok, 'selftest_at': fields.Datetime.now(),
                     'selftest_report': report})
         return ok
+
+    def _selftest_component_hint(self):
+        """自我檢查失敗時，指出說明主機缺哪些主機元件（PAAS 主機元件頁可一鍵安裝）。"""
+        server = self.master_instance_id.server_id
+        if not server or not hasattr(server, '_knowledge_missing_components'):
+            return ''
+        missing = server._knowledge_missing_components()
+        if not missing:
+            return ''
+        return '\n' + _('說明主機缺少元件：%s（到主機的「主機元件」頁按「安裝必要元件」，'
+                         '或在設定頁按「準備說明主機」）') % '、'.join(missing)
 
     def _enqueue_op(self, op):
         """☠️ 不在網頁請求裡跑：複製＋三輪清除＋示範資料要好幾分鐘，worker 被

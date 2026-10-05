@@ -52,6 +52,7 @@
                     </group>
                     <group string="盤點範圍">
                         <field name="knowledge_include_official" readonly="1"/>
+                        <field name="knowledge_document_native" readonly="1"/>
                         <field name="knowledge_official_exclude" readonly="1"
                                invisible="not knowledge_include_official"/>
                     </group>

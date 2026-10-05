@@ -48,6 +48,11 @@ class TestPackageLayer(TransactionCase):
             self.b.knowledge_capability_ids = [(4, cap.id)]
             self.assertIn(self.f, Hooks._manual_candidates(self.a))
             self.assertNotIn(self.f, Hooks._manual_candidates(self.b))
+            # 方案勾了「原生畫面也製作操作說明」：沒改過的官方畫面照樣寫（原生功能導覽型方案）
+            self.b.knowledge_document_native = True
+            self.assertIn(self.f, Hooks._manual_candidates(self.b))
+            self.a.knowledge_document_native = False
+            self.assertIn(self.f, Hooks._manual_candidates(self.a), 'A 是因為改過才寫，與開關無關')
 
     def test_toggle_state_is_per_package(self):
         T = self.env['corpaas.knowledge.toggle']

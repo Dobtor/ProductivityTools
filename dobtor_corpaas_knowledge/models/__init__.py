@@ -13,3 +13,4 @@ from . import solution_package
 from . import coverage
 from . import corpaas_queue
 from . import res_config_settings
+from . import host_component

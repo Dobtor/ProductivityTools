@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 
 from .solution_package import OFFICIAL_EXCLUDE_DEFAULT
 
@@ -49,6 +49,15 @@ class ResConfigSettings(models.TransientModel):
         super().set_values()
         self.env['ir.config_parameter'].sudo().set_param(
             'corpaas_knowledge.doc_server_id', self.knowledge_doc_server_id.id or '')
+
+    def action_knowledge_prepare_doc_server(self):
+        """一鍵準備說明主機：檢查並排入安裝缺的元件（中文字型、截圖映像…）。"""
+        self.execute()
+        server = self.knowledge_doc_server_id
+        if not server:
+            from odoo.exceptions import UserError
+            raise UserError(_('請先選擇說明主機。'))
+        return server.action_host_prepare_required()
 
     @api.model
     def knowledge_shot_settings(self):

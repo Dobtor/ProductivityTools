@@ -151,10 +151,11 @@ class KnowledgeHooks(models.AbstractModel):
                 out.setdefault(feature, cap)
         renamed_to = self.env['corpaas.knowledge.rename'].sudo().search(
             [('state', '=', 'proposed')]).mapped('new_feature_id')
-        # ★ 沒被改過的官方畫面不寫文章（K21）：說明連到 Odoo 官方文件，不重寫一份。
+        # ★ 沒被改過的官方畫面不寫文章（K21）：說明連到 Odoo 官方文件，不重寫一份——
+        #   除非方案勾了「原生畫面也製作操作說明」（帶客戶認識原生功能的方案）。
         return {f: c for f, c in out.items()
                 if f.model and f not in renamed_to and f.is_present_in(package)
-                and not (f.module_origin == 'odoo' and not f.attr_for(package, 'customized'))}
+                and package._knowledge_documents_feature(f)}
 
     @api.model
     def _manual_sorted_candidates(self, package):

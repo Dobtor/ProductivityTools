@@ -33,6 +33,7 @@
                     </group>
                     <group string="盤點範圍">
                         <field name="knowledge_include_official"/>
+                        <field name="knowledge_document_native"/>
                         <field name="knowledge_official_exclude"
                                invisible="not knowledge_include_official"
                                placeholder="例如 website_*, event"/>
