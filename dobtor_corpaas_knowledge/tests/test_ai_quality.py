@@ -121,6 +121,40 @@ class TestAiQuality(TransactionCase):
         self.assertFalse(f.classify_pending)
         self.assertEqual(f.intents, '盤點\n庫存 盤點', '同義詞去重')
 
+    def test_cold_start_clusters_into_few_capabilities(self):
+        """方案沒有能力、一次 20 個功能點：先分群，新能力只能用分出的名稱（實機曾提 71 個）。"""
+        feats = [self._feature('x_aq.c%02d' % i, classify_pending=True) for i in range(20)]
+        names = ['銷售報價', '庫存作業']
+        items = [{'key': f.feature_key, 'new_capability': names[i % 2]} for i, f in
+                 enumerate(feats[:18])]
+        items.append({'key': feats[18].feature_key, 'new_capability': '銷售報價單設定'})
+        items.append({'key': feats[19].feature_key, 'new_capability': '條碼分隔符設定'})
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        prompts = []
+
+        def ask(s, purpose, prompt, **kw):
+            prompts.append(prompt)
+            return {'capabilities': [{'name': n, 'outcome': n + '的成果'} for n in names],
+                    'items': items}
+
+        with patch.object(Ai, 'ask', ask):
+            self.pkg._knowledge_ai_catalog(self.Feature, 'tok')
+        self.assertIn('6–10 個業務能力', prompts[0])
+        props = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'capability')])
+        self.assertEqual(sorted(props.mapped('proposal_name')), sorted(names),
+                         '只有分出來的兩個能力，不會一個功能點一個')
+        sales = props.filtered(lambda p: p.proposal_name == '銷售報價')
+        data = json.loads(sales.proposal_json)
+        self.assertIn(feats[18].feature_key, data['features'], '清單外的名稱靠到最像的一群')
+        self.assertEqual(data['outcome'], '銷售報價的成果')
+        orphan = self.Sel.search([('feature_id', '=', feats[19].id)])
+        self.assertTrue(orphan and not orphan.capability_id, '都不像的先不歸，不另開能力')
+
+    def test_small_batch_does_not_cluster(self):
+        f = self._feature('x_aq.s1', classify_pending=True)
+        prompts = self._classify([{'key': f.feature_key, 'new_capability': '排班管理'}])
+        self.assertNotIn('6–10 個業務能力', prompts[0])
+
     def test_similar_new_capabilities_grouped_into_one_proposal(self):
         f1 = self._feature('x_aq.g1', classify_pending=True)
         f2 = self._feature('x_aq.g2', classify_pending=True)

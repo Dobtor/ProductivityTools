@@ -21,6 +21,10 @@ from odoo.exceptions import AccessError, UserError
 from ..services import fingerprint_lib, hub_client, remote, scripts, search_lib, txn
 from .toggle import CLASS_RANK, classification_of
 
+#: 方案能力少於這個數、而且一次待歸類的功能點不少於 CLUSTER_MIN_FEATURES：先分群再歸類
+CLUSTER_MAX_CAPS = 3
+CLUSTER_MIN_FEATURES = 15
+
 _logger = logging.getLogger(__name__)
 
 #: 指紋一次 odoo shell 處理的功能點數。每次 shell 都要重載整個 registry，分太細＝多次載入；
@@ -1298,14 +1302,25 @@ class SolutionPackage(models.Model):
         batch = todo[:80]
         payload = [{'key': f.feature_key, 'kind': f.kind, 'name': f.name,
                     'menu_path': f.menu_path, 'model': f.model} for f in batch]
+        # ★ 從零開始（方案還幾乎沒有能力、一次來一大批）：先分群再歸類。
+        #   逐一歸類時 AI 找不到可用的能力，幾乎每個功能點各提一個新能力（實機 108 個功能點
+        #   提了 71 個），核准者得逐一排除。改成先分出 6–10 個能力，新能力名稱只能從中挑。
+        cluster = len(mine) < CLUSTER_MAX_CAPS and len(batch) >= CLUSTER_MIN_FEATURES
+        group_rule = (
+            "本方案目前幾乎沒有能力：請先把這批功能點分成 6–10 個業務能力（依使用者要完成的"
+            "工作分，例如聯絡人、產品、銷售、採購、庫存、應收付；設定頁與報表歸到它服務的那個能力，"
+            "不要單獨成一個能力），每個能力至少涵蓋 3 個功能點，放在 capabilities；"
+            "new_capability 只能填 capabilities 裡的名稱。\n") if cluster else ''
         prompt = (
             "以下是方案「%s」改版後新增的功能點，以及既有的能力（in_package 表示已在本方案）。\n"
+            "%s"
             "請為每個功能點：(1) 建議歸入哪個能力（用能力 code；優先用本方案的，其次全域既有的；"
             "都不適合才給 new_capability 名稱）；(2) 產生 3–6 個使用者可能的問法或同義詞。\n"
-            "回覆格式：{\"items\":[{\"key\":…,\"capability\":…|null,"
+            "回覆格式：{%s\"items\":[{\"key\":…,\"capability\":…|null,"
             "\"new_capability\":…|null,\"reason\":…,\"intents\":[…]}]}\n\n"
             "能力：%s\n\n功能點：%s"
-        ) % (self.display_name,
+        ) % (self.display_name, group_rule,
+             '\"capabilities\":[{\"name\":…,\"outcome\":…,\"pain\":…}],' if cluster else '',
              json.dumps([{'code': c.code, 'name': c.name, 'outcome': c.outcome,
                           'in_package': c in mine} for c in caps], ensure_ascii=False),
              json.dumps(payload, ensure_ascii=False))
@@ -1322,6 +1337,13 @@ class SolutionPackage(models.Model):
         by_key = {f.feature_key: f for f in batch}
         by_code = {c.code: c for c in caps}
         groups = []  # [(代表名稱, [items])]
+        planned = {}  # 分群模式：AI 分出的能力 {名稱: {outcome, pain}}
+        if cluster:
+            for c in (data or {}).get('capabilities') or []:
+                if isinstance(c, dict) and isinstance(c.get('name'), str) and c['name'].strip():
+                    planned[c['name'].strip()] = {'outcome': c.get('outcome'), 'pain': c.get('pain')}
+            for name in planned:
+                groups.append((name, []))
         for item in (data or {}).get('items') or []:
             feature = by_key.get(item.get('key'))
             if not feature:
@@ -1332,6 +1354,10 @@ class SolutionPackage(models.Model):
                 feature._knowledge_add_intents(intents)
             cap = by_code.get(item.get('capability'))
             new_name = item.get('new_capability') if not cap else None
+            if planned and isinstance(new_name, str) and new_name not in planned:
+                # 分群模式：清單外的名稱靠到最像的一群；都不像就先不歸（共通操作）
+                best = max(planned, key=lambda n: search_lib.similarity(n, new_name))
+                new_name = best if search_lib.similarity(best, new_name) >= 0.3 else None
             if new_name and isinstance(new_name, str):
                 existing = Cap._knowledge_find_by_name(new_name)
                 if existing:
@@ -1343,20 +1369,24 @@ class SolutionPackage(models.Model):
                     'reason': item.get('reason'),
                     'score': feature.attr_for(self, 'usage_score') or 0})
                 continue
-            for group in groups:
-                if search_lib.similarity(group[0], new_name) >= 0.5:
-                    group[1].append((feature, item))
-                    break
+            exact = [g for g in groups if g[0] == new_name]
+            similar = exact or ([] if planned else [
+                g for g in groups if search_lib.similarity(g[0], new_name) >= 0.5])
+            if similar:
+                similar[0][1].append((feature, item))
             else:
                 groups.append((new_name, [(feature, item)]))
         for name, members in groups:
+            if not members:
+                continue
             Selection._knowledge_upsert({
                 'package_id': self.id, 'kind': 'capability',
-                'proposal_json': json.dumps({
+                'proposal_json': json.dumps(dict({
                     'new_capability': name,
                     'features': [f.feature_key for f, _i in members],
                     'aliases': sorted({i.get('new_capability') for _f, i in members} - {name}),
-                }, ensure_ascii=False),
+                }, **{k: v for k, v in planned.get(name, {}).items() if v}),
+                    ensure_ascii=False),
                 'reason': '\n'.join(filter(None, (i.get('reason') for _f, i in members)))[:2000],
                 'score': sum(f.attr_for(self, 'usage_score') or 0 for f, _i in members)})
 
