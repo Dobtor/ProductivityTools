@@ -158,7 +158,7 @@ class TestAiQuality(TransactionCase):
 
         def ask(s, purpose, prompt, **kw):
             prompts.append(prompt)
-            return replies.pop(0)
+            return replies[-1]   # 重問（契約不符）時回同一份
 
         replies.append({'capabilities': [{'name': '銷售', 'outcome': '賣東西'},
                                          {'name': '庫存', 'outcome': '管倉庫'}],
@@ -177,8 +177,9 @@ class TestAiQuality(TransactionCase):
                                   {'key': second[3].feature_key, 'new_capability': '丙'}]})
         with patch.object(Ai, 'ask', ask):
             self.pkg._knowledge_ai_catalog(self.Feature, 'tok')
-        self.assertIn('已有待審的能力提案：', prompts[1])
-        self.assertIn('銷售', prompts[1])
+        second_prompt = [p for p in prompts if '已有待審的能力提案：' in p]
+        self.assertTrue(second_prompt)
+        self.assertIn('銷售', second_prompt[0])
         props = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'capability')])
         self.assertEqual(sorted(props.mapped('proposal_name')), ['倉儲管理', '庫存', '銷售'],
                          '沿用兩個舊名稱；新提的最多兩個（丙排在第五個、被捨棄）')
@@ -209,7 +210,7 @@ class TestAiQuality(TransactionCase):
         with patch.object(Ai, 'ask', ask):
             self.pkg._knowledge_ai_catalog(self.Feature, 'tok')
         self.assertIn('不可用英文', calls[0][1])
-        self.assertEqual(calls[1][0], 'capability_name')
+        self.assertIn('capability_name', [c[0] for c in calls])
         names = sorted(self.Sel.search([('package_id', '=', self.pkg.id),
                                         ('kind', '=', 'capability')]).mapped('proposal_name'))
         self.assertEqual(names, ['sales', '應收付與會計'],

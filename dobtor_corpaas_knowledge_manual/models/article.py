@@ -30,6 +30,14 @@ from .placement import BATCH_KEY, sync_batch
 _logger = logging.getLogger(__name__)
 
 
+#: 文字檢查預設禁用字句（一行一個正規表示式；系統參數 corpaas_knowledge.text_banned 可覆寫）
+TEXT_BANNED = '\n'.join([
+    r'[（(]系統原文', r'TODO', r'(?i)lorem ipsum', r'\{\{', r'XXX',
+])
+#: 常見簡體字（繁體文件不會出現）
+SIMPLIFIED_CHARS = '这为们说时发开关过还进单应个对会来么经现实务样点让认识计记设调导选择'
+
+
 class KnowledgeArticle(models.Model):
     _name = 'corpaas.knowledge.article'
     _description = '操作說明：文章'
@@ -212,6 +220,48 @@ class KnowledgeArticle(models.Model):
             rec.manual_shots_problem = rec._manual_shots_problem()
             rec.manual_shots_ready = not rec.manual_shots_problem
 
+    manual_text_problem = fields.Text(string='文字檢查', compute='_compute_manual_text_problem')
+
+    def _compute_manual_text_problem(self):
+        for rec in self:
+            rec.manual_text_problem = '\n'.join(rec._manual_text_problems()) or False
+
+    def _manual_text_problems(self):
+        """文字檢查（通用化第三階段）：禁用詞、簡體字、技術欄位名、沒有圖的截圖標記。
+
+        禁用詞可在系統參數 corpaas_knowledge.text_banned 增減（一行一個正規表示式）。"""
+        self.ensure_one()
+        import re
+        texts = [self.name or '', self.scenario_html or ''] + \
+            [b.html or '' for b in self.step_block_ids]
+        # 截圖標記（[[shot:main_list]]）不算文字：標記名稱本來就是英數底線
+        plain = re.sub(r'\[\[[^\]]*\]\]|<[^>]+>', ' ', '\n'.join(texts))
+        problems = []
+        if not self.step_block_ids:
+            problems.append(_('沒有操作步驟'))
+        raw = self.env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.text_banned')
+        banned = [x.strip() for x in (raw or TEXT_BANNED).splitlines() if x.strip()]
+        for pat in banned:
+            try:
+                hit = re.search(pat, plain)
+            except re.error:
+                continue
+            if hit:
+                problems.append(_('含禁用字句「%s」') % hit.group(0))
+        simp = sorted(set(re.findall('[%s]' % SIMPLIFIED_CHARS, plain)))
+        if simp:
+            problems.append(_('含簡體字：%s') % ''.join(simp[:10]))
+        tech = sorted(set(re.findall(r'\b[a-z]+(?:_[a-z0-9]+)+\b', plain)))
+        if tech:
+            problems.append(_('含技術欄位名：%s') % '、'.join(tech[:5]))
+        names = set(re.findall(r'\[\[shot:([^\]]+)\]\]', '\n'.join(texts)))
+        if names and self.shot_binding_id:
+            have = set(self.asset_ids.filtered(lambda a: a.state == 'current').mapped('shot_name'))
+            missing = sorted(n for n in names if n not in have)
+            if missing:
+                problems.append(_('截圖標記沒有對應的圖：%s') % '、'.join(missing[:5]))
+        return problems
+
     def _manual_approve(self):
         # ★ 截圖沒拍好的文章不讓核准：發佈出去就是一篇配著空白頁或錯誤畫面的說明。
         #   確定要先上線純文字時，可帶 context knowledge_force_approve。
@@ -221,6 +271,11 @@ class KnowledgeArticle(models.Model):
             if bad:
                 raise UserError(_('以下文章的截圖尚未就緒，先重拍或修補後再核准：\n%s')
                                 % '\n'.join('・%s：%s' % (r.name, p) for r, p in bad))
+            lint = [(r, r._manual_text_problems()) for r in self]
+            lint = [(r, p) for r, p in lint if p]
+            if lint:
+                raise UserError(_('以下文章沒通過文字檢查，修改後再核准：\n%s')
+                                % '\n'.join('・%s：%s' % (r.name, '；'.join(p)) for r, p in lint))
         clean = {rec.id: bool(rec.manual_review_sig)
                  and rec.manual_review_sig == rec._manual_text_sig() for rec in self}
         # ★ B3：一起送審、從沒上線過的新區塊跟文章一起核准（核准者在審核頁看得到它的全文）

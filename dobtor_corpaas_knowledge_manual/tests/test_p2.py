@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """P2：旅程篇與章內依流程排序、起草依能力順序（D1）、成本規劃器的操作說明部分（D3）。"""
+from odoo.exceptions import UserError
 from odoo.tests.common import tagged
 
 from .common import ManualCase
@@ -107,3 +108,42 @@ class TestDraftOrderAndCost(ManualCase):
             t.active = active
         lines = {l['key']: l for l in self.pkg._knowledge_cost_lines()}
         self.assertEqual(lines['repair']['count'], 1, '封存的範本不會再修')
+
+
+@tagged('post_install', '-at_install')
+class TestTextLintAndFailures(ManualCase):
+
+    def test_lint_blocks_approval(self):
+        blk = self._block(self.f1, html='<p>打開这个畫面，填 partner_id。（系統原文 Customer）</p>'
+                                        '<p>[[shot:main_list]]</p>', publish=True)
+        art = self._article(self.f1, self.cap_a, block=blk)
+        problems = art._manual_text_problems()
+        joined = '；'.join(problems)
+        self.assertIn('簡體字', joined)
+        self.assertIn('partner_id', joined)
+        self.assertIn('系統原文', joined)
+        self.assertNotIn('main_list', joined, '截圖標記名稱不算技術欄位')
+        art.knowledge_propose('new')
+        with self.assertRaises(UserError):
+            art.with_user(self.approver).action_approve()
+
+    def test_clean_text_passes(self):
+        art = self._article(self.f1, self.cap_a)
+        self.assertEqual(art._manual_text_problems(), [])
+
+    def test_failure_kinds_feed_scenario_gaps(self):
+        import json
+        hooks = self.hooks
+        self.assertEqual(hooks._manual_failure_kind('畫面是空白引導頁（示範資料不足）'), 'empty')
+        self.assertEqual(hooks._manual_failure_kind('畫面出現錯誤對話框：存取錯誤'), 'access')
+        self.assertEqual(hooks._manual_failure_kind('Locator.click: Timeout'), 'locator')
+        tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
+            'feature_id': self.f2.id, 'login_role': 'admin', 'fingerprint': 'h1',
+            'steps_json': json.dumps([{'shot': 'main'}])})
+        b = self.env['corpaas.knowledge.shot_binding'].sudo().create({
+            'template_id': tmpl.id, 'scenario_id': self.scenario.id, 'state': 'failed',
+            'last_error': '畫面是空白引導頁（示範資料不足或被篩選濾掉）：main'})
+        stats = {}
+        hooks._manual_record_failures(self.scenario, b, stats)
+        self.assertEqual(stats['shots_failed_empty'], 1)
+        self.assertEqual(json.loads(self.scenario.shot_gaps), ['報名確認'])

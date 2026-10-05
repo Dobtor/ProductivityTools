@@ -283,7 +283,11 @@ class KnowledgeSandbox(models.Model):
             report['counts'] = sb._shell(scripts.data_probe_script(items)) if items else {}
             report['labels'] = {k: v for k, v in labels.items() if k in report['counts']}
             empty = [k for k, v in report['counts'].items() if v == 0]
-            state = 'issues' if report['errors'] or empty else 'ok'
+            limit = package._knowledge_profile()['empty_max_pct']
+            report['empty_pct'] = round(100.0 * len(empty) / len(report['counts']), 1) \
+                if report['counts'] else 0
+            report['empty_max_pct'] = limit
+            state = 'issues' if report['errors'] or report['empty_pct'] > limit else 'ok'
         except Exception as e:  # noqa: BLE001 — 檢查失敗也要留下結果
             report['error'] = str(e)[:2000]
             state = 'failed'
@@ -294,7 +298,8 @@ class KnowledgeSandbox(models.Model):
                 _logger.warning('[knowledge] 刪除重播檢查庫 %s 失敗：%s', name, e)
         scenario.write({'seed_check_state': state, 'seed_check_at': fields.Datetime.now(),
                         'seed_check_report': json.dumps(report, ensure_ascii=False)})
-        if state == 'issues' and report.get('errors') and scenario.seed_auto_repairs < 1:
+        from .catalog import MAX_SEED_REPAIRS
+        if state == 'issues' and scenario.seed_auto_repairs < MAX_SEED_REPAIRS:
             try:
                 scenario._ai_repair_seed_from_check(report)
             except Exception as e:  # noqa: BLE001 — 修不了就留給人看檢查結果

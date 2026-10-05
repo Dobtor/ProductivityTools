@@ -121,6 +121,22 @@ class KnowledgeAi(models.AbstractModel):
         return (fields.Datetime.now() + timedelta(hours=8)).date().isoformat()
 
     @api.model
+    def ask_checked(self, purpose, prompt, check, **kw):
+        """結構化契約：AI 回覆先過 check（回傳錯誤清單），不符就帶著錯誤再問一次。
+
+        回傳 (data, errors)：errors 非空＝重問一次仍不符，呼叫端決定是丟掉不符的部分還是交人。
+        ★ 只重問一次：AI 連兩次不照規則，多問幾次通常也一樣，只會燒預算。"""
+        data = self.ask(purpose, prompt, **kw)
+        errors = check(data) or []
+        if not errors:
+            return data, []
+        _logger.info('[knowledge] %s 回覆不符規定，重問一次：%s', purpose, errors[:5])
+        retry = prompt + '\n\n你上一次的回覆不符規定，請修正後重新回覆完整 JSON：\n- ' + \
+            '\n- '.join(str(e) for e in errors[:20])
+        data = self.ask(purpose, retry, **kw)
+        return data, check(data) or []
+
+    @api.model
     def _quota_vals(self):
         """這次呼叫 Hub 回報的今日剩餘額度，記在呼叫紀錄上（取走即清，不沿用到下一次）。
 

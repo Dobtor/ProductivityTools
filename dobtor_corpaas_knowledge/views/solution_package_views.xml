@@ -44,6 +44,21 @@
                                invisible="not knowledge_include_official"
                                placeholder="例如 website_*, event"/>
                     </group>
+                    <group string="方案設定檔（分析條件與門檻）">
+                        <group>
+                            <field name="knowledge_reader"/>
+                            <field name="knowledge_max_scenarios"/>
+                            <label for="knowledge_cap_min" string="能力數範圍"/>
+                            <div class="o_row">
+                                <field name="knowledge_cap_min" nolabel="1"/> –
+                                <field name="knowledge_cap_max" nolabel="1"/>
+                            </div>
+                        </group>
+                        <group>
+                            <field name="knowledge_shot_threshold"/>
+                            <field name="knowledge_empty_max_pct"/>
+                        </group>
+                    </group>
                     <group string="情境與能力">
                         <field name="knowledge_scenario_ids" widget="many2many_tags"/>
                         <field name="knowledge_capability_ids" widget="many2many_tags"/>

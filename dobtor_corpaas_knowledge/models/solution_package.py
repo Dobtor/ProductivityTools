@@ -1336,6 +1336,7 @@ class SolutionPackage(models.Model):
             if name:
                 info = json.loads(sel.proposal_json or '{}')
                 waiting[name] = {'outcome': info.get('outcome'), 'pain': info.get('pain')}
+        profile = self._knowledge_profile()
         cluster = len(mine) < CLUSTER_MAX_CAPS and (
             len(batch) >= CLUSTER_MIN_FEATURES or bool(waiting))
         if cluster and waiting:
@@ -1345,11 +1346,13 @@ class SolutionPackage(models.Model):
                 "功能點）。\n") % '、'.join(waiting)
         elif cluster:
             group_rule = (
-                "本方案目前幾乎沒有能力：請先把這批功能點分成 6–10 個業務能力（依使用者要完成的"
+                "本方案目前幾乎沒有能力：請先把這批功能點分成 %(cap_min)s–%(cap_max)s 個業務能力（依使用者要完成的"
                 "工作分，例如聯絡人、產品、銷售、採購、庫存、應收付；設定頁與報表歸到它服務的那個能力，"
                 "不要單獨成一個能力），每個能力至少涵蓋 3 個功能點，放在 capabilities；"
+                "下方「能力」清單裡其他方案已有的能力適合就直接用它的 code，不要另取近似名稱；"
                 "能力的 name 一律用繁體中文業務用語（2–8 字，例如「銷售」「庫存與倉儲」），"
-                "不可用英文、代碼或底線；new_capability 只能填 capabilities 裡的 name。\n")
+                "不可用英文、代碼或底線；new_capability 只能填 capabilities 裡的 name。\n"
+            ) % profile
         else:
             group_rule = ''
         prompt = (
@@ -1366,8 +1369,33 @@ class SolutionPackage(models.Model):
              json.dumps([{'code': c.code, 'name': c.name, 'outcome': c.outcome,
                           'in_package': c in mine} for c in caps], ensure_ascii=False),
              json.dumps(payload, ensure_ascii=False))
+        def check(data):
+            """分群模式的契約：能力數在範圍內、名稱是中文、引用的新能力都在清單裡。"""
+            if not cluster:
+                return []
+            errs = []
+            names = [c.get('name') for c in (data or {}).get('capabilities') or []
+                     if isinstance(c, dict)]
+            if not waiting and not (profile['cap_min'] <= len(names) <= profile['cap_max']):
+                errs.append('capabilities 要 %s–%s 個，你給了 %s 個'
+                            % (profile['cap_min'], profile['cap_max'], len(names)))
+            errs += ['能力名稱「%s」不是中文業務用語' % n for n in names
+                     if isinstance(n, str) and self._knowledge_name_is_code(n)]
+            allowed = set(names) | set(waiting) | set(by_code_all)
+            stray = sorted({i.get('new_capability') for i in (data or {}).get('items') or []
+                            if isinstance(i, dict) and i.get('new_capability')
+                            and i.get('new_capability') not in allowed})
+            if stray:
+                errs.append('new_capability 只能用 capabilities 的名稱，這些不在清單：%s'
+                            % '、'.join(stray[:10]))
+            return errs
+
+        by_code_all = {c.code for c in caps}
         try:
-            data = Ai.ask('classify_features', prompt, package=self, refresh_token=token)
+            data, problems = Ai.ask_checked('classify_features', prompt, check, package=self,
+                                            refresh_token=token)
+            if problems:
+                _logger.warning('[knowledge] 功能點分群重問後仍不符：%s', problems[:5])
         except hub_client.BudgetExceeded as e:
             self._knowledge_budget_notice(e)
             return
@@ -1451,6 +1479,13 @@ class SolutionPackage(models.Model):
                     ensure_ascii=False),
                 'reason': '\n'.join(filter(None, (i.get('reason') for _f, i in members)))[:2000],
                 'score': sum(f.attr_for(self, 'usage_score') or 0 for f, _i in members)})
+
+    @staticmethod
+    def _knowledge_is_manager_group(xmlid):
+        """管理員等級的群組（拍照角色不該用；admin 角色例外）。"""
+        name = (xmlid or '').split('.')[-1]
+        return name.endswith('_manager') or name in ('group_system', 'group_erp_manager') \
+            or name.endswith('_admin')
 
     @staticmethod
     def _knowledge_name_is_code(name):
@@ -1741,6 +1776,28 @@ class SolutionPackage(models.Model):
         #   建不出帳號、截圖全部失敗——從零開始時沒有任何地方會產生角色。
         #   群組只能從方案畫面實際要求的群組挑（AI 自己編的 xmlid 在說明庫裡不存在）。
         groups = self._knowledge_role_groups(base)
+        profile = self._knowledge_profile()
+        templates = self.env['corpaas.knowledge.role'].sudo().search([])
+        scen_rule = (
+            "一個方案原則上只提一個情境：一家虛構公司貫穿方案的所有流程，各職務都是同一家公司的"
+            "角色——每多一個情境，每個功能就要在每個情境各寫一篇說明、各拍一套截圖。"
+            "只有讀者的產業或角色差異大到同一套示範資料說明不了，才多提，並在 reason 說明為什麼；"
+        ) if profile['max_scenarios'] == 1 else (
+            "情境最多 %s 個（方案設定檔）：同一家虛構公司能說明的就不要分開；"
+            "每多一個情境，每個功能就要多寫一篇、多拍一套，在 reason 說明為什麼要分；"
+            % profile['max_scenarios'])
+        level = ("各自應用的「管理員」等級群組（讀者是租戶的系統管理員）"
+                 if profile['reader'] == 'admin' else
+                 "各自應用的「使用者」等級群組（例如銷售的「僅本人單據」或「所有單據」、庫存／採購的"
+                 "「使用者」、會計的「開票」），不要挑「管理員」等級，也不要只給 base.group_user——"
+                 "說明是給%s看的，用管理員帳號拍會多出設定選單" % profile['reader_label'])
+        role_rule = (
+            "業務、採購、倉管、會計挑%s；管理員群組只給 admin（base.group_system），"
+            "不要勾多公司（base.group_multi_company）、多幣別（base.group_multi_currency）這類會改變"
+            "畫面的設定群組。既有角色範本（代碼相同就沿用它的群組，不必重新挑）：%s\n"
+        ) % (level, json.dumps([{'code': r.code, 'name': r.name,
+                                 'groups': (r.group_xmlids or '').split()} for r in templates],
+                               ensure_ascii=False))
         # ★ 能力已經有了（方案已掛能力，或歸類步驟剛分好、還在待審）→ 只提情境與角色。
         #   實機：7 個能力還在待審時跑圈選，AI 看不到它們，又提了 18 個細分能力。
         Selection = self.env['corpaas.knowledge.selection'].sudo()
@@ -1756,18 +1813,10 @@ class SolutionPackage(models.Model):
         prompt = (
             "方案：%s\n定位描述：%s\n\n既有情境：%s\n\n既有能力：%s\n\n功能點（依使用量排序）：%s\n\n"
             "請提議：(1) 此方案該引用哪些既有情境，或需要新增什麼專屬情境（說明要延伸哪個基底）；"
-            "一個方案原則上只提一個情境：一家虛構公司貫穿方案的所有流程，各職務都是同一家公司的"
-            "角色——每多一個情境，每個功能就要在每個情境各寫一篇說明、各拍一套截圖。"
-            "只有讀者的產業或角色差異大到同一套示範資料說明不了，才多提，並在 reason 說明為什麼；"
-            + cap_ask.replace('%', '%%') +
+            + scen_rule.replace('%', '%%') + cap_ask.replace('%', '%%') +
             "新情境要附上拍操作畫面用的角色 roles：每個角色一個英數 code（業務 sales、採購 purchase、"
             "倉管 stock、會計 account、系統管理員 admin，其他職務自取英數）、中文 name、"
-            "groups（只能從下方「可用群組」挑 xmlid，「｜」前那段）：業務、採購、倉管、會計挑各自應用的"
-            "「使用者」等級群組（例如銷售的「僅本人單據」或「所有單據」、庫存／採購的「使用者」、"
-            "會計的「開票」），不要挑「管理員」等級，也不要只給 base.group_user——說明是給已導入的"
-            "租戶使用者看的，用管理員帳號拍會多出設定選單；管理員群組只給 admin（base.group_system），"
-            "不要勾多公司（base.group_multi_company）、多幣別（base.group_multi_currency）這類會改變"
-            "畫面的設定群組。\n"
+            "groups（只能從下方「可用群組」挑 xmlid，「｜」前那段）：" + role_rule.replace('%', '%%') +
             "格式：{\"scenarios\":[{\"code\"|\"new\":{\"name\",\"code\",\"narrative\",\"glossary\","
             "\"roles\":[{\"code\",\"name\",\"groups\":[xmlid]}]},\"reason\",\"score\"}],"
             "\"capabilities\":[{\"code\"|\"new\":{\"name\",\"pain\",\"outcome\",\"features\":[key]},"
@@ -1780,7 +1829,38 @@ class SolutionPackage(models.Model):
              json.dumps([{'key': f.feature_key, 'name': f.name, 'menu': f.menu_path}
                          for f in features], ensure_ascii=False),
              json.dumps(groups, ensure_ascii=False))
-        data = self.env['corpaas.knowledge.ai'].ask('select', prompt, package=self)
+        allowed_groups = {g.split('｜')[0] for g in groups}
+
+        def check(data):
+            """圈選的契約：情境數不超過設定檔上限、角色群組在可用清單內且等級正確。"""
+            errs = []
+            items = [i for i in (data or {}).get('scenarios') or [] if isinstance(i, dict)]
+            if len(items) > profile['max_scenarios']:
+                errs.append('情境最多 %s 個，你提了 %s 個' % (profile['max_scenarios'], len(items)))
+            for i in items:
+                new = i.get('new') if isinstance(i.get('new'), dict) else {}
+                if new.get('name') and self._knowledge_name_is_code(new['name']):
+                    errs.append('情境名稱「%s」要用中文' % new['name'])
+                for r in new.get('roles') or []:
+                    if not isinstance(r, dict):
+                        continue
+                    for g in r.get('groups') or []:
+                        if g not in allowed_groups:
+                            errs.append('角色 %s 的群組 %s 不在可用群組裡' % (r.get('code'), g))
+                        elif r.get('code') != 'admin' and profile['reader'] != 'admin' \
+                                and self._knowledge_is_manager_group(g):
+                            errs.append('角色 %s 不可用管理員等級群組 %s' % (r.get('code'), g))
+            return errs
+
+        data, problems = self.env['corpaas.knowledge.ai'].ask_checked(
+            'select', prompt, check, package=self)
+        if problems:
+            _logger.warning('[knowledge] 圈選重問後仍不符：%s', problems[:5])
+        # 情境數硬性上限：重問後仍超過，照分數留前幾個
+        if isinstance(data, dict) and isinstance(data.get('scenarios'), list):
+            data['scenarios'] = sorted(
+                [i for i in data['scenarios'] if isinstance(i, dict)],
+                key=lambda i: -(i.get('score') or 0))[:profile['max_scenarios']]
         sc_by_code = {s.code: s for s in scenarios}
         cap_by_code = {c.code: c for c in caps if c.code}
         for item in (data or {}).get('scenarios') or []:

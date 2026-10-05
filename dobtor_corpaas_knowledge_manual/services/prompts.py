@@ -108,6 +108,12 @@ def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, de
     }
 
 
+#: 文字檢查（article._manual_text_problems）會擋的寫法：起草時就先講清楚，免得卡在核准
+WRITING_RULES = (
+    "★ 一律繁體中文（台灣用語），不要出現簡體字；畫面上的欄位與按鈕用畫面顯示的中文名稱，"
+    "不要寫技術欄位名（例如 partner_id）；不要留 TODO、XXX 之類的佔位字。\n")
+
+
 def step_block_prompt(feature, steps, shots, elements):
     """步驟區塊：只寫操作步驟，跨情境、跨方案共用。"""
     return (
@@ -116,7 +122,7 @@ def step_block_prompt(feature, steps, shots, elements):
         "2. 依截圖腳本的順序分成數個步驟；每步一個短標題＋說明。\n"
         "3. 截圖上的紅框編號在說明裡以「（圖中 1）」這樣引用。\n"
         "4. 在適當的步驟說明裡放截圖標記 [[shot:<截圖名稱>]]（單獨一段），每張圖只放一次。\n"
-        "5. %(allowed)s\n%(delta)s\n"
+        "5. %(allowed)s\n" + WRITING_RULES + "%(delta)s\n"
         "回覆格式：{\"title\":\"<區塊標題>\",\"steps\":[{\"title\":\"…\",\"html\":\"…\"}]}\n\n"
         "功能鍵：%(key)s；選單路徑：%(menu)s\n\n截圖名稱：%(shots)s\n\n"
         "標註元素：%(elements)s\n\n截圖腳本：%(steps)s"
@@ -176,7 +182,8 @@ def scenario_prompt(scenario, glossary, feature, capability, step_html):
     return (
         "任務：為情境「%(sc)s」寫一段「情境說明」，放在功能「%(name)s」的操作步驟前面。\n"
         "1. 說明在這個情境裡，使用者為什麼、在什麼時機要做這件事，做完帶來什麼結果。\n"
-        "2. 套用用語對照（左邊是系統原詞，右邊是這個情境的說法）。\n"
+        "2. 套用用語對照（左邊是系統原詞，右邊是這個情境的說法）：直接用右邊的說法，"
+        "不要加「（系統原文 X）」之類的旁註。\n" + WRITING_RULES +
         "3. ★ 不得另寫一套完整操作步驟——操作步驟已經在下面，會原樣放在你的說明後面。"
         "最多用一兩句話提示「照下方步驟操作」。\n"
         "4. 100–250 字。%(allowed)s\n%(cls)s\n"

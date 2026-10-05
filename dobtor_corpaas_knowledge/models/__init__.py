@@ -17,3 +17,4 @@ from . import host_component
 from . import run
 from . import template_source
 from . import cost_plan
+from . import profile

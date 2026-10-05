@@ -33,8 +33,7 @@ class TestSeedPacks(TransactionCase):
                                 'values': {'name': '聯絡人乙',
                                            'parent_id': '__ref__:__doc_pack_kbt_contacts.c1',
                                            'user_id': '__ref__:user_sales'}})})
-        self.role = self.env['corpaas.knowledge.role'].sudo().create(
-            {'name': '業務', 'code': 'sales', 'group_xmlids': 'base.group_user'})
+        self.role = self.env.ref('dobtor_corpaas_knowledge.role_sales')   # 角色範本
         self.sc = self.env['corpaas.knowledge.scenario'].sudo().create({
             'name': '資料包情境', 'code': 'kbt_pack_sc', 'narrative': 'n',
             'role_ids': [(6, 0, self.role.ids)],
@@ -179,7 +178,8 @@ class TestSeedCheck(_RefreshBase):
 
         with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: master), \
                 patch.object(type(Sandbox), 'rebuild', lambda s, seed=None: {'errors': [
-                    {'xmlid': 'x', 'model': 'product.product', 'error': 'duplicate key'}]}), \
+                    {'xmlid': '__doc_scenario_kbt_check.p', 'model': 'res.partner',
+                     'error': 'duplicate key'}]}), \
                 patch.object(type(Sandbox), 'drop', lambda s: None), \
                 patch.object(type(Sandbox), '_shell', lambda s, script: {}), \
                 patch.object(Pkg, '_knowledge_probe_items', lambda s: ([], {})), \
@@ -193,7 +193,9 @@ class TestSeedCheck(_RefreshBase):
             self.assertIn('不要同一個產品再建 product.template', prompts[0][1])
             self.assertEqual(repairs, [self.sc.id], '修完送審會再檢查一次')
             Sandbox.run_seed_check(self.pkg, self.sc)
-            self.assertEqual(len(prompts), 1, '只自動修一次')
+            self.assertEqual(self.sc.seed_auto_repairs, 2)
+            Sandbox.run_seed_check(self.pkg, self.sc)
+            self.assertEqual(len(prompts), 2, '最多自動修兩次')
 
     def test_role_groups_read_from_golden(self):
         """角色可用群組讀黃金庫的應用群組（實機功能點都沒記群組，AI 只拿到 base.group_user）。"""
@@ -446,3 +448,105 @@ class TestAutoChain(TransactionCase):
             sc.knowledge_propose('new')
             sc.with_user(self.approver).action_approve()
             self.assertEqual(len(calls), 1)
+
+
+@tagged('post_install', '-at_install')
+class TestGeneralization(TransactionCase):
+    """通用化：結構化契約＋重問、資料包組裝示範資料、方案設定檔驅動的上限。"""
+
+    def setUp(self):
+        super().setUp()
+        tmpl = self.env['product.template'].create({'name': 'GEN', 'type': 'service'})
+        self.pkg = self.env['infrastructure.solution.package'].sudo().create(
+            {'product_tmpl_id': tmpl.id})
+        self.Ai = type(self.env['corpaas.knowledge.ai'])
+
+    def test_seed_contract(self):
+        from ..models.catalog import seed_contract_errors
+        self.assertEqual(seed_contract_errors([
+            {'xmlid': 'a', 'model': 'res.partner', 'values': {'name': 'x'}},
+            {'xmlid': 'c', 'model': 'sale.order', 'call': 'action_confirm', 'ref': 'so'}]), [])
+        errs = seed_contract_errors([
+            {'xmlid': 'p', 'model': 'product.template', 'values': {}},
+            {'xmlid': 's', 'model': 'sale.order', 'values': {'state': 'sale'}},
+            {'xmlid': 'k', 'call': 'unlink', 'ref': 'x'}, {'model': 'res.partner'}])
+        self.assertEqual(len(errs), 4)
+
+    def test_ask_checked_retries_once_with_errors(self):
+        prompts = []
+        with patch.object(self.Ai, 'ask', lambda s, p, prompt, **kw: prompts.append(prompt) or {'n': 1}):
+            data, errs = self.env['corpaas.knowledge.ai'].ask_checked(
+                'x', 'Q', lambda d: ['n 要是 2'] if d.get('n') != 2 else [])
+        self.assertEqual(len(prompts), 2)
+        self.assertIn('n 要是 2', prompts[1])
+        self.assertEqual(errs, ['n 要是 2'])
+
+    def test_compose_seed_from_packs(self):
+        Pack = self.env['corpaas.knowledge.seed_pack'].sudo()
+        contacts = Pack.create({'name': '聯絡人', 'code': 'kbg_contacts', 'seed_json': _seed(
+            {'xmlid': 'c1', 'model': 'res.partner', 'values': {'name': '客戶甲'}})})
+        contacts._do_publish('new')
+        Pack.create({'name': '未核准', 'code': 'kbg_draft', 'seed_json': '[]'})
+        sc = self.env['corpaas.knowledge.scenario'].sudo().create({
+            'name': '晴天', 'code': 'kbg_sc', 'package_ids': [(6, 0, self.pkg.ids)]})
+        reply = {'packs': ['kbg_contacts', 'nope'], 'company': '晴天貿易', 'warehouse': '主倉',
+                 'seed': [{'xmlid': 'x1', 'model': 'res.partner',
+                           'values': {'parent_id': '__ref__:__doc_pack_kbg_contacts.c1'}},
+                          {'xmlid': 'bad', 'model': 'product.template', 'values': {}}]}
+        prompts = []
+        Sc = type(sc)
+        with patch.object(self.Ai, 'ask', lambda s, p, prompt, **kw: prompts.append(prompt) or reply), \
+                patch.object(type(self.pkg), '_knowledge_probe_items', lambda s: ([], {})), \
+                patch.object(Sc, '_enqueue_seed_check', lambda s, **kw: False):
+            sc._ai_draft_seed_run()
+        self.assertIn('kbg_contacts', prompts[0])
+        self.assertNotIn('kbg_draft', prompts[0], '只給已核准的資料包')
+        self.assertEqual(len(prompts), 2, '契約不符重問一次')
+        self.assertEqual(sc.pack_ids.mapped('code'), ['kbg_contacts'])
+        seed = json.loads(sc.seed_json)
+        self.assertEqual([r['xmlid'] for r in seed], ['base.main_company', 'stock.warehouse0', 'x1'],
+                         '公司與倉庫改名＋補缺口；不合契約的記錄丟掉')
+        self.assertEqual(seed[0]['values']['name'], '晴天貿易')
+        self.assertEqual(sc.state, 'review')
+
+    def test_select_respects_profile_limits(self):
+        self.pkg.knowledge_max_scenarios = 1
+        Feature = self.env['corpaas.knowledge.feature'].sudo()
+        Feature.create({'feature_key': 'kbg.action:a', 'module': 'kbg', 'kind': 'action',
+                        'anchor': 'a', 'name': 'a', 'package_ids': [(4, self.pkg.id)],
+                        'group_xmlids': 'sales_team.group_sale_manager'})
+        reply = {'scenarios': [
+            {'new': {'name': '甲公司', 'code': 'kbg_a', 'roles': [
+                {'code': 'sales', 'name': '業務', 'groups': ['sales_team.group_sale_manager']}]},
+             'score': 1},
+            {'new': {'name': '乙公司', 'code': 'kbg_b'}, 'score': 9}]}
+        prompts = []
+        with patch.object(self.Ai, 'ask', lambda s, p, prompt, **kw: prompts.append(prompt) or reply), \
+                patch.object(type(self.pkg), '_knowledge_master',
+                             lambda s, raise_if_missing=True: True):
+            self.pkg._knowledge_ai_select_run()
+        self.assertEqual(len(prompts), 2)
+        self.assertIn('情境最多 1 個', prompts[1])
+        self.assertIn('不可用管理員等級群組', prompts[1])
+        self.assertIn('既有角色範本', prompts[0])
+        props = self.env['corpaas.knowledge.selection'].search(
+            [('package_id', '=', self.pkg.id), ('kind', '=', 'scenario')])
+        self.assertEqual(props.mapped('proposal_name'), ['乙公司'], '超過上限照分數留')
+
+    def test_import_bundled_packs(self):
+        Pack = self.env['corpaas.knowledge.seed_pack']
+        out = Pack.import_bundle()
+        self.assertEqual(set(out.values()), {'新建'})
+        packs = Pack.search([('code', 'in', list(out))])
+        self.assertEqual(len(packs), 6)
+        self.assertEqual(set(packs.mapped('state')), {'review'}, '新建的資料包送審')
+        sales = packs.filtered(lambda p: p.code == 'sales_flow')
+        self.assertEqual(sorted(sales.depend_ids.mapped('code')), ['contacts', 'products'])
+        self.assertEqual(set(Pack.import_bundle().values()), {'相同'}, '再載一次不重複')
+        with self.assertRaises(UserError):
+            Pack.import_bundle('../etc')
+
+    def test_profile_validation(self):
+        with self.assertRaises(Exception):
+            self.pkg.write({'knowledge_cap_min': 8, 'knowledge_cap_max': 4})
+        self.assertEqual(self.pkg._knowledge_profile()['max_scenarios'], 1)

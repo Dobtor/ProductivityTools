@@ -73,6 +73,9 @@
                             groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
                 </header>
+                <div class="alert alert-warning mb-0" role="alert" invisible="not manual_text_problem">
+                    文字檢查沒通過，暫時不能核准：<field name="manual_text_problem" readonly="1"/>
+                </div>
                 <div class="alert alert-warning mb-0" role="alert" invisible="manual_shots_ready">
                     <field name="manual_shots_ready" invisible="1"/>
                     截圖尚未就緒，暫時不能核准：<field name="manual_shots_problem" readonly="1" class="oe_inline"/>

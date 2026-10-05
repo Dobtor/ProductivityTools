@@ -30,6 +30,31 @@ SEED_RULES = (
 #: 會改變畫面（多出公司切換、幣別欄位）的設定群組：拍照角色一律不給，免得截圖跟一般租戶看到的不同
 SCREEN_CHANGING_GROUPS = ('base.group_multi_company', 'base.group_multi_currency')
 
+def seed_contract_errors(records):
+    """示範資料腳本的結構契約（AI 回覆先過這關，不符就帶著錯誤重問）。"""
+    errs = []
+    if not isinstance(records, list):
+        return ['seed 必須是清單']
+    for r in records:
+        if not isinstance(r, dict) or not r.get('xmlid'):
+            errs.append('每筆都要有 xmlid：%s' % str(r)[:60])
+            continue
+        if r.get('call'):
+            if not re.match(r'^(action|button)_[a-z0-9_]+$', str(r['call'])) or not r.get('ref'):
+                errs.append('%s：動作步驟要有 ref，方法名以 action_／button_ 開頭' % r['xmlid'])
+            continue
+        if not r.get('model'):
+            errs.append('%s：缺 model' % r['xmlid'])
+        if r.get('model') == 'product.template':
+            errs.append('%s：產品請建 product.product，不要建 product.template' % r['xmlid'])
+        if 'state' in (r.get('values') or {}):
+            errs.append('%s：不要直接寫 state，用動作步驟推進' % r['xmlid'])
+    return errs
+
+
+#: 重播檢查有問題時 AI 自動修正的次數上限
+MAX_SEED_REPAIRS = 2
+
 SEED_CHECK_STATES = [('queued', '排隊中'), ('running', '檢查中'), ('ok', '通過'),
                      ('issues', '有問題'), ('failed', '檢查失敗')]
 
@@ -215,6 +240,9 @@ class KnowledgeScenario(models.Model):
                                     help='{"errors": [...], "counts": {功能鍵: 筆數}, "labels": {...}}')
     seed_check_html = fields.Html(string='重播檢查結果', compute='_compute_seed_check_html',
                                   sanitize=False)
+    shot_gaps = fields.Text(string='拍照空白畫面', readonly=True, copy=False,
+                            help='上一次拍照時「畫面是空白引導頁」的畫面名稱（JSON 清單）；'
+                                 'AI 組裝／修正示範資料時優先補這些')
     seed_auto_repairs = fields.Integer(string='自動修正次數', readonly=True, copy=False,
                                        help='重播檢查有錯時 AI 自動修正的次數（每份起草只修一次）')
     clean_approvals = fields.Integer(string='連續無修改核准次數', readonly=True)
@@ -413,8 +441,10 @@ class KnowledgeScenario(models.Model):
         counts, labels = data.get('counts') or {}, data.get('labels') or {}
         if counts:
             empty = sorted(k for k, v in counts.items() if v == 0)
-            parts.append('<p>%s</p>' % esc(_('檢查 %(n)s 個畫面：%(e)s 個沒有資料',
-                                             n=len(counts), e=len(empty))))
+            parts.append('<p>%s</p>' % esc(_('檢查 %(n)s 個畫面：%(e)s 個沒有資料（%(p)s%%，上限 %(m)s%%）',
+                                             n=len(counts), e=len(empty),
+                                             p=data.get('empty_pct', '?'),
+                                             m=data.get('empty_max_pct', '?'))))
             if empty:
                 parts.append('<ul>%s</ul>' % ''.join(
                     '<li>%s</li>' % esc(labels.get(k) or k) for k in empty))
@@ -437,6 +467,88 @@ class KnowledgeScenario(models.Model):
             self, '_ai_draft_seed_run', package, note=_('AI 起草示範資料：%s') % self.name)
 
     def _ai_draft_seed_run(self):
+        """有已核准的資料包 → AI 挑包＋只補缺口；沒有才從零起草（通用化第一階段）。
+
+        ★ 實機：AI 從零起草最好做到 1 錯、89 個畫面 21 個空白；手寫 v10 是 0 錯、9 個空白。
+          v10 拆成資料包後，新情境由 AI 挑包、換公司名，只對資料包沒涵蓋的畫面補記錄。"""
+        self.ensure_one()
+        packs = self.env['corpaas.knowledge.seed_pack'].sudo().search(
+            [('published_rev_no', '>', 0)])
+        if packs:
+            return self._ai_compose_seed_run(packs)
+        return self._ai_draft_seed_from_scratch()
+
+    def _ai_compose_seed_run(self, packs):
+        """AI 從資料包目錄挑包，回公司／倉庫名稱與補缺口的記錄；結果送審（會自動重播檢查）。"""
+        self.ensure_one()
+        from collections import Counter
+        package = self.package_ids[:1]
+        catalog = []
+        for pk in packs:
+            recs = json.loads(pk._live_seed_json() or '[]')
+            catalog.append({
+                'code': pk.code, 'name': pk.name, 'description': pk.description or '',
+                'depends': pk._live_depends().mapped('code'),
+                'models': dict(Counter(r.get('model') for r in recs if not r.get('call'))),
+                'records': ['%s.%s' % (pk.xml_module, r['xmlid']) for r in recs
+                            if not r.get('call')][:80]})
+        items, labels = package._knowledge_probe_items()
+        Feature = self.env['corpaas.knowledge.feature'].sudo()
+        screens = [{'name': labels[k], 'model': f.model} for k, _x in items
+                   for f in Feature.search([('feature_key', '=', k)], limit=1)]
+        gaps = json.loads(self.shot_gaps or '[]')
+        roles = ['user_%s' % r.code for r in self.all_roles()]
+        codes = {pk.code for pk in packs}
+        prompt = (
+            "請為情境「%s」組裝 Odoo 18 示範資料。\n情境敘事：%s\n\n"
+            "做法：(1) 從「資料包目錄」挑出這個方案需要的資料包（依賴會自動帶入），資料包內容"
+            "不能改；(2) 給這家虛構公司與它的倉庫取名（不得與真實公司或品牌同名）；"
+            "(3) 只對資料包沒涵蓋、但「方案畫面」需要的模型補記錄，可用 \"__ref__:<完整 xmlid>\" "
+            "參照資料包的記錄。\n%s%s"
+            "格式：{\"packs\":[code],\"company\":\"公司名稱\",\"warehouse\":\"倉庫名稱\","
+            "\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
+            "資料包目錄：%s\n\n方案畫面：%s"
+        ) % (self.name, self.narrative or '',
+             SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
+             ('上次拍照時沒有資料的畫面（優先補）：%s\n' % '、'.join(gaps)) if gaps else '',
+             json.dumps(catalog, ensure_ascii=False)[:60000],
+             json.dumps(screens, ensure_ascii=False)[:20000])
+
+        def check(data):
+            errs = []
+            chosen = (data or {}).get('packs')
+            if not isinstance(chosen, list) or not chosen:
+                errs.append('packs 至少要挑一個資料包')
+            else:
+                errs += ['沒有代碼為 %s 的資料包' % c for c in chosen if c not in codes]
+            for k in ('company', 'warehouse'):
+                if not isinstance((data or {}).get(k), str) or not data[k].strip():
+                    errs.append('%s 要給名稱' % k)
+            errs += seed_contract_errors((data or {}).get('seed') or [])
+            return errs
+
+        data, problems = self.env['corpaas.knowledge.ai'].ask_checked(
+            'scenario_seed', prompt, check, package=package, record=self)
+        chosen = packs.filtered(lambda p: p.code in set((data or {}).get('packs') or []))
+        if not chosen:
+            raise UserError(_('AI 沒有挑出可用的資料包：%s') % '；'.join(problems[:3]))
+        identity = [
+            {'xmlid': 'base.main_company', 'model': 'res.company',
+             'values': {'name': (data.get('company') or self.name).strip()}},
+            {'xmlid': 'stock.warehouse0', 'model': 'stock.warehouse',
+             'values': {'name': (data.get('warehouse') or _('總倉')).strip()}},
+        ]
+        extra = [r for r in (data.get('seed') or [])
+                 if isinstance(r, dict) and r.get('xmlid') and not seed_contract_errors([r])]
+        self.write({'pack_ids': [(6, 0, chosen.ids)],
+                    'seed_json': json.dumps(identity + extra, ensure_ascii=False, indent=1),
+                    'seed_auto_repairs': 0})
+        self.knowledge_propose('new' if not self.published_rev_no else 'text',
+                               note=_('AI 組裝示範資料（資料包 %s 個＋補 %s 筆）')
+                               % (len(chosen), len(extra)))
+        return True
+
+    def _ai_draft_seed_from_scratch(self):
         """黃金庫唯讀取欄位定義 → AI 產生 seed JSON → 寫入並送審（人核准前說明庫不會用）。"""
         self.ensure_one()
         from ..services import remote, scripts
@@ -481,23 +593,40 @@ class KnowledgeScenario(models.Model):
     def _ai_repair_seed_from_check(self, report):
         """重播檢查有錯：請 AI 依錯誤與空畫面修一次腳本，再送審（會自動再檢查一次）。
 
-        ★ 只自動修一次（seed_auto_repairs）：修完仍有錯就留給人，避免 AI 來回燒預算。"""
+        ★ 最多自動修兩次（MAX_SEED_REPAIRS）：修完仍有錯就留給人，避免 AI 來回燒預算。"""
         self.ensure_one()
         package = self.package_ids[:1]
         labels = report.get('labels') or {}
         empty = [labels.get(k, k) for k, v in (report.get('counts') or {}).items() if v == 0]
+        own = {'%s.%s' % (self.xml_module, r['xmlid']) if '.' not in r['xmlid'] else r['xmlid']
+               for r in json.loads(self.seed_json or '[]') if isinstance(r, dict) and r.get('xmlid')}
+        errors = [e for e in report.get('errors') or [] if e.get('xmlid') in own]
+        if not errors and not empty:
+            return False   # 錯誤都在資料包裡（資料包要另外修、走資料包自己的核准）
+        packs = self.pack_ids.mapped('code')
         prompt = (
-            "情境「%s」的 Odoo 18 示範資料腳本在測試庫重播時出錯。請修正後回傳完整腳本；"
-            "能成功的記錄照舊，修掉出錯的，並補上讓下列空畫面有資料的記錄。\n%s"
+            "情境「%s」的 Odoo 18 示範資料在測試庫重播時有問題。請修正「目前腳本」後回傳完整腳本；"
+            "能成功的記錄照舊，修掉出錯的，並補上讓下列空畫面有資料的記錄。%s\n%s"
             "格式：{\"seed\":[…]}\n\n重播錯誤：%s\n\n沒有資料的畫面：%s\n\n目前腳本：%s"
-        ) % (self.name, SEED_RULES % {'roles': '、'.join(
-            'user_%s' % r.code for r in self.all_roles()) or '（無）'},
-             json.dumps((report.get('errors') or [])[:60], ensure_ascii=False),
+        ) % (self.name,
+             ('資料包（%s）會先重播、內容不能改；可用完整 xmlid 參照它們的記錄。' % '、'.join(packs))
+             if packs else '',
+             SEED_RULES % {'roles': '、'.join(
+                 'user_%s' % r.code for r in self.all_roles()) or '（無）'},
+             json.dumps(errors[:60], ensure_ascii=False),
              json.dumps(empty[:80], ensure_ascii=False), self.seed_json or '[]')
-        data = self.env['corpaas.knowledge.ai'].ask('seed_repair', prompt, package=package,
-                                                    record=self)
-        seed = (data or {}).get('seed')
-        if not isinstance(seed, list) or not seed:
+
+        def check(data):
+            seed = (data or {}).get('seed')
+            if not isinstance(seed, list) or not seed:
+                return ['seed 要是非空清單']
+            return seed_contract_errors(seed)
+
+        data, _problems = self.env['corpaas.knowledge.ai'].ask_checked(
+            'seed_repair', prompt, check, package=package, record=self)
+        seed = [r for r in (data or {}).get('seed') or []
+                if isinstance(r, dict) and not seed_contract_errors([r])]
+        if not seed:
             return False
         self.write({'seed_json': json.dumps(seed, ensure_ascii=False, indent=1),
                     'seed_auto_repairs': self.seed_auto_repairs + 1})
@@ -663,6 +792,46 @@ class KnowledgeSeedPack(models.Model):
         res = super().action_approve()
         self.mapped('scenario_ids')._knowledge_refresh_packages(reason='pack_approved')
         return res
+
+    @api.model
+    def import_bundle(self, name='native_erp_v10'):
+        """載入模組內附的資料包庫（data/seed_packs/<name>.json），建成草稿並送審。
+
+        已有同代碼的資料包：內容不同才改寫並送審（走核准，不直接覆蓋上線版）。
+        回傳 {code: '新建'|'更新'|'相同'}。"""
+        import os
+        if not re.match(r'^[a-z0-9_]+$', name or ''):
+            raise UserError(_('資料包庫名稱不合法：%s') % name)
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'seed_packs',
+                            '%s.json' % name)
+        with open(path, encoding='utf-8') as fh:
+            bundle = json.load(fh)
+        Pack = self.sudo()
+        out, made = {}, {}
+        for seq, (code, spec) in enumerate(bundle.items(), start=1):
+            seed = json.dumps(spec['seed'], ensure_ascii=False, indent=1)
+            pack = Pack.search([('code', '=', code)], limit=1)
+            if not pack:
+                pack = Pack.create({'code': code, 'name': spec['name'], 'sequence': seq * 10,
+                                    'description': spec.get('description'), 'seed_json': seed})
+                out[code] = '新建'
+            elif pack.seed_json != seed:
+                pack.write({'seed_json': seed, 'description': spec.get('description')})
+                out[code] = '更新'
+            else:
+                out[code] = '相同'
+            made[code] = pack
+        for code, spec in bundle.items():
+            deps = [made[d].id for d in spec.get('depends') or [] if d in made]
+            if set(made[code].depend_ids.ids) != set(deps):
+                made[code].depend_ids = [(6, 0, deps)]
+                if out[code] == '相同':
+                    out[code] = '更新'
+        for code, pack in made.items():
+            if out[code] != '相同' and pack.state in ('draft', 'stale', 'published'):
+                pack.knowledge_propose('new' if not pack.published_rev_no else 'text',
+                                       note=_('載入資料包庫 %s') % name)
+        return out
 
     def knowledge_propose(self, change, note=None):
         """資料包改了：用到它的情境各自重播檢查一次（A3）。"""

@@ -1,0 +1,1267 @@
+{
+ "contacts": {
+  "name": "聯絡人與溝通",
+  "description": "7 家客戶與供應商、客戶標籤、預設回應、活動計劃",
+  "depends": [],
+  "seed": [
+   {
+    "xmlid": "partner_cust_01",
+    "model": "res.partner",
+    "values": {
+     "name": "向陽超市股份有限公司",
+     "is_company": true,
+     "customer_rank": 1,
+     "email": "sales@xiangyang-mart.example",
+     "phone": "02-2711-5600",
+     "street": "忠孝東路三段168號",
+     "city": "台北市",
+     "zip": "106"
+    }
+   },
+   {
+    "xmlid": "partner_cust_02",
+    "model": "res.partner",
+    "values": {
+     "name": "嘉美家居用品行",
+     "is_company": true,
+     "customer_rank": 1,
+     "email": "contact@jiamei-home.example",
+     "phone": "04-2358-7722",
+     "street": "台灣大道二段56號",
+     "city": "台中市",
+     "zip": "403"
+    }
+   },
+   {
+    "xmlid": "partner_cust_03",
+    "model": "res.partner",
+    "values": {
+     "name": "福來文具行",
+     "is_company": true,
+     "customer_rank": 1,
+     "email": "order@fulai-stationery.example",
+     "phone": "07-336-9981",
+     "street": "中正路220號",
+     "city": "高雄市",
+     "zip": "800"
+    }
+   },
+   {
+    "xmlid": "partner_cust_04",
+    "model": "res.partner",
+    "values": {
+     "name": "青禾生活館",
+     "is_company": true,
+     "customer_rank": 1,
+     "email": "service@qinghe-living.example",
+     "phone": "03-533-4420",
+     "street": "光復路88號",
+     "city": "新竹市",
+     "zip": "300"
+    }
+   },
+   {
+    "xmlid": "partner_vend_01",
+    "model": "res.partner",
+    "values": {
+     "name": "大同紙業有限公司",
+     "is_company": true,
+     "supplier_rank": 1,
+     "email": "sales@datong-paper.example",
+     "phone": "02-8771-2200",
+     "street": "工業路三段12號",
+     "city": "新北市",
+     "zip": "248"
+    }
+   },
+   {
+    "xmlid": "partner_vend_02",
+    "model": "res.partner",
+    "values": {
+     "name": "恆新清潔用品批發",
+     "is_company": true,
+     "supplier_rank": 1,
+     "email": "info@hengxin-clean.example",
+     "phone": "06-298-5511",
+     "street": "永大路一段45號",
+     "city": "台南市",
+     "zip": "701"
+    }
+   },
+   {
+    "xmlid": "partner_vend_03",
+    "model": "res.partner",
+    "values": {
+     "name": "翔宇包材行",
+     "is_company": true,
+     "supplier_rank": 1,
+     "email": "sales@xiangyu-pack.example",
+     "phone": "02-2995-3300",
+     "street": "中山路二段9號",
+     "city": "新北市",
+     "zip": "220"
+    }
+   },
+   {
+    "xmlid": "canned_thanks",
+    "model": "mail.canned.response",
+    "values": {
+     "source": "感謝",
+     "substitution": "感謝您的訂購，我們會盡快為您出貨！"
+    }
+   },
+   {
+    "xmlid": "crm_tag_vip",
+    "model": "crm.tag",
+    "values": {
+     "name": "大客戶"
+    }
+   },
+   {
+    "xmlid": "canned_ship",
+    "model": "mail.canned.response",
+    "values": {
+     "source": "出貨",
+     "substitution": "您的訂單已安排出貨，預計 2 個工作天內送達。",
+     "group_ids": [
+      "__ref__:base.group_user"
+     ]
+    }
+   },
+   {
+    "xmlid": "plan_new_quote",
+    "model": "mail.activity.plan",
+    "values": {
+     "name": "新客戶報價跟進",
+     "res_model": "sale.order"
+    }
+   },
+   {
+    "xmlid": "plan_new_quote_t1",
+    "model": "mail.activity.plan.template",
+    "values": {
+     "plan_id": "__ref__:plan_new_quote",
+     "activity_type_id": "__ref__:mail.mail_activity_data_todo",
+     "summary": "報價後三天電話追蹤"
+    }
+   }
+  ]
+ },
+ "products": {
+  "name": "產品主檔",
+  "description": "6 項庫存產品、供應商價格、價目表、屬性、標籤、包裝",
+  "depends": [
+   "contacts"
+  ],
+  "seed": [
+   {
+    "xmlid": "p_tissue",
+    "model": "product.product",
+    "values": {
+     "name": "抽取式衛生紙(整箱10包)",
+     "default_code": "CONS-TISSUE-01",
+     "type": "consu",
+     "is_storable": true,
+     "list_price": 480,
+     "standard_price": 320,
+     "sale_ok": true,
+     "purchase_ok": true,
+     "categ_id": "__ref__:product.product_category_all",
+     "uom_id": "__ref__:uom.product_uom_unit",
+     "uom_po_id": "__ref__:uom.product_uom_unit"
+    }
+   },
+   {
+    "xmlid": "p_dish",
+    "model": "product.product",
+    "values": {
+     "name": "濃縮洗碗精1000ml",
+     "default_code": "CONS-DISH-01",
+     "type": "consu",
+     "is_storable": true,
+     "list_price": 95,
+     "standard_price": 55,
+     "sale_ok": true,
+     "purchase_ok": true,
+     "categ_id": "__ref__:product.product_category_all",
+     "uom_id": "__ref__:uom.product_uom_unit",
+     "uom_po_id": "__ref__:uom.product_uom_unit"
+    }
+   },
+   {
+    "xmlid": "p_a4",
+    "model": "product.product",
+    "values": {
+     "name": "A4影印紙(80磅/箱)",
+     "default_code": "OFF-PAPER-A4",
+     "type": "consu",
+     "is_storable": true,
+     "list_price": 650,
+     "standard_price": 480,
+     "sale_ok": true,
+     "purchase_ok": true,
+     "categ_id": "__ref__:product.product_category_all",
+     "uom_id": "__ref__:uom.product_uom_unit",
+     "uom_po_id": "__ref__:uom.product_uom_unit"
+    }
+   },
+   {
+    "xmlid": "p_pen",
+    "model": "product.product",
+    "values": {
+     "name": "油性簽字筆(黑)",
+     "default_code": "OFF-PEN-BLK",
+     "type": "consu",
+     "is_storable": true,
+     "list_price": 15,
+     "standard_price": 6,
+     "sale_ok": true,
+     "purchase_ok": true,
+     "categ_id": "__ref__:product.product_category_all",
+     "uom_id": "__ref__:uom.product_uom_unit",
+     "uom_po_id": "__ref__:uom.product_uom_unit"
+    }
+   },
+   {
+    "xmlid": "p_bag",
+    "model": "product.product",
+    "values": {
+     "name": "垃圾袋45公升(10捲入)",
+     "default_code": "CONS-BAG-45",
+     "type": "consu",
+     "is_storable": true,
+     "list_price": 120,
+     "standard_price": 75,
+     "sale_ok": true,
+     "purchase_ok": true,
+     "categ_id": "__ref__:product.product_category_all",
+     "uom_id": "__ref__:uom.product_uom_unit",
+     "uom_po_id": "__ref__:uom.product_uom_unit"
+    }
+   },
+   {
+    "xmlid": "supinfo_1",
+    "model": "product.supplierinfo",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "product_id": "__ref__:p_a4",
+     "min_qty": 10,
+     "price": 460,
+     "delay": 5
+    }
+   },
+   {
+    "xmlid": "supinfo_2",
+    "model": "product.supplierinfo",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_02",
+     "product_id": "__ref__:p_dish",
+     "min_qty": 24,
+     "price": 50,
+     "delay": 3
+    }
+   },
+   {
+    "xmlid": "supinfo_3",
+    "model": "product.supplierinfo",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_02",
+     "product_id": "__ref__:p_tissue",
+     "min_qty": 20,
+     "price": 300,
+     "delay": 4
+    }
+   },
+   {
+    "xmlid": "supinfo_4",
+    "model": "product.supplierinfo",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_03",
+     "product_id": "__ref__:p_bag",
+     "min_qty": 30,
+     "price": 70,
+     "delay": 3
+    }
+   },
+   {
+    "xmlid": "supinfo_5",
+    "model": "product.supplierinfo",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "product_id": "__ref__:p_pen",
+     "min_qty": 100,
+     "price": 5,
+     "delay": 5
+    }
+   },
+   {
+    "xmlid": "pricelist_dealer",
+    "model": "product.pricelist",
+    "values": {
+     "name": "經銷商價格表"
+    }
+   },
+   {
+    "xmlid": "pricelist_dealer_item",
+    "model": "product.pricelist.item",
+    "values": {
+     "pricelist_id": "__ref__:pricelist_dealer",
+     "applied_on": "3_global",
+     "compute_price": "percentage",
+     "percent_price": 10
+    }
+   },
+   {
+    "xmlid": "attr_size",
+    "model": "product.attribute",
+    "values": {
+     "name": "容量",
+     "create_variant": "always"
+    }
+   },
+   {
+    "xmlid": "attr_size_500",
+    "model": "product.attribute.value",
+    "values": {
+     "name": "500ml",
+     "attribute_id": "__ref__:attr_size"
+    }
+   },
+   {
+    "xmlid": "attr_size_1000",
+    "model": "product.attribute.value",
+    "values": {
+     "name": "1000ml",
+     "attribute_id": "__ref__:attr_size"
+    }
+   },
+   {
+    "xmlid": "tag_hot",
+    "model": "product.tag",
+    "values": {
+     "name": "熱銷"
+    }
+   },
+   {
+    "xmlid": "tag_office",
+    "model": "product.tag",
+    "values": {
+     "name": "辦公用品"
+    }
+   },
+   {
+    "xmlid": "pack_tissue_box",
+    "model": "product.packaging",
+    "values": {
+     "name": "整箱（10 包）",
+     "product_id": "__ref__:p_tissue",
+     "qty": 10
+    }
+   },
+   {
+    "xmlid": "p_glue",
+    "model": "product.product",
+    "values": {
+     "name": "白膠 500g（批號管理）",
+     "default_code": "OFF-GLUE-500",
+     "type": "consu",
+     "is_storable": true,
+     "tracking": "lot",
+     "list_price": 60,
+     "standard_price": 32,
+     "sale_ok": true,
+     "purchase_ok": true,
+     "categ_id": "__ref__:product.product_category_all",
+     "uom_id": "__ref__:uom.product_uom_unit",
+     "uom_po_id": "__ref__:uom.product_uom_unit"
+    }
+   }
+  ]
+ },
+ "sales_flow": {
+  "name": "銷售流程",
+  "description": "4 張報價單（2 張已確認）、報價範本、會員計劃",
+  "depends": [
+   "contacts",
+   "products"
+  ],
+  "seed": [
+   {
+    "xmlid": "so_01",
+    "model": "sale.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_01",
+     "state": "draft",
+     "date_order": "2026-09-02 10:00:00",
+     "user_id": "__ref__:user_sales"
+    }
+   },
+   {
+    "xmlid": "so_01_l1",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_01",
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "product_uom_qty": 20,
+     "price_unit": 480
+    }
+   },
+   {
+    "xmlid": "so_01_l2",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_01",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "product_uom_qty": 30,
+     "price_unit": 120
+    }
+   },
+   {
+    "xmlid": "so_02",
+    "model": "sale.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_02",
+     "state": "sent",
+     "date_order": "2026-09-05 14:20:00",
+     "user_id": "__ref__:user_sales"
+    }
+   },
+   {
+    "xmlid": "so_02_l1",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_02",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "product_uom_qty": 48,
+     "price_unit": 95
+    }
+   },
+   {
+    "xmlid": "so_03",
+    "model": "sale.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_03",
+     "state": "draft",
+     "date_order": "2026-09-10 09:15:00",
+     "user_id": "__ref__:user_sales"
+    }
+   },
+   {
+    "xmlid": "so_03_l1",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_03",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "product_uom_qty": 10,
+     "price_unit": 650
+    }
+   },
+   {
+    "xmlid": "so_03_l2",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_03",
+     "product_id": "__ref__:__doc_pack_products.p_pen",
+     "product_uom_qty": 200,
+     "price_unit": 15
+    }
+   },
+   {
+    "xmlid": "so_04",
+    "model": "sale.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_04",
+     "state": "sent",
+     "date_order": "2026-09-15 11:00:00",
+     "user_id": "__ref__:user_sales"
+    }
+   },
+   {
+    "xmlid": "so_04_l1",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_04",
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "product_uom_qty": 10,
+     "price_unit": 480
+    }
+   },
+   {
+    "xmlid": "so_04_l2",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_04",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "product_uom_qty": 24,
+     "price_unit": 95
+    }
+   },
+   {
+    "xmlid": "so_04_l3",
+    "model": "sale.order.line",
+    "values": {
+     "order_id": "__ref__:so_04",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "product_uom_qty": 10,
+     "price_unit": 120
+    }
+   },
+   {
+    "xmlid": "so_tmpl_std",
+    "model": "sale.order.template",
+    "values": {
+     "name": "標準清潔用品報價"
+    }
+   },
+   {
+    "xmlid": "so_tmpl_std_l1",
+    "model": "sale.order.template.line",
+    "values": {
+     "sale_order_template_id": "__ref__:so_tmpl_std",
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "product_uom_qty": 10,
+     "name": "抽取式衛生紙(整箱10包)"
+    }
+   },
+   {
+    "xmlid": "so_03_confirm",
+    "model": "sale.order",
+    "call": "action_confirm",
+    "ref": "so_03"
+   },
+   {
+    "xmlid": "so_04_confirm",
+    "model": "sale.order",
+    "call": "action_confirm",
+    "ref": "so_04"
+   },
+   {
+    "xmlid": "loyalty_anniv",
+    "model": "loyalty.program",
+    "values": {
+     "name": "週年慶全館 9 折",
+     "program_type": "promotion"
+    }
+   }
+  ]
+ },
+ "purchase_flow": {
+  "name": "採購流程",
+  "description": "3 張詢價單（2 張已確認）、採購協議",
+  "depends": [
+   "contacts",
+   "products"
+  ],
+  "seed": [
+   {
+    "xmlid": "po_01",
+    "model": "purchase.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "state": "draft",
+     "date_order": "2026-09-08 09:45:00",
+     "user_id": "__ref__:user_purchase"
+    }
+   },
+   {
+    "xmlid": "po_01_l1",
+    "model": "purchase.order.line",
+    "values": {
+     "order_id": "__ref__:po_01",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "product_qty": 30,
+     "price_unit": 460
+    }
+   },
+   {
+    "xmlid": "po_01_l2",
+    "model": "purchase.order.line",
+    "values": {
+     "order_id": "__ref__:po_01",
+     "product_id": "__ref__:__doc_pack_products.p_pen",
+     "product_qty": 500,
+     "price_unit": 5
+    }
+   },
+   {
+    "xmlid": "po_02",
+    "model": "purchase.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_02",
+     "state": "sent",
+     "date_order": "2026-09-12 15:10:00",
+     "user_id": "__ref__:user_purchase"
+    }
+   },
+   {
+    "xmlid": "po_02_l1",
+    "model": "purchase.order.line",
+    "values": {
+     "order_id": "__ref__:po_02",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "product_qty": 96,
+     "price_unit": 50
+    }
+   },
+   {
+    "xmlid": "po_02_l2",
+    "model": "purchase.order.line",
+    "values": {
+     "order_id": "__ref__:po_02",
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "product_qty": 40,
+     "price_unit": 300
+    }
+   },
+   {
+    "xmlid": "po_03",
+    "model": "purchase.order",
+    "values": {
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_03",
+     "state": "draft",
+     "date_order": "2026-09-18 13:00:00",
+     "user_id": "__ref__:user_purchase"
+    }
+   },
+   {
+    "xmlid": "po_03_l1",
+    "model": "purchase.order.line",
+    "values": {
+     "order_id": "__ref__:po_03",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "product_qty": 60,
+     "price_unit": 70
+    }
+   },
+   {
+    "xmlid": "po_01_confirm",
+    "model": "purchase.order",
+    "call": "button_confirm",
+    "ref": "po_01"
+   },
+   {
+    "xmlid": "po_03_confirm",
+    "model": "purchase.order",
+    "call": "button_confirm",
+    "ref": "po_03"
+   },
+   {
+    "xmlid": "req_paper",
+    "model": "purchase.requisition",
+    "values": {
+     "vendor_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "requisition_type": "blanket_order",
+     "date_end": "2026-12-31"
+    }
+   },
+   {
+    "xmlid": "req_paper_l1",
+    "model": "purchase.requisition.line",
+    "values": {
+     "requisition_id": "__ref__:req_paper",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "product_qty": 300,
+     "price_unit": 450
+    }
+   }
+  ]
+ },
+ "inventory_ops": {
+  "name": "庫存作業",
+  "description": "庫存數量、收貨與出貨單、儲位與上架規則、批號、報廢、批次與波次調撥",
+  "depends": [
+   "contacts",
+   "products"
+  ],
+  "seed": [
+   {
+    "xmlid": "quant_tissue",
+    "model": "stock.quant",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "quantity": 86
+    }
+   },
+   {
+    "xmlid": "quant_dish",
+    "model": "stock.quant",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "quantity": 240
+    }
+   },
+   {
+    "xmlid": "quant_a4",
+    "model": "stock.quant",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "quantity": 45
+    }
+   },
+   {
+    "xmlid": "quant_pen",
+    "model": "stock.quant",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_pen",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "quantity": 500
+    }
+   },
+   {
+    "xmlid": "quant_bag",
+    "model": "stock.quant",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "quantity": 150
+    }
+   },
+   {
+    "xmlid": "pick_in_01",
+    "model": "stock.picking",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_in",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_02",
+     "location_id": "__ref__:stock.stock_location_suppliers",
+     "location_dest_id": "__ref__:stock.stock_location_stock",
+     "scheduled_date": "2026-09-20 09:00:00"
+    }
+   },
+   {
+    "xmlid": "pick_in_01_m1",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_in_01",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "product_uom_qty": 96,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_suppliers",
+     "location_dest_id": "__ref__:stock.stock_location_stock",
+     "name": "示範移動"
+    }
+   },
+   {
+    "xmlid": "pick_in_01_m2",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_in_01",
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "product_uom_qty": 40,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_suppliers",
+     "location_dest_id": "__ref__:stock.stock_location_stock",
+     "name": "示範移動"
+    }
+   },
+   {
+    "xmlid": "pick_in_02",
+    "model": "stock.picking",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_in",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_03",
+     "location_id": "__ref__:stock.stock_location_suppliers",
+     "location_dest_id": "__ref__:stock.stock_location_stock",
+     "scheduled_date": "2026-09-22 09:00:00"
+    }
+   },
+   {
+    "xmlid": "pick_in_02_m1",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_in_02",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "product_uom_qty": 60,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_suppliers",
+     "location_dest_id": "__ref__:stock.stock_location_stock",
+     "name": "示範移動"
+    }
+   },
+   {
+    "xmlid": "pick_out_01",
+    "model": "stock.picking",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_out",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_01",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "scheduled_date": "2026-09-21 10:00:00"
+    }
+   },
+   {
+    "xmlid": "pick_out_01_m1",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_out_01",
+     "product_id": "__ref__:__doc_pack_products.p_tissue",
+     "product_uom_qty": 20,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "name": "示範移動"
+    }
+   },
+   {
+    "xmlid": "pick_out_01_m2",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_out_01",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "product_uom_qty": 30,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "name": "示範移動"
+    }
+   },
+   {
+    "xmlid": "pick_out_02",
+    "model": "stock.picking",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_out",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_03",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "scheduled_date": "2026-09-23 10:00:00"
+    }
+   },
+   {
+    "xmlid": "pick_out_02_m1",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_out_02",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "product_uom_qty": 10,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "name": "示範移動"
+    }
+   },
+   {
+    "xmlid": "loc_zone_a",
+    "model": "stock.location",
+    "values": {
+     "name": "A 區",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "usage": "internal"
+    }
+   },
+   {
+    "xmlid": "putaway_a4",
+    "model": "stock.putaway.rule",
+    "values": {
+     "location_in_id": "__ref__:stock.stock_location_stock",
+     "location_out_id": "__ref__:loc_zone_a",
+     "product_id": "__ref__:__doc_pack_products.p_a4"
+    }
+   },
+   {
+    "xmlid": "storage_pallet",
+    "model": "stock.storage.category",
+    "values": {
+     "name": "棧板區",
+     "max_weight": 1000
+    }
+   },
+   {
+    "xmlid": "lot_glue_1",
+    "model": "stock.lot",
+    "values": {
+     "name": "LOT-2026-0915",
+     "product_id": "__ref__:__doc_pack_products.p_glue"
+    }
+   },
+   {
+    "xmlid": "quant_glue",
+    "model": "stock.quant",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_glue",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "lot_id": "__ref__:lot_glue_1",
+     "quantity": 80
+    }
+   },
+   {
+    "xmlid": "scrap_dish",
+    "model": "stock.scrap",
+    "values": {
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "scrap_qty": 2
+    }
+   },
+   {
+    "xmlid": "scrap_dish_validate",
+    "model": "stock.scrap",
+    "call": "action_validate",
+    "ref": "scrap_dish"
+   },
+   {
+    "xmlid": "pick_in_02_confirm",
+    "model": "stock.picking",
+    "call": "action_confirm",
+    "ref": "pick_in_02"
+   },
+   {
+    "xmlid": "pick_in_02_validate",
+    "model": "stock.picking",
+    "call": "button_validate",
+    "ref": "pick_in_02"
+   },
+   {
+    "xmlid": "batch_01",
+    "model": "stock.picking.batch",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_out",
+     "is_wave": false
+    }
+   },
+   {
+    "xmlid": "wave_01",
+    "model": "stock.picking.batch",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_out",
+     "is_wave": true
+    }
+   },
+   {
+    "xmlid": "pick_out_03",
+    "model": "stock.picking",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_out",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_02",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "batch_id": "__ref__:batch_01"
+    }
+   },
+   {
+    "xmlid": "pick_out_03_m1",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_out_03",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "product_uom_qty": 12,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "name": "出貨"
+    }
+   },
+   {
+    "xmlid": "pick_out_03_confirm",
+    "model": "stock.picking",
+    "call": "action_confirm",
+    "ref": "pick_out_03"
+   },
+   {
+    "xmlid": "pick_out_04",
+    "model": "stock.picking",
+    "values": {
+     "picking_type_id": "__ref__:stock.picking_type_out",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_04",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "batch_id": "__ref__:wave_01"
+    }
+   },
+   {
+    "xmlid": "pick_out_04_m1",
+    "model": "stock.move",
+    "values": {
+     "picking_id": "__ref__:pick_out_04",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "product_uom_qty": 8,
+     "product_uom": "__ref__:uom.product_uom_unit",
+     "location_id": "__ref__:stock.stock_location_stock",
+     "location_dest_id": "__ref__:stock.stock_location_customers",
+     "name": "出貨"
+    }
+   },
+   {
+    "xmlid": "pick_out_04_confirm",
+    "model": "stock.picking",
+    "call": "action_confirm",
+    "ref": "pick_out_04"
+   }
+  ]
+ },
+ "accounting": {
+  "name": "應收付",
+  "description": "客戶發票、供應商帳單、收付款、退款、收據、財政狀況、現金捨入、分析帳",
+  "depends": [
+   "contacts",
+   "products"
+  ],
+  "seed": [
+   {
+    "xmlid": "inv_01",
+    "model": "account.move",
+    "values": {
+     "move_type": "out_invoice",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_03",
+     "invoice_date": "2026-09-24"
+    }
+   },
+   {
+    "xmlid": "inv_01_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:inv_01",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "quantity": 10,
+     "price_unit": 650
+    }
+   },
+   {
+    "xmlid": "inv_02",
+    "model": "account.move",
+    "values": {
+     "move_type": "out_invoice",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_02",
+     "invoice_date": "2026-09-25"
+    }
+   },
+   {
+    "xmlid": "inv_02_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:inv_02",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "quantity": 48,
+     "price_unit": 95
+    }
+   },
+   {
+    "xmlid": "bill_01",
+    "model": "account.move",
+    "values": {
+     "move_type": "in_invoice",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "invoice_date": "2026-09-19"
+    }
+   },
+   {
+    "xmlid": "bill_01_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:bill_01",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "quantity": 30,
+     "price_unit": 460
+    }
+   },
+   {
+    "xmlid": "bill_02",
+    "model": "account.move",
+    "values": {
+     "move_type": "in_invoice",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_03",
+     "invoice_date": "2026-09-22"
+    }
+   },
+   {
+    "xmlid": "bill_02_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:bill_02",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "quantity": 60,
+     "price_unit": 70
+    }
+   },
+   {
+    "xmlid": "pay_in_01",
+    "model": "account.payment",
+    "values": {
+     "payment_type": "inbound",
+     "partner_type": "customer",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_03",
+     "amount": 6500,
+     "date": "2026-09-26",
+     "memo": "向福來文具行收款"
+    }
+   },
+   {
+    "xmlid": "pay_out_01",
+    "model": "account.payment",
+    "values": {
+     "payment_type": "outbound",
+     "partner_type": "supplier",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "amount": 13800,
+     "date": "2026-09-27",
+     "memo": "支付大同紙業貨款"
+    }
+   },
+   {
+    "xmlid": "fpos_export",
+    "model": "account.fiscal.position",
+    "values": {
+     "name": "外銷免稅"
+    }
+   },
+   {
+    "xmlid": "refund_01",
+    "model": "account.move",
+    "values": {
+     "move_type": "out_refund",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_02",
+     "invoice_date": "2026-09-28"
+    }
+   },
+   {
+    "xmlid": "refund_01_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:refund_01",
+     "product_id": "__ref__:__doc_pack_products.p_dish",
+     "quantity": 4,
+     "price_unit": 95
+    }
+   },
+   {
+    "xmlid": "inv_01_post",
+    "model": "account.move",
+    "call": "action_post",
+    "ref": "inv_01"
+   },
+   {
+    "xmlid": "inv_02_post",
+    "model": "account.move",
+    "call": "action_post",
+    "ref": "inv_02"
+   },
+   {
+    "xmlid": "bill_01_post",
+    "model": "account.move",
+    "call": "action_post",
+    "ref": "bill_01"
+   },
+   {
+    "xmlid": "pay_in_01_post",
+    "model": "account.payment",
+    "call": "action_post",
+    "ref": "pay_in_01"
+   },
+   {
+    "xmlid": "pay_out_01_post",
+    "model": "account.payment",
+    "call": "action_post",
+    "ref": "pay_out_01"
+   },
+   {
+    "xmlid": "journal_group_mgmt",
+    "model": "account.journal.group",
+    "values": {
+     "name": "管理帳簿"
+    }
+   },
+   {
+    "xmlid": "receipt_out_01",
+    "model": "account.move",
+    "values": {
+     "move_type": "out_receipt",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_cust_04",
+     "invoice_date": "2026-09-26"
+    }
+   },
+   {
+    "xmlid": "receipt_out_01_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:receipt_out_01",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "quantity": 5,
+     "price_unit": 120
+    }
+   },
+   {
+    "xmlid": "receipt_in_01",
+    "model": "account.move",
+    "values": {
+     "move_type": "in_receipt",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_03",
+     "invoice_date": "2026-09-26"
+    }
+   },
+   {
+    "xmlid": "receipt_in_01_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:receipt_in_01",
+     "product_id": "__ref__:__doc_pack_products.p_bag",
+     "quantity": 10,
+     "price_unit": 70
+    }
+   },
+   {
+    "xmlid": "refund_in_01",
+    "model": "account.move",
+    "values": {
+     "move_type": "in_refund",
+     "partner_id": "__ref__:__doc_pack_contacts.partner_vend_01",
+     "invoice_date": "2026-09-29"
+    }
+   },
+   {
+    "xmlid": "refund_in_01_l1",
+    "model": "account.move.line",
+    "values": {
+     "move_id": "__ref__:refund_in_01",
+     "product_id": "__ref__:__doc_pack_products.p_a4",
+     "quantity": 2,
+     "price_unit": 460
+    }
+   },
+   {
+    "xmlid": "cash_rounding_1",
+    "model": "account.cash.rounding",
+    "values": {
+     "name": "四捨五入到元",
+     "rounding": 1.0,
+     "strategy": "biggest_tax",
+     "rounding_method": "HALF-UP"
+    }
+   },
+   {
+    "xmlid": "analytic_plan_proj",
+    "model": "account.analytic.plan",
+    "values": {
+     "name": "專案"
+    }
+   },
+   {
+    "xmlid": "analytic_acc_expo",
+    "model": "account.analytic.account",
+    "values": {
+     "name": "秋季展覽",
+     "plan_id": "__ref__:analytic_plan_proj"
+    }
+   },
+   {
+    "xmlid": "analytic_line_1",
+    "model": "account.analytic.line",
+    "values": {
+     "name": "展覽攤位租金",
+     "account_id": "__ref__:analytic_acc_expo",
+     "amount": -12000,
+     "date": "2026-09-20"
+    }
+   },
+   {
+    "xmlid": "analytic_line_2",
+    "model": "account.analytic.line",
+    "values": {
+     "name": "展覽現場銷售",
+     "account_id": "__ref__:analytic_acc_expo",
+     "amount": 18500,
+     "date": "2026-09-21"
+    }
+   }
+  ]
+ }
+}

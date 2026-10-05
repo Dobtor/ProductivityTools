@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- 角色範本（通用化第二階段）：拍操作畫面用的標準職務，使用者等級群組。
+         AI 圈選新情境時優先沿用（代碼相同即沿用群組）；方案需要其他職務才另提。
+         群組在說明庫不存在時重播會略過（seed_script），所以列原生 ERP 常見的即可。 -->
+    <record id="role_sales" model="corpaas.knowledge.role">
+        <field name="sequence">10</field>
+        <field name="code">sales</field>
+        <field name="name">業務</field>
+        <field name="group_xmlids">sales_team.group_sale_salesman_all_leads</field>
+    </record>
+    <record id="role_purchase" model="corpaas.knowledge.role">
+        <field name="sequence">20</field>
+        <field name="code">purchase</field>
+        <field name="name">採購</field>
+        <field name="group_xmlids">purchase.group_purchase_user</field>
+    </record>
+    <record id="role_stock" model="corpaas.knowledge.role">
+        <field name="sequence">30</field>
+        <field name="code">stock</field>
+        <field name="name">倉管</field>
+        <field name="group_xmlids">stock.group_stock_user</field>
+    </record>
+    <record id="role_account" model="corpaas.knowledge.role">
+        <field name="sequence">40</field>
+        <field name="code">account</field>
+        <field name="name">會計</field>
+        <field name="group_xmlids">account.group_account_invoice</field>
+    </record>
+    <record id="role_admin" model="corpaas.knowledge.role">
+        <field name="sequence">90</field>
+        <field name="code">admin</field>
+        <field name="name">系統管理員</field>
+        <field name="group_xmlids">base.group_system</field>
+    </record>
+</odoo>

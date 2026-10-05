@@ -722,7 +722,7 @@ class TestHelpRoleOrder(ManualCase):
     def test_role_overlap_orders_articles(self):
         Role = self.env['corpaas.knowledge.role'].sudo()
         wh = Role.create({'code': 'wh', 'name': '倉管', 'group_xmlids': 'stock.group_stock_user'})
-        sales = Role.create({'code': 'sales', 'name': '業務', 'group_xmlids': 'sales_team.group_sale_salesman'})
+        sales = Role.create({'code': 'kbt_sales', 'name': '業務', 'group_xmlids': 'sales_team.group_sale_salesman'})
         sc2 = self.env['corpaas.knowledge.scenario'].sudo().create({
             'name': '倉儲', 'code': 'kbtest_wh', 'package_ids': [(6, 0, self.pkg.ids)],
             'role_ids': [(6, 0, wh.ids)]})

@@ -63,7 +63,11 @@ class KnowledgeRun(models.Model):
                   'shots_planned': _('要拍'), 'shots_skipped': _('沿用截圖'),
                   'shots_ok': _('拍成功'), 'shots_failed': _('拍失敗'),
                   'templates_rule': _('規則腳本'), 'articles': _('文章對帳'),
-                  'carried_over': _('留到隔天')}
+                  'carried_over': _('留到隔天'),
+                  'shots_failed_empty': _('失敗：空白畫面'),
+                  'shots_failed_access': _('失敗：權限'),
+                  'shots_failed_locator': _('失敗：定位'),
+                  'public_ok': _('前台抽查通過'), 'public_failed': _('前台抽查失敗')}
         for rec in self:
             stats = rec.stats()
             rec.summary = '、'.join('%s %s' % (labels.get(k, k), v) for k, v in stats.items())

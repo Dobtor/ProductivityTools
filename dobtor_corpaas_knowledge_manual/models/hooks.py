@@ -336,9 +336,32 @@ class KnowledgeHooks(models.AbstractModel):
             lambda b: b.state == 'ok'))
         stats['shots_failed'] = stats.get('shots_failed', 0) + len(todo.filtered(
             lambda b: b.state != 'ok'))
+        self._manual_record_failures(sandbox.scenario_id, relevant, stats)
         self._manual_repair_bindings(package, failed, token, stop)
         self._manual_commit()
         return res
+
+    @staticmethod
+    def _manual_failure_kind(error):
+        """截圖失敗分類（通用化第三階段）：空白＝示範資料缺口、權限＝角色群組、其他＝腳本定位。"""
+        error = error or ''
+        if '空白引導頁' in error or '找不到示範資料' in error:
+            return 'empty'
+        if '存取錯誤' in error or '權限' in error or 'Access' in error:
+            return 'access'
+        return 'locator'
+
+    @api.model
+    def _manual_record_failures(self, scenario, bindings, stats):
+        """失敗分類寫進執行紀錄；空白畫面寫回情境，下次 AI 組裝／修正示範資料時優先補。"""
+        failed = bindings.filtered(lambda b: b.state == 'failed')
+        kinds = {'empty': [], 'access': [], 'locator': []}
+        for b in failed:
+            kinds[self._manual_failure_kind(b.last_error)].append(b.template_id.feature_id.name)
+        for k, names in kinds.items():
+            stats['shots_failed_%s' % k] = len(names)
+        scenario.sudo().shot_gaps = json.dumps(sorted(set(kinds['empty'])), ensure_ascii=False)
+        return kinds
 
     @api.model
     def _manual_commit(self):
@@ -863,7 +886,51 @@ class KnowledgeHooks(models.AbstractModel):
             me._manual_reconcile(package, token, stop)
         self._manual_propose_merges(self.env['corpaas.knowledge.feature'].union(
             *self._manual_candidates(package).keys()))
+        try:
+            self._manual_public_check(package, ctx.setdefault('stats', {}))
+        except Exception as e:  # noqa: BLE001 — 抽查失敗只記錄，不讓更新失敗
+            _logger.warning('[knowledge.manual] 前台抽查失敗：%s', e)
         return res
+
+    @api.model
+    def _manual_public_check(self, package, stats, sample=None):
+        """發佈後以未登入身分抽查（通用化第三階段）：頁面 200、有截圖的文章頁面裡有圖。
+
+        結果記在執行紀錄（public_ok／public_failed），失敗的位置寫進 sync_error。"""
+        import requests
+        from odoo.addons.dobtor_corpaas_knowledge.services import txn
+        if txn.in_tests(self.env):
+            return None
+        Placement = self.env['corpaas.knowledge.placement'].sudo()
+        live = Placement.search([('package_id', '=', package.id),
+                                 ('manual_retired', '=', False), ('slide_id', '!=', False)])
+        live = live.filtered(lambda p: p.slide_id.is_published)
+        if not live:
+            return None
+        sample = sample or int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.public_check_sample', 5) or 5)
+        base = (self.env['ir.config_parameter'].sudo().get_param('web.base.url') or '').rstrip('/')
+        picks = live.sorted(lambda p: p.synced_at or p.create_date, reverse=True)[:sample]
+        ok = failed = 0
+        for pl in picks:
+            url = base + (pl.slide_id.website_url or '')
+            problem = ''
+            try:
+                resp = requests.get(url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+                if resp.status_code != 200:
+                    problem = 'HTTP %s' % resp.status_code
+                elif pl.article_id.asset_ids and '<img' not in resp.text:
+                    problem = _('頁面沒有截圖')
+            except requests.RequestException as e:
+                problem = str(e)[:200]
+            if problem:
+                failed += 1
+                pl.sync_error = _('前台抽查：%s') % problem
+            else:
+                ok += 1
+        stats['public_ok'] = stats.get('public_ok', 0) + ok
+        stats['public_failed'] = stats.get('public_failed', 0) + failed
+        return ok, failed
 
     @api.model
     def _manual_relevant_bindings(self, package):
