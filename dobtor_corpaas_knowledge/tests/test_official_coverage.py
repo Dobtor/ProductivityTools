@@ -172,3 +172,34 @@ class TestFlowNaming(TransactionCase):
             {'package_id': self.pkg.id, 'kind': 'feature', 'feature_id': self.f.id})
         self.flow.action_approve_proposals()
         self.assertEqual(sel.state, 'approved')
+
+    def test_flow_joins_capability_owning_most_features_in_batch(self):
+        """實機：能力提案與流程提案一起核准，流程另建了「銷售管理」等 6 個重複能力。"""
+        Sel = self.env['corpaas.knowledge.selection']
+        flow_sel = self._name({'model': 'x.order', 'name': '訂單處理',
+                               'new_capability': '銷售管理'})
+        cap_sel = Sel.create({'package_id': self.pkg.id, 'kind': 'capability',
+                              'proposal_json': json.dumps({'new_capability': '銷售',
+                                                           'features': [self.f.feature_key]})})
+        before = self.env['corpaas.knowledge.capability'].search_count([])
+        (flow_sel | cap_sel)._knowledge_approve()   # 流程排在前面也一樣：能力先核准
+        self.assertEqual(self.env['corpaas.knowledge.capability'].search_count([]), before + 1,
+                         '只建「銷售」，流程掛上它，不另建「銷售管理」')
+        self.assertEqual(self.flow.capability_id, cap_sel.capability_id)
+
+    def test_flow_naming_reuses_waiting_capability_names(self):
+        Sel = self.env['corpaas.knowledge.selection']
+        Sel.create({'package_id': self.pkg.id, 'kind': 'capability',
+                    'proposal_json': json.dumps({'new_capability': '銷售'})})
+        prompts = []
+        Ai = type(self.env['corpaas.knowledge.ai'])
+
+        def ask(s, purpose, prompt, **kw):
+            prompts.append(prompt)
+            return {'items': [{'model': 'x.order', 'name': '訂單處理', 'capability': '銷售'}]}
+
+        with patch.object(Ai, 'ask', ask):
+            sel = self.pkg._knowledge_flow_names('tok')
+        self.assertIn('待審的能力提案：銷售', prompts[0])
+        self.assertEqual(json.loads(sel.proposal_json)['new_capability'], '銷售',
+                         '名稱填在 code 欄也照收')

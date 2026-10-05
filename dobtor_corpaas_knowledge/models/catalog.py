@@ -780,8 +780,13 @@ class KnowledgeSelection(models.Model):
         recs.write({'auto_approved': True})
         return recs
 
+    #: 批次核准的順序：先建能力，流程與功能才掛得上既有能力（否則流程提案各自另建一個）
+    _APPROVE_ORDER = {'capability': 0, 'scenario': 1, 'feature': 2, 'flow': 3}
+
     def _knowledge_approve(self):
-        for rec in self.filtered(lambda r: r.state == 'proposed'):
+        todo = self.filtered(lambda r: r.state == 'proposed').sorted(
+            lambda r: (self._APPROVE_ORDER.get(r.kind, 9), r.id))
+        for rec in todo:
             if rec.kind == 'scenario':
                 sc = rec.scenario_id or rec._create_proposed_scenario()
                 if sc:
@@ -818,8 +823,10 @@ class KnowledgeSelection(models.Model):
         if data.get('summary'):
             vals['summary'] = data['summary']
         # ★ 流程提案的 name 是流程名稱，不是能力名稱：只有明確提了 new_capability 才建能力。
-        cap = self.capability_id or (self._create_proposed_capability()
-                                     if data.get('new_capability') else self.capability_id)
+        # ★ 流程上的功能點過半已屬於本方案某個能力 → 掛那個能力，不另建：實機 11 個流程提案
+        #   核准後多出「銷售管理」「採購管理」「財務會計」等 6 個與既有能力重複的能力。
+        cap = self.capability_id or self._knowledge_flow_owner(flow) or (
+            self._create_proposed_capability() if data.get('new_capability') else self.capability_id)
         if cap:
             vals['capability_id'] = cap.id
             mine = flow.feature_ids.filtered(lambda f: self.package_id in f.package_ids)
@@ -827,6 +834,22 @@ class KnowledgeSelection(models.Model):
             cap.package_ids = [(4, self.package_id.id)]
             self.capability_id = cap
         flow.write(vals)
+
+    def _knowledge_flow_owner(self, flow):
+        """流程的功能點有過半屬於本方案的同一個能力 → 回傳那個能力。"""
+        self.ensure_one()
+        feats = flow.feature_ids.filtered(lambda f: self.package_id in f.package_ids)
+        caps = self.package_id.knowledge_capability_ids
+        if not feats or not caps:
+            return self.env['corpaas.knowledge.capability']
+        votes = {}
+        for f in feats:
+            for c in f.capability_ids & caps:
+                votes[c] = votes.get(c, 0) + 1
+        if not votes:
+            return self.env['corpaas.knowledge.capability']
+        best = max(votes, key=lambda c: (votes[c], -c.id))
+        return best if votes[best] * 2 >= len(feats) else self.env['corpaas.knowledge.capability']
 
     def _create_proposed_scenario(self):
         """AI 提議的新情境：建立草稿（示範資料另外起草、走情境自己的核准）。"""

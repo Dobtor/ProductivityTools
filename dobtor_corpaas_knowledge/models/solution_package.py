@@ -1438,14 +1438,19 @@ class SolutionPackage(models.Model):
         Cap = self.env['corpaas.knowledge.capability'].sudo()
         caps = Cap.search([('code', '!=', False)])
         mine = self.knowledge_capability_ids
+        # ★ 同一次更新剛分群出來、還在待審的能力：流程沿用這些名稱，不另取（否則核准後重複）
+        waiting = [n for n in Sel.search([('package_id', '=', self.id), ('kind', '=', 'capability'),
+                                          ('state', '=', 'proposed')]).mapped('proposal_name') if n]
+        waiting_rule = ("待審的能力提案：%s——適合的話 new_capability 填完全相同的名稱，"
+                        "不要另取近似的名稱。\n" % '、'.join(waiting)) if waiting else ''
         prompt = (
             "以下是方案「%s」裡的任務流程（狀態步驟與觸發按鈕）。請為每個流程：(1) 取一個使用者"
             "看得懂的業務名稱（4–12 字）；(2) 用 1–2 句寫出這個流程在做什麼；(3) 建議歸入哪個能力"
-            "（用能力 code；優先本方案的；都不適合才給 new_capability 名稱）。\n"
+            "（用能力 code；優先本方案的；都不適合才給 new_capability 名稱）。\n%s"
             "格式：{\"items\":[{\"model\":…,\"name\":…,\"summary\":…,"
             "\"capability\":…|null,\"new_capability\":…|null,\"reason\":…}]}\n\n"
             "能力：%s\n\n流程：%s"
-        ) % (self.display_name,
+        ) % (self.display_name, waiting_rule,
              json.dumps([{'code': c.code, 'name': c.name, 'in_package': c in mine}
                          for c in caps], ensure_ascii=False),
              json.dumps([f.as_outline() for f in todo], ensure_ascii=False))
@@ -1467,6 +1472,8 @@ class SolutionPackage(models.Model):
                 continue
             cap = by_code.get(item.get('capability'))
             new_cap = item.get('new_capability') if not cap else None
+            if not cap and not new_cap and item.get('capability') in waiting:
+                new_cap = item['capability']   # 名稱填在 code 欄（實機見過）
             if new_cap:
                 existing = Cap._knowledge_find_by_name(new_cap)
                 if existing:
