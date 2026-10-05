@@ -259,6 +259,33 @@ class TestAiQuality(TransactionCase):
         self.assertEqual(sent_off, 30)
         self.assertEqual(sent_own, 120)
 
+    def test_select_proposes_scenario_with_roles(self):
+        """從零開始沒有任何角色：新情境要連角色一起提，核准後情境就有拍照用的帳號。"""
+        self._feature('x_rl.f1', group_xmlids='sales_team.group_sale_salesman,stock.group_stock_user')
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        prompts = []
+        reply = {'scenarios': [{'new': {
+            'name': '晨光生活用品', 'code': 'Morning Light', 'narrative': '小型批發商',
+            'roles': [{'code': 'sales', 'name': '業務人員',
+                       'groups': ['sales_team.group_sale_salesman']},
+                      {'code': 'stock', 'name': '倉管', 'groups': ['不是 xmlid']}]},
+            'reason': '原生進銷存', 'score': 9}]}
+        with patch.object(Ai, 'ask', lambda s, p, prompt, **kw: prompts.append(prompt) or reply), \
+                patch.object(type(self.pkg), '_knowledge_master',
+                             lambda s, raise_if_missing=True: True):
+            self.pkg._knowledge_ai_select_run()
+        self.assertIn('sales_team.group_sale_salesman', prompts[0], '可用群組來自方案畫面')
+        self.assertIn('base.group_system', prompts[0])
+        sel = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'scenario')])
+        self.assertIn('業務人員（sales）', sel.proposal_outcome, '核准前看得到要建哪些角色')
+        sel._knowledge_approve()
+        sc = sel.scenario_id
+        self.assertEqual(sc.code, 'morning_light')
+        self.assertEqual(sorted(sc.role_ids.mapped('code')), ['admin', 'sales'],
+                         '群組不合法的角色略過；一定補上 admin')
+        self.assertEqual(sc.role_ids.filtered(lambda r: r.code == 'admin').group_xmlids,
+                         'base.group_system')
+
     # K11 -----------------------------------------------------------------
     def _inventory_into(self, pkg, feature):
         """模擬盤點把既有功能點加進 pkg。"""

@@ -1717,20 +1717,31 @@ class SolutionPackage(models.Model):
         scenarios = self.env['corpaas.knowledge.scenario'].search([])
         caps = self.env['corpaas.knowledge.capability'].search([])
         tmpl = self.product_tmpl_id
+        # ★ 新情境要一併提議角色：拍照用角色帳號登入（業務、倉管、會計…），沒有角色說明庫
+        #   建不出帳號、截圖全部失敗——從零開始時沒有任何地方會產生角色。
+        #   群組只能從方案畫面實際要求的群組挑（AI 自己編的 xmlid 在說明庫裡不存在）。
+        groups = sorted({g.strip() for f in self.env['corpaas.knowledge.feature'].search(base)
+                         for g in (f.group_xmlids or '').split(',') if g.strip()}
+                        | {'base.group_system', 'base.group_user'})
         prompt = (
             "方案：%s\n定位描述：%s\n\n既有情境：%s\n\n既有能力：%s\n\n功能點（依使用量排序）：%s\n\n"
             "請提議：(1) 此方案該引用哪些既有情境，或需要新增什麼專屬情境（說明要延伸哪個基底）；"
             "(2) 此方案的能力清單（沿用既有能力用 code，新能力給名稱、痛點、成果、包含的功能點 key）。\n"
-            "格式：{\"scenarios\":[{\"code\"|\"new\":{…},\"reason\",\"score\"}],"
+            "新情境要附上拍操作畫面用的角色 roles：每個角色一個英數 code（業務 sales、採購 purchase、"
+            "倉管 stock、會計 account、系統管理員 admin，其他職務自取英數）、中文 name、"
+            "groups（只能從下方「可用群組」挑）；一定要有 admin（base.group_system）。\n"
+            "格式：{\"scenarios\":[{\"code\"|\"new\":{\"name\",\"code\",\"narrative\",\"glossary\","
+            "\"roles\":[{\"code\",\"name\",\"groups\":[xmlid]}]},\"reason\",\"score\"}],"
             "\"capabilities\":[{\"code\"|\"new\":{\"name\",\"pain\",\"outcome\",\"features\":[key]},"
-            "\"reason\",\"score\"}]}"
+            "\"reason\",\"score\"}]}\n\n可用群組：%s"
         ) % (tmpl.display_name, (tmpl.description_sale or tmpl.description or '')[:3000],
              json.dumps([{'code': s.code, 'name': s.name, 'base': s.is_base,
                           'narrative': (s.narrative or '')[:300]} for s in scenarios],
                         ensure_ascii=False),
              json.dumps([{'code': c.code, 'name': c.name} for c in caps], ensure_ascii=False),
              json.dumps([{'key': f.feature_key, 'name': f.name, 'menu': f.menu_path}
-                         for f in features], ensure_ascii=False))
+                         for f in features], ensure_ascii=False),
+             json.dumps(groups, ensure_ascii=False))
         data = self.env['corpaas.knowledge.ai'].ask('select', prompt, package=self)
         Selection = self.env['corpaas.knowledge.selection'].sudo()
         sc_by_code = {s.code: s for s in scenarios}

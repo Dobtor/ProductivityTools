@@ -675,7 +675,12 @@ class KnowledgeSelection(models.Model):
                 feats = rec.feature_id
             rec.proposal_feature_ids = feats
             rec.proposal_feature_count = len(feats)
-            rec.proposal_outcome = data.get('outcome') or data.get('summary') or False
+            outcome = data.get('outcome') or data.get('summary') or data.get('narrative') or ''
+            roles = [r for r in data.get('roles') or [] if isinstance(r, dict)]
+            if roles:
+                outcome += '\n\n' + _('角色：') + '、'.join(
+                    '%s（%s）' % (r.get('name') or r.get('code'), r.get('code')) for r in roles)
+            rec.proposal_outcome = outcome.strip() or False
 
     @api.depends('proposal_json', 'kind')
     def _compute_proposal_name(self):
@@ -861,10 +866,35 @@ class KnowledgeSelection(models.Model):
         code = re.sub(r'[^a-z0-9_]+', '_', (data.get('code') or '').lower()).strip('_') \
             or 'sc_%s_%s' % (self.package_id.id, self.id)
         parent = Sc.search([('code', '=', data.get('extends') or data.get('parent'))], limit=1)
-        return Sc.search([('code', '=', code)], limit=1) or Sc.create({
+        existing = Sc.search([('code', '=', code)], limit=1)
+        if existing:
+            return existing
+        sc = Sc.create({
             'name': data['name'], 'code': code, 'parent_id': parent.id or False,
             'narrative': data.get('narrative') or data.get('reason'),
             'glossary': data.get('glossary') if isinstance(data.get('glossary'), str) else False})
+        sc.role_ids = [(6, 0, self._knowledge_proposed_roles(data).ids)]
+        return sc
+
+    def _knowledge_proposed_roles(self, data):
+        """提案裡的角色 → 角色記錄（同代碼沿用既有的，不改它的群組）；一定補上 admin。"""
+        Role = self.env['corpaas.knowledge.role'].sudo()
+        roles = Role
+        items = [r for r in data.get('roles') or [] if isinstance(r, dict)]
+        if not any(r.get('code') == 'admin' for r in items):
+            items.append({'code': 'admin', 'name': '系統管理員', 'groups': ['base.group_system']})
+        for r in items:
+            code = re.sub(r'[^a-z0-9_]+', '_', str(r.get('code') or '').lower()).strip('_')
+            groups = [g for g in r.get('groups') or []
+                      if isinstance(g, str) and re.fullmatch(r'[a-z0-9_]+\.[a-z0-9_]+', g)]
+            if not code or not groups:
+                continue
+            role = Role.search([('code', '=', code)], limit=1) or Role.create({
+                'code': code, 'name': r.get('name') or code,
+                'group_xmlids': '\n'.join(groups),
+                'sequence': len(roles) + 1})
+            roles |= role
+        return roles
 
     def _create_proposed_capability(self):
         """AI 提議的新能力：核准時才真的建立（草稿，另外走能力自己的核准）。"""
