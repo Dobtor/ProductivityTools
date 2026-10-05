@@ -23,6 +23,8 @@ class SolutionPackageManualCost(models.Model):
                                              ('scenario_id', '=', scenario.id)]):
                     draft += 1
         repair = self.env['corpaas.knowledge.shot_binding'].sudo().search_count([
+            # ★ 已被規則腳本取代（封存）的 AI 範本不會再修：不算進去（實機曾因此多估 29 件）
+            ('template_id.active', '=', True),
             ('template_id.feature_id.package_ids', 'in', self.id), ('state', '=', 'failed'),
             ('needs_repair', '=', True), ('repair_attempts', '<', MAX_REPAIRS)])
         lines += [

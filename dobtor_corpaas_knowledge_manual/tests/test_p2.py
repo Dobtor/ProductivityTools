@@ -93,3 +93,17 @@ class TestDraftOrderAndCost(ManualCase):
         self.assertEqual(lines['script']['unit'], 0.0, '規則模式產生腳本不花 AI')
         self.pkg.action_knowledge_cost_plan()
         self.assertIn('起草參考篇', self.pkg.knowledge_cost_plan_html)
+
+    def test_archived_templates_not_counted_for_repair(self):
+        import json
+        Template = self.env['corpaas.knowledge.shot_template'].sudo()
+        Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
+        for active in (True, False):
+            t = Template.create({'feature_id': self.f1.id, 'login_role': 'admin',
+                                 'fingerprint': 'h%s' % active, 'source': 'ai',
+                                 'steps_json': json.dumps([{'shot': 'main'}])})
+            Binding.create({'template_id': t.id, 'scenario_id': self.scenario.id,
+                            'state': 'failed', 'needs_repair': True})
+            t.active = active
+        lines = {l['key']: l for l in self.pkg._knowledge_cost_lines()}
+        self.assertEqual(lines['repair']['count'], 1, '封存的範本不會再修')
