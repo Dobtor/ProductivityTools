@@ -1379,6 +1379,10 @@ class SolutionPackage(models.Model):
                 feature._knowledge_add_intents(intents)
             cap = by_code.get(item.get('capability'))
             new_name = item.get('new_capability') if not cap else None
+            if not cap and not new_name and item.get('capability') in planned:
+                # ★ 實機：AI 把待審能力的名稱填在 capability（那欄本來只放既有能力的 code），
+                #   第二批 28 個功能點因此全部沒有歸屬
+                new_name = item['capability']
             if planned and isinstance(new_name, str) and new_name not in planned:
                 # 分群模式：清單外的名稱靠到最像的一群；都不像就先不歸（共通操作）
                 best = max(planned, key=lambda n: search_lib.similarity(n, new_name))

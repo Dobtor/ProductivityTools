@@ -171,7 +171,8 @@ class TestAiQuality(TransactionCase):
                                          {'name': '銷售', 'outcome': '不該覆寫'},
                                          {'name': '甲'}, {'name': '乙'}, {'name': '丙'}],
                         'items': [{'key': second[0].feature_key, 'new_capability': '銷售'},
-                                  {'key': second[1].feature_key, 'new_capability': '庫存'},
+                                  # 實機回覆：待審能力的名稱填在 capability 欄
+                                  {'key': second[1].feature_key, 'capability': '庫存'},
                                   {'key': second[2].feature_key, 'new_capability': '倉儲管理'},
                                   {'key': second[3].feature_key, 'new_capability': '丙'}]})
         with patch.object(Ai, 'ask', ask):
@@ -185,6 +186,8 @@ class TestAiQuality(TransactionCase):
         self.assertEqual(sales['outcome'], '賣東西', '待審提案的說明不被第二批覆寫')
         self.assertIn(second[0].feature_key, sales['features'])
         self.assertEqual(len(sales['features']), 9)
+        stock = json.loads(props.filtered(lambda p: p.proposal_name == '庫存').proposal_json)
+        self.assertIn(second[1].feature_key, stock['features'], '名稱填在 capability 欄也算')
 
     def test_small_batch_does_not_cluster(self):
         f = self._feature('x_aq.s1', classify_pending=True)
