@@ -1305,12 +1305,31 @@ class SolutionPackage(models.Model):
         # ★ 從零開始（方案還幾乎沒有能力、一次來一大批）：先分群再歸類。
         #   逐一歸類時 AI 找不到可用的能力，幾乎每個功能點各提一個新能力（實機 108 個功能點
         #   提了 71 個），核准者得逐一排除。改成先分出 6–10 個能力，新能力名稱只能從中挑。
-        cluster = len(mine) < CLUSTER_MAX_CAPS and len(batch) >= CLUSTER_MIN_FEATURES
-        group_rule = (
-            "本方案目前幾乎沒有能力：請先把這批功能點分成 6–10 個業務能力（依使用者要完成的"
-            "工作分，例如聯絡人、產品、銷售、採購、庫存、應收付；設定頁與報表歸到它服務的那個能力，"
-            "不要單獨成一個能力），每個能力至少涵蓋 3 個功能點，放在 capabilities；"
-            "new_capability 只能填 capabilities 裡的名稱。\n") if cluster else ''
+        # ★ 上一批已分出、還在待審的能力：這一批沿用同一組名稱（一次最多 80 個，108 個功能點
+        #   要兩次更新；第二批若重新分群，會提出另一組名稱，提案就重複了）
+        waiting = {}
+        for sel in self.env['corpaas.knowledge.selection'].sudo().search([
+                ('package_id', '=', self.id), ('kind', '=', 'capability'),
+                ('state', '=', 'proposed')]):
+            name = sel.proposal_name
+            if name:
+                info = json.loads(sel.proposal_json or '{}')
+                waiting[name] = {'outcome': info.get('outcome'), 'pain': info.get('pain')}
+        cluster = len(mine) < CLUSTER_MAX_CAPS and (
+            len(batch) >= CLUSTER_MIN_FEATURES or bool(waiting))
+        if cluster and waiting:
+            group_rule = (
+                "本方案已有待審的能力提案：%s。功能點優先歸入這些能力（new_capability 填完全相同"
+                "的名稱）；真的都不適合，才在 capabilities 另提新能力（最多 2 個，每個至少涵蓋 3 個"
+                "功能點）。\n") % '、'.join(waiting)
+        elif cluster:
+            group_rule = (
+                "本方案目前幾乎沒有能力：請先把這批功能點分成 6–10 個業務能力（依使用者要完成的"
+                "工作分，例如聯絡人、產品、銷售、採購、庫存、應收付；設定頁與報表歸到它服務的那個能力，"
+                "不要單獨成一個能力），每個能力至少涵蓋 3 個功能點，放在 capabilities；"
+                "new_capability 只能填 capabilities 裡的名稱。\n")
+        else:
+            group_rule = ''
         prompt = (
             "以下是方案「%s」改版後新增的功能點，以及既有的能力（in_package 表示已在本方案）。\n"
             "%s"
@@ -1337,13 +1356,19 @@ class SolutionPackage(models.Model):
         by_key = {f.feature_key: f for f in batch}
         by_code = {c.code: c for c in caps}
         groups = []  # [(代表名稱, [items])]
-        planned = {}  # 分群模式：AI 分出的能力 {名稱: {outcome, pain}}
+        planned = {}  # 分群模式：AI 分出的能力 {名稱: {outcome, pain}}（含沿用的待審提案）
         if cluster:
-            for c in (data or {}).get('capabilities') or []:
+            planned.update(waiting)
+            extra = [c for c in (data or {}).get('capabilities') or []
+                     if isinstance(c, dict) and c.get('name') not in waiting]
+            for c in extra[:2] if waiting else extra:
                 if isinstance(c, dict) and isinstance(c.get('name'), str) and c['name'].strip():
                     planned[c['name'].strip()] = {'outcome': c.get('outcome'), 'pain': c.get('pain')}
             for name in planned:
                 groups.append((name, []))
+            # 沿用的待審提案只補內容說明，不覆寫（upsert 依名稱合併功能點清單）
+            for name in waiting:
+                planned[name] = {}
         for item in (data or {}).get('items') or []:
             feature = by_key.get(item.get('key'))
             if not feature:

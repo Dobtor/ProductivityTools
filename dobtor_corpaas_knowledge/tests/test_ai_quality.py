@@ -150,6 +150,42 @@ class TestAiQuality(TransactionCase):
         orphan = self.Sel.search([('feature_id', '=', feats[19].id)])
         self.assertTrue(orphan and not orphan.capability_id, '都不像的先不歸，不另開能力')
 
+    def test_second_batch_reuses_waiting_capability_names(self):
+        """一次最多 80 個：第二批沿用第一批還在待審的能力名稱，不重新分群。"""
+        first = [self._feature('x_aq.b%02d' % i, classify_pending=True) for i in range(16)]
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        prompts, replies = [], []
+
+        def ask(s, purpose, prompt, **kw):
+            prompts.append(prompt)
+            return replies.pop(0)
+
+        replies.append({'capabilities': [{'name': '銷售', 'outcome': '賣東西'},
+                                         {'name': '庫存', 'outcome': '管倉庫'}],
+                        'items': [{'key': f.feature_key, 'new_capability': ('銷售', '庫存')[i % 2]}
+                                  for i, f in enumerate(first)]})
+        with patch.object(Ai, 'ask', ask):
+            self.pkg._knowledge_ai_catalog(self.Feature, 'tok')
+        second = [self._feature('x_aq.n%02d' % i, classify_pending=True) for i in range(4)]
+        replies.append({'capabilities': [{'name': '倉儲管理', 'outcome': 'x'},
+                                         {'name': '銷售', 'outcome': '不該覆寫'},
+                                         {'name': '甲'}, {'name': '乙'}, {'name': '丙'}],
+                        'items': [{'key': second[0].feature_key, 'new_capability': '銷售'},
+                                  {'key': second[1].feature_key, 'new_capability': '庫存'},
+                                  {'key': second[2].feature_key, 'new_capability': '倉儲管理'},
+                                  {'key': second[3].feature_key, 'new_capability': '丙'}]})
+        with patch.object(Ai, 'ask', ask):
+            self.pkg._knowledge_ai_catalog(self.Feature, 'tok')
+        self.assertIn('已有待審的能力提案：', prompts[1])
+        self.assertIn('銷售', prompts[1])
+        props = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'capability')])
+        self.assertEqual(sorted(props.mapped('proposal_name')), ['倉儲管理', '庫存', '銷售'],
+                         '沿用兩個舊名稱；新提的最多兩個（丙排在第五個、被捨棄）')
+        sales = json.loads(props.filtered(lambda p: p.proposal_name == '銷售').proposal_json)
+        self.assertEqual(sales['outcome'], '賣東西', '待審提案的說明不被第二批覆寫')
+        self.assertIn(second[0].feature_key, sales['features'])
+        self.assertEqual(len(sales['features']), 9)
+
     def test_small_batch_does_not_cluster(self):
         f = self._feature('x_aq.s1', classify_pending=True)
         prompts = self._classify([{'key': f.feature_key, 'new_capability': '排班管理'}])
