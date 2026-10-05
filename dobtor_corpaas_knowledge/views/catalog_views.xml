@@ -295,6 +295,7 @@
                 <field name="scenario_id" optional="show"/>
                 <field name="capability_id" optional="show"/>
                 <field name="proposal_name" optional="show"/>
+                <field name="proposal_feature_count" optional="show"/>
                 <field name="similar_capability_ids" widget="many2many_tags" optional="show"/>
                 <field name="feature_id" optional="show"/>
                 <field name="flow_id" optional="show"/>
@@ -313,11 +314,96 @@
             </list>
         </field>
     </record>
+    <record id="view_kb_selection_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.selection.form</field>
+        <field name="model">corpaas.knowledge.selection</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'proposed'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_use_similar" string="改用相近能力" type="object"
+                            invisible="state != 'proposed' or not similar_capability_ids"/>
+                    <button name="action_exclude" string="排除" type="object"
+                            invisible="state != 'proposed'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="proposal_name" readonly="1" invisible="not proposal_name"/>
+                            <field name="capability_id" readonly="1" invisible="proposal_name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="package_id" readonly="1"/>
+                            <field name="kind" readonly="1"/>
+                            <field name="source" readonly="1"/>
+                            <field name="scenario_id" readonly="1" invisible="not scenario_id"/>
+                            <field name="flow_id" readonly="1" invisible="not flow_id"/>
+                            <field name="feature_id" readonly="1" invisible="not feature_id"/>
+                        </group>
+                        <group>
+                            <field name="proposal_feature_count"/>
+                            <field name="score" readonly="1"/>
+                            <field name="similar_capability_ids" widget="many2many_tags"
+                                   invisible="not similar_capability_ids"/>
+                            <field name="auto_approved" readonly="1" invisible="not auto_approved"/>
+                        </group>
+                    </group>
+                    <group string="帶來的成果" invisible="not proposal_outcome">
+                        <field name="proposal_outcome" nolabel="1" colspan="2"/>
+                    </group>
+                    <group string="理由" invisible="not reason">
+                        <field name="reason" nolabel="1" colspan="2" readonly="1"/>
+                    </group>
+                    <separator string="包含的功能點"/>
+                    <field name="proposal_feature_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="menu_path"/>
+                            <field name="module"/>
+                        </list>
+                    </field>
+                    <field name="proposal_json" groups="base.group_no_one" readonly="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_selection_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.selection.search</field>
+        <field name="model">corpaas.knowledge.selection</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="proposal_name"/>
+                <field name="package_id"/>
+                <field name="capability_id"/>
+                <field name="feature_id"/>
+                <filter name="kind_capability" string="能力" domain="[('kind', '=', 'capability')]"/>
+                <filter name="kind_flow" string="流程" domain="[('kind', '=', 'flow')]"/>
+                <filter name="kind_scenario" string="情境" domain="[('kind', '=', 'scenario')]"/>
+                <filter name="kind_feature" string="功能" domain="[('kind', '=', 'feature')]"/>
+                <separator/>
+                <filter name="proposed" string="待審" domain="[('state', '=', 'proposed')]"/>
+                <filter name="approved" string="已核准" domain="[('state', '=', 'approved')]"/>
+                <filter name="excluded" string="已排除" domain="[('state', '=', 'excluded')]"/>
+                <group>
+                    <filter name="group_kind" string="類型" context="{'group_by': 'kind'}"/>
+                    <filter name="group_package" string="方案" context="{'group_by': 'package_id'}"/>
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
     <record id="action_kb_selection" model="ir.actions.act_window">
         <field name="name">AI 圈選提案</field>
         <field name="res_model">corpaas.knowledge.selection</field>
-        <field name="view_mode">list</field>
-        <field name="domain">[('state', '=', 'proposed')]</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_kb_selection_search"/>
+        <field name="context">{'search_default_proposed': 1, 'search_default_kind_capability': 1}</field>
     </record>
     <menuitem id="menu_kb_selection" action="action_kb_selection" sequence="10"
               parent="menu_knowledge_ops"/>

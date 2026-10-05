@@ -650,6 +650,33 @@ class KnowledgeSelection(models.Model):
         'corpaas.knowledge.capability', compute='_compute_similar_capabilities',
         string='相近的既有能力', help='新能力提案：名稱相近的既有能力，核准前先確認是否重複')
 
+    proposal_feature_ids = fields.Many2many(
+        'corpaas.knowledge.feature', string='包含的功能點', compute='_compute_proposal_features',
+        help='新能力提案：AI 歸進這個能力的功能點；流程提案：流程上的功能點')
+    proposal_feature_count = fields.Integer(string='功能點數', compute='_compute_proposal_features')
+    proposal_outcome = fields.Text(string='帶來的成果', compute='_compute_proposal_features')
+
+    @api.depends('proposal_json', 'kind', 'flow_id', 'feature_id')
+    def _compute_proposal_features(self):
+        Feature = self.env['corpaas.knowledge.feature']
+        for rec in self:
+            try:
+                data = json.loads(rec.proposal_json or '{}')
+            except ValueError:
+                data = {}
+            data = data if isinstance(data, dict) else {}
+            feats = Feature
+            if rec.kind == 'flow':
+                feats = rec.flow_id.feature_ids
+            elif rec.kind == 'capability':
+                keys = [k for k in data.get('features') or [] if isinstance(k, str)]
+                feats = Feature.search([('feature_key', 'in', keys)]) if keys else Feature
+            elif rec.feature_id:
+                feats = rec.feature_id
+            rec.proposal_feature_ids = feats
+            rec.proposal_feature_count = len(feats)
+            rec.proposal_outcome = data.get('outcome') or data.get('summary') or False
+
     @api.depends('proposal_json', 'kind')
     def _compute_proposal_name(self):
         for rec in self:

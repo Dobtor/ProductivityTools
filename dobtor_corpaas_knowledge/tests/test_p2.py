@@ -322,3 +322,25 @@ class TestCostPlanner(TransactionCase):
         self.assertEqual(run.stats()['carried_over'], 10)
         with patch.object(Pkg, '_knowledge_budget_exhausted', lambda s, t: False):
             self.assertFalse(self.pkg._knowledge_carry_over(run), '預算沒用完不排')
+
+
+@tagged('post_install', '-at_install')
+class TestProposalReview(TransactionCase):
+
+    def test_capability_proposal_lists_its_features(self):
+        tmpl = self.env['product.template'].create({'name': 'REV', 'type': 'service'})
+        pkg = self.env['infrastructure.solution.package'].sudo().create(
+            {'product_tmpl_id': tmpl.id})
+        Feature = self.env['corpaas.knowledge.feature'].sudo()
+        feats = Feature.browse([Feature.create({
+            'feature_key': 'kbrev.action:x%s' % i, 'module': 'kbrev', 'kind': 'action',
+            'anchor': 'x%s' % i, 'name': '畫面 %s' % i}).id for i in range(3)])
+        sel = self.env['corpaas.knowledge.selection'].sudo().create({
+            'package_id': pkg.id, 'kind': 'capability',
+            'proposal_json': json.dumps({'new_capability': '銷售', 'outcome': '賣得更快',
+                                         'features': feats.mapped('feature_key') + ['gone']})})
+        self.assertEqual(sel.proposal_feature_ids, feats, '已不存在的鍵略過')
+        self.assertEqual(sel.proposal_feature_count, 3)
+        self.assertEqual(sel.proposal_outcome, '賣得更快')
+        action = self.env.ref('dobtor_corpaas_knowledge.action_kb_selection')
+        self.assertIn('search_default_kind_capability', action.context)
