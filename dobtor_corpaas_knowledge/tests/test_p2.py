@@ -490,6 +490,7 @@ class TestGeneralization(TransactionCase):
         sc = self.env['corpaas.knowledge.scenario'].sudo().create({
             'name': '晴天', 'code': 'kbg_sc', 'package_ids': [(6, 0, self.pkg.ids)]})
         reply = {'packs': ['kbg_contacts', 'nope'], 'company': '晴天貿易', 'warehouse': '主倉',
+                 'narrative': '晴天貿易是一家小型批發商，主要客戶是客戶甲，從報價、出貨到收款都在同一套系統完成。',
                  'seed': [{'xmlid': 'x1', 'model': 'res.partner',
                            'values': {'parent_id': '__ref__:__doc_pack_kbg_contacts.c1'}},
                           {'xmlid': 'bad', 'model': 'product.template', 'values': {}}]}
@@ -507,6 +508,8 @@ class TestGeneralization(TransactionCase):
         self.assertEqual([r['xmlid'] for r in seed], ['base.main_company', 'stock.warehouse0', 'x1'],
                          '公司與倉庫改名＋補缺口；不合契約的記錄丟掉')
         self.assertEqual(seed[0]['values']['name'], '晴天貿易')
+        self.assertIn('客戶甲', prompts[0], '資料包裡的客戶與產品名稱給 AI 寫敘事')
+        self.assertIn('客戶甲', sc.narrative, '敘事依實際資料重寫')
         self.assertEqual(sc.state, 'review')
 
     def test_select_respects_profile_limits(self):
@@ -529,6 +532,7 @@ class TestGeneralization(TransactionCase):
         self.assertIn('情境最多 1 個', prompts[1])
         self.assertIn('不可用管理員等級群組', prompts[1])
         self.assertIn('既有角色範本', prompts[0])
+        self.assertIn('不要寫具體的公司名、人名、產品名', prompts[0])
         props = self.env['corpaas.knowledge.selection'].search(
             [('package_id', '=', self.pkg.id), ('kind', '=', 'scenario')])
         self.assertEqual(props.mapped('proposal_name'), ['乙公司'], '超過上限照分數留')

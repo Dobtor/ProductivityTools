@@ -1817,6 +1817,8 @@ class SolutionPackage(models.Model):
             "新情境要附上拍操作畫面用的角色 roles：每個角色一個英數 code（業務 sales、採購 purchase、"
             "倉管 stock、會計 account、系統管理員 admin，其他職務自取英數）、中文 name、"
             "groups（只能從下方「可用群組」挑 xmlid，「｜」前那段）：" + role_rule.replace('%', '%%') +
+            "新情境的 narrative 只寫行業、規模與要走的流程，不要寫具體的公司名、人名、產品名、"
+            "客戶或供應商名——示範資料之後才組裝，敘事會依實際資料重寫。\n" +
             "格式：{\"scenarios\":[{\"code\"|\"new\":{\"name\",\"code\",\"narrative\",\"glossary\","
             "\"roles\":[{\"code\",\"name\",\"groups\":[xmlid]}]},\"reason\",\"score\"}],"
             "\"capabilities\":[{\"code\"|\"new\":{\"name\",\"pain\",\"outcome\",\"features\":[key]},"

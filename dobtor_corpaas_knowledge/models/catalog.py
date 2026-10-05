@@ -486,7 +486,11 @@ class KnowledgeScenario(models.Model):
         catalog = []
         for pk in packs:
             recs = json.loads(pk._live_seed_json() or '[]')
+            names = [str((r.get('values') or {}).get('name')) for r in recs
+                     if not r.get('call') and (r.get('values') or {}).get('name')
+                     and r.get('model') in ('res.partner', 'product.product')]
             catalog.append({
+                'names': names[:30],
                 'code': pk.code, 'name': pk.name, 'description': pk.description or '',
                 'depends': pk._live_depends().mapped('code'),
                 'models': dict(Counter(r.get('model') for r in recs if not r.get('call'))),
@@ -505,8 +509,10 @@ class KnowledgeScenario(models.Model):
             "不能改；(2) 給這家虛構公司與它的倉庫取名（不得與真實公司或品牌同名）；"
             "(3) 只對資料包沒涵蓋、但「方案畫面」需要的模型補記錄，可用 \"__ref__:<完整 xmlid>\" "
             "參照資料包的記錄。\n%s%s"
+            "(4) 依挑中的資料包與公司名重寫情境敘事 narrative（150–300 字）：只能提資料包裡真的有的"
+            "客戶、供應商、產品（用它們的名稱），不要編資料裡沒有的人名或產品。\n"
             "格式：{\"packs\":[code],\"company\":\"公司名稱\",\"warehouse\":\"倉庫名稱\","
-            "\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
+            "\"narrative\":\"…\",\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
             "資料包目錄：%s\n\n方案畫面：%s"
         ) % (self.name, self.narrative or '',
              SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
@@ -540,9 +546,14 @@ class KnowledgeScenario(models.Model):
         ]
         extra = [r for r in (data.get('seed') or [])
                  if isinstance(r, dict) and r.get('xmlid') and not seed_contract_errors([r])]
-        self.write({'pack_ids': [(6, 0, chosen.ids)],
-                    'seed_json': json.dumps(identity + extra, ensure_ascii=False, indent=1),
-                    'seed_auto_repairs': 0})
+        vals = {'pack_ids': [(6, 0, chosen.ids)],
+                'seed_json': json.dumps(identity + extra, ensure_ascii=False, indent=1),
+                'seed_auto_repairs': 0}
+        if isinstance(data.get('narrative'), str) and len(data['narrative'].strip()) >= 30:
+            # ★ 敘事跟著實際資料走：圈選時寫的敘事可能提到資料裡沒有的產品與人名，
+            #   文章的情境說明照敘事寫，就會出現截圖裡看不到的東西
+            vals['narrative'] = data['narrative'].strip()
+        self.write(vals)
         self.knowledge_propose('new' if not self.published_rev_no else 'text',
                                note=_('AI 組裝示範資料（資料包 %s 個＋補 %s 筆）')
                                % (len(chosen), len(extra)))
