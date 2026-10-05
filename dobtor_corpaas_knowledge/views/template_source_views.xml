@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_template_version_form_knowledge_source" model="ir.ui.view">
+        <field name="name">infrastructure.template.version.form.knowledge.source</field>
+        <field name="model">infrastructure.template.version</field>
+        <field name="inherit_id" ref="dobtor_corpaas_template.view_template_version_form"/>
+        <field name="arch" type="xml">
+            <field name="include_db" position="after">
+                <field name="knowledge_data_source"
+                       groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+            </field>
+        </field>
+    </record>
+</odoo>

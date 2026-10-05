@@ -127,6 +127,8 @@
                             groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
                     <button name="action_ai_draft_seed" string="AI 起草示範資料" type="object"
                             groups="dobtor_corpaas_knowledge.group_knowledge_editor"/>
+                    <button name="action_seed_check" string="重播檢查" type="object"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_editor"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
                 </header>
                 <sheet>
@@ -142,6 +144,7 @@
                             <field name="is_base"/>
                             <field name="parent_id"/>
                             <field name="role_ids" widget="many2many_tags"/>
+                            <field name="pack_ids" widget="many2many_tags"/>
                         </group>
                         <group>
                             <field name="package_ids" widget="many2many_tags"/>
@@ -162,6 +165,10 @@
                             <field name="seed_json" widget="code" options="{'mode': 'javascript'}"/>
                             <group><field name="seed_error" invisible="not seed_error"/></group>
                         </page>
+                        <page string="重播檢查" name="seed_check" invisible="not seed_check_state">
+                            <field name="seed_check_state" invisible="1"/>
+                            <field name="seed_check_html" nolabel="1"/>
+                        </page>
                         <page string="待核差異" name="review" invisible="state != 'review'">
                             <field name="review_diff"/>
                         </page>
@@ -177,6 +184,79 @@
         <field name="view_mode">list,form</field>
     </record>
     <menuitem id="menu_kb_scenario" action="action_kb_scenario" sequence="30"
+              parent="menu_knowledge_catalog"/>
+
+    <record id="view_kb_seed_pack_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.seed_pack.list</field>
+        <field name="model">corpaas.knowledge.seed_pack</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="depend_ids" widget="many2many_tags" optional="show"/>
+                <field name="record_count"/>
+                <field name="scenario_ids" widget="many2many_tags" optional="show"/>
+                <field name="state" widget="badge" decoration-success="state == 'published'"
+                       decoration-warning="state in ('review', 'stale')"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_seed_pack_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.seed_pack.form</field>
+        <field name="model">corpaas.knowledge.seed_pack</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_submit" string="送審" type="object" class="btn-primary"
+                            invisible="state not in ('draft', 'stale')"/>
+                    <button name="action_approve" string="核准" type="object" class="btn-primary"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_open_reject" string="退回" type="object"
+                            invisible="state != 'review'"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
+                            <field name="revision_count" widget="statinfo" string="修訂"/>
+                        </button>
+                    </div>
+                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="depend_ids" widget="many2many_tags"/>
+                            <field name="record_count"/>
+                        </group>
+                        <group>
+                            <field name="scenario_ids" widget="many2many_tags"/>
+                            <field name="required_module_names"/>
+                            <field name="reject_reason" invisible="not reject_reason"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="這個資料包提供什麼（例如：5 家客戶、3 家供應商與聯絡人）"/>
+                    <notebook>
+                        <page string="示範資料腳本" name="seed">
+                            <field name="seed_json" widget="code" options="{'mode': 'javascript'}"/>
+                        </page>
+                        <page string="待核差異" name="review" invisible="state != 'review'">
+                            <field name="review_diff"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kb_seed_pack" model="ir.actions.act_window">
+        <field name="name">示範資料包</field>
+        <field name="res_model">corpaas.knowledge.seed_pack</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_kb_seed_pack" action="action_kb_seed_pack" sequence="31"
               parent="menu_knowledge_catalog"/>
 
     <record id="view_kb_role_list" model="ir.ui.view">

@@ -29,7 +29,13 @@
                                     invisible="knowledge_blocker"
                                     groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
                             <button name="action_knowledge_coverage" string="說明覆蓋率" type="object"/>
+                            <button name="action_knowledge_cost_plan" string="估算 AI 成本" type="object"
+                                    invisible="knowledge_blocker"/>
                         </group>
+                    </group>
+                    <group string="AI 成本估算（下一次全量更新）" invisible="not knowledge_cost_plan_at">
+                        <field name="knowledge_cost_plan_at"/>
+                        <field name="knowledge_cost_plan_html" nolabel="1" colspan="2"/>
                     </group>
                     <group string="盤點範圍">
                         <field name="knowledge_include_official"/>
@@ -47,6 +53,8 @@
                             <field name="db_name"/>
                             <field name="scenario_id"/>
                             <field name="state"/>
+                            <field name="last_prep" optional="show"/>
+                            <field name="purge_skipped" optional="hide"/>
                             <field name="ready_at"/>
                         </list>
                     </field>

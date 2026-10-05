@@ -55,6 +55,7 @@
                             <field name="error"/>
                         </page>
                         <page string="清除報告（D1）" name="purge">
+                            <field name="purge_skipped"/>
                             <field name="purge_report"/>
                         </page>
                         <page string="示範資料報告" name="seed">

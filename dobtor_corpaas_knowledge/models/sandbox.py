@@ -53,6 +53,16 @@ class KnowledgeSandbox(models.Model):
     inputs_sig = fields.Char(string='輸入簽章', readonly=True,
                              help='黃金庫、程式版本、示範資料上線版號、角色、清除範圍的簽章；'
                                   '全量更新時沒變就沿用這座說明庫，不重建（R1）')
+    base_sig = fields.Char(string='基礎簽章', readonly=True,
+                           help='不含示範資料的輸入簽章：沒變而示範資料只有新增時，'
+                                '直接把新增的記錄寫進這座說明庫（R2）')
+    seed_applied = fields.Text(readonly=True,
+                               help='{xmlid: 內容雜湊}：目前說明庫裡重播過的示範資料')
+    last_prep = fields.Selection([('rebuilt', '重建'), ('reused', '沿用'),
+                                  ('overlaid', '疊加新增的示範資料')],
+                                 string='最近一次準備', readonly=True)
+    is_check = fields.Boolean(string='重播檢查用', readonly=True,
+                              help='送審前重播檢查的臨時庫（A3）：檢查完就刪除，不拍照')
     dirty = fields.Boolean(string='資料已被拍攝改動', readonly=True,
                            help='有截圖腳本按了物件按鈕或填了欄位：下次更新一定重建')
     ready_at = fields.Datetime(readonly=True)
@@ -61,6 +71,9 @@ class KnowledgeSandbox(models.Model):
     password = fields.Char(readonly=True, groups='dobtor_corpaas_knowledge.group_knowledge_manager')
     role_logins = fields.Text(readonly=True, help='{role_code: login}')
     purge_report = fields.Text(readonly=True)
+    purge_skipped = fields.Boolean(string='免清除', readonly=True,
+                                   help='黃金庫的範本資料來源是空白或純示範（A4）：沒有個資可清，'
+                                        '不跑清除、截圖前也不逐筆檢查')
     seed_report = fields.Text(readonly=True)
     error = fields.Text(readonly=True)
     selftest_ok = fields.Boolean(string='自我檢查通過', readonly=True)
@@ -84,19 +97,35 @@ class KnowledgeSandbox(models.Model):
     # ------------------------------------------------------------------
     BUSY = ('cloning', 'purging', 'seeding', 'shooting')
 
-    def _inputs_signature(self):
-        """重建說明庫要用到的輸入；任何一項變了才需要重建。"""
-        import hashlib
+    def _base_parts(self):
+        """示範資料以外、重建說明庫要用到的輸入。"""
         self.ensure_one()
         master = self.master_instance_id
         golden = master._corpaas_golden_db()
         scenario = self.scenario_id
-        seed_rev = [[sc.id, sc.published_rev_no] for sc in scenario.lineage()]
-        data = [golden.id, golden.name, master._corpaas_code_manifest(), seed_rev,
-                scenario.all_roles().as_payload(), self._purge_models(scenario.live_seed()),
-                list(scripts.CONFIG_MODELS)]
+        purge = golden._knowledge_needs_purge()
+        return [golden.id, golden.name, master._corpaas_code_manifest(),
+                scenario.all_roles().as_payload(),
+                self._purge_models(scenario.live_seed()) if purge else 'no-purge',
+                list(scripts.CONFIG_MODELS) if purge else []]
+
+    @staticmethod
+    def _sig(data):
+        import hashlib
         return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False, default=str)
                             .encode('utf-8')).hexdigest()[:16]
+
+    def _base_signature(self):
+        return self._sig(self._base_parts())
+
+    def _inputs_signature(self):
+        """重建說明庫要用到的輸入；任何一項變了才需要重建。"""
+        self.ensure_one()
+        return self._sig(self._base_parts() + [self.scenario_id.seed_revisions()])
+
+    @staticmethod
+    def _seed_hashes(seed):
+        return {r['xmlid']: KnowledgeSandbox._sig(r) for r in seed}
 
     def _reusable(self):
         """這座說明庫可以直接沿用：就緒過、沒被拍攝改動、輸入簽章沒變。"""
@@ -108,6 +137,48 @@ class KnowledgeSandbox(models.Model):
             return self.inputs_sig == self._inputs_signature()
         except Exception:  # noqa: BLE001 — 算不出來就重建
             return False
+
+    def _overlay_delta(self):
+        """R2：示範資料只有「新增」時要補寫的記錄；不能疊加就回傳 None（要重建）。
+
+        條件：說明庫就緒且沒被拍攝改動、示範資料以外的輸入（黃金庫、程式、角色、清除範圍）
+        都沒變、原有的每一筆內容一字不差。新增的「呼叫動作」可以（只對新記錄做一次）；
+        原有動作不會重做——確認訂單做兩次會失敗，這正是改既有記錄必須重建的原因。
+        """
+        self.ensure_one()
+        if self.state not in ('ready', 'done') or not self.ready_at or self.dirty \
+                or not self.seed_applied or not self.base_sig:
+            return None
+        try:
+            if self.base_sig != self._base_signature():
+                return None
+            seed = self.scenario_id.live_seed()
+        except Exception:  # noqa: BLE001 — 算不出來就重建
+            return None
+        applied = json.loads(self.seed_applied or '{}')
+        now = self._seed_hashes(seed)
+        if any(now.get(k) != h for k, h in applied.items()):
+            return None   # 有刪除或修改
+        return [r for r in seed if r['xmlid'] not in applied]
+
+    def overlay(self, delta):
+        """把新增的示範資料寫進現有說明庫（R2）；失敗就丟例外，由呼叫端改走重建。"""
+        self.ensure_one()
+        self._check_name_free()
+        scenario = self.scenario_id
+        self.write({'state': 'seeding', 'error': False})
+        res = self._shell(scripts.seed_script(
+            scenario.xml_module, delta, scenario.all_roles().as_payload(),
+            self.sudo().password))
+        if res.get('errors'):
+            raise UserError(_('疊加示範資料失敗 %s 筆') % len(res['errors']))
+        applied = json.loads(self.seed_applied or '{}')
+        applied.update(self._seed_hashes(delta))
+        self.write({'state': 'ready', 'seed_applied': json.dumps(applied, sort_keys=True),
+                    'inputs_sig': self._inputs_signature(), 'last_prep': 'overlaid',
+                    'seed_report': json.dumps(dict(res, overlay=len(delta)),
+                                              ensure_ascii=False)})
+        return True
 
     def _check_name_free(self):
         """名稱合法、而且平台上沒有任何一筆資料庫記錄叫這個名字。
@@ -121,9 +192,13 @@ class KnowledgeSandbox(models.Model):
                 [('name', '=', self.db_name)]):
             raise UserError(_('拒絕操作：%s 是平台上有記錄的資料庫，不是說明庫。') % self.db_name)
 
-    def rebuild(self):
-        """從黃金庫重建：複製 → 清除 → 重播「已核准」的示範資料＋角色帳號。"""
+    def rebuild(self, seed=None):
+        """從黃金庫重建：複製 → 清除 → 重播「已核准」的示範資料＋角色帳號。
+
+        seed：重播檢查（A3）傳入待核版本；此時重播錯誤不丟例外、不寫情境的錯誤欄，
+        回傳 seed_script 的結果給檢查報告。"""
         self.ensure_one()
+        check = seed is not None
         self._check_name_free()
         if self.state in self.BUSY:
             raise UserError(_('說明庫 %s 正在%s，請等它完成。')
@@ -140,7 +215,8 @@ class KnowledgeSandbox(models.Model):
                 server._assert_disk_room(_('建立說明庫'), need_gb=2)
             scenario = self.scenario_id
             # ★ 只重播核准過的示範資料：AI 修補後還在待核的腳本不能拿來拍對外的圖。
-            seed = scenario.live_seed()
+            if not check:
+                seed = scenario.live_seed()
             self.write({'state': 'cloning', 'error': False, 'golden_id': golden.id,
                         'ready_at': False, 'purged_at': False})
             with golden._corpaas_golden_lock():
@@ -150,8 +226,14 @@ class KnowledgeSandbox(models.Model):
             self.write({'code_manifest': json.dumps(master._corpaas_code_manifest(),
                                                     sort_keys=True),
                         'state': 'purging'})
-            purge = self._shell(scripts.purge_script(self._purge_models(seed)))
+            # A4：空白／純示範的範本沒有個資可清，清除只會白跑（還曾誤刪設定類資料）
+            skip = not golden._knowledge_needs_purge()
+            if skip:
+                purge = {'skipped': golden.template_version_id.knowledge_data_source}
+            else:
+                purge = self._shell(scripts.purge_script(self._purge_models(seed)))
             self.write({'purge_report': json.dumps(purge, ensure_ascii=False),
+                        'purge_skipped': skip,
                         'purged_at': fields.Datetime.now(), 'state': 'seeding'})
             password = secrets.token_urlsafe(18)
             res = self._shell(scripts.seed_script(
@@ -159,17 +241,60 @@ class KnowledgeSandbox(models.Model):
             self.write({'seed_report': json.dumps(res, ensure_ascii=False),
                         'password': password,
                         'role_logins': json.dumps(res.get('users') or {})})
+            if check:
+                self.write({'state': 'ready', 'ready_at': fields.Datetime.now()})
+                return res
             if res.get('errors'):
                 scenario.sudo().seed_error = json.dumps(res['errors'], ensure_ascii=False)
                 raise UserError(_('示範資料重播失敗 %s 筆（見示範資料報告）')
                                 % len(res['errors']))
             scenario.sudo().seed_error = False
             self.write({'state': 'ready', 'ready_at': fields.Datetime.now(), 'dirty': False,
-                        'inputs_sig': self._inputs_signature()})
+                        'inputs_sig': self._inputs_signature(),
+                        'base_sig': self._base_signature(), 'last_prep': 'rebuilt',
+                        'seed_applied': json.dumps(self._seed_hashes(seed), sort_keys=True)})
         except Exception as e:
             self.write({'state': 'failed', 'error': str(e)[:4000]})
             raise
         return True
+
+    # ------------------------------------------------------------------
+    # 送審前重播檢查（A3）
+    # ------------------------------------------------------------------
+    @api.model
+    def run_seed_check(self, package, scenario):
+        """臨時複製一座說明庫 → 重播情境目前（待核）的示範資料 → 數各畫面筆數 → 刪庫。"""
+        master = package._knowledge_master()
+        name = self.make_name(package, scenario) + '-chk'
+        sb = self.sudo().search([('db_name', '=', name)], limit=1)
+        vals = {'package_id': package.id, 'scenario_id': scenario.id,
+                'master_instance_id': master.id, 'is_check': True}
+        if sb:
+            sb.write(dict(vals, state='pending'))
+        else:
+            sb = self.sudo().create(dict(vals, db_name=name))
+        scenario = scenario.sudo()
+        scenario.write({'seed_check_state': 'running', 'seed_check_report': False})
+        report = {}
+        try:
+            res = sb.rebuild(seed=scenario.live_seed(draft=True))
+            report['errors'] = res.get('errors') or []
+            items, labels = package._knowledge_probe_items()
+            report['counts'] = sb._shell(scripts.data_probe_script(items)) if items else {}
+            report['labels'] = {k: v for k, v in labels.items() if k in report['counts']}
+            empty = [k for k, v in report['counts'].items() if v == 0]
+            state = 'issues' if report['errors'] or empty else 'ok'
+        except Exception as e:  # noqa: BLE001 — 檢查失敗也要留下結果
+            report['error'] = str(e)[:2000]
+            state = 'failed'
+        finally:
+            try:
+                sb.drop()
+            except Exception as e:  # noqa: BLE001
+                _logger.warning('[knowledge] 刪除重播檢查庫 %s 失敗：%s', name, e)
+        scenario.write({'seed_check_state': state, 'seed_check_at': fields.Datetime.now(),
+                        'seed_check_report': json.dumps(report, ensure_ascii=False)})
+        return state
 
     def _purge_models(self, seed):
         """D1 要清的業務模型：方案功能點用到的模型＋示範資料的模型＋res.partner。"""
@@ -218,7 +343,7 @@ class KnowledgeSandbox(models.Model):
         pairs = {model: [ids]}；refs = {"model|field": [ids]}（畫面上的關聯值）。
         """
         self.ensure_one()
-        if not pairs and not refs:
+        if self.purge_skipped or (not pairs and not refs):
             return []
         since = fields.Datetime.to_string(self.purged_at or self.ready_at
                                           or fields.Datetime.now())

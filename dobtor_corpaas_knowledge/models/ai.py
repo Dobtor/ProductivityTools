@@ -30,6 +30,15 @@ CACHEABLE = {'classify_features', 'select', 'help_misses', 'flow_name', 'officia
              'gap_cluster'}
 
 
+#: 單次呼叫的預設成本（USD）：沒有歷史紀錄時成本規劃器用這些（2026-10 實機平均）
+DEFAULT_UNIT_COST = {
+    'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
+    'manual_explore': 0.12, 'manual_repair': 0.11, 'manual_bind': 0.05,
+    'manual_step_block': 0.05, 'manual_scenario': 0.06, 'manual_fork': 0.05,
+    'scenario_seed': 0.40, 'seed_repair': 0.40,
+}
+
+
 class KnowledgeAi(models.AbstractModel):
     _name = 'corpaas.knowledge.ai'
     _description = '知識 AI 呼叫'
@@ -82,6 +91,9 @@ class KnowledgeAi(models.AbstractModel):
         if refresh_token and self.spent(refresh_token) >= conf['budget']:
             raise hub_client.BudgetExceeded(
                 _('本次更新的 AI 預算（%s USD）已用完') % conf['budget'])
+        left = self.hub_cost_left()
+        if left is not None and left <= 0:
+            raise hub_client.BudgetExceeded(_('AI Hub 今日額度已用完，明天再繼續'))
         vals = {'purpose': purpose, 'refresh_token': refresh_token,
                 'package_id': package.id if package else False,
                 'res_model': record._name if record else False,
@@ -91,13 +103,55 @@ class KnowledgeAi(models.AbstractModel):
                 conf['hub_url'], conf['hub_key'], purpose,
                 BASE_INSTRUCTIONS + '\n' + prompt, context=context)
         except hub_client.HubError as e:
-            self._log_call(dict(vals, ok=False, error=str(e)[:2000]))
+            self._log_call(dict(vals, **self._quota_vals(), ok=False, error=str(e)[:2000]))
             raise
-        self._log_call(dict(vals, ok=True, cost_usd=cost, run_id=run_id,
+        self._log_call(dict(vals, **self._quota_vals(), ok=True, cost_usd=cost, run_id=run_id,
                             prompt_hash=phash, response_text=text if cacheable else False))
         if not expect_json:
             return text
         return hub_client.extract_json(text)
+
+    # ------------------------------------------------------------------
+    # 成本規劃（D3）
+    # ------------------------------------------------------------------
+    @api.model
+    def _today(self):
+        """Hub 的「今日」以台北日期計（Hub 與主控台都在 UTC+8 營運）。"""
+        from datetime import timedelta
+        return (fields.Datetime.now() + timedelta(hours=8)).date().isoformat()
+
+    @api.model
+    def _quota_vals(self):
+        """這次呼叫 Hub 回報的今日剩餘額度，記在呼叫紀錄上（取走即清，不沿用到下一次）。
+
+        ★ 不存系統參數：ir.config_parameter 每寫一次就清空所有 worker 的快取，
+          一次更新幾百次 AI 呼叫會拖慢整個主控台。"""
+        q = dict(hub_client.LAST_QUOTA)
+        hub_client.LAST_QUOTA.clear()
+        if q.get('cost_left') is None:
+            return {}
+        return {'hub_cost_known': True, 'hub_cost_left': float(q['cost_left'])}
+
+    @api.model
+    def hub_cost_left(self):
+        """AI Hub 來源今日還剩多少錢（USD）；不知道（今天還沒呼叫過、或 Hub 不限）回 None。"""
+        from datetime import datetime, timedelta
+        start = datetime.combine(fields.Date.from_string(self._today()),
+                                 datetime.min.time()) - timedelta(hours=8)
+        call = self.env['corpaas.knowledge.ai.call'].sudo().search(
+            [('hub_cost_known', '=', True), ('create_date', '>=', start)],
+            order='id desc', limit=1)
+        return call.hub_cost_left if call else None
+
+    @api.model
+    def unit_cost(self, purpose, days=60):
+        """一次呼叫約多少錢：近 days 天實際呼叫（不含快取）的平均，沒紀錄用預設值。"""
+        since = fields.Datetime.subtract(fields.Datetime.now(), days=days)
+        rows = self.env['corpaas.knowledge.ai.call'].sudo().read_group(
+            [('purpose', '=', purpose), ('ok', '=', True), ('cached', '=', False),
+             ('create_date', '>=', since)], ['cost_usd:avg'], [])
+        avg = rows and rows[0].get('cost_usd')
+        return round(float(avg), 4) if avg else DEFAULT_UNIT_COST.get(purpose, 0.1)
 
     @api.model
     def _cache_get(self, purpose, phash):

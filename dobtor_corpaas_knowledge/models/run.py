@@ -59,9 +59,11 @@ class KnowledgeRun(models.Model):
 
     def _compute_summary(self):
         labels = {'sandboxes_rebuilt': _('重建說明庫'), 'sandboxes_reused': _('沿用說明庫'),
+                  'sandboxes_overlaid': _('疊加說明庫'),
                   'shots_planned': _('要拍'), 'shots_skipped': _('沿用截圖'),
                   'shots_ok': _('拍成功'), 'shots_failed': _('拍失敗'),
-                  'templates_rule': _('規則腳本'), 'articles': _('文章對帳')}
+                  'templates_rule': _('規則腳本'), 'articles': _('文章對帳'),
+                  'carried_over': _('留到隔天')}
         for rec in self:
             stats = rec.stats()
             rec.summary = '、'.join('%s %s' % (labels.get(k, k), v) for k, v in stats.items())

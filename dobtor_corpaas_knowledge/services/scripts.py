@@ -518,6 +518,35 @@ def fields_script(models):
     ) % (json.dumps(sorted(set(models))),)
 
 
+def data_probe_script(items):
+    """送審前重播檢查（A3）：各選單動作打開後有幾筆資料（唯讀）。
+
+    items: [[功能鍵, 動作 xmlid]]。以管理者身分、套用動作本身的 domain 計數；
+    畫面的預設篩選（search_default_*）不套用——它們多半依登入者，換角色就不同。
+    回傳 {功能鍵: 筆數}；動作不存在或不是視窗動作的略過，算不出來的記 -1。
+    """
+    return _HEAD + (
+        "from odoo.tools.safe_eval import safe_eval\n"
+        "ITEMS = json.loads(%r)\n"
+        "base = env['ir.actions.actions']._get_eval_context()\n"
+        "cids = [env.company.id]\n"
+        "base.update({'context': dict(env.context, allowed_company_ids=cids),\n"
+        "             'allowed_company_ids': cids, 'active_id': False, 'active_ids': []})\n"
+        "out = {}\n"
+        "for key, xid in ITEMS:\n"
+        "    act = env.ref(xid, raise_if_not_found=False)\n"
+        "    if not act or act._name != 'ir.actions.act_window' or act.res_model not in env:\n"
+        "        continue\n"
+        "    try:\n"
+        "        dom = safe_eval(act.domain or '[]', dict(base))\n"
+        "        out[key] = env[act.res_model].sudo().with_context(active_test=True).search_count(dom)\n"
+        "    except Exception:\n"
+        "        out[key] = -1\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n"
+    ) % (json.dumps(items),)
+
+
 def flow_script(models, lang='zh_TW'):
     """推導任務流程（唯讀，不執行任何按鈕）。
 

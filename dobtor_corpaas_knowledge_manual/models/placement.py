@@ -19,6 +19,7 @@
   任一張讀回不一致 → 整個 channel 回滾、維持上版，差異記在 sync_error。
 ★ slide 一律不刪（連結 404 比「已下架」更傷）：方案不要了 → 取消發佈＋manual_retired。
 """
+import html as html_mod
 import json
 from contextlib import contextmanager
 
@@ -29,6 +30,11 @@ from ..services import manual_lib
 COMMON_SECTION = '共通操作'
 INDUSTRY_GROUP = '產業／方案類型'
 BATCH_KEY = 'manual_sync_batch'
+#: 旅程篇（D1）：章節裡至少幾篇上線的參考篇才放（兩篇以下一眼就看完，不需要導覽）
+JOURNEY_MIN = 3
+#: 同一個流程裡功能的先後：先進畫面，再按按鈕、開精靈，最後看報表與設定
+KIND_ORDER = {'menu': 0, 'action': 0, 'client': 0, 'button': 1, 'wizard': 2, 'report': 3,
+              'setting': 4, 'route': 5}
 
 
 @contextmanager
@@ -188,11 +194,91 @@ class KnowledgeChannelSection(models.Model):
     slide_id = fields.Many2one('slide.slide', ondelete='set null', readonly=True,
                                domain=[('is_category', '=', True)])
     name = fields.Char(compute='_compute_name')
+    journey_slide_id = fields.Many2one('slide.slide', string='旅程篇', ondelete='set null',
+                                       readonly=True,
+                                       help='章節第一篇：照任務流程串起本章的參考篇（D1，規則產生）')
+    journey_hash = fields.Char(readonly=True)
 
     @api.depends('capability_id.name')
     def _compute_name(self):
         for rec in self:
             rec.name = rec.capability_id.name or COMMON_SECTION
+
+    # ------------------------------------------------------------------
+    # 旅程篇（D1）
+    # ------------------------------------------------------------------
+    @api.model
+    def _manual_flow_rank(self, capability, placements):
+        """{feature id: 名次}：依本章的任務流程排參考篇的先後。
+
+        流程取能力名下的，加上含本章功能、還沒歸給別的能力的流程；使用量大的流程在前。"""
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        feats = placements.mapped('article_id.feature_id')
+        flows = capability.flow_ids | Flow.search([('feature_ids', 'in', feats.ids)]).filtered(
+            lambda f: not f.capability_id or f.capability_id == capability)
+        rank = {}
+        for flow in flows.sorted(lambda f: (-(f.usage_score or 0), f.id)):
+            for f in flow.feature_ids.sorted(lambda x: (KIND_ORDER.get(x.kind, 9), x.id)):
+                rank.setdefault(f.id, len(rank))
+        return rank, flows
+
+    def _manual_journey_html(self, capability, ordered, flows):
+        esc = html_mod.escape
+        snap = capability._last_published_snapshot() or {}
+        parts = []
+        for key in ('outcome', 'pain'):
+            if snap.get(key):
+                parts.append('<p>%s</p>' % esc(snap[key]))
+                break
+        feats = set(ordered.mapped('article_id.feature_id').ids)
+        for flow in flows.sorted(lambda f: (-(f.usage_score or 0), f.id)):
+            if not feats & set(flow.feature_ids.ids):
+                continue
+            steps = [s.label for s in flow.step_ids.sorted('sequence')
+                     if s.on_statusbar and s.label]
+            if len(steps) >= 2:
+                parts.append('<p><strong>%s</strong>：%s</p>' % (
+                    esc(flow.name or ''), ' → '.join(esc(x) for x in steps)))
+        items = []
+        for pl in ordered:
+            live = pl.article_id._manual_live_text()
+            items.append('<li><a href="%s">%s</a></li>' % (
+                esc(pl.slide_id.website_url or '#'), esc(live.get('name') or '')))
+        parts.append('<p>%s</p><ol>%s</ol>' % (esc(_('依照做事的順序，逐篇看下去：')),
+                                               ''.join(items)))
+        return '<div class="o_kb_journey">%s</div>' % ''.join(parts)
+
+    def _manual_sync_journey(self, placements, publisher, shown):
+        """建立／更新本章的旅程篇 slide；不需要時取消發佈（不刪）。回傳 slide（可能空）。"""
+        self.ensure_one()
+        cap = self.capability_id
+        slide = self.journey_slide_id.exists()
+        live = placements.filtered(lambda p: p._manual_is_live())
+        if not cap or not shown or len(live) < JOURNEY_MIN:
+            if slide and slide.is_published:
+                slide.with_env(publisher.env).is_published = False
+            return slide
+        _rank, flows = self._manual_flow_rank(cap, live)
+        html = self._manual_journey_html(cap, live, flows)
+        name = _('%s：整體流程') % ((cap._last_published_snapshot() or {}).get('name') or cap.name)
+        text_hash = manual_lib.text_signature(name + html)
+        vals = {'name': name, 'slide_category': 'article', 'is_preview': True,
+                'html_content': html}
+        if not slide:
+            slide = publisher.env['slide.slide'].create(
+                dict(vals, channel_id=self.channel_id.id, sequence=0, is_published=True))
+        else:
+            slide = slide.with_env(publisher.env)
+            if not slide.is_published:
+                vals['is_published'] = True
+            elif self.journey_hash == text_hash:
+                vals = {}
+            else:
+                vals['date_published'] = fields.Datetime.now()
+            if vals:
+                slide.write(vals)
+        self.write({'journey_slide_id': slide.id, 'journey_hash': text_hash})
+        return slide
 
     # ☠️ capability_id 可為 NULL，SQL UNIQUE 擋不住「兩個共通操作」→ 由
     #   _knowledge_section_for 先查再建，不靠約束。
@@ -368,7 +454,7 @@ class SlideChannel(models.Model):
         """
         caps = sorted([c for c in groups if c], key=lambda c: (c.sequence, c.name or '', c.id))
         order = caps + [c for c in groups if not c]
-        biggest = max([len(p) for p in groups.values()] or [0])
+        biggest = max([len(p) for p in groups.values()] or [0]) + 1   # ＋1：旅程篇
         step = 100 * (1 + biggest // 100)
         return [(cap, (i + 1) * step) for i, cap in enumerate(order)], step
 
@@ -392,14 +478,29 @@ class SlideChannel(models.Model):
                 sec_slide = section.slide_id.with_env(publisher.env)
                 if sec_slide.is_published != shown:
                     sec_slide.is_published = shown
-                ordered = groups[cap].sorted(lambda p: (p.sequence, p.article_id.name or '', p.id))
-                for j, pl in enumerate(ordered.filtered('slide_id'), start=1):
+                # ★ 章內依任務流程排（D1）：先進畫面、再按鈕與精靈、最後報表；不在流程上的照舊
+                rank = section._manual_flow_rank(cap, groups[cap])[0] if cap else {}
+                ordered = groups[cap].sorted(lambda p: (
+                    rank.get(p.article_id.feature_id.id, 10 ** 6), p.sequence,
+                    p.article_id.name or '', p.id)).filtered('slide_id')
+                journey = section._manual_sync_journey(ordered, publisher, shown)
+                start = 1
+                if journey:
+                    wanted[journey.id] = base + 1
+                    start = 2
+                for j, pl in enumerate(ordered, start=start):
                     wanted[pl.slide_id.id] = base + j
             obsolete = channel.knowledge_section_ids - live
             tail = (len(layout) + 1) * step * 1000
             for k, section in enumerate(obsolete):
                 if section.slide_id:
                     wanted[section.slide_id.id] = tail + k
+                journey = section.journey_slide_id.exists()
+                if journey:
+                    # 旅程篇跟其他 slide 一樣不刪：取消發佈、排到最後
+                    if journey.is_published:
+                        journey.with_env(publisher.env).is_published = False
+                    wanted[journey.id] = tail + len(obsolete) + k
 
             channel._knowledge_write_sequences(Slide, wanted)
             if obsolete:

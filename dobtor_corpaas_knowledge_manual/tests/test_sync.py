@@ -368,5 +368,6 @@ class TestSlideSync(ManualCase):
         slides = arts.mapped('placement_ids.slide_id')
         self.assertEqual(len(slides), 60)
         ordered = slides.sorted('sequence')
-        self.assertEqual(ordered.mapped('sequence'), list(range(101, 161)))
+        # 101 是本章的旅程篇（D1），參考篇從 102 起
+        self.assertEqual(ordered.mapped('sequence'), list(range(102, 162)))
         self.assertEqual(set(ordered.mapped('category_id.name')), {'線上報名'})

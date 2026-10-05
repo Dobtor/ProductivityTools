@@ -15,3 +15,5 @@ from . import corpaas_queue
 from . import res_config_settings
 from . import host_component
 from . import run
+from . import template_source
+from . import cost_plan

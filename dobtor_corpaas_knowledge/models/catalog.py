@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""能力、情境、素材、圈選提案。"""
+"""能力、情境、示範資料包、素材、圈選提案。"""
+import html as html_mod
 import json
 import re
 
@@ -7,6 +8,36 @@ from ..services import search_lib
 
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+
+SEED_CHECK_STATES = [('queued', '排隊中'), ('running', '檢查中'), ('ok', '通過'),
+                     ('issues', '有問題'), ('failed', '檢查失敗')]
+
+
+def qualify_seed_record(rec, module, leaf_module, role_names=()):
+    """把一筆示範資料的短名（自己、參照、動作對象）展開成完整 xmlid。
+
+    module：這筆資料所屬來源（資料包或情境）的命名空間；角色帳號 user_<code> 例外，
+    建在 leaf_module（最末端情境）。"""
+    def full(x):
+        if '.' in x:
+            return x
+        return '%s.%s' % (leaf_module if x in role_names else module, x)
+
+    def ref(v):
+        if isinstance(v, str) and v.startswith('__ref__:'):
+            return '__ref__:' + full(v[8:])
+        if isinstance(v, list) and v and all(
+                isinstance(x, str) and x.startswith('__ref__:') for x in v):
+            return ['__ref__:' + full(x[8:]) for x in v]
+        return v
+
+    out = dict(rec, xmlid=full(rec['xmlid']))
+    if rec.get('ref'):
+        out['ref'] = full(rec['ref'])
+    if 'values' in rec:
+        out['values'] = {k: ref(v) for k, v in (rec.get('values') or {}).items()}
+    return out
+
 
 COLORS = [
     ('native', '原生'),
@@ -151,6 +182,18 @@ class KnowledgeScenario(models.Model):
     seed_json = fields.Text(string='示範資料腳本',
                             help='[{"xmlid","model","values"}]；__ref__:<xmlid> 參照')
     seed_error = fields.Text(string='最近一次重播錯誤', readonly=True)
+    pack_ids = fields.Many2many(
+        'corpaas.knowledge.seed_pack', 'corpaas_knowledge_scenario_pack_rel',
+        'scenario_id', 'pack_id', string='示範資料包',
+        help='情境＝選哪些資料包＋用語＋敘事（A3）。資料包先重播（含它依賴的包），'
+             '再重播情境自己的腳本；同 xmlid 以後者為準。')
+    seed_check_state = fields.Selection(SEED_CHECK_STATES, string='重播檢查', readonly=True,
+                                        copy=False)
+    seed_check_at = fields.Datetime(string='檢查時間', readonly=True, copy=False)
+    seed_check_report = fields.Text(readonly=True, copy=False,
+                                    help='{"errors": [...], "counts": {功能鍵: 筆數}, "labels": {...}}')
+    seed_check_html = fields.Html(string='重播檢查結果', compute='_compute_seed_check_html',
+                                  sanitize=False)
     clean_approvals = fields.Integer(string='連續無修改核准次數', readonly=True)
     auto_text_after = fields.Integer(string='連續幾次後文字改寫免審', default=5)
 
@@ -161,7 +204,8 @@ class KnowledgeScenario(models.Model):
         return '__doc_scenario_%s' % self.code
 
     def _knowledge_revision_fields(self):
-        return ['name', 'glossary', 'narrative', 'seed_json', 'required_module_names']
+        return ['name', 'glossary', 'narrative', 'seed_json', 'required_module_names',
+                'pack_ids']
 
     def _knowledge_requires_review(self, change):
         self.ensure_one()
@@ -198,23 +242,130 @@ class KnowledgeScenario(models.Model):
         snap = self._last_published_snapshot()
         return (snap.get('seed_json') or '[]') if snap else None
 
-    def live_seed(self):
-        """含祖先、只用核准版本的示範資料（說明庫重建只用這個）。"""
+    def _seed_sources(self, draft=False):
+        """重播順序：資料包（依賴在前）→ 祖先情境 → 自己。
+
+        ★ 上線版用各情境「上線快照」裡的資料包清單：情境改選資料包、還沒核准前，
+          說明庫不能先用新的組合。"""
         self.ensure_one()
+        chain = self.lineage()
+        Pack = self.env['corpaas.knowledge.seed_pack'].sudo()
+        packs = Pack
+        for sc in chain:
+            if draft:
+                packs |= sc.pack_ids
+            else:
+                packs |= Pack.browse((sc._last_published_snapshot() or {}).get('pack_ids')
+                                     or []).exists()
+        return packs._closure_ordered(draft) + chain
+
+    def live_seed(self, draft=False):
+        """含資料包與祖先、只用核准版本的示範資料（說明庫重建只用這個）。
+
+        draft=True：用目前欄位（還沒核准的版本），只給送審前的重播檢查用。
+        ★ 參照一律展開成完整 xmlid：資料包與祖先情境的短名參照屬於它自己的命名空間，
+          交給 seed_script 補前綴會補成重播當下那個情境的（指到不存在的記錄）。
+          角色帳號 user_<code> 例外：帳號建在最末端情境的命名空間。
+        """
+        self.ensure_one()
+        roles = {'user_%s' % r.code for r in self.all_roles()}
         merged, order = {}, []
-        for sc in self.lineage():
-            raw = sc._live_seed_json()
+        for src in self._seed_sources(draft):
+            raw = (src.seed_json or '[]') if draft else src._live_seed_json()
             if raw is None:
-                raise UserError(_('情境「%s」的示範資料還沒有核准過的版本，不能拿來拍對外的圖。')
-                                % sc.name)
+                raise UserError(_('「%s」的示範資料還沒有核准過的版本，不能拿來拍對外的圖。')
+                                % src.display_name)
             for rec in json.loads(raw or '[]'):
-                key = rec['xmlid'] if '.' in rec['xmlid'] else '%s.%s' % (
-                    sc.xml_module, rec['xmlid'])
-                rec = dict(rec, xmlid=key)
+                rec = qualify_seed_record(rec, src.xml_module, self.xml_module, roles)
+                key = rec['xmlid']
                 if key not in merged:
                     order.append(key)
                 merged[key] = rec
         return [merged[k] for k in order]
+
+    def seed_revisions(self):
+        """說明庫輸入簽章用：每個示範資料來源的上線修訂。"""
+        self.ensure_one()
+        return [[src._name, src.id, src.published_rev_no] for src in self._seed_sources()]
+
+    # ------------------------------------------------------------------
+    # 送審前自動重播檢查（A3）
+    # ------------------------------------------------------------------
+    def knowledge_propose(self, change, note=None):
+        # ★ 先判斷再送審：單一方案引用的情境改文字會直接上線，上線後快照就是新版，
+        #   事後已比不出差異——而沒人審的那種更需要自動檢查。
+        changed = self.filtered(lambda r: r._seed_changed())
+        res = super().knowledge_propose(change, note=note)
+        for rec in changed:
+            rec._enqueue_seed_check()
+        return res
+
+    def _seed_changed(self):
+        self.ensure_one()
+        live = self._last_published_snapshot()
+        if not live:
+            return True
+        return (live.get('seed_json') or '[]') != (self.seed_json or '[]') \
+            or sorted(live.get('pack_ids') or []) != sorted(self.pack_ids.ids)
+
+    def action_seed_check(self):
+        self.ensure_one()
+        self._enqueue_seed_check(raise_if_no_package=True)
+        return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'type': 'info', 'title': _('已排入佇列'),
+                           'message': _('會在一座臨時說明庫重播示範資料，並檢查各畫面有沒有資料。')}}
+
+    def _enqueue_seed_check(self, raise_if_no_package=False):
+        """排一張佇列單：複製黃金庫 → 重播目前（待核）的示範資料 → 數各畫面筆數 → 刪庫。"""
+        self.ensure_one()
+        package = self.package_ids[:1]
+        if not package:
+            if raise_if_no_package:
+                raise UserError(_('情境「%s」還沒有被任何方案引用，沒有黃金庫可以重播。') % self.name)
+            return False
+        self.sudo().write({'seed_check_state': 'queued', 'seed_check_report': False})
+        q = self.env['corpaas.queue'].sudo()._enqueue(
+            package, 'knowledge_sandbox', {'scenario_id': self.id, 'op': 'check'})
+        q.channel = 'knowledge'
+        return q
+
+    def _compute_seed_check_html(self):
+        for rec in self:
+            rec.seed_check_html = rec._seed_check_render()
+
+    def _seed_check_render(self):
+        self.ensure_one()
+        if not self.seed_check_state:
+            return False
+        esc = html_mod.escape
+        label = dict(SEED_CHECK_STATES).get(self.seed_check_state)
+        try:
+            data = json.loads(self.seed_check_report or '{}')
+        except ValueError:
+            data = {}
+        parts = ['<p><b>%s</b>%s</p>' % (esc(label), (' · %s' % esc(
+            fields.Datetime.to_string(self.seed_check_at))) if self.seed_check_at else '')]
+        if data.get('error'):
+            parts.append('<p class="text-danger">%s</p>' % esc(data['error']))
+        errors = data.get('errors') or []
+        if errors:
+            parts.append('<p>%s</p><ul>%s</ul>' % (
+                esc(_('重播失敗 %s 筆：') % len(errors)),
+                ''.join('<li><code>%s</code>（%s）：%s</li>' % (
+                    esc(e.get('xmlid') or ''), esc(e.get('model') or ''),
+                    esc(e.get('error') or '')) for e in errors[:50])))
+        counts, labels = data.get('counts') or {}, data.get('labels') or {}
+        if counts:
+            empty = sorted(k for k, v in counts.items() if v == 0)
+            parts.append('<p>%s</p>' % esc(_('檢查 %(n)s 個畫面：%(e)s 個沒有資料',
+                                             n=len(counts), e=len(empty))))
+            if empty:
+                parts.append('<ul>%s</ul>' % ''.join(
+                    '<li>%s</li>' % esc(labels.get(k) or k) for k in empty))
+            parts.append('<p class="text-muted small">%s</p>' % esc(_(
+                '以管理者身分、套用選單動作本身的篩選條件計數；畫面預設的「我的」篩選'
+                '沒有套用，實際截圖仍可能是空的。')))
+        return ''.join(parts)
 
     # ------------------------------------------------------------------
     # AI 起草情境示範資料（AI 應用第 5 項）
@@ -285,18 +436,9 @@ class KnowledgeScenario(models.Model):
         return chain
 
     def full_seed(self):
-        """含祖先的示範資料：祖先先建，子情境可覆寫同 xmlid。"""
+        """含資料包與祖先的示範資料（目前欄位，未核准的也算）：AI 起草與欄位盤點用。"""
         self.ensure_one()
-        merged, order = {}, []
-        for sc in self.lineage():
-            for rec in json.loads(sc.seed_json or '[]'):
-                key = rec['xmlid'] if '.' in rec['xmlid'] else '%s.%s' % (
-                    sc.xml_module, rec['xmlid'])
-                rec = dict(rec, xmlid=key)
-                if key not in merged:
-                    order.append(key)
-                merged[key] = rec
-        return [merged[k] for k in order]
+        return self.live_seed(draft=True)
 
     def all_roles(self):
         self.ensure_one()
@@ -332,6 +474,111 @@ class KnowledgeScenario(models.Model):
                     raise UserError(_('方案「%(p)s」缺少情境「%(s)s」需要的模組：%(m)s',
                                       p=pkg.display_name, s=rec.name,
                                       m=', '.join(sorted(lacking))))
+
+
+class KnowledgeSeedPack(models.Model):
+    """示範資料包（A3）：一組可重複使用的示範資料（聯絡人、產品、銷售流程…）。
+
+    情境挑選資料包再加上自己的用語與敘事；資料包和情境一樣要核准才會被說明庫使用。
+    """
+    _name = 'corpaas.knowledge.seed_pack'
+    _description = '示範資料包'
+    _inherit = ['corpaas.knowledge.content.mixin']
+    _order = 'sequence, name'
+
+    sequence = fields.Integer(default=10)
+    name = fields.Char(required=True, tracking=True)
+    code = fields.Char(required=True, help='英數底線；資料包的 xmlid 命名空間 __doc_pack_<code>')
+    description = fields.Text(string='說明')
+    depend_ids = fields.Many2many(
+        'corpaas.knowledge.seed_pack', 'corpaas_knowledge_seed_pack_dep_rel',
+        'pack_id', 'depend_id', string='依賴資料包',
+        help='重播前先重播這些資料包（例如銷售流程依賴聯絡人與產品）')
+    required_module_names = fields.Text(string='必要模組', help='一行一個技術名')
+    seed_json = fields.Text(string='示範資料腳本',
+                            help='[{"xmlid","model","values"}]；__ref__:<xmlid> 參照；'
+                                 '其他資料包的記錄用完整 xmlid（__doc_pack_<code>.<名>）')
+    scenario_ids = fields.Many2many(
+        'corpaas.knowledge.scenario', 'corpaas_knowledge_scenario_pack_rel',
+        'pack_id', 'scenario_id', string='使用的情境', readonly=True)
+    record_count = fields.Integer(string='筆數', compute='_compute_record_count')
+
+    _sql_constraints = [('code_unique', 'unique(code)', '資料包代碼重複')]
+
+    @property
+    def xml_module(self):
+        return '__doc_pack_%s' % self.code
+
+    def _knowledge_revision_fields(self):
+        return ['name', 'seed_json', 'depend_ids', 'required_module_names']
+
+    def _knowledge_requires_review(self, change):
+        return change != 'shot'
+
+    @api.constrains('code')
+    def _check_code(self):
+        for rec in self:
+            if not re.match(r'^[a-z0-9_]+$', rec.code or ''):
+                raise UserError(_('資料包代碼只能用小寫英數與底線（它是 xmlid 命名空間）：%s')
+                                % rec.code)
+
+    @api.constrains('seed_json')
+    def _check_seed_json(self):
+        for rec in self.filtered('seed_json'):
+            try:
+                data = json.loads(rec.seed_json)
+            except ValueError as e:
+                raise UserError(_('資料包「%(n)s」的腳本不是合法 JSON：%(e)s', n=rec.name, e=e))
+            if not isinstance(data, list) or any(
+                    not isinstance(r, dict) or not r.get('xmlid') for r in data):
+                raise UserError(_('資料包「%s」的腳本必須是 [{"xmlid", "model", ...}] 清單。')
+                                % rec.name)
+
+    def _compute_record_count(self):
+        for rec in self:
+            try:
+                rec.record_count = len(json.loads(rec.seed_json or '[]'))
+            except ValueError:
+                rec.record_count = 0
+
+    def _live_seed_json(self):
+        self.ensure_one()
+        snap = self._last_published_snapshot()
+        return (snap.get('seed_json') or '[]') if snap else None
+
+    def _live_depends(self, draft=False):
+        self.ensure_one()
+        if draft:
+            return self.depend_ids
+        ids = (self._last_published_snapshot() or {}).get('depend_ids') or []
+        return self.browse(ids).exists()
+
+    def _closure_ordered(self, draft=False):
+        """這些資料包加上所有依賴，依賴在前（拓樸排序；同層照 sequence）。"""
+        out, seen, stack = [], set(), set()
+
+        def visit(pack):
+            if pack.id in seen:
+                return
+            if pack.id in stack:
+                raise UserError(_('資料包依賴出現循環：%s') % pack.name)
+            stack.add(pack.id)
+            for dep in pack._live_depends(draft).sorted(lambda p: (p.sequence, p.id)):
+                visit(dep)
+            stack.discard(pack.id)
+            seen.add(pack.id)
+            out.append(pack)
+
+        for pack in self.sorted(lambda p: (p.sequence, p.id)):
+            visit(pack)
+        return out
+
+    def knowledge_propose(self, change, note=None):
+        """資料包改了：用到它的情境各自重播檢查一次（A3）。"""
+        res = super().knowledge_propose(change, note=note)
+        for sc in self.mapped('scenario_ids'):
+            sc._enqueue_seed_check()
+        return res
 
 
 class KnowledgeAsset(models.Model):
@@ -611,6 +858,9 @@ class KnowledgeAiCall(models.Model):
     prompt_hash = fields.Char(index=True, help='purpose＋prompt 的雜湊（快取鍵）')
     response_text = fields.Text(help='可快取用途的原始回應')
     cached = fields.Boolean(help='命中快取，沒有實際呼叫 AI')
+    hub_cost_known = fields.Boolean(help='這次呼叫 AI Hub 有回報今日剩餘額度')
+    hub_cost_left = fields.Float(string='Hub 今日剩餘（USD）', digits=(10, 4),
+                                 help='成本規劃器（D3）以今天最後一筆為準')
 
     @api.model
     def _gc_cache(self):

@@ -159,8 +159,14 @@ class KnowledgeHooks(models.AbstractModel):
 
     @api.model
     def _manual_sorted_candidates(self, package):
+        """起草／拍攝順序：依能力順序（聯絡人 → 產品 → 銷售 → …），章內再看使用量（D1）。
+
+        ★ 不再只依使用量：會計畫面的使用量最高，預算用完時上線的幾乎全是會計，
+          初次接觸的人看不到「報價 → 訂單 → 出貨 → 發票 → 收款」這條主線。
+          共通操作（沒有能力）排最後。"""
         return sorted(self._manual_candidates(package).items(),
-                      key=lambda kv: (-(kv[0].attr_for(package, 'usage_score') or 0), kv[0].id))
+                      key=lambda kv: ((kv[1].sequence, kv[1].id) if kv[1] else (10 ** 6, 0),
+                                      -(kv[0].attr_for(package, 'usage_score') or 0), kv[0].id))
 
     @api.model
     def _manual_scenarios_for(self, package, capability):

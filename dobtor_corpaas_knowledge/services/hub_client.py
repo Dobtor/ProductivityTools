@@ -30,6 +30,14 @@ class BudgetExceeded(HubError):
     pass
 
 
+#: Hub 每次受理 content_run 都回報來源的今日剩餘（成本／次數）；最近一次的值放這裡，
+#: 由 corpaas.knowledge.ai 存進系統參數給成本規劃器（D3）用。
+LAST_QUOTA = {}
+
+#: Hub 拒絕的原因裡，代表「今日額度用完」的：當預算用完處理（留到隔天），不是失敗
+QUOTA_ERRORS = ('cost_exceeded', 'quota_exceeded')
+
+
 def _rpc(url, key, params, timeout=60):
     """☠️ 網路錯誤一律轉成 HubError：呼叫端只接 HubError，漏出一個 ConnectionError
     就讓整次知識更新回滾（佇列不重試），連那次的帳都不見。"""
@@ -72,7 +80,13 @@ def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900)
     res = _rpc(base + '/ai_hub/api/v1/content_run', key,
                {'purpose': purpose, 'prompt': prompt, 'context': context or {}})
     if not res.get('ok'):
-        raise HubError('AI Hub 拒絕：%s %s' % (res.get('error'), res.get('detail') or ''))
+        err = BudgetExceeded if res.get('error') in QUOTA_ERRORS else HubError
+        if err is BudgetExceeded:
+            LAST_QUOTA.update(cost_left=0.0, at=time.time())
+        raise err('AI Hub 拒絕：%s %s' % (res.get('error'), res.get('detail') or ''))
+    if 'cost_left' in res or 'quota_left' in res:
+        LAST_QUOTA.update(cost_left=res.get('cost_left'), quota_left=res.get('quota_left'),
+                          at=time.time())
     run_id = res['run_id']
     deadline = time.time() + timeout
     while time.time() < deadline:

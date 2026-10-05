@@ -47,6 +47,7 @@ class SolutionPackage(models.Model):
         'corpaas.knowledge.capability', 'corpaas_knowledge_capability_package_rel',
         'package_id', 'capability_id', string='能力')
     knowledge_sandbox_ids = fields.One2many('corpaas.knowledge.sandbox', 'package_id',
+                                            domain=[('is_check', '=', False)],
                                             string='說明庫')
     knowledge_event_ids = fields.One2many('corpaas.knowledge.event', 'package_id')
     knowledge_last_refresh = fields.Datetime(readonly=True, copy=False)
@@ -259,6 +260,10 @@ class SolutionPackage(models.Model):
         if stage == 'shoot':
             self._knowledge_next_stage(run, 'outlets')
         elif stage == 'outlets':
+            try:
+                self._knowledge_carry_over(run)
+            except Exception as e:  # noqa: BLE001 — 排不了隔天只少一次接續，不算更新失敗
+                _logger.warning('[knowledge] %s 隔天接續排程失敗：%s', self.display_name, e)
             run.mark_done()
         return True
 
@@ -333,8 +338,8 @@ class SolutionPackage(models.Model):
             for sc in scenarios:
                 sb = self._knowledge_prepare_sandbox(master, sc, token)
                 sandboxes |= sb
-                reused = sb.ready_at and sb.ready_at < run.started_at
-                run.add_stats(**{'sandboxes_reused' if reused else 'sandboxes_rebuilt': 1})
+                run.add_stats(**{{'reused': 'sandboxes_reused', 'overlaid': 'sandboxes_overlaid'}
+                                 .get(sb.last_prep, 'sandboxes_rebuilt'): 1})
         return sandboxes
 
     def _knowledge_stage_shoot(self, run):
@@ -391,6 +396,23 @@ class SolutionPackage(models.Model):
                 env = self.env(cr=cr)
                 env[self._name].sudo().browse(rec.id).write(vals)
                 env.flush_all()
+
+    def _knowledge_probe_items(self):
+        """重播檢查要數筆數的畫面：要寫說明的功能裡，有選單動作的。
+
+        回傳 ([[功能鍵, 動作 xmlid]], {功能鍵: 顯示名稱})。"""
+        self.ensure_one()
+        hooks = self.env['corpaas.knowledge.hooks']
+        if hasattr(hooks, '_manual_candidates'):
+            features = list(hooks._manual_candidates(self))
+        else:
+            features = self.knowledge_capability_ids.mapped('feature_ids')
+        items, labels = [], {}
+        for f in features:
+            if f.action_xmlid and f.feature_key not in labels:
+                items.append([f.feature_key, f.action_xmlid])
+                labels[f.feature_key] = f.name
+        return items, labels
 
     def _knowledge_documents_feature(self, feature):
         """這個方案要不要替這個功能製作操作說明（K21＋原生開關）。
@@ -1473,9 +1495,19 @@ class SolutionPackage(models.Model):
         if sb and sb.master_instance_id == master and sb.scenario_id == scenario \
                 and sb._reusable():
             # ★ R1：輸入沒變、沒被拍攝改動 → 沿用，不重新複製黃金庫
-            sb.write({'state': 'ready'})
+            sb.write({'state': 'ready', 'last_prep': 'reused'})
             _logger.info('[knowledge] 說明庫 %s 輸入未變，沿用', name)
             return sb
+        delta = sb._overlay_delta() if sb and sb.master_instance_id == master \
+            and sb.scenario_id == scenario else None
+        if delta is not None:
+            # ★ R2：示範資料只有新增 → 寫進現有說明庫，不重新複製
+            try:
+                sb.overlay(delta)
+                _logger.info('[knowledge] 說明庫 %s 疊加新增示範資料 %s 筆', name, len(delta))
+                return sb
+            except Exception as e:  # noqa: BLE001 — 疊加失敗就照常重建
+                _logger.warning('[knowledge] 說明庫 %s 疊加失敗，改重建：%s', name, e)
         if sb:
             sb.write({'master_instance_id': master.id, 'state': 'pending',
                       'scenario_id': scenario.id})
@@ -1519,10 +1551,16 @@ class SolutionPackage(models.Model):
         except Exception:  # noqa: BLE001 - 沒有 chatter 也不影響流程
             _logger.info('[knowledge] %s 預算用完：%s', self.display_name, err)
 
-    def solution_package_knowledge_sandbox(self, sandbox_id=None, op='rebuild', package_id=None):
-        """佇列派工目標：手動重建／刪除說明庫（複製＋清除＋示範資料動輒數分鐘，
-        不能在網頁請求裡跑）。"""
+    def solution_package_knowledge_sandbox(self, sandbox_id=None, op='rebuild', package_id=None,
+                                           scenario_id=None):
+        """佇列派工目標：手動重建／刪除說明庫、送審前重播檢查（複製＋清除＋示範資料
+        動輒數分鐘，不能在網頁請求裡跑）。"""
         self.ensure_one()
+        if op == 'check':
+            scenario = self.env['corpaas.knowledge.scenario'].sudo().browse(scenario_id).exists()
+            if scenario:
+                self.env['corpaas.knowledge.sandbox'].run_seed_check(self, scenario)
+            return True
         sb = self.env['corpaas.knowledge.sandbox'].sudo().browse(sandbox_id).exists()
         if not sb:
             return True

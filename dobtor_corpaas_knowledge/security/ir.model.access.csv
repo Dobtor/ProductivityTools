@@ -50,3 +50,5 @@ access_kb_toggle_state_editor,kb.toggle.state.editor,model_corpaas_knowledge_tog
 access_kb_toggle_state_manager,kb.toggle.state.manager,model_corpaas_knowledge_toggle_state,group_knowledge_manager,1,1,1,1
 access_kb_run_editor,kb.run.editor,model_corpaas_knowledge_run,group_knowledge_editor,1,0,0,0
 access_kb_run_manager,kb.run.manager,model_corpaas_knowledge_run,group_knowledge_manager,1,1,1,1
+access_kb_seed_pack_editor,kb.seed_pack.editor,model_corpaas_knowledge_seed_pack,group_knowledge_editor,1,1,1,0
+access_kb_seed_pack_manager,kb.seed_pack.manager,model_corpaas_knowledge_seed_pack,group_knowledge_manager,1,1,1,1
