@@ -164,6 +164,16 @@ class TestSeedCheck(_RefreshBase):
         self.assertTrue(chk.is_check)
         self.assertNotIn(chk, self.pkg.knowledge_sandbox_ids, '方案的說明庫清單不列臨時庫')
 
+    def test_role_groups_read_from_golden(self):
+        """角色可用群組讀黃金庫的應用群組（實機功能點都沒記群組，AI 只拿到 base.group_user）。"""
+        from ..services import remote
+        Pkg = type(self.pkg)
+        with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: self.master), \
+                patch.object(remote, 'shell_json', side_effect=self._exec_shell):
+            groups = self.pkg._knowledge_role_groups([('id', '=', 0)])
+        self.assertTrue(any(g.startswith('base.group_system｜') for g in groups))
+        self.assertTrue(all('｜' in g for g in groups))
+
     def test_probe_script_compiles(self):
         compile(scripts.data_probe_script([['a', 'b.c']]), '<probe>', 'exec')
 

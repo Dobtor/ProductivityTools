@@ -518,6 +518,20 @@ def fields_script(models):
     ) % (json.dumps(sorted(set(models))),)
 
 
+def groups_script():
+    """AI 圈選提議角色用：黃金庫裡使用者看得到的應用權限群組（唯讀）。
+
+    只取有 xmlid、分類可見（設定頁「使用者」表單上那些下拉）的群組。"""
+    return _HEAD + (
+        "out = []\n"
+        "for g in env['res.groups'].sudo().search([('category_id.visible', '=', True)]):\n"
+        "    x = _xid(g)\n"
+        "    if x:\n"
+        "        out.append({'xmlid': x, 'name': g.name, 'app': g.category_id.name})\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n")
+
+
 def data_probe_script(items):
     """送審前重播檢查（A3）：各選單動作打開後有幾筆資料（唯讀）。
 

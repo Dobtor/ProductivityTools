@@ -419,6 +419,26 @@ class SolutionPackage(models.Model):
                 labels[f.feature_key] = f.name
         return items, labels
 
+    def _knowledge_role_groups(self, base):
+        """角色可用的權限群組：黃金庫的應用群組（唯讀讀取）；讀不到才退回功能點記的群組。
+
+        ★ 實機：功能點的 group_xmlids 全部是空的，AI 只拿到 base.group_user，業務、倉管、
+          會計四個角色都只是內部使用者——拿那些帳號拍，畫面全是權限錯誤。"""
+        self.ensure_one()
+        try:
+            golden = self._knowledge_master()._corpaas_golden_db()
+            rows = remote.shell_json(self.env, golden.instance_id, golden.name,
+                                     scripts.groups_script())
+            groups = sorted({'%s｜%s／%s' % (r['xmlid'], r.get('app') or '', r.get('name') or '')
+                             for r in rows or [] if r.get('xmlid')})
+            if groups:
+                return groups
+        except Exception as e:  # noqa: BLE001 — 讀不到黃金庫就用退路
+            _logger.warning('[knowledge] 讀取黃金庫權限群組失敗：%s', e)
+        return sorted({g.strip() for f in self.env['corpaas.knowledge.feature'].search(base)
+                       for g in (f.group_xmlids or '').split(',') if g.strip()}
+                      | {'base.group_system', 'base.group_user'})
+
     def _knowledge_documents_feature(self, feature):
         """這個方案要不要替這個功能製作操作說明（K21＋原生開關）。
 
@@ -1720,9 +1740,7 @@ class SolutionPackage(models.Model):
         # ★ 新情境要一併提議角色：拍照用角色帳號登入（業務、倉管、會計…），沒有角色說明庫
         #   建不出帳號、截圖全部失敗——從零開始時沒有任何地方會產生角色。
         #   群組只能從方案畫面實際要求的群組挑（AI 自己編的 xmlid 在說明庫裡不存在）。
-        groups = sorted({g.strip() for f in self.env['corpaas.knowledge.feature'].search(base)
-                         for g in (f.group_xmlids or '').split(',') if g.strip()}
-                        | {'base.group_system', 'base.group_user'})
+        groups = self._knowledge_role_groups(base)
         # ★ 能力已經有了（方案已掛能力，或歸類步驟剛分好、還在待審）→ 只提情境與角色。
         #   實機：7 個能力還在待審時跑圈選，AI 看不到它們，又提了 18 個細分能力。
         Selection = self.env['corpaas.knowledge.selection'].sudo()
@@ -1744,7 +1762,8 @@ class SolutionPackage(models.Model):
             + cap_ask.replace('%', '%%') +
             "新情境要附上拍操作畫面用的角色 roles：每個角色一個英數 code（業務 sales、採購 purchase、"
             "倉管 stock、會計 account、系統管理員 admin，其他職務自取英數）、中文 name、"
-            "groups（只能從下方「可用群組」挑）；一定要有 admin（base.group_system）。\n"
+            "groups（只能從下方「可用群組」挑 xmlid，「｜」前那段；業務、採購、倉管、會計要挑各自"
+            "應用的使用者群組，不要只給 base.group_user）；一定要有 admin（base.group_system）。\n"
             "格式：{\"scenarios\":[{\"code\"|\"new\":{\"name\",\"code\",\"narrative\",\"glossary\","
             "\"roles\":[{\"code\",\"name\",\"groups\":[xmlid]}]},\"reason\",\"score\"}],"
             "\"capabilities\":[{\"code\"|\"new\":{\"name\",\"pain\",\"outcome\",\"features\":[key]},"
