@@ -58,6 +58,8 @@ class SolutionPackage(models.Model):
         string='納入 Odoo 官方模組', default=True,
         help='盤點範圍除了方案模組，再加上黃金庫實際安裝的 Odoo 官方模組（扣除排除清單）；'
              '官方模組只盤選單與選單動作。')
+    knowledge_pending_reason = fields.Char(copy=False, readonly=True,
+                                           help='最近一次排入知識更新的原因（執行紀錄用）')
     knowledge_document_native = fields.Boolean(
         string='原生畫面也製作操作說明',
         help='預設（不勾）：沒被客製過的 Odoo 原生畫面不寫操作說明，說明查詢改連 Odoo 官方文件'
@@ -157,6 +159,8 @@ class SolutionPackage(models.Model):
                 continue
             if full:
                 rec._knowledge_bookkeep({'knowledge_pending_full': True})
+            # 觸發原因記在方案上（params 只放 package_id 才能去重），執行時寫進執行紀錄
+            rec._knowledge_bookkeep({'knowledge_pending_reason': reason})
             when = fields.Datetime.add(fields.Datetime.now(), minutes=delay_minutes) \
                 if delay_minutes else False
             # ★ 正在跑的那張也算「重複」（佇列去重包含 processing）：更新進行中又來了
@@ -213,12 +217,16 @@ class SolutionPackage(models.Model):
             self.knowledge_enqueue_refresh(full=full, reason=reason, delay_minutes=10)
             return True
         full = full or self._knowledge_take_pending_full()
+        reason = reason or self.knowledge_pending_reason or ''
+        if self.knowledge_pending_reason:
+            self._knowledge_bookkeep({'knowledge_pending_reason': False})
         token = uuid.uuid4().hex
         run = Run.create({
             'package_id': self.id, 'token': token, 'full': bool(full), 'reason': reason or ''})
         self._knowledge_commit()
         try:
             run.begin_stage('prepare')
+            self._knowledge_commit()   # 執行紀錄立刻看得到「目前階段」
             sandboxes = self._knowledge_stage_prepare(run)
             run.sandbox_ids = [(6, 0, sandboxes.ids)]
             run.end_stage()
@@ -238,6 +246,7 @@ class SolutionPackage(models.Model):
             return True
         try:
             run.begin_stage(stage)
+            self._knowledge_commit()
             if stage == 'shoot':
                 self._knowledge_stage_shoot(run)
             elif stage == 'outlets':
