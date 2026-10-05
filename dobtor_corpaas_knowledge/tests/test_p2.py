@@ -543,7 +543,7 @@ class TestGeneralization(TransactionCase):
         self.assertEqual(set(out.values()), {'新建'})
         packs = Pack.search([('code', 'in', list(out))])
         self.assertEqual(len(packs), 6)
-        self.assertEqual(set(packs.mapped('state')), {'review'}, '新建的資料包送審')
+        self.assertEqual(set(packs.mapped('state')), {'published'}, '資料包自動核准上線')
         sales = packs.filtered(lambda p: p.code == 'sales_flow')
         self.assertEqual(sorted(sales.depend_ids.mapped('code')), ['contacts', 'products'])
         self.assertEqual(set(Pack.import_bundle().values()), {'相同'}, '再載一次不重複')

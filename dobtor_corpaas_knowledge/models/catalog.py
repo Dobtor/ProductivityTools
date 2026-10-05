@@ -739,7 +739,9 @@ class KnowledgeSeedPack(models.Model):
         return ['name', 'seed_json', 'depend_ids', 'required_module_names']
 
     def _knowledge_requires_review(self, change):
-        return change != 'shot'
+        # ★ 資料包自動核准（使用者決定，2026-10-06）：資料包是驗證過的共用庫，只有人會改它
+        #   （AI 不改資料包）；品質由「用到它的情境」送審前的重播檢查把關，不靠逐包人工核准。
+        return False
 
     @api.constrains('code')
     def _check_code(self):
@@ -806,9 +808,9 @@ class KnowledgeSeedPack(models.Model):
 
     @api.model
     def import_bundle(self, name='native_erp_v10'):
-        """載入模組內附的資料包庫（data/seed_packs/<name>.json），建成草稿並送審。
+        """載入模組內附的資料包庫（data/seed_packs/<name>.json）；資料包自動核准上線。
 
-        已有同代碼的資料包：內容不同才改寫並送審（走核准，不直接覆蓋上線版）。
+        已有同代碼的資料包：內容不同才改寫。
         回傳 {code: '新建'|'更新'|'相同'}。"""
         import os
         if not re.match(r'^[a-z0-9_]+$', name or ''):
@@ -845,10 +847,13 @@ class KnowledgeSeedPack(models.Model):
         return out
 
     def knowledge_propose(self, change, note=None):
-        """資料包改了：用到它的情境各自重播檢查一次（A3）。"""
+        """資料包改了（自動上線）：用到它的情境各自重播檢查一次，並排更新重拍（A3）。"""
         res = super().knowledge_propose(change, note=note)
-        for sc in self.mapped('scenario_ids'):
+        scenarios = self.mapped('scenario_ids')
+        for sc in scenarios:
             sc._enqueue_seed_check()
+        scenarios.filtered(lambda s: s.published_rev_no)._knowledge_refresh_packages(
+            reason='pack_updated')
         return res
 
 
