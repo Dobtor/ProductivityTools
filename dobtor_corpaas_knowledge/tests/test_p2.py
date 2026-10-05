@@ -164,6 +164,36 @@ class TestSeedCheck(_RefreshBase):
         self.assertTrue(chk.is_check)
         self.assertNotIn(chk, self.pkg.knowledge_sandbox_ids, '方案的說明庫清單不列臨時庫')
 
+    def test_check_errors_trigger_one_ai_repair(self):
+        Sandbox = self.env['corpaas.knowledge.sandbox'].sudo()
+        Sc = type(self.sc)
+        Pkg = type(self.pkg)
+        master = make_database(self.env, 9472).instance_id
+        repairs, prompts = [], []
+        Ai = type(self.env['corpaas.knowledge.ai'])
+
+        def ask(s, purpose, prompt, **kw):
+            prompts.append((purpose, prompt))
+            return {'seed': [{'xmlid': 'p', 'model': 'res.partner', 'values': {'name': '修好'}}]}
+
+        with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: master), \
+                patch.object(type(Sandbox), 'rebuild', lambda s, seed=None: {'errors': [
+                    {'xmlid': 'x', 'model': 'product.product', 'error': 'duplicate key'}]}), \
+                patch.object(type(Sandbox), 'drop', lambda s: None), \
+                patch.object(type(Sandbox), '_shell', lambda s, script: {}), \
+                patch.object(Pkg, '_knowledge_probe_items', lambda s: ([], {})), \
+                patch.object(Ai, 'ask', ask), \
+                patch.object(Sc, '_enqueue_seed_check', lambda s, **kw: repairs.append(s.id)):
+            Sandbox.run_seed_check(self.pkg, self.sc)
+            self.assertEqual(self.sc.seed_auto_repairs, 1)
+            self.assertIn('修好', self.sc.seed_json)
+            self.assertEqual(prompts[0][0], 'seed_repair')
+            self.assertIn('duplicate key', prompts[0][1])
+            self.assertIn('不要同一個產品再建 product.template', prompts[0][1])
+            self.assertEqual(repairs, [self.sc.id], '修完送審會再檢查一次')
+            Sandbox.run_seed_check(self.pkg, self.sc)
+            self.assertEqual(len(prompts), 1, '只自動修一次')
+
     def test_role_groups_read_from_golden(self):
         """角色可用群組讀黃金庫的應用群組（實機功能點都沒記群組，AI 只拿到 base.group_user）。"""
         from ..services import remote

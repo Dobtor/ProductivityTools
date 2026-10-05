@@ -12,6 +12,21 @@ from odoo.exceptions import AccessError, UserError
 
 _logger = logging.getLogger(__name__)
 
+#: 起草／修正示範資料的共同規則（2026-10 實機：AI 起草 82 筆有 36 筆錯、89 個畫面 52 個空白，
+#: 錯在重複建產品變體、日記帳缺必填、完全沒有確認／過帳步驟）
+SEED_RULES = (
+    "★ 產品只建 product.product（範本會自動產生），不要同一個產品再建 product.template。\n"
+    "★ 單據頭與明細分開成兩筆（sale.order 與 sale.order.line 各自一個 xmlid，明細用 order_id 參照頭）。\n"
+    "★ 不要建會計科目、日記帳、稅、付款條件這類系統已有的設定，沿用系統既有的。\n"
+    "★ 狀態不要直接寫 state，用動作步驟推進：{\"xmlid\":\"so_01_confirm\",\"model\":\"sale.order\","
+    "\"call\":\"action_confirm\",\"ref\":\"so_01\"}；可用的有 sale.order action_confirm、"
+    "purchase.order button_confirm、account.move action_post、account.payment action_post、"
+    "stock.picking action_confirm／button_validate、stock.scrap action_validate。"
+    "每類單據要有草稿、已確認、已完成各至少一筆，清單才看得到不同狀態。\n"
+    "★ 單據的負責人指定角色帳號（可用：%(roles)s），例如 \"user_id\": \"__ref__:user_sales\"。\n"
+    "★ 公司與倉庫改成情境裡的名稱：{\"xmlid\":\"base.main_company\",\"model\":\"res.company\","
+    "\"values\":{\"name\":…}}、stock.warehouse0 同理。\n")
+
 SEED_CHECK_STATES = [('queued', '排隊中'), ('running', '檢查中'), ('ok', '通過'),
                      ('issues', '有問題'), ('failed', '檢查失敗')]
 
@@ -197,6 +212,8 @@ class KnowledgeScenario(models.Model):
                                     help='{"errors": [...], "counts": {功能鍵: 筆數}, "labels": {...}}')
     seed_check_html = fields.Html(string='重播檢查結果', compute='_compute_seed_check_html',
                                   sanitize=False)
+    seed_auto_repairs = fields.Integer(string='自動修正次數', readonly=True, copy=False,
+                                       help='重播檢查有錯時 AI 自動修正的次數（每份起草只修一次）')
     clean_approvals = fields.Integer(string='連續無修改核准次數', readonly=True)
     auto_text_after = fields.Integer(string='連續幾次後文字改寫免審', default=5)
 
@@ -430,16 +447,18 @@ class KnowledgeScenario(models.Model):
         fields_info = remote.shell_json(self.env, golden.instance_id, golden.name,
                                         scripts.fields_script(sorted(models)))
         parent_seed = self.parent_id.live_seed() if self.parent_id else []
+        roles = ['user_%s' % r.code for r in self.all_roles()]
         prompt = (
-            "請為情境「%s」起草 Odoo 示範資料腳本。\n情境敘事：%s\n用語對照：%s\n"
+            "請為情境「%s」起草 Odoo 18 示範資料腳本。\n情境敘事：%s\n用語對照：%s\n"
             "規則：只用下方列出的模型與欄位；必填欄位一定要給值；關聯欄位用 "
             "\"__ref__:<xmlid>\" 參照腳本內或繼承情境的記錄（清單用字串陣列）；"
             "資料要像真實但完全虛構（不得用真實公司或個人姓名、電話、統編）；"
             "每個主要模型 3–8 筆，足以讓清單與表單畫面有內容。\n"
-            "不要重複繼承情境已有的記錄（可參照它們）。\n"
+            "不要重複繼承情境已有的記錄（可參照它們）。\n%s"
             "格式：{\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
             "繼承情境已有記錄（xmlid）：%s\n\n欄位定義：%s"
         ) % (self.name, self.narrative or '', json.dumps(self.glossary_map(), ensure_ascii=False),
+             SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
              json.dumps([r['xmlid'] for r in parent_seed], ensure_ascii=False),
              json.dumps(fields_info, ensure_ascii=False)[:150000])
         data = self.env['corpaas.knowledge.ai'].ask('scenario_seed', prompt, package=package,
@@ -447,9 +466,37 @@ class KnowledgeScenario(models.Model):
         seed = (data or {}).get('seed')
         if not isinstance(seed, list) or not seed:
             raise UserError(_('AI 沒有回傳可用的示範資料腳本。'))
-        self.seed_json = json.dumps(seed, ensure_ascii=False, indent=1)
+        self.write({'seed_json': json.dumps(seed, ensure_ascii=False, indent=1),
+                    'seed_auto_repairs': 0})
         self.knowledge_propose('new' if not self.published_rev_no else 'text',
                                note=_('AI 起草示範資料'))
+        return True
+
+    def _ai_repair_seed_from_check(self, report):
+        """重播檢查有錯：請 AI 依錯誤與空畫面修一次腳本，再送審（會自動再檢查一次）。
+
+        ★ 只自動修一次（seed_auto_repairs）：修完仍有錯就留給人，避免 AI 來回燒預算。"""
+        self.ensure_one()
+        package = self.package_ids[:1]
+        labels = report.get('labels') or {}
+        empty = [labels.get(k, k) for k, v in (report.get('counts') or {}).items() if v == 0]
+        prompt = (
+            "情境「%s」的 Odoo 18 示範資料腳本在測試庫重播時出錯。請修正後回傳完整腳本；"
+            "能成功的記錄照舊，修掉出錯的，並補上讓下列空畫面有資料的記錄。\n%s"
+            "格式：{\"seed\":[…]}\n\n重播錯誤：%s\n\n沒有資料的畫面：%s\n\n目前腳本：%s"
+        ) % (self.name, SEED_RULES % {'roles': '、'.join(
+            'user_%s' % r.code for r in self.all_roles()) or '（無）'},
+             json.dumps((report.get('errors') or [])[:60], ensure_ascii=False),
+             json.dumps(empty[:80], ensure_ascii=False), self.seed_json or '[]')
+        data = self.env['corpaas.knowledge.ai'].ask('seed_repair', prompt, package=package,
+                                                    record=self)
+        seed = (data or {}).get('seed')
+        if not isinstance(seed, list) or not seed:
+            return False
+        self.write({'seed_json': json.dumps(seed, ensure_ascii=False, indent=1),
+                    'seed_auto_repairs': self.seed_auto_repairs + 1})
+        self.knowledge_propose('new' if not self.published_rev_no else 'text',
+                               note=_('AI 依重播檢查修正示範資料'))
         return True
 
     def text_review_waived(self):
