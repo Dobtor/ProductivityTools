@@ -6,7 +6,6 @@
   授權推送、容量計算、計量、dbfilter 收斂全部當成客戶庫（D7）。這裡照抄同一條
   指令（同樣直連底層 PG、同樣以 marker 行回傳），只把庫名換成參數。
 """
-import base64
 import io
 import json
 import logging
@@ -148,10 +147,26 @@ def put_bytes(server, remote_path, data):
 
 
 def fetch_dir(server, remote_dir):
-    """把主機上的目錄打包取回：{相對路徑: bytes}。"""
-    cmd = 'tar -C %s -czf - . | base64 -w0' % shlex.quote(remote_dir)
-    res = run(server, cmd)
-    raw = base64.b64decode((getattr(res, 'stdout', '') or '').strip() or b'')
+    """把主機上的目錄打包取回：{相對路徑: bytes}。
+
+    ☠️ 不走標準輸出：舊寫法 `tar | base64 -w0` 把整包（89 張截圖約 26MB）當成一行從
+      stdout 讀回，invoke 逐段解碼累加，控制台 CPU 吃滿、讀了半小時以上。
+      改成在主機上打包成暫存檔，用 SFTP 直接下載。
+    """
+    tmp = '/tmp/kb_get_%s.tgz' % uuid.uuid4().hex
+    q = shlex.quote
+    buf = io.BytesIO()
+    with server.get_connect() as c:
+        res = custom_sudo(c, 'if [ -d {d} ]; then tar -C {d} -czf {t} . && chmod 644 {t} '
+                             '&& echo PACKED; fi; true'.format(d=q(remote_dir), t=q(tmp)),
+                          dont_raise=True)
+        if 'PACKED' not in (getattr(res, 'stdout', '') or ''):
+            return {}
+        try:
+            c.get(tmp, local=buf)
+        finally:
+            custom_sudo(c, 'rm -f %s' % q(tmp), dont_raise=True)
+    raw = buf.getvalue()
     files = {}
     if not raw:
         return files
