@@ -377,8 +377,11 @@ class KnowledgeScenario(models.Model):
                 raise UserError(_('情境「%s」還沒有被任何方案引用，沒有黃金庫可以重播。') % self.name)
             return False
         self.sudo().write({'seed_check_state': 'queued', 'seed_check_report': False})
+        # ★ params 帶修訂號：檢查有錯 → AI 修正 → 再送審，是在「同一張還在跑的檢查單」裡排下一張；
+        #   params 相同會被佇列去重吃掉（實機：修正後的第二次檢查從沒跑，狀態一直停在排隊中）
         q = self.env['corpaas.queue'].sudo()._enqueue(
-            package, 'knowledge_sandbox', {'scenario_id': self.id, 'op': 'check'})
+            package, 'knowledge_sandbox',
+            {'scenario_id': self.id, 'op': 'check', 'rev': self.rev_no})
         q.channel = 'knowledge'
         return q
 

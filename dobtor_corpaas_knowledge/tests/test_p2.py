@@ -121,6 +121,7 @@ class TestSeedCheck(_RefreshBase):
             [('operate', '=', 'knowledge_sandbox')], order='id desc', limit=1)
         self.assertTrue(q, '改了示範資料送審：排一張重播檢查')
         self.assertIn("'op': 'check'", q.params)
+        self.assertIn("'rev': %s" % self.sc.rev_no, q.params, '帶修訂號：修正後的再檢查不會被去重吃掉')
         self.assertEqual(self.sc.seed_check_state, 'queued')
 
     def test_text_only_change_does_not_check(self):

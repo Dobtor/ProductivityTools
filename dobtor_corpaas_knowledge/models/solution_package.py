@@ -1681,7 +1681,7 @@ class SolutionPackage(models.Model):
             _logger.info('[knowledge] %s 預算用完：%s', self.display_name, err)
 
     def solution_package_knowledge_sandbox(self, sandbox_id=None, op='rebuild', package_id=None,
-                                           scenario_id=None):
+                                           scenario_id=None, rev=None):
         """佇列派工目標：手動重建／刪除說明庫、送審前重播檢查（複製＋清除＋示範資料
         動輒數分鐘，不能在網頁請求裡跑）。"""
         self.ensure_one()
