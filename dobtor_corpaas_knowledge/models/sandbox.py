@@ -50,6 +50,11 @@ class KnowledgeSandbox(models.Model):
         ('done', '完成'), ('failed', '失敗'), ('dropped', '已刪除'),
     ], default='pending', index=True)
     code_manifest = fields.Text(readonly=True)
+    inputs_sig = fields.Char(string='輸入簽章', readonly=True,
+                             help='黃金庫、程式版本、示範資料上線版號、角色、清除範圍的簽章；'
+                                  '全量更新時沒變就沿用這座說明庫，不重建（R1）')
+    dirty = fields.Boolean(string='資料已被拍攝改動', readonly=True,
+                           help='有截圖腳本按了物件按鈕或填了欄位：下次更新一定重建')
     ready_at = fields.Datetime(readonly=True)
     purged_at = fields.Datetime(readonly=True,
                                 help='D1 清除完成時間：之後建立的記錄都是示範資料或拍攝產生的')
@@ -78,6 +83,31 @@ class KnowledgeSandbox(models.Model):
 
     # ------------------------------------------------------------------
     BUSY = ('cloning', 'purging', 'seeding', 'shooting')
+
+    def _inputs_signature(self):
+        """重建說明庫要用到的輸入；任何一項變了才需要重建。"""
+        import hashlib
+        self.ensure_one()
+        master = self.master_instance_id
+        golden = master._corpaas_golden_db()
+        scenario = self.scenario_id
+        seed_rev = [[sc.id, sc.published_rev_no] for sc in scenario.lineage()]
+        data = [golden.id, golden.name, master._corpaas_code_manifest(), seed_rev,
+                scenario.all_roles().as_payload(), self._purge_models(scenario.live_seed()),
+                list(scripts.CONFIG_MODELS)]
+        return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False, default=str)
+                            .encode('utf-8')).hexdigest()[:16]
+
+    def _reusable(self):
+        """這座說明庫可以直接沿用：就緒過、沒被拍攝改動、輸入簽章沒變。"""
+        self.ensure_one()
+        if self.state not in ('ready', 'done') or not self.ready_at or self.dirty \
+                or not self.inputs_sig:
+            return False
+        try:
+            return self.inputs_sig == self._inputs_signature()
+        except Exception:  # noqa: BLE001 — 算不出來就重建
+            return False
 
     def _check_name_free(self):
         """名稱合法、而且平台上沒有任何一筆資料庫記錄叫這個名字。
@@ -134,7 +164,8 @@ class KnowledgeSandbox(models.Model):
                 raise UserError(_('示範資料重播失敗 %s 筆（見示範資料報告）')
                                 % len(res['errors']))
             scenario.sudo().seed_error = False
-            self.write({'state': 'ready', 'ready_at': fields.Datetime.now()})
+            self.write({'state': 'ready', 'ready_at': fields.Datetime.now(), 'dirty': False,
+                        'inputs_sig': self._inputs_signature()})
         except Exception as e:
             self.write({'state': 'failed', 'error': str(e)[:4000]})
             raise

@@ -38,10 +38,14 @@ PROBE_JS = r'''() => {
   const vis = (el) => !!(el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
   const txt = (el) => (el && el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80);
   const scope = document.querySelector('.o_action_manager') || document.body;
-  const out = {buttons: [], fields: [], tabs: [], breadcrumbs: [], view_type: ''};
-  const vt = scope.querySelector('.o_form_view, .o_list_view, .o_kanban_view');
-  out.view_type = vt ? (vt.classList.contains('o_form_view') ? 'form'
-                      : vt.classList.contains('o_list_view') ? 'list' : 'kanban') : '';
+  const out = {buttons: [], fields: [], tabs: [], breadcrumbs: [], columns: [], view_type: '',
+               empty: !!scope.querySelector('.o_view_nocontent'), settings: !!scope.querySelector('.o_settings_container, .settings')};
+  const kinds = [['o_form_view', 'form'], ['o_list_view', 'list'], ['o_kanban_view', 'kanban'],
+                 ['o_pivot_view', 'pivot'], ['o_graph_view', 'graph'], ['o_calendar_view', 'calendar'],
+                 ['o_activity_view', 'activity']];
+  for (const [cls, name] of kinds) { if (scope.querySelector('.' + cls)) { out.view_type = name; break; } }
+  scope.querySelectorAll('.o_list_view th[data-name]').forEach(th => { if (vis(th))
+    out.columns.push({name: th.getAttribute('data-name'), label: txt(th)}); });
   scope.querySelectorAll('button[name]').forEach(b => { if (vis(b))
     out.buttons.push({name: b.getAttribute('name'), text: txt(b), type: b.getAttribute('type') || ''}); });
   scope.querySelectorAll('.o_field_widget[name], div[name].o_field_widget').forEach(f => { if (vis(f)) {
@@ -319,7 +323,13 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None)
             # ★ 標註找不到不讓整張圖失敗：截圖本身仍可用，少一個編號框而已；
             #   缺的標註記在 warnings，由控制台決定要不要請 AI 修腳本。
             try:
-                box = _locate(page, arg).bounding_box(timeout=5000)
+                target = _locate(page, arg)
+                # 設定頁、長表單：元素可能在畫面外，先捲進來（截圖只拍可視範圍）
+                try:
+                    target.scroll_into_view_if_needed(timeout=3000)
+                except Exception:  # noqa: BLE001
+                    pass
+                box = target.bounding_box(timeout=5000)
             except Exception as e:  # noqa: BLE001
                 box = None
                 warnings.append('步驟 %s：找不到要標註的元素 %r（%s）'

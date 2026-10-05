@@ -191,13 +191,98 @@ class SolutionPackage(models.Model):
     # ------------------------------------------------------------------
     def solution_package_knowledge_refresh(self, package_id=None, full=False, reason='',
                                            after=None):
+        """佇列派工目標：知識更新的第一階段（盤點→指紋→流程→AI 歸類→說明庫）。
+
+        ★ A1：更新拆成三張接力的佇列單（盤點與說明庫 → 拍攝 → 出口與收尾），每段各自提交，
+          進度即時可見、失敗只重跑那一段，也不會被佇列看門狗判逾時。
+          ☠️ 原本十個步驟在同一個 REPEATABLE READ 交易裡跑 2–4 小時：期間查不到任何結果、
+          中途失敗全部回滾、超過 120 分鐘沒心跳就被判逾時（實機 2026-10-05）。
+        ★ 測試裡（或 context knowledge_inline_stages）三段直接接著跑，不排佇列。
+        """
         self.ensure_one()
         # 這個作業跑很久而且不寫方案這一列：簿記改走獨立游標（見 _knowledge_bookkeep）
         self = self.with_context(knowledge_fresh_cursor=True)
+        Run = self.env['corpaas.knowledge.run'].sudo()
+        busy = Run.search([('package_id', '=', self.id), ('state', '=', 'running'),
+                           ('create_date', '>', fields.Datetime.subtract(
+                               fields.Datetime.now(), hours=6))], limit=1)
+        if busy and not txn.in_tests(self.env):
+            # ★ 上一次更新的拍攝／出口階段還在排隊或執行：別在中間插進來重建說明庫，
+            #   10 分鐘後再排（超過 6 小時沒結束的紀錄視為已中斷）
+            _logger.info('[knowledge] %s 上一次更新（%s）尚未結束，延後', self.display_name, busy.id)
+            self.knowledge_enqueue_refresh(full=full, reason=reason, delay_minutes=10)
+            return True
         full = full or self._knowledge_take_pending_full()
         token = uuid.uuid4().hex
+        run = Run.create({
+            'package_id': self.id, 'token': token, 'full': bool(full), 'reason': reason or ''})
+        self._knowledge_commit()
+        try:
+            run.begin_stage('prepare')
+            sandboxes = self._knowledge_stage_prepare(run)
+            run.sandbox_ids = [(6, 0, sandboxes.ids)]
+            run.end_stage()
+            self._knowledge_commit()
+        except Exception as e:
+            self._knowledge_stage_failed(run, e)
+            raise
+        self._knowledge_next_stage(run, 'shoot')
+        return True
+
+    def solution_package_knowledge_stage(self, run_id=None, stage=None):
+        """佇列派工目標：知識更新的拍攝／出口階段（由前一階段排入）。"""
+        self.ensure_one()
+        self = self.with_context(knowledge_fresh_cursor=True)
+        run = self.env['corpaas.knowledge.run'].sudo().browse(run_id).exists()
+        if not run or run.state != 'running':
+            return True
+        try:
+            run.begin_stage(stage)
+            if stage == 'shoot':
+                self._knowledge_stage_shoot(run)
+            elif stage == 'outlets':
+                self._knowledge_stage_outlets(run)
+            run.end_stage()
+            self._knowledge_commit()
+        except Exception as e:
+            self._knowledge_stage_failed(run, e)
+            raise
+        if stage == 'shoot':
+            self._knowledge_next_stage(run, 'outlets')
+        elif stage == 'outlets':
+            run.mark_done()
+        return True
+
+    def _knowledge_commit(self):
+        """階段作業裡的中途提交（測試裡不提交）。"""
+        if not txn.in_tests(self.env):
+            self.env.cr.commit()
+
+    def _knowledge_stage_failed(self, run, error):
+        """記下失敗：先回滾這一段做到一半的寫入，再在乾淨的交易裡寫執行紀錄。"""
+        if txn.in_tests(self.env):
+            run.mark_failed(error)
+            return
+        self.env.cr.rollback()
+        run.mark_failed(error)
+        self.env.cr.commit()
+
+    def _knowledge_next_stage(self, run, stage):
+        if txn.in_tests(self.env) or self.env.context.get('knowledge_inline_stages'):
+            return self.solution_package_knowledge_stage(run_id=run.id, stage=stage)
+        return self._knowledge_enqueue_stage(run, stage)
+
+    def _knowledge_enqueue_stage(self, run, stage):
+        q = self.env['corpaas.queue'].sudo()._enqueue(
+            self, 'knowledge_stage', {'run_id': run.id, 'stage': stage})
+        if q.channel != 'knowledge':
+            q.channel = 'knowledge'
+        return q
+
+    def _knowledge_stage_prepare(self, run):
+        """盤點、指紋、流程、AI 歸類、說明庫。回傳要拍攝的說明庫。"""
+        token, full = run.token, run.full
         Event = self.env['corpaas.knowledge.event'].sudo()
-        ctx = {'token': token, 'full': full, 'reason': reason}
         with self._op_step('kb_check'):
             master = self._knowledge_master()
             golden = master._corpaas_golden_db()
@@ -230,16 +315,24 @@ class SolutionPackage(models.Model):
             self._knowledge_ai_catalog(added, token)
             self._knowledge_official_docs(token)
             self._knowledge_flow_names(token)
-        events = Event.search([('refresh_token', '=', token)])
+        events = run.events()
         hooks = self.env['corpaas.knowledge.hooks']
+        sandboxes = self.env['corpaas.knowledge.sandbox']
         with self._op_step('kb_sandbox'):
             scenarios = self.knowledge_scenario_ids if full else \
                 hooks._knowledge_scenarios_needing_shots(self, events)
-            sandboxes = self.env['corpaas.knowledge.sandbox']
             for sc in scenarios:
-                sandboxes |= self._knowledge_prepare_sandbox(master, sc, token)
+                sb = self._knowledge_prepare_sandbox(master, sc, token)
+                sandboxes |= sb
+                reused = sb.ready_at and sb.ready_at < run.started_at
+                run.add_stats(**{'sandboxes_reused' if reused else 'sandboxes_rebuilt': 1})
+        return sandboxes
+
+    def _knowledge_stage_shoot(self, run):
+        events, ctx = run.events(), dict(run.ctx(), run_id=run.id)
+        hooks = self.env['corpaas.knowledge.hooks']
         with self._op_step('kb_shoot'):
-            for sb in sandboxes.filtered(lambda s: s.state == 'ready'):
+            for sb in run.sandbox_ids.filtered(lambda s: s.state == 'ready'):
                 sb.state = 'shooting'
                 try:
                     hooks._knowledge_shoot(self, sb, events, ctx)
@@ -251,6 +344,11 @@ class SolutionPackage(models.Model):
                 except Exception as e:
                     sb.write({'state': 'failed', 'error': str(e)[:4000]})
                     _logger.exception('[knowledge] 拍攝失敗 %s', sb.db_name)
+        run.add_stats(**ctx.get('stats', {}))
+
+    def _knowledge_stage_outlets(self, run):
+        events, ctx = run.events(), dict(run.ctx(), run_id=run.id)
+        hooks = self.env['corpaas.knowledge.hooks']
         with self._op_step('kb_outlets'):
             hooks._knowledge_dispatch_events(self, events, ctx)
             events.write({'processed': True})
@@ -260,8 +358,8 @@ class SolutionPackage(models.Model):
             except Exception as e:  # noqa: BLE001 - 報表失敗不影響這次更新
                 _logger.warning('[knowledge] %s 覆蓋率重算失敗：%s', self.display_name, e)
             self._knowledge_bookkeep({'knowledge_last_refresh': fields.Datetime.now(),
-                                      'knowledge_last_token': token})
-        return True
+                                      'knowledge_last_token': run.token})
+        run.add_stats(**ctx.get('stats', {}))
 
     # ------------------------------------------------------------------
     # 方案列的簿記：一律用獨立游標
@@ -1363,6 +1461,12 @@ class SolutionPackage(models.Model):
         Sandbox = self.env['corpaas.knowledge.sandbox'].sudo()
         name = Sandbox.make_name(self, scenario)
         sb = Sandbox.search([('db_name', '=', name)], limit=1)
+        if sb and sb.master_instance_id == master and sb.scenario_id == scenario \
+                and sb._reusable():
+            # ★ R1：輸入沒變、沒被拍攝改動 → 沿用，不重新複製黃金庫
+            sb.write({'state': 'ready'})
+            _logger.info('[knowledge] 說明庫 %s 輸入未變，沿用', name)
+            return sb
         if sb:
             sb.write({'master_instance_id': master.id, 'state': 'pending',
                       'scenario_id': scenario.id})

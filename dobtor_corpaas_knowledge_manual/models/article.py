@@ -17,6 +17,8 @@ import hashlib
 import html as html_mod
 import json
 
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -24,6 +26,8 @@ from odoo.addons.dobtor_corpaas_knowledge.services import phash
 
 from ..services import manual_lib
 from .placement import BATCH_KEY, sync_batch
+
+_logger = logging.getLogger(__name__)
 
 
 class KnowledgeArticle(models.Model):
@@ -171,12 +175,52 @@ class KnowledgeArticle(models.Model):
                   for b in self.step_block_ids.sorted('id')]
         return hashlib.sha1('\x1f'.join(parts).encode('utf-8')).hexdigest()
 
+    manual_shots_ready = fields.Boolean(string='截圖就緒', compute='_compute_manual_shots_ready')
+    manual_shots_problem = fields.Char(string='截圖問題', compute='_compute_manual_shots_ready')
+
     def action_approve(self):
         self._check_approver()
         with sync_batch(self.env) as env:
-            return self.with_env(env)._manual_approve()
+            res = self.with_env(env)._manual_approve()
+        self._manual_refresh_coverage()
+        return res
+
+    def _manual_refresh_coverage(self):
+        """核准／下架後立即重算相關方案的說明覆蓋率（否則要等下一次知識更新才反映）。"""
+        pkgs = self.mapped('feature_id.package_ids').filtered('knowledge_enabled')
+        try:
+            with self.env.cr.savepoint():
+                pkgs.sudo()._knowledge_rebuild_coverage()
+        except Exception as e:  # noqa: BLE001 — 報表重算失敗不影響核准
+            _logger.warning('[knowledge.manual] 覆蓋率重算失敗：%s', e)
+
+    def _manual_shots_problem(self):
+        """這篇的截圖有什麼問題（空字串＝就緒）。"""
+        self.ensure_one()
+        b = self.shot_binding_id
+        if not b:
+            return ''
+        if b.state != 'ok':
+            from .sandbox_overview import reason_label
+            return _('截圖沒有拍成功（%s）') % (reason_label(b.last_error) or b.state)
+        if not self.asset_ids.filtered(lambda a: a.state == 'current'):
+            return _('沒有使用中的截圖')
+        return ''
+
+    def _compute_manual_shots_ready(self):
+        for rec in self:
+            rec.manual_shots_problem = rec._manual_shots_problem()
+            rec.manual_shots_ready = not rec.manual_shots_problem
 
     def _manual_approve(self):
+        # ★ 截圖沒拍好的文章不讓核准：發佈出去就是一篇配著空白頁或錯誤畫面的說明。
+        #   確定要先上線純文字時，可帶 context knowledge_force_approve。
+        if not self.env.context.get('knowledge_force_approve'):
+            bad = [(r, r._manual_shots_problem()) for r in self]
+            bad = [(r, p) for r, p in bad if p]
+            if bad:
+                raise UserError(_('以下文章的截圖尚未就緒，先重拍或修補後再核准：\n%s')
+                                % '\n'.join('・%s：%s' % (r.name, p) for r, p in bad))
         clean = {rec.id: bool(rec.manual_review_sig)
                  and rec.manual_review_sig == rec._manual_text_sig() for rec in self}
         # ★ B3：一起送審、從沒上線過的新區塊跟文章一起核准（核准者在審核頁看得到它的全文）

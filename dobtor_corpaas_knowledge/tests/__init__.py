@@ -16,3 +16,4 @@ from . import test_package_layer
 from . import test_isolated
 from . import test_doc_server_components
 from . import test_remote_fetch
+from . import test_p0_p1

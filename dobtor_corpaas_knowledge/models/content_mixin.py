@@ -11,11 +11,40 @@
   推到對外位置（slide、商品頁…），`_knowledge_unpublish()` 撤下。
 ★ 發佈閘門：`_knowledge_requires_review(change)` 由出口覆寫。
 """
+import contextvars
 import difflib
 import json
 
+import odoo.service.model as _rpc_model
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
+
+#: 外部 RPC（/jsonrpc、/xmlrpc）這次呼叫的模型方法名；不是外部 RPC 時為 None。
+#: ☠️ Odoo 18 的 dispatch_rpc 用 borrow_request() 把 request 暫時拿掉才執行模型方法，
+#:   所以靠 request 判斷「用戶端直接寫入」對外部 RPC 完全無效（實機：RPC 改已上線情境的
+#:   示範資料，狀態沒有退回草稿、上線快照也沒變——靜默無效）。在派送入口記下方法名。
+_EXTERNAL_RPC_METHOD = contextvars.ContextVar('kb_external_rpc_method', default=None)
+
+
+def _wrap_rpc_dispatch():
+    orig = _rpc_model.dispatch
+    if getattr(orig, '_kb_wrapped', False):
+        return
+
+    def dispatch(method, params):
+        name = None
+        if method in ('execute', 'execute_kw') and len(params) > 4:
+            name = params[4]
+        token = _EXTERNAL_RPC_METHOD.set(name or method)
+        try:
+            return orig(method, params)
+        finally:
+            _EXTERNAL_RPC_METHOD.reset(token)
+    dispatch._kb_wrapped = True
+    _rpc_model.dispatch = dispatch
+
+
+_wrap_rpc_dispatch()
 
 STATES = [
     ('draft', '草稿'),
@@ -254,6 +283,9 @@ class KnowledgeContentMixin(models.AbstractModel):
         ★ 只擋這一條路：按鈕（call_button）、排程、佇列、伺服端流程都照常。
           用 context 旗標擋不住——RPC 呼叫端自己就能帶 context。
         """
+        rpc_method = _EXTERNAL_RPC_METHOD.get()
+        if rpc_method:
+            return rpc_method in ('write', 'create', 'web_save', 'web_save_multi')
         try:
             from odoo.http import request
             req = request

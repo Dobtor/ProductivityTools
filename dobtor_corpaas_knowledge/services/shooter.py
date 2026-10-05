@@ -22,6 +22,18 @@ class ShotError(Exception):
     pass
 
 
+_RUNNER_SIG = {}
+
+
+def runner_signature():
+    """截圖程式本身的簽章：run.py 改了（例如隱藏橫幅、定位規則）＝舊截圖都要重拍。"""
+    if 'v' not in _RUNNER_SIG:
+        import hashlib
+        with open(_RUNNER, 'rb') as fh:
+            _RUNNER_SIG['v'] = hashlib.sha1(fh.read()).hexdigest()[:12]
+    return _RUNNER_SIG['v']
+
+
 def run_shots(env, sandbox, shots, settings):
     """在說明庫所在主機跑一批截圖。
 

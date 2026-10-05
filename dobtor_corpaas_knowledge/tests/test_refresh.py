@@ -98,6 +98,12 @@ class TestRefresh(_RefreshBase):
         self.assertEqual(len(events.filtered(lambda e: e.type == 'feature_added')), len(features))
         fps = self.env['corpaas.knowledge.fingerprint'].search([('package_id', '=', self.pkg.id)])
         self.assertTrue(fps.filtered('scope_hash'), '至少要算出一些指紋')
+        # A5：一次更新一筆執行紀錄，三個階段都跑完（測試裡三段接著跑，不排佇列）
+        run = self.env['corpaas.knowledge.run'].search(
+            [('package_id', '=', self.pkg.id), ('token', '=', self.pkg.knowledge_last_token)])
+        self.assertEqual(run.state, 'done')
+        self.assertEqual([x['stage'] for x in json.loads(run.log_json)],
+                         ['prepare', 'shoot', 'outlets'])
 
     def test_second_refresh_is_quiet_then_detects_change(self):
         self._refresh()

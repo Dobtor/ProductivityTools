@@ -9,8 +9,12 @@ KNOWLEDGE_STEPS = [
     {'code': 'kb_flows', 'name': '推導任務流程（狀態與按鈕）', 'est': 20},
     {'code': 'kb_ai_catalog', 'name': 'AI 歸類新功能與同義詞', 'est': 120},
     {'code': 'kb_sandbox', 'name': '重建說明庫（清除＋示範資料）', 'est': 180},
-    {'code': 'kb_shoot', 'name': '無頭瀏覽器截圖', 'est': 300},
-    {'code': 'kb_outlets', 'name': '更新說明、行銷與建議書素材', 'est': 120},
+]
+
+#: 接力的第二、三階段（拍攝／出口）共用一張步驟表，沒走到的步驟收尾時標「略過」
+KNOWLEDGE_STAGE_STEPS = [
+    {'code': 'kb_shoot', 'name': '無頭瀏覽器截圖', 'est': 600},
+    {'code': 'kb_outlets', 'name': '更新說明、行銷與建議書素材', 'est': 300},
     {'code': 'kb_cleanup', 'name': '收尾', 'est': 2},
 ]
 
@@ -21,14 +25,16 @@ class CorpaasQueue(models.Model):
     operate = fields.Selection(
         selection_add=[('knowledge_refresh', 'Knowledge Refresh (docs/marketing)'),
                        ('knowledge_ai_job', 'Knowledge AI Job'),
-                       ('knowledge_sandbox', 'Knowledge Sandbox Rebuild/Drop')],
+                       ('knowledge_sandbox', 'Knowledge Sandbox Rebuild/Drop'),
+                       ('knowledge_stage', 'Knowledge Refresh Stage (shoot/outlets)')],
         ondelete={'knowledge_refresh': 'cascade', 'knowledge_ai_job': 'cascade',
-                  'knowledge_sandbox': 'cascade'})
+                  'knowledge_sandbox': 'cascade', 'knowledge_stage': 'cascade'})
 
     @api.model
     def _get_queue_steps(self):
         steps = super()._get_queue_steps()
         steps[('solution.package', 'knowledge_refresh')] = KNOWLEDGE_STEPS
+        steps[('solution.package', 'knowledge_stage')] = KNOWLEDGE_STAGE_STEPS
         steps[('solution.package', 'knowledge_ai_job')] = [
             {'code': 'kb_ai_job', 'name': 'AI 工作', 'est': 120}]
         steps[('solution.package', 'knowledge_sandbox')] = [

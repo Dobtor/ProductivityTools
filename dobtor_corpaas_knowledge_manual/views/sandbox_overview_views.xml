@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- 錨點：dobtor_corpaas_knowledge.view_kb_sandbox_form 的 notebook 第一頁 name="error" -->
+    <record id="view_kb_sandbox_form_overview" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.sandbox.form.overview</field>
+        <field name="model">corpaas.knowledge.sandbox</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_kb_sandbox_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='error']" position="before">
+                <page string="截圖總覽" name="shots_overview">
+                    <div class="mb-2">
+                        成功 <field name="shots_ok" class="oe_inline" readonly="1"/> ／
+                        失敗或待拍 <field name="shots_failed" class="oe_inline" readonly="1"/>
+                    </div>
+                    <field name="shots_overview_html" nolabel="1" readonly="1"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

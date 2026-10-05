@@ -38,7 +38,8 @@ class KnowledgeShotTemplate(models.Model):
     binding_ids = fields.One2many('corpaas.knowledge.shot_binding', 'template_id',
                                   string='情境繫結')
     repair_count = fields.Integer(string='AI 修補次數', readonly=True)
-    source = fields.Selection([('ai', 'AI 探索'), ('manual', '人工')], default='manual')
+    source = fields.Selection([('ai', 'AI 探索'), ('rule', '規則產生'), ('manual', '人工')],
+                              default='manual')
     note = fields.Char()
     active = fields.Boolean(default=True)
 
@@ -134,6 +135,9 @@ class KnowledgeShotBinding(models.Model):
     last_token = fields.Char(readonly=True, help='最近一次拍攝的 refresh token')
     last_shot_at = fields.Datetime(readonly=True)
     shot_scope_hash = fields.Char(readonly=True, help='最近一次成功拍攝時的指紋')
+    shot_inputs = fields.Char(readonly=True,
+                              help='最近一次成功拍攝的輸入簽章（腳本、繫結、指紋、示範資料版號、截圖程式）；'
+                                   '全量更新時簽章沒變就沿用現有截圖，不重拍（R4）')
     needs_repair = fields.Boolean(readonly=True, index=True,
                                   help='失敗、等 AI 修（下一次 refresh 的分派階段修，不必重建說明庫）')
     repair_attempts = fields.Integer(readonly=True, help='連續 AI 修補次數；成功拍攝後歸零')

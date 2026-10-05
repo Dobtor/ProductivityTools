@@ -30,7 +30,7 @@ from odoo.exceptions import UserError
 from odoo.addons.dobtor_corpaas_knowledge.services import (hub_client, phash, remote, scripts,
                                                            shooter)
 
-from ..services import manual_lib, prompts
+from ..services import manual_lib, prompts, rule_scripts
 from .placement import sync_batch
 
 _logger = logging.getLogger(__name__)
@@ -297,23 +297,68 @@ class KnowledgeHooks(models.AbstractModel):
     # ------------------------------------------------------------------
     @api.model
     def _knowledge_shoot(self, package, sandbox, events, ctx):
+        """準備範本 → 只拍要拍的（R4）→ 每批（預設 20 個畫面）拍完就提交 → AI 修補失敗的。
+
+        ★ 每批提交（A1）：中途失敗或被中斷，已拍好的不會跟著回滾；重跑時它們的輸入簽章
+          沒變，自然被略過。
+        """
         res = super()._knowledge_shoot(package, sandbox, events, ctx)
         token = ctx.get('token')
         stop = ctx.setdefault('manual_ai_stopped', {'ai': False})
-        self._manual_prepare_templates(package, sandbox, token, stop)
+        stats = ctx.setdefault('stats', {})
+        stats['templates_rule'] = stats.get('templates_rule', 0) + (
+            self._manual_prepare_templates(package, sandbox, token, stop) or 0)
+        self._manual_commit()
         todo = self._manual_bindings_to_shoot(package, sandbox, events, ctx)
+        relevant = self._manual_relevant_bindings(package).filtered(
+            lambda b: b.scenario_id == sandbox.scenario_id)
+        stats['shots_planned'] = stats.get('shots_planned', 0) + len(todo)
+        stats['shots_skipped'] = stats.get('shots_skipped', 0) + max(
+            0, len(relevant.filtered(lambda b: b.state == 'ok')) - len(todo & relevant))
         if not todo:
             return res
-        failed = self._manual_run_batch(package, sandbox, todo, token, ctx)
+        size = max(1, int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.shot_batch_size', 20) or 20))
+        failed = self.env['corpaas.knowledge.shot_binding']
+        batch_list = list(todo)
+        for i in range(0, len(batch_list), size):
+            chunk = self.env['corpaas.knowledge.shot_binding'].browse(
+                [b.id for b in batch_list[i:i + size]])
+            failed |= self._manual_run_batch(package, sandbox, chunk, token, ctx)
+            self._manual_commit()
+        stats['shots_ok'] = stats.get('shots_ok', 0) + len(todo.filtered(
+            lambda b: b.state == 'ok'))
+        stats['shots_failed'] = stats.get('shots_failed', 0) + len(todo.filtered(
+            lambda b: b.state != 'ok'))
         self._manual_repair_bindings(package, failed, token, stop)
+        self._manual_commit()
         return res
 
     @api.model
+    def _manual_commit(self):
+        """階段作業裡的中途提交（測試裡不提交）。"""
+        from odoo.addons.dobtor_corpaas_knowledge.services import txn
+        if not txn.in_tests(self.env):
+            self.env.cr.commit()
+
+    @api.model
+    @api.model
+    def _manual_script_mode(self):
+        """截圖腳本怎麼產生：rule（預設，規則為主、AI 為輔）／ai（每個畫面請 AI 探索）。"""
+        mode = self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.manual_script_mode', 'rule')
+        return 'ai' if mode == 'ai' else 'rule'
+
     def _manual_prepare_templates(self, package, sandbox, token, stop):
         """步驟 1：這個方案目前指紋還沒有範本 → 以同功能的舊範本複製（不叫 AI），
-        一份都沒有才 AI 探索；這個情境還沒有繫結 → 沿用／AI 挑示範資料。"""
+        一份都沒有 → 規則產生（規則模式）或 AI 探索；這個情境還沒有繫結 → 沿用／AI 挑示範資料。
+
+        ★ 規則模式下，AI 探索出來、在這個情境拍失敗的舊範本也改用規則重寫（A2）。
+        """
         scenario = sandbox.scenario_id
         Template = self.env['corpaas.knowledge.shot_template'].sudo()
+        rule_mode = self._manual_script_mode() == 'rule'
+        need_rule = []
         for feature, cap in self._manual_sorted_candidates(package):
             package._knowledge_heartbeat('kb_shoot', feature.name)
             if scenario not in self._manual_scenarios_for(package, cap):
@@ -323,10 +368,19 @@ class KnowledgeHooks(models.AbstractModel):
                 continue
             try:
                 tmpl = Template._for_hashes(feature, hashes)
+                if tmpl and rule_mode and tmpl.source == 'ai':
+                    b = tmpl.binding_for(scenario)
+                    if b and b.state == 'failed':
+                        need_rule.append((feature, hashes, tmpl))
+                        continue
                 if not tmpl:
                     src = Template._latest_for(feature)
-                    if src:
+                    if src and not (rule_mode and src.source == 'ai'
+                                    and src.binding_for(scenario).state == 'failed'):
                         tmpl = self._manual_fork_template(src, hashes)
+                    elif rule_mode:
+                        need_rule.append((feature, hashes, src))
+                        continue
                     elif stop['ai']:
                         continue
                     else:
@@ -338,6 +392,101 @@ class KnowledgeHooks(models.AbstractModel):
                 stop['ai'] = True
             except AI_ERRORS as e:
                 _logger.warning('[knowledge.manual] AI 探索失敗 %s：%s', feature.feature_key, e)
+        if need_rule:
+            return self._manual_rule_templates(package, sandbox, need_rule, token, stop)
+        return 0
+
+    # ------------------------------------------------------------------
+    # 規則產生截圖腳本（A2）
+    # ------------------------------------------------------------------
+    @api.model
+    def _manual_seed_record(self, scenario, model):
+        """情境裡這個模型的第一筆示範記錄 xmlid（動作步驟不算）。"""
+        return next((r['xmlid'] for r in self._manual_seed(scenario)
+                     if r['model'] == model and not r.get('call')), None)
+
+    @api.model
+    def _manual_probe_many(self, sandbox, items):
+        """一次無頭瀏覽器跑完多個畫面的探測：{feature.id: {'entry': …, 'record': …}}。
+
+        ★ 一個畫面開一次容器要 20–60 秒；94 個畫面分批（每批 30 個）一起探測。
+        """
+        logins = json.loads(sandbox.role_logins or '{}')
+        if not logins:
+            return {}
+        scenario = sandbox.scenario_id
+        codes = list(logins)
+        xids = {f.id: self._manual_seed_record(scenario, f.model) for f, _role in items}
+        resolved = sandbox.resolve_xmlids(sorted({x for x in xids.values() if x})) \
+            if any(xids.values()) else {}
+        shots = []
+        for feature, role in items:
+            if feature.kind == 'setting' or not feature.action_xmlid:
+                continue
+            steps = [{'goto': {'action': feature.action_xmlid}}, {'probe': 'entry'}]
+            ids = resolved.get(xids.get(feature.id))
+            if ids:
+                steps += [{'open': {'model': ids[0], 'res_id': ids[1]}}, {'probe': 'record'}]
+            shots.append({'id': 'f%s' % feature.id,
+                          'login': logins.get(role) or logins.get(codes[0]),
+                          'password': sandbox.sudo().password, 'steps': steps})
+        out = {}
+        settings = self.env['res.config.settings'].knowledge_shot_settings()
+        for i in range(0, len(shots), 30):
+            batch = shots[i:i + 30]
+            try:
+                result, _files = shooter.run_shots(self.env, sandbox, batch, settings)
+            except (shooter.ShotError, remote.RemoteError) as e:
+                _logger.warning('[knowledge.manual] 批次探測失敗：%s', e)
+                continue
+            for sid, res in (result.get('shots') or {}).items():
+                probes = {img['name']: img.get('probe') for img in res.get('images') or []
+                          if img.get('is_probe')}
+                out[int(sid[1:])] = probes
+        return out
+
+    @api.model
+    def _manual_rule_templates(self, package, sandbox, items, token, stop):
+        """規則產生範本：批次探測 → 依畫面型態組步驟 → 建範本＋繫結；取代的舊 AI 範本封存。
+        寫不出來（沒有動作、設定沒有欄位名）才退回 AI 探索。"""
+        scenario = sandbox.scenario_id
+        Template = self.env['corpaas.knowledge.shot_template'].sudo()
+        Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
+        codes = [r.code for r in scenario.all_roles()]
+        roled = [(f, rule_scripts.pick_role(f.kind, f.module, codes)) for f, _h, _o in items]
+        probes = self._manual_probe_many(sandbox, roled)
+        made = 0
+        for (feature, hashes, old), (_f, role) in zip(items, roled):
+            package._knowledge_heartbeat('kb_shoot', feature.name)
+            probe = probes.get(feature.id) or {}
+            rec_xid = self._manual_seed_record(scenario, feature.model)
+            steps, placeholders = rule_scripts.build_steps(
+                {'key': feature.feature_key, 'kind': feature.kind, 'anchor': feature.anchor,
+                 'action_xmlid': feature.action_xmlid},
+                entry=probe.get('entry'), record=probe.get('record'), has_record=bool(rec_xid))
+            if not steps:
+                if old or stop['ai']:
+                    continue
+                try:
+                    self._manual_explore(package, sandbox, feature, hashes, token)
+                except hub_client.BudgetExceeded:
+                    stop['ai'] = True
+                except AI_ERRORS as e:
+                    _logger.warning('[knowledge.manual] AI 探索失敗 %s：%s', feature.feature_key, e)
+                continue
+            tmpl = Template.create({
+                'feature_id': feature.id, 'steps_json': json.dumps(steps, ensure_ascii=False),
+                'login_role': role, 'source': 'rule',
+                'derived_from_id': old.id if old else False,
+                'note': _('規則產生（畫面：%s）') % ((probe.get('entry') or {}).get('view_type')
+                                                  or feature.kind),
+                'fingerprint': hashes.get(role) or next(iter(hashes.values()))})
+            Binding.create({'template_id': tmpl.id, 'scenario_id': scenario.id,
+                            'bindings_json': json.dumps({'rec': rec_xid} if placeholders else {})})
+            if old and old.active:
+                old.active = False
+            made += 1
+        return made
 
     @api.model
     def _manual_fork_template(self, src, hashes):
@@ -476,9 +625,24 @@ class KnowledgeHooks(models.AbstractModel):
             b = tmpl.binding_for(sc) if tmpl else None
             if not b:
                 continue
-            if full or b.state == 'pending' or (b.state == 'ok' and not b.current_assets()):
+            if b.state == 'pending' or (b.state == 'ok' and not b.current_assets()):
+                out |= b
+            elif full and not (b.state == 'ok' and b.shot_inputs
+                               and b.shot_inputs == self._manual_shot_inputs(b)):
+                # ★ R4：全量更新不等於全部重拍——輸入簽章沒變的畫面沿用現有截圖
                 out |= b
         return out
+
+    @api.model
+    def _manual_shot_inputs(self, binding):
+        """拍這張圖用到的一切：腳本、佔位符對應、畫面指紋、登入角色、示範資料上線版號、截圖程式。"""
+        import hashlib
+        tmpl = binding.template_id
+        seed_rev = [[sc.id, sc.published_rev_no] for sc in binding.scenario_id.lineage()]
+        data = [tmpl.steps_json, binding.bindings_json, binding.roles_json, tmpl.fingerprint,
+                tmpl.login_role, seed_rev, shooter.runner_signature()]
+        return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False)
+                            .encode('utf-8')).hexdigest()[:16]
 
     @api.model
     def _manual_fail(self, binding, error, result=None, repair=True):
@@ -521,6 +685,9 @@ class KnowledgeHooks(models.AbstractModel):
             by_id[sid] = b
         if not shots:
             return failed
+        if any(rule_scripts.mutates(b.template_id.steps()) for b in by_id.values()):
+            # 會按物件按鈕／填欄位的腳本會改到示範資料：下次更新要重建說明庫（R1）
+            sandbox.sudo().dirty = True
         settings = self.env['res.config.settings'].knowledge_shot_settings()
         try:
             result, files = shooter.run_shots(self.env, sandbox, shots, settings)
@@ -531,6 +698,8 @@ class KnowledgeHooks(models.AbstractModel):
             return failed
         threshold = int(settings.get('phash_threshold') or 10)
         for sid, b in by_id.items():
+            # 逐張採用（D1 檢查要開 shell，每張約 5 秒）：送心跳，否則看門狗只看得到拍攝前的時間
+            package._knowledge_heartbeat('kb_shoot', b.template_id.feature_id.name)
             r = (result.get('shots') or {}).get(sid) or {'ok': False, 'error': _('沒有結果')}
             if not r.get('ok'):
                 if (r.get('error') or '').startswith('畫面出現錯誤對話框'):
@@ -563,7 +732,8 @@ class KnowledgeHooks(models.AbstractModel):
             # 標註找不到的步驟不算失敗（圖照用），但留在 last_error 讓審稿的人看得到
             warn = '\n'.join(r.get('warnings') or [])[:4000] or False
             vals.update(state='ok', last_error=warn, needs_repair=False, repair_attempts=0,
-                        shot_scope_hash=b.template_id.fingerprint)
+                        shot_scope_hash=b.template_id.fingerprint,
+                        shot_inputs=self._manual_shot_inputs(b))
             b.write(vals)
         return failed
 
@@ -728,6 +898,8 @@ class KnowledgeHooks(models.AbstractModel):
                 except AI_ERRORS as e:
                     _logger.warning('[knowledge.manual] 對帳失敗 %s／%s：%s',
                                     feature.feature_key, scenario.code, e)
+            # ★ 起草一篇約一分鐘：逐功能提交，中途失敗已寫好的草稿不會跟著回滾（A1）
+            self._manual_commit()
 
     @api.model
     def _manual_reconcile_one(self, package, feature, cap, scenario, hashes, tmpl, token,

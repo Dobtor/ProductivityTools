@@ -73,6 +73,10 @@
                             groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,review,published"/>
                 </header>
+                <div class="alert alert-warning mb-0" role="alert" invisible="manual_shots_ready">
+                    <field name="manual_shots_ready" invisible="1"/>
+                    截圖尚未就緒，暫時不能核准：<field name="manual_shots_problem" readonly="1" class="oe_inline"/>
+                </div>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_open_revisions" type="object" class="oe_stat_button" icon="fa-history">
