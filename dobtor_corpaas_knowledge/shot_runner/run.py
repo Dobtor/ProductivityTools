@@ -31,6 +31,7 @@ HIDE_CSS = """
 .o_debug_manager, .o_notification_manager, .o-mail-ChatHub, .o_livechat_button,
 .o-mail-Chatter-content, .o-mail-Message-date,
 .o_activity_view .o_activity_cell_timestamp { visibility: hidden !important; }
+#oe_neutralize_banner { display: none !important; }
 """
 
 PROBE_JS = r'''() => {
@@ -72,9 +73,27 @@ def _log(*args):
     print('[shot]', *args, flush=True)
 
 
+#: 欄位在各種畫面上的樣子：表單元件、清單表頭／儲存格、看板卡片
+#: ☠️ 原本只認表單（.o_field_widget）：AI 在清單畫面標註欄位時全部逾時（實機 33 個）。
+FIELD_SELECTORS = (
+    '.o_content [name="{n}"].o_field_widget',
+    '.o_content div[name="{n}"]',
+    '.o_content th[data-name="{n}"]',
+    '.o_content td[name="{n}"]',
+    '.o_content .o_kanban_record [name="{n}"]',
+)
+
+
 def _field_locator(page, name):
-    return page.locator('.o_content [name="%s"].o_field_widget, .o_content div[name="%s"]'
-                        % (name, name)).first
+    n = str(name).replace('\\', '').replace('"', '')
+    loc = page.locator(', '.join(s.format(n=n) for s in FIELD_SELECTORS)).first
+    try:
+        loc.wait_for(state='visible', timeout=4000)
+        return loc
+    except Exception:  # noqa: BLE001 - 退回用畫面上的標籤文字找（AI 有時給的是中文標籤）
+        pass
+    return page.locator('.o_content label.o_form_label, .o_content th').filter(
+        has_text=str(name)).first
 
 
 def _button_locator(page, name):
@@ -240,8 +259,9 @@ def _status(page):
         return None
 
 
-def run_steps(page, base, shot, out_dir, recorder, observed=None):
+def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None):
     images, regions = [], []
+    warnings = warnings if warnings is not None else []
     observed = observed if observed is not None else []
     for idx, step in enumerate(shot.get('steps') or []):
         kind = next(iter(step))
@@ -279,9 +299,18 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None):
             else:
                 page.wait_for_timeout(int(arg.get('ms', 500)))
         elif kind == 'highlight':
-            box = _locate(page, arg).bounding_box()
+            # ★ 標註找不到不讓整張圖失敗：截圖本身仍可用，少一個編號框而已；
+            #   缺的標註記在 warnings，由控制台決定要不要請 AI 修腳本。
+            try:
+                box = _locate(page, arg).bounding_box(timeout=5000)
+            except Exception as e:  # noqa: BLE001
+                box = None
+                warnings.append('步驟 %s：找不到要標註的元素 %r（%s）'
+                                % (idx, arg, str(e).splitlines()[0][:120]))
             if not box:
-                raise RuntimeError('步驟 %s：找不到要標註的元素 %r' % (idx, arg))
+                if not any(str(idx) in w for w in warnings):
+                    warnings.append('步驟 %s：要標註的元素沒有大小 %r' % (idx, arg))
+                continue
             regions.append({'n': arg.get('n', len(regions) + 1),
                             'x': round(box['x']), 'y': round(box['y']),
                             'w': round(box['width']), 'h': round(box['height'])})
@@ -354,8 +383,10 @@ def main():
                 login(page, base, shot['login'], shot['password'])
                 recorder.reset()
                 observed = []
-                images = run_steps(page, base, shot, out_dir, recorder, observed)
-                result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed}
+                warnings = []
+                images = run_steps(page, base, shot, out_dir, recorder, observed, warnings)
+                result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed,
+                                        'warnings': warnings}
                 _log(sid, 'ok', len(images))
             except Exception as e:  # noqa: BLE001
                 err_png = os.path.join(out_dir, '_error.png')

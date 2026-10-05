@@ -547,7 +547,9 @@ class KnowledgeHooks(models.AbstractModel):
                 b.write(vals)
                 failed |= b
                 continue
-            vals.update(state='ok', last_error=False, needs_repair=False, repair_attempts=0,
+            # 標註找不到的步驟不算失敗（圖照用），但留在 last_error 讓審稿的人看得到
+            warn = '\n'.join(r.get('warnings') or [])[:4000] or False
+            vals.update(state='ok', last_error=warn, needs_repair=False, repair_attempts=0,
                         shot_scope_hash=b.template_id.fingerprint)
             b.write(vals)
         return failed
