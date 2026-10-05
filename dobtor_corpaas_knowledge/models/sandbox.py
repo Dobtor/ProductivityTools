@@ -148,7 +148,8 @@ class KnowledgeSandbox(models.Model):
         models = set(features.mapped('model')) | {r['model'] for r in seed} | {'res.partner'}
         for cap in self.package_id.knowledge_capability_ids:
             models |= {m.strip() for m in (cap.master_data_models or '').splitlines() if m.strip()}
-        return sorted(models - {'res.config.settings'})
+        # ★ 設定類模型不清（程式建立、沒有 xmlid 的補貨規則／作業類型被清掉，訂單都確認不了）
+        return sorted(models - {'res.config.settings'} - set(scripts.CONFIG_MODELS))
 
     def drop(self):
         for rec in self.filtered(lambda r: r.state != 'dropped'):

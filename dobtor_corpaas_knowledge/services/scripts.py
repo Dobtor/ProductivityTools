@@ -286,6 +286,24 @@ PURGE_SKIP_PREFIXES = (
 )
 
 
+#: 設定類模型：D1 清除時保留、截圖前檢查時放行。
+#: ☠️ 這些記錄多半是模組在安裝或建倉庫時「以程式建立」的，沒有自己的 xmlid：
+#:   清掉補貨規則／作業類型後，說明庫連確認銷售訂單都失敗（找不到補貨規則）；
+#:   截圖檢查又把路線、規則、作業類型、郵件別名畫面判成「非示範資料」（實機 6 張）。
+#:   它們是設定，不含客戶個資。
+CONFIG_MODELS = (
+    'stock.warehouse', 'stock.location', 'stock.route', 'stock.rule', 'stock.picking.type',
+    'stock.putaway.rule', 'stock.storage.category', 'stock.package.type',
+    'account.journal', 'account.account', 'account.tax', 'account.tax.group',
+    'account.tax.repartition.line', 'account.fiscal.position', 'account.payment.term',
+    'account.payment.term.line', 'account.payment.method', 'account.payment.method.line',
+    'account.reconcile.model', 'account.analytic.plan', 'res.currency', 'res.company',
+    'uom.uom', 'uom.category', 'product.category', 'product.pricelist', 'mail.alias',
+    'mail.activity.type', 'mail.activity.plan', 'crm.team', 'delivery.carrier',
+    'payment.provider', 'payment.method', 'res.lang', 'res.country', 'res.country.state',
+)
+
+
 def purge_script(models):
     """D1：刪除客戶的業務記錄（會 commit）。回報刪除數、殘留、匿名化的使用者數。
 
@@ -431,18 +449,19 @@ def seed_script(module, records, roles, password):
     ) % (module, json.dumps(records), json.dumps(roles), password)
 
 
-def gate_script(pairs, since, refs=None):
+def gate_script(pairs, since, refs=None, allow=CONFIG_MODELS):
     """D1 截圖前檢查。
 
     pairs: {model: [ids]}；refs: {"model|field": [ids]}（many2one／x2many 的值，
     comodel 在這裡查）；since: 清除完成時間（字串）——之後才建立的都是我們放的
     （示範資料與拍攝過程產生），允許。
-    允許：模組 xmlid、__doc_scenario_* xmlid、或清除之後才建立。
+    允許：模組 xmlid、__doc_scenario_* xmlid、清除之後才建立，或設定類模型（allow）。
     """
     return _HEAD + (
         "PAIRS = json.loads(%r)\n"
         "REFS = json.loads(%r)\n"
         "SINCE = %r\n"
+        "ALLOW = set(json.loads(%r))\n"
         # 鍵的格式：model|field，或明細的 model|x2many欄位>明細欄位（可多層）
         "for key, ids in REFS.items():\n"
         "    model, _, path = key.partition('|')\n"
@@ -457,7 +476,7 @@ def gate_script(pairs, since, refs=None):
         "Imd = env['ir.model.data'].sudo()\n"
         "bad = []\n"
         "for model, ids in PAIRS.items():\n"
-        "    if model not in env or not ids:\n"
+        "    if model not in env or not ids or model in ALLOW:\n"
         "        continue\n"
         "    ok = set(Imd.search([('model', '=', model), ('res_id', 'in', ids),\n"
         "        '|', ('module', 'in', list(mods)), ('module', '=like', '__doc_scenario_%%')]).mapped('res_id'))\n"
@@ -469,7 +488,7 @@ def gate_script(pairs, since, refs=None):
         "    bad.extend([model, i] for i in rest)\n"
         "env.cr.rollback()\n"
         "print(MARK + json.dumps({'bad': bad}))\n"
-    ) % (json.dumps(pairs), json.dumps(refs or {}), since)
+    ) % (json.dumps(pairs), json.dumps(refs or {}), since, json.dumps(list(allow or ())))
 
 
 def fields_script(models):

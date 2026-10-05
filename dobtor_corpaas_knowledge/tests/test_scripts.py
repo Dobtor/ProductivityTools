@@ -124,3 +124,24 @@ class TestHubClientPolling(TransactionCase):
                 patch.object(hub_client.time, 'sleep', lambda s: None):
             with self.assertRaises(hub_client.HubError):
                 hub_client.call('http://hub', 'k', 'p', 'prompt', timeout=60)
+
+
+@tagged('post_install', '-at_install')
+class TestConfigModels(TransactionCase):
+
+    def test_gate_allows_config_models(self):
+        """設定類模型（程式建立、沒有 xmlid）不算非示範資料。"""
+        tax = self.env['account.tax'].search([], limit=1) if 'account.tax' in self.env else None
+        partner = self.env['res.partner'].create({'name': '真實客戶 2'})
+        pairs = {'res.partner': [partner.id]}
+        if tax:
+            pairs['account.tax'] = [tax.id]
+        src = scripts.gate_script(pairs, '2999-01-01 00:00:00')
+        printed = []
+        exec(compile(src.replace('env.cr.rollback()', 'pass'), '<gate>', 'exec'),
+             {'env': self.env, 'print': printed.append})
+        import json
+        bad = json.loads(printed[-1][len(scripts.MARK):])['bad']
+        self.assertIn(['res.partner', partner.id], bad)
+        self.assertFalse([b for b in bad if b[0] == 'account.tax'])
+        self.assertIn('stock.rule', scripts.CONFIG_MODELS)
