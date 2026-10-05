@@ -189,6 +189,35 @@ class TestAiQuality(TransactionCase):
         stock = json.loads(props.filtered(lambda p: p.proposal_name == '庫存').proposal_json)
         self.assertIn(second[1].feature_key, stock['features'], '名稱填在 capability 欄也算')
 
+    def test_code_like_capability_names_renamed_to_chinese(self):
+        """實機：分群把能力取名 contacts、finance_ar_ap；改請 AI 中文化，功能點跟著改名。"""
+        feats = [self._feature('x_aq.z%02d' % i, classify_pending=True) for i in range(16)]
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        calls = []
+
+        def ask(s, purpose, prompt, **kw):
+            calls.append((purpose, prompt))
+            if purpose == 'capability_name':
+                return {'names': {'finance_ar_ap': '應收付與會計', 'sales': 'sales2'}}
+            return {'capabilities': [{'name': 'finance_ar_ap', 'outcome': '收付款'},
+                                     {'name': 'sales', 'outcome': '賣'}],
+                    'items': [{'key': f.feature_key,
+                               ('new_capability', 'capability')[i % 2]:
+                               ('finance_ar_ap', 'sales')[i % 2 if i < 8 else 0]}
+                              for i, f in enumerate(feats)]}
+
+        with patch.object(Ai, 'ask', ask):
+            self.pkg._knowledge_ai_catalog(self.Feature, 'tok')
+        self.assertIn('不可用英文', calls[0][1])
+        self.assertEqual(calls[1][0], 'capability_name')
+        names = sorted(self.Sel.search([('package_id', '=', self.pkg.id),
+                                        ('kind', '=', 'capability')]).mapped('proposal_name'))
+        self.assertEqual(names, ['sales', '應收付與會計'],
+                         '中文化成功的改名；AI 回的仍是英文就保留原名讓人改')
+        fin = self.Sel.search([('package_id', '=', self.pkg.id), ('kind', '=', 'capability')]
+                              ).filtered(lambda p: p.proposal_name == '應收付與會計')
+        self.assertEqual(fin.proposal_feature_count, 12)
+
     def test_small_batch_does_not_cluster(self):
         f = self._feature('x_aq.s1', classify_pending=True)
         prompts = self._classify([{'key': f.feature_key, 'new_capability': '排班管理'}])

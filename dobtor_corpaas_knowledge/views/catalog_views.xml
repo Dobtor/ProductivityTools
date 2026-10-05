@@ -378,7 +378,7 @@
         <field name="model">corpaas.knowledge.selection</field>
         <field name="arch" type="xml">
             <search>
-                <field name="proposal_name"/>
+                <field name="proposal_json" string="新項目名稱"/>
                 <field name="package_id"/>
                 <field name="capability_id"/>
                 <field name="feature_id"/>

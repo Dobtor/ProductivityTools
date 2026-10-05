@@ -11,6 +11,7 @@
 import fnmatch
 import hashlib
 import json
+import re
 import logging
 import time
 import uuid
@@ -1327,7 +1328,8 @@ class SolutionPackage(models.Model):
                 "本方案目前幾乎沒有能力：請先把這批功能點分成 6–10 個業務能力（依使用者要完成的"
                 "工作分，例如聯絡人、產品、銷售、採購、庫存、應收付；設定頁與報表歸到它服務的那個能力，"
                 "不要單獨成一個能力），每個能力至少涵蓋 3 個功能點，放在 capabilities；"
-                "new_capability 只能填 capabilities 裡的名稱。\n")
+                "能力的 name 一律用繁體中文業務用語（2–8 字，例如「銷售」「庫存與倉儲」），"
+                "不可用英文、代碼或底線；new_capability 只能填 capabilities 裡的 name。\n")
         else:
             group_rule = ''
         prompt = (
@@ -1339,7 +1341,8 @@ class SolutionPackage(models.Model):
             "\"new_capability\":…|null,\"reason\":…,\"intents\":[…]}]}\n\n"
             "能力：%s\n\n功能點：%s"
         ) % (self.display_name, group_rule,
-             '\"capabilities\":[{\"name\":…,\"outcome\":…,\"pain\":…}],' if cluster else '',
+             '\"capabilities\":[{\"name\":\"中文名稱\",\"outcome\":…,\"pain\":…}],'
+             if cluster else '',
              json.dumps([{'code': c.code, 'name': c.name, 'outcome': c.outcome,
                           'in_package': c in mine} for c in caps], ensure_ascii=False),
              json.dumps(payload, ensure_ascii=False))
@@ -1364,6 +1367,16 @@ class SolutionPackage(models.Model):
             for c in extra[:2] if waiting else extra:
                 if isinstance(c, dict) and isinstance(c.get('name'), str) and c['name'].strip():
                     planned[c['name'].strip()] = {'outcome': c.get('outcome'), 'pain': c.get('pain')}
+            # ★ 實機：AI 曾把能力名稱取成 contacts、finance_ar_ap 這類代碼——章節名稱與
+            #   商品頁賣點會直接露出。純英數的名稱另請 AI 改成中文，功能點跟著改名。
+            renamed = self._knowledge_chinese_names(
+                {n: v for n, v in planned.items() if n not in waiting}, token)
+            if renamed:
+                planned = {renamed.get(n, n): v for n, v in planned.items()}
+                for item in (data or {}).get('items') or []:
+                    for k in ('new_capability', 'capability'):
+                        if item.get(k) in renamed:
+                            item[k] = renamed[item[k]]
             for name in planned:
                 groups.append((name, []))
             # 沿用的待審提案只補內容說明，不覆寫（upsert 依名稱合併功能點清單）
@@ -1418,6 +1431,36 @@ class SolutionPackage(models.Model):
                     ensure_ascii=False),
                 'reason': '\n'.join(filter(None, (i.get('reason') for _f, i in members)))[:2000],
                 'score': sum(f.attr_for(self, 'usage_score') or 0 for f, _i in members)})
+
+    @staticmethod
+    def _knowledge_name_is_code(name):
+        return bool(re.fullmatch(r'[A-Za-z0-9_\-\s./]+', name or ''))
+
+    def _knowledge_chinese_names(self, planned, token):
+        """{舊名: 中文名}：把純英數（代碼）的能力名稱改成繁體中文業務用語。
+
+        planned = {名稱: {outcome, pain}}；只問名稱是代碼的那些，失敗就回空（照舊名提案，
+        核准者在提案上看得到）。"""
+        codes = {n: v for n, v in planned.items() if self._knowledge_name_is_code(n)}
+        if not codes:
+            return {}
+        prompt = (
+            "以下能力名稱是英文代碼，請各改成繁體中文業務用語（2–8 字），讓不懂系統的使用者"
+            "一看就懂。格式：{\"names\":{\"代碼\":\"中文名稱\"}}\n\n%s"
+        ) % json.dumps({n: (v or {}).get('outcome') or '' for n, v in codes.items()},
+                       ensure_ascii=False)
+        try:
+            data = self.env['corpaas.knowledge.ai'].ask('capability_name', prompt, package=self,
+                                                        refresh_token=token)
+        except hub_client.HubError as e:
+            _logger.warning('[knowledge] 能力名稱中文化略過：%s', e)
+            return {}
+        out = {}
+        for old, new in ((data or {}).get('names') or {}).items():
+            if old in codes and isinstance(new, str) and new.strip() \
+                    and not self._knowledge_name_is_code(new) and new.strip() not in planned:
+                out[old] = new.strip()
+        return out
 
     def _knowledge_flow_names(self, token, batch=10):
         """流程結構變了（或從沒命名過）→ 請 AI 用業務語言命名、寫摘要、建議能力（K25）。
