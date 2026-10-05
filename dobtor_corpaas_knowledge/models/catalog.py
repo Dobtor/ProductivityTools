@@ -27,6 +27,9 @@ SEED_RULES = (
     "★ 公司與倉庫改成情境裡的名稱：{\"xmlid\":\"base.main_company\",\"model\":\"res.company\","
     "\"values\":{\"name\":…}}、stock.warehouse0 同理。\n")
 
+#: 會改變畫面（多出公司切換、幣別欄位）的設定群組：拍照角色一律不給，免得截圖跟一般租戶看到的不同
+SCREEN_CHANGING_GROUPS = ('base.group_multi_company', 'base.group_multi_currency')
+
 SEED_CHECK_STATES = [('queued', '排隊中'), ('running', '檢查中'), ('ok', '通過'),
                      ('issues', '有問題'), ('failed', '檢查失敗')]
 
@@ -973,7 +976,8 @@ class KnowledgeSelection(models.Model):
         for r in items:
             code = re.sub(r'[^a-z0-9_]+', '_', str(r.get('code') or '').lower()).strip('_')
             groups = [g for g in r.get('groups') or []
-                      if isinstance(g, str) and re.fullmatch(r'[a-z0-9_]+\.[a-z0-9_]+', g)]
+                      if isinstance(g, str) and re.fullmatch(r'[a-z0-9_]+\.[a-z0-9_]+', g)
+                      and g not in SCREEN_CHANGING_GROUPS]
             if not code or not groups:
                 continue
             role = Role.search([('code', '=', code)], limit=1) or Role.create({

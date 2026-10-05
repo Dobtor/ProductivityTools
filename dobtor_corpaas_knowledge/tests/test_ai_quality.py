@@ -268,7 +268,9 @@ class TestAiQuality(TransactionCase):
             'name': '晨光生活用品', 'code': 'Morning Light', 'narrative': '小型批發商',
             'roles': [{'code': 'sales', 'name': '業務人員',
                        'groups': ['sales_team.group_sale_salesman']},
-                      {'code': 'stock', 'name': '倉管', 'groups': ['不是 xmlid']}]},
+                      {'code': 'stock', 'name': '倉管', 'groups': ['不是 xmlid']},
+                      {'code': 'admin', 'name': '管理員',
+                       'groups': ['base.group_system', 'base.group_multi_company']}]},
             'reason': '原生進銷存', 'score': 9}]}
         with patch.object(Ai, 'ask', lambda s, p, prompt, **kw: prompts.append(prompt) or reply), \
                 patch.object(type(self.pkg), '_knowledge_master',
@@ -284,7 +286,8 @@ class TestAiQuality(TransactionCase):
         self.assertEqual(sorted(sc.role_ids.mapped('code')), ['admin', 'sales'],
                          '群組不合法的角色略過；一定補上 admin')
         self.assertEqual(sc.role_ids.filtered(lambda r: r.code == 'admin').group_xmlids,
-                         'base.group_system')
+                         'base.group_system', '多公司這類會改變畫面的群組不給')
+        self.assertIn('不要挑「管理員」等級', prompts[0])
 
     def test_select_does_not_propose_capabilities_when_already_clustered(self):
         """實機：7 個能力還在待審時跑圈選，又多提了 18 個細分能力。"""
