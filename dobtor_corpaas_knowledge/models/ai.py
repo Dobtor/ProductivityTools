@@ -35,8 +35,16 @@ DEFAULT_UNIT_COST = {
     'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
     'manual_explore': 0.12, 'manual_repair': 0.11, 'manual_bind': 0.05,
     'manual_step_block': 0.05, 'manual_scenario': 0.06, 'manual_fork': 0.05,
-    'scenario_seed': 0.40, 'seed_repair': 0.40,
+    'scenario_seed': 0.40, 'seed_repair': 0.40, 'seed_gap_fill': 0.30,
 }
+
+
+#: 預取的 AI 回覆（同一行程內）：{(資料庫, 用途＋提示詞雜湊): text}。ask 用到就取走。
+_PREFETCH = {}
+
+
+def _prefetch_key(dbname, purpose, prompt):
+    return dbname, hashlib.sha256(('%s\n%s' % (purpose, prompt)).encode('utf-8')).hexdigest()
 
 
 class KnowledgeAi(models.AbstractModel):
@@ -88,6 +96,10 @@ class KnowledgeAi(models.AbstractModel):
                                 'ok': True, 'cost_usd': 0.0, 'cached': True,
                                 'prompt_hash': phash})
                 return hub_client.extract_json(hit) if expect_json else hit
+        pre = _PREFETCH.pop(_prefetch_key(self.env.cr.dbname, purpose, prompt), None)
+        if pre is not None:
+            # 已由 prefetch 平行問過（帳也記過了）：直接用
+            return hub_client.extract_json(pre) if expect_json else pre
         if refresh_token and self.spent(refresh_token) >= conf['budget']:
             raise hub_client.BudgetExceeded(
                 _('本次更新的 AI 預算（%s USD）已用完') % conf['budget'])
@@ -119,6 +131,48 @@ class KnowledgeAi(models.AbstractModel):
         """Hub 的「今日」以台北日期計（Hub 與主控台都在 UTC+8 營運）。"""
         from datetime import timedelta
         return (fields.Datetime.now() + timedelta(hours=8)).date().isoformat()
+
+    @api.model
+    def prefetch(self, items, package=None, refresh_token=None, workers=3):
+        """平行送出多個 AI 呼叫（只有 HTTP 在執行緒裡；記帳回主執行緒做）。
+
+        items: [(purpose, prompt)]。結果放進 _PREFETCH，之後同一個 purpose＋prompt 的
+        ask() 直接拿走。失敗的不放（ask 時照常再問一次）。回傳成功筆數。
+        ★ 起草一篇要兩次 AI 呼叫、每次約 30 秒；94 篇一個接一個要 70 多分鐘。"""
+        from concurrent.futures import ThreadPoolExecutor
+        if txn.in_tests(self.env) and not self.env.context.get('kb_prefetch_in_tests'):
+            return 0
+        conf = self._conf()
+        todo = [(p, q) for p, q in items
+                if _prefetch_key(self.env.cr.dbname, p, q) not in _PREFETCH]
+        if not todo:
+            return 0
+        if refresh_token and self.spent(refresh_token) >= conf['budget']:
+            return 0
+
+        def one(item):
+            purpose, prompt = item
+            try:
+                return item, hub_client.call(conf['hub_url'], conf['hub_key'], purpose,
+                                             BASE_INSTRUCTIONS + '\n' + prompt), None
+            except hub_client.HubError as e:
+                return item, None, e
+
+        done = 0
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            results = list(pool.map(one, todo))
+        for (purpose, prompt), res, err in results:
+            vals = {'purpose': purpose, 'refresh_token': refresh_token,
+                    'package_id': package.id if package else False}
+            if err:
+                self._log_call(dict(vals, **self._quota_vals(), ok=False, error=str(err)[:2000]))
+                continue
+            text, cost, run_id = res
+            self._log_call(dict(vals, **self._quota_vals(), ok=True, cost_usd=cost,
+                                run_id=run_id))
+            _PREFETCH[_prefetch_key(self.env.cr.dbname, purpose, prompt)] = text
+            done += 1
+        return done
 
     @api.model
     def ask_checked(self, purpose, prompt, check, **kw):

@@ -8,3 +8,4 @@ from . import placement
 from . import hooks
 from . import sandbox_overview
 from . import cost_lines
+from . import gap_fixers

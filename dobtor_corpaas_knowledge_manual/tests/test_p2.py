@@ -147,3 +147,74 @@ class TestTextLintAndFailures(ManualCase):
         hooks._manual_record_failures(self.scenario, b, stats)
         self.assertEqual(stats['shots_failed_empty'], 1)
         self.assertEqual(json.loads(self.scenario.shot_gaps), ['報名確認'])
+
+
+@tagged('post_install', '-at_install')
+class TestIterativeManual(ManualCase):
+
+    def _binding(self, feature, state='failed', error='Locator.click: Timeout', repair=False):
+        import json
+        tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
+            'feature_id': feature.id, 'login_role': 'sales', 'fingerprint': 'h1',
+            'steps_json': json.dumps([{'shot': 'main'}])})
+        return self.env['corpaas.knowledge.shot_binding'].sudo().create({
+            'template_id': tmpl.id, 'scenario_id': self.scenario.id, 'state': state,
+            'last_error': error, 'needs_repair': repair})
+
+    def test_clean_title(self):
+        from ..services.manual_lib import clean_title
+        self.assertEqual(clean_title('【標準進階】外包直運——直送客戶'), '外包直運——直送客戶')
+        self.assertEqual(clean_title('協會年會 - 付款服務商', '協會年會'), '付款服務商')
+        self.assertEqual(clean_title('建立報價單', '協會年會'), '建立報價單')
+
+    def test_partial_approval(self):
+        good = self._article(self.f1, self.cap_a, name='建立報名')
+        bad = self._article(self.f2, self.cap_a, name='【標準功能】報名確認')
+        (good | bad).knowledge_propose('new')
+        res = (good | bad).with_user(self.approver).action_approve()
+        self.assertEqual(good.state, 'published')
+        self.assertEqual(bad.state, 'review', '不合格的略過，不讓整批失敗')
+        self.assertEqual(res['params']['type'], 'warning')
+        self.assertIn('標題含內部標籤', res['params']['message'])
+
+    def test_shot_gaps_and_access_fixer(self):
+        import json
+        from unittest.mock import patch
+        from .test_hooks import FakeSandbox
+        self.f1.action_xmlid = 'base.action_partner_form'
+        b = self._binding(self.f1, error='畫面出現錯誤對話框：存取錯誤 您並無權限')
+        self.hooks._manual_sync_shot_gaps(self.pkg, b)
+        gap = self.env['corpaas.knowledge.gap_item'].search([('res_id', '=', b.id)])
+        self.assertEqual(gap.kind, 'access')
+        role = self.env.ref('dobtor_corpaas_knowledge.role_stock')
+        self.scenario.role_ids = [(6, 0, (role | self.env.ref(
+            'dobtor_corpaas_knowledge.role_admin')).ids)]
+        sb = FakeSandbox(self.scenario)
+        with patch.object(type(sb), '_shell', lambda s, script: {
+                'base.action_partner_form': ['stock', 'admin']}, create=True):
+            fixed = self.hooks._manual_fix_shot_gaps(self.pkg, sb, {})
+        self.assertEqual(fixed, 1)
+        self.assertEqual(json.loads(b.roles_json), {'login_role': 'stock'}, '優先用進得去的一般角色')
+        self.assertEqual(b.state, 'pending')
+        self.assertEqual(gap.attempts, 1)
+        b.state = 'ok'
+        self.hooks._manual_sync_shot_gaps(self.pkg, b)
+        self.assertEqual(gap.state, 'resolved')
+
+    def test_text_gap_fixed_by_rule(self):
+        art = self._article(self.f1, self.cap_a, name='【標準進階】建立報名')
+        art.knowledge_propose('new')
+        self.hooks._manual_sync_text_gaps(self.pkg)
+        gap = self.env['corpaas.knowledge.gap_item'].search([('res_id', '=', art.id),
+                                                              ('kind', '=', 'text')])
+        self.assertTrue(gap)
+        self.hooks._manual_fix_text_gaps(self.pkg)
+        self.assertEqual(art.name, '建立報名')
+        self.assertEqual(gap.state, 'resolved')
+
+    def test_no_draft_for_failed_shot(self):
+        b = self._binding(self.f1, error='畫面是空白引導頁（示範資料不足）')
+        art = self.hooks._manual_reconcile_one(
+            self.pkg, self.f1, self.cap_a, self.scenario, {'admin': 'h1'}, b.template_id,
+            'tok', {}, {'ai': False})
+        self.assertFalse(art, '截圖失敗不起草')

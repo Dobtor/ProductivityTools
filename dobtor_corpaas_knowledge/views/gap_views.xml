@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_gap_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.gap_item.list</field>
+        <field name="model">corpaas.knowledge.gap_item</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-success="state == 'resolved'"
+                  decoration-warning="state == 'human'">
+                <field name="package_id" optional="hide"/>
+                <field name="kind"/>
+                <field name="feature_id"/>
+                <field name="scenario_id" optional="show"/>
+                <field name="evidence"/>
+                <field name="attempts"/>
+                <field name="last_fixer" optional="show"/>
+                <field name="state" widget="badge"/>
+                <button name="action_reopen" string="重新交給系統修" type="object" class="btn-link"
+                        invisible="state != 'human'"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_gap_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.gap_item.form</field>
+        <field name="model">corpaas.knowledge.gap_item</field>
+        <field name="arch" type="xml">
+            <form create="0">
+                <header>
+                    <button name="action_reopen" string="重新交給系統修" type="object"
+                            invisible="state != 'human'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="package_id" readonly="1"/>
+                            <field name="kind" readonly="1"/>
+                            <field name="feature_id" readonly="1"/>
+                            <field name="scenario_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="attempts"/>
+                            <field name="last_fixer"/>
+                            <field name="resolved_at"/>
+                            <field name="res_model" readonly="1"/>
+                            <field name="res_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="證據"><field name="evidence" nolabel="1" readonly="1"/></group>
+                    <group string="修補紀錄"><field name="fix_note" nolabel="1"/></group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_gap_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.gap_item.search</field>
+        <field name="model">corpaas.knowledge.gap_item</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="feature_id"/>
+                <field name="package_id"/>
+                <filter name="open" string="待修" domain="[('state', '=', 'open')]"/>
+                <filter name="human" string="轉人工" domain="[('state', '=', 'human')]"/>
+                <filter name="resolved" string="已解" domain="[('state', '=', 'resolved')]"/>
+                <separator/>
+                <filter name="k_data" string="示範資料" domain="[('kind', '=', 'data')]"/>
+                <filter name="k_access" string="權限" domain="[('kind', '=', 'access')]"/>
+                <filter name="k_locator" string="定位" domain="[('kind', '=', 'locator')]"/>
+                <filter name="k_text" string="文字" domain="[('kind', '=', 'text')]"/>
+                <filter name="k_publish" string="發佈" domain="[('kind', '=', 'publish')]"/>
+                <group>
+                    <filter name="g_kind" string="類型" context="{'group_by': 'kind'}"/>
+                    <filter name="g_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_kb_gap" model="ir.actions.act_window">
+        <field name="name">缺口</field>
+        <field name="res_model">corpaas.knowledge.gap_item</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_kb_gap_search"/>
+        <field name="context">{'search_default_open': 1, 'search_default_human': 1}</field>
+    </record>
+    <menuitem id="menu_kb_gap" action="action_kb_gap" sequence="15" parent="menu_knowledge_ops"/>
+</odoo>

@@ -25,6 +25,11 @@
         <field name="arch" type="xml">
             <form create="0" edit="0">
                 <header>
+                    <button name="action_cancel" string="停止" type="object"
+                            invisible="state != 'running' or cancel_requested"
+                            confirm="正在跑的這一批做完就停（已完成的都會保存），確定？"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                    <field name="cancel_requested" invisible="1"/>
                     <button name="action_resume" string="從失敗的階段重跑" type="object"
                             class="btn-primary" invisible="state != 'failed'"
                             groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>

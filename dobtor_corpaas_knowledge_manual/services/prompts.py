@@ -187,6 +187,8 @@ def scenario_prompt(scenario, glossary, feature, capability, step_html):
         "3. ★ 不得另寫一套完整操作步驟——操作步驟已經在下面，會原樣放在你的說明後面。"
         "最多用一兩句話提示「照下方步驟操作」。\n"
         "4. 100–250 字。%(allowed)s\n%(cls)s\n"
+        "★ 標題寫使用者要完成的事（例如「建立報價單並轉成訂單」），不要加分類標籤"
+        "（如【標準功能】【標準進階】），也不要放情境名稱。\n"
         "回覆格式：{\"title\":\"<文章標題，用情境用語>\",\"html\":\"…\"}\n\n"
         "情境敘事：%(narrative)s\n\n用語對照：%(glossary)s\n\n"
         "所屬能力：%(cap)s（痛點：%(pain)s；成果：%(outcome)s）\n\n"

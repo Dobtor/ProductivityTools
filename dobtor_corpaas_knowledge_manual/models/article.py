@@ -239,6 +239,8 @@ class KnowledgeArticle(models.Model):
         problems = []
         if not self.step_block_ids:
             problems.append(_('沒有操作步驟'))
+        if manual_lib.clean_title(self.name, self.scenario_id.name) != (self.name or '').strip():
+            problems.append(_('標題含內部標籤或情境名'))
         raw = self.env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.text_banned')
         banned = [x.strip() for x in (raw or TEXT_BANNED).splitlines() if x.strip()]
         for pat in banned:
@@ -265,17 +267,20 @@ class KnowledgeArticle(models.Model):
     def _manual_approve(self):
         # ★ 截圖沒拍好的文章不讓核准：發佈出去就是一篇配著空白頁或錯誤畫面的說明。
         #   確定要先上線純文字時，可帶 context knowledge_force_approve。
+        skipped = []
         if not self.env.context.get('knowledge_force_approve'):
-            bad = [(r, r._manual_shots_problem()) for r in self]
-            bad = [(r, p) for r, p in bad if p]
-            if bad:
-                raise UserError(_('以下文章的截圖尚未就緒，先重拍或修補後再核准：\n%s')
+            bad = []
+            for r in self:
+                p = r._manual_shots_problem() or '；'.join(r._manual_text_problems())
+                if p:
+                    bad.append((r, p))
+            if bad and len(bad) == len(self):
+                raise UserError(_('以下文章尚未就緒（截圖或文字檢查），修正後再核准：\n%s')
                                 % '\n'.join('・%s：%s' % (r.name, p) for r, p in bad))
-            lint = [(r, r._manual_text_problems()) for r in self]
-            lint = [(r, p) for r, p in lint if p]
-            if lint:
-                raise UserError(_('以下文章沒通過文字檢查，修改後再核准：\n%s')
-                                % '\n'.join('・%s：%s' % (r.name, '；'.join(p)) for r, p in lint))
+            if bad:
+                # ★ 部分核准：一篇不合格不再讓整批失敗；合格的照常核准，不合格的列出來
+                skipped = bad
+                self = self - self.browse([r.id for r, _p in bad])
         clean = {rec.id: bool(rec.manual_review_sig)
                  and rec.manual_review_sig == rec._manual_text_sig() for rec in self}
         # ★ B3：一起送審、從沒上線過的新區塊跟文章一起核准（核准者在審核頁看得到它的全文）
@@ -283,10 +288,17 @@ class KnowledgeArticle(models.Model):
             lambda b: not b.published_rev_no and b.state == 'review')
         if fresh:
             fresh.action_approve()
-        res = super().action_approve()
+        res = super(KnowledgeArticle, self).action_approve()
         # ★ B4：情境「連續 N 次核准無修改」計數——核准者沒改文字才 +1
         for rec in self:
             rec.scenario_id.note_article_review(clean[rec.id])
+        if skipped:
+            return {'type': 'ir.actions.client', 'tag': 'display_notification',
+                    'params': {'type': 'warning', 'sticky': True,
+                               'title': _('已核准 %(ok)s 篇，略過 %(n)s 篇',
+                                          ok=len(self), n=len(skipped)),
+                               'message': '\n'.join('・%s：%s' % (r.name, p)
+                                                     for r, p in skipped[:20])}}
         return res
 
     def action_reject(self, reason=None):

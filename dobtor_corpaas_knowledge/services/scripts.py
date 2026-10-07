@@ -532,6 +532,57 @@ def groups_script():
         "print(MARK + json.dumps(out))\n")
 
 
+def screen_access_script(actions, roles):
+    """權限缺口修補用：每個選單動作哪些角色進得去（唯讀）。
+
+    actions: [動作 xmlid]；roles: {角色代碼: [群組 xmlid]}。
+    判斷：角色（含隱含群組）要通過選單的群組限制，而且對動作的模型有讀取權限。
+    回傳 {動作 xmlid: [進得去的角色代碼]}。"""
+    return _HEAD + (
+        "ACTIONS = json.loads(%r)\n"
+        "ROLES = json.loads(%r)\n"
+        "user_grp = env.ref('base.group_user')\n"
+        "implied = {}\n"
+        "for code, xids in ROLES.items():\n"
+        "    gs = env['res.groups']\n"
+        "    for x in xids:\n"
+        "        g = env.ref(x, raise_if_not_found=False)\n"
+        "        if g and g._name == 'res.groups':\n"
+        "            gs |= g\n"
+        "    gs |= user_grp\n"
+        "    implied[code] = set((gs | gs.trans_implied_ids).ids)\n"
+        "out = {}\n"
+        "for xid in ACTIONS:\n"
+        "    act = env.ref(xid, raise_if_not_found=False)\n"
+        "    if not act or act._name != 'ir.actions.act_window' or act.res_model not in env:\n"
+        "        continue\n"
+        "    menus = env['ir.ui.menu'].sudo().with_context(active_test=False).search(\n"
+        "        [('action', '=', '%%s,%%s' %% (act._name, act.id))])\n"
+        "    need_menu = []\n"
+        "    for m in menus:\n"
+        "        chain, cur = set(), m\n"
+        "        while cur:\n"
+        "            if cur.groups_id:\n"
+        "                chain.add(frozenset(cur.groups_id.ids))\n"
+        "            cur = cur.parent_id\n"
+        "        need_menu.append(chain)\n"
+        "    acl = env['ir.model.access'].sudo().search([('model_id.model', '=', act.res_model),\n"
+        "                                                ('perm_read', '=', True)])\n"
+        "    acl_global = any(not a.group_id for a in acl)\n"
+        "    acl_groups = set(acl.mapped('group_id').ids)\n"
+        "    ok = []\n"
+        "    for code, gids in implied.items():\n"
+        "        if not (acl_global or gids & acl_groups):\n"
+        "            continue\n"
+        "        if need_menu and not any(all(gids & set(g) for g in chain) for chain in need_menu):\n"
+        "            continue\n"
+        "        ok.append(code)\n"
+        "    out[xid] = ok\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n"
+    ) % (json.dumps(actions), json.dumps(roles))
+
+
 def data_probe_script(items):
     """送審前重播檢查（A3）：各選單動作打開後有幾筆資料（唯讀）。
 

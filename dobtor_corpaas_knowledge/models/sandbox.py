@@ -280,7 +280,8 @@ class KnowledgeSandbox(models.Model):
             res = sb.rebuild(seed=scenario.live_seed(draft=True))
             report['errors'] = res.get('errors') or []
             items, labels = package._knowledge_probe_items()
-            report['counts'] = sb._shell(scripts.data_probe_script(items)) if items else {}
+            report['counts'] = self.env['corpaas.knowledge.hooks']._knowledge_check_screens(
+                package, sb, items) or {}
             report['labels'] = {k: v for k, v in labels.items() if k in report['counts']}
             empty = [k for k, v in report['counts'].items() if v == 0]
             limit = package._knowledge_profile()['empty_max_pct']

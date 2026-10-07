@@ -31,6 +31,13 @@
                             <button name="action_knowledge_coverage" string="說明覆蓋率" type="object"/>
                             <button name="action_knowledge_cost_plan" string="估算 AI 成本" type="object"
                                     invisible="knowledge_blocker"/>
+                            <button name="action_knowledge_fix_gaps" string="只修缺口" type="object"
+                                    invisible="knowledge_blocker or not knowledge_gap_open"
+                                    groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                            <button name="action_open_knowledge_gaps" type="object" class="btn-link"
+                                    string="缺口清單"/>
+                            <field name="knowledge_gap_open"/>
+                            <field name="knowledge_gap_human"/>
                         </group>
                     </group>
                     <group string="AI 成本估算（下一次全量更新）" invisible="not knowledge_cost_plan_at">
@@ -57,6 +64,7 @@
                         <group>
                             <field name="knowledge_shot_threshold"/>
                             <field name="knowledge_empty_max_pct"/>
+                            <field name="knowledge_max_iterations"/>
                         </group>
                     </group>
                     <group string="情境與能力">

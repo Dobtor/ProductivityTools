@@ -405,6 +405,20 @@ class KnowledgeHooks(models.AbstractModel):
         return True
 
     @api.model
+    def _knowledge_fix_gaps_before_sandbox(self, package, ctx):
+        """迭代：說明庫準備前要先做的修補（例如補示範資料）。出口覆寫。"""
+        return True
+
+    @api.model
+    def _knowledge_check_screens(self, package, sandbox, items):
+        """送審前重播檢查：各畫面有沒有資料。回傳 {功能鍵: 筆數}（0＝空白、-1＝打不開）。
+
+        核心用唯讀腳本數「動作條件下的筆數」（管理者身分）；出口可覆寫成跟拍照同一套的
+        真實探測（同角色、同預設篩選）——兩者不同時，檢查過了也不保證拍得到。"""
+        from ..services import scripts
+        return sandbox._shell(scripts.data_probe_script(items)) if items else {}
+
+    @api.model
     def _knowledge_fingerprint_rebaselined(self, feature, package, role_code, old, new):
         """腳本範圍元素換了（例如第一次建立截圖範本、AI 修過範本）→ 指紋的「定義」變了，
         畫面沒變。出口把引用 old 的東西改指 new，不分岔、不重拍、不送審。"""

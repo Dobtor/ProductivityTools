@@ -270,6 +270,10 @@ class SolutionPackage(models.Model):
             except Exception as e:  # noqa: BLE001 — 排不了隔天只少一次接續，不算更新失敗
                 _logger.warning('[knowledge] %s 隔天接續排程失敗：%s', self.display_name, e)
             run.mark_done()
+            try:
+                self._knowledge_iterate(run)
+            except Exception as e:  # noqa: BLE001 — 排不了下一輪不算這輪失敗
+                _logger.warning('[knowledge] %s 排下一輪修缺口失敗：%s', self.display_name, e)
         return True
 
     def _knowledge_commit(self):
@@ -338,6 +342,11 @@ class SolutionPackage(models.Model):
         hooks = self.env['corpaas.knowledge.hooks']
         sandboxes = self.env['corpaas.knowledge.sandbox']
         with self._op_step('kb_sandbox'):
+            # 迭代：先跑「要在說明庫重建前做」的修補器（補示範資料），說明庫才疊得到新資料
+            try:
+                hooks._knowledge_fix_gaps_before_sandbox(self, dict(run.ctx(), run_id=run.id))
+            except Exception as e:  # noqa: BLE001 — 修補失敗留給下一輪，不擋這次更新
+                _logger.warning('[knowledge] %s 修補缺口（說明庫前）失敗：%s', self.display_name, e)
             scenarios = self.knowledge_scenario_ids if full else \
                 hooks._knowledge_scenarios_needing_shots(self, events)
             for sc in scenarios:

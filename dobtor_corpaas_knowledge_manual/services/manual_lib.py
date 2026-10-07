@@ -247,3 +247,18 @@ def readback_lost(sent, got):
         if '<%s' % tag in got.lower():
             lost.append('殘留 <%s>' % tag)
     return lost
+
+
+_TAG_PREFIX = re.compile(r'^\s*(?:[【\[][^】\]]{1,12}[】\]]\s*)+')
+
+
+def clean_title(title, scenario_name=None):
+    """文章標題去掉內部標籤（【標準進階】）與情境名（「XX情境 - 付款服務商」）。
+
+    ★ 實機：AI 把功能分類與情境名寫進標題，租戶讀者看不懂也不需要。"""
+    t = _TAG_PREFIX.sub('', title or '').strip()
+    if scenario_name:
+        name = re.escape(scenario_name.strip())
+        t = re.sub(r'^%s\s*[-－—–:：|｜]\s*' % name, '', t)
+        t = re.sub(r'\s*[-－—–:：|｜]\s*%s$' % name, '', t)
+    return t.strip() or (title or '').strip()

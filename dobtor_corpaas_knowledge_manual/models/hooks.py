@@ -315,6 +315,10 @@ class KnowledgeHooks(models.AbstractModel):
         stats['templates_rule'] = stats.get('templates_rule', 0) + (
             self._manual_prepare_templates(package, sandbox, token, stop) or 0)
         self._manual_commit()
+        # 迭代：權限缺口換角色、定位缺口重拍（把那些繫結設回待拍）
+        stats['gaps_fixed_shot'] = stats.get('gaps_fixed_shot', 0) + (
+            self._manual_fix_shot_gaps(package, sandbox, ctx) or 0)
+        self._manual_commit()
         todo = self._manual_bindings_to_shoot(package, sandbox, events, ctx)
         relevant = self._manual_relevant_bindings(package).filtered(
             lambda b: b.scenario_id == sandbox.scenario_id)
@@ -332,6 +336,7 @@ class KnowledgeHooks(models.AbstractModel):
                 [b.id for b in batch_list[i:i + size]])
             failed |= self._manual_run_batch(package, sandbox, chunk, token, ctx)
             self._manual_commit()
+            self._manual_check_cancel(ctx)
         stats['shots_ok'] = stats.get('shots_ok', 0) + len(todo.filtered(
             lambda b: b.state == 'ok'))
         stats['shots_failed'] = stats.get('shots_failed', 0) + len(todo.filtered(
@@ -361,6 +366,8 @@ class KnowledgeHooks(models.AbstractModel):
         for k, names in kinds.items():
             stats['shots_failed_%s' % k] = len(names)
         scenario.sudo().shot_gaps = json.dumps(sorted(set(kinds['empty'])), ensure_ascii=False)
+        for pkg in scenario.package_ids:
+            self._manual_sync_shot_gaps(pkg, bindings)
         return kinds
 
     @api.model
@@ -667,7 +674,7 @@ class KnowledgeHooks(models.AbstractModel):
         """拍這張圖用到的一切：腳本、佔位符對應、畫面指紋、登入角色、示範資料上線版號、截圖程式。"""
         import hashlib
         tmpl = binding.template_id
-        seed_rev = [[sc.id, sc.published_rev_no] for sc in binding.scenario_id.lineage()]
+        seed_rev = binding.scenario_id.seed_revisions()   # 含資料包的上線版號
         data = [tmpl.steps_json, binding.bindings_json, binding.roles_json, tmpl.fingerprint,
                 tmpl.login_role, seed_rev, shooter.runner_signature()]
         return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False)
@@ -875,6 +882,7 @@ class KnowledgeHooks(models.AbstractModel):
         res = super()._knowledge_dispatch_events(package, events, ctx)
         token = ctx.get('token')
         stop = ctx.setdefault('manual_ai_stopped', {'ai': False})
+        stop['run_id'] = ctx.get('run_id')
         # ★ 整次 refresh 一個批次：每個 channel 最後只同步＋重新編號一次
         with sync_batch(self.env) as env:
             me = self.with_env(env)
@@ -890,6 +898,13 @@ class KnowledgeHooks(models.AbstractModel):
             self._manual_public_check(package, ctx.setdefault('stats', {}))
         except Exception as e:  # noqa: BLE001 — 抽查失敗只記錄，不讓更新失敗
             _logger.warning('[knowledge.manual] 前台抽查失敗：%s', e)
+        # 迭代：文字缺口先用規則修，修完再記一次現況；發佈缺口重新同步
+        try:
+            self._manual_sync_text_gaps(package)
+            self._manual_fix_text_gaps(package)
+            self._manual_fix_publish_gaps(package)
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge.manual] 文字／發佈缺口處理失敗：%s', e)
         return res
 
     @api.model
@@ -923,11 +938,17 @@ class KnowledgeHooks(models.AbstractModel):
                     problem = _('頁面沒有截圖')
             except requests.RequestException as e:
                 problem = str(e)[:200]
+            Gap = self.env['corpaas.knowledge.gap_item'].sudo()
             if problem:
                 failed += 1
                 pl.sync_error = _('前台抽查：%s') % problem
+                Gap.note(package, 'publish', problem, scenario=pl.article_id.scenario_id,
+                         feature=pl.article_id.feature_id, record=pl)
             else:
                 ok += 1
+                Gap.search([('res_model', '=', pl._name), ('res_id', '=', pl.id),
+                            ('kind', '=', 'publish'), ('state', '!=', 'resolved')]).resolve(
+                    _('前台抽查通過'))
         stats['public_ok'] = stats.get('public_ok', 0) + ok
         stats['public_failed'] = stats.get('public_failed', 0) + failed
         return ok, failed
@@ -955,6 +976,10 @@ class KnowledgeHooks(models.AbstractModel):
         """
         Template = self.env['corpaas.knowledge.shot_template'].sudo()
         cache = {}
+        try:
+            self._manual_prefetch_drafts(package, token, stop)
+        except Exception as e:  # noqa: BLE001 — 預取失敗就逐篇照常問
+            _logger.warning('[knowledge.manual] 平行預取失敗：%s', e)
         for feature, cap in self._manual_sorted_candidates(package):
             package._knowledge_heartbeat('kb_outlets', feature.name)
             hashes = self._manual_package_hashes(package, feature)
@@ -973,6 +998,8 @@ class KnowledgeHooks(models.AbstractModel):
                                     feature.feature_key, scenario.code, e)
             # ★ 起草一篇約一分鐘：逐功能提交，中途失敗已寫好的草稿不會跟著回滾（A1）
             self._manual_commit()
+            if stop.get('run_id'):
+                self._manual_check_cancel({'run_id': stop['run_id']})
 
     @api.model
     def _manual_reconcile_one(self, package, feature, cap, scenario, hashes, tmpl, token,
@@ -1000,6 +1027,10 @@ class KnowledgeHooks(models.AbstractModel):
                 lambda a: (a.state not in ('published', 'stale'), -a.id))[:1]
             return self._manual_follow_scope(package, old, tmpl, token, cache, stop)
         if stop['ai']:
+            return None
+        # ★ 截圖還沒成功不起草（迭代：截圖缺口修好的下一輪才寫）——實機 7 篇白起草又被擋下
+        b = tmpl.binding_for(scenario)
+        if b and b.state == 'failed':
             return None
         return self._manual_draft_article(package, feature, scenario, cap, tmpl, token,
                                           cache, stop)
@@ -1197,9 +1228,7 @@ class KnowledgeHooks(models.AbstractModel):
             return self._manual_block_for_hash(package, src, scope, tmpl, token, cache,
                                                stop) or Block
         data = self.env['corpaas.knowledge.ai'].ask(
-            'manual_step_block', prompts.step_block_prompt(
-                self._manual_feature_dict(feature, package), tmpl.steps(), tmpl.shot_names(),
-                tmpl.elements_list()),
+            'manual_step_block', self._manual_step_prompt(package, feature, tmpl),
             package=package, refresh_token=token, record=tmpl)
         data = ai_dict(data, 'manual_step_block')
         steps = ai_html_steps(data.get('steps'), 'manual_step_block')
@@ -1211,21 +1240,82 @@ class KnowledgeHooks(models.AbstractModel):
         return block
 
     @api.model
-    def _manual_write_scenario(self, package, scenario, feature, capability, blocks, token):
-        """情境區塊：回傳 (標題, HTML)。★ 帶入既有步驟區塊，禁止重寫步驟。"""
+    def _manual_step_prompt(self, package, feature, tmpl):
+        return prompts.step_block_prompt(
+            self._manual_feature_dict(feature, package), tmpl.steps(), tmpl.shot_names(),
+            tmpl.elements_list())
+
+    @api.model
+    def _manual_scenario_prompt(self, package, scenario, feature, capability, blocks):
         steps_html = ''.join(b.html or '' for b in blocks)
         fdict = self._manual_feature_dict(feature, package)
         cls = feature.class_for(package) if package else None
         if cls:
             # ★ 分類寫在情境說明（每個方案一篇），不寫進跨方案共用的步驟區塊：方案核心因方案而異
             fdict['class'] = cls.as_payload()
+        return prompts.scenario_prompt(
+            {'name': scenario.name, 'narrative': scenario.narrative},
+            scenario.glossary_map(), fdict,
+            {'name': capability.name, 'pain': capability.pain,
+             'outcome': capability.outcome} if capability else {},
+            steps_html)
+
+    @api.model
+    def _manual_prefetch_drafts(self, package, token, stop):
+        """起草前平行預取（依賴感知：只對截圖已成功、還沒有文章的功能）。
+
+        兩段：先平行問步驟區塊（建好區塊），再平行問情境說明；之後的對帳迴圈照常起草，
+        AI 呼叫直接拿預取結果。回傳預取筆數。"""
+        if stop.get('ai'):
+            return 0
+        Ai = self.env['corpaas.knowledge.ai']
+        Template = self.env['corpaas.knowledge.shot_template'].sudo()
+        Article = self.env['corpaas.knowledge.article'].sudo()
+        Block = self.env['corpaas.knowledge.step_block'].sudo()
+        workers = int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.draft_parallel', 3) or 3)
+        need = []   # [(feature, cap, scenario, tmpl)]
+        for feature, cap in self._manual_sorted_candidates(package):
+            hashes = self._manual_package_hashes(package, feature)
+            tmpl = Template._for_hashes(feature, hashes) if hashes else Template
+            if not tmpl or not tmpl.fingerprint:
+                continue
+            for scenario in self._manual_scenarios_for(package, cap):
+                b = tmpl.binding_for(scenario)
+                if b and b.state == 'ok' and not Article.search_count(
+                        [('feature_id', '=', feature.id), ('scenario_id', '=', scenario.id)]):
+                    need.append((feature, cap, scenario, tmpl))
+        if not need:
+            return 0
+        fresh = {}
+        for feature, _cap, _sc, tmpl in need:
+            if not Block.search_count([('feature_id', '=', feature.id),
+                                       ('state', '!=', 'retired')]):
+                fresh[feature.id] = (feature, tmpl)
+        count = Ai.prefetch([('manual_step_block', self._manual_step_prompt(package, f, t))
+                             for f, t in fresh.values()], package=package,
+                            refresh_token=token, workers=workers)
+        cache = {}
+        items = []
+        for feature, cap, scenario, tmpl in need:
+            try:
+                block = self._manual_step_block_for(package, feature, tmpl, token, cache, stop)
+            except Exception as e:  # noqa: BLE001 — 這篇照常在迴圈裡再試
+                _logger.info('[knowledge.manual] 預取步驟區塊失敗 %s：%s', feature.feature_key, e)
+                continue
+            if block:
+                items.append(('manual_scenario',
+                              self._manual_scenario_prompt(package, scenario, feature, cap, block)))
+        self._manual_commit()
+        count += Ai.prefetch(items, package=package, refresh_token=token, workers=workers)
+        return count
+
+    @api.model
+    def _manual_write_scenario(self, package, scenario, feature, capability, blocks, token):
+        """情境區塊：回傳 (標題, HTML)。★ 帶入既有步驟區塊，禁止重寫步驟。"""
         data = self.env['corpaas.knowledge.ai'].ask(
-            'manual_scenario', prompts.scenario_prompt(
-                {'name': scenario.name, 'narrative': scenario.narrative},
-                scenario.glossary_map(), fdict,
-                {'name': capability.name, 'pain': capability.pain,
-                 'outcome': capability.outcome} if capability else {},
-                steps_html),
+            'manual_scenario',
+            self._manual_scenario_prompt(package, scenario, feature, capability, blocks),
             package=package or None, refresh_token=token, record=scenario)
         data = ai_dict(data, 'manual_scenario')
         if not isinstance(data.get('html'), str):
@@ -1243,7 +1333,8 @@ class KnowledgeHooks(models.AbstractModel):
         assets = binding.current_assets().filtered(
             lambda a: a.scope_hash == tmpl.fingerprint) if binding else []
         art = self.env['corpaas.knowledge.article'].sudo().create({
-            'name': title or feature.name, 'feature_id': feature.id,
+            'name': manual_lib.clean_title(title or feature.name, scenario.name),
+            'feature_id': feature.id,
             'scenario_id': scenario.id, 'capability_id': cap.id if cap else False,
             'fingerprint': tmpl.fingerprint, 'step_block_ids': [(6, 0, block.ids)],
             'scenario_html': html, 'shot_binding_id': binding.id if binding else False,

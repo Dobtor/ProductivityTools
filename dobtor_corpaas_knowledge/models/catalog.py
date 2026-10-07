@@ -601,6 +601,54 @@ class KnowledgeScenario(models.Model):
                                note=_('AI 起草示範資料'))
         return True
 
+    def _ai_fill_gaps(self, package, features, token=None):
+        """示範資料缺口修補器：只針對拍出來空白的畫面補記錄（只新增，說明庫疊加即可）。
+
+        回傳新增筆數。新增的記錄 xmlid 不可與既有重複（重複的丟掉）——改既有記錄就得重建說明庫。"""
+        self.ensure_one()
+        live = self.live_seed(draft=True)
+        existing = {r['xmlid'] for r in live}
+        by_model = {}
+        for r in live:
+            if not r.get('call'):
+                by_model.setdefault(r.get('model'), []).append(r['xmlid'])
+        screens = [{'name': f.name, 'model': f.model, 'action': f.action_xmlid,
+                    'existing': by_model.get(f.model, [])[:8]} for f in features]
+        roles = ['user_%s' % r.code for r in self.all_roles()]
+        prompt = (
+            "情境「%s」的 Odoo 18 說明庫裡，下列畫面拍出來是空白的（沒有資料，或預設篩選濾掉了）。"
+            "請只「新增」記錄讓這些畫面在預設篩選下有內容；可用 \"__ref__:<完整 xmlid>\" 參照"
+            "既有記錄，不要改既有記錄。需要的話加動作步驟把單據推到對的狀態（例如追加銷售訂單要"
+            "已確認、且交貨數量大於訂購數量的訂單）。做不到的畫面（例如要上傳檔案）就略過，"
+            "列在 skipped 並說明原因。\n%s"
+            "格式：{\"seed\":[…],\"skipped\":[{\"screen\":…,\"reason\":…}]}\n\n"
+            "空白畫面：%s"
+        ) % (self.name, SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
+             json.dumps(screens, ensure_ascii=False))
+
+        def check(data):
+            seed = (data or {}).get('seed')
+            if not isinstance(seed, list):
+                return ['seed 要是清單']
+            errs = seed_contract_errors(seed)
+            dup = [r.get('xmlid') for r in seed if isinstance(r, dict)
+                   and qualify_seed_record(r, self.xml_module, self.xml_module)['xmlid'] in existing]
+            if dup:
+                errs.append('這些 xmlid 已存在，只能新增不能改：%s' % '、'.join(map(str, dup[:10])))
+            return errs
+
+        data, _problems = self.env['corpaas.knowledge.ai'].ask_checked(
+            'seed_gap_fill', prompt, check, package=package, record=self, refresh_token=token)
+        new = [r for r in (data or {}).get('seed') or []
+               if isinstance(r, dict) and not seed_contract_errors([r])
+               and qualify_seed_record(r, self.xml_module, self.xml_module)['xmlid'] not in existing]
+        if not new:
+            return 0
+        own = json.loads(self.seed_json or '[]')
+        self.write({'seed_json': json.dumps(own + new, ensure_ascii=False, indent=1)})
+        self.knowledge_propose('text', note=_('AI 補示範資料缺口 %s 筆') % len(new))
+        return len(new)
+
     def _ai_repair_seed_from_check(self, report):
         """重播檢查有錯：請 AI 依錯誤與空畫面修一次腳本，再送審（會自動再檢查一次）。
 
@@ -609,23 +657,32 @@ class KnowledgeScenario(models.Model):
         package = self.package_ids[:1]
         labels = report.get('labels') or {}
         empty = [labels.get(k, k) for k, v in (report.get('counts') or {}).items() if v == 0]
-        own = {'%s.%s' % (self.xml_module, r['xmlid']) if '.' not in r['xmlid'] else r['xmlid']
-               for r in json.loads(self.seed_json or '[]') if isinstance(r, dict) and r.get('xmlid')}
+        records = json.loads(self.seed_json or '[]')
+        full = lambda x: x if '.' in x else '%s.%s' % (self.xml_module, x)  # noqa: E731
+        own = {full(r['xmlid']) for r in records if isinstance(r, dict) and r.get('xmlid')}
         errors = [e for e in report.get('errors') or [] if e.get('xmlid') in own]
         if not errors and not empty:
-            return False   # 錯誤都在資料包裡（資料包要另外修、走資料包自己的核准）
+            return False   # 錯誤都在資料包裡（資料包要另外修）
+        bad = {e['xmlid'] for e in errors}
+        broken = [r for r in records if full(r['xmlid']) in bad]
         packs = self.pack_ids.mapped('code')
+        # ★ 只送出錯的記錄＋其餘記錄的 xmlid 清單：實機每次送整份腳本，修三次花 1.45 美元
         prompt = (
-            "情境「%s」的 Odoo 18 示範資料在測試庫重播時有問題。請修正「目前腳本」後回傳完整腳本；"
-            "能成功的記錄照舊，修掉出錯的，並補上讓下列空畫面有資料的記錄。%s\n%s"
-            "格式：{\"seed\":[…]}\n\n重播錯誤：%s\n\n沒有資料的畫面：%s\n\n目前腳本：%s"
+            "情境「%s」的 Odoo 18 示範資料在測試庫重播時有問題。請修正「出錯的記錄」，並為"
+            "「沒有資料的畫面」新增記錄；回傳修正後的出錯記錄（同 xmlid）加上新增的記錄，"
+            "其他記錄不用回傳、不要改。%s\n%s"
+            "格式：{\"seed\":[…]}\n\n重播錯誤：%s\n\n出錯的記錄：%s\n\n"
+            "沒有資料的畫面：%s\n\n其餘記錄（只列 xmlid，可參照）：%s"
         ) % (self.name,
              ('資料包（%s）會先重播、內容不能改；可用完整 xmlid 參照它們的記錄。' % '、'.join(packs))
              if packs else '',
              SEED_RULES % {'roles': '、'.join(
                  'user_%s' % r.code for r in self.all_roles()) or '（無）'},
              json.dumps(errors[:60], ensure_ascii=False),
-             json.dumps(empty[:80], ensure_ascii=False), self.seed_json or '[]')
+             json.dumps(broken, ensure_ascii=False),
+             json.dumps(empty[:80], ensure_ascii=False),
+             json.dumps([r['xmlid'] for r in records if full(r['xmlid']) not in bad][:300],
+                        ensure_ascii=False))
 
         def check(data):
             seed = (data or {}).get('seed')
@@ -635,10 +692,13 @@ class KnowledgeScenario(models.Model):
 
         data, _problems = self.env['corpaas.knowledge.ai'].ask_checked(
             'seed_repair', prompt, check, package=package, record=self)
-        seed = [r for r in (data or {}).get('seed') or []
-                if isinstance(r, dict) and not seed_contract_errors([r])]
-        if not seed:
+        patch = [r for r in (data or {}).get('seed') or []
+                 if isinstance(r, dict) and not seed_contract_errors([r])]
+        if not patch:
             return False
+        by_key = {full(r['xmlid']): r for r in patch}
+        merged = [by_key.pop(full(r['xmlid']), r) for r in records]
+        seed = merged + list(by_key.values())
         self.write({'seed_json': json.dumps(seed, ensure_ascii=False, indent=1),
                     'seed_auto_repairs': self.seed_auto_repairs + 1})
         self.knowledge_propose('new' if not self.published_rev_no else 'text',

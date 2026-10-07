@@ -61,4 +61,13 @@ env['corpaas.knowledge.gap']._gc(180)</field>
         <field name="interval_number">1</field>
         <field name="interval_type">days</field>
     </record>
+    <record id="ir_cron_knowledge_resume_orphans" model="ir.cron">
+        <field name="name">方案知識：中斷的更新自動續跑</field>
+        <field name="model_id" ref="model_corpaas_knowledge_run"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_resume_orphans()</field>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+        <field name="active">True</field>
+    </record>
 </odoo>

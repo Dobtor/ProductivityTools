@@ -554,3 +554,106 @@ class TestGeneralization(TransactionCase):
         with self.assertRaises(Exception):
             self.pkg.write({'knowledge_cap_min': 8, 'knowledge_cap_max': 4})
         self.assertEqual(self.pkg._knowledge_profile()['max_scenarios'], 1)
+
+
+@tagged('post_install', '-at_install')
+class TestIterativeCore(_RefreshBase):
+    """迭代式架構：缺口、收斂迴圈、可取消、重啟續跑、平行預取、只補缺口的示範資料。"""
+
+    def test_gap_lifecycle(self):
+        Gap = self.env['corpaas.knowledge.gap_item']
+        g = Gap.note(self.pkg, 'access', '進不去')
+        self.assertEqual(Gap.note(self.pkg, 'access', '還是進不去'), g, '同對象同類型不重複')
+        g.attempted('rule_role', 'x')
+        g.attempted('rule_role', 'y')
+        self.assertEqual(g.state, 'open')
+        g.attempted('rule_role', 'z')
+        self.assertEqual(g.state, 'human', '修到上限轉人工')
+        g.action_reopen()
+        self.assertEqual((g.state, g.attempts), ('open', 0))
+        g.resolve('好了')
+        self.assertEqual(g.state, 'resolved')
+
+    def test_iterate_enqueues_until_daily_cap(self):
+        Pkg = type(self.pkg)
+        run = self.env['corpaas.knowledge.run'].sudo().create(
+            {'package_id': self.pkg.id, 'token': 'tok-it'})
+        calls = []
+        with patch.object(Pkg, 'knowledge_enqueue_refresh', lambda s, **kw: calls.append(kw)):
+            self.assertFalse(self.pkg._knowledge_iterate(run), '沒有缺口不排')
+            self.env['corpaas.knowledge.gap_item'].note(self.pkg, 'data', '空白')
+            self.assertTrue(self.pkg._knowledge_iterate(run))
+            self.assertEqual(calls[-1], {'full': False, 'reason': 'gap_fix'})
+            self.pkg.knowledge_max_iterations = 1
+            self.assertFalse(self.pkg._knowledge_iterate(run), '今天已達輪數上限')
+
+    def test_cancel_and_resume(self):
+        from odoo.exceptions import UserError
+        Pkg = type(self.pkg)
+        run = self.env['corpaas.knowledge.run'].sudo().create(
+            {'package_id': self.pkg.id, 'token': 'tok-cr'})
+        run.begin_stage('shoot')
+        run.check_cancel()
+        run.action_cancel()
+        with self.assertRaises(UserError):
+            run.check_cancel()
+        run2 = self.env['corpaas.knowledge.run'].sudo().create(
+            {'package_id': self.pkg.id, 'token': 'tok-cr2'})
+        run2.begin_stage('outlets')
+        self.env.flush_all()
+        self.env.cr.execute("UPDATE corpaas_knowledge_run SET write_date = (now() at time zone 'UTC') - interval '1 hour' "
+                            "WHERE id = %s", (run2.id,))
+        run2.invalidate_recordset()
+        staged = []
+        with patch.object(Pkg, '_knowledge_enqueue_stage', lambda s, r, stage: staged.append(stage)):
+            self.env['corpaas.knowledge.run']._cron_resume_orphans()
+        self.assertIn('outlets', staged, '重啟後從中斷的階段續跑')
+        self.assertEqual(run2.resumes, 1)
+
+    def test_prefetch_parallel_then_ask_uses_it(self):
+        from ..services import hub_client
+        Ai = self.env['corpaas.knowledge.ai'].with_context(kb_prefetch_in_tests=True)
+        sent = []
+
+        def call(url, key, purpose, prompt, context=None, **kw):
+            sent.append(purpose)
+            return '{"ok": "%s"}' % purpose, 0.01, 1
+
+        with patch.object(hub_client, 'call', call):
+            n = Ai.prefetch([('p1', 'A'), ('p2', 'B')], package=self.pkg)
+            self.assertEqual(n, 2)
+            self.assertEqual(Ai.ask('p1', 'A', package=self.pkg), {'ok': 'p1'})
+        self.assertEqual(sorted(sent), ['p1', 'p2'], 'ask 用預取結果，不再呼叫')
+
+    def test_fill_gaps_only_adds(self):
+        sc = self.env['corpaas.knowledge.scenario'].sudo().create({
+            'name': '補缺口', 'code': 'kbt_fill', 'narrative': 'n',
+            'package_ids': [(6, 0, self.pkg.ids)],
+            'seed_json': _seed({'xmlid': 'p', 'model': 'res.partner', 'values': {'name': 'A'}})})
+        Sc = type(sc)
+        with patch.object(Sc, '_enqueue_seed_check', lambda s, **kw: False):
+            sc._do_publish('new')
+        feature = self.env['corpaas.knowledge.feature'].sudo().create({
+            'feature_key': 'kbt.action:fill', 'module': 'kbt', 'kind': 'action',
+            'anchor': 'fill', 'name': '追加銷售', 'model': 'res.partner'})
+        reply = {'seed': [{'xmlid': 'p', 'model': 'res.partner', 'values': {'name': '改'}},
+                          {'xmlid': 'q', 'model': 'res.partner', 'values': {'name': 'B'}}]}
+        prompts = []
+        with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask',
+                          lambda s, p, prompt, **kw: prompts.append(prompt) or reply), \
+                patch.object(Sc, '_enqueue_seed_check', lambda s, **kw: False):
+            added = sc._ai_fill_gaps(self.pkg, feature)
+        self.assertEqual(added, 1, '已存在的 xmlid 丟掉，只新增')
+        self.assertIn('只能新增不能改', prompts[1])
+        keys = [r['xmlid'] for r in json.loads(sc.seed_json)]
+        self.assertEqual(keys, ['p', 'q'])
+        self.assertEqual(json.loads(sc.seed_json)[0]['values']['name'], 'A')
+        self.assertEqual(sc.state, 'published', '單一方案的情境：補資料自動上線')
+
+    def test_screen_access_script(self):
+        res = self._exec_shell(None, None, None, scripts.screen_access_script(
+            ['base.action_res_users', 'nope.x'],
+            {'admin': ['base.group_system'], 'plain': ['base.group_user']}))
+        self.assertIn('admin', res['base.action_res_users'])
+        self.assertNotIn('plain', res['base.action_res_users'], '使用者清單要設定權限')
+        self.assertNotIn('nope.x', res)
