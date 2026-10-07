@@ -170,9 +170,20 @@ class TestControllerSecurityBoundary(HttpCase):
                                  'application/vnd.openxmlformats-officedocument'
                                  '.wordprocessingml.document')},
         )
+        # 失敗時要看得出原因：曾經偶發拿到 200，而 200 有兩種來源
+        #（上傳真的成功、或請求被導去登入頁）。只看狀態碼分不出來。
+        self.assertEqual(
+            (resp.headers.get('Content-Type') or '').split(';')[0],
+            'application/json',
+            '回應不是 JSON（可能被導去登入頁，session 沒建立）：%s'
+            % resp.text[:200],
+        )
         # Sprint 116 plus 後:graceful 400(非 500、非 200 silent success)
-        self.assertEqual(resp.status_code, 400,
-                         "Null byte filename 應 graceful 400(Sprint 116 plus fix)")
+        self.assertEqual(
+            resp.status_code, 400,
+            'Null byte filename 應 graceful 400(Sprint 116 plus fix)；'
+            '實際回應 = %s' % resp.text[:200],
+        )
         body = json.loads(resp.content)
         self.assertFalse(body.get('success'))
         self.assertIn('null byte', body.get('error', '').lower())
