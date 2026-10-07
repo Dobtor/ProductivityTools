@@ -103,7 +103,7 @@ class DocRenderMixin(models.AbstractModel):
                 return value.strftime(fmt)
             return str(value)
 
-        def format_address(partner, without_company=False):
+        def format_address(partner, without_company=False, with_name=False):
             """依國別格式排版的地址（對應原生的 t-options widget="contact"）。
 
             委派給 res.partner._display_address()——那支就是 Odoo 自己用的，
@@ -112,6 +112,11 @@ class DocRenderMixin(models.AbstractModel):
 
             回傳含換行的字串；_inline_element_html 會把值內部的換行轉成
             <br/>，所以在文件上就是正常的多行地址。
+
+            with_name=True 時第一行是對象名稱。_display_address 不含名稱，
+            而原生的 contact widget 預設會印（它的 fields 預設含 "name"）
+            ——收件人區塊少了名字就只是一串地址，所以轉換器會依原範本的
+            fields 設定決定要不要帶。預設維持不帶，既有範本的版面不變。
             """
             if not partner:
                 return ''
@@ -119,7 +124,11 @@ class DocRenderMixin(models.AbstractModel):
                 target = partner[:1] if hasattr(partner, 'ids') else partner
                 if not target:
                     return ''
-                return target._display_address(without_company=without_company)
+                body = target._display_address(without_company=without_company)
+                if not with_name:
+                    return body
+                name = str(target.display_name or '').strip()
+                return ('%s\n%s' % (name, body)) if name else body
             except Exception:
                 # 不是 partner（或沒有這支方法）→ 退回 display_name，
                 # 至少印得出東西而不是讓整份文件產不出來
@@ -1003,6 +1012,9 @@ class DocRenderMixin(models.AbstractModel):
         # Pass 順序有意義，不可對調：
         #   1. 展開重複列——要在純量求值前，展開產生的列裡 source='line' 藥丸
         #      必須以各自的明細記錄求值，不是主記錄
+        #      （重複列內「沒有 groupId」的條件標記也在這一步就地解決：
+        #       那種條件要逐筆判斷，第 2 關只有 object 可用，見
+        #       _resolve_line_row_conditions）
         #   1.5. 展開稅額彙總——同樣會產生新的列（每個稅別一列），
         #      要在條件之前，產生出來的列才能被條件處理到
         #   2-3. 條件（列→欄→段落）——條件自成一體、不依賴藥丸的值，放在求值前
@@ -1269,10 +1281,18 @@ class DocRenderMixin(models.AbstractModel):
             if not path:
                 return []
             target = self._traverse_path(record, path)
-            # 必須是 recordset——純量欄位設成重複來源是設定錯誤
-            if not hasattr(target, '_name') or not hasattr(target, 'ids'):
+            if hasattr(target, '_name') and hasattr(target, 'ids'):
+                lines = list(target)
+            elif isinstance(target, (list, tuple)):
+                # 計算欄位回傳 list of dict 的情形：發票的 payment_term_details
+                # （分期明細）就是這樣。原本只收 recordset，結果明細整個不印
+                # 而且沒有任何訊息——那是最難追的一種壞法。
+                # 字串／位元組刻意不收：Char 欄位設成重複來源會逐字展開成
+                # 一列一個字，比直接不印更難懂。
+                lines = list(target)
+            else:
+                # 純量欄位設成重複來源是設定錯誤
                 return []
-            lines = list(target)
         lines = self._sort_lines(
             lines, meta.get('sortBy'), meta.get('sortDesc'),
         )
@@ -1649,6 +1669,9 @@ class DocRenderMixin(models.AbstractModel):
                             clone, line, marker_el, stamp, state_bank,
                             variant=v_idx,
                         )
+                        if not self._resolve_line_row_conditions(
+                                clone, record, line):
+                            continue
                         new_rows.append(clone)
                         total += 1
                     if ftr_tmpl is not None:
@@ -1659,6 +1682,47 @@ class DocRenderMixin(models.AbstractModel):
             if changed:
                 table['trList'] = new_rows
         return total
+
+    def _resolve_line_row_conditions(self, row, record, line):
+        """重複列內的條件標記：以該筆明細求值，不成立就整列不輸出。
+
+        為什麼要在展開階段處理，而不是交給後面的 _apply_row_conditions：
+        那一關只有 object 可用（_condition_marker_result 不帶 line），
+        所以同一個條件在每一列都得到同一個答案——要嘛全留要嘛全刪。
+        而原生報表裡「逐列條件」很常見（發票的付款列
+        <tr t-if="payment_vals['is_exchange'] == 0">），那種一定得逐筆判斷。
+
+        若／否則配對（groupId）不在這裡處理：它的另一半在別的列上，
+        展開階段看不到，留給 _apply_row_conditions。
+        """
+        def _plain_markers(cell):
+            out = []
+            for el in (cell.get('value') or []):
+                meta = self._element_condition_meta(el)
+                if meta and not (meta.get('groupId') or '').strip():
+                    out.append((el, meta))
+            return out
+
+        cells = [c for c in (row.get('tdList') or []) if isinstance(c, dict)]
+        found = [(el, meta) for cell in cells for el, meta in _plain_markers(cell)]
+        if not found:
+            return True
+        extra = {'line': line}
+        for _el, meta in found:
+            expr = meta.get('expression') or meta.get('path') or ''
+            # _eval_condition 求值失敗回 True（寧可多印），所以只在明確為
+            # False 時才丟掉這一列。
+            if self._eval_condition(expr, record, extra=extra) is False:
+                return False
+        # 條件成立 → 把標記清掉。不清的話後面那一關會用「只有 object」的
+        # 環境再判一次，帶 line 的條件在那裡求值失敗 → 當成真 → 看起來沒事，
+        # 但條件其實從此沒有作用。
+        ids = {id(el) for el, _m in found}
+        for cell in cells:
+            if isinstance(cell.get('value'), list):
+                cell['value'] = [el for el in cell['value']
+                                 if id(el) not in ids]
+        return True
 
     def _count_repeat_rows(self, tree):
         """統計樹中的重複列數（給 UI 顯示「此範本有 N 個重複列」用）。"""
@@ -2187,6 +2251,14 @@ class DocRenderMixin(models.AbstractModel):
                 if not pills:
                     continue
                 if any(m.get('keepEmpty') for _el, m in pills):
+                    continue
+                # 段落裡有表格就不收合。表格是獨立的區塊容器（條件區塊、
+                # 巢狀的重複清單），它的內容跟同段落那幾顆藥丸沒有關係。
+                # 段落邊界只認 value == '\n'，而表格元素的 value 是空字串，
+                # 所以它會被算進同一段——實測到的後果是發票的分期清單被旁邊
+                # 求值為空的「提前付款折扣」藥丸連帶整段刪掉。
+                if any((elements[i].get('type') or '') == 'table'
+                       for i in range(start, end)):
                     continue
                 if all(not (el.get('value') or '').strip() for el, _m in pills):
                     self._drop_span(elements, span)

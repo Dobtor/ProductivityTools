@@ -507,12 +507,20 @@ class DocQwebConverter(models.AbstractModel):
                 used = True
         return expr, used
 
-    def _inline_symbols(self, expr, state, depth):
-        """把 t-set 變數替換成它們的值（遞迴）。回 (展開後, 是否命中規則表)。"""
+    def _inline_symbols(self, expr, state, depth, seen=()):
+        """把 t-set 變數替換成它們的值（遞迴）。回 (展開後, 是否命中規則表)。
+
+        seen 擋的是「自我指涉的 t-set」——QWeb 很常寫
+            <t t-set="payment_term_details" t-value="o.payment_term_details"/>
+        名稱出現在自己的值裡面。不擋的話展開會一路套到 depth 上限，
+        轉出來的是 object.(object.(object.(...)))（實測過）。
+        """
         symbols = state.get('symbols') or {}
         used = False
         for name in sorted(symbols, key=len, reverse=True):
             if name in _ROOT_VARS or name in (state.get('accumulators') or ()):
+                continue
+            if name in seen:
                 continue
             value = symbols.get(name)
             if not value:
@@ -520,13 +528,13 @@ class DocQwebConverter(models.AbstractModel):
             pattern = r'\b%s\b' % re.escape(name)
             if re.search(pattern, expr):
                 inner, inner_rule = self._expand_symbols(
-                    value, state, depth + 1,
+                    value, state, depth + 1, seen=tuple(seen) + (name,),
                 )
                 expr = re.sub(pattern, '(%s)' % inner, expr)
                 used = used or inner_rule
         return expr, used
 
-    def _expand_symbols(self, expr, state, depth=0):
+    def _expand_symbols(self, expr, state, depth=0, seen=()):
         """把表達式裡的 t-set 變數替換成它們的值。回 (展開後, 是否用了規則表)。
 
         順序是「改寫 → 內聯 → 再改寫」，不是「內聯 → 改寫」：
@@ -541,7 +549,7 @@ class DocQwebConverter(models.AbstractModel):
             return expr, False
 
         expr, used_a = self._apply_rules(expr, state)
-        expr, used_b = self._inline_symbols(expr, state, depth)
+        expr, used_b = self._inline_symbols(expr, state, depth, seen=seen)
         expr, used_c = self._apply_rules(expr, state)
         used_rule = used_a or used_b or used_c
 
@@ -553,12 +561,33 @@ class DocQwebConverter(models.AbstractModel):
 
         return expr, used_rule
 
+    def _unwrap_parens(self, expr):
+        """剝掉「把整個表達式包起來」的外層括號。
+
+        t-set 內聯一律加括號（(o.payment_term_details)），不剝的話
+        _strip_root 認不出它是一條單純路徑，明細來源就變成待設定的待辦。
+        只在第一個括號與最後一個括號配對時才剝——(a or b).x 不能剝。
+        """
+        while expr.startswith('(') and expr.endswith(')'):
+            depth = 0
+            for idx, ch in enumerate(expr):
+                if ch == '(':
+                    depth += 1
+                elif ch == ')':
+                    depth -= 1
+                    if depth == 0:
+                        break
+            if idx != len(expr) - 1:
+                break
+            expr = expr[1:-1].strip()
+        return expr
+
     def _strip_root(self, expr, state):
         """把 doc.partner_id → partner_id、line.name → name（迴圈內）。
 
         回 (path, kind)，kind 為 'record' / 'line' / None（對不上根變數）。
         """
-        expr = (expr or '').strip()
+        expr = self._unwrap_parens((expr or '').strip())
         if not expr:
             return None, None
         for var in reversed(state['loop_vars']):
@@ -584,6 +613,28 @@ class DocQwebConverter(models.AbstractModel):
         m = re.match(r'^["\'](\w+)["\']$', raw.strip())
         return m.group(1) if m else None
 
+    def _parse_option_fields(self, node):
+        """t-options 裡 "fields": [...] 的欄位名清單（沒寫回空清單）。"""
+        raw = node.get('t-options') or ''
+        m = re.search(r'["\']fields["\']\s*:\s*\[([^\]]*)\]', raw)
+        if not m:
+            return []
+        return re.findall(r'["\'](\w+)["\']', m.group(1))
+
+    def _widget_expr(self, widget, node, base):
+        """widget → 包裝後的表達式；不認得的 widget 回 None。"""
+        if widget == 'contact':
+            # 原生 contact widget 的 fields 預設含 "name"，所以沒寫 fields
+            # 就是要印名稱。寫了就照它寫的來——這是從 arch 讀出來的事實，
+            # 不是猜的。
+            opt = self._parse_option_fields(node)
+            if ('name' in opt) if opt else True:
+                return 'format_address(%s, with_name=True)' % base
+            return 'format_address(%s)' % base
+        if widget in _WIDGET_WRAPPERS:
+            return _WIDGET_WRAPPERS[widget] % base
+        return None
+
     def _mapped_value_expr(self, node, expr, state):
         """取值節點 → 沙箱表達式字串；對不上根變數回 None。
 
@@ -595,12 +646,14 @@ class DocQwebConverter(models.AbstractModel):
             return None
         base = ('line.%s' % path) if kind == 'line' else ('object.%s' % path)
         widget = self._parse_options(node)
-        if widget and widget in _WIDGET_WRAPPERS:
-            return _WIDGET_WRAPPERS[widget] % base
-        return base
+        wrapped = self._widget_expr(widget, node, base) if widget else None
+        return wrapped if wrapped is not None else base
 
     def _value_pill(self, node, expr, state):
         """t-field / t-out / t-esc → 藥丸。"""
+        index_pill = self._loop_index_pill(expr, state)
+        if index_pill is not None:
+            return index_pill
         path, kind = self._strip_root(expr, state)
         widget = self._parse_options(node)
         label = (path or expr).split('.')[-1] or expr
@@ -614,8 +667,10 @@ class DocQwebConverter(models.AbstractModel):
                 source = 'line' if kind2 == 'line' else 'record'
                 base = ('line.%s' % path2) if kind2 == 'line' \
                     else ('object.%s' % path2)
-                if widget and widget in _WIDGET_WRAPPERS:
-                    base = _WIDGET_WRAPPERS[widget] % base
+                wrapped = self._widget_expr(widget, node, base) if widget \
+                    else None
+                if wrapped is not None:
+                    base = wrapped
                 # 走過規則表的要人工確認——那是這支轉換器唯一一處「猜」
                 return self._pill(label[:20], state, source=source,
                                   expression=base, unbound=used_rule)
@@ -643,14 +698,37 @@ class DocQwebConverter(models.AbstractModel):
         source = 'line' if kind == 'line' else 'record'
         base = ('line.%s' % path) if kind == 'line' else ('object.%s' % path)
 
-        if widget and widget in _WIDGET_WRAPPERS:
+        wrapped = self._widget_expr(widget, node, base) if widget else None
+        if wrapped is not None:
             return self._pill(label, state, source=source,
-                              path=path,
-                              expression=_WIDGET_WRAPPERS[widget] % base)
+                              path=path, expression=wrapped)
         if widget:
             self._note(state, '未支援的 widget「%s」，已改為直接輸出欄位值。'
                               % widget)
         return self._pill(label, state, source=source, path=path)
+
+    def _loop_index_pill(self, expr, state):
+        """QWeb 的 <迴圈變數>_index → 流水序號藥丸（op='index'）。
+
+        t-foreach 會順便給 <t-as>_index（0 起算），範本裡幾乎都寫
+        「term_index + 1」當項次。原本這整串對不上任何路徑，轉出來是一顆
+        待確認藥丸——而項次是明細表最顯眼的一欄。
+        流水藥丸的 index 是 1 起算，所以「_index + 1」完全等價。
+        """
+        text = (expr or '').strip()
+        for var in reversed(state.get('loop_vars') or []):
+            name = '%s_index' % var
+            if text in ('%s + 1' % name, '%s+1' % name, '1 + %s' % name):
+                return self._pill('項次', state, source='running', op='index')
+            if text == name:
+                # 0 起算：原生印的是 0,1,2…，這裡的流水是 1,2,3…
+                self._note(
+                    state,
+                    '「%s」是 0 起算的迴圈索引，已轉成流水序號（1 起算）。'
+                    '要保持 0 起算請改用表達式。' % name,
+                )
+                return self._pill('項次', state, source='running', op='index')
+        return None
 
     # ─── 走訪 ───────────────────────────────────────────────────────
 
@@ -876,6 +954,25 @@ class DocQwebConverter(models.AbstractModel):
             out.append(self._newline())
             return
 
+        # ── t-foreach 不在表格列上（清單、卡片、發票的分期明細）
+        #    必須排在「區塊條件」之前：<div t-if=... t-foreach=...> 這種寫法
+        #    若先走條件分支，t-foreach 會被整個丟掉——迴圈體只印一次，
+        #    而且迴圈變數變成待確認藥丸。條件在 _repeat_block 裡處理。
+        if node.get('t-foreach') and tag != 'tr':
+            block = self._repeat_block(node, state)
+            if block is not None:
+                out.append(block)
+                out.append(self._newline())
+                return
+            # 迴圈體本身含表格／表格列 → 包不起來（會變巢狀的表格列）。
+            # 這種只剩人工處理，但內容照原樣印出來，不要整段消失。
+            self._note(
+                state,
+                '非表格的 t-foreach="%s" 未轉換：迴圈體裡有表格，'
+                '包成單欄表格會變成巢狀表格。請人工調整。'
+                % (node.get('t-foreach') or '')[:60],
+            )
+
         # ── 區塊條件：t-if 掛在區塊元素上 → 條件區塊
         cond = node.get('t-if')
         if cond and tag in _BLOCK_TAGS:
@@ -890,14 +987,6 @@ class DocQwebConverter(models.AbstractModel):
                 state,
                 '孤立的 t-elif／t-else 需要人工確認（它的 t-if 不是相鄰節點）：%s'
                 % (node.get('t-elif') or '（else）')[:70],
-            )
-
-        # ── t-foreach 不在表格列上（罕見：清單、卡片）
-        if node.get('t-foreach') and tag != 'tr':
-            self._note(
-                state,
-                '非表格的 t-foreach="%s" 未轉換——重複只支援表格列，'
-                '請改用表格呈現。' % (node.get('t-foreach') or '')[:60],
             )
 
         # ── 一般容器
@@ -969,6 +1058,68 @@ class DocQwebConverter(models.AbstractModel):
                             cell(val('total', 'amount', '總計金額'))]},
             ],
         }
+
+    # ─── 非表格的重複 ───────────────────────────────────────────────
+
+    def _repeat_block(self, node, state):
+        """非表格的 t-foreach → 單欄無框表格，一列重複。回不了就 None。
+
+        編輯器的重複只認「表格列」（後端 _expand_repeat_rows 複製的是 trList
+        裡的列），所以 QWeb 用 <div>／<li> 跑的清單必須先變成一欄的表格。
+        自己包表格比丟一句「請改用表格呈現」好兩件事：內容會留著，而且
+        使用者拿到的是一個已經會重複的結構，只要把來源欄位挑對就能用。
+
+        發票的分期明細（payment_term_details）就是這一類。
+        """
+        # 迴圈體裡有表格或表格列時不能包：canvas-editor 的巢狀表格在
+        # 編輯器與 PDF 兩邊都不可靠（這也是整個管線只做到「列」粒度的原因）。
+        if node.xpath('.//table | .//tr'):
+            return None
+        expr = node.get('t-foreach')
+        as_var = node.get('t-as') or 'line'
+        # 同一個節點上的 t-if 是「整個迴圈要不要印」，不是逐筆條件。
+        # 兩者語意不同，所以不能當成 rowFilter——包一層條件區塊才對。
+        cond = node.get('t-if') or node.get('t-elif')
+        marker = self._repeat_marker((expr, as_var), state)
+
+        # 迴圈體＝這個節點自己的內容。屬性在這裡處理完了，不要再往下看，
+        # 否則 t-foreach 會被子層再認一次。
+        holder = self._new_element('t')
+        holder.text = node.text
+        for child in list(node):
+            holder.append(child)
+        state['loop_vars'].append(as_var)
+        try:
+            inner = []
+            self._emit_children(holder, inner, state)
+        finally:
+            state['loop_vars'].pop()
+        if not inner or (inner[-1].get('value') or '') != '\n':
+            inner.append(self._newline())
+
+        state['stats']['repeat'] += 1
+        self._note(
+            state,
+            '清單式的 t-foreach="%s" 已轉成單欄表格（重複只支援表格列）；'
+            '外框是無框的，版面看起來與原本一致。' % expr[:60],
+        )
+        table = {
+            'type': 'table', 'value': '',
+            'borderType': 'empty',
+            'colgroup': [{'width': self._inner_width(state)}],
+            'trList': [{'tdList': [{
+                'colspan': 1, 'rowspan': 1,
+                'value': [marker] + inner,
+            }]}],
+        }
+        if not cond:
+            return table
+        self._note(
+            state,
+            '重複區塊「%s」外面原本的條件「%s」是「整段要不要印」，'
+            '已包成一個條件區塊。' % (expr[:40], cond[:50]),
+        )
+        return self._condition_wrap(cond, [table, self._newline()], state)
 
     # ─── 表格 ───────────────────────────────────────────────────────
 
@@ -1112,6 +1263,11 @@ class DocQwebConverter(models.AbstractModel):
             tag = tr.tag if isinstance(tr.tag, str) else ''
             cells = (self._row_cells(tr) if tag.lower() == 'tr'
                      else tr.xpath('./td | ./th'))
+            # <tr t-if="..."> 原本被整個忽略——轉出來的明細表會把不該印的列
+            # 也印出來（發票的付款列就是這樣）。列條件管線支援這件事，
+            # 條件藥丸放列內任一格即可。
+            # 分支容器（<t t-if>）的條件已經當成 rowFilter 用掉了，不要再加。
+            row_cond = tr.get('t-if') if tag.lower() == 'tr' else None
             td_list = []
             first = True
             for cell in cells:
@@ -1132,12 +1288,20 @@ class DocQwebConverter(models.AbstractModel):
                             '儲存格條件「%s」已轉成列型條件的候選，'
                             '請在右欄確認（或改用欄條件）。' % cond[:70],
                         )
-                if first and repeat and with_marker is not False:
-                    # 重複標記放第一格：後端找「含該標記的那一列」，
-                    # 放哪一格都可以，第一格最容易被看到
-                    value.append(self._repeat_marker(
-                        repeat, state, row_filter=row_filter,
-                    ))
+                if first:
+                    if row_cond:
+                        value.append(self._pill(
+                            '列條件', state, source='condition',
+                            expression=self._map_condition(
+                                row_cond, state, expand=True),
+                        ))
+                        state['stats']['condition'] += 1
+                    if repeat and with_marker is not False:
+                        # 重複標記放第一格：後端找「含該標記的那一列」，
+                        # 放哪一格都可以，第一格最容易被看到
+                        value.append(self._repeat_marker(
+                            repeat, state, row_filter=row_filter,
+                        ))
                     first = False
                 self._emit_children(cell, value, state)
                 if not value or (value[-1].get('value') or '') != '\n':
@@ -1211,6 +1375,8 @@ class DocQwebConverter(models.AbstractModel):
             out, _used = self._expand_symbols(out, state)
         for var in reversed(state.get('loop_vars') or []):
             out = re.sub(r'\b%s\.' % re.escape(var), 'line.', out)
+            # 迴圈變數是 dict 時 QWeb 寫下標：payment_vals['is_exchange']
+            out = re.sub(r'\b%s\[' % re.escape(var), 'line[', out)
         for var in _ROOT_VARS:
             out = re.sub(r'\b%s\.' % re.escape(var), 'object.', out)
         return out
@@ -1225,6 +1391,10 @@ class DocQwebConverter(models.AbstractModel):
         self._emit_children(holder, inner, state)
         if not inner or (inner[-1].get('value') or '') != '\n':
             inner.append(self._newline())
+        return self._condition_wrap(cond, inner, state)
+
+    def _condition_wrap(self, cond, inner, state):
+        """把一串元素包進一個條件區塊（單欄虛線表格）。"""
         state['stats']['condition'] += 1
         return {
             'type': 'table', 'value': '',
@@ -1237,6 +1407,6 @@ class DocQwebConverter(models.AbstractModel):
                     '條件', state, source='condition',
                     expression=self._map_condition(
                         cond, state, expand=True),
-                )] + inner,
+                )] + list(inner),
             }]}],
         }

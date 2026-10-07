@@ -13,4 +13,5 @@ from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/fie
 from . import test_template_edit  # Phase 1（藥丸改版）— 範本可直接編輯
 from . import test_pill_pipeline  # Phase 3-5（藥丸改版）— 快照/攤平/遷移
 from . import test_report_engine  # 報表引擎 R1-R3
+from . import test_qweb_converter  # QWeb 報表 → 範本轉換器
 from . import test_editor_tour

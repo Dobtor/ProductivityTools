@@ -1774,6 +1774,18 @@ class TestFormatAddress(TransactionCase):
             self.partner._display_address(),
         )
 
+    def test_with_name_prepends_display_name(self):
+        """原生 contact widget 的 fields 預設含 "name"，_display_address 不含。
+
+        收件人區塊少了名字就只是一串地址，所以轉換器會依原範本的 fields
+        設定決定要不要帶——預設不帶，既有範本的版面不變。
+        """
+        plain = self._render('format_address(object)')
+        named = self._render('format_address(object, with_name=True)')
+        self.assertNotIn('測試公司', plain)
+        self.assertTrue(named.startswith('測試公司'))
+        self.assertIn(plain, named)
+
     def test_multiline_address_becomes_br_in_html(self):
         """多行地址不可塌成一行——在 HTML 裡只是少了換行，很難看出來。"""
         tree = {'main': [
@@ -2361,3 +2373,202 @@ class TestLayoutTemplate(TransactionCase):
             self.Mixin._flatten_content_json(tree), zone='header',
         )
         self.assertIn('class="doc-block"', html)
+
+
+def _cell(*elements, **kw):
+    return dict({'colspan': 1, 'rowspan': 1,
+                 'value': list(elements) + [_text('\n')]}, **kw)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestLineRowConditions(TransactionCase):
+    """重複列裡的條件標記要逐筆求值。
+
+    這是列條件管線的一個盲點：_apply_row_conditions 跑在展開之後，但它求值時
+    只有 object 可用（_condition_marker_result 不帶 line），所以同一個條件在
+    每一列都得到同一個答案——要嘛整批留、要嘛整批刪。而原生報表裡
+    「<tr t-if="line.xxx">」很常見（發票的付款列就是），那種一定得逐筆判斷。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '母公司'})
+        # child_ids 依 complete_name 排序，所以名稱前面加序號才會是建立順序
+        self.env['res.partner'].create([
+            {'name': '1 有電話', 'parent_id': self.partner.id,
+             'phone': '0212345678'},
+            {'name': '2 沒電話', 'parent_id': self.partner.id},
+            {'name': '3 有電話', 'parent_id': self.partner.id,
+             'phone': '0287654321'},
+        ])
+
+    def _tree(self, expression):
+        return {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 400}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 _pill('列條件', source='condition', expression=expression),
+                 _pill('名稱', source='line', path='name'),
+             )]}]},
+            _text('\n'),
+        ]}
+
+    def _row_texts(self, tree):
+        table = tree['main'][0]
+        out = []
+        for row in table['trList']:
+            txt = ''.join(
+                (el.get('value') or '') for cell in row['tdList']
+                for el in cell['value'] if (el.get('value') or '') != '\n'
+            )
+            out.append(txt)
+        return out
+
+    def test_condition_filters_per_line(self):
+        tree = self.Mixin._snapshot_content_json(
+            self._tree('line.phone'), self.partner)
+        self.assertEqual(self._row_texts(tree), ['1 有電話', '3 有電話'])
+
+    def test_marker_is_stripped_from_kept_rows(self):
+        """留下來的列要清掉標記藥丸，否則文件上會印出「列條件」四個字。
+
+        而且不清的話，後面那一關會用「只有 object」的環境再判一次——
+        帶 line 的條件在那裡求值失敗就當成真，條件從此靜默失效。
+        """
+        tree = self.Mixin._snapshot_content_json(
+            self._tree('line.phone'), self.partner)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree))
+        self.assertNotIn('列條件', html)
+
+    def test_condition_that_raises_prints_everything(self):
+        """求值丟例外時寧可多印——少印會被當成資料問題，追不到渲染層。
+
+        用 line.sudo()（沙箱會丟 SecurityError）而不是不存在的欄位：
+        Jinja 對不存在的屬性回 Undefined，那在 if 裡就只是 falsy，
+        不是求值失敗——那條路的語意是「條件為假」，列本來就該被刪掉。
+        """
+        tree = self.Mixin._snapshot_content_json(
+            self._tree('line.sudo()'), self.partner)
+        self.assertEqual(len(self._row_texts(tree)), 3)
+
+    def test_unknown_field_is_falsy_not_an_error(self):
+        """不存在的欄位＝條件為假（Jinja 的 Undefined），列會被刪掉。
+
+        釘住這一條是因為它跟上面那則看起來像同一件事，實際語意相反。
+        """
+        tree = self.Mixin._snapshot_content_json(
+            self._tree('line.no_such_field'), self.partner)
+        self.assertEqual(tree['main'], [],
+                         '整張表格沒有列了，連表格一起清掉')
+
+    def test_group_paired_markers_are_left_to_the_later_pass(self):
+        """若／否則的另一半在別的列上，展開階段看不到，不可在這裡判。"""
+        tree = {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 400}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 _pill('若', source='condition', groupId='g1', role='if',
+                       expression='line.phone'),
+                 _pill('名稱', source='line', path='name'),
+             )]}]},
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.partner)
+        # groupId 的那一顆不該被展開階段吃掉：此處三列全留，交給列條件那一關
+        self.assertEqual(len(snapped['main'][0]['trList']), 3)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestListRepeatSource(TransactionCase):
+    """重複來源可以是「回傳 list 的計算欄位」，不只 recordset。
+
+    發票的 payment_term_details（分期明細）就是 list of dict。原本只收
+    recordset，結果整段不印而且沒有任何訊息——最難追的一種壞法。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '清單來源'})
+
+    def test_list_of_dict_source_expands(self):
+        rows = [{'label': '第一期', 'amount': 500.0},
+                {'label': '第二期', 'amount': 300.0}]
+        tree = {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 400}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='fake_terms',
+                       repeatId='rp1'),
+                 _pill('期別', source='line', expression="line.get('label')"),
+             )]}]},
+            _text('\n'),
+        ]}
+        original = type(self.Mixin)._traverse_path
+
+        def _fake(mixin_self, record, path):
+            if path == 'fake_terms':
+                return rows
+            return original(mixin_self, record, path)
+
+        self.patch(type(self.Mixin), '_traverse_path', _fake)
+        snapped = self.Mixin._snapshot_content_json(tree, self.partner)
+        texts = [
+            ''.join((el.get('value') or '') for cell in row['tdList']
+                    for el in cell['value'] if (el.get('value') or '') != '\n')
+            for row in snapped['main'][0]['trList']
+        ]
+        self.assertEqual(texts, ['第一期', '第二期'])
+
+    def test_scalar_source_still_rejected(self):
+        """純量欄位設成重複來源是設定錯誤——Char 欄位逐字展開更難懂。"""
+        lines = self.Mixin._resolve_repeat_records(
+            self.partner, {'source': 'repeat', 'path': 'name'})
+        self.assertEqual(lines, [])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestNestedTableSurvivesCollapse(TransactionCase):
+    """段落收合不可以連帶刪掉同段落裡的表格。
+
+    段落邊界只認 value == '\\n'，而表格元素的 value 是空字串，所以表格會被
+    算進同一段。實測到的後果：發票的分期清單被旁邊求值為空的「提前付款折扣」
+    藥丸連帶整段刪掉——頁面上那一區整塊消失，沒有任何訊息。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '收合測試'})
+
+    def test_table_in_the_same_span_is_kept(self):
+        inner = {'type': 'table', 'value': '', 'colgroup': [{'width': 300}],
+                 'trList': [{'tdList': [_cell(_text('區塊內的字'))]}]}
+        tree = {'header': [], 'footer': [], 'main': [
+            # comment 是空的 → 這顆藥丸求值為空
+            _pill('備註', source='record', path='comment'),
+            inner,
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.partner)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(snapped))
+        self.assertIn('區塊內的字', html)
+
+    def test_plain_empty_paragraph_still_collapses(self):
+        """規則 A 本身不可被上面那個例外削弱。"""
+        tree = {'header': [], 'footer': [], 'main': [
+            _text('客戶統編：'),
+            _pill('統編', source='record', path='vat'),
+            _text('\n'),
+            _text('保留這段'),
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.partner)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(snapped))
+        self.assertNotIn('客戶統編', html)
+        self.assertIn('保留這段', html)
