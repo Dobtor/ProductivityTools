@@ -71,6 +71,37 @@ class KnowledgeHooksGaps(models.AbstractModel):
         return True
 
     @api.model
+    def _manual_sync_path_gaps(self, package, sandbox):
+        """流程路徑覆蓋：說明庫裡沒有單據走到的狀態列步驟 → 示範資料缺口（掛在流程上）。"""
+        Gap = self.env['corpaas.knowledge.gap_item'].sudo()
+        flows = self.env['corpaas.knowledge.flow'].sudo().search([('package_ids', 'in', package.id)])
+        spec = {f.model: f.state_field for f in flows if f.field_type == 'selection'}
+        if not spec:
+            return 0
+        try:
+            counts = sandbox._shell(scripts.state_counts_script(spec))
+        except remote.RemoteError as e:
+            _logger.warning('[knowledge.manual] 流程路徑統計失敗：%s', e)
+            return 0
+        n = 0
+        for f in flows.filtered(lambda f: f.model in counts):
+            have = counts.get(f.model) or {}
+            missing = [s.label or s.value for s in f.step_ids.sorted('sequence')
+                       if s.on_statusbar and not have.get(s.value)]
+            entry = f.feature_ids.filtered(lambda x: x.kind == 'action' and x.model == f.model)[:1]
+            open_gap = Gap.search([('package_id', '=', package.id), ('kind', '=', 'data'),
+                                   ('res_model', '=', f._name), ('res_id', '=', f.id),
+                                   ('state', '!=', 'resolved')], limit=1)
+            if missing:
+                Gap.note(package, 'data', _('流程「%(f)s」沒有走到「%(s)s」的單據',
+                                            f=f.name, s='」「'.join(missing)),
+                         scenario=sandbox.scenario_id, feature=entry or None, record=f)
+                n += 1
+            elif open_gap:
+                open_gap.resolve(_('流程每個狀態都有單據了'))
+        return n
+
+    @api.model
     def _knowledge_scenarios_needing_shots(self, package, events):
         """還有截圖缺口待修的情境也要準備說明庫（迭代的下一輪只拍缺口）。"""
         res = super()._knowledge_scenarios_needing_shots(package, events)
@@ -93,16 +124,17 @@ class KnowledgeHooksGaps(models.AbstractModel):
                            ('kind', '=', 'data')])
         for scenario in gaps.mapped('scenario_id'):
             mine = gaps.filtered(lambda g: g.scenario_id == scenario)
+            notes = [g.evidence for g in mine if g.res_model == 'corpaas.knowledge.flow']
             try:
                 added = scenario._ai_fill_gaps(package, mine.mapped('feature_id'),
-                                               token=ctx.get('token'))
+                                               token=ctx.get('token'), notes=notes)
             except Exception as e:  # noqa: BLE001 — 補不了記一次嘗試，下一輪再試
                 mine.attempted('ai_seed', str(e)[:300])
                 continue
             mine.attempted('ai_seed', _('補了 %s 筆示範資料') % added)
             for g in mine:
                 b = g.record()
-                if b and b.state == 'failed':
+                if b and b._name == 'corpaas.knowledge.shot_binding' and b.state == 'failed':
                     b.write({'state': 'pending', 'needs_repair': False})
         return res
 

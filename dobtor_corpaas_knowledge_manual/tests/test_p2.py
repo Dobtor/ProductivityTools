@@ -230,3 +230,54 @@ class TestIterativeManual(ManualCase):
             self.pkg, self.f1, self.cap_a, self.scenario, {'admin': 'h1'}, b.template_id,
             'tok', {}, {'ai': False})
         self.assertFalse(art, '截圖失敗不起草')
+
+
+@tagged('post_install', '-at_install')
+class TestDiagramOutlets(ManualCase):
+
+    def test_journey_shows_mainline_and_registers_embed(self):
+        from odoo.addons.dobtor_corpaas_knowledge.services import bpmn_lib
+        self.f3.capability_ids = [(5,)]
+        self.cap_b.feature_ids = [(5,)]
+        self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+        model = {'name': '線上報名', 'lanes': [{'id': 'admin', 'name': '管理員'}],
+                 'nodes': [{'id': 'Start_1', 'kind': 'start', 'name': '開始', 'lane': 'admin', 'col': 0},
+                           {'id': 'End_done', 'kind': 'end', 'name': '完成', 'lane': 'admin', 'col': 1}],
+                 'edges': [{'src': 'Start_1', 'dst': 'End_done'}]}
+        diagram = self.env['bpmn.diagram'].sudo().create({
+            'name': '線上報名：主線', 'code': 'kb_cap_test', 'xml': bpmn_lib.to_xml(model, 'kb_t'),
+            'svg': bpmn_lib.to_svg(model), 'knowledge_capability_id': self.cap_a.id,
+            'knowledge_package_id': self.pkg.id, 'knowledge_scope': 'capability'})
+        arts = [self._article(f, self.cap_a, name=n) for f, n in
+                ((self.f1, '甲'), (self.f2, '乙'), (self.f3, '丙'))]
+        self._publish(*arts)
+        section = self._channel().knowledge_section_ids.filtered(
+            lambda s: s.capability_id == self.cap_a)
+        journey = section.journey_slide_id
+        self.assertIn('/web/content/%s' % diagram.knowledge_attachment_id.id, journey.html_content)
+        self.assertTrue(self.env['bpmn.diagram.embed'].search_count([
+            ('diagram_id', '=', diagram.id), ('res_model', '=', 'slide.slide'),
+            ('res_id', '=', journey.id)]), '設計圖上看得到嵌入在哪篇')
+
+    def test_path_gaps(self):
+        from unittest.mock import patch
+        from .test_hooks import FakeSandbox
+        flow = self.env['corpaas.knowledge.flow'].sudo().create({
+            'model': 'res.partner', 'state_field': 'kbp_state', 'field_type': 'selection',
+            'model_name': '報名流程', 'package_ids': [(4, self.pkg.id)],
+            'feature_ids': [(4, self.f1.id)]})
+        for i, v in enumerate(['draft', 'done']):
+            self.env['corpaas.knowledge.flow.step'].sudo().create(
+                {'flow_id': flow.id, 'sequence': i, 'value': v, 'label': v, 'on_statusbar': True})
+        sb = FakeSandbox(self.scenario)
+        with patch.object(type(sb), '_shell', lambda s, script: {'res.partner': {'draft': 3}},
+                          create=True):
+            self.assertEqual(self.hooks._manual_sync_path_gaps(self.pkg, sb), 1)
+        gap = self.env['corpaas.knowledge.gap_item'].search([('res_id', '=', flow.id),
+                                                              ('res_model', '=', flow._name)])
+        self.assertEqual((gap.kind, gap.feature_id), ('data', self.f1))
+        self.assertIn('done', gap.evidence)
+        with patch.object(type(sb), '_shell',
+                          lambda s, script: {'res.partner': {'draft': 3, 'done': 1}}, create=True):
+            self.hooks._manual_sync_path_gaps(self.pkg, sb)
+        self.assertEqual(gap.state, 'resolved')

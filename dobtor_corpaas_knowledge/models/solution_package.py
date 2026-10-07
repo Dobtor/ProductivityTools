@@ -338,6 +338,12 @@ class SolutionPackage(models.Model):
             self._knowledge_ai_catalog(added, token)
             self._knowledge_official_docs(token)
             self._knowledge_flow_names(token)
+        try:
+            # 任務流程 → dobtor_bpmn 設計圖（規則產生、結構雜湊沒變不動）
+            dstats = self._knowledge_sync_diagrams()
+            run.add_stats(**{'diagrams_%s' % k: v for k, v in dstats.items() if v})
+        except Exception as e:  # noqa: BLE001 — 流程圖是輔助產出，失敗不擋更新
+            _logger.warning('[knowledge] %s 流程圖同步失敗：%s', self.display_name, e)
         events = run.events()
         hooks = self.env['corpaas.knowledge.hooks']
         sandboxes = self.env['corpaas.knowledge.sandbox']

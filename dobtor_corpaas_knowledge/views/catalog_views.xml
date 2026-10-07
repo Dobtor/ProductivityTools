@@ -59,6 +59,16 @@
                         </group>
                     </group>
                     <notebook>
+                        <page string="主線圖" name="diagrams">
+                            <field name="diagram_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="knowledge_package_id"/>
+                                    <field name="version"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="價值" name="value">
                             <group>
                                 <field name="pain"/>

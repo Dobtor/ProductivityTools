@@ -260,6 +260,12 @@ class KnowledgeChannelSection(models.Model):
             return slide
         _rank, flows = self._manual_flow_rank(cap, live)
         html = self._manual_journey_html(cap, live, flows)
+        diagram = self._manual_journey_diagram(cap, live)
+        if diagram:
+            url = diagram._knowledge_public_image()
+            if url:
+                html = ('<p><img src="%s" alt="%s" style="max-width:100%%"/></p>' % (
+                    url, html_mod.escape(_('%s 主線流程圖') % cap.name))) + html
         name = _('%s：整體流程') % ((cap._last_published_snapshot() or {}).get('name') or cap.name)
         text_hash = manual_lib.text_signature(name + html)
         vals = {'name': name, 'slide_category': 'article', 'is_preview': True,
@@ -278,7 +284,25 @@ class KnowledgeChannelSection(models.Model):
             if vals:
                 slide.write(vals)
         self.write({'journey_slide_id': slide.id, 'journey_hash': text_hash})
+        if diagram:
+            # dobtor_bpmn 的「嵌入於」：設計圖上看得到它用在哪篇文章
+            Embed = self.env['bpmn.diagram.embed'].sudo()
+            if not Embed.search_count([('diagram_id', '=', diagram.id),
+                                       ('res_model', '=', 'slide.slide'),
+                                       ('res_id', '=', slide.id)]):
+                Embed.create({'diagram_id': diagram.id, 'res_model': 'slide.slide',
+                              'res_id': slide.id})
         return slide
+
+    def _manual_journey_diagram(self, capability, placements):
+        """這個章節（能力×方案）最新版的主線設計圖。"""
+        package = placements.mapped('package_id')[:1]
+        if not package:
+            return self.env['bpmn.diagram']
+        return self.env['bpmn.diagram'].sudo().search([
+            ('knowledge_capability_id', '=', capability.id),
+            ('knowledge_package_id', '=', package.id),
+            ('knowledge_scope', '=', 'capability')], order='version desc, id desc', limit=1)
 
     # ☠️ capability_id 可為 NULL，SQL UNIQUE 擋不住「兩個共通操作」→ 由
     #   _knowledge_section_for 先查再建，不靠約束。

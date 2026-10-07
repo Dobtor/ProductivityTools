@@ -601,7 +601,7 @@ class KnowledgeScenario(models.Model):
                                note=_('AI 起草示範資料'))
         return True
 
-    def _ai_fill_gaps(self, package, features, token=None):
+    def _ai_fill_gaps(self, package, features, token=None, notes=None):
         """示範資料缺口修補器：只針對拍出來空白的畫面補記錄（只新增，說明庫疊加即可）。
 
         回傳新增筆數。新增的記錄 xmlid 不可與既有重複（重複的丟掉）——改既有記錄就得重建說明庫。"""
@@ -622,9 +622,10 @@ class KnowledgeScenario(models.Model):
             "已確認、且交貨數量大於訂購數量的訂單）。做不到的畫面（例如要上傳檔案）就略過，"
             "列在 skipped 並說明原因。\n%s"
             "格式：{\"seed\":[…],\"skipped\":[{\"screen\":…,\"reason\":…}]}\n\n"
-            "空白畫面：%s"
+            "空白畫面：%s%s"
         ) % (self.name, SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
-             json.dumps(screens, ensure_ascii=False))
+             json.dumps(screens, ensure_ascii=False),
+             ('\n\n流程路徑沒有資料（要有單據走到這些狀態）：%s' % '；'.join(notes)) if notes else '')
 
         def check(data):
             seed = (data or {}).get('seed')

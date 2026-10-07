@@ -32,6 +32,7 @@
                             invisible="state != 'draft'"/>
                     <button name="action_compute_estimate" string="計算估算" type="object"
                             invisible="state != 'draft'"/>
+                    <button name="action_create_blueprints" string="產生客戶藍圖" type="object"/>
                     <button name="action_render_html" string="產生建議書" type="object"
                             invisible="state != 'draft'"/>
                     <button name="action_create_sale_order" string="建立報價單" type="object"
@@ -52,6 +53,10 @@
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
+                        <button name="action_open_blueprints" type="object" class="oe_stat_button"
+                                icon="fa-sitemap" invisible="not blueprint_count">
+                            <field name="blueprint_count" widget="statinfo" string="客戶藍圖"/>
+                        </button>
                         <button name="action_open_sale_order" type="object" class="oe_stat_button"
                                 icon="fa-dollar" invisible="not sale_order_id">
                             <div class="o_stat_info"><span class="o_stat_text">報價單</span></div>

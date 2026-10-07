@@ -343,6 +343,10 @@ class KnowledgeHooks(models.AbstractModel):
             lambda b: b.state != 'ok'))
         self._manual_record_failures(sandbox.scenario_id, relevant, stats)
         self._manual_repair_bindings(package, failed, token, stop)
+        try:
+            stats['gaps_path'] = self._manual_sync_path_gaps(package, sandbox)
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge.manual] 流程路徑缺口失敗：%s', e)
         self._manual_commit()
         return res
 

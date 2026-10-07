@@ -8,7 +8,7 @@
 from odoo import _, api, fields, models
 
 GAP_KINDS = [('data', '示範資料缺口'), ('access', '權限不足'), ('locator', '腳本定位'),
-             ('text', '文字檢查'), ('publish', '前台發佈')]
+             ('text', '文字檢查'), ('publish', '前台發佈'), ('diagram', '流程圖')]
 GAP_STATES = [('open', '待修'), ('resolved', '已解'), ('human', '轉人工')]
 #: 同一個缺口自動修補的次數上限；超過轉人工
 MAX_GAP_ATTEMPTS = 3

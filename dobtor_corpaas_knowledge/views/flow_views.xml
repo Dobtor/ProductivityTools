@@ -43,6 +43,16 @@
                     </group>
                     <field name="summary" placeholder="業務摘要（AI 起草、核准後生效）"/>
                     <notebook>
+                        <page string="流程圖" name="diagrams">
+                            <field name="diagram_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="version"/>
+                                    <field name="state"/>
+                                    <field name="write_date"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="步驟" name="steps">
                             <field name="step_ids">
                                 <list create="0" delete="0">

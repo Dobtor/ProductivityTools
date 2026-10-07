@@ -583,6 +583,28 @@ def screen_access_script(actions, roles):
     ) % (json.dumps(actions), json.dumps(roles))
 
 
+def state_counts_script(fields_by_model):
+    """流程路徑覆蓋：各模型每個狀態值有幾筆（唯讀）。{model: state_field} → {model: {值: 筆數}}。"""
+    return _HEAD + (
+        "SPEC = json.loads(%r)\n"
+        "out = {}\n"
+        "for model, field in SPEC.items():\n"
+        "    if model not in env or field not in env[model]._fields:\n"
+        "        continue\n"
+        "    f = env[model]._fields[field]\n"
+        "    rows = env[model].sudo().with_context(active_test=False).read_group([], [field], [field])\n"
+        "    res = {}\n"
+        "    for r in rows:\n"
+        "        v = r.get(field)\n"
+        "        if isinstance(v, (list, tuple)):\n"
+        "            v = v[1] if len(v) > 1 else v[0]\n"
+        "        res[str(v)] = r.get('%%s_count' %% field) or r.get('__count') or 0\n"
+        "    out[model] = res\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n"
+    ) % (json.dumps(fields_by_model),)
+
+
 def data_probe_script(items):
     """送審前重播檢查（A3）：各選單動作打開後有幾筆資料（唯讀）。
 

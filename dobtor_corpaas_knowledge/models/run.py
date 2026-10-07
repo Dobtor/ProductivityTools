@@ -72,7 +72,10 @@ class KnowledgeRun(models.Model):
                   'shots_failed_locator': _('失敗：定位'),
                   'public_ok': _('前台抽查通過'), 'public_failed': _('前台抽查失敗'),
                   'gaps_open': _('待修缺口'), 'gaps_fixed_shot': _('修補截圖缺口'),
-                  'iterate_stopped': _('已達每日輪數上限')}
+                  'iterate_stopped': _('已達每日輪數上限'),
+                  'diagrams_created': _('新增流程圖'), 'diagrams_updated': _('更新流程圖'),
+                  'diagrams_versioned': _('流程圖另開新版'), 'diagrams_failed': _('流程圖沒過檢查'),
+                  'diagrams_same': _('流程圖未變')}
         for rec in self:
             stats = rec.stats()
             rec.summary = '、'.join('%s %s' % (labels.get(k, k), v) for k, v in stats.items())
