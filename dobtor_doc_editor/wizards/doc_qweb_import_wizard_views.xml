@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_doc_qweb_import_wizard_form" model="ir.ui.view">
+        <field name="name">doc.qweb.import.wizard.form</field>
+        <field name="model">doc.qweb.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="從原生報表匯入">
+                <div class="alert alert-info" role="alert"
+                     invisible="state == 'done'">
+                    <i class="fa fa-info-circle me-1"/>
+                    轉換<b>只處理版面與結構</b>，沒把握的地方會列成待辦。
+                    <br/>
+                    原生報表不會被修改，轉出來的是一張新範本。
+                </div>
+                <group invisible="state == 'done'">
+                    <group>
+                        <field name="report_id"
+                               options="{'no_create': True}"/>
+                        <field name="report_model" readonly="1"
+                               invisible="not report_id"/>
+                        <field name="template_name"
+                               placeholder="留空＝用報表名稱"/>
+                    </group>
+                    <group>
+                        <field name="page_format"/>
+                        <field name="create_binding"/>
+                    </group>
+                </group>
+
+                <div invisible="state != 'done'">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        <b>請先印一張比對原生輸出再上線。</b>
+                        轉換器會把沒把握的地方標成橘色藥丸（待確認），
+                        但版面細節仍可能有差異。
+                    </div>
+                    <group>
+                        <field name="template_id" readonly="1"/>
+                    </group>
+                    <field name="notes" readonly="1" widget="text"
+                           nolabel="1"/>
+                </div>
+
+                <footer>
+                    <button name="action_convert" type="object"
+                            string="開始轉換" class="btn-primary"
+                            invisible="state == 'done'"/>
+                    <button name="action_open_template" type="object"
+                            string="開啟編輯器" class="btn-primary"
+                            invisible="state != 'done'"/>
+                    <button special="cancel" string="關閉"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_doc_qweb_import_wizard" model="ir.actions.act_window">
+        <field name="name">從原生報表匯入</field>
+        <field name="res_model">doc.qweb.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

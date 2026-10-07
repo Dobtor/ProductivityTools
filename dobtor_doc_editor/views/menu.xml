@@ -37,6 +37,13 @@
               sequence="23"
               groups="dobtor_doc_editor.group_doc_manager"/>
 
+    <menuitem id="menu_doc_qweb_import"
+              name="從原生報表匯入"
+              parent="menu_dobtor_doc_root"
+              action="action_doc_qweb_import_wizard"
+              sequence="24"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
     <!-- ─── 報表：輸出定義（僅管理者）─── -->
     <menuitem id="menu_doc_reports"
               name="報表輸出定義"

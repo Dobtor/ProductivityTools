@@ -11,3 +11,4 @@ from . import doc_output
 from . import doc_linked_mixin
 from . import doc_telemetry
 from . import report_overrides
+from . import doc_qweb_converter

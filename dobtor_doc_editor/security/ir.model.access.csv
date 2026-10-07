@@ -33,3 +33,4 @@ access_doc_report_manager,doc.report manager,model_doc_report,dobtor_doc_editor.
 access_doc_output_editor,doc.output editor,model_doc_output,dobtor_doc_editor.group_doc_editor,1,0,0,0
 access_doc_output_manager,doc.output manager,model_doc_output,dobtor_doc_editor.group_doc_manager,1,0,0,1
 access_doc_output_portal,doc.output portal,model_doc_output,dobtor_doc_editor.group_doc_portal,1,0,0,0
+access_doc_qweb_import_manager,doc.qweb.import.wizard.manager,model_doc_qweb_import_wizard,dobtor_doc_editor.group_doc_manager,1,1,1,1
