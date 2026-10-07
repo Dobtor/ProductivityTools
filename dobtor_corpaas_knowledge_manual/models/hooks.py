@@ -1253,12 +1253,16 @@ class KnowledgeHooks(models.AbstractModel):
         out = []
         for t in Trans.search([('button_feature_id', '=', feature.id)], order='id'):
             f = t.flow_id
-            item = {'流程': f.name, '按鈕': t.button_label or t.button_name or ''}
+            label = t.display_label()
+            handoff = bool(t.opens_flow_id) and t.is_handoff()
+            if not label or not (t.to_value or handoff):
+                continue   # 查看上游關聯單據的智慧按鈕不是流程上的一步
+            item = {'流程': f.name, '按鈕': label}
             if t.from_value:
                 item['按之前的狀態'] = f.step_label(t.from_value)
             if t.to_value:
                 item['按之後的狀態'] = f.step_label(t.to_value)
-            if t.opens_flow_id:
+            if handoff:
                 item['會開出'] = t.opens_flow_id.name
             if item not in out:
                 out.append(item)
@@ -1268,7 +1272,8 @@ class KnowledgeHooks(models.AbstractModel):
                 if len(steps) < 2:
                     continue
                 item = {'流程': f.name, '狀態順序': ' → '.join(steps)}
-                nxt = sorted({t.opens_flow_id.name for t in f.transition_ids if t.opens_flow_id})
+                nxt = sorted({t.opens_flow_id.name for t in f.transition_ids
+                              if t.opens_flow_id and t.is_handoff()})
                 if nxt:
                     item['後續單據'] = nxt
                 out.append(item)

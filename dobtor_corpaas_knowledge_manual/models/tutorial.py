@@ -172,7 +172,7 @@ class KnowledgeHooks(models.AbstractModel):
                 if role not in logins:
                     role = default_role
                 steps.append({'from': fr, 'to': to, 'button': t.button_name,
-                              'label': t.button_label or t.button_name, 'role': role})
+                              'label': t.display_label() or t.button_name, 'role': role})
             sig = hashlib.sha1(json.dumps(
                 [flow.structure_hash, rec['xmlid'], steps, scenario.seed_revisions(),
                  shooter.runner_signature()], sort_keys=True, default=str).encode()).hexdigest()[:16]

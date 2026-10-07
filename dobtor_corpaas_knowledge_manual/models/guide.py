@@ -54,6 +54,19 @@ class SolutionPackage(models.Model):
         self.ensure_one()
         return self.env['corpaas.knowledge.hooks'].sudo()._manual_redraft_review(self)
 
+    def action_manual_redraft_handoff(self):
+        """只重寫提到錯誤交接（查看上游單據的智慧按鈕、只有編號的按鈕名稱）的待審說明。"""
+        self.ensure_one()
+        if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
+            raise AccessError(_('只有知識管理者可以重寫待審說明。'))
+        return self.env['corpaas.knowledge.ai'].enqueue(
+            self, '_manual_redraft_handoff_run', self, note=_('重寫提到錯誤交接的待審說明'))
+
+    def _manual_redraft_handoff_run(self):
+        self.ensure_one()
+        hooks = self.env['corpaas.knowledge.hooks'].sudo()
+        return hooks._manual_redraft_review(self, features=hooks._manual_wrong_handoff_features(self))
+
     def _manual_guide_data(self, field):
         self.ensure_one()
         try:
@@ -159,12 +172,12 @@ class KnowledgeChannelSection(models.Model):
             for s in steps:
                 nxt, roles = [], []
                 for t in flow.transition_ids.sorted('id'):
-                    if (t.from_value or '') not in (s.value, '') or not (t.button_label or t.button_name):
+                    label = t.display_label()
+                    if (t.from_value or '') not in (s.value, '') or not label:
                         continue
-                    label = t.button_label or t.button_name
                     if t.to_value and t.to_value != s.value:
                         line = _('按「%(b)s」→ %(to)s', b=label, to=flow.step_label(t.to_value))
-                    elif t.opens_flow_id:
+                    elif t.opens_flow_id and t.is_handoff():
                         line = _('按「%(b)s」開出「%(f)s」', b=label, f=t.opens_flow_id.name)
                     else:
                         continue
@@ -309,7 +322,7 @@ class KnowledgeHooks(models.AbstractModel):
                 if not t.button_name or key in seen:
                     continue
                 seen.add(key)
-                buttons.append({'name': t.button_name, 'label': t.button_label or '',
+                buttons.append({'name': t.button_name, 'label': t.display_label(),
                                 'from': t.from_value or ''})
             if buttons:
                 spec.append({'flow': f.id, 'model': f.model, 'field': f.state_field,
@@ -394,7 +407,26 @@ class KnowledgeHooks(models.AbstractModel):
         return True
 
     @api.model
-    def _manual_redraft_review(self, package, token=None):
+    def _manual_wrong_handoff_features(self, package):
+        """待審文字提到「不是交接的交接」或只有編號的按鈕名稱的功能。"""
+        import re
+        Article = self.env['corpaas.knowledge.article'].sudo()
+        flows = self.env['corpaas.knowledge.flow'].sudo().search([('package_ids', 'in', package.id)])
+        wrong = {}   # model → 誤當成下一步的流程名稱
+        for t in flows.mapped('transition_ids'):
+            if t.opens_flow_id and not t.is_handoff():
+                wrong.setdefault(t.flow_id.model, set()).add(t.opens_flow_id.name)
+        out = self.env['corpaas.knowledge.feature']
+        for art in Article.search([('state', '=', 'review'),
+                                   ('scenario_id', 'in', package.knowledge_scenario_ids.ids)]):
+            text = ' '.join([art.scenario_html or ''] + [b.html or '' for b in art.step_block_ids])
+            names = wrong.get(art.feature_id.model) or set()
+            if any(n and n in text for n in names) or re.search(r'「\d+」', text):
+                out |= art.feature_id
+        return out
+
+    @api.model
+    def _manual_redraft_review(self, package, token=None, features=None):
         """待審（還沒上線過）的步驟區塊與文章，用目前的提示重寫一次，再送審。
 
         先平行預取步驟區塊，寫回後再平行預取情境說明（情境說明要帶入新的步驟）。
@@ -405,6 +437,8 @@ class KnowledgeHooks(models.AbstractModel):
         arts = Article.search([('state', '=', 'review'),
                                ('scenario_id', 'in', package.knowledge_scenario_ids.ids),
                                ('feature_id', 'in', [f.id for f in cands])])
+        if features is not None:
+            arts = arts.filtered(lambda a: a.feature_id in features)
         workers = int(self.env['ir.config_parameter'].sudo().get_param(
             'corpaas_knowledge.draft_parallel', 3) or 3)
         blocks = {}

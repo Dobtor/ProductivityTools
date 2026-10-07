@@ -11,6 +11,11 @@ import json
 from odoo import api, fields, models
 
 EVIDENCE_HELP = '靜態：原始碼分析；租戶：租戶庫實際發生的狀態變更；截圖：說明庫操作時觀察到'
+#: 單據的上下游先後：按鈕打開「比自己上游」的單據是查看關聯（採購單上的「銷售訂單」智慧按鈕），
+#: 不是交接。不在清單裡的模型不判斷（照舊算交接）。
+HANDOFF_ORDER = ['crm.lead', 'sale.order', 'purchase.requisition', 'purchase.order',
+                 'mrp.production', 'stock.picking', 'stock.move', 'stock.move.line',
+                 'account.move', 'account.payment']
 
 
 class KnowledgeFlow(models.Model):
@@ -159,6 +164,26 @@ class KnowledgeFlowTransition(models.Model):
     def _package_usage(self, package):
         self.ensure_one()
         return json.loads(self.usage_json or '{}').get(str(package.id), 0)
+
+    def is_handoff(self, target_model=None):
+        """這顆按鈕是不是把工作交給下游單據（而不是回頭查看上游的關聯單據）。"""
+        self.ensure_one()
+        src = self.flow_id.model
+        dst = target_model or self.opens_model or (self.opens_flow_id.model if self.opens_flow_id
+                                                   else False)
+        if not dst or dst == src:
+            return False
+        if src in HANDOFF_ORDER and dst in HANDOFF_ORDER:
+            return HANDOFF_ORDER.index(dst) > HANDOFF_ORDER.index(src)
+        return True
+
+    def display_label(self):
+        """給讀者看的按鈕名稱：沒有字面名稱（只剩動作編號）時用按鈕功能點的名稱。"""
+        self.ensure_one()
+        label = (self.button_label or '').strip()
+        if label and not label.isdigit():
+            return label
+        return self.button_feature_id.name or ''
 
     def _set_package_usage(self, package, value):
         """只改本方案的次數；租戶證據＝任一方案有次數。"""

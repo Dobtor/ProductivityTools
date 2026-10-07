@@ -123,7 +123,7 @@ class KnowledgeFlowDiagram(models.Model):
         for t in self.transition_ids:
             model = t.opens_model or (t.opens_flow_id.model if t.opens_flow_id else False) \
                 or BUTTON_MODEL.get(t.button_name or '')
-            if model and model != self.model and model in MODEL_ROLE:
+            if model and model != self.model and model in MODEL_ROLE and t.is_handoff(model):
                 out.append((t, model))
         return out
 
@@ -145,7 +145,7 @@ class KnowledgeFlowDiagram(models.Model):
             if i > 1:
                 t = self.transition_ids.filtered(
                     lambda t, a=main[i - 2].value, b=s.value: t.from_value == a and t.to_value == b)[:1]
-                label = t.button_label or ''
+                label = t.display_label() if t else ''
             edges.append({'src': prev, 'dst': nid, 'name': label})
             prev = nid
         end_col = len(main) + 1
@@ -210,7 +210,7 @@ class KnowledgeCapabilityDiagram(models.Model):
             nid = 'Sub_%s' % k
             nodes.append({'id': nid, 'kind': 'subprocess', 'lane': role, 'col': col,
                           'name': target.name or self.env['ir.model']._get(model).name or model})
-            edges.append({'src': last, 'dst': nid, 'name': (t.button_label or '') if t else ''})
+            edges.append({'src': last, 'dst': nid, 'name': t.display_label() if t else ''})
             last = nid
         col += 1
         end_lane = next(n['lane'] for n in nodes if n['id'] == last)

@@ -306,3 +306,28 @@ class TestTutorial(ManualCase):
         art_seqs = self.env['corpaas.knowledge.placement'].search(
             [('channel_id', '=', self._channel().id)]).mapped('slide_id.sequence')
         self.assertLess(slide.sequence, min(art_seqs), '教學排在參考篇之前')
+
+
+@tagged('post_install', '-at_install')
+class TestHandoff(ManualCase):
+
+    def test_upstream_view_button_is_not_handoff(self):
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        po = Flow.create({'model': 'purchase.order', 'model_name': '採購單', 'state_field': 'state',
+                          'field_type': 'selection', 'package_ids': [(4, self.pkg.id)]})
+        so = Flow.create({'model': 'sale.order', 'model_name': '銷售單', 'state_field': 'state',
+                          'field_type': 'selection', 'package_ids': [(4, self.pkg.id)]})
+        T = self.env['corpaas.knowledge.flow.transition'].sudo()
+        back = T.create({'flow_id': po.id, 'button_name': 'action_view_sale_orders',
+                         'button_label': '銷售', 'opens_flow_id': so.id})
+        fwd = T.create({'flow_id': so.id, 'button_name': 'action_view_purchase_orders',
+                        'button_label': '494', 'opens_flow_id': po.id,
+                        'button_feature_id': self.f3.id})
+        self.assertFalse(back.is_handoff(), '採購單回頭看銷售單是查看關聯')
+        self.assertTrue(fwd.is_handoff())
+        self.assertEqual(fwd.display_label(), self.f3.name, '只有編號的按鈕名稱改用功能點名稱')
+        self.f2.write({'model': 'purchase.order'})
+        back.button_feature_id = self.f2.id
+        self.assertFalse(self.hooks._manual_flow_context(self.f2), '查看上游的按鈕不寫成流程上的一步')
+        self.f1.write({'model': 'purchase.order'})
+        self.assertNotIn('後續單據', str(self.hooks._manual_flow_context(self.f1)))
