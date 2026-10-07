@@ -1244,10 +1244,87 @@ class KnowledgeHooks(models.AbstractModel):
         return block
 
     @api.model
+    def _manual_flow_context(self, feature):
+        """這個畫面在任務流程中的位置（給 AI 寫「完成後會看到」、給文章頂端的流程位置）。
+
+        按鈕：按之前／之後的狀態、會開出的單據；入口畫面：那張單據的狀態順序與後續單據。"""
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        Trans = self.env['corpaas.knowledge.flow.transition'].sudo()
+        out = []
+        for t in Trans.search([('button_feature_id', '=', feature.id)], order='id'):
+            f = t.flow_id
+            item = {'流程': f.name, '按鈕': t.button_label or t.button_name or ''}
+            if t.from_value:
+                item['按之前的狀態'] = f.step_label(t.from_value)
+            if t.to_value:
+                item['按之後的狀態'] = f.step_label(t.to_value)
+            if t.opens_flow_id:
+                item['會開出'] = t.opens_flow_id.name
+            if item not in out:
+                out.append(item)
+        if feature.model and feature.kind in ('action', 'menu', 'client'):
+            for f in Flow.search([('model', '=', feature.model)], order='id'):
+                steps = [s.label or s.value for s in f.step_ids.sorted('sequence') if s.on_statusbar]
+                if len(steps) < 2:
+                    continue
+                item = {'流程': f.name, '狀態順序': ' → '.join(steps)}
+                nxt = sorted({t.opens_flow_id.name for t in f.transition_ids if t.opens_flow_id})
+                if nxt:
+                    item['後續單據'] = nxt
+                out.append(item)
+        return out[:6]
+
+    @api.model
+    def _manual_demo_examples(self, scenario, feature, limit=8):
+        """截圖用到的示範單據（含明細）：給情境說明舉實際的名稱與數字。
+
+        參照（__ref__）換成被參照記錄的名稱；只留字串與數字。"""
+        Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
+        bs = Binding.search([('feature_id', '=', feature.id), ('scenario_id', '=', scenario.id)],
+                            order='id desc')
+        b = bs.filtered(lambda x: x.state == 'ok')[:1] or bs[:1]
+        xids = [x for x in (b.bindings().values() if b else []) if isinstance(x, str)]
+        if not xids:
+            return []
+        try:
+            seed = [r for r in self._manual_seed(scenario) if not r.get('call')]
+        except Exception:  # noqa: BLE001 — 示範資料還沒核准：不舉例
+            return []
+        by = {r['xmlid']: r for r in seed}
+
+        def name_of(ref):
+            rec = by.get(ref)
+            return ((rec.get('values') or {}).get('name') if rec else None) or ref.split('.')[-1]
+
+        def plain(vals):
+            out = {}
+            for k, v in (vals or {}).items():
+                if isinstance(v, str) and v.startswith('__ref__:'):
+                    out[k] = name_of(v[len('__ref__:'):])
+                elif isinstance(v, (str, int, float)) and not isinstance(v, bool):
+                    out[k] = v
+            return out
+
+        out = []
+        for x in xids:
+            rec = by.get(x) or next((r for k, r in by.items()
+                                     if k.split('.')[-1] == x.split('.')[-1]), None)
+            if not rec:
+                continue
+            ref = '__ref__:%s' % rec['xmlid']
+            lines = [plain(r.get('values')) for r in seed
+                     if ref in (r.get('values') or {}).values()][:limit]
+            item = {'model': rec['model'], 'values': plain(rec.get('values'))}
+            if lines:
+                item['lines'] = lines
+            out.append(item)
+        return out[:4]
+
+    @api.model
     def _manual_step_prompt(self, package, feature, tmpl):
         return prompts.step_block_prompt(
             self._manual_feature_dict(feature, package), tmpl.steps(), tmpl.shot_names(),
-            tmpl.elements_list())
+            tmpl.elements_list(), flow_ctx=self._manual_flow_context(feature))
 
     @api.model
     def _manual_scenario_prompt(self, package, scenario, feature, capability, blocks):
@@ -1262,7 +1339,7 @@ class KnowledgeHooks(models.AbstractModel):
             scenario.glossary_map(), fdict,
             {'name': capability.name, 'pain': capability.pain,
              'outcome': capability.outcome} if capability else {},
-            steps_html)
+            steps_html, demo=self._manual_demo_examples(scenario, feature))
 
     @api.model
     def _manual_prefetch_drafts(self, package, token, stop):

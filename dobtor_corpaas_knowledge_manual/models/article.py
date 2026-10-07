@@ -337,8 +337,35 @@ class KnowledgeArticle(models.Model):
             att = asset._manual_image_attachment()
         if not att:
             return ''
+        # ★ 替代文字描述畫面與紅框（看不到圖、或圖載不出來時讀者仍知道要看哪裡）
+        alt = _('%s 的畫面') % (self.name or asset.name or '')
+        try:
+            if json.loads(asset.regions_json or '[]'):
+                alt += _('，紅框編號標示要看或要按的位置')
+        except ValueError:
+            pass
         return ('<p><img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
-                'loading="lazy"/></p>' % (att.id, html_mod.escape(asset.name or '')))
+                'loading="lazy"/></p>' % (att.id, html_mod.escape(alt)))
+
+    def _manual_flow_position_html(self):
+        """文章頂端的「流程位置」：規則產生（流程結構），不經 AI。"""
+        self.ensure_one()
+        esc = html_mod.escape
+        lines = []
+        for c in self.env['corpaas.knowledge.hooks']._manual_flow_context(self.feature_id)[:2]:
+            if c.get('按鈕') and c.get('按之後的狀態'):
+                lines.append(_('%(f)s：%(a)s →（按「%(b)s」）→ %(t)s', f=c['流程'],
+                               a=c.get('按之前的狀態') or _('任何狀態'), b=c['按鈕'],
+                               t=c['按之後的狀態']))
+            elif c.get('按鈕') and c.get('會開出'):
+                lines.append(_('%(f)s：按「%(b)s」開出「%(o)s」', f=c['流程'], b=c['按鈕'],
+                               o=c['會開出']))
+            elif c.get('狀態順序'):
+                lines.append('%s：%s' % (c['流程'], c['狀態順序']))
+        if not lines:
+            return ''
+        return '<p class="text-muted small">%s%s</p>' % (
+            esc(_('流程位置｜')), esc('；'.join(lines)))
 
     def _display_assets(self):
         """要顯示的圖：指紋相符的現行素材（B2）。
@@ -362,6 +389,9 @@ class KnowledgeArticle(models.Model):
         elif live is None:
             live = self._manual_live_text()
         parts = []
+        position = self._manual_flow_position_html()
+        if position:
+            parts.append(position)
         intro = manual_lib.clean_html(live['scenario_html'] or '').strip()
         if intro:
             parts.append('<div class="s_alert alert alert-info">%s</div>' % intro)

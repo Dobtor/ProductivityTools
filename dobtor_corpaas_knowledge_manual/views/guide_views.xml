@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_solution_package_form_manual_guide" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.manual.guide</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_solution_package_form_knowledge"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_knowledge_fix_gaps']" position="after">
+                <button name="action_manual_redraft_review" string="待審說明依新寫法重寫" type="object"
+                        invisible="knowledge_blocker"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_manager"
+                        confirm="待審的文章與步驟區塊會用新的寫法（開始前要先有、完成後會看到、示範資料的實際數字）重寫一次，要繼續嗎？"/>
+            </xpath>
+            <xpath expr="//field[@name='knowledge_gap_human']" position="after">
+                <field name="manual_guide_at"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_kb_flow_form_manual_meaning" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.flow.form.manual.meaning</field>
+        <field name="model">corpaas.knowledge.flow</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_kb_flow_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='step_ids']/list/field[@name='label']" position="after">
+                <field name="meaning"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

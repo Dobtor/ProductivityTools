@@ -114,22 +114,37 @@ WRITING_RULES = (
     "不要寫技術欄位名（例如 partner_id）；不要留 TODO、XXX 之類的佔位字。\n")
 
 
-def step_block_prompt(feature, steps, shots, elements):
-    """步驟區塊：只寫操作步驟，跨情境、跨方案共用。"""
+def _flow_note(flow_ctx):
+    if not flow_ctx:
+        return ''
+    return "這個畫面在任務流程中的位置（系統實際的狀態與按鈕）：%s\n\n" % _j(flow_ctx)
+
+
+def step_block_prompt(feature, steps, shots, elements, flow_ctx=None):
+    """步驟區塊：只寫操作步驟，跨情境、跨方案共用。
+
+    ★ 參考說明書的寫法：第一步前講「開始前要先有」，最後一步後講「完成後會看到」——
+      讀者照做完才知道自己做對了沒有。"""
     return (
         "任務：為功能「%(name)s」寫「操作步驟」。這段文字會被多個情境、多個方案共用，所以：\n"
         "1. 只寫怎麼操作（去哪裡、按什麼、填什麼、會看到什麼），不寫業務背景、不寫情境用語。\n"
         "2. 依截圖腳本的順序分成數個步驟；每步一個短標題＋說明。\n"
         "3. 截圖上的紅框編號在說明裡以「（圖中 1）」這樣引用。\n"
         "4. 在適當的步驟說明裡放截圖標記 [[shot:<截圖名稱>]]（單獨一段），每張圖只放一次。\n"
-        "5. %(allowed)s\n" + WRITING_RULES + "%(delta)s\n"
+        "5. %(allowed)s\n"
+        "6. 第一個步驟的說明開頭，用一句「開始前要先有：…」寫出這個操作需要先存在的資料或先完成的"
+        "前一步（依截圖腳本打開的記錄、要填的欄位、流程位置判斷）；不需要就省略，不要編造。\n"
+        "7. 最後加一個標題為「完成後會看到」的步驟：說明畫面或狀態怎麼變、會產生哪張後續單據、"
+        "去哪裡確認結果（依下面的流程位置；沒有流程資訊就寫畫面上會出現的變化）。這一步不放截圖。\n"
+        + WRITING_RULES + "%(delta)s\n"
         "回覆格式：{\"title\":\"<區塊標題>\",\"steps\":[{\"title\":\"…\",\"html\":\"…\"}]}\n\n"
+        "%(flow)s"
         "功能鍵：%(key)s；選單路徑：%(menu)s\n\n截圖名稱：%(shots)s\n\n"
         "標註元素：%(elements)s\n\n截圖腳本：%(steps)s"
     ) % {
         'name': feature.get('name'), 'key': feature.get('key'),
         'menu': feature.get('menu_path') or '', 'allowed': ALLOWED_HTML,
-        'delta': _delta_note(feature),
+        'delta': _delta_note(feature), 'flow': _flow_note(flow_ctx),
         'shots': _j(shots), 'elements': _j(elements), 'steps': _j(steps),
     }
 
@@ -177,7 +192,7 @@ def _class_note(feature):
     return '\n'.join(lines) + '\n'
 
 
-def scenario_prompt(scenario, glossary, feature, capability, step_html):
+def scenario_prompt(scenario, glossary, feature, capability, step_html, demo=None):
     """情境區塊：在這個情境下為什麼這樣做；帶入既有步驟區塊，禁止重寫步驟。"""
     return (
         "任務：為情境「%(sc)s」寫一段「情境說明」，放在功能「%(name)s」的操作步驟前面。\n"
@@ -186,14 +201,18 @@ def scenario_prompt(scenario, glossary, feature, capability, step_html):
         "不要加「（系統原文 X）」之類的旁註。\n" + WRITING_RULES +
         "3. ★ 不得另寫一套完整操作步驟——操作步驟已經在下面，會原樣放在你的說明後面。"
         "最多用一兩句話提示「照下方步驟操作」。\n"
-        "4. 100–250 字。%(allowed)s\n%(cls)s\n"
+        "4. 100–250 字。%(allowed)s\n"
+        "5. 舉例時用下面「截圖裡的示範資料」的實際名稱與數字（客戶、商品、數量、金額），"
+        "讓讀者能對照截圖；示範資料沒有的數字不要編。沒有示範資料就不舉數字。\n%(cls)s\n"
         "★ 標題寫使用者要完成的事（例如「建立報價單並轉成訂單」），不要加分類標籤"
         "（如【標準功能】【標準進階】），也不要放情境名稱。\n"
         "回覆格式：{\"title\":\"<文章標題，用情境用語>\",\"html\":\"…\"}\n\n"
         "情境敘事：%(narrative)s\n\n用語對照：%(glossary)s\n\n"
         "所屬能力：%(cap)s（痛點：%(pain)s；成果：%(outcome)s）\n\n"
+        "截圖裡的示範資料：%(demo)s\n\n"
         "既有操作步驟（不要重寫）：%(steps)s"
     ) % {
+        'demo': _j(demo or [])[:4000],
         'sc': scenario.get('name'), 'name': feature.get('name'), 'allowed': ALLOWED_HTML,
         'cls': _class_note(feature),
         'narrative': (scenario.get('narrative') or '')[:3000], 'glossary': _j(glossary),

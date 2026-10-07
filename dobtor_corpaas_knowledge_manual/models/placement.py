@@ -452,7 +452,7 @@ class SlideChannel(models.Model):
     def _knowledge_section_for(self, capability):
         self.ensure_one()
         Section = self.env['corpaas.knowledge.channel_section'].sudo()
-        section = Section.search([('channel_id', '=', self.id),
+        section = Section.search([('channel_id', '=', self.id), ('kind', '=', 'chapter'),
                                   ('capability_id', '=', capability.id or False)], limit=1)
         name = capability.name or COMMON_SECTION
         publisher = self._knowledge_publisher()
@@ -478,14 +478,18 @@ class SlideChannel(models.Model):
         """
         caps = sorted([c for c in groups if c], key=lambda c: (c.sequence, c.name or '', c.id))
         order = caps + [c for c in groups if not c]
-        biggest = max([len(p) for p in groups.values()] or [0]) + 1   # ＋1：旅程篇
+        # ＋4：旅程篇、情境教學、狀態速查、訊息與狀況對照
+        biggest = max([len(p) for p in groups.values()] or [0]) + 4
         step = 100 * (1 + biggest // 100)
         return [(cap, (i + 1) * step) for i, cap in enumerate(order)], step
 
     def _knowledge_renumber(self):
         Cap = self.env['corpaas.knowledge.capability']
+        Flow = self.env['corpaas.knowledge.flow']
         for channel in self.sudo():
             publisher = channel._knowledge_publisher()
+            package = channel._manual_package()
+            chapters, any_shown = [], False
             Slide = publisher.env['slide.slide']
             groups = {}
             for pl in channel.knowledge_placement_ids:
@@ -503,7 +507,7 @@ class SlideChannel(models.Model):
                 if sec_slide.is_published != shown:
                     sec_slide.is_published = shown
                 # ★ 章內依任務流程排（D1）：先進畫面、再按鈕與精靈、最後報表；不在流程上的照舊
-                rank = section._manual_flow_rank(cap, groups[cap])[0] if cap else {}
+                rank, flows = section._manual_flow_rank(cap, groups[cap]) if cap else ({}, Flow)
                 ordered = groups[cap].sorted(lambda p: (
                     rank.get(p.article_id.feature_id.id, 10 ** 6), p.sequence,
                     p.article_id.name or '', p.id)).filtered('slide_id')
@@ -512,19 +516,52 @@ class SlideChannel(models.Model):
                 if journey:
                     wanted[journey.id] = base + 1
                     start = 2
+                # 情境教學：整體流程之後、參考篇之前（同一張單據一路做完）
+                tutorial = section._manual_sync_tutorial(flows, package, groups[cap], publisher,
+                                                         shown) if cap else None
+                if tutorial:
+                    wanted[tutorial.id] = base + start
+                    start += 1
                 for j, pl in enumerate(ordered, start=start):
                     wanted[pl.slide_id.id] = base + j
+                # 章末：狀態速查、訊息與狀況對照（規則產生）
+                after = start + len(ordered)
+                for k, gslide in enumerate(section._manual_sync_chapter_guides(
+                        flows, package, publisher, shown)):
+                    wanted[gslide.id] = base + after + k
+                if shown:
+                    any_shown = True
+                    live_pls = groups[cap].filtered(lambda p: p._manual_is_live())
+                    first = journey if journey and journey.is_published else \
+                        ordered.filtered(lambda p: p._manual_is_live())[:1].slide_id
+                    chapters.append((section, first, live_pls))
+            # 開始之前：本說明怎麼用、開始前必設定（排在所有章節前面）
+            if package:
+                front = channel._manual_front_section()
+                live |= front
+                wanted[front.slide_id.id] = 1
+                fslide = front.slide_id.with_env(publisher.env)
+                if fslide.is_published != any_shown:
+                    fslide.is_published = any_shown
+                setup = front._manual_upsert_guide(
+                    'setup', channel._manual_setup_html(package), publisher, any_shown)
+                howto = front._manual_upsert_guide(
+                    'howto', channel._manual_howto_html(package, chapters, setup), publisher,
+                    any_shown)
+                for k, gslide in enumerate(x for x in (howto, setup) if x):
+                    wanted[gslide.id] = 2 + k
             obsolete = channel.knowledge_section_ids - live
             tail = (len(layout) + 1) * step * 1000
+            spare = iter(range(tail + len(obsolete), tail + 10 ** 6))
             for k, section in enumerate(obsolete):
                 if section.slide_id:
                     wanted[section.slide_id.id] = tail + k
-                journey = section.journey_slide_id.exists()
-                if journey:
-                    # 旅程篇跟其他 slide 一樣不刪：取消發佈、排到最後
-                    if journey.is_published:
-                        journey.with_env(publisher.env).is_published = False
-                    wanted[journey.id] = tail + len(obsolete) + k
+                # 旅程篇與規則頁跟其他 slide 一樣不刪：取消發佈、排到最後
+                for extra in (section.journey_slide_id | section.guide_slide_ids.mapped(
+                        'slide_id')).exists():
+                    if extra.is_published:
+                        extra.with_env(publisher.env).is_published = False
+                    wanted[extra.id] = next(spare)
 
             channel._knowledge_write_sequences(Slide, wanted)
             if obsolete:

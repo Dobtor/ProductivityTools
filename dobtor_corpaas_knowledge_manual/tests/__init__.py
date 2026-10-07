@@ -5,3 +5,4 @@ from . import test_hooks
 from . import test_client_edit
 from . import test_p1
 from . import test_p2
+from . import test_guide

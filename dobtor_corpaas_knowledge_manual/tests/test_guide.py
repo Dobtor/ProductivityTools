@@ -1,0 +1,308 @@
+# -*- coding: utf-8 -*-
+"""說明書改善：開始之前（本說明怎麼用、開始前必設定）、章末（狀態速查、訊息與狀況對照）、
+步驟寫法（開始前要先有／完成後會看到）、情境說明舉示範資料的實際數字、流程位置。"""
+import json
+from unittest.mock import patch
+
+from odoo.tests.common import tagged
+
+from ..services import guide_lib, prompts
+from .common import ManualCase
+from .test_hooks import FakeSandbox
+
+
+@tagged('post_install', '-at_install')
+class TestGuide(ManualCase):
+
+    def setUp(self):
+        super().setUp()
+        self.f3.capability_ids = [(5,)]
+        self.cap_b.feature_ids = [(5,)]
+        self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+        self.Ai = self.env['corpaas.knowledge.ai']
+
+    def _flow(self):
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        flow = Flow.create({
+            'model': 'res.partner', 'model_name': '報名', 'state_field': 'kbg_state',
+            'field_type': 'selection', 'capability_id': self.cap_a.id,
+            'package_ids': [(4, self.pkg.id)], 'feature_ids': [(6, 0, (self.f1 | self.f2).ids)]})
+        for i, (v, label) in enumerate([('draft', '草稿'), ('done', '完成')]):
+            self.env['corpaas.knowledge.flow.step'].sudo().create({
+                'flow_id': flow.id, 'sequence': i, 'value': v, 'label': label,
+                'on_statusbar': True})
+        self.env['corpaas.knowledge.flow.transition'].sudo().create({
+            'flow_id': flow.id, 'from_value': 'draft', 'to_value': 'done',
+            'button_name': 'action_confirm', 'button_label': '確認',
+            'button_feature_id': self.f2.id})
+        self.f2.kind = 'button'
+        return flow
+
+    def _publish_three(self):
+        arts = [self._article(f, self.cap_a, name=n) for f, n in
+                ((self.f1, '甲 建立報名'), (self.f2, '乙 報名確認'), (self.f3, '丙 收款'))]
+        self._publish(*arts)
+        return arts
+
+    def _section(self):
+        return self._channel().knowledge_section_ids.filtered(
+            lambda s: s.capability_id == self.cap_a)
+
+    def _guide(self, section, kind):
+        return section.guide_slide_ids.filtered(lambda g: g.kind == kind).slide_id
+
+    # ------------------------------------------------------------------
+    def test_front_section_first_with_howto(self):
+        self._publish_three()
+        channel = self._channel()
+        front = self.env['corpaas.knowledge.channel_section'].search(
+            [('channel_id', '=', channel.id), ('kind', '=', 'front')])
+        self.assertEqual(front.name, '開始之前')
+        self.assertNotIn(front, channel.knowledge_section_ids, '章節清單不含開始之前')
+        howto = self._guide(front, 'howto')
+        self.assertTrue(howto.is_published)
+        self.assertEqual(howto.category_id, front.slide_id)
+        self.assertLess(front.slide_id.sequence, self._section().slide_id.sequence,
+                        '開始之前排在所有章節前面')
+        self.assertIn('線上報名', howto.html_content, '列出各章')
+        self.assertFalse(self._guide(front, 'setup'), '沒有探測資料就不放開始前必設定')
+
+    def test_setup_page_from_probe_data(self):
+        self.pkg.manual_setup_json = json.dumps({
+            'items': [dict(guide_lib.SETUP_ITEMS[0], count=1, names=['新苗貿易'], menu='設定 › 公司',
+                           ok=True),
+                      dict(guide_lib.SETUP_ITEMS[2], count=0, names=[], menu='庫存 › 倉庫', ok=False)],
+            'roles': [{'name': '業務', 'groups': ['銷售 / 管理員']}],
+            'toggles': [{'path': '銷售 › 設定 › 報價範本', 'features': ['報價範本']}]},
+            ensure_ascii=False)
+        self._publish_three()
+        front = self.env['corpaas.knowledge.channel_section'].search(
+            [('channel_id', '=', self._channel().id), ('kind', '=', 'front')])
+        setup = self._guide(front, 'setup')
+        html = setup.html_content
+        self.assertTrue(setup.is_published)
+        for text in ('新苗貿易', '尚未設定', '沒有倉庫就無法收貨', '庫存 › 倉庫', '銷售 / 管理員',
+                     '報價範本'):
+            self.assertIn(text, html)
+        howto = self._guide(front, 'howto')
+        self.assertIn(setup.website_url, howto.html_content, '導讀連到開始前必設定')
+
+    def test_status_page_after_articles(self):
+        self._flow()
+        self._publish_three()
+        section = self._section()
+        status = self._guide(section, 'status')
+        self.assertTrue(status.is_published)
+        self.assertEqual(status.name, '線上報名：狀態速查')
+        self.assertIn('按「確認」→ 完成', status.html_content)
+        arts = self.env['corpaas.knowledge.placement'].search(
+            [('channel_id', '=', self._channel().id)]).mapped('slide_id')
+        self.assertGreater(status.sequence, max(arts.mapped('sequence')), '狀態速查排在章末')
+        self.assertFalse(self._guide(section, 'messages'), '沒有訊息就不放對照表')
+
+    def test_messages_page_and_unchanged_not_rewritten(self):
+        flow = self._flow()
+        self.pkg.manual_messages_json = json.dumps([{
+            'flow': flow.id, 'button': 'action_confirm', 'label': '確認', 'from': 'draft',
+            'variant': 'empty', 'message': '請先加入至少一筆明細<b>', 'when': '在「草稿」狀態按「確認」',
+            'cause': '單據沒有明細', 'fix': '回到單據加入明細後再確認'}], ensure_ascii=False)
+        self._publish_three()
+        msgs = self._guide(self._section(), 'messages')
+        self.assertIn('請先加入至少一筆明細&lt;b&gt;', msgs.html_content, '訊息原文照樣、跳脫')
+        self.assertIn('回到單據加入明細後再確認', msgs.html_content)
+        stamp = msgs.date_published
+        self._channel()._knowledge_renumber()
+        self.assertEqual(msgs.date_published, stamp, '內容沒變不重設「新」標記')
+
+    def test_probe_stores_data_and_skips_same_sandbox(self):
+        flow = self._flow()
+        sb = FakeSandbox(self.scenario)
+        sb.base_sig, sb.seed_applied = 'b1', 's1'
+        calls = []
+
+        def shell(s, script):
+            calls.append(script)
+            if 'GROUPS' in script:
+                return {'items': {'company': {'count': 1, 'names': ['新苗'], 'menu': '設定/公司'}},
+                        'groups': {}}
+            return [{'flow': flow.id, 'button': 'action_confirm', 'label': '確認', 'from': 'draft',
+                     'variant': 'as_is', 'message': '缺少客戶'}]
+        with patch.object(type(sb), '_shell', shell, create=True):
+            self.assertTrue(self.hooks._manual_guide_probe(self.pkg, sb))
+            self.assertFalse(self.hooks._manual_guide_probe(self.pkg, sb), '說明庫沒變不重跑')
+        self.assertEqual(len(calls), 2)
+        setup = json.loads(self.pkg.manual_setup_json)
+        self.assertEqual(setup['items'][0]['menu'], '設定 › 公司')
+        msgs = json.loads(self.pkg.manual_messages_json)
+        self.assertEqual(msgs[0]['when'], '在「草稿」狀態按「確認」')
+
+    def test_ai_fills_meanings_and_message_help(self):
+        flow = self._flow()
+        self.pkg.manual_messages_json = json.dumps(
+            [{'flow': flow.id, 'message': '缺少客戶', 'when': '按「確認」'}], ensure_ascii=False)
+
+        def ask(purpose, prompt, **kw):
+            if purpose == 'manual_flow_meaning':
+                return {'flows': [{'model': 'res.partner', 'steps': [
+                    {'value': 'draft', 'meaning': '還沒確認的報名'},
+                    {'value': 'done', 'meaning': '这是简体'}]}]}
+            return {'items': [{'id': 0, 'cause': '報名沒有填客戶', 'fix': '回到報名填上客戶再確認'}]}
+        with patch.object(type(self.Ai), 'ask', side_effect=ask):
+            self.hooks._manual_guide_ai(self.pkg, 'tok', {'ai': False})
+        steps = {s.value: s.meaning for s in flow.step_ids}
+        self.assertEqual(steps['draft'], '還沒確認的報名')
+        self.assertFalse(steps['done'], '簡體字的短文不用')
+        self.assertEqual(json.loads(self.pkg.manual_messages_json)[0]['fix'], '回到報名填上客戶再確認')
+
+    # ------------------------------------------------------------------
+    def test_step_prompt_has_flow_and_finish(self):
+        self._flow()
+        ctx = self.hooks._manual_flow_context(self.f2)
+        self.assertEqual(ctx[0]['按之後的狀態'], '完成')
+        text = prompts.step_block_prompt({'name': '報名確認', 'key': 'k'}, [], [], [], flow_ctx=ctx)
+        self.assertIn('完成後會看到', text)
+        self.assertIn('開始前要先有', text)
+        self.assertIn('按之前的狀態', text)
+        screen = self.hooks._manual_flow_context(self.f1)
+        self.assertEqual(screen[0]['狀態順序'], '草稿 → 完成', '入口畫面帶出狀態順序')
+
+    def test_scenario_prompt_has_demo_values(self):
+        seed = [{'xmlid': 'x.so_1', 'model': 'sale.order', 'values': {
+                    'partner_id': '__ref__:x.cust', 'state': 'draft'}},
+                {'xmlid': 'x.cust', 'model': 'res.partner', 'values': {'name': '宏達文具'}},
+                {'xmlid': 'x.l1', 'model': 'sale.order.line', 'values': {
+                    'order_id': '__ref__:x.so_1', 'product_uom_qty': 20, 'price_unit': 480}}]
+        tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
+            'feature_id': self.f1.id, 'fingerprint': 'h1', 'login_role': 'admin',
+            'steps_json': '[{"shot": "main"}]'})
+        self.env['corpaas.knowledge.shot_binding'].sudo().create({
+            'template_id': tmpl.id, 'scenario_id': self.scenario.id, 'state': 'ok',
+            'bindings_json': json.dumps({'so': 'x.so_1'})})
+        with patch.object(type(self.hooks), '_manual_seed', lambda s, sc: seed):
+            demo = self.hooks._manual_demo_examples(self.scenario, self.f1)
+            text = self.hooks._manual_scenario_prompt(self.pkg, self.scenario, self.f1,
+                                                      self.cap_a, self.Block)
+        self.assertEqual(demo[0]['values']['partner_id'], '宏達文具', '參照換成名稱')
+        self.assertEqual(demo[0]['lines'][0]['price_unit'], 480, '帶出明細數字')
+        self.assertIn('宏達文具', text)
+
+    def test_article_shows_flow_position(self):
+        self._flow()
+        art = self._article(self.f2, self.cap_a, name='報名確認')
+        self.assertIn('流程位置｜', art.render_html(preview=True))
+        self.assertIn('草稿 →（按「確認」）→ 完成', art.render_html(preview=True))
+
+    def test_redraft_review_rewrites_drafts(self):
+        tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
+            'feature_id': self.f1.id, 'fingerprint': 'h1', 'login_role': 'admin',
+            'steps_json': '[{"shot": "main"}]'})
+        binding = self.env['corpaas.knowledge.shot_binding'].sudo().create({
+            'template_id': tmpl.id, 'scenario_id': self.scenario.id, 'state': 'ok'})
+        block = self._block(self.f1)
+        block.knowledge_propose('new')
+        art = self._article(self.f1, self.cap_a, block=block, shot_binding_id=binding.id)
+        art.knowledge_propose('new')
+        self.assertEqual(art.state, 'review')
+
+        def ask(purpose, prompt, **kw):
+            if purpose == 'manual_step_block':
+                return {'title': '建立報名', 'steps': [
+                    {'title': '開啟', 'html': '<p>開始前要先有：年會。</p>'},
+                    {'title': '完成後會看到', 'html': '<p>報名變成草稿。</p>'}]}
+            return {'title': '建立年會報名', 'html': '<p>會員宏達報名 2 人。</p>'}
+        with patch.object(type(self.Ai), 'ask', side_effect=ask):
+            nb, na = self.hooks._manual_redraft_review(self.pkg)
+        self.assertEqual((nb, na), (1, 1))
+        self.assertIn('完成後會看到', block.html)
+        self.assertIn('宏達', art.scenario_html)
+        self.assertEqual(art.state, 'review')
+
+
+@tagged('post_install', '-at_install')
+class TestTutorial(ManualCase):
+
+    def setUp(self):
+        super().setUp()
+        self.f3.capability_ids = [(5,)]
+        self.cap_b.feature_ids = [(5,)]
+        self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        self.flow = Flow.create({
+            'model': 'res.partner', 'model_name': '報名單', 'state_field': 'kbt_state',
+            'field_type': 'selection', 'capability_id': self.cap_a.id,
+            'package_ids': [(4, self.pkg.id)], 'feature_ids': [(6, 0, (self.f1 | self.f2).ids)]})
+        for i, (v, label) in enumerate([('draft', '草稿'), ('sent', '已送出'), ('done', '完成'),
+                                        ('cancel', '取消')]):
+            self.env['corpaas.knowledge.flow.step'].sudo().create({
+                'flow_id': self.flow.id, 'sequence': i, 'value': v, 'label': label,
+                'on_statusbar': v != 'cancel'})
+        T = self.env['corpaas.knowledge.flow.transition'].sudo()
+        for fr, to, name, label, opens in [('draft', 'sent', 'action_send', '送出', False),
+                                           ('draft', 'done', 'action_skip', '直接完成', False),
+                                           ('sent', 'done', 'action_wizard', '精靈', 'x.wizard'),
+                                           ('sent', 'done', 'action_done', '完成', False),
+                                           ('done', 'draft', 'action_draft', '重設', False)]:
+            T.create({'flow_id': self.flow.id, 'from_value': fr, 'to_value': to,
+                      'button_name': name, 'button_label': label, 'opens_model': opens,
+                      'button_feature_id': self.f2.id if name == 'action_done' else False})
+        self.Tutorial = self.env['corpaas.knowledge.tutorial'].sudo()
+
+    def test_path_follows_statusbar_without_wizards(self):
+        path = self.Tutorial._path(self.flow)
+        self.assertEqual([(t.button_name, a, b) for t, a, b in path],
+                         [('action_send', 'draft', 'sent'), ('action_done', 'sent', 'done')],
+                         '一步一格往下走；開精靈的、往回的不走')
+
+    def test_pick_record_prefers_first_state_with_lines(self):
+        seed = [{'xmlid': 'x.r1', 'model': 'res.partner', 'values': {'kbt_state': 'done'}},
+                {'xmlid': 'x.r2', 'model': 'res.partner', 'values': {'name': '甲'}},
+                {'xmlid': 'x.r3', 'model': 'res.partner', 'values': {'name': '乙', 'kbt_state': 'draft'}},
+                {'xmlid': 'x.l', 'model': 'res.partner.line', 'values': {'p': '__ref__:x.r3'}}]
+        self.assertEqual(self.Tutorial._pick_record(self.flow, seed, 'draft')['xmlid'], 'x.r3')
+
+    def test_shoot_and_publish_tutorial(self):
+        from odoo.addons.dobtor_corpaas_knowledge.services import shooter
+        seed = [{'xmlid': 'x.r3', 'model': 'res.partner', 'values': {'name': '宏達報名', 'kbt_state': 'draft'}}]
+        sb = FakeSandbox(self.scenario)
+        sb.dirty = False
+        jobs_seen = []
+
+        def run(env, sandbox, jobs, settings):
+            jobs_seen.extend(jobs)
+            from .common import png
+            shots = {j['id']: {'ok': True, 'images': [
+                {'name': 'before', 'file': '%s/before.png' % j['id'], 'regions': []},
+                {'name': 'after', 'file': '%s/after.png' % j['id']}]} for j in jobs}
+            files = {}
+            for j in jobs:
+                files['%s/before.png' % j['id']] = png()
+                files['%s/after.png' % j['id']] = png()
+            return {'shots': shots}, files
+        with patch.object(type(self.hooks), '_manual_seed', lambda s, sc: seed), \
+                patch.object(shooter, 'run_shots', run), \
+                patch.object(type(self.env['res.config.settings']), 'knowledge_shot_settings',
+                             lambda s: {}, create=True):
+            n = self.hooks._manual_shoot_tutorials(self.pkg, sb)
+            again = self.hooks._manual_shoot_tutorials(self.pkg, sb)
+        self.assertEqual((n, again), (1, 0), '輸入沒變不重拍')
+        self.assertEqual(len(jobs_seen), 2, '一步一個拍攝工作')
+        self.assertEqual(jobs_seen[0]['steps'][4], {'click': {'button': 'action_send'}})
+        self.assertTrue(sb.dirty, '按過按鈕：說明庫要重建')
+        tut = self.Tutorial.search([('flow_id', '=', self.flow.id)])
+        self.assertEqual((tut.state, len(tut.steps()), tut.record_label), ('ok', 2, '宏達報名'))
+        arts = [self._article(f, self.cap_a, name=nm) for f, nm in
+                ((self.f1, '甲'), (self.f2, '乙 完成報名'), (self.f3, '丙'))]
+        self._publish(*arts)
+        section = self._channel().knowledge_section_ids.filtered(
+            lambda s: s.capability_id == self.cap_a)
+        slide = section.guide_slide_ids.filtered(lambda g: g.kind == 'tutorial').slide_id
+        self.assertTrue(slide.is_published)
+        self.assertEqual(slide.name, '線上報名：情境教學')
+        html = slide.html_content
+        self.assertIn('第 2 步：已送出 → 完成', html)
+        self.assertIn('狀態列變成「完成」', html)
+        self.assertIn('乙 完成報名', html, '連到那一步的參考篇')
+        self.assertIn('/web/image/%s' % tut.steps()[0]['after'], html)
+        art_seqs = self.env['corpaas.knowledge.placement'].search(
+            [('channel_id', '=', self._channel().id)]).mapped('slide_id.sequence')
+        self.assertLess(slide.sequence, min(art_seqs), '教學排在參考篇之前')
