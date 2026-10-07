@@ -1027,6 +1027,16 @@ class DocQwebConverter(models.AbstractModel):
             if expr:
                 # 節點內的文字是給設計師看的範例值（<span t-field="x">3</span>
                 # 裡的那個 3），不可當成內容——原生渲染時也會被值取代
+                cond = node.get('t-if')
+                if cond and not node.get('t-foreach'):
+                    # <span t-if="o.ref" t-field="o.ref"/>：條件與值在同一個
+                    # 節點上。原本只收值、條件整個不見——欄位有值時剛好一樣，
+                    # 沒值時會印出一段本來不該出現的東西。
+                    out.append(self._ternary_pill(
+                        node, self._branch_value(node, expr, state),
+                        cond, state,
+                    ))
+                    return
                 out.append(self._value_pill(node, expr, state))
                 return
 
@@ -1073,6 +1083,13 @@ class DocQwebConverter(models.AbstractModel):
             out.append(self._condition_block(node, cond, state))
             out.append(self._newline())
             return
+        # ── 掛在非區塊節點上的單獨 t-if（<t t-if="…">、<span t-if="…">）
+        #    原本整個被忽略、內容照印。實測後果：沒有提前付款折扣的發票也
+        #    印出一句「due if paid before」加一個日期——那段的條件就是掛在
+        #    <t> 上的。
+        if cond and self._lone_condition(node, cond, out, state):
+            return
+
         if node.get('t-elif') is not None or node.get('t-else') is not None:
             # 走到這裡表示它沒被 _collect_chain 收走（前面的 t-if 不是直接
             # 兄弟節點）。孤立的 elif/else 無從判斷互斥關係，一律列印並標待辦
@@ -1171,6 +1188,59 @@ class DocQwebConverter(models.AbstractModel):
                             cell(val('total', 'amount', '總計金額'))]},
             ],
         }
+
+    def _ternary_pill(self, node, value_expr, cond, state):
+        """「有條件的取值」→ 一顆 Jinja 三元式藥丸。
+
+        完全等價、不動版面、也不必多一個區塊容器。條件不成立時印空字串，
+        而空字串會讓段落收合規則（規則 A）把整段帶走——跟原生「整段不印」
+        的結果一致。
+        """
+        mapped = self._map_condition(cond, state, expand=True)
+        whole = '%s if (%s) else ""' % (value_expr, mapped)
+        label = ' '.join((''.join(node.itertext()) or '').split())[:20]
+        if not label:
+            label = (value_expr or '').split('.')[-1].strip('()\'"')[:20]
+        state['stats']['condition'] += 1
+        return self._pill(
+            label or '條件取值', state,
+            source='line' if _LINE_TOKEN_RE.search(whole) else 'record',
+            expression=whole,
+            unbound=bool(state.get('chain_unsure')),
+        )
+
+    def _lone_condition(self, node, cond, out, state):
+        """掛在非區塊節點上的單獨 t-if。處理掉回 True，沒處理回 False。
+
+        兩條路：
+          ① 分支能收成一句表達式（純文字、或只有一個取值節點）→ 三元式藥丸。
+          ② 其他 → 條件區塊。那會自成一段（比原本多一個換行），但「印出一段
+             該藏起來的內容」比「版面多一個換行」嚴重得多。
+        """
+        state['chain_unsure'] = False
+        expr = self._branch_expr(node, state)
+        if expr is not None:
+            out.append(self._ternary_pill(node, expr, cond, state))
+            return True
+
+        holder = self._new_element('t')
+        holder.text = node.text
+        for child in list(node):
+            holder.append(child)
+        inner = []
+        self._emit_children(holder, inner, state)
+        if not inner:
+            return True
+        if (inner[-1].get('value') or '') != '\n':
+            inner.append(self._newline())
+        self._note(
+            state,
+            '條件「%s」原本掛在行內節點上，已包成條件區塊（會自成一段）。'
+            '若它原本是句子中間的一小段，版面會多一個換行。' % cond[:60],
+        )
+        out.append(self._condition_wrap(cond, inner, state))
+        out.append(self._newline())
+        return True
 
     # ─── 非表格的重複 ───────────────────────────────────────────────
 

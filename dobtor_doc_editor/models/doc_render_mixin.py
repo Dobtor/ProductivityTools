@@ -247,6 +247,8 @@ class DocRenderMixin(models.AbstractModel):
         ('account.payment.term', '_get_last_discount_date_formatted'),
         # 報表要印的訂單明細：濾掉「未入帳的預付款列」。只有 filtered
         ('sale.order', '_get_order_lines_to_report'),
+        # 這張單合不合提前付款折扣的條件。只有比較與 filtered
+        ('account.move', '_is_eligible_for_early_payment_discount'),
     })
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')

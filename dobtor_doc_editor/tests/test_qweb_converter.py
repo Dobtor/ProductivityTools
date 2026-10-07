@@ -443,3 +443,70 @@ class TestValidationProbePerRow(TestQwebConverterBase):
         self.assertEqual(res['stats']['validate_failed'], 0)
         self.assertTrue(res['stats']['validate_skipped'] >= 1)
         self.assertTrue(any('沒試算' in n for n in res['notes']))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestLoneCondition(TestQwebConverterBase):
+    """掛在非區塊節點上的單獨 t-if。
+
+    這種條件原本被整個忽略，內容照印。實測後果：沒有提前付款折扣的發票也
+    印出一句「due if paid before」加一個日期——那一段的條件就是掛在 <t> 上。
+    區塊標籤（div/p/…）上的 t-if 早就有條件區塊可走，只有行內節點沒有。
+    """
+
+    def test_value_node_with_condition_becomes_ternary(self):
+        """條件與值在同一個節點：收成三元式，不動版面。"""
+        res = self._convert('<span t-if="o.ref" t-out="o.ref"/>')
+        metas = list(self._metas(res['tree']['main']))
+        self.assertEqual(len(metas), 1, '一顆藥丸就夠，不要多一個區塊容器')
+        self.assertEqual(metas[0].get('expression'),
+                         'object.ref if (object.ref) else ""')
+        self.assertFalse(list(self._tables(res['tree']['main'])),
+                         '不該產生區塊容器')
+
+    def test_text_only_branch_becomes_ternary(self):
+        res = self._convert('<t t-if="o.vat">有統編</t>')
+        metas = list(self._metas(res['tree']['main']))
+        self.assertEqual(metas[0].get('expression'),
+                         '"有統編" if (object.vat) else ""')
+
+    def test_mixed_inline_content_becomes_condition_block(self):
+        """文字＋多個取值混排收不成一句表達式 → 條件區塊（會自成一段）。
+
+        多一個換行比「印出一段該藏起來的內容」好得多，而且會留待辦說明。
+        """
+        res = self._convert(
+            '<t t-if="o.vat">統編：<span t-out="o.vat"/>'
+            '（<span t-out="o.name"/>）</t>'
+        )
+        tables = list(self._tables(res['tree']['main']))
+        self.assertEqual(len(tables), 1)
+        self.assertEqual((tables[0].get('extension') or {}).get('dobtorBlock'),
+                         'condition')
+        conds = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'condition']
+        self.assertEqual(conds[0].get('expression'), 'object.vat')
+        self.assertTrue(any('行內節點' in n for n in res['notes']),
+                        '版面會變，要留待辦：%s' % res['notes'])
+
+    def test_condition_inside_loop_uses_line(self):
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-if="kid.phone" t-out="kid.phone"/></td></tr>'
+            '</t></table>'
+        )
+        metas = [m for m in self._metas(res['tree']['main'])
+                 if (m.get('expression') or '').startswith('line.phone')]
+        self.assertTrue(metas, '%s' % list(self._metas(res['tree']['main'])))
+        self.assertEqual(metas[0].get('source'), 'line')
+        self.assertEqual(metas[0].get('expression'),
+                         'line.phone if (line.phone) else ""')
+
+    def test_block_tag_condition_still_becomes_block(self):
+        """區塊標籤上的 t-if 行為不變——那條路早就有測試與使用者的範本在用。"""
+        res = self._convert(
+            '<div t-if="o.vat">統編：<span t-out="o.vat"/></div>')
+        tables = list(self._tables(res['tree']['main']))
+        self.assertEqual(len(tables), 1)
+        self.assertEqual((tables[0].get('extension') or {}).get('dobtorBlock'),
+                         'condition')
