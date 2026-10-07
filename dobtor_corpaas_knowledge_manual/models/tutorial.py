@@ -220,17 +220,28 @@ class KnowledgeHooks(models.AbstractModel):
         return plan[:10]
 
     @api.model
-    def _manual_tutorial_steps(self, plan, model, res_id, confirm):
-        """計畫 → 拍攝步驟（每一步一組選用步驟）。confirm：{精靈模型: 確認按鈕}。"""
-        steps = [{'open': {'model': model, 'res_id': res_id}}, {'wait': {'ms': 800}}]
+    def _manual_tutorial_steps(self, plan, model, res_id, confirm, auth=None):
+        """計畫 → 拍攝步驟（每一步一組選用步驟）。
+
+        confirm：{精靈模型: 確認按鈕}；auth：{流程 id: (帳號, 密碼)}——每一組先用那張單據的
+        負責角色登入（沒有就沿用目前登入的帳號）。下游單據打開後記下網址，換角色再回到它。
+        ☠️ 實機：用系統管理員一個帳號拍整條，管理員沒有銷售／會計權限 → 每一步都是存取錯誤。"""
+        auth = auth or {}
+        steps = []
+        opened = {}   # 計畫序號 → 記下的網址名稱
         for i, st in enumerate(plan):
             grp = 's%s' % i
             req = ['s%s' % r for r in st.get('req') or []]
             base = {'optional': True, 'grp': grp, 'req': req}
-            if st['kind'] == 'open':
-                # 回到起點單據，按智慧按鈕／交接按鈕打開下游單據
+            who_flow = st.get('parent') if st['kind'] == 'open' else st['flow']
+            if who_flow in auth:
+                user, password = auth[who_flow]
+                steps.append(dict({'login': {'user': user, 'password': password}}, **base))
+            if st.get('req'):
+                steps.append(dict({'recall': opened.get(st['req'][0], 'g%s' % st['req'][0])}, **base))
+            else:
                 steps.append(dict({'open': {'model': model, 'res_id': res_id}}, **base))
-                steps.append(dict({'wait': {'ms': 600}}, **base))
+            steps.append(dict({'wait': {'ms': 800}}, **base))
             steps.append(dict({'highlight': {'button': st['button'], 'n': 1}}, **base))
             steps.append(dict({'shot': '%s_before' % grp}, **base))
             steps.append(dict({'click': {'button': st['button']}}, **base))
@@ -239,6 +250,9 @@ class KnowledgeHooks(models.AbstractModel):
                 steps.append(dict({'click': {'button': confirm[st['wizard']]}}, **base))
                 steps.append(dict({'wait': {'ms': 1500}}, **base))
             steps.append(dict({'shot': '%s_after' % grp}, **base))
+            if st['kind'] == 'open':
+                opened[i] = 'g%s' % i
+                steps.append(dict({'remember': opened[i]}, **base))
         return steps
 
     @api.model
@@ -286,8 +300,8 @@ class KnowledgeHooks(models.AbstractModel):
         logins = json.loads(sandbox.sudo().role_logins or '{}')
         if not seed or not logins:
             return 0
-        # ★ 跨單據要用看得到每一種單據的帳號拍（業務帳號打不開出貨單）；文字照樣寫各步的負責角色
-        login_role = 'admin' if 'admin' in logins else next(iter(logins))
+        # 一開始先用起點單據的負責角色登入；之後每一步再換成那張單據的負責角色
+        login_role = next(iter(logins))
         plans = []
         for flow in self._manual_tutorial_flows(package):
             bar = [s.value for s in flow.step_ids.sorted('sequence') if s.on_statusbar]
@@ -309,13 +323,21 @@ class KnowledgeHooks(models.AbstractModel):
         confirm = self._manual_wizard_confirms(
             sandbox, {st['wizard'] for p in plans for st in p[2] if st.get('wizard')})
         jobs = []
+        password = sandbox.sudo().password
         for k, (flow, rec, plan, sig, tut) in enumerate(plans):
             target = resolved.get(rec['xmlid'])
-            if target:
-                jobs.append({'id': 't%s' % k, 'login': logins[login_role],
-                             'password': sandbox.sudo().password,
-                             'steps': self._manual_tutorial_steps(plan, flow.model, target[1],
-                                                                  confirm)})
+            if not target:
+                continue
+            auth = {}
+            for st in plan:
+                for fid in (st['flow'], st.get('parent')):
+                    f = Flow.browse(fid) if fid else Flow
+                    code = MODEL_ROLE.get(f.model) if f else None
+                    if f and code in logins:
+                        auth[f.id] = (logins[code], password)
+            jobs.append({'id': 't%s' % k, 'login': logins[login_role], 'password': password,
+                         'steps': self._manual_tutorial_steps(plan, flow.model, target[1],
+                                                              confirm, auth)})
         if not jobs:
             return 0
         package._knowledge_heartbeat('kb_shoot', _('情境教學 %s 篇') % len(jobs))
@@ -395,6 +417,8 @@ class KnowledgeChannelSection(models.Model):
             articles.setdefault(pl.article_id.feature_id.id, pl)
         docs = []
         for st in steps:
+            st.setdefault('flow', root.id)       # 舊格式（單一單據）的步驟
+            st.setdefault('kind', 'press')
             name = Flow.browse(st['flow']).model_name or Flow.browse(st['flow']).name
             if name and name not in docs:
                 docs.append(name)

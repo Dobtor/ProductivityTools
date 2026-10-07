@@ -347,8 +347,18 @@ class TestTutorial(ManualCase):
         self.assertEqual(plan[-1]['button'], 'button_validate')
         self.assertEqual(plan[-1]['req'], [kinds.index(('open', 'action_view_delivery'))],
                          '下游的步驟要先打開下游單據成功')
-        steps = self.hooks._manual_tutorial_steps(plan, 'sale.order', 7, {})
-        self.assertEqual(steps[0], {'open': {'model': 'sale.order', 'res_id': 7}})
+        auth = {self.flow.id: ('doc_sales', 'pw'), pick.id: ('doc_stock', 'pw')}
+        steps = self.hooks._manual_tutorial_steps(plan, 'sale.order', 7, {}, auth)
+        core = lambda st: {k: v for k, v in st.items() if k not in ('optional', 'grp', 'req')}  # noqa: E731
+        self.assertEqual(core(steps[0]), {'login': {'user': 'doc_sales', 'password': 'pw'}},
+                         '每一組先用那張單據的負責角色登入')
+        self.assertEqual(core(steps[1]), {'open': {'model': 'sale.order', 'res_id': 7}})
+        opened = kinds.index(('open', 'action_view_delivery'))
+        self.assertIn({'remember': 'g%s' % opened},
+                      [core(st) for st in steps if st.get('grp') == 's%s' % opened])
+        last = [core(st) for st in steps if st.get('grp') == 's%s' % (len(plan) - 1)]
+        self.assertEqual(last[0], {'login': {'user': 'doc_stock', 'password': 'pw'}}, '換倉管')
+        self.assertEqual(last[1], {'recall': 'g%s' % opened}, '回到剛才打開的出貨單')
 
 
 @tagged('post_install', '-at_install')

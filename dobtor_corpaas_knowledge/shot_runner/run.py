@@ -319,7 +319,25 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None,
     return images
 
 
+#: remember／recall 步驟記下的網址（每張重設）：情境教學打開下游單據後，換角色再回到那張
+_SAVED = {}
+
+
 def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images, regions):
+    if kind == 'login':
+        # 換角色：登出再登入（同一張單據由不同角色往下推）
+        page.goto(base + '/web/session/logout')
+        login(page, base, arg['user'], arg['password'])
+        return None
+    if kind == 'remember':
+        _SAVED[arg] = page.url
+        return None
+    if kind == 'recall':
+        if arg not in _SAVED:
+            raise RuntimeError('沒有記下的畫面：%s' % arg)
+        page.goto(_SAVED[arg])
+        _settle(page)
+        return None
     if True:
         if kind == 'goto':
             if 'url' in arg:
@@ -443,6 +461,7 @@ def main():
                 "createElement('style');s.textContent=%s;document.head.appendChild(s);});"
                 % json.dumps(HIDE_CSS + (job.get('extra_css') or '')))
             recorder = Recorder()
+            _SAVED.clear()
             page.on('response', recorder.on_response)
             try:
                 images, observed = [], []
