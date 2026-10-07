@@ -50,6 +50,15 @@ class NativeReportCase(TransactionCase):
         html, _footer = binding._build_report_html(record)
         return res, html
 
+    def _failures(self, res):
+        return [n for n in res['notes'] if n.startswith('試算失敗')]
+
+    def _assert_only_known_failures(self, res, allowed=()):
+        """試算失敗清單只能剩下已知、說明過的那幾項。"""
+        unexpected = [n for n in self._failures(res)
+                      if not any(token in n for token in allowed)]
+        self.assertFalse(unexpected, '出現沒預期到的試算失敗：%s' % unexpected)
+
     def _assert_no_leftovers(self, html):
         """標記文字殘留＝某個機制沒跑到，而使用者只會看到單據上多幾個怪字。"""
         for token in ('明細 ×', '列型 ×', '〔分組標題〕', '〔分組小計〕',
@@ -209,3 +218,110 @@ class TestNativeInvoiceReport(NativeReportCase):
         )
         _res, html = self._convert_and_render(report, move)
         self.assertNotIn('due if paid before', html)
+
+
+class TestNativeDeliveryReport(NativeReportCase):
+    """出貨單——這張是整組樣本裡最難的一張。
+
+    它的明細表是 <table t-if> / <table t-elif> 的一對（條件掛在表格自己
+    身上）、來源是 filtered(lambda …)、收件人用 widget="contact" 配一條
+    or 算式。這三件各自壞過一次，而症狀都一樣：單據上什麼都沒有。
+    """
+
+    def _picking(self):
+        partner = self.env['res.partner'].create({
+            'name': 'NAT 出貨客戶', 'street': '松仁路 100 號'})
+        product = self.env['product.product'].create({
+            'name': 'NAT 出貨品', 'is_storable': True})
+        picking_type = self.env['stock.picking.type'].search(
+            [('code', '=', 'outgoing')], limit=1)
+        if not picking_type:
+            self.skipTest('沒有出貨作業類型，無法建樣本')
+        src = (picking_type.default_location_src_id.id
+               or self.env.ref('stock.stock_location_stock').id)
+        dest = (picking_type.default_location_dest_id.id
+                or self.env.ref('stock.stock_location_customers').id)
+        picking = self.env['stock.picking'].create({
+            'partner_id': partner.id,
+            'picking_type_id': picking_type.id,
+            'location_id': src, 'location_dest_id': dest,
+            'move_ids': [(0, 0, {
+                'name': 'NAT 異動', 'product_id': product.id,
+                'product_uom_qty': 5,
+                'location_id': src, 'location_dest_id': dest,
+            })],
+        })
+        picking.action_confirm()
+        return picking
+
+    def test_delivery_report_converts_and_renders(self):
+        report = self._need('stock.picking', 'stock.action_report_delivery')
+        picking = self._picking()
+        res, html = self._convert_and_render(report, picking)
+        self.assertEqual(res['stats']['validate_failed'], 0,
+                         '有表達式算不出來：%s' % self._failures(res))
+        for probe in (picking.name, 'NAT 出貨客戶', 'NAT 出貨品'):
+            self.assertIn(probe, html, '單據上少了「%s」' % probe)
+        self._assert_no_leftovers(html)
+
+    def test_recipient_is_a_name_not_a_recordset_repr(self):
+        """收件人是 widget="contact" 配一條 or 算式。
+
+        widget 在「算式型取值」那條路上掉掉的話，單據上印的是
+        "res.partner(7,)"——而且不會報錯。
+        """
+        report = self._need('stock.picking', 'stock.action_report_delivery')
+        picking = self._picking()
+        _res, html = self._convert_and_render(report, picking)
+        self.assertNotIn('res.partner(', html)
+        self.assertIn('松仁路 100 號', html, '地址沒印出來')
+
+    def test_detail_table_survives_the_condition_on_the_table_itself(self):
+        """條件掛在 <table> 自己身上時，表格與它的 t-foreach 都要留著。"""
+        report = self._need('stock.picking', 'stock.action_report_delivery')
+        picking = self._picking()
+        res, _html = self._convert_and_render(report, picking)
+        self.assertGreaterEqual(
+            res['stats']['repeat'], 1,
+            '一個重複列都沒有＝明細表被條件分支吃掉了')
+
+
+class TestNativePurchaseReport(NativeReportCase):
+
+    def _purchase(self):
+        partner = self.env['res.partner'].create({'name': 'NAT 供應商'})
+        product = self.env['product.product'].search(
+            [('purchase_ok', '=', True)], limit=1)
+        if not product:
+            product = self.env['product.product'].create(
+                {'name': 'NAT 採購品', 'purchase_ok': True})
+        return self.env['purchase.order'].create({
+            'partner_id': partner.id,
+            'order_line': [(0, 0, {
+                'product_id': product.id, 'name': 'NAT 採購明細',
+                'product_qty': 4, 'price_unit': 250,
+                'date_planned': fields.Datetime.now(),
+            })],
+        })
+
+    def test_purchase_order_report_converts_and_renders(self):
+        report = self._need('purchase.order',
+                            'purchase.action_report_purchase_order')
+        order = self._purchase()
+        res, html = self._convert_and_render(report, order)
+        # 已知且已說明的一項：any(u._is_portal() for u in …) 是 Python 生成式，
+        # Jinja 沒有，而裡面是方法呼叫所以改寫不了（待辦有寫清楚）。
+        self._assert_only_known_failures(res, allowed=('for u in',))
+        for probe in ('NAT 供應商', 'NAT 採購明細'):
+            self.assertIn(probe, html, '單據上少了「%s」' % probe)
+        self._assert_no_leftovers(html)
+
+    def test_generator_expression_is_explained(self):
+        """改寫不了的生成式要留一條說得清楚的待辦，不是只有語法錯誤。"""
+        report = self._need('purchase.order',
+                            'purchase.action_report_purchase_order')
+        res = self.Conv.convert_report(report)
+        self.assertTrue(
+            any('生成式' in n for n in res['notes']),
+            '待辦裡要講清楚為什麼沒改寫：%s' % res['notes'],
+        )

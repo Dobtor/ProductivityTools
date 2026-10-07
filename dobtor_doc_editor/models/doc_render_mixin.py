@@ -249,6 +249,8 @@ class DocRenderMixin(models.AbstractModel):
         ('sale.order', '_get_order_lines_to_report'),
         # 這張單合不合提前付款折扣的條件。只有比較與 filtered
         ('account.move', '_is_eligible_for_early_payment_discount'),
+        # 出貨單上的品項說明（去掉重複的品名前綴）。只有字串處理
+        ('stock.move', '_get_report_description_picking'),
     })
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')
@@ -1114,6 +1116,7 @@ class DocRenderMixin(models.AbstractModel):
                 # 求值失敗（欄位被刪、表達式壞掉）→ 空字串。
                 # 這裡刻意不 raise：一個壞欄位不該讓整份文件產不出來。
                 rendered = ''
+            rendered = self._fix_recordset_repr(rendered, expression, record)
             value = '' if rendered in (None, 'False', 'None') else str(rendered)
             cache[expression] = value
             return value
@@ -1494,6 +1497,26 @@ class DocRenderMixin(models.AbstractModel):
 
     # ─── 展開 ────────────────────────────────────────────────────────
 
+    # Jinja 把 recordset 字串化成 "res.partner(7,)" 這種 repr
+    _RECORDSET_REPR_RE = re.compile(r'^[a-z][\w.]*\((?:\d+(?:,\s*)?)*\)$')
+
+    def _fix_recordset_repr(self, rendered, expression, record, extra=None):
+        """輸出是 recordset 的 repr 時改用 display_name 重算一次。
+
+        t-field="o.partner_id" 想要的是名稱，而 Jinja 的字串化會給
+        "res.partner(7,)"——單據上印出一個 Python repr 一定是錯的，而且
+        不會報錯（實測：出貨單的收件人欄位就是這樣）。
+        只在「輸出剛好長得像 repr」時才多算一次，所以不影響其他取值。
+        """
+        text = (rendered or '').strip()
+        if not text or not self._RECORDSET_REPR_RE.match(text):
+            return rendered
+        raw = self._eval_raw(expression, record, extra)
+        if hasattr(raw, 'ids') and hasattr(raw, '_name'):
+            names = [n for n in (raw.mapped('display_name') or []) if n]
+            return ', '.join(names)
+        return rendered
+
     def _eval_for(self, record, extra=None):
         """回傳一個綁定到 record 的求值函式（含同表達式快取）。
 
@@ -1514,6 +1537,8 @@ class DocRenderMixin(models.AbstractModel):
                 )
             except Exception:
                 rendered = ''
+            rendered = self._fix_recordset_repr(
+                rendered, expression, record, extra)
             value = '' if rendered in (None, 'False', 'None') else str(rendered)
             cache[expression] = value
             return value

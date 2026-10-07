@@ -509,6 +509,27 @@ class DocQwebConverter(models.AbstractModel):
          r'\1',
          'sudo() 已移除（沙箱不開放提權）。若該欄位受 ACL 限制可能讀不到，'
          '需要的話請在 doc.report 層先算好'),
+        # filtered(lambda …) 是 Odoo 最常見的慣用寫法，而 Jinja 沒有 lambda
+        # ——留著就是 TemplateSyntaxError，而條件求值失敗是「當真」，
+        # 結果是該濾掉的列全部印出來。只改寫看得懂的三種形狀，其餘留原樣。
+        (r"([\w\.]+)\.filtered\(\s*lambda\s+(\w+)\s*:\s*\2\.(\w+)\s+not\s+in\s+"
+         r"(\([^()]*\)|\[[^\[\]]*\])\s*\)",
+         r"\1|rejectattr('\3', 'in', \4)|list",
+         'filtered(lambda … : … not in (…)) 已改寫成 rejectattr'),
+        (r"([\w\.]+)\.filtered\(\s*lambda\s+(\w+)\s*:\s*\2\.(\w+)\s+in\s+"
+         r"(\([^()]*\)|\[[^\[\]]*\])\s*\)",
+         r"\1|selectattr('\3', 'in', \4)|list",
+         'filtered(lambda … : … in (…)) 已改寫成 selectattr'),
+        (r"([\w\.]+)\.filtered\(\s*lambda\s+(\w+)\s*:\s*not\s+\2\.(\w+)\s*\)",
+         r"\1|rejectattr('\3')|list",
+         'filtered(lambda … : not …) 已改寫成 rejectattr'),
+        (r"([\w\.]+)\.filtered\(\s*lambda\s+(\w+)\s*:\s*\2\.(\w+)\s*"
+         r"(==|!=)\s*('[^']*'|\"[^\"]*\"|\d+(?:\.\d+)?|True|False)\s*\)",
+         r"\1|selectattr('\3', '\4', \5)|list",
+         'filtered(lambda … : … == …) 已改寫成 selectattr'),
+        (r"([\w\.]+)\.filtered\(\s*lambda\s+(\w+)\s*:\s*\2\.(\w+)\s*\)",
+         r"\1|selectattr('\3')|list",
+         'filtered(lambda … : …) 已改寫成 selectattr'),
         (r'([\w\.]+)\.sorted\(\s*key\s*=\s*lambda.*?\)\s*(?:,\s*reverse\s*=\s*\w+\s*)?\)',
          r'\1',
          'sorted(key=lambda …) 在 Jinja 不存在，排序已移除。'
@@ -528,6 +549,15 @@ class DocQwebConverter(models.AbstractModel):
              m.group(5), m.group(4) or m.group(3), m.group(1)),
          "', '.join([…]) 已改寫成 map|join，取 or 鏈最後一個欄位當值。"
          '若原式還有其他邏輯請自行確認'),
+        # 擺在最後：走到這裡還留著生成式，表示上面的規則都沒認出來
+        #（例如 any(u._is_portal() for u in …) 裡面是方法呼叫）。
+        # 取代成自己＝不改內容，只為了留下一條說得清楚的待辦。
+        (r'\bfor\s+\w+\s+in\b',
+         lambda m: m.group(0),
+         'Jinja 沒有 Python 的生成式（any(… for … in …) 這種），而這一段'
+         '無法自動改寫（裡面可能是方法呼叫）。已原樣保留：條件求值會失敗，'
+         '而失敗時的策略是「當真」，所以那一段會照印。'
+         '請改寫成 selectattr，或在模型上加一個 compute 欄位。'),
     )
 
     def _collect_symbols(self, root, state):
@@ -712,6 +742,12 @@ class DocQwebConverter(models.AbstractModel):
             return []
         return re.findall(r'["\'](\w+)["\']', m.group(1))
 
+    def _wrap_widget(self, node, base):
+        """把節點上的 t-options widget 套到表達式外面（沒有就原樣回）。"""
+        widget = self._parse_options(node)
+        wrapped = self._widget_expr(widget, node, base) if widget else None
+        return wrapped if wrapped is not None else base
+
     def _widget_expr(self, widget, node, base):
         """widget → 包裝後的表達式；不認得的 widget 回 None。"""
         if widget == 'contact':
@@ -765,7 +801,7 @@ class DocQwebConverter(models.AbstractModel):
                 # 走過規則表的要人工確認——那是這支轉換器唯一一處「猜」
                 return self._pill(label[:20], state, source=source,
                                   expression=base, unbound=used_rule)
-            mapped = self._map_condition(expanded, state)
+            mapped = self._wrap_widget(node, self._map_condition(expanded, state))
             # 用 token 比對而不是 'object.' / 'line.'：迴圈變數是 dict 時
             # QWeb 寫下標（payment_vals['date'] → line['date']），
             # 比對帶點的字串會漏掉它，整條表達式原樣留著變成待確認藥丸。
@@ -880,7 +916,10 @@ class DocQwebConverter(models.AbstractModel):
 
     def _branch_is_text_only(self, node):
         """分支裡沒有藥丸來源、沒有表格、沒有圖片——可以收成一句表達式。"""
-        if node.xpath('.//table | .//img | .//*[@t-field or @t-out or @t-esc'
+        if self._is_content_tag(node):
+            return False
+        if node.xpath('.//table | .//tr | .//img'
+                      ' | .//*[@t-field or @t-out or @t-esc'
                       ' or @t-foreach or @t-call]'):
             return False
         for attr in ('t-field', 't-out', 't-esc', 't-foreach', 't-call'):
@@ -901,7 +940,12 @@ class DocQwebConverter(models.AbstractModel):
             if node.get(attr):
                 return self._branch_value(node, node.get(attr), state)
         values = node.xpath('.//*[@t-field or @t-out or @t-esc]')
-        if len(values) == 1 and not node.xpath('.//table | .//img'):
+        # 節點自己是表格（或裡面有表格列）時不可以收成一顆藥丸——整張表
+        # 會被丟掉。實測：<table t-if> 的表身剛好只有一個取值節點時，
+        # 出貨單的明細表整張變成一顆三元式藥丸。
+        if (len(values) == 1
+                and not self._is_content_tag(node)
+                and not node.xpath('.//table | .//tr | .//img')):
             v = values[0]
             for attr in ('t-field', 't-out', 't-esc'):
                 if v.get(attr):
@@ -929,7 +973,10 @@ class DocQwebConverter(models.AbstractModel):
             state,
             '分支裡的算式已原樣保留，請確認是否可求值：%s' % expr[:90],
         )
-        return self._map_condition(expr, state)
+        # widget 不可以在這條路上掉掉：原生的
+        # t-out="o.move_ids[0].partner_id or o.partner_id"
+        # 帶 widget="contact"，掉了之後單據上印的是 "res.partner(7,)"。
+        return self._wrap_widget(node, self._map_condition(expr, state))
 
     def _emit_chain(self, chain, out, state):
         state['chain_unsure'] = False
@@ -969,15 +1016,17 @@ class DocQwebConverter(models.AbstractModel):
         state['chain_seq'] = state.get('chain_seq', 0) + 1
         gid = 'cg%d' % state['chain_seq']
         cond, node = chain[0]
-        if_inner = []
-        self._emit_children(node, if_inner, state)
+        # 用 _conditional_body 而不是 _emit_children：分支節點自己就是內容的
+        # 情況（<table t-if> / <table t-elif> 的一對）只轉子節點會讓
+        # tr 上的 t-foreach 永遠看不到，明細整批消失。
+        if_inner = self._conditional_body(node, state)
         if not if_inner or (if_inner[-1].get('value') or '') != '\n':
             if_inner.append(self._newline())
 
         rest = chain[1:]
         else_inner = []
         if len(rest) == 1 and rest[0][0] is None:
-            self._emit_children(rest[0][1], else_inner, state)
+            else_inner = self._conditional_body(rest[0][1], state)
         elif rest:
             else_inner.append(self._chain_blocks(rest, state))
         if not else_inner or (else_inner[-1].get('value') or '') != '\n':
@@ -1053,8 +1102,16 @@ class DocQwebConverter(models.AbstractModel):
 
         # ── 表格
         if tag == 'table':
-            out.append(self._emit_table(node, state))
+            table = self._emit_table(node, state)
             state['stats']['table'] += 1
+            # <table t-if="…"> 的條件原本被丟掉（表格分支排在條件分支前面）。
+            # 出貨單的兩張明細表就是這個形狀。
+            table_cond = node.get('t-if')
+            if table_cond:
+                out.append(self._condition_wrap(
+                    table_cond, [table, self._newline()], state))
+            else:
+                out.append(table)
             out.append(self._newline())
             return
 
@@ -1223,12 +1280,7 @@ class DocQwebConverter(models.AbstractModel):
             out.append(self._ternary_pill(node, expr, cond, state))
             return True
 
-        holder = self._new_element('t')
-        holder.text = node.text
-        for child in list(node):
-            holder.append(child)
-        inner = []
-        self._emit_children(holder, inner, state)
+        inner = self._conditional_body(node, state)
         if not inner:
             return True
         if (inner[-1].get('value') or '') != '\n':
@@ -1574,14 +1626,50 @@ class DocQwebConverter(models.AbstractModel):
             out = re.sub(r'(?<![\w.])%s\b' % re.escape(var), 'object', out)
         return out
 
-    def _condition_block(self, node, cond, state):
+    # 節點自己就是內容（不是「包著內容的容器」）的標籤
+    _SELF_CONTENT_TAGS = frozenset({'table', 'img'})
+
+    def _is_content_tag(self, node):
+        tag = (node.tag if isinstance(node.tag, str) else '').lower()
+        return tag in self._SELF_CONTENT_TAGS
+
+    def _strip_condition_attrs(self, node):
+        """複製一份節點並移掉條件屬性（條件已經移到標記上，不要再重入）。"""
+        import copy
+        clone = copy.deepcopy(node)
+        for attr in ('t-if', 't-elif', 't-else'):
+            if attr in clone.attrib:
+                del clone.attrib[attr]
+        return clone
+
+    def _conditional_body(self, node, state):
+        """條件節點的內容 → 元素串列。
+
+        節點自己就是內容（<table t-if=…>、<img t-if=…>，或身上帶 t-field /
+        t-out / t-foreach / t-call）時，要把**它自己**轉出來，不是轉它的
+        子節點。只轉子節點的話，<table t-if> 的 thead/tbody 會被當成一般
+        容器——tr 上的 t-foreach 永遠不會被看到，明細整批消失。
+        實測：出貨單（stock.action_report_delivery）的兩張明細表就是
+        <table t-if> / <table t-elif> 的一對，轉出來連客戶名與品名都沒有。
+        """
+        tag = (node.tag if isinstance(node.tag, str) else '').lower()
+        selfish = tag in self._SELF_CONTENT_TAGS or any(
+            node.get(attr) for attr in
+            ('t-field', 't-out', 't-esc', 't-foreach', 't-call')
+        )
         inner = []
-        # 條件節點本身的內容；條件已經移到標記上，不要再往下看 t-if
+        if selfish:
+            self._emit(self._strip_condition_attrs(node), inner, state)
+            return inner
         holder = self._new_element('t')
         holder.text = node.text
         for child in list(node):
             holder.append(child)
         self._emit_children(holder, inner, state)
+        return inner
+
+    def _condition_block(self, node, cond, state):
+        inner = self._conditional_body(node, state)
         if not inner or (inner[-1].get('value') or '') != '\n':
             inner.append(self._newline())
         return self._condition_wrap(cond, inner, state)

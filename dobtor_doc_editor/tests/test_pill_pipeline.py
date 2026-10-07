@@ -2706,3 +2706,62 @@ class TestImageExpressionSource(TransactionCase):
             'expression': 'object.ref',
         })
         self.assertEqual(value, '', '沒有大頭貼就是空的，不該掉回表達式')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestRecordsetReprGuard(TransactionCase):
+    """many2one 藥丸不可以印出 Python repr。
+
+    Jinja 的字串化把 recordset 變成 "res.partner(7,)"。使用者寫
+    t-field="o.partner_id" 要的是名稱，而印出一個 repr 不會報錯——
+    實測：出貨單的收件人欄位整段就是 "res.partner(14570,)"。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.parent = self.env['res.partner'].create({'name': '母公司名'})
+        self.partner = self.env['res.partner'].create({
+            'name': '子公司名', 'parent_id': self.parent.id})
+
+    def _value(self, **meta):
+        tree = {'main': [_pill('X', **meta), _text('\n')]}
+        self.Mixin._snapshot_content_json(tree, self.partner)
+        return tree['main'][0]['value']
+
+    def test_many2one_path_uses_display_name(self):
+        value = self._value(source='record', path='parent_id')
+        self.assertEqual(value, self.parent.display_name)
+        self.assertNotIn('res.partner(', value)
+
+    def test_many2one_expression_uses_display_name(self):
+        value = self._value(source='record', expression='object.parent_id')
+        self.assertEqual(value, self.parent.display_name)
+
+    def test_plain_text_is_untouched(self):
+        """只在「輸出剛好長得像 repr」時才多算一次，其他取值不受影響。"""
+        self.assertEqual(
+            self._value(source='record', path='name'), '子公司名')
+
+    def test_text_that_looks_like_a_call_is_untouched(self):
+        """像函式呼叫的字串不是 recordset repr——不可以被改掉。"""
+        self.partner.ref = 'f(1)'
+        self.assertEqual(self._value(source='record', path='ref'), 'f(1)')
+
+    def test_line_pill_in_repeat_row_also_fixed(self):
+        """重複列用的是另一條求值路徑（_eval_for），兩邊都要修。"""
+        tree = {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 300}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 _pill('母公司', source='line', path='parent_id'),
+             )]}]},
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        values = [el.get('value')
+                  for row in snapped['main'][0]['trList']
+                  for cell in row['tdList'] for el in cell['value']
+                  if (el.get('value') or '') != '\n']
+        self.assertEqual(values, [self.parent.display_name])

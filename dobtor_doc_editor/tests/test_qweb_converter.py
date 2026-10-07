@@ -510,3 +510,132 @@ class TestLoneCondition(TestQwebConverterBase):
         self.assertEqual(len(tables), 1)
         self.assertEqual((tables[0].get('extension') or {}).get('dobtorBlock'),
                          'condition')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestConditionalContentNode(TestQwebConverterBase):
+    """條件掛在「內容節點」自己身上時，要轉它自己、不是轉它的子節點。
+
+    <table t-if="…"> 只轉子節點的話，thead/tbody 會被當成一般容器——
+    tr 上的 t-foreach 永遠不會被看到，明細整批消失。
+    實測：出貨單的兩張明細表就是 <table t-if> / <table t-elif> 的一對，
+    轉出來連客戶名與品名都沒有。
+    """
+
+    def test_table_with_condition_keeps_its_foreach(self):
+        res = self._convert(
+            '<table t-if="o.active"><tbody>'
+            '<t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-out="kid.name"/></td></tr></t>'
+            '</tbody></table>'
+        )
+        tables = list(self._tables(res['tree']['main']))
+        self.assertEqual(len(tables), 2, '外層條件區塊 + 內層明細表')
+        self.assertEqual((tables[0].get('extension') or {}).get('dobtorBlock'),
+                         'condition')
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        self.assertTrue(repeats, '明細的重複標記不可以消失')
+        self.assertEqual(repeats[0].get('path'), 'child_ids')
+
+    def test_table_pair_in_if_else_chain_keeps_both_foreach(self):
+        """<table t-if> / <table t-elif> 的一對（出貨單就是這個形狀）。"""
+        res = self._convert(
+            '<table t-if="o.active"><tbody>'
+            '<t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-out="kid.name"/></td></tr></t></tbody></table>'
+            '<table t-else=""><tbody>'
+            '<t t-foreach="o.bank_ids" t-as="bank">'
+            '<tr><td><span t-out="bank.acc_number"/></td></tr></t>'
+            '</tbody></table>'
+        )
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        self.assertEqual({m.get('path') for m in repeats},
+                         {'child_ids', 'bank_ids'},
+                         '兩個分支的明細都要留著：%s' % repeats)
+
+    def test_widget_survives_on_a_non_simple_expression(self):
+        """算式型的取值不可以把 widget 掉掉。
+
+        原生出貨單寫 t-out="o.move_ids[0].partner_id or o.partner_id"
+        並帶 widget="contact"。widget 掉了之後單據上印的是
+        "res.partner(7,)"——而且不會報錯。
+        """
+        res = self._convert(
+            '<div t-out="o.parent_id or o.commercial_partner_id"'
+            ' t-options=\'{"widget": "contact"}\'/>'
+        )
+        expression = list(self._metas(res['tree']['main']))[0].get(
+            'expression') or ''
+        self.assertIn('format_address(', expression)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestFilteredLambdaRewrite(TestQwebConverterBase):
+    """filtered(lambda …) 是 Odoo 最常見的慣用寫法，而 Jinja 沒有 lambda。
+
+    留著就是 TemplateSyntaxError，而條件／來源求值失敗的策略是「寧可多印」
+    ——該濾掉的列會全部印出來。
+    """
+
+    def _source(self, value):
+        res = self._convert(
+            '<t t-set="rows" t-value="%s"/>'
+            '<table><t t-foreach="rows" t-as="row">'
+            '<tr><td><span t-out="row.name"/></td></tr></t></table>' % value
+        )
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        return (repeats[0].get('path')
+                or repeats[0].get('sourceExpression') or ''), res
+
+    def test_truthy_attribute(self):
+        source, _res = self._source("o.child_ids.filtered(lambda x: x.phone)")
+        self.assertIn("selectattr('phone')", source)
+
+    def test_negated_attribute(self):
+        source, _res = self._source(
+            "o.child_ids.filtered(lambda x: not x.phone)")
+        self.assertIn("rejectattr('phone')", source)
+
+    def test_comparison(self):
+        source, _res = self._source(
+            "o.child_ids.filtered(lambda x: x.type == 'invoice')")
+        self.assertIn("selectattr('type', '==', 'invoice')", source)
+
+    def test_not_in_tuple(self):
+        source, _res = self._source(
+            "o.child_ids.filtered(lambda x: x.type not in ('invoice', 'other'))")
+        self.assertIn("rejectattr('type', 'in', ('invoice', 'other'))", source)
+
+    def test_rewritten_source_actually_resolves(self):
+        """改寫完要真的取得到明細——語法對了不代表 Jinja 吃得下去。"""
+        parent = self.env['res.partner'].create({'name': 'FL 母公司'})
+        with_phone = self.env['res.partner'].create({
+            'name': 'FL 有電話', 'parent_id': parent.id, 'phone': '02-1234'})
+        self.env['res.partner'].create({
+            'name': 'FL 沒電話', 'parent_id': parent.id})
+        res = self._convert(
+            '<t t-set="rows" t-value="o.child_ids.filtered(lambda x: x.phone)"/>'
+            '<table><t t-foreach="rows" t-as="row">'
+            '<tr><td><span t-out="row.name"/></td></tr></t></table>'
+        )
+        meta = [m for m in self._metas(res['tree']['main'])
+                if m.get('source') == 'repeat'][0]
+        lines = self.env['doc.render.mixin']._resolve_repeat_records(
+            parent, meta)
+        self.assertEqual(lines, [with_phone])
+
+    def test_unrewritable_lambda_is_left_alone_with_a_note(self):
+        """認不出來的形狀不要亂猜——留原樣並留待辦。"""
+        res = self._convert(
+            '<t t-set="rows" t-value="o.child_ids.filtered('
+            'lambda x: x.phone and x.email)"/>'
+            '<table><t t-foreach="rows" t-as="row">'
+            '<tr><td><span t-out="row.name"/></td></tr></t></table>'
+        )
+        meta = [m for m in self._metas(res['tree']['main'])
+                if m.get('source') == 'repeat'][0]
+        self.assertTrue(meta.get('unbound'),
+                        '改寫不了就要標成待確認：%s' % meta)
