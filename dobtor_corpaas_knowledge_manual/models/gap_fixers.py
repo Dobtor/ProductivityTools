@@ -229,3 +229,21 @@ class KnowledgeHooksGaps(models.AbstractModel):
         run = self.env['corpaas.knowledge.run'].sudo().browse(ctx.get('run_id') or 0).exists()
         if run:
             run.check_cancel()
+
+
+class SolutionPackageManualGaps(models.Model):
+    _inherit = 'infrastructure.solution.package'
+
+    def _knowledge_collect_gaps(self):
+        """從目前狀態補記缺口（失敗的截圖、待審文章的文字檢查）：缺口模型上線前留下的
+        失敗也能進迴圈。"""
+        hooks = self.env['corpaas.knowledge.hooks']
+        for rec in self:
+            bindings = hooks._manual_relevant_bindings(rec)
+            hooks._manual_sync_shot_gaps(rec, bindings)
+            hooks._manual_sync_text_gaps(rec)
+        return True
+
+    def action_knowledge_fix_gaps(self):
+        self._knowledge_collect_gaps()
+        return super().action_knowledge_fix_gaps()

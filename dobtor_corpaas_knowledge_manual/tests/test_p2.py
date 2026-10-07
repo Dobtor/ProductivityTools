@@ -201,6 +201,18 @@ class TestIterativeManual(ManualCase):
         self.hooks._manual_sync_shot_gaps(self.pkg, b)
         self.assertEqual(gap.state, 'resolved')
 
+    def test_fix_gaps_button_collects_existing_failures(self):
+        from unittest.mock import patch
+        self.cap_a.feature_ids = [(6, 0, self.f1.ids)]
+        self.cap_b.feature_ids = [(5,)]
+        b = self._binding(self.f1, error='畫面是空白引導頁（示範資料不足）')
+        Pkg = type(self.pkg)
+        with patch.object(Pkg, 'knowledge_enqueue_refresh', lambda s, **kw: None), \
+                patch.object(type(self.hooks), '_manual_relevant_bindings', lambda s, p: b):
+            self.pkg.action_knowledge_fix_gaps()
+        gap = self.env['corpaas.knowledge.gap_item'].search([('res_id', '=', b.id)])
+        self.assertEqual(gap.kind, 'data')
+
     def test_text_gap_fixed_by_rule(self):
         art = self._article(self.f1, self.cap_a, name='【標準進階】建立報名')
         art.knowledge_propose('new')
