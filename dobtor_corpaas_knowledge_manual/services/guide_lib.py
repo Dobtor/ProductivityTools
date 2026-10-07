@@ -44,6 +44,8 @@ SETUP_ITEMS = [
 
 #: 探測訊息時不按的按鈕（會寄信、列印、連外或下載）
 BUTTON_DENY = r'(?i)send|mail|print|sms|whatsapp|export|sync|upload|download|portal|preview|report'
+#: 狀態速查不列的按鈕（列印、預覽、匯出不會推進狀態；靜態分析偶爾把它們推成別的路徑）
+STATUS_DENY = r'(?i)print|preview|report|export|download'
 #: 一次探測最多按幾次按鈕（說明庫很小，但流程多時仍要有上限）
 PROBE_LIMIT = 150
 
@@ -242,10 +244,15 @@ def render_setup(data):
 def render_howto(data):
     """本說明怎麼用。data = {product, chapters: [{name, url}], setup_url, roles: [{name, chapters}],
     updated}。"""
+    kinds = set(data.get('kinds') or [])
+    tail = '、'.join('「%s」' % n for k, n in (('status', '狀態速查'), ('messages', '訊息與狀況對照'))
+                    if k in kinds)
     parts = ['<p>%s</p>' % esc(
         '這是「%s」的操作說明。每一章是一個工作領域：章首的「整體流程」用流程圖說明這一章的事情'
-        '怎麼串起來，接著是每個畫面一篇的操作說明，章末有「狀態速查」和「訊息與狀況對照」，'
-        '遇到問題時可以直接查。' % (data.get('product') or ''))]
+        '怎麼串起來%s，接著是日常操作（每個畫面一篇），最後是報表與設定畫面%s。' % (
+            data.get('product') or '',
+            '，「情境教學」用同一張示範單據從頭做到尾' if 'tutorial' in kinds else '',
+            ('；章末有%s，遇到問題時可以直接查' % tail) if tail else ''))]
     steps = []
     if data.get('setup_url'):
         steps.append('<li>%s<a href="%s">%s</a>%s</li>' % (
@@ -270,16 +277,21 @@ def render_howto(data):
 
 
 def render_status(flows):
-    """狀態速查。flows = [{name, steps: [{label, meaning, next: [str], roles: [str]}]}]。"""
+    """狀態速查。flows = [{name, steps: [{label, meaning, next, back, roles}]}]。"""
     parts = ['<p>%s</p>' % esc('單據停在某個狀態、不知道下一步要做什麼時，查這張表。')]
     for flow in flows:
         rows = []
+        has_back = any(s.get('back') for s in flow['steps'])
         for s in flow['steps']:
-            rows.append([esc(s['label']), esc(s.get('meaning') or '—'),
-                         '<br/>'.join(esc(x) for x in s.get('next') or []) or esc('（流程終點）'),
-                         esc('、'.join(s.get('roles') or [])) or '—'])
+            row = [esc(s['label']), esc(s.get('meaning') or '—'),
+                   '<br/>'.join(esc(x) for x in s.get('next') or []) or esc('（流程終點）')]
+            if has_back:
+                row.append('<br/>'.join(esc(x) for x in s.get('back') or []) or '—')
+            row.append(esc('、'.join(s.get('roles') or [])) or '—')
+            rows.append(row)
         parts.append('<p><strong>%s</strong></p>' % esc(flow['name']))
-        parts.append(_table(['狀態', '意思', '怎麼往下一步', '誰可以操作'], rows))
+        parts.append(_table(['狀態', '意思', '怎麼往下一步'] + (['取消或退回'] if has_back else [])
+                            + ['誰負責往下推'], rows))
     return '<div class="o_kb_guide o_kb_status">%s</div>' % ''.join(parts)
 
 

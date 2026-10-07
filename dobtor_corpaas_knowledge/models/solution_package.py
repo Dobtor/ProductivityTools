@@ -339,6 +339,12 @@ class SolutionPackage(models.Model):
             self._knowledge_official_docs(token)
             self._knowledge_flow_names(token)
         try:
+            # 流程改掛到模組相符的能力、章節依上下游排（流程圖與章節都看這個）
+            tstats = self._knowledge_tidy_capabilities()
+            run.add_stats(**{k: v for k, v in tstats.items() if v})
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] %s 能力歸屬整理失敗：%s', self.display_name, e)
+        try:
             # 任務流程 → dobtor_bpmn 設計圖（規則產生、結構雜湊沒變不動）
             dstats = self._knowledge_sync_diagrams()
             run.add_stats(**{'diagrams_%s' % k: v for k, v in dstats.items() if v})

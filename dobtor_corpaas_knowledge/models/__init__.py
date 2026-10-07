@@ -20,3 +20,4 @@ from . import cost_plan
 from . import profile
 from . import gap
 from . import flow_diagram
+from . import capability_order

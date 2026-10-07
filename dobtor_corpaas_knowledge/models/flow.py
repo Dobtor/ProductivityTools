@@ -7,6 +7,7 @@
   它出現在哪些方案。
 """
 import json
+import re
 
 from odoo import api, fields, models
 
@@ -181,7 +182,8 @@ class KnowledgeFlowTransition(models.Model):
         """給讀者看的按鈕名稱：沒有字面名稱（只剩動作編號）時用按鈕功能點的名稱。"""
         self.ensure_one()
         label = (self.button_label or '').strip()
-        if label and not label.isdigit():
+        # 只有動作編號（494）或方法名稱（action_detailed_operations）都不是給人看的名稱
+        if label and not label.isdigit() and not re.fullmatch(r'[a-z0-9]+(?:_[a-z0-9]+)+', label):
             return label
         return self.button_feature_id.name or ''
 

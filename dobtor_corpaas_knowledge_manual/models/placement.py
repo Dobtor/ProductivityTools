@@ -21,6 +21,7 @@
 """
 import html as html_mod
 import json
+import re
 from contextlib import contextmanager
 
 from odoo import SUPERUSER_ID, _, api, fields, models
@@ -35,6 +36,20 @@ JOURNEY_MIN = 3
 #: 同一個流程裡功能的先後：先進畫面，再按按鈕、開精靈，最後看報表與設定
 KIND_ORDER = {'menu': 0, 'action': 0, 'client': 0, 'button': 1, 'wizard': 2, 'report': 3,
               'setting': 4, 'route': 5}
+#: 章內分組：日常操作 → 報表與分析 → 設定（參考說明書：設定是導入時做一次，不跟日常操作混排）
+CONFIG_WORDS = {'配置', '設定', 'Configuration', 'Settings'}
+REPORT_WORDS = {'報告', '報表', '分析', 'Reporting', 'Reports'}
+GROUP_DAILY, GROUP_REPORT, GROUP_CONFIG = 0, 1, 2
+
+
+def article_group(feature):
+    """0 日常操作、1 報表與分析、2 設定：看功能種類與選單路徑。"""
+    segs = {s.strip() for s in re.split(r'[/›]', feature.menu_path or '') if s.strip()}
+    if feature.kind == 'setting' or segs & CONFIG_WORDS:
+        return GROUP_CONFIG
+    if feature.kind == 'report' or segs & REPORT_WORDS:
+        return GROUP_REPORT
+    return GROUP_DAILY
 
 
 @contextmanager
@@ -239,13 +254,20 @@ class KnowledgeChannelSection(models.Model):
             if len(steps) >= 2:
                 parts.append('<p><strong>%s</strong>：%s</p>' % (
                     esc(flow.name or ''), ' → '.join(esc(x) for x in steps)))
-        items = []
+        links = {GROUP_DAILY: [], GROUP_REPORT: [], GROUP_CONFIG: []}
         for pl in ordered:
             live = pl.article_id._manual_live_text()
-            items.append('<li><a href="%s">%s</a></li>' % (
+            links[article_group(pl.article_id.feature_id)].append('<a href="%s">%s</a>' % (
                 esc(pl.slide_id.website_url or '#'), esc(live.get('name') or '')))
-        parts.append('<p>%s</p><ol>%s</ol>' % (esc(_('依照做事的順序，逐篇看下去：')),
-                                               ''.join(items)))
+        if links[GROUP_DAILY]:
+            parts.append('<p>%s</p><ol>%s</ol>' % (
+                esc(_('日常操作，依照做事的順序逐篇看下去：')),
+                ''.join('<li>%s</li>' % x for x in links[GROUP_DAILY])))
+        if links[GROUP_REPORT]:
+            parts.append('<p>%s%s</p>' % (esc(_('報表與分析：')), '、'.join(links[GROUP_REPORT])))
+        if links[GROUP_CONFIG]:
+            parts.append('<p>%s%s</p>' % (esc(_('設定（通常只在導入時做一次）：')),
+                                          '、'.join(links[GROUP_CONFIG])))
         return '<div class="o_kb_journey">%s</div>' % ''.join(parts)
 
     def _manual_sync_journey(self, placements, publisher, shown):
@@ -478,8 +500,8 @@ class SlideChannel(models.Model):
         """
         caps = sorted([c for c in groups if c], key=lambda c: (c.sequence, c.name or '', c.id))
         order = caps + [c for c in groups if not c]
-        # ＋4：旅程篇、情境教學、狀態速查、訊息與狀況對照
-        biggest = max([len(p) for p in groups.values()] or [0]) + 4
+        # ＋5：旅程篇、觀念、情境教學、狀態速查、訊息與狀況對照
+        biggest = max([len(p) for p in groups.values()] or [0]) + 5
         step = 100 * (1 + biggest // 100)
         return [(cap, (i + 1) * step) for i, cap in enumerate(order)], step
 
@@ -509,6 +531,7 @@ class SlideChannel(models.Model):
                 # ★ 章內依任務流程排（D1）：先進畫面、再按鈕與精靈、最後報表；不在流程上的照舊
                 rank, flows = section._manual_flow_rank(cap, groups[cap]) if cap else ({}, Flow)
                 ordered = groups[cap].sorted(lambda p: (
+                    article_group(p.article_id.feature_id),
                     rank.get(p.article_id.feature_id.id, 10 ** 6), p.sequence,
                     p.article_id.name or '', p.id)).filtered('slide_id')
                 journey = section._manual_sync_journey(ordered, publisher, shown)
@@ -516,6 +539,11 @@ class SlideChannel(models.Model):
                 if journey:
                     wanted[journey.id] = base + 1
                     start = 2
+                # 先懂這幾個觀念（能力上線快照，AI 起草送審）：整體流程之後
+                concept = section._manual_sync_concept(publisher, shown) if cap else None
+                if concept:
+                    wanted[concept.id] = base + start
+                    start += 1
                 # 情境教學：整體流程之後、參考篇之前（同一張單據一路做完）
                 tutorial = section._manual_sync_tutorial(flows, package, groups[cap], publisher,
                                                          shown) if cap else None

@@ -138,7 +138,8 @@ class KnowledgeHooks(models.AbstractModel):
             ('package_id', '=', package.id), ('kind', '=', 'feature'),
             ('state', '=', 'approved'), ('feature_id', '!=', False)])
         for sel in sels:
-            own = (sel.feature_id.capability_ids & caps)[:1]
+            # ★ 同時屬於多個能力時看模組（銷售訂單畫面也被採購能力收了，不能取第一個）
+            own = package._knowledge_best_capability(sel.feature_id, caps)
             if sel.capability_id:
                 cap = sel.capability_id if sel.capability_id in caps else own
                 if not cap:
@@ -148,7 +149,8 @@ class KnowledgeHooks(models.AbstractModel):
             out.setdefault(sel.feature_id, cap)
         for cap in caps:
             for feature in cap.feature_ids:
-                out.setdefault(feature, cap)
+                if feature not in out:
+                    out[feature] = package._knowledge_best_capability(feature, caps) or cap
         renamed_to = self.env['corpaas.knowledge.rename'].sudo().search(
             [('state', '=', 'proposed')]).mapped('new_feature_id')
         # ★ 沒被改過的官方畫面不寫文章（K21）：說明連到 Odoo 官方文件，不重寫一份——

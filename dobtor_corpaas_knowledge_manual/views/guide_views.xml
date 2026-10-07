@@ -27,4 +27,17 @@
             </xpath>
         </field>
     </record>
+
+    <record id="view_kb_capability_form_manual_concept" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.capability.form.manual.concept</field>
+        <field name="model">corpaas.knowledge.capability</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_kb_capability_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='value']" position="after">
+                <page string="本章觀念" name="manual_concept">
+                    <field name="manual_concept_html" nolabel="1"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
 </odoo>

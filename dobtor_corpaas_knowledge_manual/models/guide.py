@@ -19,7 +19,8 @@ from .hooks import AI_ERRORS, ai_dict, ai_html_steps, ai_text
 _logger = logging.getLogger(__name__)
 
 FRONT_SECTION = '開始之前'
-GUIDE_KINDS = [('howto', '本說明怎麼用'), ('setup', '開始前必設定'), ('tutorial', '情境教學'),
+GUIDE_KINDS = [('howto', '本說明怎麼用'), ('setup', '開始前必設定'),
+               ('concept', '先懂這幾個觀念'), ('tutorial', '情境教學'),
                ('status', '狀態速查'), ('messages', '訊息與狀況對照')]
 GUIDE_TITLES = dict(GUIDE_KINDS)
 #: 一次問 AI 補幾則（狀態意思以流程為單位、訊息以則為單位）
@@ -61,6 +62,22 @@ class SolutionPackage(models.Model):
             raise AccessError(_('只有知識管理者可以重寫待審說明。'))
         return self.env['corpaas.knowledge.ai'].enqueue(
             self, '_manual_redraft_handoff_run', self, note=_('重寫提到錯誤交接的待審說明'))
+
+    def action_manual_redraft_lint(self):
+        """重寫文字檢查新規則抓到的文章（標題含示範名稱、「開始前要先有」寫錯）：含已上線的。
+
+        已上線的文章重寫後送審，前台照舊顯示上線版，核准後才換。"""
+        self.ensure_one()
+        if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
+            raise AccessError(_('只有知識管理者可以重寫說明。'))
+        return self.env['corpaas.knowledge.ai'].enqueue(
+            self, '_manual_redraft_lint_run', self, note=_('重寫文字檢查抓到的說明'))
+
+    def _manual_redraft_lint_run(self):
+        self.ensure_one()
+        hooks = self.env['corpaas.knowledge.hooks'].sudo()
+        return hooks._manual_redraft_review(self, features=hooks._manual_lint_features(self),
+                                            states=('review', 'published'))
 
     def _manual_redraft_handoff_run(self):
         self.ensure_one()
@@ -162,32 +179,47 @@ class KnowledgeChannelSection(models.Model):
 
     @api.model
     def _manual_status_data(self, flows, package):
+        """狀態速查：每個狀態「往下一步」與「取消／退回」分開列。
+
+        ☠️ 實機：靜態分析把「列印」推成「→ 已取消」（同一顆按鈕的另一條路徑）、按鈕名稱只剩
+          方法名稱 → 列印／寄送類按鈕一律不列，沒有給人看的名稱也不列。"""
+        import re
+        from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import MODEL_ROLE
+        deny = re.compile(guide_lib.STATUS_DENY)
         role_names = self._manual_role_names(package) if package else {}
         out = []
         for flow in flows.sorted(lambda f: (-(f.usage_score or 0), f.id)):
             steps = flow.step_ids.sorted('sequence').filtered('on_statusbar')
             if len(steps) < 2:
                 continue
+            bar = steps.mapped('value')
+            default_role = role_names.get(MODEL_ROLE.get(flow.model) or '', '')
             rows = []
             for s in steps:
-                nxt, roles = [], []
+                nxt, back, roles = [], [], []
                 for t in flow.transition_ids.sorted('id'):
                     label = t.display_label()
-                    if (t.from_value or '') not in (s.value, '') or not label:
+                    if (t.from_value or '') not in (s.value, '') or not label \
+                            or deny.search(t.button_name or ''):
                         continue
+                    forward = t.to_value in bar and bar.index(t.to_value) > bar.index(s.value)
                     if t.to_value and t.to_value != s.value:
                         line = _('按「%(b)s」→ %(to)s', b=label, to=flow.step_label(t.to_value))
                     elif t.opens_flow_id and t.is_handoff():
-                        line = _('按「%(b)s」開出「%(f)s」', b=label, f=t.opens_flow_id.name)
+                        line, forward = _('按「%(b)s」開出「%(f)s」', b=label,
+                                          f=t.opens_flow_id.name), True
                     else:
                         continue
-                    if line not in nxt:
-                        nxt.append(line)
-                    who = self._manual_feature_role(t.button_feature_id, role_names)
-                    if who and who not in roles:
-                        roles.append(who)
+                    bucket = nxt if forward else back
+                    if line not in bucket:
+                        bucket.append(line)
+                    if forward:
+                        who = self._manual_feature_role(t.button_feature_id, role_names) \
+                            or default_role
+                        if who and who not in roles:
+                            roles.append(who)
                 rows.append({'label': s.label or s.value, 'meaning': s.meaning or '',
-                             'next': nxt, 'roles': roles})
+                             'next': nxt, 'back': back, 'roles': roles})
             if any(r['next'] for r in rows):
                 out.append({'name': flow.name, 'steps': rows})
         return out
@@ -257,20 +289,31 @@ class SlideChannel(models.Model):
     def _manual_howto_html(self, package, chapters, setup_slide):
         """chapters: [(section, first_slide, placements)]（依章節順序，只含上線的章節）。"""
         self.ensure_one()
+        from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import MODULE_ROLE
         role_names = self.env['corpaas.knowledge.channel_section']._manual_role_names(package) \
             if package else {}
-        roles, chapter_rows, stamps = {}, [], []
+        # ★ 誰負責哪一章：看章節（能力）的主要模組歸哪個角色，不看截圖用哪個帳號拍——
+        #   拍攝角色常常只是「看得到這個畫面的任一角色」（實機：業務被列到應收付、採購）
+        roles, shared, chapter_rows, stamps, kinds = {}, [], [], [], set()
         for section, first, placements in chapters:
             chapter_rows.append({'name': section.name, 'url': first.website_url if first else ''})
-            for pl in placements:
-                if pl.synced_at:
-                    stamps.append(pl.synced_at)
-                b = pl.article_id.shot_binding_id
-                name = role_names.get(b.login_role()) if b else None
-                if name:
-                    chs = roles.setdefault(name, [])
-                    if section.name not in chs:
-                        chs.append(section.name)
+            kinds |= {g.kind for g in section.guide_slide_ids
+                      if g.slide_id and g.slide_id.is_published}
+            stamps += [pl.synced_at for pl in placements if pl.synced_at]
+            cap = section.capability_id
+            code = MODULE_ROLE.get(cap._knowledge_main_module()) if cap else None
+            name = role_names.get(code or '')
+            if name:
+                roles.setdefault(name, []).append(section.name)
+            else:
+                shared.append(section.name)
+        others = [n for n in role_names.values() if n not in roles]
+        rows = [{'name': n, 'chapters': c} for n, c in roles.items()]
+        if others:
+            rows.append({'name': '、'.join(others), 'chapters': [_('開始之前')] + [
+                _('各章最後的設定畫面')]})
+        if shared:
+            rows.append({'name': _('所有角色'), 'chapters': shared})
         updated = ''
         if stamps:
             updated = fields.Date.to_string(fields.Datetime.context_timestamp(
@@ -278,10 +321,10 @@ class SlideChannel(models.Model):
         order = list(role_names.values())
         return guide_lib.render_howto({
             'product': self.knowledge_product_tmpl_id.name or self.name,
-            'chapters': chapter_rows,
+            'chapters': chapter_rows, 'kinds': sorted(kinds),
             'setup_url': setup_slide.website_url if setup_slide and setup_slide.is_published else '',
-            'roles': sorted(({'name': n, 'chapters': c} for n, c in roles.items()),
-                            key=lambda r: order.index(r['name']) if r['name'] in order else 99),
+            'roles': sorted(rows, key=lambda r: order.index(r['name']) if r['name'] in order
+                            else 99),
             'updated': updated,
         })
 
@@ -426,7 +469,19 @@ class KnowledgeHooks(models.AbstractModel):
         return out
 
     @api.model
-    def _manual_redraft_review(self, package, token=None, features=None):
+    def _manual_lint_features(self, package):
+        """文字檢查新規則抓到的功能（待審與已上線的文章都看）。"""
+        Article = self.env['corpaas.knowledge.article'].sudo()
+        out = self.env['corpaas.knowledge.feature']
+        keys = ('標題含示範資料名稱', '「開始前要先有」')
+        for art in Article.search([('state', 'in', ('review', 'published')),
+                                   ('scenario_id', 'in', package.knowledge_scenario_ids.ids)]):
+            if any(p.startswith(keys) for p in art._manual_text_problems()):
+                out |= art.feature_id
+        return out
+
+    @api.model
+    def _manual_redraft_review(self, package, token=None, features=None, states=('review',)):
         """待審（還沒上線過）的步驟區塊與文章，用目前的提示重寫一次，再送審。
 
         先平行預取步驟區塊，寫回後再平行預取情境說明（情境說明要帶入新的步驟）。
@@ -434,7 +489,7 @@ class KnowledgeHooks(models.AbstractModel):
         Ai = self.env['corpaas.knowledge.ai']
         Article = self.env['corpaas.knowledge.article'].sudo()
         cands = self._manual_candidates(package)
-        arts = Article.search([('state', '=', 'review'),
+        arts = Article.search([('state', 'in', list(states)),
                                ('scenario_id', 'in', package.knowledge_scenario_ids.ids),
                                ('feature_id', 'in', [f.id for f in cands])])
         if features is not None:
@@ -447,7 +502,8 @@ class KnowledgeHooks(models.AbstractModel):
             if not tmpl:
                 continue
             for blk in art.step_block_ids.filtered(
-                    lambda b: not b.published_rev_no and b.feature_id == art.feature_id):
+                    lambda b: (not b.published_rev_no or 'published' in states)
+                    and b.feature_id == art.feature_id):
                 blocks.setdefault(blk.id, (blk, tmpl))
         prompts_ = {bid: self._manual_step_prompt(package, blk.feature_id, tmpl)
                     for bid, (blk, tmpl) in blocks.items()}
@@ -466,6 +522,8 @@ class KnowledgeHooks(models.AbstractModel):
                 continue
             blk.write({'name': ai_text(data.get('title')) or blk.name,
                        'html': manual_lib.steps_to_html(steps, blk.anchor)})
+            if blk.state == 'published':
+                blk.knowledge_propose('text', note=_('依新寫法重寫'))
             nb += 1
         items = [('manual_scenario', self._manual_scenario_prompt(
             package, a.scenario_id, a.feature_id, a.capability_id, a.step_block_ids)) for a in arts]
@@ -497,6 +555,12 @@ class KnowledgeHooks(models.AbstractModel):
             self._manual_guide_ai(package, ctx.get('token'), stop)
         except Exception as e:  # noqa: BLE001 — 短文補不了，頁面照樣產生（欄位留「—」）
             _logger.warning('[knowledge.manual] 說明書短文失敗：%s', e)
+        try:
+            n = self._manual_draft_concepts(package, ctx.get('token'), stop)
+            if n:
+                ctx.setdefault('stats', {})['concepts_drafted'] = n
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge.manual] 觀念頁起草失敗：%s', e)
         res = super()._knowledge_dispatch_events(package, events, ctx)
         # 文章沒有變動時不會觸發重新編號：規則頁（探測結果、短文）可能變了，主動同步一次
         tmpl = package.product_tmpl_id

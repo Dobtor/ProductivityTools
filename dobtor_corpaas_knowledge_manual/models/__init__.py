@@ -11,3 +11,4 @@ from . import cost_lines
 from . import gap_fixers
 from . import guide
 from . import tutorial
+from . import concept

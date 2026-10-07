@@ -256,6 +256,12 @@ class KnowledgeArticle(models.Model):
         tech = sorted(set(re.findall(r'\b[a-z]+(?:_[a-z0-9]+)+\b', plain)))
         if tech:
             problems.append(_('含技術欄位名：%s') % '、'.join(tech[:5]))
+        for name in self._manual_demo_names():
+            if name in (self.name or ''):
+                problems.append(_('標題含示範資料名稱「%s」') % name)
+                break
+        if re.search(r'開始前要先有[^。]{0,60}才(能|會)(在列表|看到|顯示)', plain):
+            problems.append(_('「開始前要先有」寫的是看得到資料的條件，不是操作前提'))
         names = set(re.findall(r'\[\[shot:([^\]]+)\]\]', '\n'.join(texts)))
         if names and self.shot_binding_id:
             have = set(self.asset_ids.filtered(lambda a: a.state == 'current').mapped('shot_name'))
@@ -263,6 +269,18 @@ class KnowledgeArticle(models.Model):
             if missing:
                 problems.append(_('截圖標記沒有對應的圖：%s') % '、'.join(missing[:5]))
         return problems
+
+    def _manual_demo_names(self):
+        """情境示範資料裡的客戶、商品、公司名稱（標題不該出現）。"""
+        self.ensure_one()
+        seed = self.env['corpaas.knowledge.hooks']._manual_seed(self.scenario_id)
+        out = set()
+        for r in seed:
+            name = (r.get('values') or {}).get('name')
+            if r.get('model') in ('res.partner', 'res.company', 'product.product', 'product.template') \
+                    and isinstance(name, str) and len(name) >= 3:
+                out.add(name)
+        return sorted(out, key=len, reverse=True)
 
     def _manual_approve(self):
         # ★ 截圖沒拍好的文章不讓核准：發佈出去就是一篇配著空白頁或錯誤畫面的說明。

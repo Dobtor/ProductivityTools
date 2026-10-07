@@ -331,3 +331,118 @@ class TestHandoff(ManualCase):
         self.assertFalse(self.hooks._manual_flow_context(self.f2), '查看上游的按鈕不寫成流程上的一步')
         self.f1.write({'model': 'purchase.order'})
         self.assertNotIn('後續單據', str(self.hooks._manual_flow_context(self.f1)))
+
+
+@tagged('post_install', '-at_install')
+class TestRound2(ManualCase):
+    """第二輪比較的修正：歸屬看模組、章節排序、狀態速查、章內分組、角色對章節、文字檢查、觀念頁。"""
+
+    def test_shared_feature_goes_to_module_capability(self):
+        # f1 同時在 A、B；B 的功能點多數跟 f1 同模組 → 歸 B
+        self.cap_b.feature_ids = [(4, self.f1.id)]
+        self.f3.module = 'kbtest'
+        self.f2.module = 'other'
+        cands = self.hooks._manual_candidates(self.pkg)
+        self.assertEqual(cands[self.f1], self.cap_b)
+
+    def test_tidy_orders_capabilities_and_moves_flows(self):
+        Cap = self.env['corpaas.knowledge.capability'].sudo()
+        self.cap_a.sequence = self.cap_b.sequence = 10
+        sale = self.Feature.create({'feature_key': 'kbtest.action:so', 'module': 'sale', 'kind': 'action',
+                                    'anchor': 'kbtest.so', 'name': '訂單', 'model': 'sale.order',
+                                    'package_ids': [(6, 0, self.pkg.ids)]})
+        stock = self.Feature.create({'feature_key': 'kbtest.action:pk', 'module': 'stock',
+                                     'kind': 'action', 'anchor': 'kbtest.pk', 'name': '調撥',
+                                     'model': 'stock.picking', 'package_ids': [(6, 0, self.pkg.ids)]})
+        self.cap_a.feature_ids = [(6, 0, stock.ids)]
+        self.cap_b.feature_ids = [(6, 0, (sale | stock).ids)]
+        flow = self.env['corpaas.knowledge.flow'].sudo().create({
+            'model': 'sale.order', 'state_field': 'state', 'capability_id': self.cap_a.id,
+            'package_ids': [(4, self.pkg.id)], 'feature_ids': [(6, 0, sale.ids)]})
+        stats = self.pkg._knowledge_tidy_capabilities()
+        self.assertEqual(flow.capability_id, self.cap_b, '銷售訂單流程歸到有 sale 模組的能力')
+        self.assertEqual(stats['caps_ordered'], 2)
+        self.assertLess(self.cap_b.sequence, self.cap_a.sequence, '主要模組 sale 排在 stock 前面')
+        self.cap_a.sequence = 99
+        self.assertFalse(self.pkg._knowledge_tidy_capabilities()['caps_ordered'], '有人排過就不動')
+
+    def test_status_excludes_print_and_splits_cancel(self):
+        flow = self.env['corpaas.knowledge.flow'].sudo().create({
+            'model': 'res.partner', 'model_name': '調撥', 'state_field': 'kbr_state',
+            'field_type': 'selection', 'capability_id': self.cap_a.id,
+            'package_ids': [(4, self.pkg.id)]})
+        for i, (v, label) in enumerate([('draft', '草稿'), ('ready', '準備好'), ('done', '完成'),
+                                        ('cancel', '已取消')]):
+            self.env['corpaas.knowledge.flow.step'].sudo().create({
+                'flow_id': flow.id, 'sequence': i, 'value': v, 'label': label,
+                'on_statusbar': v != 'cancel'})
+        T = self.env['corpaas.knowledge.flow.transition'].sudo()
+        for fr, to, name, label in [('ready', 'done', 'button_validate', '驗證'),
+                                    ('ready', 'cancel', 'do_print_picking', '列印'),
+                                    ('ready', 'cancel', 'action_cancel', '取消'),
+                                    ('draft', 'ready', 'action_confirm', 'action_confirm')]:
+            T.create({'flow_id': flow.id, 'from_value': fr, 'to_value': to, 'button_name': name,
+                      'button_label': label})
+        data = self.env['corpaas.knowledge.channel_section']._manual_status_data(flow, self.pkg)
+        rows = {r['label']: r for r in data[0]['steps']}
+        self.assertEqual(rows['準備好']['next'], ['按「驗證」→ 完成'])
+        self.assertEqual(rows['準備好']['back'], ['按「取消」→ 已取消'], '列印不列；取消另一欄')
+        self.assertFalse(rows['草稿']['next'], '方法名稱不是給人看的按鈕名稱')
+        html = guide_lib.render_status(data)
+        self.assertIn('取消或退回', html)
+
+    def test_config_articles_after_daily(self):
+        from ..models.placement import article_group
+        self.f1.menu_path = '報名/配置/年會類型'
+        self.f2.menu_path = '報名/報告/分析'
+        self.assertEqual([article_group(f) for f in (self.f1, self.f2, self.f3)], [2, 1, 0])
+        self.f3.capability_ids = [(5,)]
+        self.cap_b.feature_ids = [(5,)]
+        self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+        arts = [self._article(f, self.cap_a, name=n) for f, n in
+                ((self.f1, '甲 設定'), (self.f2, '乙 報表'), (self.f3, '丙 日常'))]
+        self._publish(*arts)
+        seq = {a.name: a.placement_ids.slide_id.sequence for a in arts}
+        self.assertLess(seq['丙 日常'], seq['乙 報表'])
+        self.assertLess(seq['乙 報表'], seq['甲 設定'])
+        journey = self._channel().knowledge_section_ids.filtered(
+            lambda s: s.capability_id == self.cap_a).journey_slide_id
+        self.assertIn('設定（通常只在導入時做一次）', journey.html_content)
+
+    def test_lint_flags_demo_name_and_prerequisite(self):
+        art = self._article(self.f1, self.cap_a, name='核對宏達文具發票')
+        art.step_block_ids.html = '<p>開始前要先有：至少一筆範本，才能在列表中看到範例。</p>'
+        with patch.object(type(self.hooks), '_manual_seed', lambda s, sc: [
+                {'xmlid': 'x.p', 'model': 'res.partner', 'values': {'name': '宏達文具'}}]):
+            problems = art._manual_text_problems()
+        self.assertTrue(any('示範資料名稱' in p for p in problems))
+        self.assertTrue(any('開始前要先有' in p for p in problems))
+
+    def test_concept_drafted_reviewed_then_shown(self):
+        self.f3.capability_ids = [(5,)]
+        self.cap_b.feature_ids = [(5,)]
+        self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+        flow = self.env['corpaas.knowledge.flow'].sudo().create({
+            'model': 'res.partner', 'model_name': '報名', 'state_field': 'kbc_state',
+            'field_type': 'selection', 'capability_id': self.cap_a.id,
+            'package_ids': [(4, self.pkg.id)]})
+        for i, v in enumerate(['draft', 'done']):
+            self.env['corpaas.knowledge.flow.step'].sudo().create(
+                {'flow_id': flow.id, 'sequence': i, 'value': v, 'label': v, 'on_statusbar': True})
+        self.cap_a._do_publish('new')
+        html = '<p>報名從草稿到完成，' + '說明' * 60 + '</p>'
+        with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', return_value={'html': html}):
+            self.assertEqual(self.hooks._manual_draft_concepts(self.pkg, 'tok', {'ai': False}), 1)
+        self.assertEqual(self.cap_a.state, 'review')
+        arts = [self._article(f, self.cap_a, name=n) for f, n in
+                ((self.f1, '甲'), (self.f2, '乙'), (self.f3, '丙'))]
+        self._publish(*arts)
+        section = self._channel().knowledge_section_ids.filtered(lambda s: s.capability_id == self.cap_a)
+        self.assertFalse(section.guide_slide_ids.filtered(lambda g: g.kind == 'concept').slide_id,
+                         '沒核准不出現')
+        self.cap_a._do_publish('text')
+        self._channel()._knowledge_renumber()
+        slide = section.guide_slide_ids.filtered(lambda g: g.kind == 'concept').slide_id
+        self.assertTrue(slide.is_published)
+        self.assertEqual(slide.name, '線上報名：先懂這幾個觀念')
+        self.assertLess(slide.sequence, min(a.placement_ids.slide_id.sequence for a in arts))
