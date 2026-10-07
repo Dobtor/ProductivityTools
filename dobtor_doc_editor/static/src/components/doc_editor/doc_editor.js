@@ -2539,6 +2539,18 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         return (this.state.selectedVariable || {}).source === "image";
     }
 
+    // 圖片的來源可以是欄位路徑，也可以是算出來的表達式（發票的付款 QR 就是
+    // partner_bank_id.build_qr_code_base64(...) 的結果，不對應任何欄位）。
+    // 只顯示 path 的話，表達式型的圖片會寫「（未設定）」——使用者會以為壞了，
+    // 然後去設一個欄位把表達式蓋掉。
+    get imageSourceLabel() {
+        const v = this.state.selectedVariable || {};
+        if (v.path) {
+            return v.path;
+        }
+        return v.expression ? "（用下方的來源表達式）" : "（未設定）";
+    }
+
     onImagePropertyChange(key, value) {
         const num = parseInt(value, 10);
         this.updateSelectedPill({

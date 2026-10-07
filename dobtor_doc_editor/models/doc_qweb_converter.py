@@ -46,6 +46,12 @@ _BLOCK_TAGS = frozenset({
 _SKIP_TAGS = frozenset({'script', 'style', 'link', 'meta'})
 
 _SIMPLE_PATH_RE = re.compile(r'^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$')
+# 表達式有沒有綁到沙箱裡的根變數（object / line）。
+# 一律用 token 比對，不要寫 'line.' in expr：迴圈變數是 dict 時 QWeb 寫
+# 下標（line['date']），帶點的字串比對會判成「不是明細欄位」，
+# 藥丸的 source 就變成 record——印出來是空的，而且沒有任何訊息。
+_ROOT_TOKEN_RE = re.compile(r'\b(object|line)\b')
+_LINE_TOKEN_RE = re.compile(r'\bline\b')
 
 
 class DocQwebConverter(models.AbstractModel):
@@ -89,7 +95,8 @@ class DocQwebConverter(models.AbstractModel):
             'notes': [],
             'stats': {'pill': 0, 'repeat': 0, 'condition': 0, 'table': 0,
                       'unbound': 0, 'image': 0, 'taxTotals': 0,
-                      'validated': 0, 'validate_failed': 0},
+                      'validated': 0, 'validate_failed': 0,
+                      'validate_skipped': 0},
             'loop_vars': [],
             'page_format': page_format,
             'view': view,
@@ -133,17 +140,35 @@ class DocQwebConverter(models.AbstractModel):
     # 這幾個算不出來」。差別在於使用者要檢查的項目數，以及他是否得回去讀
     # 原生範本才知道該檢查什麼。
 
-    def _probe_lines(self, record, tree, state):
-        """找一筆明細記錄，給 line 來源的藥丸試算用。取不到回 None。"""
+    def _iter_validation_targets(self, tree, record):
+        """yield (元素, 該元素所在重複列的一筆明細 or None)。
+
+        不能全樹共用一筆明細：同一張單據上可以有好幾個不同形狀的重複
+        （發票同時有「明細列」與「付款列」，後者的一筆是 dict），
+        拿明細列的那一筆去試算付款列的 line 藥丸，會得到一整批假失敗，
+        而假失敗會把藥丸標成待確認——使用者去檢查一個其實沒問題的地方。
+        """
         Mixin = self.env['doc.render.mixin']
-        for element in Mixin._iter_elements(tree):
-            meta = Mixin._element_field_meta(element)
-            if not meta or (meta.get('source') or '') != 'repeat':
-                continue
-            lines = Mixin._resolve_repeat_records(record, meta)
-            if lines:
-                return lines[0]
-        return None
+
+        def walk(elements, line):
+            for element in elements:
+                yield element, line
+                if element.get('type') != 'table':
+                    continue
+                for row in (element.get('trList') or []):
+                    if not isinstance(row, dict):
+                        continue
+                    row_line = line
+                    marker, meta = Mixin._row_repeat_meta(row)
+                    if marker:
+                        lines = Mixin._resolve_repeat_records(record, meta)
+                        row_line = lines[0] if lines else None
+                    for cell in (row.get('tdList') or []):
+                        if isinstance(cell, dict):
+                            yield from walk(cell.get('value') or [], row_line)
+
+        for zone in ('header', 'main', 'footer'):
+            yield from walk(tree.get(zone) or [], None)
 
     def validate_tree(self, tree, record, state):
         """拿一筆記錄試算所有藥丸的表達式。回傳 {'ok', 'failed'}。
@@ -152,18 +177,24 @@ class DocQwebConverter(models.AbstractModel):
         就可能是空的，把它當失敗會製造一堆假待辦。
         """
         Mixin = self.env['doc.render.mixin']
-        line = self._probe_lines(record, tree, state)
-        ok = failed = 0
-        for element in Mixin._iter_elements(tree):
+        ok = failed = skipped = 0
+        for element, line in self._iter_validation_targets(tree, record):
             meta = Mixin._element_field_meta(element)
             if not meta:
                 continue
             source = (meta.get('source') or 'record').strip()
-            if source in ('image', 'page', 'taxTotals', 'groupHeader',
+            if source in ('page', 'taxTotals', 'groupHeader',
                           'groupFooter', 'group', 'running', 'html'):
+                continue
+            if source == 'image' and not (meta.get('expression') or '').strip():
+                # 路徑型圖片不必試算（取值走 _traverse_path，不經沙箱）；
+                # 算出來的圖片來源會，而那正是最需要試算的一種。
                 continue
             target = line if source == 'line' else record
             if target is None:
+                # 取不到樣本明細（這筆記錄還沒有付款紀錄之類）→ 沒試算。
+                # 不可當失敗：那會把正常的藥丸標成待確認。
+                skipped += 1
                 continue
             expression = (meta.get('expression') or '').strip()
             if not expression:
@@ -172,8 +203,15 @@ class DocQwebConverter(models.AbstractModel):
                     continue
                 expression = ('line.%s' % path) if source == 'line' \
                     else ('object.%s' % path)
-            extra = {'line': line} if source == 'line' and line is not None \
-                else {}
+            # 條件藥丸的 source 是 'condition'，但它的表達式可能引用 line
+            # （<tr t-if="line.xxx"> 轉過來的列條件就是）。只看 source 的話
+            # 會拿「只有 object」的環境去試算，結果是一批假失敗。
+            extra = {}
+            if _LINE_TOKEN_RE.search(expression):
+                if line is None:
+                    skipped += 1
+                    continue
+                extra['line'] = line
             error = self._try_expression(expression, target, extra)
             if error:
                 failed += 1
@@ -192,12 +230,20 @@ class DocQwebConverter(models.AbstractModel):
                                         'color': '#1976d2'}
         state['stats']['validated'] = ok
         state['stats']['validate_failed'] = failed
+        state['stats']['validate_skipped'] = skipped
+        if skipped:
+            self._note(
+                state,
+                '有 %d 顆藥丸沒試算：它們所在的重複列在這筆樣本上取不到明細'
+                '（例如這張單還沒有付款紀錄）。換一筆有資料的樣本再轉一次'
+                '才驗得到。' % skipped,
+            )
         # unbound 重算：上面可能清掉了一些
         state['stats']['unbound'] = sum(
             1 for el in Mixin._iter_elements(tree)
             if (Mixin._element_field_meta(el) or {}).get('unbound')
         )
-        return {'ok': ok, 'failed': failed}
+        return {'ok': ok, 'failed': failed, 'skipped': skipped}
 
     def _try_expression(self, expression, record, extra=None):
         """試算一段表達式；成功回 None，失敗回錯誤字串。"""
@@ -442,14 +488,23 @@ class DocQwebConverter(models.AbstractModel):
         '再放一列分組小計（表達式用 group.lines|sum(attribute=...)）。'
     )
 
-    # (正則, 取代, 說明)。第一個命中就停。
+    # (正則, 取代, 說明)。每一條都會試，不是第一個命中就停。
     _REWRITE_RULES = (
-        (r'([\w\.]+)\._get_order_lines_to_report\(\s*\)',
-         r'\1.order_line',
-         '_get_order_lines_to_report() 是底線方法（沙箱擋），已改成列出'
-         '全部明細。原生只會濾掉「未入帳的預付款列」，而那段判斷用到了'
-         '_get_downpayment_state()，沙箱表達不出來。單據有預付款時請在'
-         '商品列型加條件 not line.is_downpayment'),
+        # _generate_qr_code 不能走白名單：它在回傳前 self.qr_code_method = …
+        # （account_move.py:6032），渲染一張 PDF 會改資料。
+        # build_qr_code_base64 是公開方法、只讀，參數與原生相同；
+        # qr_method 留空時它自己挑第一個可用的（_build_qr_code_vals 的文件
+        # 就是這樣寫的），差別只在不回寫。
+        (r'\b([\w\.]+)\._generate_qr_code\([^()]*\)',
+         lambda m: (
+             '%(o)s.partner_bank_id.build_qr_code_base64('
+             '%(o)s.amount_residual, '
+             '%(o)s.payment_reference or %(o)s.name, '
+             '%(o)s.payment_reference, %(o)s.currency_id, %(o)s.partner_id)'
+             % {'o': m.group(1)}),
+         '_generate_qr_code() 會在回傳前回寫 qr_code_method（印一張 PDF 就'
+         '改資料），所以不呼叫它，改用公開的 build_qr_code_base64()：'
+         '參數與原生相同，只是不回寫 qr_method'),
         (r'([\w\.]+)\.sudo\(\s*\)',
          r'\1',
          'sudo() 已移除（沙箱不開放提權）。若該欄位受 ACL 限制可能讀不到，'
@@ -505,7 +560,43 @@ class DocQwebConverter(models.AbstractModel):
                 expr = re.sub(pattern, replace, expr, flags=re.S)
                 self._note(state, hint)
                 used = True
-        return expr, used
+        expr, used_safe = self._apply_safe_methods(expr, state)
+        return expr, used or used_safe
+
+    def _apply_safe_methods(self, expr, state):
+        """白名單內的底線方法 → report_helper(...)。回 (改寫後, 是否命中)。
+
+        沙箱擋掉所有底線開頭的方法（提權的主要入口），但原生報表會呼叫幾個
+        純計算的輔助方法，擋掉的後果是單據上那一段印成空白。白名單在
+        doc.render.mixin._SAFE_REPORT_METHODS（逐一讀過實作確認不寫資料），
+        這裡只改寫語法——模型對不對由 report_helper 在渲染時再查一次，
+        所以就算這裡的正則認錯對象，也不會真的呼叫到不該呼叫的東西。
+        """
+        names = {name for _model, name
+                 in self.env['doc.render.mixin']._SAFE_REPORT_METHODS}
+        if not names:
+            return expr, False
+        pattern = r'([\w\.]+)\.(%s)\(([^()]*)\)' % '|'.join(
+            re.escape(n) for n in sorted(names)
+        )
+        hits = []
+
+        def _sub(m):
+            hits.append(m.group(2))
+            args = (m.group(3) or '').strip()
+            return "report_helper(%s, '%s'%s)" % (
+                m.group(1), m.group(2), (', %s' % args) if args else '',
+            )
+
+        out = re.sub(pattern, _sub, expr)
+        for name in dict.fromkeys(hits):
+            self._note(
+                state,
+                '%s() 是底線方法（沙箱擋），已改成經白名單呼叫 '
+                'report_helper()。白名單只收讀過實作、確認不寫資料的方法。'
+                % name,
+            )
+        return out, bool(hits)
 
     def _inline_symbols(self, expr, state, depth, seen=()):
         """把 t-set 變數替換成它們的值（遞迴）。回 (展開後, 是否命中規則表)。
@@ -675,15 +766,18 @@ class DocQwebConverter(models.AbstractModel):
                 return self._pill(label[:20], state, source=source,
                                   expression=base, unbound=used_rule)
             mapped = self._map_condition(expanded, state)
-            if mapped and mapped != expr and ('object.' in mapped
-                                              or 'line.' in mapped):
+            # 用 token 比對而不是 'object.' / 'line.'：迴圈變數是 dict 時
+            # QWeb 寫下標（payment_vals['date'] → line['date']），
+            # 比對帶點的字串會漏掉它，整條表達式原樣留著變成待確認藥丸。
+            if mapped and mapped != expr and _ROOT_TOKEN_RE.search(mapped):
                 self._note(
                     state, '已自動改寫，請確認取值：%s → %s'
                     % (expr[:60], mapped[:80]),
                 )
                 return self._pill(
                     label[:20], state,
-                    source='line' if 'line.' in mapped else 'record',
+                    source='line' if _LINE_TOKEN_RE.search(mapped)
+                    else 'record',
                     expression=mapped, unbound=True,
                 )
             # 真的對不上：原樣保留並標成待辦。使用者看得到原始 QWeb 寫法，
@@ -865,7 +959,7 @@ class DocQwebConverter(models.AbstractModel):
             label = (exprs[0][1] or '').split('.')[-1].strip('()')
         state['stats']['condition'] += 1
         # 在重複列內要用 line 來源，否則會以主記錄求值、每列同一個值
-        source = 'line' if 'line.' in expr else 'record'
+        source = 'line' if _LINE_TOKEN_RE.search(expr) else 'record'
         return self._pill(label[:20] or '多重分支', state,
                           source=source, expression=expr,
                           unbound=bool(state.get('chain_unsure')))
@@ -1030,6 +1124,25 @@ class DocQwebConverter(models.AbstractModel):
             self._note(state, '條碼圖片已轉成 QR 藥丸，請確認型別與取值欄位。')
             return self._pill('條碼', state, source='image',
                               barcodeType='QR', path='name', unbound=True)
+
+        # 來源是 t-set 出來的變數或算出來的（發票的付款 QR 就是
+        # o._generate_qr_code(...) 的結果）。展開後若是一條欄位路徑就綁路徑，
+        # 否則用表達式——圖片藥丸兩種都收。
+        expanded, _used = self._expand_symbols(src, state)
+        path, _kind = self._strip_root(expanded, state)
+        if path and _SIMPLE_PATH_RE.match(path):
+            return self._pill('圖：%s' % path.split('.')[-1], state,
+                              source='image', path=path)
+        mapped = self._map_condition(expanded, state)
+        if mapped and _ROOT_TOKEN_RE.search(mapped):
+            self._note(
+                state,
+                '圖片來源是算出來的，已改成表達式請確認：%s → %s'
+                % (src[:40], mapped[:90]),
+            )
+            return self._pill('圖片', state, source='image',
+                              expression=mapped, unbound=True)
+
         self._note(state, '圖片來源需要人工確認：%s' % (src or '（無 src）')[:80])
         return self._pill('圖片（待確認）', state, source='image',
                           path='', unbound=True)
@@ -1343,7 +1456,11 @@ class DocQwebConverter(models.AbstractModel):
                 unbound=used_rule,
             )
         mapped = self._map_condition(expanded, bare)
-        if mapped and mapped != expr and 'object.' in mapped:
+        # 同樣用 token 比對：白名單改寫後的來源是
+        # report_helper(object, '_get_order_lines_to_report')，根變數後面接
+        # 的是逗號。寫 'object.' in mapped 會判成「對不上」，明細來源變成
+        # 待設定——整張明細表印不出來（實測：銷售訂單的品名／章節全消失）。
+        if mapped and mapped != expr and _ROOT_TOKEN_RE.search(mapped):
             self._note(
                 state,
                 '重複來源已自動改寫，請確認：%s → %s'
@@ -1373,12 +1490,18 @@ class DocQwebConverter(models.AbstractModel):
         out = (expr or '').strip()
         if expand:
             out, _used = self._expand_symbols(out, state)
+        # 整個 token 一起換，不要只換「變數後面接點」的形式：
+        #   payment_vals['date']   dict 型迴圈變數寫下標
+        #   report_helper(o, …)    白名單改寫後根變數後面接的是逗號
+        # 只換帶點的形式會漏掉這兩種，表達式就留著沙箱不認識的名字。
+        # 前面不接 \w 或點：避免把 partner.name 裡的 name（剛好是迴圈變數名）
+        # 換成 partner.line。
         for var in reversed(state.get('loop_vars') or []):
-            out = re.sub(r'\b%s\.' % re.escape(var), 'line.', out)
-            # 迴圈變數是 dict 時 QWeb 寫下標：payment_vals['is_exchange']
-            out = re.sub(r'\b%s\[' % re.escape(var), 'line[', out)
+            out = re.sub(r'(?<![\w.])%s\b' % re.escape(var), 'line', out)
         for var in _ROOT_VARS:
-            out = re.sub(r'\b%s\.' % re.escape(var), 'object.', out)
+            if var == 'object':
+                continue
+            out = re.sub(r'(?<![\w.])%s\b' % re.escape(var), 'object', out)
         return out
 
     def _condition_block(self, node, cond, state):

@@ -211,6 +211,11 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
                               labelText: "圖：簽名" }),
         },
         expectInspector("圖片"),
+        {
+            content: "圖片的來源表達式欄位在（算出來的圖片靠它）",
+            trigger: ".doc-inspector-field:contains('來源表達式')",
+            run: () => {},
+        },
 
         {
             content: "選取條碼藥丸",

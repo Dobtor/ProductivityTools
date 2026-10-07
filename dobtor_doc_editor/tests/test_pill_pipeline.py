@@ -2572,3 +2572,137 @@ class TestNestedTableSurvivesCollapse(TransactionCase):
             self.Mixin._flatten_content_json(snapped))
         self.assertNotIn('客戶統編', html)
         self.assertIn('保留這段', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportHelperWhitelist(TransactionCase):
+    """report_helper —— 沙箱裡呼叫底線方法的那道窄門。
+
+    沙箱擋掉所有底線開頭的方法（提權的主要入口），但原生報表確實會呼叫
+    幾個純計算的輔助方法，擋掉的後果是單據上那一段印成空白、沒有訊息。
+    所以開一道窄門：方法名與模型都要在白名單上。
+
+    這裡刻意用 res.partner._display_address（真的底線方法、真的只讀）來測
+    機制，而不是用 account 的那幾個——本模組不相依 account/sale，測試不該
+    因為某個模組沒裝就紅。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({
+            'name': '窄門測試', 'street': '信義路五段 7 號', 'city': '台北市',
+        })
+
+    def _render(self, expression, record=None):
+        record = record or self.partner
+        env_j = self.Mixin._get_sandbox_env(record)
+        return env_j.from_string('{{ %s }}' % expression).render(
+            object=record, user=self.env.user,
+        )
+
+    def _allow(self, *entries):
+        self.patch(type(self.Mixin), '_SAFE_REPORT_METHODS',
+                   frozenset(entries))
+
+    def test_whitelisted_method_is_callable(self):
+        self._allow(('res.partner', '_display_address'))
+        self.assertIn(
+            '信義路五段 7 號',
+            self._render("report_helper(object, '_display_address')"),
+        )
+
+    def test_direct_call_is_still_blocked(self):
+        """白名單只開 report_helper 這條路，沙箱本身不放寬。"""
+        self._allow(('res.partner', '_display_address'))
+        with self.assertRaises(Exception):
+            self._render('object._display_address()')
+
+    def test_unlisted_method_returns_empty(self):
+        self._allow(('res.partner', '_display_address'))
+        self.assertEqual(
+            self._render("report_helper(object, '_write')"), '')
+
+    def test_unlisted_method_has_no_side_effect(self):
+        """就算方法名猜對了，不在名單上就不該被呼叫到。"""
+        self._allow(('res.partner', '_display_address'))
+        self._render("report_helper(object, 'write', {'name': 'HACK'})")
+        self.assertEqual(self.partner.name, '窄門測試')
+
+    def test_right_name_wrong_model_returns_empty(self):
+        """名單是 (模型, 方法名) 配對——只比對方法名等於沒有名單。"""
+        self._allow(('res.currency', '_display_address'))
+        self.assertEqual(
+            self._render("report_helper(object, '_display_address')"), '')
+
+    def test_zero_is_not_treated_as_empty(self):
+        """0.0 == False。寫成 value in (None, False) 的話，金額剛好是 0
+        的那一期會印成空白——那是最難發現的一種錯。"""
+        self._allow(('res.partner', '_zero_probe'))
+        # create=True：這支方法本來不存在，mock 預設會拒絕 patch 不存在的屬性
+        self.startPatcher(patch.object(
+            type(self.env['res.partner']), '_zero_probe',
+            lambda self: 0.0, create=True,
+        ))
+        self.assertEqual(
+            self._render("report_helper(object, '_zero_probe')"), '0.0')
+
+    def test_qr_code_generator_is_not_whitelisted(self):
+        """account.move._generate_qr_code 會在回傳前回寫 qr_code_method。
+
+        也就是「印一張 PDF 會改資料」。轉換器改走公開的
+        res.partner.bank.build_qr_code_base64()（只讀、參數相同）。
+        這則測試釘住那個決定，避免之後有人為了讓 QR 印出來就加進名單。
+        """
+        self.assertNotIn(('account.move', '_generate_qr_code'),
+                         self.Mixin._SAFE_REPORT_METHODS)
+
+    def test_len_is_available(self):
+        """Jinja 沒有 len()，而 QWeb 條件到處寫 len(x) > 1。
+
+        沒有這個 helper，那種條件會以 UndefinedError 收場——而條件求值失敗
+        是「當真」，於是該藏起來的區塊照印。
+        """
+        self.assertEqual(self._render('len(object.child_ids)'), '0')
+        self.assertEqual(
+            self._render('1 if len(object.child_ids) > 1 else 0'), '0')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestImageExpressionSource(TransactionCase):
+    """圖片藥丸的來源可以是算出來的，不只是 binary 欄位路徑。
+
+    發票的付款 QR 是 partner_bank_id.build_qr_code_base64(...) 的結果，
+    不對應任何欄位。
+    """
+
+    _DATA_URI = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'
+                 'CAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU'
+                 '5ErkJggg==')
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({
+            'name': '圖片表達式', 'ref': self._DATA_URI,
+        })
+
+    def test_expression_data_uri_is_used(self):
+        value = self.Mixin._image_data_uri(
+            self.partner, {'source': 'image', 'expression': 'object.ref'})
+        self.assertEqual(value, self._DATA_URI)
+
+    def test_expression_that_is_not_an_image_is_dropped(self):
+        """算出來的不是圖就當沒有圖——印一張破圖而且不報錯更糟。"""
+        self.partner.ref = '這不是圖'
+        value = self.Mixin._image_data_uri(
+            self.partner, {'source': 'image', 'expression': 'object.ref'})
+        self.assertEqual(value, '')
+
+    def test_path_still_wins(self):
+        """同時給 path 與 expression 時以 path 為準（binary 欄位要原始 bytes）。"""
+        value = self.Mixin._image_data_uri(self.partner, {
+            'source': 'image', 'path': 'image_1920',
+            'expression': 'object.ref',
+        })
+        self.assertEqual(value, '', '沒有大頭貼就是空的，不該掉回表達式')

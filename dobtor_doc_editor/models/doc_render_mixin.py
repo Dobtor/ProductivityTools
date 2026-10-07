@@ -185,6 +185,39 @@ class DocRenderMixin(models.AbstractModel):
                 value if isinstance(value, str) else (value or ''),
             )
 
+        def _safe_len(value):
+            try:
+                return len(value)
+            except TypeError:
+                return 0
+
+        def report_helper(target, name, *args, **kwargs):
+            """呼叫白名單內的模型輔助方法。取不到值一律回空字串。
+
+            沙箱擋掉所有底線開頭的方法——那是提權的主要入口，不該放寬。
+            但原生報表確實會呼叫幾個純計算的輔助方法（提前付款折扣金額、
+            折扣截止日），擋掉的後果是單據上那一段印成空白，而且沒有訊息。
+            這裡用一份逐一讀過實作的白名單（_SAFE_REPORT_METHODS）開一道
+            窄門：方法名與模型都要對得上，不在名單上就回空字串。
+            """
+            try:
+                model = getattr(target, '_name', None)
+                if not model or (model, name) not in self._SAFE_REPORT_METHODS:
+                    return ''
+                one = target[:1] if hasattr(target, 'ids') else target
+                if not one:
+                    return ''
+                value = getattr(one, name)(*args, **kwargs)
+            except Exception:
+                # 參數不合、資料不全 → 空字串。一個輔助方法不該讓整份文件
+                # 產不出來（與其他 helper 的失敗策略一致）。
+                return ''
+            # 不可寫成 value in (None, False)：0.0 == False，金額剛好是 0
+            # 的時候會被當成「沒有值」印成空白。
+            if value is None or value is False:
+                return ''
+            return value
+
         return {
             'selection_label': selection_label,
             'format_date': format_date,
@@ -192,7 +225,29 @@ class DocRenderMixin(models.AbstractModel):
             'format_number': format_number,
             'format_money': format_money,
             'format_address': format_address,
+            'report_helper': report_helper,
+            # Jinja 沒有 len()（它只有 |length），而 QWeb 條件到處寫
+            # len(x) > 1。沒有這個 helper，那種條件會以 UndefinedError 收場
+            # ——而條件求值失敗是「當真」，於是該藏起來的區塊照印。
+            'len': _safe_len,
         }
+
+    # 白名單：(模型, 方法名)。只收「讀完實作確認不寫資料」的純計算方法。
+    # 想加自己的：繼承 doc.render.mixin 覆寫這個集合——但請先考慮改用
+    # compute / related 欄位，那條路不需要任何白名單，也不必信任誰。
+    #
+    # 刻意不收 account.move._generate_qr_code：它在回傳前會
+    # `self.qr_code_method = qr_code_method`（account_move.py:6032），
+    # 也就是渲染一張 PDF 會改資料。轉換器改走公開的
+    # res.partner.bank.build_qr_code_base64()，那支只讀。
+    _SAFE_REPORT_METHODS = frozenset({
+        # 提前付款折扣後的應付金額。只算百分比與四捨五入
+        ('account.payment.term', '_get_amount_due_after_discount'),
+        # 折扣截止日（已格式化的字串）
+        ('account.payment.term', '_get_last_discount_date_formatted'),
+        # 報表要印的訂單明細：濾掉「未入帳的預付款列」。只有 filtered
+        ('sale.order', '_get_order_lines_to_report'),
+    })
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')
 
@@ -629,9 +684,17 @@ class DocRenderMixin(models.AbstractModel):
         if (meta.get('barcodeType') or '').strip():
             return self._barcode_data_uri(record, meta)
         path = (meta.get('path') or '').strip()
-        if not path:
+        expression = (meta.get('expression') or '').strip()
+        if path:
+            value = self._traverse_path(record, path)
+        elif expression:
+            # 表達式來源：發票的付款 QR 是
+            # partner_bank_id.build_qr_code_base64(...) 算出來的 data URI，
+            # 不是某個 binary 欄位。一樣用 compile_expression 取真值——
+            # from_string 會把 bytes 變成 "b'iVBOR...'" 的 repr。
+            value = self._eval_raw(expression, record)
+        else:
             return ''
-        value = self._traverse_path(record, path)
         if not value:
             return ''
         if isinstance(value, str):
@@ -1215,6 +1278,19 @@ class DocRenderMixin(models.AbstractModel):
             return list(value)
         # dict 本身不是清單（使用者大概漏了取某個鍵），回空比印出一堆鍵名好
         return []
+
+    def _eval_raw(self, expression, record, extra=None):
+        """求值一段表達式並回傳**真的 Python 值**（失敗回 None）。
+
+        與 _eval_collection 同一個理由用 compile_expression：from_string
+        永遠回字串，bytes 會變成 "b'iVBOR...'" 這種 repr，印出來是一串
+        看不懂的文字而且不報錯。
+        """
+        try:
+            fn = self._get_sandbox_env(record).compile_expression(expression)
+            return fn(object=record, user=self.env.user, **(extra or {}))
+        except Exception:
+            return None
 
     def _line_key(self, item, key):
         """取明細的排序鍵。recordset 與 dict 都用 item[key]。"""

@@ -11,6 +11,7 @@
 
 import json
 import itertools
+from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase, tagged
 
@@ -271,3 +272,174 @@ class TestContactWidget(TestQwebConverterBase):
         metas = [m for m in self._metas(res['tree']['main'])
                  if m.get('source') == 'record']
         self.assertIn('with_name=True', metas[0].get('expression') or '')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestSafeMethodRewrite(TestQwebConverterBase):
+    """底線方法的三條路：白名單、語意改寫、標待辦。
+
+    沙箱擋掉所有底線開頭的方法，但原生報表會呼叫幾個。這裡測的是轉換器
+    怎麼分派——用 res.partner 的方法測機制，不相依 account/sale。
+    """
+
+    def _allow(self, *entries):
+        Mixin = self.env['doc.render.mixin']
+        self.patch(type(Mixin), '_SAFE_REPORT_METHODS', frozenset(entries))
+
+    def test_whitelisted_method_becomes_report_helper(self):
+        self._allow(('res.partner', '_display_address'))
+        res = self._convert('<span t-out="o.parent_id._display_address()"/>')
+        metas = list(self._metas(res['tree']['main']))
+        self.assertEqual(
+            metas[0].get('expression'),
+            "report_helper(object.parent_id, '_display_address')",
+        )
+        self.assertTrue(any('白名單' in n for n in res['notes']))
+
+    def test_whitelisted_method_keeps_arguments(self):
+        self._allow(('res.partner', '_display_address'))
+        res = self._convert(
+            '<span t-out="o._display_address(without_company=True)"/>')
+        metas = list(self._metas(res['tree']['main']))
+        self.assertEqual(
+            metas[0].get('expression'),
+            "report_helper(object, '_display_address', without_company=True)",
+        )
+
+    def test_unlisted_method_is_flagged_not_rewritten(self):
+        """不在名單上的不要亂改——留原式＋待辦，使用者才知道該看哪裡。"""
+        self._allow(('res.partner', '_display_address'))
+        res = self._convert('<span t-out="o._whatever_private()"/>')
+        metas = list(self._metas(res['tree']['main']))
+        self.assertIn('_whatever_private', metas[0].get('expression') or '')
+        self.assertTrue(metas[0].get('unbound'))
+        self.assertNotIn('report_helper', metas[0].get('expression') or '')
+        self.assertTrue(any('請確認' in n for n in res['notes']),
+                        '要有待辦，使用者才知道該看哪裡：%s' % res['notes'])
+
+    def test_whitelisted_method_as_repeat_source_still_resolves(self):
+        """白名單方法當明細來源，要真的取得到明細。
+
+        改寫後根變數後面接的是逗號（report_helper(object, '…')），
+        判斷寫成 'object.' in mapped 會判成「對不上」→ 明細來源變成待設定
+        → 整張明細表印不出來。實測過：銷售訂單的品名與章節全部消失，
+        而範本上看起來只是「來源待設定」，沒人會把兩件事連起來。
+        """
+        self._allow(('res.partner', '_kids_to_report'))
+        self.startPatcher(patch.object(
+            type(self.env['res.partner']), '_kids_to_report',
+            lambda self: self.child_ids, create=True,
+        ))
+        parent = self.env['res.partner'].create({'name': '來源母公司'})
+        child = self.env['res.partner'].create({
+            'name': '來源子公司', 'parent_id': parent.id})
+        res = self._convert(
+            '<t t-set="kids" t-value="o._kids_to_report()"/>'
+            '<table><t t-foreach="kids" t-as="kid">'
+            '<tr><td><span t-out="kid.name"/></td></tr></t></table>'
+        )
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        source = repeats[0].get('sourceExpression') or ''
+        self.assertIn('report_helper', source)
+        self.assertIn('object', source, '根變數要換成沙箱認識的名字')
+        lines = self.env['doc.render.mixin']._resolve_repeat_records(
+            parent, repeats[0])
+        self.assertEqual(lines, [child], '來源要真的取得到明細')
+
+    def test_generate_qr_code_goes_through_public_method(self):
+        """_generate_qr_code 會回寫 qr_code_method（印 PDF 就改資料）。
+
+        所以不走白名單，改用公開的 build_qr_code_base64()：參數與原生相同、
+        qr_method 留空讓它自己挑，差別只在不回寫。
+        """
+        res = self._convert(
+            '<span t-out="o._generate_qr_code(silent_errors=True)"/>',
+            model='account.move' if self.env['ir.model']._get('account.move')
+            else 'res.partner',
+        )
+        expression = list(self._metas(res['tree']['main']))[0].get(
+            'expression') or ''
+        self.assertIn('build_qr_code_base64', expression)
+        self.assertNotIn('_generate_qr_code', expression)
+        self.assertTrue(any('回寫 qr_code_method' in n for n in res['notes']))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestDictLoopVarSource(TestQwebConverterBase):
+    """迴圈變數是 dict 時，藥丸的 source 必須還是 line。
+
+    原本判斷寫 `'line.' in expr`，而 dict 寫的是下標 line['date']，
+    於是 source 變成 record——渲染時那顆藥丸以主記錄求值，印出來是空的，
+    而且沒有任何訊息。
+    """
+
+    def test_subscript_value_pill_is_line_source(self):
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-out="kid[\'name\']"/></td></tr></t></table>'
+        )
+        values = [m for m in self._metas(res['tree']['main'])
+                  if m.get('source') in ('line', 'record')]
+        self.assertEqual(values[0].get('source'), 'line')
+        self.assertEqual(values[0].get('expression'), "line['name']")
+
+    def test_subscript_branch_pill_is_line_source(self):
+        """行內 t-if/t-else 收成三元式時也是同一個判斷。"""
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><t t-if="kid[\'phone\']">有</t>'
+            '<t t-else="">無</t></td></tr></t></table>'
+        )
+        pills = [m for m in self._metas(res['tree']['main'])
+                 if (m.get('expression') or '').find('line[') >= 0]
+        self.assertTrue(pills, '三元式應保留 line 下標：%s'
+                        % list(self._metas(res['tree']['main'])))
+        self.assertEqual(pills[0].get('source'), 'line')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestValidationProbePerRow(TestQwebConverterBase):
+    """試算要用「該列自己的明細」。
+
+    同一張單據上可以有好幾個形狀不同的重複（發票同時有明細列與付款列，
+    後者的一筆是 dict）。全樹共用一筆明細的話，另一個重複的 line 藥丸
+    會得到一整批假失敗——而假失敗會把藥丸標成待確認，使用者就去檢查一個
+    其實沒問題的地方。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.parent = self.env['res.partner'].create({'name': '母公司'})
+        self.child = self.env['res.partner'].create({
+            'name': '子公司', 'parent_id': self.parent.id})
+
+    def test_targets_carry_their_own_row_line(self):
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-out="kid.name"/></td></tr></t></table>'
+            '<p><span t-out="o.name"/></p>'
+        )
+        pairs = list(self.Conv._iter_validation_targets(
+            res['tree'], self.parent))
+        by_source = {}
+        for element, line in pairs:
+            meta = (element.get('extension') or {}).get('dobtorField')
+            if meta:
+                by_source[meta.get('source')] = line
+        self.assertEqual(by_source.get('line'), self.child,
+                         '重複列內的藥丸要配到該列的明細')
+        self.assertIsNone(by_source.get('record'),
+                          '重複列外的藥丸沒有明細')
+
+    def test_empty_repeat_source_is_skipped_not_failed(self):
+        """取不到樣本明細時「沒試算」，不是「試算失敗」。"""
+        empty = self.env['res.partner'].create({'name': '沒有子公司'})
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-out="kid.name"/></td></tr></t></table>',
+            validate_with=empty,
+        )
+        self.assertEqual(res['stats']['validate_failed'], 0)
+        self.assertTrue(res['stats']['validate_skipped'] >= 1)
+        self.assertTrue(any('沒試算' in n for n in res['notes']))

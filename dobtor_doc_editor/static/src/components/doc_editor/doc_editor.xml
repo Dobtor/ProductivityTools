@@ -2031,8 +2031,22 @@
                         <div class="doc-inspector-field">
                             <label>來源欄位</label>
                             <div class="doc-inspector-readonly"
-                                 t-esc="state.selectedVariable.path or '（未設定）'"/>
+                                 t-esc="imageSourceLabel"/>
                         </div>
+                        <t t-if="!isBarcodePill">
+                            <div class="doc-inspector-field">
+                                <label>來源表達式</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('expression', ev.target.value)"
+                                       placeholder="留空＝用上方的來源欄位"/>
+                                <p class="doc-inspector-hint">
+                                    圖不是某個欄位、而是算出來的時候用（發票的付款 QR
+                                    就是這樣）。表達式要算出 data: URI 或 base64 影像；
+                                    算出別的東西就當沒有圖，不會印出破圖。
+                                </p>
+                            </div>
+                        </t>
                         <t t-if="isBarcodePill">
                             <div class="doc-inspector-field">
                                 <label>條碼型別</label>
