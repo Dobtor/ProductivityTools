@@ -24,6 +24,7 @@
                     <group>
                         <field name="page_format"/>
                         <field name="sample_res_id"/>
+                        <field name="attach_layout"/>
                         <field name="create_binding"/>
                     </group>
                 </group>
@@ -37,6 +38,8 @@
                     </div>
                     <group>
                         <field name="template_id" readonly="1"/>
+                        <field name="layout_id" readonly="1"
+                               invisible="not layout_id"/>
                     </group>
                     <field name="notes" readonly="1" widget="text"
                            nolabel="1"/>

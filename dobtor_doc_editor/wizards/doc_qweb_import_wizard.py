@@ -30,6 +30,14 @@ class DocQwebImportWizard(models.TransientModel):
         help='留 0＝自動挑一筆最新的。轉換後會用這筆記錄把每個變數試算一遍，'
              '算不出來的會標成待確認。',
     )
+    attach_layout = fields.Boolean(
+        string='自動掛上外框範本', default=True,
+        help='原生報表的頁首頁尾（公司 logo、公司資訊、頁碼）對所有報表都一樣，'
+             '所以交給共用的外框範本，不複製進每一張範本。',
+    )
+    layout_id = fields.Many2one(
+        'doc.template', string='使用的外框', readonly=True,
+    )
     create_binding = fields.Boolean(
         string='同時建立報表綁定', default=False,
         help='勾選後會建立 doc.report 綁定，列印該報表時改用新範本。'
@@ -63,9 +71,16 @@ class DocQwebImportWizard(models.TransientModel):
                 '轉換失敗：\n%s' % '\n'.join(result.get('notes') or ['未知原因'])
             )
 
+        layout = self.env['doc.template']
+        if self.attach_layout and result.get('needs_layout'):
+            # 同一張外框給所有轉換出來的範本共用——每張各建一份的話，
+            # 公司資訊又散回 N 份，外框存在的意義就沒了
+            layout = self.env['doc.template'].find_or_create_layout()
+
         template = self.env['doc.template'].create({
             'name': self.template_name or self.report_id.name,
             'role': 'content',
+            'layout_id': layout.id or False,
             'page_format': self.page_format,
             'model_id': self.env['ir.model']._get(self.report_id.model).id,
             'content_json': result['content_json'],
@@ -94,6 +109,16 @@ class DocQwebImportWizard(models.TransientModel):
                 '沒有樣本記錄可試算（該模型還沒有資料）——'
                 '所有自動改寫的表達式都未經驗證。'
             )
+        if layout:
+            lines.append(
+                '頁首頁尾交給外框範本「%s」（公司 logo／公司資訊／頁碼）。'
+                '紙張與邊距也由外框決定。' % layout.name
+            )
+        elif result.get('needs_layout'):
+            lines.append(
+                '原生報表有外框（external_layout），但沒有掛外框範本'
+                '——頁首頁尾目前是空的，公司 logo 與頁碼不會印出來。'
+            )
         lines.append('')
         if result.get('notes'):
             lines.append('── 待辦（請逐項確認）──')
@@ -118,6 +143,7 @@ class DocQwebImportWizard(models.TransientModel):
 
         self.write({
             'template_id': template.id,
+            'layout_id': layout.id or False,
             'notes': '\n'.join(lines),
             'state': 'done',
         })

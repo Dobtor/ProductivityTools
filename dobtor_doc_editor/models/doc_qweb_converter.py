@@ -95,24 +95,20 @@ class DocQwebConverter(models.AbstractModel):
             'view': view,
         }
         self._collect_symbols(root, state)
-        body_node, layout_nodes = self._split_layout(root, state)
+        body_node, blocks = self._split_layout(root, state)
 
         main = []
+        self._emit_layout_blocks(blocks, main, state)
         self._emit_children(body_node, main, state)
         self._trim(main)
 
-        header = []
-        if layout_nodes:
-            for node in layout_nodes:
-                self._emit_children(node, header, state)
-            self._trim(header)
-            state['notes'].append(
-                '外框（web.external_layout）的內容已放進「頁首」區。'
-                '建議改成獨立的外框範本（文件管理 ▸ 外框範本），'
-                '公司資訊改一次就能套用到所有單據。'
-            )
-
-        tree = {'header': header, 'main': main, 'footer': []}
+        # 頁首頁尾一律留空，交給外框範本——公司 logo、公司資訊、頁碼對所有
+        # 報表都一樣，複製進每一張範本的話改公司地址要改 N 張。
+        tree = {'header': [], 'main': main, 'footer': []}
+        needs_layout = bool(
+            root.xpath('//t[@t-call="web.external_layout"'
+                       ' or @t-call="web.internal_layout"]')
+        )
         if validate_with is not None and validate_with:
             try:
                 self.validate_tree(tree, validate_with[:1], state)
@@ -124,6 +120,7 @@ class DocQwebConverter(models.AbstractModel):
             'content_json': json.dumps(tree, ensure_ascii=False),
             'notes': state['notes'],
             'stats': state['stats'],
+            'needs_layout': needs_layout,
         }
 
     # ─── 轉換後試算 ─────────────────────────────────────────────────
@@ -271,27 +268,116 @@ class DocQwebConverter(models.AbstractModel):
             return None
 
     def _split_layout(self, root, state):
-        """拆出 (本文節點, 外框節點清單)。
+        """拆出 (本文節點, {區塊名: 節點})。
 
-        外框的結構是 <t t-call="web.external_layout"> 裡放幾個 t-set 區塊
-        （address / information_block / layout_document_title），本文則是
-        同一層的其餘內容（對應外框裡的 <t t-out="0"/>）。
+        <t t-call="web.external_layout"> 裡的 t-set 區塊**不是頁首頁尾**——
+        看 external_layout_standard 的結構就知道：
+          div.header  公司 logo／公司資訊／統編（所有報表都一樣）
+          div.article t-call address_layout（address 與 information_block）
+                      → h2 layout_document_title → t-out="0"（本文）
+          div.footer  公司頁尾文字／頁碼（所有報表都一樣）
+
+        所以 address / information_block / 標題屬於**本文頂端**。
+        放進頁首會變成每頁重複——而那在單頁的單據上看不出來。
+        真正的頁首頁尾由外框範本提供（文件管理 ▸ 外框範本）。
         """
         layout_calls = root.xpath(
             '//t[@t-call="web.external_layout" or @t-call="web.internal_layout"]'
         )
         if not layout_calls:
-            return root, []
+            return root, {}
         call = layout_calls[0]
-        layout_nodes = []
+        blocks = {}
+        # 往下找、不只看直接子節點：information_block 在銷售訂單裡是包在
+        # <t t-if="partner_shipping == partner_invoice"> 裡面的，只看直接
+        # 子節點會抓不到，那一格就是空的——而空白格在版面上看不出少了什麼。
+        for node in call.xpath('.//t[@t-set][not(@t-value)]'):
+            name = node.get('t-set')
+            if not name or name in blocks:
+                continue
+            blocks[name] = node
+            # 包在條件裡的區塊：內容取進來，但條件取不進來（它決定的是
+            # 「要放哪一份內容」，而我們只能取第一份）
+            cond = self._enclosing_condition(node, call)
+            if cond:
+                self._note(
+                    state,
+                    '「%s」區塊原本依條件而有不同內容（%s），已取第一份。'
+                    '需要兩種版本請用「若／否則區塊」。' % (name, cond[:60]),
+                )
         body_holder = self._new_element('t')
         for child in list(call):
-            if child.tag == 't' and child.get('t-set'):
-                # t-set 區塊（address / information_block / 標題）＝外框內容
-                layout_nodes.append(child)
-            else:
-                body_holder.append(child)
-        return body_holder, layout_nodes
+            if child.tag == 't' and child.get('t-set') is not None \
+                    and child.get('t-value') is None:
+                continue
+            body_holder.append(child)
+        # 被條件包住的區塊仍留在 body_holder 裡（它們的祖先被搬進去了），
+        # 必須拆掉，否則同一段內容會在本文中出現兩次
+        for name, node in blocks.items():
+            parent = node.getparent()
+            if parent is not None:
+                parent.remove(node)
+        return body_holder, blocks
+
+    def _enclosing_condition(self, node, stop_at):
+        """node 到 stop_at 之間最近的 t-if／t-elif 條件；沒有回 ''。"""
+        parent = node.getparent()
+        while parent is not None and parent is not stop_at:
+            cond = parent.get('t-if') or parent.get('t-elif')
+            if cond:
+                return cond
+            if parent.get('t-else') is not None:
+                return '（否則分支）'
+            parent = parent.getparent()
+        return ''
+
+    def _emit_layout_blocks(self, blocks, out, state):
+        """把 address / information_block / 標題放到本文頂端。
+
+        address_layout 的排法是 information_block 左（col-6）、address 右
+        （col-5 ms-auto）。canvas-editor 沒有 CSS 格線概念，用無框線表格
+        做兩欄——就是條件區塊那個容器機制，零新增。
+        """
+        info = blocks.get('information_block')
+        addr = blocks.get('address')
+        if info is not None or addr is not None:
+            inner = self._inner_width(state)
+            left_w = int(inner * 0.5)
+            left, right = [], []
+            if info is not None:
+                self._emit_children(info, left, state)
+            if addr is not None:
+                self._emit_children(addr, right, state)
+            for cell in (left, right):
+                if not cell or (cell[-1].get('value') or '') != '\n':
+                    cell.append(self._newline())
+            # address 靠右，與原生的 ms-auto 一致
+            right[-1]['rowFlex'] = 'right'
+            out.append({
+                'type': 'table', 'value': '',
+                'extension': {'dobtorBlock': 'layout'},
+                'borderType': 'empty',
+                'colgroup': [{'width': left_w}, {'width': inner - left_w}],
+                'trList': [{'tdList': [
+                    {'colspan': 1, 'rowspan': 1, 'value': left},
+                    {'colspan': 1, 'rowspan': 1, 'value': right},
+                ]}],
+            })
+            out.append(self._newline())
+            state['stats']['table'] += 1
+
+        title = blocks.get('layout_document_title')
+        if title is not None:
+            piece = []
+            self._emit_children(title, piece, state)
+            for el in piece:
+                # 單據標題：原生是 <h2>，這裡用字級與粗體表達
+                if el.get('value') != '\n':
+                    el.setdefault('size', 24)
+                    el.setdefault('bold', True)
+            out.extend(piece)
+            if not out or (out[-1].get('value') or '') != '\n':
+                out.append(self._newline())
 
     def _new_element(self, tag):
         from lxml import etree

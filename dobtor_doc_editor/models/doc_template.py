@@ -249,6 +249,31 @@ class DocTemplate(models.Model):
         return {'header': header, 'main': [], 'footer': footer}
 
     @api.model
+    def find_or_create_layout(self, variant='side'):
+        """取得（必要時建立）內建外框範本。
+
+        轉換器用：每轉一張報表就建一張新外框的話，公司資訊又散回 N 份了
+        ——外框存在的意義就是共用。所以同名的就直接沿用。
+        """
+        label = self._LAYOUT_VARIANTS.get(variant) or variant
+        name = '外框：%s' % label
+        existing = self.with_context(active_test=False).search(
+            [('role', '=', 'layout'), ('name', '=', name)], limit=1,
+        )
+        if existing:
+            return existing
+        tmpl = self.create({
+            'name': name,
+            'role': 'layout',
+            'description': '由模組產生的起點外框，可自由修改。'
+                           'logo 與公司資訊取自單據的 company_id。',
+        })
+        tmpl.content_json = json.dumps(
+            tmpl._build_layout_tree(variant), ensure_ascii=False,
+        )
+        return tmpl
+
+    @api.model
     def action_create_default_layouts(self):
         """建立內建外框範本（可重複執行，已存在的不動）。
 
@@ -256,26 +281,8 @@ class DocTemplate(models.Model):
         noupdate 的老問題（改 XML 無效、要寫 migration）。做成可重跑的動作，
         要就按、不要就不按，升級也不會覆蓋他改過的版本。
         """
-        created = self.browse()
-        for variant, label in self._LAYOUT_VARIANTS.items():
-            name = '外框：%s' % label
-            existing = self.with_context(active_test=False).search(
-                [('role', '=', 'layout'), ('name', '=', name)], limit=1,
-            )
-            if existing:
-                continue
-            tmpl = self.create({
-                'name': name,
-                'role': 'layout',
-                'category': 'other' if 'other' in dict(
-                    self._fields['category'].selection) else False,
-                'description': '由模組產生的起點外框，可自由修改。'
-                               'logo 與公司資訊取自單據的 company_id。',
-            })
-            tmpl.content_json = json.dumps(
-                tmpl._build_layout_tree(variant), ensure_ascii=False,
-            )
-            created |= tmpl
+        for variant in self._LAYOUT_VARIANTS:
+            self.find_or_create_layout(variant)
         return {
             'type': 'ir.actions.act_window',
             'name': '外框範本',
