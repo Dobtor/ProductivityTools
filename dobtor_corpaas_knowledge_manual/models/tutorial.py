@@ -106,8 +106,13 @@ class KnowledgeTutorial(models.Model):
     @api.model
     def _pick_record(self, flow, seed, first_value):
         """示範資料裡停在第一個狀態的單據（沒寫狀態＝預設狀態，也算）；有明細的優先。"""
+        # ☠️ 實機：沒寫狀態的單據多半另有動作記錄（so_01_confirm → ref so_01）把它推走了，
+        #   拍的時候已經不在第一個狀態 → 按鈕找不到。被動作記錄推過的不挑。
+        moved = {str(r.get('ref')) for r in seed if r.get('call') and r.get('ref')}
+        moved |= {x.split('.', 1)[1] for x in moved if '.' in x}
         cands = [r for r in seed if r.get('model') == flow.model and not r.get('call')
-                 and (r.get('values') or {}).get(flow.state_field) in (first_value, None)]
+                 and (r.get('values') or {}).get(flow.state_field) in (first_value, None)
+                 and r['xmlid'] not in moved and r['xmlid'].split('.')[-1] not in moved]
         if not cands:
             return None
 

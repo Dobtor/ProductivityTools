@@ -186,6 +186,7 @@ class KnowledgeChannelSection(models.Model):
         import re
         from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import MODEL_ROLE
         deny = re.compile(guide_lib.STATUS_DENY)
+        view_btn = re.compile(r'(?i)^action_(view|see|show|open)_|cancel|lock|draft|unlock')
         role_names = self._manual_role_names(package) if package else {}
         out = []
         for flow in flows.sorted(lambda f: (-(f.usage_score or 0), f.id)):
@@ -208,6 +209,11 @@ class KnowledgeChannelSection(models.Model):
                     elif t.opens_flow_id and t.is_handoff():
                         line, forward = _('按「%(b)s」開出「%(f)s」', b=label,
                                           f=t.opens_flow_id.name), True
+                    elif t.from_value == s.value and not t.to_value \
+                            and not view_btn.search(t.button_name or '') \
+                            and s.value != bar[-1] and not t.button_name.isdigit():
+                        # 終點推不出來的按鈕（如「通過信件發送」）：照樣列，讀者知道要按它
+                        line, forward = _('按「%s」') % label, True
                     else:
                         continue
                     bucket = nxt if forward else back
@@ -568,10 +574,33 @@ class KnowledgeHooks(models.AbstractModel):
             [('knowledge_product_tmpl_id', '=', tmpl.id)], limit=1) if tmpl else None
         if channel:
             try:
+                n = self._manual_realign_chapters(package)
+                if n:
+                    ctx.setdefault('stats', {})['chapters_realigned'] = n
                 channel._knowledge_request_sync()
             except Exception as e:  # noqa: BLE001
                 _logger.warning('[knowledge.manual] 規則頁同步失敗：%s', e)
         return res
+
+    @api.model
+    def _manual_realign_chapters(self, package):
+        """已上線的文章也跟著目前的歸屬換章節。
+
+        ☠️ 實機：歸屬規則改了，但發佈位置的章節只在文章重推時才更新 → 沒變動的
+          銷售訂單文章一直留在採購章。"""
+        Placement = self.env['corpaas.knowledge.placement'].sudo()
+        Cap = self.env['corpaas.knowledge.capability']
+        cands = self._manual_candidates(package)
+        n = 0
+        for pl in Placement.search([('package_id', '=', package.id), ('manual_retired', '=', False)]):
+            cap = cands.get(pl.article_id.feature_id)
+            if cap is None:
+                continue
+            cap = cap if cap in package.knowledge_capability_ids else Cap
+            if pl.capability_id != cap:
+                pl.capability_id = cap.id
+                n += 1
+        return n
 
     @api.model
     def _manual_guide_ai(self, package, token, stop):

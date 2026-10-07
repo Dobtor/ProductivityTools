@@ -283,8 +283,10 @@ def render_status(flows):
         rows = []
         has_back = any(s.get('back') for s in flow['steps'])
         for s in flow['steps']:
+            last = s is flow['steps'][-1]
             row = [esc(s['label']), esc(s.get('meaning') or '—'),
-                   '<br/>'.join(esc(x) for x in s.get('next') or []) or esc('（流程終點）')]
+                   '<br/>'.join(esc(x) for x in s.get('next') or [])
+                   or esc('（流程終點）' if last else '—')]
             if has_back:
                 row.append('<br/>'.join(esc(x) for x in s.get('back') or []) or '—')
             row.append(esc('、'.join(s.get('roles') or [])) or '—')

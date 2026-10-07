@@ -22,6 +22,12 @@ CONCEPT_BATCH = 8
 _SIMPLIFIED = re.compile('[这为们说时发开关过还进单应个对会来么经现实务样点让认识计记设调导选择]')
 
 
+def full_width(html):
+    """中文之間的半形標點換成全形（實機：AI 回了一整頁「,」「;」）。"""
+    return re.sub(r'(?<=[\u4e00-\u9fff」）])\s*([,;:])\s*(?=[\u4e00-\u9fff「（])',
+                  lambda m: {',': '，', ';': '；', ':': '：'}[m.group(1)], html or '')
+
+
 class KnowledgeCapability(models.Model):
     _inherit = 'corpaas.knowledge.capability'
 
@@ -90,6 +96,7 @@ class KnowledgeHooks(models.AbstractModel):
                 _logger.warning('[knowledge.manual] 觀念頁起草失敗 %s：%s', cap.name, e)
                 continue
             html = manual_lib.clean_html(data.get('html') if isinstance(data, dict) else '') or ''
+            html = full_width(html)
             plain = re.sub(r'<[^>]+>', '', html)
             if len(plain) < 80 or _SIMPLIFIED.search(plain):
                 _logger.info('[knowledge.manual] 觀念頁不採用（太短或含簡體字）：%s', cap.name)
@@ -108,7 +115,7 @@ class KnowledgeChannelSection(models.Model):
         self.ensure_one()
         cap = self.capability_id
         snap = (cap._last_published_snapshot() or {}) if cap else {}
-        html = manual_lib.clean_html(snap.get('manual_concept_html') or '').strip()
+        html = full_width(manual_lib.clean_html(snap.get('manual_concept_html') or '')).strip()
         if html:
             html = '<div class="o_kb_guide o_kb_concept">%s</div>' % html
         return self._manual_upsert_guide('concept', html, publisher, shown)

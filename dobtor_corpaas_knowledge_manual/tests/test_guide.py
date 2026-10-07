@@ -463,3 +463,38 @@ class TestRound2(ManualCase):
         self.assertTrue(slide.is_published)
         self.assertEqual(slide.name, '線上報名：先懂這幾個觀念')
         self.assertLess(slide.sequence, min(a.placement_ids.slide_id.sequence for a in arts))
+
+
+@tagged('post_install', '-at_install')
+class TestRound3(ManualCase):
+
+    def test_published_placement_follows_new_capability(self):
+        art = self._article(self.f1, self.cap_a, name='甲')
+        self._publish(art)
+        pl = art.placement_ids
+        self.assertEqual(pl.capability_id, self.cap_a)
+        self.cap_a.feature_ids = [(3, self.f1.id)]
+        self.cap_b.feature_ids = [(4, self.f1.id)]
+        self.assertEqual(self.hooks._manual_realign_chapters(self.pkg), 1)
+        self.assertEqual(pl.capability_id, self.cap_b)
+
+    def test_pick_record_skips_moved_by_call(self):
+        flow = self.env['corpaas.knowledge.flow'].sudo().create(
+            {'model': 'res.partner', 'state_field': 'kbm_state'})
+        seed = [{'xmlid': 'x.so_1', 'model': 'res.partner', 'values': {}},
+                {'xmlid': 'x.so_1_confirm', 'model': 'res.partner', 'call': 'action_confirm',
+                 'ref': 'x.so_1'},
+                {'xmlid': 'x.so_2', 'model': 'res.partner', 'values': {}}]
+        rec = self.env['corpaas.knowledge.tutorial']._pick_record(flow, seed, 'draft')
+        self.assertEqual(rec['xmlid'], 'x.so_2', '被動作記錄推過的不挑')
+
+    def test_status_middle_state_not_marked_end_and_lists_unknown_buttons(self):
+        rows = [{'label': '報價', 'meaning': '', 'next': [], 'back': [], 'roles': []},
+                {'label': '完成', 'meaning': '', 'next': [], 'back': [], 'roles': []}]
+        html = guide_lib.render_status([{'name': 'f', 'steps': rows}])
+        self.assertEqual(html.count('流程終點'), 1, '只有最後一個狀態是終點')
+
+    def test_full_width_punctuation(self):
+        from ..models.concept import full_width
+        self.assertEqual(full_width('<p>報價單,寄給客戶;等回覆</p>'), '<p>報價單，寄給客戶；等回覆</p>')
+        self.assertEqual(full_width('<p>v1,2 and a,b</p>'), '<p>v1,2 and a,b</p>')
