@@ -65,8 +65,13 @@ class DocQwebConverter(models.AbstractModel):
 
     # ─── 入口 ───────────────────────────────────────────────────────
 
-    def convert_report(self, report, page_format='A4'):
-        """report（ir.actions.report）→ {'content_json', 'notes', 'stats'}。"""
+    def convert_report(self, report, page_format='A4', validate_with=None):
+        """report（ir.actions.report）→ {'content_json', 'notes', 'stats'}。
+
+        validate_with 給一筆樣本記錄時，轉換後會把每個藥丸的表達式試算一遍
+        （見 validate_tree）。強烈建議給——那是把「規則表猜的」變成
+        「實測過的」唯一方法。
+        """
         view = self._resolve_document_view(report)
         if view is None:
             return {
@@ -83,11 +88,13 @@ class DocQwebConverter(models.AbstractModel):
         state = {
             'notes': [],
             'stats': {'pill': 0, 'repeat': 0, 'condition': 0, 'table': 0,
-                      'unbound': 0, 'image': 0, 'taxTotals': 0},
+                      'unbound': 0, 'image': 0, 'taxTotals': 0,
+                      'validated': 0, 'validate_failed': 0},
             'loop_vars': [],
             'page_format': page_format,
             'view': view,
         }
+        self._collect_symbols(root, state)
         body_node, layout_nodes = self._split_layout(root, state)
 
         main = []
@@ -106,11 +113,106 @@ class DocQwebConverter(models.AbstractModel):
             )
 
         tree = {'header': header, 'main': main, 'footer': []}
+        if validate_with is not None and validate_with:
+            try:
+                self.validate_tree(tree, validate_with[:1], state)
+            except Exception as e:
+                _logger.warning('[qweb-import] 試算失敗：%s', e)
+                self._note(state, '無法用樣本記錄試算（%s）。'
+                                  '請自行印一張比對。' % e)
         return {
             'content_json': json.dumps(tree, ensure_ascii=False),
             'notes': state['notes'],
             'stats': state['stats'],
         }
+
+    # ─── 轉換後試算 ─────────────────────────────────────────────────
+    #
+    # 轉換器唯一會「猜」的地方是 _REWRITE_RULES。猜完就拿一筆真實記錄把每個
+    # 藥丸的表達式跑一遍——算得出來的把「待確認」拿掉，算不出來的留著並附上
+    # 真正的錯誤訊息。
+    #
+    # 這一步把待辦清單從「我改寫了，你自己確認」變成「我改寫了，而且試算過，
+    # 這幾個算不出來」。差別在於使用者要檢查的項目數，以及他是否得回去讀
+    # 原生範本才知道該檢查什麼。
+
+    def _probe_lines(self, record, tree, state):
+        """找一筆明細記錄，給 line 來源的藥丸試算用。取不到回 None。"""
+        Mixin = self.env['doc.render.mixin']
+        for element in Mixin._iter_elements(tree):
+            meta = Mixin._element_field_meta(element)
+            if not meta or (meta.get('source') or '') != 'repeat':
+                continue
+            lines = Mixin._resolve_repeat_records(record, meta)
+            if lines:
+                return lines[0]
+        return None
+
+    def validate_tree(self, tree, record, state):
+        """拿一筆記錄試算所有藥丸的表達式。回傳 {'ok', 'failed'}。
+
+        只有「求值丟例外」才算失敗。求出空值不算——那一筆記錄那個欄位本來
+        就可能是空的，把它當失敗會製造一堆假待辦。
+        """
+        Mixin = self.env['doc.render.mixin']
+        line = self._probe_lines(record, tree, state)
+        ok = failed = 0
+        for element in Mixin._iter_elements(tree):
+            meta = Mixin._element_field_meta(element)
+            if not meta:
+                continue
+            source = (meta.get('source') or 'record').strip()
+            if source in ('image', 'page', 'taxTotals', 'groupHeader',
+                          'groupFooter', 'group', 'running', 'html'):
+                continue
+            target = line if source == 'line' else record
+            if target is None:
+                continue
+            expression = (meta.get('expression') or '').strip()
+            if not expression:
+                path = (meta.get('path') or '').strip()
+                if not path:
+                    continue
+                expression = ('line.%s' % path) if source == 'line' \
+                    else ('object.%s' % path)
+            extra = {'line': line} if source == 'line' and line is not None \
+                else {}
+            error = self._try_expression(expression, target, extra)
+            if error:
+                failed += 1
+                meta['unbound'] = True
+                element['label'] = {'backgroundColor': '#ffe0b2',
+                                    'color': '#bf360c'}
+                self._note(
+                    state, '試算失敗（%s）：%s'
+                    % (error[:60], expression[:80]),
+                )
+            else:
+                ok += 1
+                # 試算過了就不是「待確認」——規則表猜對了
+                if meta.pop('unbound', None):
+                    element['label'] = {'backgroundColor': '#e3f2fd',
+                                        'color': '#1976d2'}
+        state['stats']['validated'] = ok
+        state['stats']['validate_failed'] = failed
+        # unbound 重算：上面可能清掉了一些
+        state['stats']['unbound'] = sum(
+            1 for el in Mixin._iter_elements(tree)
+            if (Mixin._element_field_meta(el) or {}).get('unbound')
+        )
+        return {'ok': ok, 'failed': failed}
+
+    def _try_expression(self, expression, record, extra=None):
+        """試算一段表達式；成功回 None，失敗回錯誤字串。"""
+        Mixin = self.env['doc.render.mixin']
+        try:
+            env_j = Mixin._get_sandbox_env(record)
+            env_j.from_string('{{ %s }}' % expression).render(
+                object=record, user=self.env.user, **(extra or {}),
+            )
+        except Exception as e:
+            return '%s: %s' % (type(e).__name__, e)
+        return None
 
     # ─── 範本定位 ───────────────────────────────────────────────────
 
@@ -233,6 +335,138 @@ class DocQwebConverter(models.AbstractModel):
 
     # ─── 表達式對應 ─────────────────────────────────────────────────
 
+    # ─── t-set 符號表 ───────────────────────────────────────────────
+    #
+    # QWeb 報表大量使用中間變數（lines_to_report、display_discount、taxes…）。
+    # 不解析的話，每一個引用都只能標成待辦——實測佔了待辦清單的大半，
+    # 而且使用者還得自己回去讀原生範本才知道那個變數是什麼。
+    #
+    # 兩段處理：
+    #   1. 單次賦值的變數 → 直接內聯它的值（遞迴一層）
+    #   2. Odoo 的慣用寫法 → 改寫成模組的等價寫法（下方的規則表）
+    #
+    # 規則表是**啟發式**的：對的時候省掉一條待辦，錯的時候會產生錯誤的取值。
+    # 所以凡是走了規則表的藥丸一律標成「待確認」——表達式幫使用者填好，
+    # 但要他看過。這是這支轉換器唯一一處「猜」，所以猜完必須說。
+
+    # 多次賦值的變數是累加器（current_subtotal 那類），由分組機制取代，
+    # 不能內聯——內聯只會拿到其中一次賦值。
+    _ACCUMULATOR_HINT = (
+        '「%s」是 QWeb 的累加器，本模組改用「分組重複」：在重複列設定分組，'
+        '再放一列分組小計（表達式用 group.lines|sum(attribute=...)）。'
+    )
+
+    # (正則, 取代, 說明)。第一個命中就停。
+    _REWRITE_RULES = (
+        (r'([\w\.]+)\._get_order_lines_to_report\(\s*\)',
+         r'\1.order_line',
+         '_get_order_lines_to_report() 是底線方法（沙箱擋），已改成列出'
+         '全部明細。原生只會濾掉「未入帳的預付款列」，而那段判斷用到了'
+         '_get_downpayment_state()，沙箱表達不出來。單據有預付款時請在'
+         '商品列型加條件 not line.is_downpayment'),
+        (r'([\w\.]+)\.sudo\(\s*\)',
+         r'\1',
+         'sudo() 已移除（沙箱不開放提權）。若該欄位受 ACL 限制可能讀不到，'
+         '需要的話請在 doc.report 層先算好'),
+        (r'([\w\.]+)\.sorted\(\s*key\s*=\s*lambda.*?\)\s*(?:,\s*reverse\s*=\s*\w+\s*)?\)',
+         r'\1',
+         'sorted(key=lambda …) 在 Jinja 不存在，排序已移除。'
+         '請在重複列的「排序欄位」設定，或用 |sort 鏈接多鍵'),
+        (r"any\(\s*(\w+)\.(\w+)[^)]*?\s+for\s+\1\s+in\s+([\w\.\|\'\(\)]+)\s*\)",
+         r"\3|selectattr('\2')|list|length > 0",
+         'any(… for … in …) 已改寫成 selectattr'),
+        # 取 or 鏈的**最後**一個屬性當欄位：原生寫法是
+        # (tax.invoice_label or tax.name)，最後那個才是一定有值的備援。
+        # 取第一個會在備援生效的資料上印出空白——實測 invoice_label 多半是空的。
+        # 用函式替換而不是字串：沒有 or 鏈時第三組會是 None，
+        # re.sub 會把它當空字串塞進去，變成 map(attribute='')。
+        (r"['\"](.*?)['\"]\.join\(\s*\[\(?\s*(\w+)\.(\w+)"
+         r"(?:[^\]]*?\bor\s+\2\.(\w+))?[^\]]*?for\s+\2\s+in\s+"
+         r"([\w\.]+)\s*\]\s*\)",
+         lambda m: "%s|map(attribute='%s')|join('%s')" % (
+             m.group(5), m.group(4) or m.group(3), m.group(1)),
+         "', '.join([…]) 已改寫成 map|join，取 or 鏈最後一個欄位當值。"
+         '若原式還有其他邏輯請自行確認'),
+    )
+
+    def _collect_symbols(self, root, state):
+        """掃出所有 t-set 的值；多次賦值的記成累加器。"""
+        symbols = {}
+        counts = {}
+        for node in root.xpath('//t[@t-set]'):
+            name = (node.get('t-set') or '').strip()
+            if not name:
+                continue
+            counts[name] = counts.get(name, 0) + 1
+            value = node.get('t-value')
+            if value is None:
+                # 區塊型 t-set（address / information_block / 標題）——
+                # 它們是外框的內容，由 _split_layout 處理
+                symbols.setdefault(name, None)
+                continue
+            symbols[name] = value.strip()
+        state['accumulators'] = {n for n, c in counts.items() if c > 1}
+        # 根變數的 with_context 重新賦值不算累加器，也不必內聯
+        state['accumulators'] -= set(_ROOT_VARS)
+        state['symbols'] = symbols
+        return symbols
+
+    def _apply_rules(self, expr, state):
+        """套用慣用寫法改寫表。回 (改寫後, 是否命中)。"""
+        used = False
+        for pattern, replace, hint in self._REWRITE_RULES:
+            if re.search(pattern, expr, re.S):
+                expr = re.sub(pattern, replace, expr, flags=re.S)
+                self._note(state, hint)
+                used = True
+        return expr, used
+
+    def _inline_symbols(self, expr, state, depth):
+        """把 t-set 變數替換成它們的值（遞迴）。回 (展開後, 是否命中規則表)。"""
+        symbols = state.get('symbols') or {}
+        used = False
+        for name in sorted(symbols, key=len, reverse=True):
+            if name in _ROOT_VARS or name in (state.get('accumulators') or ()):
+                continue
+            value = symbols.get(name)
+            if not value:
+                continue
+            pattern = r'\b%s\b' % re.escape(name)
+            if re.search(pattern, expr):
+                inner, inner_rule = self._expand_symbols(
+                    value, state, depth + 1,
+                )
+                expr = re.sub(pattern, '(%s)' % inner, expr)
+                used = used or inner_rule
+        return expr, used
+
+    def _expand_symbols(self, expr, state, depth=0):
+        """把表達式裡的 t-set 變數替換成它們的值。回 (展開後, 是否用了規則表)。
+
+        順序是「改寫 → 內聯 → 再改寫」，不是「內聯 → 改寫」：
+        any(l.discount for l in lines_to_report) 這類寫法，等 lines_to_report
+        被展開成帶逗號的 rejectattr(...) 之後，any 的正則就匹配不到了
+        （實測過的失敗：TemplateSyntaxError expected ',' got 'for'）。
+        先改寫時中間變數還只是一個單純識別字，正則才抓得住。
+        最後再跑一次是為了處理展開後才出現的慣用寫法（_get_order_lines_to_report）。
+        """
+        expr = (expr or '').strip()
+        if not expr or depth > 3:
+            return expr, False
+
+        expr, used_a = self._apply_rules(expr, state)
+        expr, used_b = self._inline_symbols(expr, state, depth)
+        expr, used_c = self._apply_rules(expr, state)
+        used_rule = used_a or used_b or used_c
+
+        # 累加器：內聯不了，給明確的替代方案
+        for name in (state.get('accumulators') or ()):
+            if re.search(r'\b%s\b' % re.escape(name), expr):
+                self._note(state, self._ACCUMULATOR_HINT % name)
+                used_rule = True
+
+        return expr, used_rule
+
     def _strip_root(self, expr, state):
         """把 doc.partner_id → partner_id、line.name → name（迴圈內）。
 
@@ -286,7 +520,32 @@ class DocQwebConverter(models.AbstractModel):
         label = (path or expr).split('.')[-1] or expr
 
         if path is None or not _SIMPLE_PATH_RE.match(path or 'x'):
-            # 複雜表達式：原樣保留，標成待辦。使用者看得到原始 QWeb 寫法，
+            # 先試著把 t-set 中間變數展開（lines_to_report / taxes / …）。
+            # 展開後常常就變成可用的表達式，不必丟給使用者自己讀原生範本。
+            expanded, used_rule = self._expand_symbols(expr, state)
+            path2, kind2 = self._strip_root(expanded, state)
+            if path2 is not None and _SIMPLE_PATH_RE.match(path2 or 'x'):
+                source = 'line' if kind2 == 'line' else 'record'
+                base = ('line.%s' % path2) if kind2 == 'line' \
+                    else ('object.%s' % path2)
+                if widget and widget in _WIDGET_WRAPPERS:
+                    base = _WIDGET_WRAPPERS[widget] % base
+                # 走過規則表的要人工確認——那是這支轉換器唯一一處「猜」
+                return self._pill(label[:20], state, source=source,
+                                  expression=base, unbound=used_rule)
+            mapped = self._map_condition(expanded, state)
+            if mapped and mapped != expr and ('object.' in mapped
+                                              or 'line.' in mapped):
+                self._note(
+                    state, '已自動改寫，請確認取值：%s → %s'
+                    % (expr[:60], mapped[:80]),
+                )
+                return self._pill(
+                    label[:20], state,
+                    source='line' if 'line.' in mapped else 'record',
+                    expression=mapped, unbound=True,
+                )
+            # 真的對不上：原樣保留並標成待辦。使用者看得到原始 QWeb 寫法，
             # 比我猜一個錯的路徑好得多。
             self._note(
                 state,
@@ -476,7 +735,8 @@ class DocQwebConverter(models.AbstractModel):
             'trList': [
                 {'tdList': [cell(*([self._pill(
                     '若', state, source='condition', groupId=gid, role='if',
-                    expression=self._map_condition(cond, state),
+                    expression=self._map_condition(
+                        cond, state, expand=True),
                 )] + if_inner))]},
                 {'tdList': [cell(*([self._pill(
                     '否則', state, source='condition', groupId=gid,
@@ -697,8 +957,8 @@ class DocQwebConverter(models.AbstractModel):
                 for b_idx, (cond, holder) in enumerate(branches):
                     row = self._table_row(
                         holder, state, repeat, th_conds, max_cols,
-                        row_filter=self._map_condition(cond, state)
-                        if cond else '',
+                        row_filter=self._map_condition(
+                            cond, state, expand=True) if cond else '',
                         with_marker=True,
                     )
                     if row is not None:
@@ -776,7 +1036,8 @@ class DocQwebConverter(models.AbstractModel):
                     if cond in th_conds:
                         value.append(self._pill(
                             '欄條件', state, source='column',
-                            expression=self._map_condition(cond, state),
+                            expression=self._map_condition(
+                                cond, state, expand=True),
                         ))
                         state['stats']['condition'] += 1
                     else:
@@ -812,12 +1073,38 @@ class DocQwebConverter(models.AbstractModel):
         expr, as_var = repeat
         # t-foreach 的來源常是上面 t-set 出來的變數（lines_to_report），
         # 那個變數在這裡看不到定義 → 標成待辦讓使用者選欄位
-        path, kind = self._strip_root(expr, {'loop_vars': []})
+        bare = dict(state, loop_vars=[])
+        path, kind = self._strip_root(expr, bare)
         label = ('列型 × %s' % path) if row_filter else ('明細 × %s' % path)
         if path and _SIMPLE_PATH_RE.match(path):
             return self._pill(label, state, source='repeat',
                               path=path, repeatId='rp_%s' % as_var,
                               rowFilter=row_filter)
+
+        # lines_to_report / lines 這類中間變數：展開後多半就是真正的
+        # 一對多欄位（或帶篩選／排序的表達式）
+        expanded, used_rule = self._expand_symbols(expr, bare)
+        path2, _k2 = self._strip_root(expanded, bare)
+        if path2 and _SIMPLE_PATH_RE.match(path2):
+            return self._pill(
+                ('列型 × %s' if row_filter else '明細 × %s') % path2,
+                state, source='repeat', path=path2,
+                repeatId='rp_%s' % as_var, rowFilter=row_filter,
+                unbound=used_rule,
+            )
+        mapped = self._map_condition(expanded, bare)
+        if mapped and mapped != expr and 'object.' in mapped:
+            self._note(
+                state,
+                '重複來源已自動改寫，請確認：%s → %s'
+                % (expr[:50], mapped[:80]),
+            )
+            return self._pill(
+                '列型 × 明細' if row_filter else '明細',
+                state, source='repeat', path='', sourceExpression=mapped,
+                repeatId='rp_%s' % as_var, rowFilter=row_filter,
+                unbound=True,
+            )
         self._note(
             state,
             '重複來源「%s」是範本內的中間變數，請在右欄改成實際的一對多欄位'
@@ -831,9 +1118,11 @@ class DocQwebConverter(models.AbstractModel):
 
     # ─── 條件 ───────────────────────────────────────────────────────
 
-    def _map_condition(self, expr, state):
-        """QWeb 條件 → 沙箱表達式。只做根變數替換，其餘原樣保留。"""
+    def _map_condition(self, expr, state, expand=False):
+        """QWeb 條件 → 沙箱表達式。做根變數替換（必要時先展開 t-set 變數）。"""
         out = (expr or '').strip()
+        if expand:
+            out, _used = self._expand_symbols(out, state)
         for var in reversed(state.get('loop_vars') or []):
             out = re.sub(r'\b%s\.' % re.escape(var), 'line.', out)
         for var in _ROOT_VARS:
@@ -860,7 +1149,8 @@ class DocQwebConverter(models.AbstractModel):
                 'colspan': 1, 'rowspan': 1,
                 'value': [self._pill(
                     '條件', state, source='condition',
-                    expression=self._map_condition(cond, state),
+                    expression=self._map_condition(
+                        cond, state, expand=True),
                 )] + inner,
             }]}],
         }

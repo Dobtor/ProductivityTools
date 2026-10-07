@@ -25,6 +25,11 @@ class DocQwebImportWizard(models.TransientModel):
         [('A4', 'A4'), ('A4_landscape', 'A4 橫向'), ('Letter', 'Letter')],
         string='紙張', default='A4', required=True,
     )
+    sample_res_id = fields.Integer(
+        string='試算用記錄 ID', default=0,
+        help='留 0＝自動挑一筆最新的。轉換後會用這筆記錄把每個變數試算一遍，'
+             '算不出來的會標成待確認。',
+    )
     create_binding = fields.Boolean(
         string='同時建立報表綁定', default=False,
         help='勾選後會建立 doc.report 綁定，列印該報表時改用新範本。'
@@ -48,8 +53,10 @@ class DocQwebImportWizard(models.TransientModel):
         if not self.report_id.model:
             raise UserError('這個報表沒有指定模型，無法轉換。')
 
+        sample = self._pick_sample()
         result = self.env['doc.qweb.converter'].convert_report(
             self.report_id, page_format=self.page_format,
+            validate_with=sample,
         )
         if not result.get('content_json'):
             raise UserError(
@@ -75,8 +82,19 @@ class DocQwebImportWizard(models.TransientModel):
             % (stats.get('table', 0), stats.get('repeat', 0),
                stats.get('condition', 0), stats.get('image', 0),
                stats.get('taxTotals', 0)),
-            '',
         ]
+        if sample:
+            lines.append(
+                '以「%s」試算：%d 個變數算得出來、%d 個算不出來'
+                % (sample.display_name, stats.get('validated', 0),
+                   stats.get('validate_failed', 0))
+            )
+        else:
+            lines.append(
+                '沒有樣本記錄可試算（該模型還沒有資料）——'
+                '所有自動改寫的表達式都未經驗證。'
+            )
+        lines.append('')
         if result.get('notes'):
             lines.append('── 待辦（請逐項確認）──')
             lines += ['%d. %s' % (i, n)
@@ -110,6 +128,27 @@ class DocQwebImportWizard(models.TransientModel):
             'view_mode': 'form',
             'target': 'new',
         }
+
+    def _pick_sample(self):
+        """挑一筆樣本記錄給試算用。取不到回空 recordset（略過試算）。
+
+        指定 ID 時以它為準；沒指定就挑最新的一筆。刻意不挑「第一筆」——
+        最新的那筆比較可能有完整資料（有明細、有付款條件），空殼記錄
+        試算起來什麼都是空的，驗不出東西。
+        """
+        self.ensure_one()
+        model = self.report_id.model
+        if not model or model not in self.env:
+            return self.env['doc.template'].browse()
+        Model = self.env[model]
+        if self.sample_res_id:
+            rec = Model.browse(self.sample_res_id).exists()
+            if rec:
+                return rec
+        try:
+            return Model.search([], order='id desc', limit=1)
+        except Exception:
+            return Model.browse()
 
     def action_open_template(self):
         self.ensure_one()

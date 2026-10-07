@@ -23,6 +23,7 @@
                     </group>
                     <group>
                         <field name="page_format"/>
+                        <field name="sample_res_id"/>
                         <field name="create_binding"/>
                     </group>
                 </group>

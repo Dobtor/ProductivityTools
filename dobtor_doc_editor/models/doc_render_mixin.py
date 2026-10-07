@@ -165,9 +165,21 @@ class DocRenderMixin(models.AbstractModel):
             except (TypeError, ValueError):
                 return str(value)
 
+        def is_html_empty(value):
+            """同原生報表的 is_html_empty()：沒有可見文字也沒有圖就算空。
+
+            原生報表到處用它判斷「條款／備註有沒有內容」。沒有這個 helper，
+            轉換過來的條件會以 UndefinedError 收場——而條件求值失敗是「當真」，
+            於是空條款也會印出一個孤零零的標題。
+            """
+            return not self._html_has_content(
+                value if isinstance(value, str) else (value or ''),
+            )
+
         return {
             'selection_label': selection_label,
             'format_date': format_date,
+            'is_html_empty': is_html_empty,
             'format_number': format_number,
             'format_money': format_money,
             'format_address': format_address,
