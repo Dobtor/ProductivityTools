@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import re
 import subprocess
 import tempfile
 import os
@@ -10,70 +11,349 @@ from odoo.exceptions import UserError
 
 
 # ─── python-docx HTML 轉換輔助函式 ────────────────────────────────────────────
+#
+# 這組函式把 _content_json_to_html() 產生的 HTML 轉成 DOCX。它是 LibreOffice
+# 不可用時的 fallback（minimal container 常見），所以保真度直接決定那些環境的
+# 匯出品質。
+#
+# 2026-10-07 實測基準：改寫前 6/17 項格式存活、LibreOffice 13/17。
+# 差距不是 python-docx 的能力問題——舊版只看 `'bold' in style_str`，
+# 字色/字級/字體/對齊完全不讀，表格用 `cell.text = ...` 把整格打成純文字，
+# 圖片與跨欄沒有分支。以下補齊這些。
 
-def _add_runs_from_node(para, node):
-    """將節點的文字（含行內格式）加入 docx paragraph。"""
+_CSS_DECL_RE = re.compile(r'([\w-]+)\s*:\s*([^;]+)')
+_HEX_RE = re.compile(r'^#?([0-9a-fA-F]{6})$')
+_RGB_RE = re.compile(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)')
+_LEN_RE = re.compile(r'^([\d.]+)\s*(px|pt|em|rem)?$')
+
+# 行內樣式可繼承的屬性：巢狀 <span> 時外層設定要傳進內層
+_INHERITABLE = ('bold', 'italic', 'underline', 'strike',
+                'color', 'size_pt', 'font_name', 'highlight')
+
+
+def _css_color_to_hex(value):
+    """CSS 顏色 → 六位 hex（不帶 #）；無法解析回 None。
+
+    同時吃 #rrggbb 與 rgb(r,g,b)——前者來自本模組的 _element_style，
+    後者來自 LibreOffice 匯入的 HTML。
+    """
+    value = (value or '').strip()
+    m = _HEX_RE.match(value)
+    if m:
+        return m.group(1).upper()
+    m = _RGB_RE.match(value)
+    if m:
+        return '%02X%02X%02X' % tuple(min(255, int(g)) for g in m.groups())
+    return None
+
+
+def _css_length_to_pt(value):
+    """CSS 長度 → Word 的 pt。
+
+    canvas-editor 的 element.size 單位是 px，_element_style 也輸出 px；
+    Word 用 pt。96dpi 下 1px = 0.75pt——這個換算錯掉的話字級會差 33%
+    （就是先前 _content_json_to_html 寫成 pt 的那個缺陷的鏡像）。
+    """
+    m = _LEN_RE.match((value or '').strip())
+    if not m:
+        return None
+    num = float(m.group(1))
+    unit = m.group(2) or 'px'
+    if unit == 'px':
+        return num * 0.75
+    if unit == 'pt':
+        return num
+    if unit in ('em', 'rem'):
+        return num * 12.0          # 以 16px 基準字換算
+    return None
+
+
+def _parse_inline_style(style_str, inherited=None):
+    """行內 style 屬性 → run 樣式 dict（含繼承）。"""
+    props = dict(inherited or {})
+    for name, value in _CSS_DECL_RE.findall(style_str or ''):
+        name = name.strip().lower()
+        value = value.strip()
+        if name == 'font-weight':
+            props['bold'] = value in ('bold', 'bolder') or (
+                value.isdigit() and int(value) >= 600)
+        elif name == 'font-style':
+            props['italic'] = value in ('italic', 'oblique')
+        elif name == 'text-decoration' or name == 'text-decoration-line':
+            if 'underline' in value:
+                props['underline'] = True
+            if 'line-through' in value:
+                props['strike'] = True
+        elif name == 'color':
+            hexv = _css_color_to_hex(value)
+            if hexv:
+                props['color'] = hexv
+        elif name == 'background-color':
+            hexv = _css_color_to_hex(value)
+            if hexv:
+                props['highlight'] = hexv
+        elif name == 'font-size':
+            pt = _css_length_to_pt(value)
+            if pt:
+                props['size_pt'] = pt
+        elif name == 'font-family':
+            first = value.split(',')[0].strip().strip('\'"')
+            if first:
+                props['font_name'] = first
+    return props
+
+
+def _style_from_tag(tag, props):
+    """標籤本身帶的語意格式（<b>/<strong>/<em>/<u>/<s>…）。"""
+    props = dict(props)
+    if tag in ('b', 'strong'):
+        props['bold'] = True
+    elif tag in ('i', 'em'):
+        props['italic'] = True
+    elif tag == 'u':
+        props['underline'] = True
+    elif tag in ('s', 'strike', 'del'):
+        props['strike'] = True
+    return props
+
+
+def _apply_run_style(run, props):
+    """把樣式 dict 套到 python-docx 的 run 上。"""
+    from docx.shared import Pt, RGBColor
+    if props.get('bold'):
+        run.bold = True
+    if props.get('italic'):
+        run.italic = True
+    if props.get('underline'):
+        run.underline = True
+    if props.get('strike'):
+        run.font.strike = True
+    if props.get('color'):
+        try:
+            run.font.color.rgb = RGBColor.from_string(props['color'])
+        except Exception:
+            pass
+    if props.get('size_pt'):
+        try:
+            run.font.size = Pt(props['size_pt'])
+        except Exception:
+            pass
+    if props.get('font_name'):
+        run.font.name = props['font_name']
+        # 中日韓字型要同時設 eastAsia，否則 Word 只對拉丁字母生效
+        try:
+            from docx.oxml.ns import qn
+            rpr = run._element.get_or_add_rPr()
+            rfonts = rpr.find(qn('w:rFonts'))
+            if rfonts is None:
+                from docx.oxml import OxmlElement
+                rfonts = OxmlElement('w:rFonts')
+                rpr.append(rfonts)
+            rfonts.set(qn('w:eastAsia'), props['font_name'])
+        except Exception:
+            pass
+    if props.get('highlight'):
+        # 用 w:shd 而非 font.highlight_color：後者只吃 WD_COLOR_INDEX 那十幾種
+        # 預設色，任意 hex 會失真。
+        try:
+            from docx.oxml.ns import qn
+            from docx.oxml import OxmlElement
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear')
+            shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), props['highlight'])
+            run._element.get_or_add_rPr().append(shd)
+        except Exception:
+            pass
+
+
+def _is_page_break(node):
+    cls = (node.get('class') or '')
+    return 'doc-page-break' in cls
+
+
+def _emit_image(para, node):
+    """<img src="data:image/...;base64,..."> → 嵌進 DOCX。回傳是否成功。
+
+    只處理 data: URI。外部 URL 刻意不抓——匯出不該在使用者按下載時去連外，
+    那會讓匯出時間取決於第三方網站，在無外網的容器還會直接卡住。
+    """
+    from docx.shared import Emu
+    src = node.get('src') or ''
+    if not src.startswith('data:'):
+        return False
+    try:
+        header, _, b64 = src.partition(',')
+        if 'base64' not in header or not b64:
+            return False
+        raw = base64.b64decode(b64)
+        run = para.add_run()
+        width = node.get('width')
+        kwargs = {}
+        if width and str(width).isdigit():
+            # HTML width 是 px；96dpi → 1px = 9525 EMU
+            kwargs['width'] = Emu(int(width) * 9525)
+        run.add_picture(io.BytesIO(raw), **kwargs)
+        return True
+    except Exception:
+        return False
+
+
+def _add_page_field(para, kind):
+    """插入 Word 的頁碼 field code。
+
+    DOCX 的頁碼不是文字而是 field（PAGE / NUMPAGES），開檔時由 Word 計算。
+    不做這件事的話，PDF 有頁碼、DOCX 靜默沒有——正是這個模組最想避免的
+    那種不對稱（同一份文件兩種格式印出來不一樣，而且沒有任何訊息）。
+
+    fldSimple 內放一個佔位 run：部分檢視器在重新計算之前會顯示空白。
+    """
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    fld = OxmlElement('w:fldSimple')
+    fld.set(qn('w:instr'), ' NUMPAGES ' if kind == 'count' else ' PAGE ')
+    holder = OxmlElement('w:r')
+    text = OxmlElement('w:t')
+    text.text = '1'
+    holder.append(text)
+    fld.append(holder)
+    para._p.append(fld)
+
+
+def _page_field_kind(node):
+    """<span class="page"> / <span class="topage"> → 'number' / 'count'。"""
+    if not isinstance(node.tag, str) or node.tag.lower() != 'span':
+        return None
+    cls = (node.get('class') or '').strip()
+    if cls == 'page':
+        return 'number'
+    if cls == 'topage':
+        return 'count'
+    return None
+
+
+def _add_runs_from_node(para, node, inherited=None):
+    """把節點的行內內容（含巢狀格式、圖片、換行）加入 docx paragraph。
+
+    遞迴並累積樣式——舊版只看第一層 <span> 且只認 bold/italic，
+    `<span style="color:red"><b>x</b></span>` 這種巢狀會整組掉格式。
+    """
+    base = _parse_inline_style(node.get('style'), inherited)
+
     if node.text:
-        para.add_run(node.text)
+        run = para.add_run(node.text)
+        _apply_run_style(run, base)
+
     for child in node:
         ctag = (child.tag or '').lower() if isinstance(child.tag, str) else ''
-        if ctag in ('strong', 'b'):
-            run = para.add_run(child.text_content())
-            run.bold = True
-        elif ctag in ('em', 'i'):
-            run = para.add_run(child.text_content())
-            run.italic = True
-        elif ctag == 'u':
-            run = para.add_run(child.text_content())
-            run.underline = True
+        page_kind = _page_field_kind(child)
+        if page_kind:
+            _add_page_field(para, page_kind)
         elif ctag == 'br':
-            para.add_run('\n')
-        elif ctag == 'span':
-            style_str = child.get('style', '')
-            run = para.add_run(child.text_content())
-            if 'bold' in style_str:
-                run.bold = True
-            if 'italic' in style_str:
-                run.italic = True
+            para.add_run().add_break()
+        elif ctag == 'img':
+            _emit_image(para, child)
+        elif ctag in ('script', 'style'):
+            pass
         else:
-            text = child.text_content()
-            if text:
-                para.add_run(text)
+            child_props = _parse_inline_style(
+                child.get('style'), _style_from_tag(ctag, base),
+            )
+            if len(child) == 0:
+                text = child.text or ''
+                if text:
+                    run = para.add_run(text)
+                    _apply_run_style(run, child_props)
+            else:
+                _add_runs_from_node(para, child, inherited=child_props)
         if child.tail:
-            para.add_run(child.tail)
+            run = para.add_run(child.tail)
+            _apply_run_style(run, base)
+
+
+def _apply_paragraph_align(para, node):
+    """text-align → Word 段落對齊。舊版完全沒讀，所有置中/右對齊都會丟失。"""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    align = None
+    for name, value in _CSS_DECL_RE.findall(node.get('style') or ''):
+        if name.strip().lower() == 'text-align':
+            align = value.strip().lower()
+    mapping = {
+        'center': WD_ALIGN_PARAGRAPH.CENTER,
+        'right': WD_ALIGN_PARAGRAPH.RIGHT,
+        'left': WD_ALIGN_PARAGRAPH.LEFT,
+        'justify': WD_ALIGN_PARAGRAPH.JUSTIFY,
+    }
+    if align in mapping:
+        para.alignment = mapping[align]
 
 
 def _add_table_to_docx(doc, node):
-    """將 HTML table 節點轉換為 python-docx 表格。"""
-    rows = node.xpath('.//tr')
+    """HTML table → python-docx 表格（保留儲存格內格式與跨欄）。
+
+    舊版用 `cell.text = cell.text_content()`，那會把整格打成單一無格式 run
+    ——表格裡的粗體、顏色、對齊全部消失。這裡改成對每格跑完整的 run 轉換。
+    """
+    rows = node.xpath('./tr | ./tbody/tr | ./thead/tr | ./tfoot/tr')
+    if not rows:
+        rows = node.xpath('.//tr')
     if not rows:
         return
     max_cols = max(
-        sum(int(td.get('colspan', 1)) for td in row.xpath('.//td|.//th'))
+        sum(int(td.get('colspan') or 1) for td in row.xpath('./td | ./th'))
         for row in rows
     ) or 1
+
     table = doc.add_table(rows=len(rows), cols=max_cols)
+    # 區塊容器（class="doc-block"）是條件區塊／稅額彙總的邊界，不是真表格，
+    # 不可套有框線的樣式。'Table Normal' 是 Word 內建的無框線樣式。
+    is_block = 'doc-block' in (node.get('class') or '')
     try:
-        table.style = 'Table Grid'
+        table.style = 'Table Normal' if is_block else 'Table Grid'
     except Exception:
         pass
+
     for r_idx, row in enumerate(rows):
-        cells = row.xpath('.//td|.//th')
-        for c_idx, cell in enumerate(cells):
-            if c_idx < max_cols:
+        cells = row.xpath('./td | ./th')
+        c_idx = 0
+        for cell_node in cells:
+            if c_idx >= max_cols:
+                break
+            span = int(cell_node.get('colspan') or 1)
+            span = max(1, min(span, max_cols - c_idx))
+            target = table.cell(r_idx, c_idx)
+            if span > 1:
                 try:
-                    table.cell(r_idx, c_idx).text = (cell.text_content() or '').strip()
+                    target = target.merge(table.cell(r_idx, c_idx + span - 1))
                 except Exception:
                     pass
+            # 清掉預設空段落，改用轉換出來的內容
+            para = target.paragraphs[0]
+            blocks = cell_node.xpath('./p | ./div')
+            if blocks:
+                for i, blk in enumerate(blocks):
+                    tgt = para if i == 0 else target.add_paragraph()
+                    _apply_paragraph_align(tgt, blk)
+                    _add_runs_from_node(tgt, blk)
+            else:
+                _add_runs_from_node(para, cell_node)
+            # <th> 預設粗體（HTML 語意），除非儲存格內已自行指定
+            if (cell_node.tag or '').lower() == 'th':
+                for r in para.runs:
+                    if r.bold is None:
+                        r.bold = True
+            c_idx += span
 
 
 def _html_node_to_docx(doc, node):
     """遞迴將 lxml HTML 節點轉換為 python-docx 結構。"""
+    from docx.enum.text import WD_BREAK
+
     tag = (node.tag or '').lower() if isinstance(node.tag, str) else ''
 
     if tag in ('h1', 'h2', 'h3', 'h4', 'h5', 'h6'):
-        level = int(tag[1])
-        para = doc.add_heading(level=level)
+        para = doc.add_heading(level=int(tag[1]))
+        _apply_paragraph_align(para, node)
         _add_runs_from_node(para, node)
 
     elif tag == 'table':
@@ -82,21 +362,35 @@ def _html_node_to_docx(doc, node):
     elif tag == 'hr':
         doc.add_paragraph('─' * 40)
 
+    elif tag == 'img':
+        para = doc.add_paragraph()
+        _emit_image(para, node)
+
     elif tag in ('ul', 'ol'):
+        style = 'List Number' if tag == 'ol' else 'List Bullet'
         for child in node:
             if (child.tag or '').lower() == 'li':
-                para = doc.add_paragraph(style='List Bullet')
+                try:
+                    para = doc.add_paragraph(style=style)
+                except Exception:
+                    para = doc.add_paragraph()
                 _add_runs_from_node(para, child)
 
     elif tag in ('p', 'li', 'blockquote', 'pre'):
-        text = (node.text_content() or '').strip()
-        if text:
-            para = doc.add_paragraph()
-            _add_runs_from_node(para, node)
+        # 空段落也要保留——多個空行是刻意的版面，吃掉會讓間距走樣。
+        # 但只有 <br> 的段落（<p><br/></p>）視為空行即可。
+        para = doc.add_paragraph()
+        _apply_paragraph_align(para, node)
+        _add_runs_from_node(para, node)
+
+    elif _is_page_break(node):
+        # 手動分頁。舊版落到 div 分支、沒有塊級子節點又沒有文字 → 整個被吃掉，
+        # 使用者在編輯器插的分頁在 DOCX 裡完全消失（且無錯誤訊息）。
+        para = doc.add_paragraph()
+        para.add_run().add_break(WD_BREAK.PAGE)
 
     elif tag in ('div', 'section', 'article', 'main', 'aside',
                  'header', 'footer', 'body', 'span'):
-        # 若 div 有直接文字內容且無塊級子節點，作為段落
         block_tags = {'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
                       'table', 'ul', 'ol', 'hr', 'div', 'blockquote', 'pre'}
         has_block_children = any(
@@ -104,14 +398,17 @@ def _html_node_to_docx(doc, node):
         )
         if not has_block_children:
             text = (node.text_content() or '').strip()
-            if text:
+            has_img = len(node.xpath('.//img')) > 0
+            if text or has_img:
                 para = doc.add_paragraph()
+                _apply_paragraph_align(para, node)
                 _add_runs_from_node(para, node)
         else:
             for child in node:
                 _html_node_to_docx(doc, child)
 
     # script/style/meta 等略過
+
 
 # 超過此大小（bytes）自動存入 ir.attachment
 CONTENT_SIZE_THRESHOLD = 500 * 1024  # 500 KB
@@ -340,6 +637,15 @@ class DocDocument(models.Model):
         copy=False,
         readonly=True,
         help='上次快照是對哪一筆記錄取值；與目前的 res_id 不同時代表文件已被改綁。',
+    )
+    source_output_id = fields.Many2one(
+        'doc.output',
+        string='來源輸出紀錄',
+        copy=False,
+        readonly=True,
+        ondelete='set null',
+        help='本文件由某筆輸出紀錄「建立可編輯副本」而來。'
+             '輸出本身唯讀（稽核要求），副本可編輯；此欄位保留追溯關係。',
     )
     snapshot_is_stale = fields.Boolean(
         string='來源已變更',
@@ -750,8 +1056,11 @@ class DocDocument(models.Model):
         self.ensure_one()
         tree = self._parse_content_json(self.content_json)
         if tree is not None:
-            if record is not None and not self.snapshot_date:
-                tree = self._snapshot_content_json(tree, record)
+            # only_pending：只補「還沒凍結過」的藥丸。
+            # 舊寫法用文件級的 snapshot_date 當開關，會漏掉「快照之後才新增的藥丸」
+            # ——它們會以標籤文字（如「客戶名稱」）原樣印進 PDF，且無任何錯誤訊息。
+            if record is not None:
+                tree = self._snapshot_content_json(tree, record, only_pending=True)
             return self._content_json_to_html(self._flatten_content_json(tree))
         # 舊文件：沒有 content_json，退回 content_html + alias 正則（退場期路徑）
         body = self.get_content_html()
@@ -961,6 +1270,8 @@ body {{
 }}
 table {{ border-collapse: collapse; width: 100%; }}
 td, th {{ border: 1px solid #ccc; padding: 6px; }}
+/* 區塊容器：條件區塊／稅額彙總用單格表格當可靠邊界，但輸出時不是表格 */
+.doc-block, .doc-block td {{ border: none; padding: 0; }}
 </style>
 </head>
 <body>
@@ -1027,7 +1338,12 @@ td, th {{ border: 1px solid #ccc; padding: 6px; }}
 body {{ font-family: sans-serif; max-width: {usable_w_cm}cm; margin: 0 auto; }}
 table {{ border-collapse: collapse; }}
 td, th {{ border: 1px solid black; padding: 4px; word-break: break-word; }}
+/* 區塊容器：同 _build_full_html，兩條路徑要一致否則 PDF 與 DOCX 版面不同 */
+.doc-block, .doc-block td {{ border: none; padding: 0; }}
 img {{ max-width: 100%; height: auto; }}
+/* 手動分頁：_build_full_html（PDF 用）有這條，這裡原本漏了，
+   導致同一份文件匯出 PDF 有分頁、匯出 DOCX 卻靜默少了分頁。 */
+.doc-page-break {{ page-break-after: always; }}
 </style>
 </head>
 <body>
@@ -1104,68 +1420,26 @@ img {{ max-width: 100%; height: auto; }}
         return _fix_docx_table_widths(raw_bytes, usable_mm)
 
     def _generate_docx_via_python(self, record=None):
-        """使用 python-docx + lxml 將 HTML 轉換為 DOCX（LibreOffice 不可用時的 fallback）。"""
+        """使用 python-docx 將 HTML 轉換為 DOCX（LibreOffice 不可用時的 fallback）。
+
+        實作已抽到 doc.render.mixin._docx_bytes_from_html()——報表引擎的
+        doc.output 也要能匯出 DOCX，邏輯綁在 doc.document 的欄位上就沒法共用。
+        本方法保留為對外介面（既有呼叫端與測試不受影響）。
+        """
         self.ensure_one()
-        try:
-            from docx import Document
-            from docx.shared import Mm
-            from lxml import html as lhtml
-        except ImportError as e:
-            raise UserError(
-                f'無法匯出 DOCX：{e}\n'
-                '請安裝 python-docx：pip install python-docx'
-            )
-
-        body_html = self._export_body_html(record)
-
-        doc = Document()
-
-        # ── 設定頁面大小與邊距 ──
-        page_sizes_mm = {
-            'A4':     (210, 297),
-            'A3':     (297, 420),
-            'A5':     (148, 210),
-            'letter': (216, 279),
-            'legal':  (216, 356),
-        }
-        w_mm, h_mm = page_sizes_mm.get(self.page_format, (210, 297))
-        px_to_mm = 0.264583  # 96dpi：1px = 0.264583mm
-
-        section = doc.sections[0]
-        section.page_width   = Mm(w_mm)
-        section.page_height  = Mm(h_mm)
-        section.top_margin   = Mm(self.margin_top    * px_to_mm)
-        section.bottom_margin = Mm(self.margin_bottom * px_to_mm)
-        section.left_margin  = Mm(self.margin_left   * px_to_mm)
-        section.right_margin = Mm(self.margin_right  * px_to_mm)
-
-        # ── 解析 HTML 並轉換結構 ──
-        try:
-            tree = lhtml.fromstring(f'<div>{body_html}</div>')
-            _html_node_to_docx(doc, tree)
-        except Exception:
-            # 解析失敗時退回純文字
-            from lxml import html as lhtml2
-            text = lhtml2.fromstring(f'<div>{body_html}</div>').text_content()
-            doc.add_paragraph(text)
-
-        # 若頁首/頁尾有內容，加入文件尾部（簡單實作）
-        if self.header_html:
-            from lxml import html as lhtml3
-            header_text = lhtml3.fromstring(f'<div>{self.header_html}</div>').text_content()
-            if header_text.strip():
-                para = doc.sections[0].header.paragraphs[0]
-                para.text = header_text.strip()
-        if self.footer_html:
-            from lxml import html as lhtml4
-            footer_text = lhtml4.fromstring(f'<div>{self.footer_html}</div>').text_content()
-            if footer_text.strip():
-                para = doc.sections[0].footer.paragraphs[0]
-                para.text = footer_text.strip()
-
-        buf = io.BytesIO()
-        doc.save(buf)
-        return buf.getvalue()
+        return self._docx_bytes_from_html(
+            self._export_body_html(record),
+            page_format=self.page_format,
+            margins={
+                'top': self.margin_top,
+                'bottom': self.margin_bottom,
+                'left': self.margin_left,
+                'right': self.margin_right,
+            },
+            # 直接給 HTML：壓成純文字會讓頁碼變成字面的「頁碼」兩字
+            header_text=self.header_html or '',
+            footer_text=self.footer_html or '',
+        )
 
     # ─── 版本快照（W7-8 P1-1 重構版）─────────────────────────────────
     # 把實際 snapshot 內容存在 versions_data (fields.Json)，避開 mail.thread

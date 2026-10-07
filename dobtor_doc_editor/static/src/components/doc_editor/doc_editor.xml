@@ -194,9 +194,18 @@
 
                 <!-- 右側：快照狀態 + 縮放（margin-left:auto 推到最右） -->
                 <div class="doc-toolbar-right">
+                    <!-- 報表引擎：輸出紀錄是唯讀成品，要一眼看出來 -->
+                    <t t-if="isOutputTarget">
+                        <span class="doc-snapshot-badge"
+                              t-attf-title="輸出紀錄：#{state.outputMeta and state.outputMeta.res_name or ''}（#{state.outputMeta and state.outputMeta.rendered_by or ''} 於 #{state.snapshotDate} 產生，範本 v#{state.outputMeta and state.outputMeta.template_version or 0}）">
+                            <i class="fa fa-lock" aria-hidden="true"/>
+                            唯讀輸出
+                        </span>
+                    </t>
+
                     <!-- Phase 3：值凍結時間。快照語意最容易造成的誤解是
                          「我改了來源記錄，怎麼文件沒變」——攤在這裡最有效。 -->
-                    <t t-if="state.snapshotDate">
+                    <t t-if="state.snapshotDate and !isOutputTarget">
                         <span t-attf-class="doc-snapshot-badge #{state.snapshotIsStale ? 'is-stale' : ''}"
                               t-attf-title="模型變數的值凍結於 #{state.snapshotDate}#{state.snapshotIsStale ? '；來源記錄之後又被修改過' : ''}">
                             <i t-attf-class="fa fa-#{state.snapshotIsStale ? 'exclamation-triangle' : 'lock'}"
@@ -894,6 +903,375 @@
                                        t-on-input="(ev) => this.onModelFieldFilterInput(ev.target.value)"
                                        aria-label="篩選模型欄位"/>
                             </div>
+                            <!-- ─── 條件式列印 ───
+                                 「欄位有值才印」那一類由自動收合處理，使用者不必設定。
+                                 這裡只服務真的需要表達式的條件。 -->
+                            <div class="doc-palette-group-head">
+                                <i class="fa fa-code-fork me-1" aria-hidden="true"/>條件
+                            </div>
+                            <ul class="doc-field-palette-list is-compact">
+                                <li class="doc-field-palette-item is-cond"
+                                    t-on-click="() => this.onInsertCondition()"
+                                    title="在游標處插入條件標記。放在段落內控制整段、放在表格列內控制該列。">
+                                    <i class="fa fa-code-fork doc-palette-cond-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">插入條件標記</span>
+                                    <span class="doc-field-palette-type">段落／列</span>
+                                </li>
+                                <!-- 區塊條件：要包住「多段」內容時用這個。
+                                     容器是無框線表格——扁平元素串列只有換行與表格列
+                                     是可靠邊界，表格是原子結構不會被拆散。 -->
+                                <li class="doc-field-palette-item is-cond"
+                                    t-on-click="() => this.onInsertConditionBlock()"
+                                    title="插入一個虛線框區塊。框內可以放多段內容，條件為假時整塊不印。">
+                                    <i class="fa fa-square-o doc-palette-cond-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">插入條件區塊</span>
+                                    <span class="doc-field-palette-type">多段</span>
+                                </li>
+                                <li class="doc-field-palette-item is-cond"
+                                    t-on-click="() => this.onInsertIfElseBlock()"
+                                    title="插入「若／否則」兩個區塊。只需設定上半部的條件，下半部自動取反。">
+                                    <i class="fa fa-random doc-palette-cond-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">插入若／否則區塊</span>
+                                    <span class="doc-field-palette-type">二擇一</span>
+                                </li>
+                                <!-- 欄條件：與列條件對稱。原生報表的折扣欄就是這種寫法
+                                     （同一個 t-if 掛在 th 與每一列的 td 上）。 -->
+                                <li class="doc-field-palette-item is-cond"
+                                    t-on-click="() => this.onInsertColumnCondition()"
+                                    title="放在表格某一格內，條件為假時整欄（含表頭）不印。">
+                                    <i class="fa fa-columns doc-palette-cond-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">插入欄條件</span>
+                                    <span class="doc-field-palette-type">整欄</span>
+                                </li>
+                            </ul>
+
+                            <!-- ─── 內建區塊 ───
+                                 資料結構每個 Odoo 版本都在改，做成內建區塊，
+                                 升版時改模組一處而不是每張範本。 -->
+                            <div class="doc-palette-group-head">
+                                <i class="fa fa-table me-1" aria-hidden="true"/>內建區塊
+                            </div>
+                            <ul class="doc-field-palette-list is-compact">
+                                <li class="doc-field-palette-item"
+                                    t-on-click="() => this.onInsertTaxTotalsBlock()"
+                                    title="插入稅前小計／各稅別／總計三列。稅別列依實際稅別數自動複製。">
+                                    <i class="fa fa-calculator doc-palette-repeat-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">稅額彙總</span>
+                                    <span class="doc-field-palette-type">三列</span>
+                                </li>
+                                <li class="doc-field-palette-item"
+                                    t-on-click="() => this.onInsertPageField('number')"
+                                    title="插入頁碼。要放在頁首或頁尾才會替換成實際頁次。">
+                                    <i class="fa fa-hashtag doc-palette-repeat-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">頁碼</span>
+                                    <span class="doc-field-palette-type">頁首／頁尾</span>
+                                </li>
+                                <li class="doc-field-palette-item"
+                                    t-on-click="() => this.onInsertPageField('count')"
+                                    title="插入總頁數。要放在頁首或頁尾才會替換成實際頁數。">
+                                    <i class="fa fa-files-o doc-palette-repeat-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">總頁數</span>
+                                    <span class="doc-field-palette-type">頁首／頁尾</span>
+                                </li>
+                            </ul>
+
+                            <!-- ─── 重複列（表格明細）─── -->
+                            <t t-if="repeatableFields.length">
+                                <div class="doc-palette-group-head">
+                                    <i class="fa fa-list-ol me-1" aria-hidden="true"/>明細（一對多）
+                                </div>
+                                <ul class="doc-field-palette-list is-compact">
+                                    <t t-foreach="repeatableFields" t-as="rf" t-key="'rp-' + rf.name">
+                                        <li class="doc-field-palette-item"
+                                            t-on-click="() => this.onSetRepeatRow(rf)"
+                                            t-attf-title="把游標所在的表格列設為「對 #{rf.label or rf.name} 重複」">
+                                            <i class="fa fa-repeat doc-palette-repeat-icon" aria-hidden="true"/>
+                                            <span class="doc-field-palette-label" t-esc="rf.label or rf.name"/>
+                                            <span class="doc-field-palette-type">設為重複列</span>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </t>
+
+                            <!-- ─── 列型（同一明細多種版面）─── -->
+                            <t t-if="state.repeatContext">
+                                <ul class="doc-field-palette-list is-compact">
+                                    <li class="doc-field-palette-item"
+                                        t-on-click="() => this.onAddRowVariant()"
+                                        title="為同一筆明細再加一種版面（例如備註列）。由上而下第一個符合的列型勝出。">
+                                        <i class="fa fa-code-fork doc-palette-repeat-icon" aria-hidden="true"/>
+                                        <span class="doc-field-palette-label">新增列型</span>
+                                        <span class="doc-field-palette-type">同一明細</span>
+                                    </li>
+                                </ul>
+                            </t>
+
+                            <!-- ─── 明細欄位（設了重複列才出現）─── -->
+                            <t t-if="state.repeatContext">
+                                <div class="doc-palette-group-head">
+                                    <i class="fa fa-level-down me-1" aria-hidden="true"/>
+                                    明細欄位（<t t-esc="state.repeatContext.label"/>）
+                                </div>
+                                <t t-if="state.lineFieldsLoading">
+                                    <div class="doc-field-palette-empty">載入中…</div>
+                                </t>
+                                <t t-elif="!state.repeatContext.model">
+                                    <div class="doc-palette-hint">
+                                        這個重複來源沒有關聯模型資訊，無法列出明細欄位。
+                                        請刪除重複列標記後重新設定。
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <ul class="doc-field-palette-list is-compact">
+                                        <t t-foreach="filteredLineFields" t-as="lf" t-key="'ln-' + lf.name">
+                                            <li class="doc-field-palette-item is-line"
+                                                t-att-draggable="canPlaceVariables ? 'true' : 'false'"
+                                                t-on-dragstart="(ev) => this.onLineFieldDragStart(ev, lf)"
+                                                t-on-click="() => this.onLineFieldClick(lf)"
+                                                t-attf-title="拖到重複列的儲存格內。值會對應每一筆明細。">
+                                                <span class="doc-field-palette-label" t-esc="lf.label or lf.name"/>
+                                                <span class="doc-field-palette-type" t-esc="lf.type"/>
+                                            </li>
+                                        </t>
+                                        <t t-if="!filteredLineFields.length">
+                                            <li class="doc-field-palette-empty">無符合的明細欄位</li>
+                                        </t>
+                                    </ul>
+                                </t>
+                            </t>
+
+                            <!-- ─── 分組與流水（設了重複列才出現）─── -->
+                            <t t-if="state.repeatContext">
+                                <div class="doc-palette-group-head">
+                                    <i class="fa fa-object-group me-1" aria-hidden="true"/>分組與流水
+                                </div>
+                                <ul class="doc-field-palette-list is-compact">
+                                    <li class="doc-field-palette-item"
+                                        t-on-click="() => this.onInsertRunningIndex()"
+                                        title="在重複列裡插入項次（1、2、3…）。可在右欄設定每組重新起算。">
+                                        <i class="fa fa-list-ol doc-palette-repeat-icon" aria-hidden="true"/>
+                                        <span class="doc-field-palette-label">項次</span>
+                                        <span class="doc-field-palette-type">流水</span>
+                                    </li>
+                                    <t t-foreach="numericLineFields" t-as="nf" t-key="'run-' + nf.name">
+                                        <li class="doc-field-palette-item"
+                                            t-on-click="() => this.onInsertRunningSum(nf)"
+                                            t-attf-title="在重複列裡插入「#{nf.label or nf.name} 的逐列累計」">
+                                            <i class="fa fa-plus-circle doc-palette-repeat-icon" aria-hidden="true"/>
+                                            <span class="doc-field-palette-label"
+                                                  t-esc="'累計 ' + (nf.label or nf.name)"/>
+                                            <span class="doc-field-palette-type">流水</span>
+                                        </li>
+                                    </t>
+                                </ul>
+                                <!-- 分組列：只有真的啟用分組才給，否則使用者會放了分組列
+                                     卻看不出為什麼小計變成總計。 -->
+                                <t t-if="repeatHasGrouping">
+                                    <ul class="doc-field-palette-list is-compact">
+                                        <li class="doc-field-palette-item"
+                                            t-on-click="() => this.onSetGroupRow('header')"
+                                            title="把游標所在的表格列設為分組標題列：每一組開頭印一次。">
+                                            <i class="fa fa-header doc-palette-repeat-icon" aria-hidden="true"/>
+                                            <span class="doc-field-palette-label">設為分組標題列</span>
+                                        </li>
+                                        <li class="doc-field-palette-item"
+                                            t-on-click="() => this.onSetGroupRow('footer')"
+                                            title="把游標所在的表格列設為分組小計列：每一組結尾印一次。">
+                                            <i class="fa fa-calculator doc-palette-repeat-icon" aria-hidden="true"/>
+                                            <span class="doc-field-palette-label">設為分組小計列</span>
+                                        </li>
+                                    </ul>
+                                    <div class="doc-palette-group-head">
+                                        <i class="fa fa-tags me-1" aria-hidden="true"/>分組欄位
+                                    </div>
+                                    <ul class="doc-field-palette-list is-compact">
+                                        <t t-foreach="GROUP_PILL_PRESETS" t-as="gp"
+                                           t-key="'gp-' + gp.label">
+                                            <li class="doc-field-palette-item is-line"
+                                                t-on-click="() => this.onInsertGroupPill(gp)"
+                                                t-attf-title="插入 #{gp.expr}">
+                                                <span class="doc-field-palette-label" t-esc="gp.label"/>
+                                                <span class="doc-field-palette-type" t-esc="gp.hint"/>
+                                            </li>
+                                        </t>
+                                        <t t-foreach="numericLineFields" t-as="gf"
+                                           t-key="'gsub-' + gf.name">
+                                            <li class="doc-field-palette-item is-line"
+                                                t-on-click="() => this.onInsertGroupSubtotal(gf)"
+                                                t-attf-title="插入「本組 #{gf.label or gf.name} 小計」">
+                                                <span class="doc-field-palette-label"
+                                                      t-esc="'本組 ' + (gf.label or gf.name)"/>
+                                                <span class="doc-field-palette-type">小計</span>
+                                            </li>
+                                        </t>
+                                    </ul>
+                                </t>
+                                <t t-else="">
+                                    <div class="doc-palette-hint">
+                                        要印章節小計？先點選重複列標記，在右欄設定「分組方式」。
+                                    </div>
+                                </t>
+                            </t>
+
+                            <!-- ─── 多語文字 ───
+                                 欄位「值」的語言由綁定的 lang 與 ORM 負責；
+                                 這裡只處理使用者自己打進範本的靜態文字。 -->
+                            <div class="doc-palette-group-head">
+                                <i class="fa fa-language me-1" aria-hidden="true"/>多語文字
+                            </div>
+                            <t t-if="state.languages.length > 1">
+                                <div class="doc-inspector-field">
+                                    <label>預覽語言</label>
+                                    <select t-on-change="(ev) => this.onPreviewLangChange(ev.target.value)">
+                                        <option value="">（不指定）</option>
+                                        <t t-foreach="state.languages" t-as="lg" t-key="lg.code">
+                                            <option t-att-value="lg.code"
+                                                    t-att-selected="state.previewLang === lg.code"
+                                                    t-esc="lg.name"/>
+                                        </t>
+                                    </select>
+                                    <p class="doc-inspector-hint">
+                                        切過去看一次版面：中文「報價單」三個字、
+                                        英文 Quotation 九個字元，表頭常常會擠破。
+                                    </p>
+                                </div>
+                            </t>
+                            <ul class="doc-field-palette-list is-compact">
+                                <li class="doc-field-palette-item is-i18n"
+                                    t-on-click="() => this.onInsertI18nText()"
+                                    title="插入一段多語文字：一個藥丸存多種語言的版本。">
+                                    <i class="fa fa-language doc-palette-i18n-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">插入多語文字</span>
+                                </li>
+                                <li class="doc-field-palette-item is-i18n"
+                                    t-on-click="() => this.onOpenI18nExtract()"
+                                    title="掃出範本裡的靜態文字，勾選後批次轉成多語文字。">
+                                    <i class="fa fa-magic doc-palette-i18n-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">抽出靜態文字</span>
+                                </li>
+                                <li class="doc-field-palette-item is-i18n"
+                                    t-on-click="() => this.onExportI18nCsv()"
+                                    title="匯出翻譯表 CSV（第一欄 key、其餘每欄一個語言）。">
+                                    <i class="fa fa-download doc-palette-i18n-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">匯出翻譯 CSV</span>
+                                </li>
+                                <li class="doc-field-palette-item is-i18n">
+                                    <i class="fa fa-upload doc-palette-i18n-icon" aria-hidden="true"/>
+                                    <label class="doc-field-palette-label mb-0"
+                                           style="cursor:pointer">
+                                        匯入翻譯 CSV
+                                        <input type="file" accept=".csv,text/csv"
+                                               style="display:none"
+                                               t-on-change="(ev) => this.onImportI18nCsv(ev)"/>
+                                    </label>
+                                </li>
+                            </ul>
+
+                            <!-- 抽取面板：勾選要轉成多語文字的段落 -->
+                            <t t-if="state.showI18nPanel">
+                                <div class="doc-i18n-extract">
+                                    <div class="doc-i18n-extract-head">
+                                        <span>抽出的靜態文字</span>
+                                        <button class="btn btn-sm btn-link p-0"
+                                                t-on-click="() => this.onToggleAllI18nCandidates()">
+                                            全選／全不選
+                                        </button>
+                                        <button class="btn btn-sm btn-link p-0 ms-auto"
+                                                t-on-click="() => state.showI18nPanel = false"
+                                                aria-label="關閉">
+                                            <i class="fa fa-times" aria-hidden="true"/>
+                                        </button>
+                                    </div>
+                                    <t t-if="!state.i18nCandidates.length">
+                                        <div class="doc-field-palette-empty">
+                                            沒有找到靜態文字（或還在載入）。
+                                        </div>
+                                    </t>
+                                    <ul class="doc-i18n-extract-list">
+                                        <t t-foreach="state.i18nCandidates" t-as="cand"
+                                           t-key="cand.text">
+                                            <li>
+                                                <label>
+                                                    <input type="checkbox"
+                                                           t-att-checked="state.i18nSelected.includes(cand.text)"
+                                                           t-on-change="() => this.onToggleI18nCandidate(cand.text)"/>
+                                                    <span t-esc="cand.text"/>
+                                                    <span class="doc-field-palette-type"
+                                                          t-if="cand.count > 1"
+                                                          t-esc="'×' + cand.count"/>
+                                                </label>
+                                            </li>
+                                        </t>
+                                    </ul>
+                                    <button class="btn btn-sm btn-primary w-100 mt-1"
+                                            t-att-disabled="!state.i18nSelected.length"
+                                            t-on-click="() => this.onConvertI18nSelected()">
+                                        轉成多語文字（<t t-esc="state.i18nSelected.length"/>）
+                                    </button>
+                                    <p class="doc-inspector-hint mb-0">
+                                        轉換會以目前的預覽語言填入第一份翻譯，其他語言留空。
+                                        留空的語言在列印時會退回有值的那個，不會印出空白。
+                                    </p>
+                                </div>
+                            </t>
+
+                            <!-- ─── 圖片欄位 ───
+                                 客戶簽名、公司 logo 這類 binary 欄位。
+                                 編輯器裡顯示為藥丸，匯出時才變成真正的圖片。 -->
+                            <t t-if="imageFields.length">
+                                <div class="doc-palette-group-head">
+                                    <i class="fa fa-picture-o me-1" aria-hidden="true"/>圖片
+                                </div>
+                                <ul class="doc-field-palette-list is-compact">
+                                    <t t-foreach="imageFields" t-as="imf"
+                                       t-key="'img-' + imf.name">
+                                        <li class="doc-field-palette-item"
+                                            t-on-click="() => this.onInsertImageField(imf)"
+                                            t-attf-title="插入《#{imf.label or imf.name}》的圖片">
+                                            <i class="fa fa-picture-o doc-palette-repeat-icon"
+                                               aria-hidden="true"/>
+                                            <span class="doc-field-palette-label"
+                                                  t-esc="imf.label or imf.name"/>
+                                            <span class="doc-field-palette-type">圖片</span>
+                                        </li>
+                                    </t>
+                                    <li class="doc-field-palette-item"
+                                        t-on-click="() => this.onInsertBarcode()"
+                                        title="插入條碼／QR。預設以單號產生，可在右欄改欄位與型別。">
+                                        <i class="fa fa-qrcode doc-palette-repeat-icon"
+                                           aria-hidden="true"/>
+                                        <span class="doc-field-palette-label">條碼／QR</span>
+                                        <span class="doc-field-palette-type">圖片</span>
+                                    </li>
+                                </ul>
+                            </t>
+
+                            <!-- ─── Html 欄位 ───
+                                 條款、公司資訊、頁尾文字。用純量藥丸會把值逸出成
+                                 可見的 <p>、<strong> 標籤，而且完全不報錯。 -->
+                            <t t-if="htmlFields.length">
+                                <div class="doc-palette-group-head">
+                                    <i class="fa fa-code me-1" aria-hidden="true"/>HTML 欄位
+                                </div>
+                                <ul class="doc-field-palette-list is-compact">
+                                    <t t-foreach="htmlFields" t-as="hf"
+                                       t-key="'html-' + hf.name">
+                                        <li class="doc-field-palette-item"
+                                            t-on-click="() => this.onInsertHtmlField(hf)"
+                                            t-attf-title="插入《#{hf.label or hf.name}》的格式化內容">
+                                            <i class="fa fa-code doc-palette-repeat-icon"
+                                               aria-hidden="true"/>
+                                            <span class="doc-field-palette-label"
+                                                  t-esc="hf.label or hf.name"/>
+                                            <span class="doc-field-palette-type">HTML</span>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </t>
+
+                            <div class="doc-palette-group-head">
+                                <i class="fa fa-file-text-o me-1" aria-hidden="true"/>主記錄欄位
+                            </div>
                             <ul class="doc-field-palette-list">
                                 <t t-foreach="filteredModelFields" t-as="f" t-key="f.name">
                                     <li class="doc-field-palette-item"
@@ -911,6 +1289,22 @@
                                         </t>
                                         <span class="doc-field-palette-label" t-esc="f.label or f.name"/>
                                         <span class="doc-field-palette-type" t-esc="f.type"/>
+                                        <t t-if="f.type === 'many2one' and f.relation === 'res.partner'">
+                                            <!-- 依國別格式排版的地址。自己拼
+                                                 street/city/zip 換個國家就排錯。 -->
+                                            <button class="doc-field-palette-cond-btn"
+                                                    t-on-click.stop="() => this.onInsertAddress(f)"
+                                                    t-attf-title="插入「#{f.label or f.name}」的完整地址（依國別格式）"
+                                                    aria-label="插入地址">
+                                                <i class="fa fa-map-marker" aria-hidden="true"/>
+                                            </button>
+                                        </t>
+                                        <button class="doc-field-palette-cond-btn"
+                                                t-on-click.stop="() => this.onInsertFieldCondition(f)"
+                                                t-attf-title="插入條件：只在「#{f.label or f.name}」有值時列印這一段"
+                                                aria-label="設為條件">
+                                            <i class="fa fa-code-fork" aria-hidden="true"/>
+                                        </button>
                                     </li>
                                     <t t-if="state.expandedRelations.includes(f.name)">
                                         <t t-foreach="f.sub_fields or []" t-as="sub" t-key="f.name + '.' + sub.name">
@@ -1155,11 +1549,612 @@
                             </ul>
                         </div>
                     </t>
+                    <!-- ═══ 報表引擎：輸出紀錄的唯讀資訊 ═══ -->
+                    <t t-if="isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-lock me-2" aria-hidden="true"/>
+                            <span>輸出紀錄</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            這是已產生的成品，不可編輯。需要修改請回到列表按
+                            「建立可編輯副本」——原紀錄會保持原狀。
+                        </div>
+                        <t t-if="state.outputMeta">
+                            <div class="doc-inspector-field">
+                                <label>來源單據</label>
+                                <div class="doc-inspector-readonly"
+                                     t-esc="state.outputMeta.res_name or '（已刪除）'"/>
+                            </div>
+                            <div class="doc-inspector-field">
+                                <label>產生者</label>
+                                <div class="doc-inspector-readonly"
+                                     t-esc="state.outputMeta.rendered_by"/>
+                            </div>
+                            <div class="doc-inspector-field">
+                                <label>範本版本</label>
+                                <div class="doc-inspector-readonly">
+                                    v<t t-esc="state.outputMeta.template_version"/>
+                                </div>
+                            </div>
+                            <t t-if="!state.outputMeta.source_exists">
+                                <div class="doc-palette-hint">
+                                    <i class="fa fa-exclamation-triangle me-1" aria-hidden="true"/>
+                                    來源單據已不存在。此紀錄保留當時的內容，
+                                    但無法重新產生。
+                                </div>
+                            </t>
+                        </t>
+                    </t>
+
                     <!-- ═══ Phase 6：模型變數（自描述藥丸）的欄位定義 ═══
                          與下面的「待填欄位」分成兩區，因為兩類欄位的定義
                          存在不同地方：模型變數在元素的 extension.dobtorField，
                          待填欄位在 doc.template.field 記錄。 -->
-                    <t t-if="state.selectedVariable">
+                    <!-- ═══ 條件標記 ═══ -->
+                    <t t-if="isConditionPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-code-fork me-2" aria-hidden="true"/>
+                            <span>條件標記</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            放在<b>段落</b>內 → 條件為假時整段不印。<br/>
+                            放在<b>表格列</b>內 → 條件為假時該列不印。<br/>
+                            留空＝永遠列印。條件寫錯時內容會保留（寧可多印）。
+                        </div>
+                        <t t-if="isElseMarker">
+                            <!-- else 標記沒有自己的表達式——給它一個輸入框會讓使用者
+                                 以為兩個分支要各自維護一份條件，那正是這個機制要消除的問題。 -->
+                            <div class="doc-inspector-note">
+                                這是<b>否則</b>分支，取上方「若」分支條件的反值，
+                                本身沒有條件要設定。若分支被刪除時，本區塊一律列印。
+                            </div>
+                        </t>
+                        <t t-else="">
+                        <div class="doc-inspector-field">
+                            <label>條件表達式</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.expression or ''"
+                                   t-on-change="(ev) => this.onConditionExpressionChange(ev.target.value)"
+                                   placeholder="如 object.vat"/>
+                            <p class="doc-inspector-hint">
+                                在沙箱中求值。可用 <code>object</code>、
+                                <code>|length</code>、<code>and</code>／<code>or</code>。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>常用條件</label>
+                            <div class="doc-inspector-presets">
+                                <t t-foreach="CONDITION_PRESETS" t-as="cp" t-key="cp.label">
+                                    <button class="doc-inspector-preset-btn"
+                                            t-on-click="() => this.onApplyConditionPreset(cp.expr)"
+                                            t-attf-title="#{cp.expr}">
+                                        <t t-esc="cp.label"/>
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
+                        </t>
+                    </t>
+
+                    <!-- ═══ 欄條件標記 ═══ -->
+                    <t t-elif="isColumnPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-columns me-2" aria-hidden="true"/>
+                            <span>欄條件</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            條件為假時，<b>這一格所在的整欄</b>（含表頭與每一列）都不印，
+                            欄寬會補給最後一欄，表格總寬不變。<br/>
+                            留空＝永遠列印。條件寫錯時整欄保留（寧可多印）。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>條件表達式</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.expression or ''"
+                                   t-on-change="(ev) => this.onColumnExpressionChange(ev.target.value)"
+                                   placeholder="如 object.order_line|selectattr('discount')|list|length > 0"/>
+                            <p class="doc-inspector-hint">
+                                以<b>主記錄</b>求值（不是逐筆明細）——整欄要不要印是
+                                一次決定的事。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>常用條件</label>
+                            <div class="doc-inspector-presets">
+                                <t t-foreach="COLUMN_CONDITION_PRESETS" t-as="ccp"
+                                   t-key="ccp.label">
+                                    <button class="doc-inspector-preset-btn"
+                                            t-on-click="() => this.onColumnExpressionChange(ccp.expr)"
+                                            t-attf-title="#{ccp.expr}">
+                                        <t t-esc="ccp.label"/>
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- ═══ 重複列標記 ═══ -->
+                    <t t-elif="isRepeatPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-repeat me-2" aria-hidden="true"/>
+                            <span>重複列</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            這一列會對下方欄位的每一筆明細重複一次。
+                            刪除本標記即取消重複。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>重複來源</label>
+                            <div class="doc-inspector-readonly"
+                                 t-esc="state.selectedVariable.path or '（未設定）'"/>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>明細篩選</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.filter or ''"
+                                   t-on-change="(ev) => this.onRepeatFilterChange(ev.target.value)"
+                                   placeholder="如 not line.display_type"/>
+                            <p class="doc-inspector-hint">
+                                留空＝全部列印。<code>line</code> 與 <code>object</code>
+                                都指向當前明細。用來濾掉章節／備註／預付款這類不該
+                                印成空白列的明細行。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>排序欄位</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.sortBy or ''"
+                                   t-on-change="(ev) => this.onRepeatSortChange('sortBy', ev.target.value)"
+                                   placeholder="留空＝依資料庫順序"/>
+                            <p class="doc-inspector-hint">
+                                明細欄位名（如 <code>sequence</code>）。空值一律排最後。
+                                多鍵排序請用下方「來源表達式」鏈接 <code>|sort</code>。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field is-check">
+                            <label>
+                                <input type="checkbox"
+                                       t-att-checked="state.selectedVariable.sortDesc or false"
+                                       t-on-change="(ev) => this.onRepeatSortChange('sortDesc', ev.target.checked)"/>
+                                遞減排序
+                            </label>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>來源表達式（進階）</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.sourceExpression or ''"
+                                   t-on-change="(ev) => this.onRepeatSourceExpressionChange(ev.target.value)"
+                                   placeholder="留空＝用上方的重複來源欄位"/>
+                            <div class="doc-inspector-presets">
+                                <t t-foreach="REPEAT_SOURCE_PRESETS" t-as="rsp"
+                                   t-key="rsp.label">
+                                    <button class="doc-inspector-preset-btn"
+                                            t-on-click="() => this.onRepeatSourceExpressionChange(rsp.expr)"
+                                            t-attf-title="#{rsp.expr}">
+                                        <t t-esc="rsp.label"/>
+                                    </button>
+                                </t>
+                            </div>
+                            <p class="doc-inspector-hint">
+                                設了就取代上方的來源欄位。可回 recordset <b>或清單</b>
+                                ——發票的付款紀錄、分期明細、稅別都是 dict 清單，
+                                只能走這條。明細欄位要手寫（沒有模型可以列欄位）。
+                            </p>
+                        </div>
+
+                        <!-- ─── 列型 ───
+                             對應原生報表迴圈裡的 t-if / t-elif / t-else。
+                             與「明細篩選」是兩件不同的事：篩選決定「哪些明細要印」，
+                             列型決定「這一筆用哪個版面」。 -->
+                        <div class="doc-inspector-field">
+                            <label>列型條件</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.rowFilter or ''"
+                                   t-on-change="(ev) => this.onRowFilterChange(ev.target.value)"
+                                   placeholder="留空＝其餘明細都用這一列"/>
+                            <div class="doc-inspector-presets">
+                                <t t-foreach="ROW_VARIANT_PRESETS" t-as="rv"
+                                   t-key="rv.label">
+                                    <button class="doc-inspector-preset-btn"
+                                            t-on-click="() => this.onRowFilterChange(rv.expr)"
+                                            t-attf-title="#{rv.expr}">
+                                        <t t-esc="rv.label"/>
+                                    </button>
+                                </t>
+                            </div>
+                            <p class="doc-inspector-hint">
+                                同一筆明細可以有多種版面（商品列／備註列…）。
+                                <b>有條件的列型優先</b>，依文件順序取第一個成立的；
+                                都不成立才用留空的那一列（相當於「其餘」）。
+                                所以新增列型不必搬動既有的列。<br/>
+                                來源、明細篩選、分組一律取<b>最上面那一列</b>的設定。
+                            </p>
+                        </div>
+                        <!-- ─── 分組 ───
+                             取代 QWeb 的累加器（current_subtotal = current_subtotal + …）。
+                             那是 QWeb 只能單次順序掃描才被迫用的手法；這裡有完整
+                             recordset，分組後直接聚合，使用者只要選一個下拉。 -->
+                        <div class="doc-inspector-field">
+                            <label>分組方式</label>
+                            <select t-on-change="(ev) => this.onRepeatGroupChange('groupMode', ev.target.value)">
+                                <t t-foreach="GROUP_MODES" t-as="gm" t-key="gm.value">
+                                    <option t-att-value="gm.value"
+                                            t-att-selected="(state.selectedVariable.groupMode or '') === gm.value"
+                                            t-esc="gm.label"/>
+                                </t>
+                            </select>
+                            <p class="doc-inspector-hint">
+                                分組後可加「分組標題列」與「分組小計列」，
+                                章節小計這類需求不必寫累加器。
+                            </p>
+                        </div>
+                        <t t-if="state.selectedVariable.groupMode === 'field'">
+                            <div class="doc-inspector-field">
+                                <label>分組欄位</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.groupBy or ''"
+                                       t-on-change="(ev) => this.onRepeatGroupChange('groupBy', ev.target.value)"
+                                       placeholder="如 product_id.categ_id"/>
+                                <p class="doc-inspector-hint">
+                                    相對於「明細」的欄位路徑。值相同的明細歸為一組，
+                                    順序依第一次出現的位置。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-if="state.selectedVariable.groupMode === 'marker'">
+                            <div class="doc-inspector-field">
+                                <label>分隔判斷式</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.groupSplitOn or ''"
+                                       t-on-change="(ev) => this.onRepeatGroupChange('groupSplitOn', ev.target.value)"
+                                       placeholder="如 line.display_type == 'line_section'"/>
+                                <div class="doc-inspector-presets">
+                                    <t t-foreach="GROUP_SPLIT_PRESETS" t-as="sp" t-key="sp.label">
+                                        <button class="doc-inspector-preset-btn"
+                                                t-on-click="() => this.onRepeatGroupChange('groupSplitOn', sp.expr)"
+                                                t-attf-title="#{sp.expr}">
+                                            <t t-esc="sp.label"/>
+                                        </button>
+                                    </t>
+                                </div>
+                                <p class="doc-inspector-hint">
+                                    判斷式成立的那一筆明細開啟新的一組。
+                                    分組會在「明細篩選」之前進行——否則章節列先被濾掉，
+                                    就再也找不到分隔點了。
+                                </p>
+                            </div>
+                            <div class="doc-inspector-field is-check">
+                                <label>
+                                    <input type="checkbox"
+                                           t-att-checked="state.selectedVariable.groupIncludeHeader or false"
+                                           t-on-change="(ev) => this.onRepeatGroupChange('groupIncludeHeader', ev.target.checked)"/>
+                                    分隔列本身也算一筆明細
+                                </label>
+                                <p class="doc-inspector-hint">
+                                    預設不算：章節列通常由「分組標題列」單獨呈現，
+                                    不該又出現在明細裡一次。
+                                </p>
+                            </div>
+                        </t>
+                    </t>
+
+                    <!-- ═══ 分組標題／小計列 ═══ -->
+                    <t t-elif="isGroupPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-object-group me-2" aria-hidden="true"/>
+                            <span t-esc="state.selectedVariable.source === 'groupHeader' ? '分組標題列' : (state.selectedVariable.source === 'groupFooter' ? '分組小計列' : '分組取值')"/>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            <t t-if="state.selectedVariable.source === 'groupHeader'">
+                                每一組開頭印一次。<br/>
+                            </t>
+                            <t t-elif="state.selectedVariable.source === 'groupFooter'">
+                                每一組結尾印一次。<br/>
+                            </t>
+                            <t t-else="">
+                                放在分組標題列或小計列裡都可以。<br/>
+                            </t>
+                            輸出順序固定為<b>標題 → 明細 → 小計</b>，與這幾列在表格中的
+                            先後無關。沒設定分組時整批明細視為一組，小計列就是總計列。
+                        </div>
+                        <t t-if="!isGroupMarkerPill">
+                            <div class="doc-inspector-field">
+                                <label>取值表達式</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onGroupExpressionChange(ev.target.value)"
+                                       placeholder="如 group.lines|sum(attribute='price_subtotal')"/>
+                                <p class="doc-inspector-hint">
+                                    可用 <code>group.lines</code>（本組明細）、
+                                    <code>group.label</code>、<code>group.index</code>、
+                                    <code>group.count</code>、<code>object</code>（主記錄）。
+                                    數字請包一層 <code>format_number(…)</code>。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="doc-inspector-note">
+                                這是宣告用的標記，不會印出來。刪除它即取消本列的分組角色。
+                            </div>
+                        </t>
+                    </t>
+
+                    <!-- ═══ 流水藥丸（項次／逐列累計）═══ -->
+                    <t t-elif="isRunningPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-list-ol me-2" aria-hidden="true"/>
+                            <span>流水值</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            必須放在<b>重複列</b>裡。這是唯一需要跨列狀態的藥丸——
+                            其他聚合（本組小計、全單合計）都用表達式一次算完，不必累加。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>種類</label>
+                            <select t-on-change="(ev) => this.onRunningPropertyChange('op', ev.target.value)">
+                                <option value="index"
+                                        t-att-selected="(state.selectedVariable.op or 'index') === 'index'">
+                                    項次（1、2、3…）
+                                </option>
+                                <option value="sum"
+                                        t-att-selected="state.selectedVariable.op === 'sum'">
+                                    逐列累計
+                                </option>
+                            </select>
+                        </div>
+                        <t t-if="state.selectedVariable.op === 'sum'">
+                            <div class="doc-inspector-field">
+                                <label>累計對象</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onRunningPropertyChange('expression', ev.target.value)"
+                                       placeholder="如 line.price_subtotal"/>
+                            </div>
+                            <div class="doc-inspector-field is-check">
+                                <label>
+                                    <input type="checkbox"
+                                           t-att-checked="state.selectedVariable.asMoney or false"
+                                           t-on-change="(ev) => this.onRunningPropertyChange('asMoney', ev.target.checked)"/>
+                                    以金額格式顯示（幣別符號與小數位）
+                                </label>
+                            </div>
+                            <t t-if="!state.selectedVariable.asMoney">
+                                <div class="doc-inspector-field">
+                                    <label>數字格式</label>
+                                    <input type="text"
+                                           t-att-value="state.selectedVariable.numberFormat or ''"
+                                           t-on-change="(ev) => this.onRunningPropertyChange('numberFormat', ev.target.value)"
+                                           placeholder=",.2f"/>
+                                    <p class="doc-inspector-hint">
+                                        Python 格式字串。留空＝<code>,.2f</code>（千分位、兩位小數）。
+                                    </p>
+                                </div>
+                            </t>
+                        </t>
+                        <div class="doc-inspector-field">
+                            <label>重設時機</label>
+                            <select t-on-change="(ev) => this.onRunningPropertyChange('resetOn', ev.target.value)">
+                                <option value=""
+                                        t-att-selected="!state.selectedVariable.resetOn">
+                                    不重設（整份連續）
+                                </option>
+                                <option value="group"
+                                        t-att-selected="state.selectedVariable.resetOn === 'group'">
+                                    每組重新起算
+                                </option>
+                            </select>
+                        </div>
+                    </t>
+
+                    <!-- ═══ 稅額彙總藥丸 ═══ -->
+                    <t t-elif="isTaxTotalsPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-calculator me-2" aria-hidden="true"/>
+                            <span>稅額彙總</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            取自 Odoo 自己算好的 <code>tax_totals</code>，與原生報表同一份數字。<br/>
+                            <b>稅別</b>那一列會依實際稅別數複製；沒有稅時整列不印。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>這一列是</label>
+                            <select t-on-change="(ev) => this.onTaxTotalsPropertyChange('part', ev.target.value)">
+                                <t t-foreach="TAX_TOTALS_PARTS" t-as="tp" t-key="tp.value">
+                                    <option t-att-value="tp.value"
+                                            t-att-selected="(state.selectedVariable.part or 'total') === tp.value"
+                                            t-esc="tp.label"/>
+                                </t>
+                            </select>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>這個藥丸顯示</label>
+                            <select t-on-change="(ev) => this.onTaxTotalsPropertyChange('field', ev.target.value)">
+                                <t t-foreach="TAX_TOTALS_FIELDS" t-as="tf" t-key="tf.value">
+                                    <option t-att-value="tf.value"
+                                            t-att-selected="(state.selectedVariable.field or 'amount') === tf.value"
+                                            t-esc="tf.label"/>
+                                </t>
+                            </select>
+                            <p class="doc-inspector-hint">
+                                「名稱」只有稅前小計與稅別有值——總計的名稱請直接打字。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>幣別</label>
+                            <select t-on-change="(ev) => this.onTaxCurrencyModeChange(ev.target.value)">
+                                <option value="document"
+                                        t-att-selected="(state.selectedVariable.currencyMode or 'document') === 'document'">
+                                    單據幣別
+                                </option>
+                                <option value="company"
+                                        t-att-selected="state.selectedVariable.currencyMode === 'company'">
+                                    公司幣別
+                                </option>
+                            </select>
+                            <p class="doc-inspector-hint">
+                                外幣單據可同時印兩種幣別（原生發票的做法）：
+                                放兩組稅額彙總，各自選一種幣別。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>數字格式</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.numberFormat or ''"
+                                   t-on-change="(ev) => this.onTaxTotalsPropertyChange('numberFormat', ev.target.value)"
+                                   placeholder="留空＝幣別格式"/>
+                            <p class="doc-inspector-hint">
+                                留空時依單據幣別格式化（符號、位置、小數位）。
+                                填 Python 格式字串（如 <code>,.0f</code>）則改印純數字。
+                            </p>
+                        </div>
+                    </t>
+
+                    <!-- ═══ 圖片藥丸 ═══ -->
+                    <t t-elif="isImagePill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-picture-o me-2" aria-hidden="true"/>
+                            <span>圖片</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            編輯時顯示為藥丸——編範本時還沒有「那一筆記錄」可以取圖。
+                            匯出時才取值並變成真正的圖片。<br/>
+                            欄位是空的就什麼都不印（不會留下殘骸）。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>來源欄位</label>
+                            <div class="doc-inspector-readonly"
+                                 t-esc="state.selectedVariable.path or '（未設定）'"/>
+                        </div>
+                        <t t-if="isBarcodePill">
+                            <div class="doc-inspector-field">
+                                <label>條碼型別</label>
+                                <select t-on-change="(ev) => this.onImagePropertyChange('barcodeType', ev.target.value)">
+                                    <t t-foreach="BARCODE_TYPES" t-as="bt" t-key="bt">
+                                        <option t-att-value="bt"
+                                                t-att-selected="state.selectedVariable.barcodeType === bt"
+                                                t-esc="bt"/>
+                                    </t>
+                                </select>
+                                <p class="doc-inspector-hint">
+                                    型別與值不相容時（EAN13 要 12–13 位數字）整個條碼不印
+                                    ——一個打錯的料號不該讓整張單印不出來。
+                                </p>
+                            </div>
+                            <div class="doc-inspector-field">
+                                <label>取值表達式</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('expression', ev.target.value)"
+                                       placeholder="留空＝用上方的來源欄位"/>
+                            </div>
+                            <div class="doc-inspector-field is-check">
+                                <label>
+                                    <input type="checkbox"
+                                           t-att-checked="state.selectedVariable.barcodeText or false"
+                                           t-on-change="(ev) => this.onVariablePropertyChange('barcodeText', ev.target.checked)"/>
+                                    條碼下方顯示數字
+                                </label>
+                            </div>
+                        </t>
+                        <div class="doc-inspector-field">
+                            <label>寬（px）</label>
+                            <input type="number" min="1"
+                                   t-att-value="state.selectedVariable.width or ''"
+                                   t-on-change="(ev) => this.onImagePropertyChange('width', ev.target.value)"
+                                   placeholder="留空＝原始大小"/>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>高（px）</label>
+                            <input type="number" min="1"
+                                   t-att-value="state.selectedVariable.height or ''"
+                                   t-on-change="(ev) => this.onImagePropertyChange('height', ev.target.value)"
+                                   placeholder="留空＝原始大小"/>
+                        </div>
+                    </t>
+
+                    <!-- ═══ 頁碼藥丸 ═══ -->
+                    <t t-elif="isPagePill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-hashtag me-2" aria-hidden="true"/>
+                            <span t-esc="state.selectedVariable.part === 'count' ? '總頁數' : '頁碼'"/>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            必須放在<b>頁首或頁尾</b>。放在本文裡不會替換成實際頁次
+                            ——替換只套用在被抽出去給 wkhtmltopdf 的頁首頁尾上。<br/>
+                            DOCX 會輸出 Word 的頁碼 field，由 Word 開檔時計算。
+                        </div>
+                    </t>
+
+                    <!-- ═══ HTML 欄位藥丸 ═══ -->
+                    <t t-elif="isHtmlPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-code me-2" aria-hidden="true"/>
+                            <span>HTML 欄位</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            以<b>區塊</b>方式輸出原始格式（段落、粗體、清單都會保留）。<br/>
+                            內容會先消毒（移除 script 等）再輸出。<br/>
+                            欄位只有空殼（<code>&lt;p&gt;&lt;br&gt;&lt;/p&gt;</code>）時視為沒有內容。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>來源欄位</label>
+                            <div class="doc-inspector-readonly"
+                                 t-esc="state.selectedVariable.path or '（未設定）'"/>
+                        </div>
+                    </t>
+
+                    <!-- ═══ 多語文字藥丸 ═══ -->
+                    <t t-elif="isI18nPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-language me-2" aria-hidden="true"/>
+                            <span>多語文字</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            列印語言依序取：報表綁定的語言 → 客戶語言 → 系統語言。<br/>
+                            缺該語言時退回 en_US → 任一有值的 →
+                            藥丸標籤，<b>不會印出空白</b>。
+                        </div>
+                        <t t-foreach="state.languages" t-as="lg" t-key="lg.code">
+                            <div class="doc-inspector-field">
+                                <label t-esc="lg.name"/>
+                                <input type="text"
+                                       t-att-value="i18nTextFor(lg.code)"
+                                       t-on-change="(ev) => this.onI18nTextChange(lg.code, ev.target.value)"
+                                       t-attf-placeholder="#{lg.code} 的文字"/>
+                            </div>
+                        </t>
+                        <t t-if="!state.languages.length">
+                            <div class="doc-palette-hint">
+                                載入語言清單中…（若一直沒出現，表示系統只安裝了一種語言）
+                            </div>
+                        </t>
+                        <div class="doc-inspector-field">
+                            <label>翻譯鍵（選填）</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.key or ''"
+                                   t-on-change="(ev) => this.onI18nKeyChange(ev.target.value)"
+                                   placeholder="如 doc_title"/>
+                            <p class="doc-inspector-hint">
+                                匯出／匯入 CSV 時用來比對。留空則以目前的標籤文字當鍵
+                                ——改了標籤文字舊的 CSV 就對不上，所以會重複用到的
+                                文字建議填一個固定的鍵。
+                            </p>
+                        </div>
+                    </t>
+
+                    <!-- ═══ 模型變數（純量）═══ -->
+                    <t t-elif="state.selectedVariable and !isOutputTarget">
                         <div class="doc-inspector-header">
                             <i class="fa fa-tag me-2" aria-hidden="true"/>
                             <span>模型變數</span>
@@ -1227,14 +2222,27 @@
                             </div>
                         </t>
 
+                        <div class="doc-inspector-field">
+                            <label class="doc-inspector-checkbox">
+                                <input type="checkbox"
+                                       t-att-checked="state.selectedVariable.keepEmpty ? 'checked' : ''"
+                                       t-on-change="(ev) => this.onKeepEmptyChange(ev.target.checked)"/>
+                                空值時仍保留此段
+                            </label>
+                            <p class="doc-inspector-hint">
+                                預設行為：整段只含空變數時，<b>整段連靜態文字一起不印</b>
+                                ——否則沒資料時會留下孤零零的標籤（如「統一編號：」）。
+                                這一段有重要靜態文字時才勾選。
+                            </p>
+                        </div>
+
                         <div class="doc-inspector-note">
                             <i class="fa fa-info-circle me-1" aria-hidden="true"/>
-                            值在建立文件時凍結一次。空值不印任何東西，也不會擋下匯出。
-                            匯出時標籤網底不會帶進正式文件。
+                            值在建立文件時凍結一次。匯出時標籤網底不會帶進正式文件。
                         </div>
                     </t>
 
-                    <t t-if="selectedField">
+                    <t t-if="selectedField and !isOutputTarget">
                         <div class="doc-inspector-header">
                             <i class="fa fa-cog me-2"/>
                             <span t-esc="selectedFieldLabel"/>
@@ -1333,7 +2341,7 @@
                             </button>
                         </div>
                     </t>
-                    <t t-elif="!state.selectedVariable">
+                    <t t-elif="!state.selectedVariable and !isOutputTarget">
                         <div class="doc-inspector-empty">
                             <i class="fa fa-mouse-pointer fa-2x text-muted mb-2"/>
                             <p class="text-muted small mb-1">尚未選取欄位</p>

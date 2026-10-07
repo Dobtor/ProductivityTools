@@ -28,3 +28,8 @@ access_doc_template_field_portal,doc.template.field portal,model_doc_template_fi
 access_doc_template_field_option_editor,doc.template.field.option editor,model_doc_template_field_option,dobtor_doc_editor.group_doc_editor,1,0,0,0
 access_doc_template_field_option_manager,doc.template.field.option manager,model_doc_template_field_option,dobtor_doc_editor.group_doc_manager,1,1,1,1
 access_doc_template_field_option_portal,doc.template.field.option portal,model_doc_template_field_option,dobtor_doc_editor.group_doc_portal,1,0,0,0
+access_doc_report_editor,doc.report editor,model_doc_report,dobtor_doc_editor.group_doc_editor,1,0,0,0
+access_doc_report_manager,doc.report manager,model_doc_report,dobtor_doc_editor.group_doc_manager,1,1,1,1
+access_doc_output_editor,doc.output editor,model_doc_output,dobtor_doc_editor.group_doc_editor,1,0,0,0
+access_doc_output_manager,doc.output manager,model_doc_output,dobtor_doc_editor.group_doc_manager,1,0,0,1
+access_doc_output_portal,doc.output portal,model_doc_output,dobtor_doc_editor.group_doc_portal,1,0,0,0

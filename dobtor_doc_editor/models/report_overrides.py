@@ -1,4 +1,9 @@
+import logging
+
 from odoo import models
+
+
+_logger = logging.getLogger(__name__)
 
 
 class IrActionsReport(models.Model):
@@ -27,4 +32,71 @@ class IrActionsReport(models.Model):
             if key in specific_paperformat_args and cli_flag in args:
                 idx = args.index(cli_flag)
                 args[idx + 1] = str(specific_paperformat_args[key])
+
+        # footer-spacing：Odoo 只讀 data-report-header-spacing
+        # （ir_actions_report.py:339），沒有對應的 footer 版本。頁尾間距沒接上
+        # 的話，頁尾一高就壓到本文最後一行——而那只有在內容剛好印滿一頁時
+        # 才看得出來，最難追。
+        foot_key = 'data-report-footer-spacing'
+        if foot_key in specific_paperformat_args:
+            value = str(specific_paperformat_args[foot_key])
+            if '--footer-spacing' in args:
+                args[args.index('--footer-spacing') + 1] = value
+            else:
+                args.extend(['--footer-spacing', value])
         return args
+
+    # ══════════════════════════════════════════════════════════════════
+    # 報表引擎：用 doc.template 取代 QWeb 產生報表內容
+    #
+    # 攔截點選在 _render_qweb_html 而非 _render_qweb_pdf_prepare_streams，
+    # 也不是 selection_add 一個新的 report_type。三個理由：
+    #
+    #   1. _render_qweb_pdf_prepare_streams（ir_actions_report.py:860）就是從
+    #      _render_qweb_html 取得 HTML 的。攔在 HTML 這一層，attachment 重用、
+    #      wkhtmltopdf 呼叫、多筆 PDF 切割與合併、paperformat 全部不必碰。
+    #   2. 自訂 report_type 會被 web client 擋下——action_service.js:1333 對未知
+    #      型別只 console.error。要能用必須同時註冊 JS handler，而且模組一停用
+    #      所有報表按鈕就全壞。保持 qweb-pdf 則前端零改動、停用時自動回到原生。
+    #   3. _render_qweb_html 同時是 report_type='qweb-html'（瀏覽器預覽）的入口
+    #      （ir_actions_report.py:1009），所以預覽也一併接上，不必另外處理。
+    #
+    # 查不到綁定時一律 super()：定案決策一是「逐一綁定」，與原生 QWeb 共存。
+    # ══════════════════════════════════════════════════════════════════
+
+    def _render_qweb_html(self, report_ref, docids, data=None):
+        report = self._get_report(report_ref)
+        doc_report = self.env['doc.report']._resolve_for_report(report)
+        if not doc_report:
+            return super()._render_qweb_html(report_ref, docids, data=data)
+
+        if isinstance(docids, int):
+            docids = [docids]
+        if not docids or not report.model:
+            # 沒有記錄可渲染（例如空選取）→ 交回原生，由它處理既有的邊界行為
+            return super()._render_qweb_html(report_ref, docids, data=data)
+
+        records = self.env[report.model].browse(docids)
+        html, frozen_trees = doc_report._build_report_html(records)
+
+        # 定案決策二：預設不留存。開啟時每筆記錄留一筆 doc.output。
+        #
+        # 只在「真的在產生 PDF」時留存：_render_qweb_pdf 會先
+        # data.setdefault('report_type', 'pdf')（ir_actions_report.py:1019）才一路
+        # 呼進這裡，而瀏覽器預覽（report_type='qweb-html'）不會帶這個值。
+        # 不分辨的話，使用者「先預覽再列印」同一張單據會留下兩筆紀錄。
+        is_pdf_run = (data or {}).get('report_type') == 'pdf'
+        if doc_report.persist_output and is_pdf_run:
+            Output = self.env['doc.output']
+            for record in records:
+                try:
+                    Output._record_output(
+                        doc_report, record, frozen_trees.get(record.id),
+                    )
+                except Exception as e:
+                    # 留存失敗不該讓列印失敗——使用者要的是那張單據
+                    _logger.warning(
+                        '[doc.report] 留存輸出失敗 %s(%s)：%s',
+                        record._name, record.id, e,
+                    )
+        return html, 'html'

@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- ═══ doc.output：輸出紀錄（唯讀）═══ -->
+
+    <record id="action_doc_output" model="ir.actions.act_window">
+        <field name="name">輸出紀錄</field>
+        <field name="res_model">doc.output</field>
+        <field name="view_mode">list,form</field>
+        <!-- 預設依來源模型分組：這就是「目錄」效果。
+             刻意不另建分類實體——模型本身就是分類，再疊一層人工維護的分類樹
+             遲早會跟模型對不上，而且每接管一個新報表都要有人記得去補。 -->
+        <field name="context">{'search_default_group_res_model': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">尚無輸出紀錄</p>
+            <p>
+                只有在「報表輸出定義」上開啟<b>留存輸出紀錄</b>的報表，
+                列印時才會在這裡留下紀錄。
+            </p>
+        </field>
+    </record>
+
+    <record id="view_doc_output_list" model="ir.ui.view">
+        <field name="name">doc.output.list</field>
+        <field name="model">doc.output</field>
+        <field name="arch" type="xml">
+            <!-- create="false" edit="false"：輸出是系統產生的唯讀紀錄。
+                 ACL 也已鎖死（perm_write=0、perm_create=0），這裡只是讓 UI 一致。 -->
+            <list create="false" edit="false" default_order="rendered_at desc">
+                <field name="rendered_at"/>
+                <field name="res_name"/>
+                <field name="res_model_id" optional="show"/>
+                <field name="template_id"/>
+                <field name="template_version" optional="show"/>
+                <field name="output_format" optional="show"/>
+                <field name="rendered_by"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+                <button name="action_open_viewer" type="object"
+                        icon="fa-eye" title="在編輯器中瀏覽（唯讀）"/>
+                <button name="action_download" type="object"
+                        icon="fa-download" title="下載檔案"
+                        invisible="not attachment_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_doc_output_form" model="ir.ui.view">
+        <field name="name">doc.output.form</field>
+        <field name="model">doc.output</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false">
+                <header>
+                    <button name="action_open_viewer"
+                            type="object"
+                            string="瀏覽內容"
+                            class="btn-primary"
+                            icon="fa-eye"
+                            help="在編輯器中唯讀瀏覽當時的輸出內容"/>
+                    <button name="action_download"
+                            type="object"
+                            string="下載"
+                            icon="fa-download"
+                            invisible="not attachment_id"/>
+                    <button name="action_download_docx"
+                            type="object"
+                            string="匯出 DOCX"
+                            icon="fa-file-word-o"
+                            invisible="not content_json"
+                            help="匯出去編輯用。不保證與畫面完全一致——正式單據請用 PDF。"/>
+                    <button name="action_create_editable_copy"
+                            type="object"
+                            string="建立可編輯副本"
+                            icon="fa-copy"
+                            invisible="not content_json"
+                            confirm="將以此輸出的內容建立一份新的可編輯文件。
+                                     本筆輸出紀錄不會被修改。確定繼續？"
+                            help="輸出本身不可編輯（稽核要求）。需要修改時建立副本。"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        <i class="fa fa-lock me-1"/>
+                        <strong>這是輸出紀錄，不可編輯。</strong>
+                        它記錄「某人在某時用某版範本印了某張單據」。
+                        需要修改內容請用上方「建立可編輯副本」，原紀錄會保持原狀。
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="display_name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="來源">
+                            <field name="res_model_id" readonly="1"/>
+                            <field name="res_name" readonly="1"/>
+                            <field name="res_id" readonly="1"/>
+                            <field name="source_exists" readonly="1"/>
+                        </group>
+                        <group string="產生資訊">
+                            <field name="rendered_at" readonly="1"/>
+                            <field name="rendered_by" readonly="1"/>
+                            <field name="lang" readonly="1"/>
+                            <field name="company_id" readonly="1"
+                                   groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="範本">
+                            <field name="doc_report_id" readonly="1"/>
+                            <field name="template_id" readonly="1"/>
+                            <field name="template_version" readonly="1"/>
+                        </group>
+                        <group string="檔案">
+                            <field name="output_format" readonly="1"/>
+                            <field name="attachment_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning mb-0" role="alert"
+                         invisible="source_exists">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        來源單據已不存在（可能已被刪除）。此紀錄仍保留當時的內容，
+                        但無法重新產生。
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_doc_output_search" model="ir.ui.view">
+        <field name="name">doc.output.search</field>
+        <field name="model">doc.output</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="res_name" string="來源單據"
+                       filter_domain="[('res_name', 'ilike', self)]"/>
+                <field name="template_id"/>
+                <field name="rendered_by"/>
+                <field name="doc_report_id"/>
+                <filter name="my_outputs" string="我列印的"
+                        domain="[('rendered_by', '=', uid)]"/>
+                <separator/>
+                <filter name="today" string="今天"
+                        domain="[('rendered_at', '>=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
+                <filter name="this_month" string="本月"
+                        domain="[('rendered_at', '>=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter name="no_file" string="檔案已清理"
+                        domain="[('attachment_id', '=', False)]"/>
+                <!-- 六個分組維度：來源模型（預設，即目錄）／範本／輸出定義／
+                     產生月份／產生者／格式 -->
+                <group expand="1" string="分組依據">
+                    <filter name="group_res_model" string="來源模型"
+                            context="{'group_by': 'res_model_id'}"/>
+                    <filter name="group_template" string="範本"
+                            context="{'group_by': 'template_id'}"/>
+                    <filter name="group_report" string="輸出定義"
+                            context="{'group_by': 'doc_report_id'}"/>
+                    <filter name="group_date" string="產生月份"
+                            context="{'group_by': 'rendered_at:month'}"/>
+                    <filter name="group_user" string="產生者"
+                            context="{'group_by': 'rendered_by'}"/>
+                    <filter name="group_format" string="格式"
+                            context="{'group_by': 'output_format'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

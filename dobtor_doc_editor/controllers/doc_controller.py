@@ -922,22 +922,34 @@ class DocEditorController(http.Controller):
     # 刻意不接受同時帶 doc_id 與 template_id：兩者都給時「以誰為準」沒有正確答案，
     # 靜默挑一個會在前端狀態錯亂時寫錯對象。寧可直接擋下。
 
-    def _resolve_edit_target(self, doc_id=None, template_id=None, access='read'):
-        """回傳 (record, kind)；kind 為 'document' 或 'template'。
+    def _resolve_edit_target(self, doc_id=None, template_id=None, output_id=None,
+                            access='read'):
+        """回傳 (record, kind)；kind 為 'document' / 'template' / 'output'。
 
         access：'read' / 'write' / 'unlink'，直接餵給 check_access（Odoo 18 統一入口）。
         找不到記錄或無權限時 raise（json route 會把例外回給前端）。
+
+        output 是唯讀的輸出紀錄：access 一律降為 'read'。
+        它的 ACL 本來就 perm_write=0，但降級在這裡讓錯誤訊息清楚
+        （「輸出紀錄不可編輯」而不是一句 AccessError）。
         """
-        if doc_id and template_id:
-            raise UserError('doc_id 與 template_id 只能擇一，不可同時指定。')
-        if template_id:
+        given = [bool(doc_id), bool(template_id), bool(output_id)]
+        if sum(given) > 1:
+            raise UserError('doc_id / template_id / output_id 只能擇一指定。')
+        if output_id:
+            if access != 'read':
+                raise UserError('輸出紀錄不可編輯——它是已產生的成品。'
+                                '需要修改請用「建立可編輯副本」。')
+            record = request.env['doc.output'].browse(int(output_id))
+            kind = 'output'
+        elif template_id:
             record = request.env['doc.template'].browse(int(template_id))
             kind = 'template'
         elif doc_id:
             record = request.env['doc.document'].browse(int(doc_id))
             kind = 'document'
         else:
-            raise UserError('必須指定 doc_id 或 template_id 其中之一。')
+            raise UserError('必須指定 doc_id / template_id / output_id 其中之一。')
         if not record.exists():
             raise MissingError(f'{kind} 記錄不存在或已被刪除。')
         # Odoo 18：check_access_rule() / check_access_rights() 已 deprecated，
@@ -955,7 +967,7 @@ class DocEditorController(http.Controller):
 
         回傳 (template, error_dict)；error_dict 非 None 時呼叫端應直接回傳它。
         """
-        record, kind = self._resolve_edit_target(doc_id, template_id, access)
+        record, kind = self._resolve_edit_target(doc_id, template_id, access=access)
         if kind == 'template':
             return record, None
         if not record.template_id:
@@ -981,7 +993,7 @@ class DocEditorController(http.Controller):
         return doc
 
     @http.route('/dobtor_doc/load', type='json', auth='user', methods=['POST'])
-    def load_document(self, doc_id=None, template_id=None, **kw):
+    def load_document(self, doc_id=None, template_id=None, output_id=None, **kw):
         """載入編輯對象（doc.document 或 doc.template）的內容與設定。
 
         回傳值含 `write_date`，給前端做樂觀鎖（P2-2）：
@@ -989,9 +1001,13 @@ class DocEditorController(http.Controller):
             後端比對若已變動則拒絕並回 409。
             範本模式同樣適用——範本開放直接編輯後，兩個管理者同開會互蓋。
         """
-        record, kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        record, kind = self._resolve_edit_target(
+            doc_id, template_id, output_id, access='read',
+        )
         if kind == 'template':
             return self._load_template_payload(record)
+        if kind == 'output':
+            return self._load_output_payload(record)
         doc = record
         return {
             'id': doc.id,
@@ -1042,11 +1058,10 @@ class DocEditorController(http.Controller):
             'header_html': '',
             'footer_html': '',
             'page_format': template.page_format or 'A4',
-            # 範本本身沒有邊距欄位；沿用 doc.document 的預設值，避免前端拿到 0
-            'margin_top': 96,
-            'margin_bottom': 96,
-            'margin_left': 96,
-            'margin_right': 96,
+            'margin_top': template.margin_top,
+            'margin_bottom': template.margin_bottom,
+            'margin_left': template.margin_left,
+            'margin_right': template.margin_right,
             'model_id': template.model_id.id if template.model_id else False,
             'model_name': template.model_id.model if template.model_id else False,
             # 範本不綁定單一記錄——設計期沒有 record 可取值，藥丸顯示標籤文字
@@ -1070,6 +1085,60 @@ class DocEditorController(http.Controller):
             'snapshot_is_stale': False,
         }
 
+    def _load_output_payload(self, output):
+        """輸出紀錄模式的 /load 回傳值。唯讀。
+
+        與另兩種模式維持同一組 key（前端只有一條解析路徑），差別在
+        readonly=True 與 edit_target='output'。前端據此關掉 autosave、
+        收斂工具列與兩側面板。
+
+        content_json 已是凍結後的元素樹——藥丸顯示的就是當時的值，
+        不重新求值（否則就不是「當時印出去的那一份」了）。
+        """
+        source = output._resolve_source()
+        return {
+            'id': output.id,
+            'name': output.display_name or '',
+            'content_json': output.content_json or '',
+            'content_html': '',
+            'header_html': '',
+            'footer_html': '',
+            'page_format': output.template_id.page_format or 'A4',
+            'margin_top': output.template_id.margin_top,
+            'margin_bottom': output.template_id.margin_bottom,
+            'margin_left': output.template_id.margin_left,
+            'margin_right': output.template_id.margin_right,
+            'model_id': output.res_model_id.id if output.res_model_id else False,
+            'model_name': output.res_model or False,
+            'res_id': output.res_id or False,
+            # 輸出不需要 alias——它已經凍結，沒有待替換的 token
+            'field_aliases': {},
+            'template_field_aliases': {},
+            'template_name': output.template_id.name if output.template_id else '',
+            'has_template': False,
+            'template_filename': '',
+            'template_variables': [],
+            'has_different_first_page': False,
+            'first_header_html': '',
+            'first_footer_html': '',
+            'write_date': output.rendered_at.isoformat() if output.rendered_at else None,
+            'version_number': output.template_version or 0,
+            'edit_target': 'output',
+            # 快照資訊：輸出的「凍結時間」就是列印時間
+            'snapshot_date': output.rendered_at.isoformat() if output.rendered_at else None,
+            'snapshot_is_stale': False,
+            # 唯讀：前端據此關 autosave、收工具列；伺服端另有 ACL 把關
+            'readonly': True,
+            'output_meta': {
+                'res_name': output.res_name or '',
+                'rendered_by': output.rendered_by.name or '',
+                'template_version': output.template_version or 0,
+                'output_format': output.output_format or 'pdf',
+                'has_attachment': bool(output.attachment_id),
+                'source_exists': bool(source),
+            },
+        }
+
     @http.route('/dobtor_doc/save', type='json', auth='user', methods=['POST'])
     def save_document(self, doc_id=None, template_id=None,
                       content_html=None, content_json=None,
@@ -1089,7 +1158,7 @@ class DocEditorController(http.Controller):
         """
         if not doc_id and not template_id:
             return {'success': False, 'error': 'doc_id 或 template_id required'}
-        doc, kind = self._resolve_edit_target(doc_id, template_id, 'write')
+        doc, kind = self._resolve_edit_target(doc_id, template_id, access='write')
 
         # P2-2 樂觀鎖檢查（文件與範本共用同一套；範本模式尤其需要，
         # 因為範本是共用資源，被覆蓋的影響範圍是「所有使用它的文件」）
@@ -1320,16 +1389,82 @@ class DocEditorController(http.Controller):
         }
 
     @http.route('/dobtor_doc/save_settings', type='json', auth='user', methods=['POST'])
-    def save_settings(self, doc_id, **kw):
-        """儲存頁面格式與邊距設定。"""
-        doc = self._require_document(doc_id, 'write')
-        allowed = ('page_format', 'margin_top', 'margin_bottom',
-                   'margin_left', 'margin_right',
-                   'default_column_count', 'default_column_gap', 'column_rule_style')
+    def save_settings(self, doc_id=None, template_id=None, **kw):
+        """儲存頁面格式與邊距設定（文件與範本雙入口）。
+
+        範本也必須能存版面設定——報表引擎以範本的 page_format/margin_* 當列印依據
+        （「編輯器裡看到的就是列印結果」），範本模式若存不進去，使用者調了邊距
+        卻印出不同結果，而且不會有任何錯誤訊息。
+        """
+        target, kind = self._resolve_edit_target(doc_id, template_id, access='write')
+        allowed = {'page_format', 'margin_top', 'margin_bottom',
+                   'margin_left', 'margin_right'}
+        if kind == 'document':
+            # 多欄排版目前只有 doc.document 有
+            allowed |= {'default_column_count', 'default_column_gap',
+                        'column_rule_style'}
         vals = {k: v for k, v in kw.items() if k in allowed}
         if vals:
-            doc.write(vals)
-        return {'success': True}
+            target.write(vals)
+        return {'success': True, 'edit_target': kind}
+
+    # ─── i18n 工具路由 ──────────────────────────────────────────────
+    #
+    # 走 doc.render.mixin 上的方法，文件與範本雙入口共用一套——i18n 藥丸在
+    # 兩種編輯對象上都存在，分兩套實作遲早會漂移。
+
+    @http.route('/dobtor_doc/i18n/languages', type='json', auth='user',
+                methods=['POST'])
+    def i18n_languages(self, **kw):
+        """已安裝語言清單（給 i18n 藥丸的 inspector 用）。"""
+        langs = request.env['res.lang'].sudo().search([])
+        return [{'code': lang.code, 'name': lang.name} for lang in langs]
+
+    @http.route('/dobtor_doc/i18n/extract', type='json', auth='user',
+                methods=['POST'])
+    def i18n_extract(self, doc_id=None, template_id=None, **kw):
+        """列出範本裡的靜態文字（唯讀，不改任何東西）。"""
+        target, _kind = self._resolve_edit_target(
+            doc_id, template_id, access='read',
+        )
+        return {'texts': target.extract_static_texts()}
+
+    @http.route('/dobtor_doc/i18n/convert', type='json', auth='user',
+                methods=['POST'])
+    def i18n_convert(self, doc_id=None, template_id=None, texts=None,
+                     lang=None, **kw):
+        """把勾選的靜態文字轉成 i18n 藥丸。"""
+        target, _kind = self._resolve_edit_target(
+            doc_id, template_id, access='write',
+        )
+        result = target.convert_texts_to_i18n(texts or [], lang=lang)
+        # 回傳新的 content_json：前端要把編輯器內容換成轉換後的結果，
+        # 否則使用者繼續編輯會用舊內容把剛才的轉換覆蓋掉
+        result['content_json'] = target.content_json or ''
+        return result
+
+    @http.route('/dobtor_doc/i18n/export', type='json', auth='user',
+                methods=['POST'])
+    def i18n_export(self, doc_id=None, template_id=None, **kw):
+        """翻譯表 → CSV 字串。"""
+        target, _kind = self._resolve_edit_target(
+            doc_id, template_id, access='read',
+        )
+        return {
+            'csv': target.export_i18n_csv(),
+            'entries': len(target.i18n_entries()),
+        }
+
+    @http.route('/dobtor_doc/i18n/import', type='json', auth='user',
+                methods=['POST'])
+    def i18n_import(self, doc_id=None, template_id=None, csv_content=None, **kw):
+        """CSV → 回填翻譯。"""
+        target, _kind = self._resolve_edit_target(
+            doc_id, template_id, access='write',
+        )
+        result = target.import_i18n_csv(csv_content or '')
+        result['content_json'] = target.content_json or ''
+        return result
 
     @http.route('/dobtor_doc/fields', type='json', auth='user', methods=['POST'])
     def get_fields(self, model_name, doc_id=None, **kw):
@@ -1696,14 +1831,14 @@ body {{
     @http.route('/dobtor_doc/versions/list', type='json', auth='user', methods=['POST'])
     def versions_list(self, doc_id=None, template_id=None, **kw):
         """列出編輯對象的所有版本快照（不含 content，輕量）。"""
-        target, _kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, access='read')
         return {'versions': target.get_version_list()}
 
     @http.route('/dobtor_doc/versions/get', type='json', auth='user', methods=['POST'])
     def versions_get(self, doc_id=None, template_id=None, version_id=None,
                      message_id=None, **kw):
         """取得單一版本的完整內容（accept version_id 或 legacy message_id）。"""
-        target, _kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, access='read')
         vid = version_id if version_id is not None else message_id
         content = target.get_version_content(vid)
         if content is None:
@@ -1714,7 +1849,7 @@ body {{
     def versions_restore(self, doc_id=None, template_id=None, version_id=None,
                          message_id=None, **kw):
         """還原到指定版本（自動先存「還原前」快照）。"""
-        target, _kind = self._resolve_edit_target(doc_id, template_id, 'write')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, access='write')
         vid = version_id if version_id is not None else message_id
         try:
             result = target.restore_version(vid)
@@ -1727,7 +1862,7 @@ body {{
                       version_id_a=None, version_id_b=None,
                       message_id_a=None, message_id_b=None, **kw):
         """段落層級 diff 兩個版本（accept version_id_* 或 legacy message_id_*）。"""
-        target, _kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        target, _kind = self._resolve_edit_target(doc_id, template_id, access='read')
         a = version_id_a if version_id_a is not None else message_id_a
         b = version_id_b if version_id_b is not None else message_id_b
         result = target.diff_versions(a, b)
@@ -2153,7 +2288,7 @@ body {{
         record=None 時 _field_control_spec 不會算 current_code，
         chip 開啟時就是空選、由使用者自行挑——這是正確行為，不是缺陷。
         """
-        target, kind = self._resolve_edit_target(doc_id, template_id, 'read')
+        target, kind = self._resolve_edit_target(doc_id, template_id, access='read')
         if kind == 'template':
             template = target
             record = None

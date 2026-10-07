@@ -3168,3 +3168,134 @@
     background: #fff4e5;
     color: #8a5300;
 }
+
+/* 報表引擎：輸出紀錄的唯讀欄位值 */
+.doc-inspector-readonly {
+    font-size: 13px;
+    color: #202124;
+    padding: 4px 0;
+    word-break: break-word;
+}
+
+/* 重複列（表格明細）：左欄的分組標頭與明細欄位 */
+.doc-palette-group-head {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #5f6368;
+    background: #f1f3f4;
+    padding: 4px 8px;
+    margin-top: 4px;
+    border-top: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e0e0e0;
+}
+.doc-field-palette-list.is-compact { padding: 2px 0; flex: none; }
+.doc-palette-repeat-icon { color: #1565c0; font-size: 11px; flex: none; }
+.doc-field-palette-item.is-line { border-left-color: #e8a33d; }
+.doc-field-palette-item.is-line:hover {
+    background: #fff4e5;
+    border-left-color: #e8a33d;
+}
+
+/* 條件式列印：左欄入口與 inspector 的常用條件 */
+.doc-field-palette-item.is-cond { border-left-color: #7b5ea7; cursor: pointer; }
+.doc-field-palette-item.is-cond:hover {
+    background: #f3eefa;
+    border-left-color: #7b5ea7;
+}
+.doc-palette-cond-icon { color: #7b5ea7; font-size: 11px; flex: none; }
+.doc-field-palette-cond-btn {
+    border: 0;
+    background: transparent;
+    color: #9aa0a6;
+    padding: 0 2px;
+    cursor: pointer;
+    flex: none;
+    opacity: 0;
+}
+.doc-field-palette-item:hover .doc-field-palette-cond-btn { opacity: 1; }
+.doc-field-palette-cond-btn:hover { color: #7b5ea7; }
+
+.doc-inspector-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+.doc-inspector-preset-btn {
+    border: 1px solid #dadce0;
+    background: #fff;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #5f6368;
+    cursor: pointer;
+}
+.doc-inspector-preset-btn:hover {
+    border-color: #7b5ea7;
+    color: #7b5ea7;
+    background: #f3eefa;
+}
+
+/* 勾選型設定列：label 與 checkbox 同一行，不要讓 label 的 display:block
+   把勾選框推到上一行去（.doc-inspector-field > label 是 block）。 */
+.doc-inspector-field.is-check > label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 400;
+    cursor: pointer;
+}
+.doc-inspector-field.is-check input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    flex: none;
+}
+
+/* ─── 多語文字 ─── */
+/* 橘色系：與模型變數（藍）一眼分得開，使用者看得出哪些是靜態文字 */
+.doc-field-palette-item.is-i18n { border-left-color: #e65100; cursor: pointer; }
+.doc-field-palette-item.is-i18n:hover {
+    background: #fff3e0;
+    border-left-color: #e65100;
+}
+.doc-palette-i18n-icon { color: #e65100; font-size: 11px; flex: none; }
+
+.doc-i18n-extract {
+    border: 1px solid #ffe0b2;
+    background: #fffdf9;
+    border-radius: 4px;
+    padding: 6px;
+    margin: 4px 0;
+}
+.doc-i18n-extract-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #e65100;
+    margin-bottom: 4px;
+}
+.doc-i18n-extract-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.doc-i18n-extract-list > li { padding: 1px 0; }
+.doc-i18n-extract-list label {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 400;
+    cursor: pointer;
+    margin: 0;
+}
+.doc-i18n-extract-list input[type="checkbox"] {
+    margin: 2px 0 0;
+    flex: none;
+}

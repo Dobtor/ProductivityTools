@@ -1,7 +1,8 @@
 import html as html_mod
+import json
 
 from odoo import models, fields, api
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class DocTemplate(models.Model):
@@ -64,6 +65,41 @@ class DocTemplate(models.Model):
         help='每筆含 version_no/created_at/author_id/author_name/label/'
              'content_html/content_json。',
     )
+    # 頁面邊距（px，與 doc.document 同單位）。
+    # 範本必須擁有完整版面設定——報表引擎的前提是「編輯器裡看到的就是列印結果」，
+    # 而列印邊距若只存在 doc.document 上，範本模式就沒有邊距可調、
+    # 報表渲染也無從取得（原本 _load_template_payload 為此硬寫 96）。
+    # ─── 外框範本 ───────────────────────────────────────────────────
+    #
+    # external_layout 在 Odoo 裡是公司級的共用外框，被所有報表共用。複製進
+    # 每一張範本之後，改一次公司地址要改 N 張，而且漏掉哪一張完全看不出來。
+    # 所以把「外框」獨立成另一種角色的範本，內容範本只管 main 區。
+    role = fields.Selection(
+        [('content', '內容範本'), ('layout', '外框範本')],
+        string='範本角色', default='content', required=True,
+        help='外框範本只提供頁首／頁尾與紙張設定，供多張內容範本共用。',
+    )
+    layout_id = fields.Many2one(
+        'doc.template', string='外框範本',
+        domain="[('role', '=', 'layout'), ('id', '!=', id)]",
+        ondelete='restrict',
+        help='設定後，頁首／頁尾與紙張設定一律取自外框範本。',
+    )
+    margin_top = fields.Integer(string='上邊距 (px)', default=96)
+    margin_bottom = fields.Integer(string='下邊距 (px)', default=96)
+    margin_left = fields.Integer(string='左邊距 (px)', default=96)
+    margin_right = fields.Integer(string='右邊距 (px)', default=96)
+    # wkhtmltopdf 的頁首是「疊在上邊距區」的，頁首比上邊距高就會壓到本文。
+    # Odoo 的 paperformat 有 header_spacing 專門處理，模組原本沒有暴露。
+    header_spacing = fields.Integer(
+        string='頁首間距 (mm)', default=5,
+        help='頁首與本文之間的間距。頁首內容比上邊距高時要調大，'
+             '否則頁首會壓到本文。',
+    )
+    footer_spacing = fields.Integer(
+        string='頁尾間距 (mm)', default=5,
+        help='頁尾與本文之間的間距。',
+    )
     page_format = fields.Selection([
         ('A4', 'A4'),
         ('A3', 'A3'),
@@ -102,6 +138,160 @@ class DocTemplate(models.Model):
             rec.field_count = len(rec.field_ids)
 
     # ─── Phase 1：直接在編輯器中編輯範本 ─────────────────────────────
+
+    @api.constrains('role', 'layout_id')
+    def _check_layout_chain(self):
+        """外框不可再掛外框。
+
+        允許鏈結的話，「這張範本的頁首到底來自哪裡」要追好幾層，而且一旦成環
+        就會無限遞迴。一層就夠：外框是共用外框，不是繼承樹。
+        """
+        for tmpl in self:
+            if tmpl.layout_id and tmpl.role == 'layout':
+                raise ValidationError(
+                    '外框範本不可再指定外框範本（不支援多層外框）。'
+                )
+            if tmpl.layout_id and tmpl.layout_id.role != 'layout':
+                raise ValidationError(
+                    '「%s」不是外框範本，不能當作外框使用。'
+                    % tmpl.layout_id.display_name
+                )
+
+    # ─── 內建外框範本 ───────────────────────────────────────────────
+    #
+    # 只提供兩張。Odoo 的 external_layout 實測有七種（standard / boxed / bold /
+    # striped / folder / wave / bubble），但那七種的差異幾乎全在 CSS（底色、
+    # 分隔線、字重、背景圖），canvas-editor 沒有 CSS 繼承，逐一復刻要把每個
+    # 樣式手刻進元素屬性，投報率很低。而客戶真正要的通常是「我們公司自己的
+    # 版面」，不是 Odoo 的其中一種。
+    #
+    # 所以這兩張的定位是「起點」，不是「復刻」——命名也刻意用排版方式而不是
+    # Odoo 的版面代號，避免讓人以為會長得一樣。
+
+    _LAYOUT_VARIANTS = {
+        'side': '標準（logo 左、公司資訊右）',
+        'stacked': '置中（logo 置中、公司資訊在下）',
+    }
+
+    @staticmethod
+    def _layout_cell(*elements, **kw):
+        """表格儲存格。結尾一定補換行——canvas-editor 的儲存格都是這個形狀，
+        少了它在編輯器裡點進去會沒有可放游標的位置。"""
+        value = list(elements) + [{'value': '\n'}]
+        return dict({'colspan': 1, 'rowspan': 1, 'value': value}, **kw)
+
+    @staticmethod
+    def _layout_pill(label, **meta):
+        payload = dict(meta)
+        payload['labelText'] = label
+        return {
+            'type': 'label', 'value': label,
+            'label': {'backgroundColor': '#e3f2fd', 'color': '#1976d2'},
+            'extension': {'dobtorField': payload},
+        }
+
+    def _build_layout_tree(self, variant='side'):
+        """產生外框範本的 content_json 結構（header / footer 兩區）。
+
+        欄寬以紙張內寬計算：A4 @96dpi 是 794px，扣掉左右邊距。寬度算錯不會
+        報錯，只會讓表格在編輯器裡溢出頁面——那看起來像編輯器壞了。
+        """
+        self.ensure_one()
+        page_w = 1123 if (self.page_format or 'A4') == 'A4_landscape' else 794
+        inner = max(200, page_w - (self.margin_left or 96) - (self.margin_right or 96))
+        pill = self._layout_pill
+        cell = self._layout_cell
+
+        logo = pill('公司 logo', source='image',
+                    path='company_id.logo_web', height=48)
+        details = pill('公司資訊', source='html',
+                       path='company_id.company_details')
+        tagline = pill('公司標語', source='html',
+                       path='company_id.report_header')
+
+        if variant == 'stacked':
+            header_rows = [
+                {'tdList': [cell(logo)]},
+                {'tdList': [cell(details)]},
+            ]
+            colgroup = [{'width': inner}]
+        else:
+            logo_w = min(220, int(inner * 0.35))
+            header_rows = [{'tdList': [
+                cell(logo), cell(details),
+            ]}]
+            colgroup = [{'width': logo_w}, {'width': inner - logo_w}]
+
+        header = [
+            {
+                'type': 'table', 'value': '',
+                # 外框的版面容器——輸出時不印框線（見 _element_block_kind）
+                'extension': {'dobtorBlock': 'layout'},
+                'borderType': 'empty',
+                'colgroup': colgroup,
+                'trList': header_rows,
+            },
+            {'value': '\n'},
+            tagline,
+            {'value': '\n'},
+        ]
+
+        footer = [
+            pill('頁尾文字', source='html', path='company_id.report_footer'),
+            {'value': '\n'},
+            {'value': '第 '},
+            pill('頁碼', source='page', part='number'),
+            {'value': ' / '},
+            pill('總頁數', source='page', part='count'),
+            {'value': ' 頁'},
+            {'value': '\n', 'rowFlex': 'center'},
+        ]
+        return {'header': header, 'main': [], 'footer': footer}
+
+    @api.model
+    def action_create_default_layouts(self):
+        """建立內建外框範本（可重複執行，已存在的不動）。
+
+        刻意不在安裝時種資料：種了之後使用者改過內容，模組升級又碰到
+        noupdate 的老問題（改 XML 無效、要寫 migration）。做成可重跑的動作，
+        要就按、不要就不按，升級也不會覆蓋他改過的版本。
+        """
+        created = self.browse()
+        for variant, label in self._LAYOUT_VARIANTS.items():
+            name = '外框：%s' % label
+            existing = self.with_context(active_test=False).search(
+                [('role', '=', 'layout'), ('name', '=', name)], limit=1,
+            )
+            if existing:
+                continue
+            tmpl = self.create({
+                'name': name,
+                'role': 'layout',
+                'category': 'other' if 'other' in dict(
+                    self._fields['category'].selection) else False,
+                'description': '由模組產生的起點外框，可自由修改。'
+                               'logo 與公司資訊取自單據的 company_id。',
+            })
+            tmpl.content_json = json.dumps(
+                tmpl._build_layout_tree(variant), ensure_ascii=False,
+            )
+            created |= tmpl
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '外框範本',
+            'res_model': 'doc.template',
+            'view_mode': 'list,form',
+            'domain': [('role', '=', 'layout')],
+            'context': {'default_role': 'layout'},
+        }
+
+    def frame_template(self):
+        """提供頁首／頁尾與紙張設定的那一張範本。
+
+        沒設外框就是自己——既有範本的行為完全不變。
+        """
+        self.ensure_one()
+        return self.layout_id or self
 
     def action_open_editor(self):
         """開啟全螢幕編輯器編輯「範本本身」。

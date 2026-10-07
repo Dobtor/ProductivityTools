@@ -2,6 +2,21 @@
 <odoo>
     <data noupdate="1">
 
+        <!-- 報表引擎：依 doc.report.retention_days 清理逾期輸出。
+             刻意分兩段清——先清 content_json 與 attachment（佔空間的部分），
+             紀錄本身（誰在何時印了什麼）保留，因為通常想知道的是「印過」這件事。 -->
+        <record id="cron_gc_doc_output" model="ir.cron">
+            <field name="name">dobtor_doc_editor: 清理逾期輸出內容</field>
+            <field name="model_id" ref="model_doc_output"/>
+            <field name="state">code</field>
+            <field name="code">model._gc_expired_outputs()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">25</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
         <!-- P2-4：每天清 30 天前的錯誤紀錄 -->
         <record id="cron_gc_error_log" model="ir.cron">
             <field name="name">dobtor_doc_editor: GC 錯誤紀錄（>30 天）</field>

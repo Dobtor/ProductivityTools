@@ -73,6 +73,51 @@ class DocLinkedMixin(models.AbstractModel):
         for rec in self:
             rec.linked_doc_count = 1 if rec.linked_doc_id else 0
 
+    # ─── 報表輸出紀錄（報表引擎）────────────────────────────────────
+    #
+    # 刻意不在業務表上新增欄位：輸出紀錄用 res_model + res_id 反查即可。
+    # 這裡只提供一個非儲存的計數與一個動作，讓繼承本 mixin 的模型
+    # 可以在 form view 掛智慧按鈕。
+    #
+    # 沒有自動 patch sale.order / purchase.order——那會讓本模組相依 sale / purchase。
+    # 要在銷售單上看到按鈕，在該模型加一行 _inherit = ['doc.linked.mixin'] 即可。
+
+    doc_output_count = fields.Integer(
+        string='列印紀錄數',
+        compute='_compute_doc_output_count',
+    )
+
+    def _compute_doc_output_count(self):
+        Output = self.env['doc.output']
+        if not self.ids:
+            for rec in self:
+                rec.doc_output_count = 0
+            return
+        data = Output._read_group(
+            [('res_model', '=', self._name), ('res_id', 'in', self.ids)],
+            groupby=['res_id'],
+            aggregates=['__count'],
+        )
+        mapped = dict(data)
+        for rec in self:
+            rec.doc_output_count = mapped.get(rec.id, 0)
+
+    def action_view_doc_outputs(self):
+        """開啟此記錄的列印紀錄清單。
+
+        看得到哪些由 record rule 決定：一般使用者只看自己列印的，
+        管理者看全部（見 security/doc_security.xml 的取捨說明）。
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('列印紀錄'),
+            'res_model': 'doc.output',
+            'view_mode': 'list,form',
+            'domain': [('res_model', '=', self._name), ('res_id', '=', self.id)],
+            'context': {'create': False},
+        }
+
     # ─── Hook methods（由繼承的 model 覆寫）──────────────────────────
 
     def _doc_default_template_xml_id(self):

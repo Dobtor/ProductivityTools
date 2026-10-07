@@ -82,6 +82,28 @@ export function _lsSet(key, value, { json = false } = {}) {
 // 且在其序列化白名單內，能安然通過 getValue()/setValue() 進 content_json。
 // 鍵名必須與後端 doc_render_mixin.DOBTOR_FIELD_KEY 一致。
 export const DOBTOR_FIELD_KEY = "dobtorField";
+/**
+ * 區塊容器標記鍵（掛在 table 元素的 extension 上）。
+ * 條件區塊、稅額彙總這類要包住多段內容的構件，容器一律用無框線表格——
+ * 元素串列是扁平的，只有換行與表格列是可靠邊界。
+ */
+export const DOBTOR_BLOCK_KEY = "dobtorBlock";
+
+/**
+ * 「主記錄欄位」面板只列這些型別。
+ * 必須與後端 doc.render.mixin._SCALAR_TTYPES 一致——後端放寬了欄位清單
+ * （為了讓 one2many 餵給重複列、binary 餵給圖片藥丸），前端要負責分流。
+ */
+/** i18n 藥丸的底色：與模型變數（藍）分開，一眼看出哪些是靜態文字。 */
+export const I18N_PILL_STYLE = {
+    backgroundColor: "#fff3e0",
+    color: "#e65100",
+};
+
+export const SCALAR_FIELD_TYPES = [
+    "char", "text", "html", "integer", "float", "monetary",
+    "date", "datetime", "boolean", "selection", "many2one",
+];
 
 // canvas-editor 0.9.128 內建 ElementType.LABEL 與 labelParticle（畫圓角矩形），
 // 這組值即其預設值；抽成常數是為了讓 inspector 的色票有共同起點。
@@ -169,6 +191,7 @@ export class DocEditor extends Component {
         // 同上：OWL 模板的 bare name 解析成 this.X，static 不在 prototype 上，
         // 所以要在 instance 上掛一份（沿用本檔既有慣例）
         this.VALUE_SOURCES = VALUE_SOURCES;
+        this.CONDITION_PRESETS = this.constructor.CONDITION_PRESETS;
         // Sprint Y5：暴露字型 / 字號清單給格式化工具列 t-foreach 使用
         this.FONT_OPTIONS = FONT_OPTIONS;
         this.FONT_SIZE_OPTIONS = FONT_SIZE_OPTIONS;
@@ -197,6 +220,10 @@ export class DocEditor extends Component {
             // 與下面的 hasDocxTemplate 是兩件事——後者指「這份文件上傳了 .docx 模板檔」。
             editTarget: "document",
             templateId: null,
+            // 報表引擎：唯讀的輸出紀錄。載入後 _isReadonly 會被設為 true，
+            // autosave 關閉、工具列與兩側面板收斂。
+            outputId: null,
+            outputMeta: null,
             // 舊名 isTemplateMode。正名原因：與新的「範本編輯模式」撞名，
             // 兩個布林在同一個 component 裡會互相污染。
             hasDocxTemplate: false,
@@ -370,10 +397,22 @@ export class DocEditor extends Component {
             // ─── Phase 6：模型欄位調色盤 ───────────────────────────
             // 左欄兩個分頁：'pages' 頁面縮圖（原有）／'fields' 模型欄位清單（新增）
             leftPanelTab: "pages",
+            // i18n：已安裝語言、預覽語言、抽取面板狀態
+            languages: [],
+            previewLang: "",
+            showI18nPanel: false,
+            i18nCandidates: [],
+            i18nSelected: [],
             modelFields: [],
             modelFieldsLoading: false,
             modelFieldFilter: "",
             expandedRelations: [],
+            // 重複列（表格明細）：使用者把某一列設為「對 order_line 重複」後，
+            // 左欄會多一組「明細欄位」，從那裡拖出的藥丸是 source='line'。
+            //   { path, model, label }  null = 尚未設定重複列
+            repeatContext: null,
+            lineFields: [],
+            lineFieldsLoading: false,
             // Phase 4：目前選中的模型變數藥丸的綁定定義（extension.dobtorField 的複本）。
             // 與 selectedFieldId（待填欄位的後端記錄 id）互斥——兩類欄位的定義
             // 存在不同地方，inspector 也因此分兩區顯示。
@@ -605,14 +644,24 @@ export class DocEditor extends Component {
                 _storedTarget = { kind: a === "template" ? "template" : "document", id: n };
             }
         }
-        const templateId =
+        // output 優先於 template 優先於 doc：三者擇一，後端會擋同時指定。
+        const outputId =
+            this.props.outputId || context.output_id || _urlParam("output_id") ||
+            (_storedTarget?.kind === "output" ? _storedTarget.id : null);
+        const templateId = outputId ? null : (
             this.props.templateId || context.template_id || _urlParam("template_id") ||
-            (_storedTarget?.kind === "template" ? _storedTarget.id : null);
-        const docId = templateId
+            (_storedTarget?.kind === "template" ? _storedTarget.id : null));
+        const docId = (outputId || templateId)
             ? null
             : (this.props.docId || context.doc_id || _urlParam("doc_id") ||
                (_storedTarget?.kind === "document" ? _storedTarget.id : null));
-        if (templateId) {
+        if (outputId) {
+            this.state.editTarget = "output";
+            this.state.outputId = outputId;
+            // 唯讀在載入前就要成立——否則 canvas-editor 會以可編輯模式初始化，
+            // 使用者打得下字（存不回去，但會以為自己改到了）
+            this._isReadonly = true;
+        } else if (templateId) {
             this.state.editTarget = "template";
             this.state.templateId = templateId;
         } else if (docId) {
@@ -671,8 +720,8 @@ export class DocEditor extends Component {
         });
 
         onMounted(async () => {
-            // 1. 載入編輯對象（文件或範本）
-            if (docId || templateId) {
+            // 1. 載入編輯對象（文件 / 範本 / 輸出紀錄）
+            if (docId || templateId || outputId) {
                 await this._loadTarget();
             } else {
                 this.state.editorReady = true;
@@ -695,6 +744,11 @@ export class DocEditor extends Component {
                     // Phase 5：先把殘餘 alias token 升級成藥丸並存回。
                     // 這是只有 content_html 的舊資料唯一的升級管道——
                     // 伺服器端 migration 碰不到它們。
+                    // 從既有內容復原重複列情境，否則重開範本後左欄不會出現「明細欄位」
+                    this._recoverRepeatContext();
+                    // 語言清單：i18n 藥丸的 inspector 與預覽語言切換都靠它。
+                    // 不等它完成——載不到時 inspector 會顯示提示而不是空白。
+                    this.loadLanguages();
                     const upgraded = this.upgradeTokensToPills();
                     if (upgraded > 0) {
                         this.notification.add(
@@ -1171,19 +1225,28 @@ export class DocEditor extends Component {
     // 拒絕同時收到兩個 id，這裡保證只送一個。
 
     get targetId() {
-        return this.state.editTarget === "template"
-            ? this.state.templateId
-            : this.state.docId;
+        if (this.state.editTarget === "output") return this.state.outputId;
+        if (this.state.editTarget === "template") return this.state.templateId;
+        return this.state.docId;
     }
 
     get targetRpcParams() {
-        return this.state.editTarget === "template"
-            ? { template_id: this.state.templateId }
-            : { doc_id: this.state.docId };
+        if (this.state.editTarget === "output") {
+            return { output_id: this.state.outputId };
+        }
+        if (this.state.editTarget === "template") {
+            return { template_id: this.state.templateId };
+        }
+        return { doc_id: this.state.docId };
     }
 
     get isTemplateTarget() {
         return this.state.editTarget === "template";
+    }
+
+    /** 輸出紀錄模式：唯讀瀏覽已產生的成品。 */
+    get isOutputTarget() {
+        return this.state.editTarget === "output";
     }
 
     /**
@@ -1195,7 +1258,14 @@ export class DocEditor extends Component {
         try {
             const data = await rpc("/dobtor_doc/load", this.targetRpcParams);
             this._loadFailed = false;
-            if (data.edit_target === "template") {
+            if (data.edit_target === "output") {
+                this.state.editTarget = "output";
+                this.state.outputId = data.id;
+                this.state.templateId = null;
+                this.state.docId = null;
+                this.state.outputMeta = data.output_meta || null;
+                this._isReadonly = true;
+            } else if (data.edit_target === "template") {
                 this.state.editTarget = "template";
                 this.state.templateId = data.id;
                 this.state.docId = null;
@@ -2256,12 +2326,40 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         else list.push(name);
     }
 
+    /**
+     * 「主記錄欄位」只列純量。
+     *
+     * 欄位清單現在也含 one2many / many2many / binary——它們分別餵給
+     * 「明細（一對多）」與「圖片」兩組面板。混進純量清單的話，使用者拖一個
+     * one2many 進文件只會印出 recordset 的 repr，而那看起來像系統壞了。
+     */
     get filteredModelFields() {
         const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        if (!q) return this.state.modelFields;
-        return this.state.modelFields.filter(f =>
+        const list = (this.state.modelFields || []).filter(
+            f => SCALAR_FIELD_TYPES.includes(f.type)
+        );
+        if (!q) return list;
+        return list.filter(f =>
             (f.label || "").toLowerCase().includes(q) ||
             (f.name || "").toLowerCase().includes(q)
+        );
+    }
+
+    /** 圖片藥丸的來源：binary 欄位（客戶簽名、公司 logo…）。 */
+    get imageFields() {
+        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
+        const list = (this.state.modelFields || []).filter(f => f.type === "binary");
+        if (!q) return list;
+        return list.filter(f =>
+            (f.label || "").toLowerCase().includes(q) ||
+            (f.name || "").toLowerCase().includes(q)
+        );
+    }
+
+    /** 地址 helper 的候選：指向 res.partner 的 many2one。 */
+    get partnerFields() {
+        return (this.state.modelFields || []).filter(
+            f => f.type === "many2one" && f.relation === "res.partner"
         );
     }
 
@@ -2287,13 +2385,1247 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      */
     get canPlaceVariables() {
         return !this._isReadonly
+            && !this.isOutputTarget
             && !this.isPortalContext
             && this.state.layoutMode !== "overlay";
     }
 
-    /** 左欄「欄位」分頁是否顯示。portal 直接不給這個分頁。 */
+    /** 左欄「欄位」分頁是否顯示。portal 與輸出紀錄都不給。 */
     get showFieldPalette() {
-        return !this.isPortalContext && !this._isReadonly;
+        return !this.isPortalContext && !this._isReadonly && !this.isOutputTarget;
+    }
+
+    // ═══ 條件式列印 ═══════════════════════════════════════════════════
+    //
+    // 三種機制在後端（doc.render.mixin）：自動收合空段落、source='condition'、
+    // repeat 的 filter。前端要做的是入口與編輯。
+    //
+    // 「欄位有值才印」那一類（真實報表裡佔一半）由自動收合處理，使用者什麼都
+    // 不用設——所以這裡的入口只服務「值比較／複合邏輯」那些真的需要表達式的。
+
+    /** 常用條件範例，給 inspector 當提示用（點了直接填入）。 */
+    static CONDITION_PRESETS = [
+        { label: "欄位有值", expr: "object.欄位名" },
+        { label: "欄位沒值", expr: "not object.欄位名" },
+        { label: "值等於", expr: "object.state == 'sale'" },
+        { label: "兩欄位不同", expr: "object.partner_shipping_id != object.partner_invoice_id" },
+        { label: "明細中有折扣", expr: "object.order_line|selectattr('discount')|list|length > 0" },
+    ];
+
+    /**
+     * 插入條件標記。放在哪就控制哪個範圍：
+     *   段落內 → 條件為假整段移除
+     *   表格列內 → 條件為假該列移除
+     *
+     * 刻意允許「未設定」就插入——空表達式在後端等於恆真，所以不會造成傷害，
+     * 而標記上的「未設定」字樣會提醒使用者去填。用 modal 強迫先填反而讓
+     * 「先插好位置再想條件」這個自然流程變難。
+     */
+    onInsertCondition(expression = "") {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const label = expression
+            ? `條件：${expression}`
+            : "條件（未設定）";
+        const ok = this.insertPill({
+            source: "condition",
+            expression: expression,
+            labelText: label,
+        });
+        if (ok && !expression) {
+            this.notification.add(
+                "已插入條件標記。請在右欄填入條件表達式——未填時等於「永遠列印」。",
+                { type: "info" }
+            );
+        }
+    }
+
+    /** 從欄位清單一鍵建立「此欄位有值才印」條件。 */
+    onInsertFieldCondition(field, parent = null) {
+        const path = parent ? `${parent.name}.${field.name}` : field.name;
+        this.onInsertCondition(`object.${path}`);
+    }
+
+    /**
+     * 插入欄條件標記。放在要控制的那一欄的任一格（通常是表頭）。
+     *
+     * 列條件與欄條件是對稱的兩件事——表格有 colgroup，欄邊界跟列一樣可靠。
+     * 原生報表的折扣欄就是這種寫法：同一個 t-if 掛在 <th> 與每一列的 <td> 上。
+     */
+    onInsertColumnCondition(expression = "") {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const ok = this.insertPill({
+            source: "column",
+            expression,
+            labelText: expression ? `欄條件：${expression}` : "欄條件（未設定）",
+        });
+        if (ok) {
+            this.notification.add(
+                "已插入欄條件標記。放在哪一格就控制那一欄——條件為假時整欄（含表頭）不印。",
+                { type: "info" }
+            );
+        }
+    }
+
+    // ═══ 圖片 / 地址 / 頁碼 ════════════════════════════════════════
+
+    /**
+     * 插入圖片藥丸（客戶簽名、公司 logo…）。
+     *
+     * 編輯器裡顯示為藥丸而不是圖片——藥丸是設計期的宣告，而且編輯範本時
+     * 根本還沒有「那一筆記錄」可以取圖。快照時才求值，攤平時變成真正的
+     * image 元素。
+     *
+     * 只接 binary 欄位：binary 的值是 base64 bytes，經過 Jinja 會變成
+     * "b'iVBOR...'" 的 repr，所以後端走欄位路徑直接取值，不求表達式。
+     */
+    onInsertImageField(field, parent = null) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const path = parent ? `${parent.name}.${field.name}` : field.name;
+        this.insertPill({
+            source: "image",
+            path,
+            labelText: `圖：${field.label || field.name}`,
+        });
+    }
+
+    /** 插入條碼／QR（走圖片藥丸，所以輸出是 <img> 而不是一串 base64）。 */
+    onInsertBarcode(field = null) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const path = field ? field.name : "name";
+        this.insertPill({
+            source: "image",
+            barcodeType: "QR",
+            path,
+            labelText: `條碼：${field ? (field.label || field.name) : "單號"}`,
+        });
+    }
+
+    get BARCODE_TYPES() {
+        return ["QR", "Code128", "Code39", "EAN13", "EAN8", "UPCA"];
+    }
+
+    get isBarcodePill() {
+        const v = this.state.selectedVariable || {};
+        return v.source === "image" && !!v.barcodeType;
+    }
+
+    get isImagePill() {
+        return (this.state.selectedVariable || {}).source === "image";
+    }
+
+    onImagePropertyChange(key, value) {
+        const num = parseInt(value, 10);
+        this.updateSelectedPill({
+            [key]: Number.isFinite(num) && num > 0 ? num : "",
+        });
+    }
+
+    /** 插入依國別格式排版的地址（對應原生的 widget="contact"）。 */
+    onInsertAddress(field) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        this.insertPill({
+            source: "expression",
+            expression: `format_address(object.${field.name})`,
+            labelText: `地址：${field.label || field.name}`,
+        });
+    }
+
+    /**
+     * 插入頁碼／總頁數。
+     *
+     * 只在 PDF 與 DOCX 有意義，而且要放在頁首或頁尾——放在本文裡 wkhtmltopdf
+     * 不會替換（替換 JS 只套用在被抽出來的 header/footer 上）。
+     */
+    onInsertPageField(part) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const ok = this.insertPill({
+            source: "page",
+            part,
+            labelText: part === "count" ? "總頁數" : "頁碼",
+        });
+        if (ok) {
+            this.notification.add(
+                "頁碼要放在頁首或頁尾才會替換成實際頁次；放在本文內不會生效。",
+                { type: "info" }
+            );
+        }
+    }
+
+    get isPagePill() {
+        return (this.state.selectedVariable || {}).source === "page";
+    }
+
+    // ═══ Html 欄位藥丸 ═════════════════════════════════════════════
+
+    /**
+     * 插入 Html 欄位藥丸（條款、公司資訊、頁尾文字…）。
+     *
+     * 純量藥丸會把 Html 欄位的值逸出成可見的 <p>、<strong> 標籤，而且完全
+     * 不報錯。後端這個 source 會過 html_sanitize 並以區塊級輸出。
+     */
+    onInsertHtmlField(field, parent = null) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const path = parent ? `${parent.name}.${field.name}` : field.name;
+        this.insertPill({
+            source: "html",
+            path,
+            labelText: `HTML：${field.label || field.name}`,
+        });
+    }
+
+    get htmlFields() {
+        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
+        const list = (this.state.modelFields || []).filter(f => f.type === "html");
+        if (!q) return list;
+        return list.filter(f =>
+            (f.label || "").toLowerCase().includes(q) ||
+            (f.name || "").toLowerCase().includes(q)
+        );
+    }
+
+    get isHtmlPill() {
+        return (this.state.selectedVariable || {}).source === "html";
+    }
+
+    // ═══ i18n 靜態文字 ═════════════════════════════════════════════
+    //
+    // 欄位「值」的語言由 doc.report 的 lang 與 ORM 負責（商品名稱、selection
+    // 標籤都會自動翻譯）。這裡只處理「使用者自己打進範本的靜態文字」。
+    //
+    // 為什麼不是「一種語言一張範本」：真正的維護痛點不是 N 份文字（.po 也是
+    // N 份，省不掉），是 N 份版面——改一次表格欄寬要改 N 張，漏掉哪一張
+    // 完全看不出來。i18n 藥丸讓版面只有一份。
+
+    async loadLanguages() {
+        if (this.state.languages.length) return;
+        try {
+            const langs = await rpc("/dobtor_doc/i18n/languages", {});
+            this.state.languages = Array.isArray(langs) ? langs : [];
+        } catch (e) {
+            console.warn("[DocEditor] 載入語言清單失敗", e);
+        }
+    }
+
+    onInsertI18nText(text = "") {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const lang = this.state.previewLang || this.state.languages[0]?.code || "en_US";
+        const label = text || "多語文字";
+        this.insertPill({
+            source: "i18n",
+            texts: text ? { [lang]: text } : {},
+            labelText: label,
+            style: I18N_PILL_STYLE,
+        });
+        this.loadLanguages();
+    }
+
+    get isI18nPill() {
+        return (this.state.selectedVariable || {}).source === "i18n";
+    }
+
+    /** 某個語言的文字（inspector 的輸入框用）。 */
+    i18nTextFor(code) {
+        const texts = (this.state.selectedVariable || {}).texts || {};
+        return texts[code] || "";
+    }
+
+    onI18nTextChange(code, value) {
+        const cur = this.state.selectedVariable || {};
+        const texts = { ...(cur.texts || {}) };
+        const text = (value || "").trim();
+        if (text) {
+            texts[code] = text;
+        } else {
+            delete texts[code];
+        }
+        // 標籤文字跟著「預覽語言」走，fallback 到任一有值的——空白的藥丸
+        // 在版面上看不見，使用者會以為它消失了
+        const shown = texts[this.state.previewLang]
+            || Object.values(texts).find(v => v)
+            || "多語文字";
+        this.updateSelectedPill({ texts, labelText: shown });
+    }
+
+    onI18nKeyChange(value) {
+        this.updateSelectedPill({ key: (value || "").trim() });
+    }
+
+    /**
+     * 切換預覽語言：把所有 i18n 藥丸的標籤文字改成該語言。
+     *
+     * 這是一次真實的編輯（會進存檔與復原），不是純顯示切換。理由：標籤文字
+     * 在快照時本來就會被值取代，所以改它沒有副作用；而「純顯示」需要在每次
+     * 重繪時覆寫 canvas 內容，那會跟自動存檔打架。
+     *
+     * 實際價值是版面檢查：中文「報價單」三個字，英文 Quotation 九個字元，
+     * 表頭常常會擠破——不切過去看一次不會知道。
+     */
+    onPreviewLangChange(code) {
+        this.state.previewLang = code;
+        if (!this.editor || !code) return;
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            return;
+        }
+        let touched = 0;
+        const visit = (list) => {
+            for (const el of list || []) {
+                if (!el || typeof el !== "object") continue;
+                const meta = this._elementFieldMeta(el);
+                if (meta && meta.source === "i18n") {
+                    const texts = meta.texts || {};
+                    const shown = texts[code]
+                        || Object.values(texts).find(v => v)
+                        || meta.labelText || "多語文字";
+                    if (el.value !== shown) {
+                        el.value = shown;
+                        meta.labelText = shown;
+                        touched += 1;
+                    }
+                }
+                if (Array.isArray(el.valueList)) visit(el.valueList);
+                for (const row of el.trList || []) {
+                    for (const cell of row.tdList || []) {
+                        if (Array.isArray(cell.value)) visit(cell.value);
+                    }
+                }
+            }
+        };
+        for (const zone of ["header", "main", "footer"]) {
+            if (Array.isArray(data[zone])) visit(data[zone]);
+        }
+        if (!touched) return;
+        try {
+            this.editor.command.executeSetValue(data);
+            this.notification.add(`已切換 ${touched} 個多語文字的顯示語言。`,
+                { type: "info" });
+        } catch (e) {
+            console.error("[DocEditor] 切換預覽語言失敗", e);
+        }
+    }
+
+    // ─── 抽取靜態文字 ─────────────────────────────────────────────
+
+    async onOpenI18nExtract() {
+        if (!this.canPlaceVariables) return;
+        this.state.showI18nPanel = true;
+        this.state.i18nCandidates = [];
+        this.state.i18nSelected = [];
+        await this.loadLanguages();
+        // 轉換是伺服器端改寫 content_json，所以要先把當前內容存上去，
+        // 不然抽到的是上一次存檔的文字
+        await this._flushPendingSave();
+        try {
+            const res = await rpc("/dobtor_doc/i18n/extract", this.targetRpcParams);
+            this.state.i18nCandidates = (res && res.texts) || [];
+        } catch (e) {
+            this.notification.add(`抽取靜態文字失敗：${e.message || e}`,
+                { type: "danger" });
+        }
+    }
+
+    onToggleI18nCandidate(text) {
+        const list = this.state.i18nSelected;
+        const idx = list.indexOf(text);
+        if (idx >= 0) {
+            list.splice(idx, 1);
+        } else {
+            list.push(text);
+        }
+    }
+
+    onToggleAllI18nCandidates() {
+        const all = this.state.i18nCandidates.map(c => c.text);
+        this.state.i18nSelected =
+            this.state.i18nSelected.length === all.length ? [] : all;
+    }
+
+    async onConvertI18nSelected() {
+        if (!this.state.i18nSelected.length) {
+            this.notification.add("請先勾選要轉換的文字。", { type: "warning" });
+            return;
+        }
+        try {
+            const res = await rpc("/dobtor_doc/i18n/convert", {
+                ...this.targetRpcParams,
+                texts: this.state.i18nSelected,
+                lang: this.state.previewLang || null,
+            });
+            if (res && res.content_json) {
+                this.editor.command.executeSetValue(JSON.parse(res.content_json));
+            }
+            this.notification.add(`已轉換 ${(res && res.converted) || 0} 段文字。`,
+                { type: "success" });
+            this.state.showI18nPanel = false;
+        } catch (e) {
+            this.notification.add(`轉換失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    // ─── CSV 匯入匯出 ─────────────────────────────────────────────
+
+    async onExportI18nCsv() {
+        await this._flushPendingSave();
+        try {
+            const res = await rpc("/dobtor_doc/i18n/export", this.targetRpcParams);
+            if (!res || !res.entries) {
+                this.notification.add(
+                    "這份範本還沒有多語文字。請先用「抽出靜態文字」轉換。",
+                    { type: "warning" }
+                );
+                return;
+            }
+            const blob = new Blob([res.csv], { type: "text/csv;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${this.state.docName || "template"}-i18n.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            this.notification.add(`匯出失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    onImportI18nCsv(ev) {
+        const file = ev.target.files && ev.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+            try {
+                const res = await rpc("/dobtor_doc/i18n/import", {
+                    ...this.targetRpcParams,
+                    csv_content: String(reader.result || ""),
+                });
+                if (res && res.content_json) {
+                    this.editor.command.executeSetValue(JSON.parse(res.content_json));
+                }
+                let msg = `已回填 ${(res && res.updated) || 0} 個多語文字。`;
+                if (res && res.unknown && res.unknown.length) {
+                    // 靜默忽略的話，譯者改錯一個 key，使用者只會看到
+                    // 「翻譯沒進去」而查不出原因
+                    msg += ` 找不到對應的 key：${res.unknown.join("、")}`;
+                }
+                this.notification.add(msg, {
+                    type: (res && res.unknown && res.unknown.length)
+                        ? "warning" : "success",
+                    sticky: !!(res && res.unknown && res.unknown.length),
+                });
+            } catch (e) {
+                this.notification.add(`匯入失敗：${e.message || e}`,
+                    { type: "danger" });
+            }
+            ev.target.value = "";
+        };
+        reader.readAsText(file, "utf-8");
+    }
+
+    get isColumnPill() {
+        return (this.state.selectedVariable || {}).source === "column";
+    }
+
+    /** 條件／欄條件共用一組輸入欄位，只有標籤前綴不同。 */
+    onColumnExpressionChange(value) {
+        const expr = (value || "").trim();
+        this.updateSelectedPill({
+            expression: expr,
+            labelText: expr ? `欄條件：${expr}` : "欄條件（未設定）",
+        });
+    }
+
+    /** 常用欄條件：原生報表最典型的就是「有折扣才顯示折扣欄」。 */
+    get COLUMN_CONDITION_PRESETS() {
+        return [
+            {
+                label: "明細中有折扣",
+                expr: "object.order_line|selectattr('discount')|list|length > 0",
+            },
+            { label: "欄位有值", expr: "object.欄位名" },
+        ];
+    }
+
+    get isConditionPill() {
+        return (this.state.selectedVariable || {}).source === "condition";
+    }
+
+    get isRepeatPill() {
+        return (this.state.selectedVariable || {}).source === "repeat";
+    }
+
+    /** 條件／重複標記的標籤文字隨表達式自動更新，使用者才看得出它在判斷什麼。 */
+    onConditionExpressionChange(value) {
+        const expr = (value || "").trim();
+        this.updateSelectedPill({
+            expression: expr,
+            labelText: expr ? `條件：${expr}` : "條件（未設定）",
+        });
+    }
+
+    onRepeatFilterChange(value) {
+        const flt = (value || "").trim();
+        const cur = this.state.selectedVariable || {};
+        const base = cur.path || "";
+        this.updateSelectedPill({
+            filter: flt,
+            labelText: flt ? `明細 × ${base}（已篩選）` : `明細 × ${base}`,
+        });
+    }
+
+    onKeepEmptyChange(checked) {
+        this.updateSelectedPill({ keepEmpty: !!checked });
+    }
+
+    onApplyConditionPreset(expr) {
+        this.onConditionExpressionChange(expr);
+    }
+
+    // ═══ 條件區塊（多段內容的條件）═════════════════════════════════
+    //
+    // 區塊級條件真正缺的是「可靠邊界」。元素串列是扁平的，只有換行與表格列
+    // 是可靠邊界，跨段落的起訖標記在使用者編輯時極易被拆散——而拆散後的結果
+    // 無從察覺。表格則是原子結構：使用者刪就整個刪，不可能只剩半邊。
+    //
+    // 所以「條件區塊」＝一個無框線的單格表格，列上掛條件標記，後端既有的
+    // _apply_row_conditions 一行都不用改就能整塊移除。
+    // if/else 則是同一個表格的兩列共用一個 groupId——兩個分支因此不可能被分開。
+
+    _newGroupId() {
+        return "cg" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    /**
+     * 依文件順序收集所有表格元素。
+     *
+     * 不用 element.id 認表格：canvas-editor 的 getValue() 序列化白名單裡
+     * 沒有 id（只有 getElementById 會用 extraPickAttrs 把它撈回來），
+     * 所以 getValue().data 上的表格一律沒有 id，id 差集永遠是空的。
+     */
+    _collectTables(data) {
+        const out = [];
+        const visit = (list) => {
+            for (const el of list || []) {
+                if (!el || typeof el !== "object") continue;
+                if (el.type === "table") out.push(el);
+                if (Array.isArray(el.valueList)) visit(el.valueList);
+                for (const row of el.trList || []) {
+                    for (const cell of row.tdList || []) {
+                        if (Array.isArray(cell.value)) visit(cell.value);
+                    }
+                }
+            }
+        };
+        for (const zone of ["header", "main", "footer"]) {
+            if (Array.isArray(data[zone])) visit(data[zone]);
+        }
+        return out;
+    }
+
+    /**
+     * 表格的內容簽章（列數×欄數＋各格文字）。
+     *
+     * 刻意只看內容、不看幾何：插入新表格可能讓既有表格重新分頁而改變
+     * height，拿整份 JSON 比對會在前面就出現假差異，然後把使用者既有的
+     * 表格改成區塊容器——那是最糟的失敗方式。
+     */
+    _tableSignature(table) {
+        const rows = table.trList || [];
+        const cols = rows.length ? (rows[0].tdList || []).length : 0;
+        const text = rows
+            .map((row) => (row.tdList || [])
+                .map((cell) => (cell.value || [])
+                    .map((e) => (e && e.value) || "").join(""))
+                .join("\u0001"))
+            .join("\u0002");
+        return `${rows.length}x${cols}|${text}`;
+    }
+
+    /**
+     * 插入一個區塊容器：無框線表格，每一列一個分支。
+     *
+     * canvas-editor 的 executeInsertTable 只接 (列數, 欄數)，不能一併帶
+     * borderType / extension；而它插完之後 caret 停在表格元素本身而不是儲存格內，
+     * 所以接著呼叫 insertPill 會把藥丸放到表格外面去。
+     * 作法因此是：插表格 → 用 id 差集認出新表格 → 直接改寫它 → setValue 回去。
+     *
+     * @param {string} blockKind 後端 _element_block_kind 讀的區塊種類
+     * @param {Array<Array<Array<Object>>>} grid 列 → 格 → 藥丸綁定定義
+     */
+    insertBlockContainer(blockKind, grid) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return false;
+        }
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return false;
+        }
+        let beforeSigs;
+        try {
+            beforeSigs = this._collectTables(this.editor.command.getValue().data)
+                .map((t) => this._tableSignature(t));
+        } catch (e) {
+            console.error("[DocEditor] 讀取內容失敗", e);
+            return false;
+        }
+        const colCount = Math.max(1, ...grid.map((row) => row.length));
+        try {
+            this.editor.command.executeInsertTable(grid.length, colCount);
+        } catch (e) {
+            console.error("[DocEditor] 插入區塊容器失敗", e);
+            this.notification.add(`插入區塊失敗：${e.message || e}`, { type: "danger" });
+            return false;
+        }
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            return false;
+        }
+        const afterTables = this._collectTables(data);
+        if (afterTables.length !== beforeSigs.length + 1) {
+            // 認不出新表格就不亂改既有內容——寧可讓使用者看到一個普通表格，
+            // 也不要把條件標記塞進他別的表格裡。
+            this.notification.add(
+                "已插入表格，但無法自動標記為區塊。請復原後重試。",
+                { type: "warning" }
+            );
+            return false;
+        }
+        // 剛好多了一個表格，所以「前後簽章第一個不一致的位置」就是新表格。
+        // 兩者簽章相同（例如旁邊本來就有一個空表格）時取較前者也正確——
+        // 游標在那個位置，使用者期待區塊出現在那裡。
+        let idx = beforeSigs.length;
+        for (let i = 0; i < beforeSigs.length; i++) {
+            if (this._tableSignature(afterTables[i]) !== beforeSigs[i]) {
+                idx = i;
+                break;
+            }
+        }
+        const table = afterTables[idx];
+        if (!table) return false;
+        // dash：編輯時看得到虛線框（區塊要找得到才能編輯），輸出時由
+        // .doc-block 的 CSS 關掉框線——兩邊的需求相反，所以分開處理。
+        table.borderType = "dash";
+        table.extension = { ...(table.extension || {}), [DOBTOR_BLOCK_KEY]: blockKind };
+        (table.trList || []).forEach((row, r) => {
+            (grid[r] || []).forEach((metas, c) => {
+                const cell = (row.tdList || [])[c];
+                if (!cell || !metas.length) return;
+                const pills = metas.map((m) => this._buildPillElement(m));
+                cell.value = [...pills, ...(Array.isArray(cell.value) ? cell.value : [])];
+            });
+        });
+        try {
+            this.editor.command.executeSetValue(data);
+        } catch (e) {
+            console.error("[DocEditor] 寫回區塊容器失敗", e);
+            return false;
+        }
+        return true;
+    }
+
+    /** 插入單一條件區塊：條件為假時整塊（含多段內容）不印。 */
+    onInsertConditionBlock() {
+        const ok = this.insertBlockContainer("condition", [
+            [[{ source: "condition", expression: "", labelText: "條件（未設定）" }]],
+        ]);
+        if (ok) {
+            this.notification.add(
+                "已插入條件區塊。區塊內可以放多段內容；請在右欄填入條件表達式。",
+                { type: "info" }
+            );
+        }
+    }
+
+    /**
+     * 插入 if / else 區塊：同一個表格的兩列共用一個 groupId。
+     *
+     * else 那一列不帶自己的表達式，後端取同群 if 的反值——只有一處表達式要維護。
+     * 放在同一個表格而不是兩個獨立區塊，是為了讓兩個分支不可能被分開：
+     * 分開之後使用者改了 if 卻沒改 else，結果會是兩段都印或都不印，而且不會報錯。
+     */
+    onInsertIfElseBlock() {
+        const gid = this._newGroupId();
+        const ok = this.insertBlockContainer("condition", [
+            [[{
+                source: "condition", groupId: gid, role: "if",
+                expression: "", labelText: "若（未設定）",
+            }]],
+            [[{
+                source: "condition", groupId: gid, role: "else",
+                labelText: "否則",
+            }]],
+        ]);
+        if (ok) {
+            this.notification.add(
+                "已插入「若／否則」兩個區塊。只要設定上半部的條件，下半部自動取反。",
+                { type: "info" }
+            );
+        }
+    }
+
+    /**
+     * 插入稅額彙總區塊：三列兩欄，稅別那列會依稅別數自動複製。
+     *
+     * 對應原生報表的 t-call="sale.document_tax_totals"。做成內建區塊而不是
+     * 讓使用者自己對 object.tax_totals['subtotals'] 重複，是因為那個資料結構
+     * 每個 Odoo 版本都在改（amount_by_group 在 18 已消失）——內建區塊升版時
+     * 改模組一處，通用寫法則是每張範本都要改，而且錯了只會印出空白。
+     */
+    onInsertTaxTotalsBlock() {
+        const val = (part, field, labelText) => ({
+            source: "taxTotals", part, field, labelText,
+        });
+        // 總計那列的名稱刻意留白讓使用者自己打「總計」——Odoo 只給得出
+        // 稅前小計與稅別的名稱，總計沒有對應的資料欄位。
+        // 後端靠「列內任一個 taxTotals 藥丸的 part」認列，不需要額外的標記藥丸。
+        const ok = this.insertBlockContainer("taxTotals", [
+            [[val("untaxed", "label", "稅前小計")], [val("untaxed", "amount", "金額")]],
+            [[val("groups", "label", "稅別")], [val("groups", "amount", "稅額")]],
+            [[], [val("total", "amount", "總計金額")]],
+        ]);
+        if (ok) {
+            this.notification.add(
+                "已插入稅額彙總。第二列會依稅別數自動複製；沒有稅時該列不印。",
+                { type: "info" }
+            );
+        }
+    }
+
+    get isTaxTotalsPill() {
+        return (this.state.selectedVariable || {}).source === "taxTotals";
+    }
+
+    get TAX_TOTALS_PARTS() {
+        return [
+            { value: "untaxed", label: "稅前小計" },
+            { value: "groups", label: "稅別（每稅別一列）" },
+            { value: "total", label: "總計" },
+        ];
+    }
+
+    get TAX_TOTALS_FIELDS() {
+        return [
+            { value: "label", label: "名稱" },
+            { value: "amount", label: "金額" },
+            { value: "base", label: "稅基" },
+        ];
+    }
+
+    onTaxTotalsPropertyChange(key, value) {
+        this.updateSelectedPill({ [key]: value });
+    }
+
+    get isElseMarker() {
+        const v = this.state.selectedVariable || {};
+        return v.source === "condition" && v.role === "else";
+    }
+
+    // ═══ 重複列（表格明細）═══════════════════════════════════════════
+    //
+    // 業務單據的核心需求：訂單明細、發票行。純量藥丸只能帶一個值。
+    //
+    // 設計上刻意不去「偵測游標在第幾列」——canvas-editor 的 range context 取不到
+    // 穩定的列索引。改成：使用者按「設為重複列」時在游標處插一個標記藥丸，
+    // 由後端 _expand_repeat_rows 找出「含該標記的那一列」。前端完全不必知道列號。
+
+    /** 這個欄位可以當重複來源嗎（必須是 one2many / many2many）。 */
+    _isRepeatable(field) {
+        return ['one2many', 'many2many'].includes(field.type);
+    }
+
+    get repeatableFields() {
+        return (this.state.modelFields || []).filter(f => this._isRepeatable(f));
+    }
+
+    /**
+     * 把游標所在的表格列設為「對這個欄位重複」。
+     *
+     * 插入標記藥丸即完成宣告——使用者看得到哪一列會重複，刪掉標記就是取消。
+     */
+    async onSetRepeatRow(field) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        if (!this._isRepeatable(field)) {
+            this.notification.add(
+                `「${field.label || field.name}」不是一對多欄位，不能當重複來源。`,
+                { type: "warning" }
+            );
+            return;
+        }
+        const label = `明細 × ${field.label || field.name}`;
+        // repeatId：一個表格裡有兩組重複列時，分組標題／小計列才知道自己屬於哪一組。
+        // 單一重複列的情況後端會容忍沒帶 id 的分組列，所以這不是必填。
+        const repeatId = "rp" + Date.now().toString(36)
+            + Math.random().toString(36).slice(2, 6);
+        const ok = this.insertPill({
+            source: "repeat",
+            path: field.name,
+            labelText: label,
+            relation: field.relation || "",
+            repeatId,
+        });
+        if (!ok) return;
+        this.state.repeatContext = {
+            path: field.name,
+            model: field.relation || "",
+            label: field.label || field.name,
+            repeatId,
+            groupMode: "",
+            groupBy: "",
+            groupSplitOn: "",
+        };
+        this.state.lineFields = [];
+        await this.loadLineFields();
+        this.notification.add(
+            `已將游標所在的表格列設為重複列。` +
+            `現在可以從左欄「明細欄位」拖入 ${field.label || field.name} 的欄位。`,
+            { type: "success", sticky: true }
+        );
+    }
+
+    /**
+     * 為同一筆明細再加一個「列型」。
+     *
+     * 對應原生報表在迴圈裡的 t-if / t-elif / t-else——商品列／備註列各自
+     * 不同版面，而且必須保持原本的交錯順序。兩條獨立的重複列做不到：
+     * 那會變成「所有商品」然後「所有備註」。
+     *
+     * 共用同一個 repeatId，來源／篩選／分組一律取第一個列型的設定。
+     */
+    onAddRowVariant() {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const ctx = this.state.repeatContext;
+        if (!ctx) {
+            this.notification.add(
+                "請先設定重複列，再加其他列型。",
+                { type: "warning" }
+            );
+            return;
+        }
+        const ok = this.insertPill({
+            source: "repeat",
+            path: ctx.path,
+            relation: ctx.model,
+            repeatId: ctx.repeatId || "",
+            rowFilter: "",
+            labelText: `列型 × ${ctx.label}`,
+        });
+        if (!ok) return;
+        this.notification.add(
+            "已加入列型。請在右欄填「列型條件」——有條件的列型優先，" +
+            "都不成立時才用條件留空的那一列。不必搬動既有的列。",
+            { type: "success", sticky: true }
+        );
+    }
+
+    /** 列型條件的常用寫法。 */
+    get ROW_VARIANT_PRESETS() {
+        return [
+            { label: "備註列", expr: "line.display_type == 'line_note'" },
+            { label: "章節列", expr: "line.display_type == 'line_section'" },
+            { label: "有折扣的列", expr: "line.discount" },
+        ];
+    }
+
+    onRowFilterChange(value) {
+        const expr = (value || "").trim();
+        const cur = this.state.selectedVariable || {};
+        this.updateSelectedPill({
+            rowFilter: expr,
+            labelText: expr
+                ? `列型 × ${cur.path || ""}（${expr.slice(0, 20)}）`
+                : `明細 × ${cur.path || ""}`,
+        });
+    }
+
+    /** 載入明細模型的欄位清單（給左欄的「明細欄位」組用）。 */
+    async loadLineFields() {
+        const ctx = this.state.repeatContext;
+        if (!ctx || !ctx.model || this.state.lineFieldsLoading) return;
+        if (this.state.lineFields.length) return;
+        this.state.lineFieldsLoading = true;
+        try {
+            const fields = await rpc("/dobtor_doc/fields", {
+                model_name: ctx.model,
+                doc_id: this.state.docId || null,
+            });
+            this.state.lineFields = Array.isArray(fields) ? fields : [];
+        } catch (e) {
+            console.warn("[DocEditor] 載入明細欄位失敗", e);
+            this.notification.add("載入明細欄位失敗", { type: "warning" });
+        } finally {
+            this.state.lineFieldsLoading = false;
+        }
+    }
+
+    get filteredLineFields() {
+        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
+        const list = this.state.lineFields || [];
+        if (!q) return list;
+        return list.filter(f =>
+            (f.label || "").toLowerCase().includes(q) ||
+            (f.name || "").toLowerCase().includes(q)
+        );
+    }
+
+    /** 明細欄位 → source='line' 的綁定定義（path 相對於當前明細）。 */
+    _metaForLineField(field, parent = null) {
+        const path = parent ? `${parent.name}.${field.name}` : field.name;
+        const labelText = parent
+            ? `${parent.label || parent.name}-${field.label || field.name}`
+            : (field.label || field.name);
+        const meta = { source: "line", path, labelText };
+        if (field.type === "monetary") {
+            // format_money 的幣別從「當前求值記錄」身上找，而明細列求值時
+            // 那就是該筆明細，所以不必指定幣別
+            meta.expression = `format_money(line.${path})`;
+        }
+        return meta;
+    }
+
+    onLineFieldDragStart(ev, field, parent = null) {
+        if (!this.canPlaceVariables) {
+            ev.preventDefault();
+            return;
+        }
+        ev.dataTransfer.setData(
+            "text/x-doc-odoo-field",
+            JSON.stringify(this._metaForLineField(field, parent))
+        );
+        ev.dataTransfer.effectAllowed = "copy";
+    }
+
+    onLineFieldClick(field, parent = null) {
+        if (!this.canPlaceVariables) return;
+        this.insertPill(this._metaForLineField(field, parent));
+    }
+
+    /**
+     * 從既有內容復原 repeatContext。
+     *
+     * 開檔時掃內容裡的 repeat 標記藥丸——否則重新開啟範本後
+     * 左欄不會出現「明細欄位」，使用者得重新設一次重複列才能繼續加欄位。
+     */
+    _recoverRepeatContext() {
+        if (!this.editor) return;
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            return;
+        }
+        let found = null;
+        const visit = (list) => {
+            for (const el of list || []) {
+                if (found || !el || typeof el !== "object") continue;
+                const meta = this._elementFieldMeta(el);
+                if (meta && meta.source === "repeat") {
+                    found = meta;
+                    return;
+                }
+                if (Array.isArray(el.valueList)) visit(el.valueList);
+                for (const row of el.trList || []) {
+                    for (const cell of row.tdList || []) visit(cell.value);
+                }
+            }
+        };
+        for (const zone of ["header", "main", "footer"]) visit(data[zone]);
+        if (found) {
+            this.state.repeatContext = {
+                path: found.path || "",
+                model: found.relation || "",
+                label: found.labelText || found.path || "",
+                repeatId: found.repeatId || "",
+                groupMode: found.groupMode || "",
+                groupBy: found.groupBy || "",
+                groupSplitOn: found.groupSplitOn || "",
+            };
+            this.loadLineFields();
+        }
+    }
+
+    // ═══ 分組重複與流水累計 ═════════════════════════════════════════
+    //
+    // 為什麼做「分組」而不是 QWeb 那種累加器：累加器是 QWeb 只能單次順序掃描
+    // 才被迫採用的實作手法，不是使用者的需求。使用者心裡想的是「依章節分組，
+    // 每組印小計」。我們手上有完整 recordset，分組後直接聚合即可。
+    // 在編輯器裡暴露「宣告變數／每列更新／歸零」等於要使用者寫程式，
+    // 而且寫錯了只會印出錯的數字，什麼訊息都沒有。
+    //
+    // 真的需要跨列狀態的只剩兩個：項次（1,2,3…）與逐列累計。範圍小到可以
+    // 直接放在後端展開的順序迴圈裡（source='running'）。
+
+    /** 數值型明細欄位——只有這些適合做累計／小計。 */
+    get numericLineFields() {
+        return (this.state.lineFields || []).filter(
+            (f) => ["integer", "float", "monetary"].includes(f.type)
+        );
+    }
+
+    /** 插入「項次」藥丸（必須放在重複列內）。 */
+    onInsertRunningIndex() {
+        if (!this.state.repeatContext) {
+            this.notification.add(
+                "項次要放在重複列裡才有意義。請先設定重複列。",
+                { type: "warning" }
+            );
+            return;
+        }
+        this.insertPill({
+            source: "running",
+            op: "index",
+            resetOn: "",
+            labelText: "項次",
+        });
+    }
+
+    /** 插入「逐列累計」藥丸。 */
+    onInsertRunningSum(field) {
+        if (!this.state.repeatContext) {
+            this.notification.add(
+                "累計要放在重複列裡才有意義。請先設定重複列。",
+                { type: "warning" }
+            );
+            return;
+        }
+        this.insertPill({
+            source: "running",
+            op: "sum",
+            expression: `line.${field.name}`,
+            resetOn: "",
+            asMoney: field.type === "monetary",
+            labelText: `累計 ${field.label || field.name}`,
+        });
+    }
+
+    get isRunningPill() {
+        return (this.state.selectedVariable || {}).source === "running";
+    }
+
+    onRunningPropertyChange(key, value) {
+        const patch = { [key]: value };
+        if (key === "op") {
+            patch.labelText = value === "index" ? "項次" : "累計";
+        }
+        this.updateSelectedPill(patch);
+    }
+
+    // ─── 分組設定（掛在重複列標記上）───────────────────────────────
+
+    get GROUP_MODES() {
+        return [
+            { value: "", label: "不分組" },
+            { value: "field", label: "依欄位值" },
+            { value: "marker", label: "依分隔列" },
+        ];
+    }
+
+    /** 分隔判斷式的常用寫法（sale 的章節列就是這個）。 */
+    get GROUP_SPLIT_PRESETS() {
+        return [
+            { label: "銷售訂單章節列", expr: "line.display_type == 'line_section'" },
+            { label: "任何非商品列", expr: "line.display_type" },
+        ];
+    }
+
+    onRepeatGroupChange(key, value) {
+        const cur = this.state.selectedVariable || {};
+        const patch = { [key]: value };
+        if (key === "groupMode") {
+            // 切換模式時清掉另一種模式的依據，否則面板看起來兩個都設了，
+            // 而後端只會用其中一個——使用者會以為設定沒生效。
+            if (value === "field") patch.groupSplitOn = "";
+            else if (value === "marker") patch.groupBy = "";
+            else {
+                patch.groupBy = "";
+                patch.groupSplitOn = "";
+            }
+        }
+        const base = cur.path || "";
+        const mode = key === "groupMode" ? value : (cur.groupMode || "");
+        const flt = cur.filter ? "（已篩選）" : "";
+        patch.labelText = mode
+            ? `明細 × ${base}${flt}・分組`
+            : `明細 × ${base}${flt}`;
+        this.updateSelectedPill(patch);
+        // repeatContext 也要同步：取消選取藥丸之後，左欄的分組列按鈕是靠它判斷的
+        if (this.state.repeatContext) {
+            this.state.repeatContext = { ...this.state.repeatContext, ...patch };
+        }
+    }
+
+    /** 這個重複列有啟用分組嗎（決定要不要顯示分組列按鈕）。 */
+    onRepeatSortChange(key, value) {
+        this.updateSelectedPill({
+            [key]: key === "sortDesc" ? !!value : (value || "").trim(),
+        });
+    }
+
+    onRepeatSourceExpressionChange(value) {
+        this.updateSelectedPill({ sourceExpression: (value || "").trim() });
+    }
+
+    /** 常用的來源表達式：排序與非 recordset 來源都走這裡。 */
+    get REPEAT_SOURCE_PRESETS() {
+        return [
+            {
+                label: "依序號排序",
+                expr: "object.order_line|sort(attribute='sequence')",
+            },
+            {
+                label: "排除非商品列",
+                expr: "object.order_line|rejectattr('display_type')|list",
+            },
+            {
+                label: "稅別清單",
+                expr: "object.tax_totals['subtotals'][0]['tax_groups']",
+            },
+        ];
+    }
+
+    onTaxCurrencyModeChange(value) {
+        this.updateSelectedPill({ currencyMode: value || "document" });
+    }
+
+    get repeatHasGrouping() {
+        const v = this.state.selectedVariable || {};
+        if (v.source === "repeat") {
+            return !!(v.groupMode && (v.groupBy || v.groupSplitOn));
+        }
+        const ctx = this.state.repeatContext || {};
+        return !!(ctx.groupMode && (ctx.groupBy || ctx.groupSplitOn));
+    }
+
+    // ─── 分組標題／小計列 ─────────────────────────────────────────
+
+    /**
+     * 把游標所在的表格列設為分組標題列／小計列。
+     *
+     * 與重複列同一個設計：插一個標記藥丸就完成宣告，後端找「含該標記的那一列」。
+     * 輸出順序固定為 標題 → 明細 → 小計，不管使用者把這幾列排在表格的哪裡
+     * ——那是唯一說得通的語意，而要求使用者自己排對順序只會製造一種
+     * 「看起來沒錯但印出來順序不對」的錯誤。
+     */
+    onSetGroupRow(role) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const ctx = this.state.repeatContext;
+        if (!ctx) {
+            this.notification.add(
+                "請先設定重複列，分組列才知道要對哪一組明細。",
+                { type: "warning" }
+            );
+            return;
+        }
+        const isHeader = role === "header";
+        const ok = this.insertPill({
+            source: isHeader ? "groupHeader" : "groupFooter",
+            isMarker: true,
+            repeatId: ctx.repeatId || "",
+            labelText: isHeader ? "〔分組標題〕" : "〔分組小計〕",
+        });
+        if (!ok) return;
+        this.notification.add(
+            isHeader
+                ? "已設為分組標題列。每一組開頭會印一次；可從左欄「分組欄位」放入組名。"
+                : "已設為分組小計列。每一組結尾會印一次；可從左欄「分組欄位」放入小計。",
+            { type: "success" }
+        );
+    }
+
+    /** 分組上下文可用的固定值（不必寫表達式的部分）。 */
+    get GROUP_PILL_PRESETS() {
+        return [
+            { label: "組名", expr: "group.label", hint: "分組依據的值" },
+            { label: "本組筆數", expr: "group.lines|length", hint: "" },
+            { label: "組序號", expr: "group.index", hint: "第幾組" },
+            { label: "組數", expr: "group.count", hint: "共幾組" },
+        ];
+    }
+
+    onInsertGroupPill(preset) {
+        if (!this.state.repeatContext) {
+            this.notification.add(
+                "分組欄位要放在分組標題列或小計列裡。請先設定重複列與分組列。",
+                { type: "warning" }
+            );
+            return;
+        }
+        // source='group'：取值藥丸不綁定列角色，放標題列或小計列都一樣。
+        // 用 groupFooter 當取值來源的話，「在標題列放一顆組名」會讓該列被
+        // 誤判成小計列而跑到明細後面去。
+        this.insertPill({
+            source: "group",
+            expression: preset.expr,
+            labelText: preset.label,
+        });
+    }
+
+    /** 插入「本組小計」：對組內明細的某個數值欄位加總。 */
+    onInsertGroupSubtotal(field) {
+        if (!this.state.repeatContext) {
+            this.notification.add(
+                "本組小計要放在分組小計列裡。請先設定重複列與分組小計列。",
+                { type: "warning" }
+            );
+            return;
+        }
+        // 金額用 format_money、其他數值用 format_number——同一張單上
+        // 小計有幣別符號、明細沒有（或反過來）看起來像兩個系統拼起來的
+        const wrap = field.type === "monetary" ? "format_money" : "format_number";
+        this.insertPill({
+            source: "group",
+            expression: `${wrap}(group.lines|sum(attribute='${field.name}'))`,
+            labelText: `本組 ${field.label || field.name}`,
+        });
+    }
+
+    get isGroupPill() {
+        const src = (this.state.selectedVariable || {}).source;
+        return src === "groupHeader" || src === "groupFooter" || src === "group";
+    }
+
+    get isGroupMarkerPill() {
+        return this.isGroupPill && !!(this.state.selectedVariable || {}).isMarker;
+    }
+
+    onGroupExpressionChange(value) {
+        const expr = (value || "").trim();
+        this.updateSelectedPill({ expression: expr });
     }
 
     _metaForModelField(field, parent = null) {
@@ -2306,6 +3638,12 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         if (field.type === "selection" && !parent) {
             meta.source = "expression";
             meta.expression = `selection_label('${field.name}')`;
+        }
+        // 金額欄位預設帶幣別格式。原生報表的 monetary widget 做的就是這件事；
+        // 印成 1000.0 而不是 NT$ 1,000.00 在單據上會被當成錯誤。
+        if (field.type === "monetary") {
+            meta.source = "expression";
+            meta.expression = `format_money(object.${path})`;
         }
         return meta;
     }
@@ -5219,6 +6557,26 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             ]);
             this.state.pageFormat = f.format;
             this.state.showDocSettings = false;
+
+            // 寫回後端。原本只套用到記憶體中的 canvas，重新載入就沒了——
+            // 而報表引擎以範本的 page_format / margin_* 當列印依據，
+            // 存不進去的話使用者調完邊距列印出來會不一樣，且沒有任何錯誤訊息。
+            if (this.targetId && !this._isReadonly) {
+                rpc("/dobtor_doc/save_settings", {
+                    ...this.targetRpcParams,
+                    page_format: f.format,
+                    margin_top: this._mmToPx(f.marginTopMm),
+                    margin_right: this._mmToPx(f.marginRightMm),
+                    margin_bottom: this._mmToPx(f.marginBottomMm),
+                    margin_left: this._mmToPx(f.marginLeftMm),
+                }).catch((e) => {
+                    console.warn("[DocEditor] 文件設定寫回後端失敗", e);
+                    this.notification?.add?.(
+                        '版面已套用到畫面，但儲存失敗——重新載入後會回到舊設定。',
+                        { type: 'warning' }
+                    );
+                });
+            }
             this.notification?.add?.('文件設定已套用', { type: 'success' });
         } catch (e) {
             console.error('[DocEditor.onApplyDocSettings]', e);

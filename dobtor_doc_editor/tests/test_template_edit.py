@@ -26,14 +26,20 @@ class TestTemplateEditTarget(TransactionCase):
         self.template = self.Template.create({
             'name': '合約範本',
             'content_html': '<p>初版條款</p>',
-            'content_json': json.dumps({'main': [{'value': '初版條款'}]}),
+            # ensure_ascii=False：否則中文被轉成 \uXXXX，之後對字串做 assertIn 會失敗。
+            # 真正該斷言的是解析後的結構，不是 JSON 的字面字串。
+            'content_json': json.dumps(
+                {'main': [{'value': '初版條款'}]}, ensure_ascii=False,
+            ),
         })
 
     # ─── content_json 權威格式 ───────────────────────────────────────
 
     def test_content_json_round_trip(self):
         """content_json 存得進、讀得出，且與 content_html 各自獨立。"""
-        payload = json.dumps({'main': [{'value': '甲方'}, {'value': '乙方'}]})
+        payload = json.dumps(
+            {'main': [{'value': '甲方'}, {'value': '乙方'}]}, ensure_ascii=False,
+        )
         self.template.content_json = payload
         self.template.invalidate_recordset()
         self.assertEqual(self.template.content_json, payload)
@@ -69,7 +75,9 @@ class TestTemplateEditTarget(TransactionCase):
         self.assertEqual(entry['label'], '初版定稿')
         # 兩種格式都要進快照，否則還原後 Canvas 版面會遺失
         self.assertEqual(entry['content_html'], '<p>初版條款</p>')
-        self.assertIn('初版條款', entry['content_json'])
+        self.assertEqual(
+            json.loads(entry['content_json'])['main'][0]['value'], '初版條款',
+        )
 
     def test_version_list_newest_first(self):
         self.template.action_save_version(label='v1')
@@ -84,13 +92,17 @@ class TestTemplateEditTarget(TransactionCase):
         self.template.action_save_version(label='原始')          # v1
         self.template.write({
             'content_html': '<p>改壞了</p>',
-            'content_json': json.dumps({'main': [{'value': '改壞了'}]}),
+            'content_json': json.dumps(
+                {'main': [{'value': '改壞了'}]}, ensure_ascii=False,
+            ),
         })
 
         result = self.template.restore_version(1)
         self.assertTrue(result['success'])
         self.assertEqual(self.template.content_html, '<p>初版條款</p>')
-        self.assertIn('初版條款', self.template.content_json)
+        self.assertEqual(
+            json.loads(self.template.content_json)['main'][0]['value'], '初版條款',
+        )
 
         # v2 應該是「還原前」的自動快照，內容為改壞的版本
         auto = self.template._find_version_entry(2)
@@ -192,9 +204,9 @@ class TestEditTargetResolution(HttpCase):
 
     def _controller(self):
         from odoo.addons.dobtor_doc_editor.controllers.doc_controller import (
-            DocController,
+            DocEditorController,
         )
-        return DocController()
+        return DocEditorController()
 
     def test_load_template_payload_shape_matches_document(self):
         """兩種模式的 /load 回傳 key 必須一致，前端才只有一條解析路徑。"""
@@ -224,5 +236,6 @@ class TestEditTargetResolution(HttpCase):
             'has_template', 'template_filename', 'template_variables',
             'has_different_first_page', 'first_header_html',
             'first_footer_html', 'write_date', 'version_number', 'edit_target',
+            'snapshot_date', 'snapshot_is_stale',
         }
         self.assertEqual(set(tmpl_payload), expected_keys)

@@ -2,7 +2,7 @@
 <odoo>
     <!-- ─── 主選單 ─── -->
     <menuitem id="menu_dobtor_doc_root"
-              name="文件編輯器"
+              name="文件管理"
               sequence="95"
               groups="dobtor_doc_editor.group_doc_editor"/>
 
@@ -20,6 +20,40 @@
               parent="menu_dobtor_doc_root"
               action="action_doc_template_list"
               sequence="20"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <!-- ─── 外框範本（僅管理者）─── -->
+    <menuitem id="menu_doc_template_layouts"
+              name="外框範本"
+              parent="menu_dobtor_doc_root"
+              action="action_doc_template_layout"
+              sequence="22"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <menuitem id="menu_doc_create_layouts"
+              name="建立預設外框"
+              parent="menu_dobtor_doc_root"
+              action="action_create_default_layouts"
+              sequence="23"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <!-- ─── 報表：輸出定義（僅管理者）─── -->
+    <menuitem id="menu_doc_reports"
+              name="報表輸出定義"
+              parent="menu_dobtor_doc_root"
+              action="action_doc_report"
+              sequence="25"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+    <!-- ─── 報表：輸出紀錄 ───
+         刻意只開給管理者：這是稽核工具，而 doc.output.content_json 內含單據
+         完整內容。一般編輯者從業務記錄上的智慧按鈕進入即可（且只看得到
+         自己列印的，見 security/doc_security.xml 的取捨說明）。 -->
+    <menuitem id="menu_doc_outputs"
+              name="輸出紀錄"
+              parent="menu_dobtor_doc_root"
+              action="action_doc_output"
+              sequence="28"
               groups="dobtor_doc_editor.group_doc_manager"/>
 
     <!-- ─── 批次匯入（action 定義於 wizards/doc_bulk_import_wizard_views.xml，

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- ═══ doc.report：報表輸出定義 ═══ -->
+
+    <record id="action_doc_report" model="ir.actions.act_window">
+        <field name="name">報表輸出定義</field>
+        <field name="res_model">doc.report</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">綁定第一個報表</p>
+            <p>
+                把文件範本綁到 Odoo 原生報表（如銷售單的「列印報價單」）。
+                綁定後按原生列印按鈕就會用範本的版面產生 PDF；
+                沒有綁定的報表照原樣使用 Odoo 內建樣板。
+            </p>
+        </field>
+    </record>
+
+    <record id="view_doc_report_list" model="ir.ui.view">
+        <field name="name">doc.report.list</field>
+        <field name="model">doc.report</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="report_id"/>
+                <field name="report_model" optional="show"/>
+                <field name="template_id"/>
+                <field name="lang" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+                <field name="persist_output" optional="show"/>
+                <field name="output_count" optional="show"/>
+                <field name="active" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_doc_report_form" model="ir.ui.view">
+        <field name="name">doc.report.form</field>
+        <field name="model">doc.report</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_open_template"
+                            type="object"
+                            string="編輯範本"
+                            class="btn-primary"
+                            icon="fa-edit"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_outputs"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-print"
+                                invisible="output_count == 0">
+                            <field name="output_count" widget="statinfo" string="輸出紀錄"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="例：報價單（繁中）"/></h1>
+                    </div>
+                    <div class="alert alert-info mb-3" role="alert">
+                        <i class="fa fa-info-circle me-1"/>
+                        綁定後，使用者按的還是 Odoo <strong>原生的列印按鈕</strong>，
+                        只有內容改由範本產生。沒有綁定的報表完全不受影響；
+                        要退回原生只要停用這筆定義。
+                    </div>
+                    <group>
+                        <group string="綁定">
+                            <field name="report_id"/>
+                            <field name="report_model" readonly="1"/>
+                            <field name="template_id"
+                                   domain="[('model_id.model', 'in', [report_model, False])]"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="適用範圍">
+                            <field name="lang"
+                                   placeholder="留空＝所有語言的後備值"/>
+                            <field name="company_id"
+                                   groups="base.group_multi_company"
+                                   placeholder="留空＝所有公司共用"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="輸出">
+                            <field name="filename_pattern"
+                                   placeholder="留空＝沿用報表自己的檔名規則"/>
+                            <field name="persist_output"/>
+                            <field name="retention_days"
+                                   invisible="not persist_output"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning mb-0" role="alert"
+                         invisible="not persist_output">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        留存輸出會讓<strong>每次列印都建立一筆紀錄</strong>。
+                        高頻列印的單據（如出貨單）請勿開啟；
+                        合約、正式發函這類需要稽核的才適合。
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_doc_report_search" model="ir.ui.view">
+        <field name="name">doc.report.search</field>
+        <field name="model">doc.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="report_id"/>
+                <field name="template_id"/>
+                <filter name="persist" string="有留存輸出"
+                        domain="[('persist_output', '=', True)]"/>
+                <filter name="inactive" string="已停用"
+                        domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組依據">
+                    <filter name="group_model" string="報表模型"
+                            context="{'group_by': 'report_model'}"/>
+                    <filter name="group_template" string="範本"
+                            context="{'group_by': 'template_id'}"/>
+                    <filter name="group_lang" string="語言"
+                            context="{'group_by': 'lang'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

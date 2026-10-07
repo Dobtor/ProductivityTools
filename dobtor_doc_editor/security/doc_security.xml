@@ -99,6 +99,70 @@
         </record>
 
         <!--
+            報表引擎：doc.output 的存取邊界
+
+            設計取捨——為什麼不做「能讀來源單據就能看它的列印紀錄」：
+            那需要跨模型的動態判斷（res_model + res_id 逐筆 check_access），
+            ir.rule 的 domain 表達不出來。硬做只有兩條路：覆寫 _search（容易
+            造成 AccessError 且難測）或放寬成「同公司全看」（content_json 內含
+            單據完整內容，等於洩漏）。兩者都比下面這條差。
+
+            所以採「列印者本人 + 管理者」：
+              * 一般編輯者只看得到自己列印過的紀錄（可解釋、無洩漏）
+              * 管理者看得到全部（稽核用途，統一選單也只開給管理者）
+            日後若客戶要求「能讀單據就能看全部列印紀錄」，那是刻意放寬，
+            要連同 content_json 的敏感度一起評估，不應預設如此。
+        -->
+        <record id="rule_doc_output_own" model="ir.rule">
+            <field name="name">doc.output：只看自己列印的</field>
+            <field name="model_id" ref="model_doc_output"/>
+            <field name="domain_force">[('rendered_by', '=', user.id)]</field>
+            <field name="groups" eval="[
+                (4, ref('dobtor_doc_editor.group_doc_editor')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <record id="rule_doc_output_manager_all" model="ir.rule">
+            <field name="name">doc.output：管理者看全部（限本公司）</field>
+            <field name="model_id" ref="model_doc_output"/>
+            <field name="domain_force">[
+                '|',
+                ('company_id', '=', False),
+                ('company_id', 'in', company_ids)
+            ]</field>
+            <field name="groups" eval="[(4, ref('dobtor_doc_editor.group_doc_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- doc.report 是設定資料：編輯者唯讀、管理者可改（ACL 已控），
+             這裡只加多公司隔離（留空＝共用，與 doc.template 同一套語意）。 -->
+        <record id="rule_doc_report_company" model="ir.rule">
+            <field name="name">doc.report：公司隔離（未指定公司＝共用）</field>
+            <field name="model_id" ref="model_doc_report"/>
+            <field name="domain_force">[
+                '|',
+                ('company_id', '=', False),
+                ('company_id', 'in', company_ids)
+            ]</field>
+            <field name="groups" eval="[
+                (4, ref('dobtor_doc_editor.group_doc_editor')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!--
             Sprint 79：error_log / perf_metric user-isolation
             - Sprint 78 audit Finding A：write-only telemetry sink 沒 record rule
               → portal user 可寫 create_uid != self 的 log（偽造 audit trail）

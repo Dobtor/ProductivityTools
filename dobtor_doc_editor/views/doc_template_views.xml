@@ -12,6 +12,36 @@
         </field>
     </record>
 
+    <!-- ─── 外框範本 ───
+         獨立的 action：外框與內容範本混在一張清單裡，使用者會把外框誤綁到
+         報表上（綁上去會印出一張只有頁眉的空白紙）。 -->
+    <record id="action_doc_template_layout" model="ir.actions.act_window">
+        <field name="name">外框範本</field>
+        <field name="res_model">doc.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('role', '=', 'layout')]</field>
+        <field name="context">{'default_role': 'layout'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">尚無外框範本</p>
+            <p>
+                外框範本提供<b>頁首／頁尾與紙張設定</b>，供多張內容範本共用。
+                公司 logo、公司資訊、頁碼放在這裡，改一次全部單據一起更新。
+            </p>
+            <p>
+                可用「<b>文件管理 ▸ 建立預設外框</b>」產生兩張起點外框。
+            </p>
+        </field>
+    </record>
+
+    <!-- 可重複執行：已存在的不動。刻意不在安裝時種資料——種了之後使用者改過
+         內容，模組升級又會碰到 noupdate 的老問題（改 XML 無效、要寫 migration）。 -->
+    <record id="action_create_default_layouts" model="ir.actions.server">
+        <field name="name">建立預設外框範本</field>
+        <field name="model_id" ref="model_doc_template"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_create_default_layouts()</field>
+    </record>
+
     <!-- ─── 範本列表 View ─── -->
     <record id="view_doc_template_list" model="ir.ui.view">
         <field name="name">doc.template.list</field>
@@ -19,6 +49,8 @@
         <field name="arch" type="xml">
             <list string="文件範本">
                 <field name="name"/>
+                <field name="role" optional="show"/>
+                <field name="layout_id" optional="show"/>
                 <field name="category"/>
                 <field name="model_id" optional="show"/>
                 <field name="page_format" optional="show"/>
@@ -61,9 +93,18 @@
                     </div>
                     <group>
                         <group>
-                            <field name="category" string="分類"/>
-                            <field name="model_id" string="適用模型"/>
+                            <field name="role" string="範本角色"/>
+                            <field name="category" string="分類"
+                                   invisible="role == 'layout'"/>
+                            <field name="model_id" string="適用模型"
+                                   invisible="role == 'layout'"/>
+                            <!-- 外框範本只提供頁首頁尾，自己不能再掛外框 -->
+                            <field name="layout_id" string="使用外框"
+                                   invisible="role == 'layout'"
+                                   options="{'no_create_edit': True}"/>
                             <field name="page_format" string="預設頁面格式"/>
+                            <field name="header_spacing" string="頁首間距 (mm)"/>
+                            <field name="footer_spacing" string="頁尾間距 (mm)"/>
                             <field name="active" string="啟用"/>
                             <field name="company_id"
                                    string="公司"
@@ -74,6 +115,18 @@
                             <field name="description" string="說明" widget="text"/>
                         </group>
                     </group>
+                    <div class="alert alert-info mb-2" role="alert"
+                         invisible="not layout_id">
+                        <i class="fa fa-object-group me-1"/>
+                        此範本使用外框範本，<strong>頁首／頁尾與紙張、邊距一律由外框決定</strong>。
+                        在這裡編輯只會影響本文（main 區）。
+                    </div>
+                    <div class="alert alert-secondary mb-2" role="alert"
+                         invisible="role != 'layout'">
+                        <i class="fa fa-info-circle me-1"/>
+                        <strong>這是外框範本</strong>：只提供頁首／頁尾與紙張設定，供多張內容範本共用。
+                        它不會被綁定到報表，本文（main 區）的內容不會被輸出。
+                    </div>
                     <notebook>
                         <page string="範本內容">
                             <div class="alert alert-warning mb-2" role="alert">

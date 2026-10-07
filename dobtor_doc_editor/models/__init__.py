@@ -6,6 +6,8 @@ from . import doc_template_signer
 from . import doc_template_field
 from . import doc_template_field_option
 from . import doc_document
+from . import doc_report
+from . import doc_output
 from . import doc_linked_mixin
 from . import doc_telemetry
 from . import report_overrides
