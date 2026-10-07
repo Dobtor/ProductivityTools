@@ -70,6 +70,11 @@ Dobtor Doc Editor v2.1
         'data/ir_cron_data.xml',
     ],
     'assets': {
+        # tour：只在測試模式載入。前端有約 7000 行 JS 與 2000 行 OWL 模板，
+        # Python 測試碰不到，而 OWL 會把渲染錯誤吞成一塊空白面板。
+        'web.assets_tests': [
+            'dobtor_doc_editor/static/tests/tours/*.js',
+        ],
         'web.assets_backend': [
             # CSS
             'dobtor_doc_editor/static/src/css/doc_editor.css',

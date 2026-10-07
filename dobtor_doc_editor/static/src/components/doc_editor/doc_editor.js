@@ -3008,6 +3008,18 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             return false;
         }
         const afterTables = this._collectTables(data);
+        if (afterTables.length === beforeSigs.length) {
+            // 完全沒多出表格＝canvas-editor 的 insertTable 直接 return 了。
+            // 它在沒有有效游標時會靜默不做事（insertTable 開頭就
+            // `if (!~startIndex && !~endIndex) return`）。
+            // 這種情況講「已插入表格但無法標記」是錯的——使用者會去復原一個
+            // 不存在的表格。瀏覽器 tour 就是這樣抓到這條訊息寫錯。
+            this.notification.add(
+                "請先在文件中點一下，決定區塊要插入的位置。",
+                { type: "warning" }
+            );
+            return false;
+        }
         if (afterTables.length !== beforeSigs.length + 1) {
             // 認不出新表格就不亂改既有內容——寧可讓使用者看到一個普通表格，
             // 也不要把條件標記塞進他別的表格裡。
