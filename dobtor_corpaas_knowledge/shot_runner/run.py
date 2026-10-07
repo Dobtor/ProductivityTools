@@ -306,16 +306,28 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None,
         arg = step[kind]
         if step.get('optional'):
             try:
-                _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
-                          images, regions)
+                res = _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
+                                images, regions)
+                if isinstance(res, dict) and res.get('page'):
+                    page = res['page']
+                    page.on('response', recorder.on_response)
             except Exception as e:  # noqa: BLE001
-                warnings.append('步驟 %s（選用）略過：%s' % (idx, str(e).splitlines()[0][:160]))
+                try:
+                    where = '%s｜%s' % (page.url, page.locator('body').inner_text(timeout=2000)[:120]
+                                       .replace('\n', ' '))
+                except Exception:  # noqa: BLE001
+                    where = ''
+                warnings.append('步驟 %s（選用）略過：%s（%s）' % (
+                    idx, str(e).splitlines()[0][:160], where))
                 if grp:
                     skipped.add(grp)
                 regions.clear()
             continue
-        _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images,
-                  regions)
+        res = _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images,
+                        regions)
+        if isinstance(res, dict) and res.get('page'):
+            page = res['page']
+            page.on('response', recorder.on_response)
     return images
 
 
@@ -327,13 +339,18 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
     if kind == 'login':
         # 換角色：清掉這個瀏覽器的 session 再登入（同一張單據由不同角色往下推）
         # ☠️ 實機：GET /web/session/logout 之後仍是登入狀態，/web/login 直接轉回後台，找不到帳號欄
-        page.context.clear_cookies()
+        # ☠️ 實機：在原分頁 goto 登入頁，第二次換角色總是找不到帳號欄 → 開新分頁登入、關掉舊的
+        ctx = page.context
+        ctx.clear_cookies()
+        fresh = ctx.new_page()
+        fresh.set_default_timeout(10000)
+        fresh.on('dialog', lambda d: d.accept())
         try:
-            login(page, base, arg['user'], arg['password'])
-        except Exception:  # noqa: BLE001 — 頁面還停在舊表單：重新開一次登入頁再試
-            page.goto('about:blank')
-            login(page, base, arg['user'], arg['password'])
-        return None
+            page.close()
+        except Exception:  # noqa: BLE001
+            pass
+        login(fresh, base, arg['user'], arg['password'])
+        return {'page': fresh}
     if kind == 'remember':
         _SAVED[arg] = page.url
         return None
