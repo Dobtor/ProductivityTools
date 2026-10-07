@@ -299,6 +299,8 @@ class TestTutorial(ManualCase):
         with patch.object(type(self.hooks), '_manual_seed', lambda s, sc: seed), \
                 patch.object(shooter, 'run_shots', run), \
                 patch.object(type(self.hooks), '_manual_wizard_confirms', lambda s, sb_, m: {}), \
+                patch.object(type(self.hooks), '_manual_tutorial_copies',
+                             lambda s, sb_, r: {x: [m, 99] for x, (m, _i) in r.items()}), \
                 patch.object(type(self.env['res.config.settings']), 'knowledge_shot_settings',
                              lambda s: {}, create=True):
             n = self.hooks._manual_shoot_tutorials(self.pkg, sb)
@@ -306,6 +308,8 @@ class TestTutorial(ManualCase):
         self.assertEqual((n, again), (1, 0), '輸入沒變不重拍')
         self.assertEqual(len(jobs_seen), 1, '整條教學一個拍攝工作（同一個瀏覽器一路點下去）')
         clicks = [st['click']['button'] for st in jobs_seen[0]['steps'] if 'click' in st]
+        opens = [st['open']['res_id'] for st in jobs_seen[0]['steps'] if 'open' in st]
+        self.assertEqual(set(opens), {99}, '教學用複本，不用一般截圖可能按過的原單據')
         self.assertEqual(clicks, ['action_submit', 'action_done'])
         self.assertTrue(all(st.get('optional') for st in jobs_seen[0]['steps'] if 'click' in st),
                         '每一步都是選用：按鈕沒出現就略過那一組')

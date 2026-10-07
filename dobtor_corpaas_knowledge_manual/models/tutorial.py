@@ -256,6 +256,32 @@ class KnowledgeHooks(models.AbstractModel):
         return steps
 
     @api.model
+    def _manual_tutorial_copies(self, sandbox, resolved):
+        """{xmlid: [model, 複本 id]}：在說明庫複製教學要用的示範單據（會 commit；說明庫之後
+        本來就會標成已改動、下次重建）。"""
+        from odoo.addons.dobtor_corpaas_knowledge.services import scripts
+        if not resolved:
+            return {}
+        script = scripts._HEAD + (
+            "SRC = json.loads(%r)\n"
+            "out = {}\n"
+            "for x, (model, rid) in SRC.items():\n"
+            "    try:\n"
+            "        with env.cr.savepoint():\n"
+            "            new = env[model].browse(rid).copy()\n"
+            "            out[x] = [model, new.id]\n"
+            "    except Exception:\n"
+            "        pass\n"
+            "env.cr.commit()\n"
+            "print(MARK + json.dumps(out))\n"
+        ) % json.dumps(resolved)
+        try:
+            return sandbox._shell(script) or {}
+        except remote.RemoteError as e:
+            _logger.warning('[knowledge.manual] 複製教學單據失敗：%s', e)
+            return {}
+
+    @api.model
     def _manual_wizard_confirms(self, sandbox, models_):
         """精靈的確認按鈕：表單裡第一顆主要按鈕（btn-primary）的名稱。"""
         from odoo.addons.dobtor_corpaas_knowledge.services import scripts
@@ -320,6 +346,9 @@ class KnowledgeHooks(models.AbstractModel):
         if not plans:
             return 0
         resolved = sandbox.resolve_xmlids(sorted({p[1]['xmlid'] for p in plans}))
+        # ☠️ 實機：一般截圖先跑、有些會按「確認」，輪到教學時示範單據早就鎖定了 →
+        #   在說明庫複製一張全新的（copy 回到草稿），教學用複本；複製不了才用原本那張
+        resolved.update(self._manual_tutorial_copies(sandbox, resolved))
         confirm = self._manual_wizard_confirms(
             sandbox, {st['wizard'] for p in plans for st in p[2] if st.get('wizard')})
         jobs = []

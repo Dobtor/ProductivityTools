@@ -310,7 +310,6 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None,
                                 images, regions)
                 if isinstance(res, dict) and res.get('page'):
                     page = res['page']
-                    page.on('response', recorder.on_response)
             except Exception as e:  # noqa: BLE001
                 try:
                     where = '%s｜%s' % (page.url, page.locator('body').inner_text(timeout=2000)[:120]
@@ -327,30 +326,56 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None,
                         regions)
         if isinstance(res, dict) and res.get('page'):
             page = res['page']
-            page.on('response', recorder.on_response)
     return images
 
 
 #: remember／recall 步驟記下的網址（每張重設）：情境教學打開下游單據後，換角色再回到那張
 _SAVED = {}
+#: 每個帳號一個已登入的分頁（每張重設）；_MAKE_PAGE[0]() 開一個設定好的新瀏覽器內容
+_ROLE_PAGES = {}
+_MAKE_PAGE = [None]
+
+
+def _new_page(browser, job):
+    ctx = browser.new_context(
+        viewport={'width': job.get('width', 1440), 'height': job.get('height', 900)},
+        device_scale_factor=job.get('scale', 2),
+        locale=job.get('locale', 'zh-TW'),
+        timezone_id=job.get('tz', 'Asia/Taipei'),
+        reduced_motion='reduce')
+    page = ctx.new_page()
+    # ☠️ 實機：按過按鈕的表單離開時跳「離開此頁？」（beforeunload）；Playwright 預設取消。
+    page.on('dialog', lambda d: d.accept())
+    # 找不到元素要快點失敗：錯誤交給 AI 修，不值得每步等 30 秒。
+    page.set_default_timeout(10000)
+    if job.get('frozen_time'):
+        try:
+            # ★ set_fixed_time 讓 Date.now() 固定，計時器照常跑（install 只設起點，
+            #   時間仍會前進，「幾分鐘前」之類的字每次都不同）。
+            page.clock.set_fixed_time(job['frozen_time'])
+        except Exception:  # noqa: BLE001 - 舊版 Playwright 沒有 clock
+            pass
+    page.add_init_script(
+        "document.addEventListener('DOMContentLoaded',()=>{const s=document."
+        "createElement('style');s.textContent=%s;document.head.appendChild(s);});"
+        % json.dumps(HIDE_CSS + (job.get('extra_css') or '')))
+    return page
 
 
 def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images, regions):
     if kind == 'login':
         # 換角色：清掉這個瀏覽器的 session 再登入（同一張單據由不同角色往下推）
         # ☠️ 實機：GET /web/session/logout 之後仍是登入狀態，/web/login 直接轉回後台，找不到帳號欄
-        # ☠️ 實機：在原分頁 goto 登入頁，第二次換角色總是找不到帳號欄 → 開新分頁登入、關掉舊的
-        ctx = page.context
-        ctx.clear_cookies()
-        fresh = ctx.new_page()
-        fresh.set_default_timeout(10000)
-        fresh.on('dialog', lambda d: d.accept())
-        try:
-            page.close()
-        except Exception:  # noqa: BLE001
-            pass
-        login(fresh, base, arg['user'], arg['password'])
-        return {'page': fresh}
+        # ☠️ 實機：同一個瀏覽器內容清 cookie 再登入（原分頁或新分頁都一樣）第二次一定找不到
+        #   帳號欄。改成每個帳號一個獨立的瀏覽器內容，第一次用到才登入，之後直接切過去——
+        #   跟每張截圖一開始的登入完全同一條路。
+        user = arg['user']
+        if user not in _ROLE_PAGES:
+            fresh = _MAKE_PAGE[0]()
+            fresh.on('response', recorder.on_response)
+            login(fresh, base, user, arg['password'])
+            _ROLE_PAGES[user] = fresh
+        return {'page': _ROLE_PAGES[user]}
     if kind == 'remember':
         _SAVED[arg] = page.url
         return None
@@ -462,31 +487,13 @@ def main():
             sid = shot['id']
             out_dir = os.path.join(OUT_DIR, sid)
             os.makedirs(out_dir, exist_ok=True)
-            ctx = browser.new_context(
-                viewport={'width': job.get('width', 1440), 'height': job.get('height', 900)},
-                device_scale_factor=job.get('scale', 2),
-                locale=job.get('locale', 'zh-TW'),
-                timezone_id=job.get('tz', 'Asia/Taipei'),
-                reduced_motion='reduce')
-            page = ctx.new_page()
-            # ☠️ 實機：按過按鈕的表單離開時跳「離開此頁？」（beforeunload）；Playwright 預設取消
-            #   → 換角色時 goto 登入頁被擋下，找不到帳號欄。一律接受原生對話框。
-            page.on('dialog', lambda d: d.accept())
-            # 找不到元素要快點失敗：錯誤交給 AI 修，不值得每步等 30 秒。
-            page.set_default_timeout(10000)
-            if job.get('frozen_time'):
-                try:
-                    # ★ set_fixed_time 讓 Date.now() 固定，計時器照常跑（install 只設起點，
-                    #   時間仍會前進，「幾分鐘前」之類的字每次都不同）。
-                    page.clock.set_fixed_time(job['frozen_time'])
-                except Exception:  # noqa: BLE001 - 舊版 Playwright 沒有 clock
-                    pass
-            page.add_init_script(
-                "document.addEventListener('DOMContentLoaded',()=>{const s=document."
-                "createElement('style');s.textContent=%s;document.head.appendChild(s);});"
-                % json.dumps(HIDE_CSS + (job.get('extra_css') or '')))
+            _MAKE_PAGE[0] = lambda: _new_page(browser, job)
+            page = _new_page(browser, job)
+            ctx = page.context
             recorder = Recorder()
             _SAVED.clear()
+            _ROLE_PAGES.clear()
+            _ROLE_PAGES[shot['login']] = page
             page.on('response', recorder.on_response)
             try:
                 images, observed = [], []
@@ -520,6 +527,13 @@ def main():
                 _log(sid, 'FAILED', e)
             finally:
                 ctx.close()
+                for other in list(_ROLE_PAGES.values()):
+                    if other.context is not ctx:
+                        try:
+                            other.context.close()
+                        except Exception:  # noqa: BLE001
+                            pass
+                _ROLE_PAGES.clear()
         browser.close()
     result['finished'] = time.time()
     with open(os.path.join(OUT_DIR, 'result.json'), 'w', encoding='utf-8') as fh:
