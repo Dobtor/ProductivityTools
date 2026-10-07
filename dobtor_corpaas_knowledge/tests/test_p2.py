@@ -123,6 +123,20 @@ class TestSeedCheck(_RefreshBase):
         self.assertIn("'rev': %s" % self.sc.rev_no, q.params, '帶修訂號：修正後的再檢查不會被去重吃掉')
         self.assertEqual(self.sc.seed_check_state, 'queued')
 
+    def test_prune_failed_records_with_dependents(self):
+        self.sc.seed_json = _seed(
+            {'xmlid': 'p', 'model': 'res.partner', 'values': {'name': 'A'}},
+            {'xmlid': 'bad', 'model': 'stock.picking', 'values': {'partner_id': '__ref__:p'}},
+            {'xmlid': 'bad_line', 'model': 'stock.move', 'values': {'picking_id': '__ref__:bad'}},
+            {'xmlid': 'bad_confirm', 'model': 'stock.picking', 'call': 'action_confirm',
+             'target': 'bad'})
+        self.sc._do_publish('new')
+        n = self.sc._prune_failed_seed({'errors': [
+            {'xmlid': '%s.bad' % self.sc.xml_module, 'error': 'x'},
+            {'xmlid': 'doc_pack_x.other', 'error': '資料包的錯不歸我'}]})
+        self.assertEqual(n, 3, '出錯的記錄連同參照它、對它動作的記錄一起拿掉')
+        self.assertEqual([r['xmlid'] for r in json.loads(self.sc.seed_json)], ['p'])
+
     def test_text_only_change_does_not_check(self):
         self.sc._do_publish('new')
         self.sc.narrative = '只改敘事'

@@ -706,6 +706,38 @@ class KnowledgeScenario(models.Model):
                                note=_('AI 依重播檢查修正示範資料'))
         return True
 
+    def _prune_failed_seed(self, report):
+        """AI 修兩次仍重播失敗：把自己（不含資料包）出錯的記錄連同依賴它們的記錄拿掉，再送審。
+
+        ☠️ 實機：補缺口的 AI 一再加進重播不過的記錄（直運、加購、批次已完成…），自動上線後
+          正式說明庫每次重建都失敗，連帶截圖、說明書新頁全部停擺。重播不過的記錄本來就載不進
+          說明庫，拿掉不會少任何畫面；缺口照舊留著給人。回傳拿掉幾筆。"""
+        self.ensure_one()
+        records = json.loads(self.seed_json or '[]')
+        full = lambda x: x if '.' in x else '%s.%s' % (self.xml_module, x)  # noqa: E731
+        own = {full(r['xmlid']) for r in records if isinstance(r, dict) and r.get('xmlid')}
+        doomed = {e['xmlid'] for e in report.get('errors') or [] if e.get('xmlid') in own}
+        if not doomed:
+            return 0
+        while True:
+            names = doomed | {x.split('.', 1)[1] for x in doomed if '.' in x}
+            more = set()
+            for r in records:
+                key = full(r['xmlid'])
+                if key in doomed:
+                    continue
+                text = json.dumps(r, ensure_ascii=False)
+                if any(('__ref__:%s"' % n) in text or ('"%s"' % n) in text for n in names):
+                    more.add(key)
+            if not more:
+                break
+            doomed |= more
+        kept = [r for r in records if full(r['xmlid']) not in doomed]
+        self.write({'seed_json': json.dumps(kept, ensure_ascii=False, indent=1)})
+        self.knowledge_propose('text', note=_('重播仍失敗：移除 %s 筆記錄（%s）') % (
+            len(doomed), '、'.join(sorted(x.split('.')[-1] for x in doomed)[:10])))
+        return len(doomed)
+
     def text_review_waived(self):
         """文字改寫是否可免審（使用者定案：連續 N 次核准無修改後）。"""
         self.ensure_one()

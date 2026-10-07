@@ -305,6 +305,12 @@ class KnowledgeSandbox(models.Model):
                 scenario._ai_repair_seed_from_check(report)
             except Exception as e:  # noqa: BLE001 — 修不了就留給人看檢查結果
                 _logger.warning('[knowledge] 情境 %s 自動修正示範資料失敗：%s', scenario.code, e)
+        elif state == 'issues' and report.get('errors'):
+            # 修完仍重播失敗：拿掉出錯的記錄，不讓它們卡住正式說明庫
+            try:
+                scenario._prune_failed_seed(report)
+            except Exception as e:  # noqa: BLE001
+                _logger.warning('[knowledge] 情境 %s 移除失敗記錄失敗：%s', scenario.code, e)
         return state
 
     def _purge_models(self, seed):
