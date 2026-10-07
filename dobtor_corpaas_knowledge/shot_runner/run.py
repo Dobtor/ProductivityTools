@@ -328,7 +328,11 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
         # 換角色：清掉這個瀏覽器的 session 再登入（同一張單據由不同角色往下推）
         # ☠️ 實機：GET /web/session/logout 之後仍是登入狀態，/web/login 直接轉回後台，找不到帳號欄
         page.context.clear_cookies()
-        login(page, base, arg['user'], arg['password'])
+        try:
+            login(page, base, arg['user'], arg['password'])
+        except Exception:  # noqa: BLE001 — 頁面還停在舊表單：重新開一次登入頁再試
+            page.goto('about:blank')
+            login(page, base, arg['user'], arg['password'])
         return None
     if kind == 'remember':
         _SAVED[arg] = page.url
@@ -448,6 +452,9 @@ def main():
                 timezone_id=job.get('tz', 'Asia/Taipei'),
                 reduced_motion='reduce')
             page = ctx.new_page()
+            # ☠️ 實機：按過按鈕的表單離開時跳「離開此頁？」（beforeunload）；Playwright 預設取消
+            #   → 換角色時 goto 登入頁被擋下，找不到帳號欄。一律接受原生對話框。
+            page.on('dialog', lambda d: d.accept())
             # 找不到元素要快點失敗：錯誤交給 AI 修，不值得每步等 30 秒。
             page.set_default_timeout(10000)
             if job.get('frozen_time'):
