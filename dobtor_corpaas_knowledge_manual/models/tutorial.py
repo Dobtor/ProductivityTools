@@ -4,8 +4,10 @@
 ★ 參考說明書最有價值的部分：讀者看到的是同一張單據從草稿走到完成，每一步知道誰按、
   按哪顆、做完狀態列會變成什麼。逐畫面的參考篇做不到這件事（每個畫面各用各的示範單據）。
 ★ 路徑與腳本全部由流程結構規則產生（不叫 AI）：從狀態列第一個狀態起，每次挑一顆會把狀態
-  推到下一個狀態列步驟、不開精靈的按鈕。每一步一個拍攝工作、用那顆按鈕的拍攝角色登入；
-  拍攝工作依序執行，所以同一張單據的狀態接得上。
+  推到下一個狀態列步驟的按鈕；走完再沿著「交接」打開下游單據（銷售訂單 → 出貨單 → 發票），
+  在下游單據上照樣往下按。整條是一個拍攝工作（下游單據的 id 事先不知道，只能在同一個
+  瀏覽器裡一路點過去）；每一步是一組選用步驟，按鈕沒出現就略過那一組、下游跟著略過，
+  做到哪裡就教到哪裡。
 ★ 會改到說明庫的示範資料：放在所有拍攝之後跑，跑過就把說明庫標成「已被拍攝改動」
   （下一次更新重建）；輸入簽章沒變就不重拍。
 """
@@ -82,7 +84,7 @@ class KnowledgeTutorial(models.Model):
         cur, path, used = bar[0], [], set()
         while len(path) < MAX_STEPS and bar.index(cur) < len(bar) - 1:
             idx = bar.index(cur)
-            cands = [t for t in flow.transition_ids.sorted('id') if t.id not in used and ok(t)]
+            cands = [t for t in flow.effective_transitions().sorted('id') if t.id not in used and ok(t)]
             later = [t for t in cands if (t.from_value or '') == cur and t.to_value in bar
                      and bar.index(t.to_value) > idx]
             unknown = [t for t in cands if (t.from_value or '') == cur and not t.to_value]
@@ -154,8 +156,9 @@ class KnowledgeHooks(models.AbstractModel):
 
     @api.model
     def _manual_tutorial_flows(self, package):
-        """每個方案能力一個：能力名下使用量最大、狀態列最長的流程。"""
+        """每個方案能力一個起點流程：能力名下使用量最大、狀態列最長、走得出路徑的。"""
         Flow = self.env['corpaas.knowledge.flow'].sudo()
+        Tutorial = self.env['corpaas.knowledge.tutorial']
         out = Flow
         for cap in package.knowledge_capability_ids:
             flows = Flow.search([('capability_id', '=', cap.id), ('package_ids', 'in', package.id),
@@ -163,70 +166,159 @@ class KnowledgeHooks(models.AbstractModel):
             flows = flows.sorted(lambda f: (-(f.usage_score or 0),
                                             -len(f.step_ids.filtered('on_statusbar')), f.id))
             for f in flows:
-                if len(self.env['corpaas.knowledge.tutorial']._path(f)) >= MIN_STEPS:
+                if Tutorial._path(f):
                     out |= f
                     break
         return out
 
     @api.model
+    def _manual_tutorial_downstream(self, flow, package):
+        """[(轉換, 下游流程)]：這張單據交接給哪些下游單據（依上下游先後，最多 3 個）。"""
+        from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import DOWNSTREAM_ORDER
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        out, seen = [], set()
+        for t, model in flow._kb_opens():
+            if model in seen or model == flow.model:
+                continue
+            target = Flow.search([('model', '=', model), ('package_ids', 'in', package.id),
+                                  ('field_type', '=', 'selection')], limit=1)
+            if target:
+                seen.add(model)
+                out.append((t, target))
+        out.sort(key=lambda x: DOWNSTREAM_ORDER.index(x[1].model)
+                 if x[1].model in DOWNSTREAM_ORDER else 99)
+        return out[:3]
+
+    @api.model
+    def _manual_tutorial_plan(self, flow, package):
+        """整條教學的步驟計畫：起點流程的路徑，接著每個下游單據（打開 → 它的路徑）。
+
+        回傳 [{kind: press|open, flow, button, label, from, to, req}]；req 是要先成功的步驟序號。"""
+        Tutorial = self.env['corpaas.knowledge.tutorial']
+        plan = []
+        for t, fr, to in Tutorial._path(flow):
+            plan.append({'kind': 'press', 'flow': flow.id, 'button': t.button_name,
+                         'label': t.display_label(), 'from': fr, 'to': to,
+                         'wizard': t.opens_model or ''})
+        root_steps = list(range(len(plan)))
+        for t, target in self._manual_tutorial_downstream(flow, package):
+            label = t.display_label() or target.name
+            if not label:
+                continue
+            idx = len(plan)
+            plan.append({'kind': 'open', 'flow': target.id, 'button': t.button_name,
+                         'label': label, 'from': '', 'to': '', 'parent': flow.id,
+                         'wizard': t.opens_model if t.opens_model and t.opens_model != target.model
+                         else '', 'req': []})
+            for t2, fr2, to2 in Tutorial._path(target)[:3]:
+                plan.append({'kind': 'press', 'flow': target.id, 'button': t2.button_name,
+                             'label': t2.display_label(), 'from': fr2, 'to': to2,
+                             'wizard': t2.opens_model or '', 'req': [idx]})
+            if len(plan) >= 10:
+                break
+        del root_steps
+        return plan[:10]
+
+    @api.model
+    def _manual_tutorial_steps(self, plan, model, res_id, confirm):
+        """計畫 → 拍攝步驟（每一步一組選用步驟）。confirm：{精靈模型: 確認按鈕}。"""
+        steps = [{'open': {'model': model, 'res_id': res_id}}, {'wait': {'ms': 800}}]
+        for i, st in enumerate(plan):
+            grp = 's%s' % i
+            req = ['s%s' % r for r in st.get('req') or []]
+            base = {'optional': True, 'grp': grp, 'req': req}
+            if st['kind'] == 'open':
+                # 回到起點單據，按智慧按鈕／交接按鈕打開下游單據
+                steps.append(dict({'open': {'model': model, 'res_id': res_id}}, **base))
+                steps.append(dict({'wait': {'ms': 600}}, **base))
+            steps.append(dict({'highlight': {'button': st['button'], 'n': 1}}, **base))
+            steps.append(dict({'shot': '%s_before' % grp}, **base))
+            steps.append(dict({'click': {'button': st['button']}}, **base))
+            steps.append(dict({'wait': {'ms': 1200}}, **base))
+            if st.get('wizard') and confirm.get(st['wizard']):
+                steps.append(dict({'click': {'button': confirm[st['wizard']]}}, **base))
+                steps.append(dict({'wait': {'ms': 1500}}, **base))
+            steps.append(dict({'shot': '%s_after' % grp}, **base))
+        return steps
+
+    @api.model
+    def _manual_wizard_confirms(self, sandbox, models_):
+        """精靈的確認按鈕：表單裡第一顆主要按鈕（btn-primary）的名稱。"""
+        from odoo.addons.dobtor_corpaas_knowledge.services import scripts
+        if not models_:
+            return {}
+        script = scripts._HEAD + (
+            "import re\n"
+            "MODELS = json.loads(%r)\n"
+            "out = {}\n"
+            "for m in MODELS:\n"
+            "    if m not in env:\n"
+            "        continue\n"
+            "    try:\n"
+            "        arch = env[m].get_views([(False, 'form')])['views']['form']['arch']\n"
+            "    except Exception:\n"
+            "        continue\n"
+            "    for b in re.finditer(r'<button[^>]*>', arch):\n"
+            "        tag = b.group(0)\n"
+            "        if 'btn-primary' in tag and re.search(r'type=\"(object|action)\"', tag):\n"
+            "            n = re.search(r'name=\"([^\"]+)\"', tag)\n"
+            "            if n:\n"
+            "                out[m] = n.group(1)\n"
+            "                break\n"
+            "env.cr.rollback()\n"
+            "print(MARK + json.dumps(out))\n"
+        ) % json.dumps(sorted(models_))
+        try:
+            return sandbox._shell(script) or {}
+        except remote.RemoteError as e:
+            _logger.warning('[knowledge.manual] 精靈確認按鈕探測失敗：%s', e)
+            return {}
+
+    @api.model
     def _manual_shoot_tutorials(self, package, sandbox, token=None):
-        """拍情境教學。回傳這次拍了幾篇。"""
+        """拍情境教學（每個能力一條，跨單據）。回傳這次拍了幾篇。"""
+        from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import MODEL_ROLE
         Tutorial = self.env['corpaas.knowledge.tutorial'].sudo()
-        Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
         scenario = sandbox.scenario_id
         seed = [r for r in self._manual_seed(scenario) if not r.get('call')]
+        all_seed = self._manual_seed(scenario)
         logins = json.loads(sandbox.sudo().role_logins or '{}')
         if not seed or not logins:
             return 0
-        from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import MODEL_ROLE
-        jobs, plans = [], []
+        # ★ 跨單據要用看得到每一種單據的帳號拍（業務帳號打不開出貨單）；文字照樣寫各步的負責角色
+        login_role = 'admin' if 'admin' in logins else next(iter(logins))
+        plans = []
         for flow in self._manual_tutorial_flows(package):
-            # ☠️ 實機：按鈕多半沒有功能點繫結，退回第一個角色（業務）去按付款、採購申請 → 存取錯誤。
-            #   退回時用單據的負責角色。
-            default_role = MODEL_ROLE.get(flow.model) if MODEL_ROLE.get(flow.model) in logins \
-                else next(iter(logins))
-            path = Tutorial._path(flow)
             bar = [s.value for s in flow.step_ids.sorted('sequence') if s.on_statusbar]
-            rec = Tutorial._pick_record(flow, seed, bar[0])
-            if not rec:
+            rec = Tutorial._pick_record(flow, all_seed, bar[0])
+            plan = self._manual_tutorial_plan(flow, package)
+            if not rec or not plan:
                 continue
-            steps = []
-            for t, fr, to in path:
-                b = Binding.search([('feature_id', '=', t.button_feature_id.id),
-                                    ('state', '=', 'ok')], limit=1) if t.button_feature_id else Binding
-                role = (b.login_role() if b else None) or default_role
-                if role not in logins:
-                    role = default_role
-                steps.append({'from': fr, 'to': to, 'button': t.button_name,
-                              'label': t.display_label() or t.button_name, 'role': role})
             sig = hashlib.sha1(json.dumps(
-                [flow.structure_hash, rec['xmlid'], steps, scenario.seed_revisions(),
-                 shooter.runner_signature()], sort_keys=True, default=str).encode()).hexdigest()[:16]
+                [flow.structure_hash, rec['xmlid'], plan, scenario.seed_revisions(),
+                 shooter.runner_signature(), login_role], sort_keys=True, default=str)
+                .encode()).hexdigest()[:16]
             tut = Tutorial.search([('package_id', '=', package.id), ('flow_id', '=', flow.id)])
             if tut and tut.inputs_sig == sig and tut.state == 'ok':
                 continue
-            plans.append((flow, rec, steps, sig, tut))
+            plans.append((flow, rec, plan, sig, tut))
         if not plans:
             return 0
         resolved = sandbox.resolve_xmlids(sorted({p[1]['xmlid'] for p in plans}))
-        password = sandbox.sudo().password
-        for k, (flow, rec, steps, sig, tut) in enumerate(plans):
+        confirm = self._manual_wizard_confirms(
+            sandbox, {st['wizard'] for p in plans for st in p[2] if st.get('wizard')})
+        jobs = []
+        for k, (flow, rec, plan, sig, tut) in enumerate(plans):
             target = resolved.get(rec['xmlid'])
-            if not target:
-                continue
-            for i, st in enumerate(steps):
-                jobs.append({'id': 't%s_%s' % (k, i), 'login': logins[st['role']],
-                             'password': password, 'steps': [
-                                 {'open': {'model': flow.model, 'res_id': target[1]}},
-                                 {'wait': {'ms': 600}},
-                                 {'highlight': {'button': st['button'], 'n': 1}},
-                                 {'shot': 'before'},
-                                 {'click': {'button': st['button']}},
-                                 {'wait': {'ms': 1200}},
-                                 {'shot': 'after'}]})
+            if target:
+                jobs.append({'id': 't%s' % k, 'login': logins[login_role],
+                             'password': sandbox.sudo().password,
+                             'steps': self._manual_tutorial_steps(plan, flow.model, target[1],
+                                                                  confirm)})
         if not jobs:
             return 0
-        package._knowledge_heartbeat('kb_shoot', _('情境教學 %s 篇') % len(plans))
+        package._knowledge_heartbeat('kb_shoot', _('情境教學 %s 篇') % len(jobs))
         settings = self.env['res.config.settings'].knowledge_shot_settings()
         try:
             result, files = shooter.run_shots(self.env, sandbox, jobs, settings)
@@ -236,40 +328,45 @@ class KnowledgeHooks(models.AbstractModel):
         sandbox.sudo().dirty = True   # 按過按鈕：示範資料已改動（R1）
         shots = result.get('shots') or {}
         done = 0
-        for k, (flow, rec, steps, sig, tut) in enumerate(plans):
-            out, error = [], ''
-            for i, st in enumerate(steps):
-                r = shots.get('t%s_%s' % (k, i)) or {}
-                if not r.get('ok'):
-                    error = (r.get('error') or _('沒有結果'))[:2000]
-                    break
-                images = {img.get('name'): img for img in r.get('images') or []}
+        for k, (flow, rec, plan, sig, tut) in enumerate(plans):
+            r = shots.get('t%s' % k) or {}
+            images = {img.get('name'): img for img in r.get('images') or []}
+            observed = {o.get('button'): o for o in r.get('transitions') or []}
+            out = []
+            for i, st in enumerate(plan):
+                after = images.get('s%s_after' % i)
+                data = files.get(after.get('file')) if after else None
+                if not data:
+                    continue
                 atts = {}
-                for name in ('before', 'after'):
-                    img = images.get(name)
-                    data = files.get(img.get('file')) if img else None
-                    if not data:
-                        continue
-                    png = annotate.draw_regions(data, img.get('regions') or []) \
-                        if name == 'before' else data
-                    atts[name] = self.env['ir.attachment'].sudo().create({
-                        'name': 'tutorial-%s-%s-%s.png' % (flow.id, i, name),
-                        'datas': base64.b64encode(png), 'mimetype': 'image/png',
-                        'public': True, 'res_model': 'corpaas.knowledge.tutorial'}).id
-                if 'after' not in atts:
-                    error = _('第 %s 步沒有拍到按之後的畫面') % (i + 1)
-                    break
-                seen = [o for o in r.get('transitions') or [] if o.get('to')]
-                if seen:
-                    st = dict(st, to=str(seen[-1]['to']))   # 實際推到的狀態
-                out.append(dict(st, before=atts.get('before'), after=atts['after']))
-                if i + 1 < len(steps) and steps[i + 1]['from'] != st['to']:
-                    break   # 跟預期不同：後面的步驟起點對不上，教到這裡為止
+                before = images.get('s%s_before' % i)
+                bdata = files.get(before.get('file')) if before else None
+                if bdata:
+                    atts['before'] = self.env['ir.attachment'].sudo().create({
+                        'name': 'tutorial-%s-%s-before.png' % (flow.id, i),
+                        'datas': base64.b64encode(annotate.draw_regions(
+                            bdata, before.get('regions') or [])),
+                        'mimetype': 'image/png', 'public': True,
+                        'res_model': 'corpaas.knowledge.tutorial'}).id
+                atts['after'] = self.env['ir.attachment'].sudo().create({
+                    'name': 'tutorial-%s-%s-after.png' % (flow.id, i),
+                    'datas': base64.b64encode(data), 'mimetype': 'image/png', 'public': True,
+                    'res_model': 'corpaas.knowledge.tutorial'}).id
+                step = dict(st, **atts)
+                ob = observed.get(st['button'])
+                if st['kind'] == 'press' and ob and ob.get('to'):
+                    step['from'], step['to'] = str(ob.get('from') or st['from']), str(ob['to'])
+                f = Flow.browse(st['flow'])
+                step['role'] = MODEL_ROLE.get(f.model) or ''
+                out.append(step)
+            presses = [s for s in out if s['kind'] == 'press']
             vals = {'package_id': package.id, 'flow_id': flow.id, 'record_xmlid': rec['xmlid'],
                     'record_label': Tutorial._record_label(rec, seed),
                     'steps_json': json.dumps(out, ensure_ascii=False), 'inputs_sig': sig,
-                    'state': 'ok' if len(out) >= MIN_STEPS else 'failed',
-                    'last_error': error or False, 'shot_at': fields.Datetime.now()}
+                    'state': 'ok' if len(out) >= MIN_STEPS and presses else 'failed',
+                    'last_error': (r.get('error') or '')[:2000] or
+                    ('\n'.join(r.get('warnings') or [])[:2000] or False),
+                    'shot_at': fields.Datetime.now()}
             old = tut.steps() if tut else []
             if tut:
                 tut.write(vals)
@@ -289,34 +386,52 @@ class KnowledgeChannelSection(models.Model):
 
     def _manual_tutorial_html(self, tutorial, placements):
         esc = html_mod.escape
-        flow = tutorial.flow_id
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        root = tutorial.flow_id
         steps = tutorial.steps()
         role_names = self._manual_role_names(tutorial.package_id)
         articles = {}
         for pl in placements.filtered(lambda p: p._manual_is_live()):
             articles.setdefault(pl.article_id.feature_id.id, pl)
-        trans = {t.button_name: t for t in flow.transition_ids}
-        first, last = flow.step_label(steps[0]['from']), flow.step_label(steps[-1]['to'])
+        docs = []
+        for st in steps:
+            name = Flow.browse(st['flow']).model_name or Flow.browse(st['flow']).name
+            if name and name not in docs:
+                docs.append(name)
         parts = ['<p>%s</p>' % esc(_(
-            '以下用示範系統裡的同一張「%(m)s」%(r)s，從「%(a)s」一路做到「%(b)s」。'
-            '每一步先看要按哪顆按鈕（紅框），按完對照狀態列確認。',
-            m=flow.model_name or flow.name, r=('（%s）' % tutorial.record_label)
-            if tutorial.record_label else '', a=first, b=last))]
+            '以下用示範系統裡的同一張「%(m)s」%(r)s，一路做下去%(chain)s。每一步先看要按哪顆按鈕'
+            '（紅框），按完對照畫面確認。',
+            m=root.model_name or root.name,
+            r=('（%s）' % tutorial.record_label) if tutorial.record_label else '',
+            chain=('，經過%s' % '、'.join('「%s」' % d for d in docs[1:])) if len(docs) > 1 else ''))]
         for n, st in enumerate(steps, start=1):
-            fr, to = flow.step_label(st['from']), flow.step_label(st['to'])
+            flow = Flow.browse(st['flow'])
             who = role_names.get(st.get('role')) or ''
-            parts.append('<h3>%s</h3>' % esc(_('第 %(n)s 步：%(a)s → %(b)s', n=n, a=fr, b=to)))
-            parts.append('<p>%s</p>' % esc(_('%(who)s在「%(a)s」的單據上按「%(btn)s」（圖中 1）。',
-                                            who=('由%s' % who) if who else '', a=fr, btn=st['label'])))
+            doc = flow.model_name or flow.name
+            if st['kind'] == 'open':
+                parent = Flow.browse(st.get('parent'))
+                parts.append('<h3>%s</h3>' % esc(_('第 %(n)s 步：打開%(d)s', n=n, d=doc)))
+                parts.append('<p>%s</p>' % esc(_(
+                    '回到這張「%(p)s」，按「%(b)s」（圖中 1）打開它的%(d)s。',
+                    p=parent.model_name or parent.name, b=st['label'], d=doc)))
+                done_text = _('畫面換成這張單據的%s。') % doc
+            else:
+                fr, to = flow.step_label(st['from']), flow.step_label(st['to'])
+                parts.append('<h3>%s</h3>' % esc(_('第 %(n)s 步：%(d)s %(a)s → %(b)s',
+                                                   n=n, d=doc, a=fr, b=to)))
+                parts.append('<p>%s</p>' % esc(_(
+                    '%(who)s在「%(a)s」的%(d)s上按「%(btn)s」（圖中 1）%(wiz)s。',
+                    who=('由%s' % who) if who else '', a=fr, d=doc, btn=st['label'],
+                    wiz='，在跳出的視窗按確認' if st.get('wizard') else '')))
+                done_text = _('狀態列變成「%s」。') % to
             if st.get('before'):
                 parts.append('<p><img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
                              'loading="lazy"/></p>' % (st['before'], esc(_('按「%s」之前，紅框是要按的按鈕')
                                                                        % st['label'])))
-            parts.append('<p><strong>%s</strong>%s</p>' % (
-                esc(_('做完確認：')), esc(_('狀態列變成「%s」。') % to)))
+            parts.append('<p><strong>%s</strong>%s</p>' % (esc(_('做完確認：')), esc(done_text)))
             parts.append('<p><img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
-                         'loading="lazy"/></p>' % (st['after'], esc(_('按完之後，狀態是「%s」') % to)))
-            t = trans.get(st['button'])
+                         'loading="lazy"/></p>' % (st['after'], esc(done_text)))
+            t = flow.transition_ids.filtered(lambda x: x.button_name == st['button'])[:1]
             pl = articles.get(t.button_feature_id.id) if t and t.button_feature_id else None
             if pl and pl.slide_id:
                 parts.append('<p>%s<a href="%s">%s</a></p>' % (

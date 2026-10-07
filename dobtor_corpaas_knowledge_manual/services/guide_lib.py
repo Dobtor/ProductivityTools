@@ -137,10 +137,13 @@ print(MARK + json.dumps({'items': out, 'groups': gnames}))
 def message_probe_script(spec, lang='zh_TW', limit=PROBE_LIMIT):
     """訊息與狀況對照：在說明庫的真實單據上按流程按鈕，收集系統跳出的訊息原文。
 
-    spec: [{flow, model, field, buttons: [{name, label, from}]}]（from 空＝任何狀態都看得到）。
+    spec: [{flow, model, field, first, buttons: [{name, label, from}]}]（from 空＝任何狀態都看得到）。
     兩種情況各試一次：照示範單據按（缺前置資料的訊息），以及複製一張、把明細清空再按
-    （「沒有明細」類的訊息）。每次都在 savepoint 裡做、做完回滾，結尾整個 rollback。
-    回傳 [{flow, button, label, from, variant, message}]（同流程同訊息只留一筆）。"""
+    （「沒有明細」類的訊息——只在流程第一個狀態試：已過帳的單據不會有人把明細刪光）。
+    每次都在 savepoint 裡做、做完回滾，結尾整個 rollback。
+    ★ 按成功時記下單據實際從哪個狀態到哪個狀態（observed）：靜態分析推不出終點的按鈕，
+      狀態速查與情境教學就不用猜。
+    回傳 {'messages': [{flow, button, label, from, variant, message}], 'observed': [{flow, button, from, to}]}。"""
     return scripts._HEAD + (
         "import re\n"
         "SPEC = json.loads(%r)\n"
@@ -153,7 +156,7 @@ class _Undo(Exception):
     pass
 E = env(context=dict(env.context, lang=LANG, tracking_disable=True, mail_notrack=True,
                      mail_create_nolog=True, mail_auto_subscribe_no_notify=True))
-out, seen, calls = [], set(), 0
+out, seen, calls, observed = [], set(), 0, []
 def press(rec, name):
     ctx = dict(rec.env.context, active_id=rec.id, active_ids=rec.ids, active_model=rec._name)
     getattr(rec.with_context(ctx), name)()
@@ -176,15 +179,22 @@ for f in SPEC:
         rec = M.search(dom, limit=1, order='id')
         if not rec:
             continue
-        for variant in ('as_is', 'empty'):
+        variants = ('as_is', 'empty') if (b.get('from') or '') in ('', f.get('first')) else ('as_is',)
+        for variant in variants:
             calls += 1
             try:
                 with E.cr.savepoint():
                     target = empty_copy(rec) if variant == 'empty' else rec
                     if variant == 'empty' and b.get('from') and target[f['field']] != b['from']:
                         raise _Undo()
+                    before = target[f['field']]
                     press(target, b['name'])
                     E.flush_all()
+                    target.invalidate_recordset()
+                    after = target[f['field']]
+                    if variant == 'as_is' and after != before and isinstance(after, str):
+                        observed.append({'flow': f['flow'], 'model': f['model'], 'button': b['name'],
+                                         'from': str(before), 'to': after})
                     raise _Undo()
             except _Undo:
                 pass
@@ -199,7 +209,7 @@ for f in SPEC:
                 pass
             E.invalidate_all()
 env.cr.rollback()
-print(MARK + json.dumps(out))
+print(MARK + json.dumps({'messages': out, 'observed': observed}))
 """
 
 

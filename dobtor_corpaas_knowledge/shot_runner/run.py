@@ -101,7 +101,8 @@ def _field_locator(page, name):
 
 
 def _button_locator(page, name):
-    return page.locator('button[name="%s"]' % name).first
+    # ★ 只找看得到的：精靈對話框開著時，背後表單也有同名按鈕（隱藏），取第一個會點不到
+    return page.locator('button[name="%s"]:visible' % name).first
 
 
 def _page_locator(page, name):
@@ -280,13 +281,46 @@ def _status(page):
         return None
 
 
-def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None):
-    images, regions = [], []
+def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None, images=None):
+    """依序執行步驟。
+
+    ★ 步驟可帶 "optional": true 與 "grp": "<組名>"：選用步驟失敗不讓整張失敗，同組後面的
+      步驟一起略過（情境教學：按鈕在這張單據的狀態下沒出現，就跳過這一步的整組截圖）。
+      "req": [<組名>…]：這些組有任何一組被略過，這一步也略過。
+    ★ images 由呼叫端傳入：中途失敗時，已經拍好的圖照樣回傳。"""
+    images = images if images is not None else []
+    regions = []
     warnings = warnings if warnings is not None else []
     observed = observed if observed is not None else []
+    skipped = set()
     for idx, step in enumerate(shot.get('steps') or []):
-        kind = next(iter(step))
+        grp = step.get('grp')
+        if grp and grp in skipped:
+            continue
+        if any(r in skipped for r in step.get('req') or []):
+            # 前面的組失敗（例如沒打開下游單據）：這組也不做，免得在錯的畫面按到同名按鈕
+            if grp:
+                skipped.add(grp)
+            continue
+        kind = next(k for k in step if k not in ('optional', 'grp', 'req'))
         arg = step[kind]
+        if step.get('optional'):
+            try:
+                _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
+                          images, regions)
+            except Exception as e:  # noqa: BLE001
+                warnings.append('步驟 %s（選用）略過：%s' % (idx, str(e).splitlines()[0][:160]))
+                if grp:
+                    skipped.add(grp)
+                regions.clear()
+            continue
+        _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images,
+                  regions)
+    return images
+
+
+def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images, regions):
+    if True:
         if kind == 'goto':
             if 'url' in arg:
                 page.goto(base + arg['url'])
@@ -337,7 +371,7 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None)
             if not box:
                 if not any(str(idx) in w for w in warnings):
                     warnings.append('步驟 %s：要標註的元素沒有大小 %r' % (idx, arg))
-                continue
+                return
             regions.append({'n': arg.get('n', len(regions) + 1),
                             'x': round(box['x']), 'y': round(box['y']),
                             'w': round(box['width']), 'h': round(box['height'])})
@@ -358,12 +392,12 @@ def run_steps(page, base, shot, out_dir, recorder, observed=None, warnings=None)
             # 空白引導頁（沒有資料的清單／看板／報表）：照拍，但標記出來由控制台決定不採用
             empty = bool(page.locator('.o_view_nocontent:visible').count())
             images.append({'name': name, 'file': os.path.relpath(path, OUT_DIR),
-                           'regions': regions, 'records': pairs, 'refs': refs,
+                           'regions': list(regions), 'records': pairs, 'refs': refs,
                            'empty': empty})
-            regions = []
+            regions.clear()
         else:
             raise ValueError('未知步驟：%s' % kind)
-    return images
+    return None
 
 
 def main():
@@ -411,11 +445,13 @@ def main():
             recorder = Recorder()
             page.on('response', recorder.on_response)
             try:
+                images, observed = [], []
                 login(page, base, shot['login'], shot['password'])
                 recorder.reset()
                 observed = []
                 warnings = []
-                images = run_steps(page, base, shot, out_dir, recorder, observed, warnings)
+                images = []
+                run_steps(page, base, shot, out_dir, recorder, observed, warnings, images)
                 result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed,
                                         'warnings': warnings}
                 _log(sid, 'ok', len(images))
@@ -431,6 +467,9 @@ def main():
                     dom = ''
                 result['shots'][sid] = {
                     'ok': False, 'error': str(e)[:2000],
+                    # 中途失敗前已經拍好的圖（情境教學：做到哪一步就教到哪一步）
+                    'images': [i for i in images if not i.get('is_probe')],
+                    'transitions': observed,
                     'trace': traceback.format_exc()[-3000:], 'url': page.url,
                     'dom_text': dom,
                     'error_image': os.path.relpath(err_png, OUT_DIR) if err_png else None}

@@ -198,7 +198,7 @@ class KnowledgeChannelSection(models.Model):
             rows = []
             for s in steps:
                 nxt, back, roles = [], [], []
-                for t in flow.transition_ids.sorted('id'):
+                for t in flow.effective_transitions().sorted('id'):
                     label = t.display_label()
                     if (t.from_value or '') not in (s.value, '') or not label \
                             or deny.search(t.button_name or ''):
@@ -235,7 +235,8 @@ class KnowledgeChannelSection(models.Model):
         items = (package._manual_guide_data('manual_messages_json') or []) if package else []
         by_flow = {}
         for it in items:
-            if it.get('flow') in flows.ids and it.get('message'):
+            # 使用者照正常步驟不會遇到的（AI 判斷）不列：對照表只放讀者真的會看到的訊息
+            if it.get('flow') in flows.ids and it.get('message') and it.get('realistic', True):
                 by_flow.setdefault(it['flow'], []).append(it)
         out = []
         for flow in flows.sorted(lambda f: (-(f.usage_score or 0), f.id)):
@@ -374,8 +375,9 @@ class KnowledgeHooks(models.AbstractModel):
                 buttons.append({'name': t.button_name, 'label': t.display_label(),
                                 'from': t.from_value or ''})
             if buttons:
+                bar = f.step_ids.sorted('sequence').filtered('on_statusbar')
                 spec.append({'flow': f.id, 'model': f.model, 'field': f.state_field,
-                             'buttons': buttons})
+                             'first': bar[:1].value or '', 'buttons': buttons})
         return spec
 
     @api.model
@@ -436,6 +438,15 @@ class KnowledgeHooks(models.AbstractModel):
                 msgs = sandbox._shell(guide_lib.message_probe_script(spec))
             except remote.RemoteError as e:
                 _logger.warning('[knowledge.manual] 系統訊息探測失敗：%s', e)
+        if isinstance(msgs, dict):
+            # 實測到的狀態轉換寫回流程（截圖證據）：狀態速查與情境教學都改用實測的終點
+            Flow = self.env['corpaas.knowledge.flow'].sudo()
+            by_model = {}
+            for o in msgs.get('observed') or []:
+                by_model.setdefault(o['model'], []).append(o)
+            for model, obs in by_model.items():
+                Flow._knowledge_record_observations(model, obs)
+            msgs = msgs.get('messages') or []
         if msgs is not None:
             old = {(m.get('flow'), m.get('message')): m
                    for m in package._manual_guide_data('manual_messages_json') or []}
@@ -637,7 +648,8 @@ class KnowledgeHooks(models.AbstractModel):
                         step.meaning = text
                         n += 1
         msgs = package._manual_guide_data('manual_messages_json') or []
-        need = [i for i, m in enumerate(msgs) if not m.get('cause')][:MESSAGE_BATCH]
+        need = [i for i, m in enumerate(msgs)
+                if not m.get('cause') or 'realistic' not in m][:MESSAGE_BATCH]
         if need:
             Flow = self.env['corpaas.knowledge.flow'].sudo()
             payload = [{'id': i, 'flow': Flow.browse(msgs[i]['flow']).exists().name or '',
@@ -645,9 +657,11 @@ class KnowledgeHooks(models.AbstractModel):
                        for i in need]
             prompt = (
                 "以下是使用者在系統操作時會看到的訊息（系統原文）與出現時機。請為每則寫："
-                "cause＝為什麼會出現（一句話）；fix＝怎麼處理（一兩句，說清楚要去哪個畫面補什麼或按什麼）。"
+                "cause＝為什麼會出現（一句話）；fix＝怎麼處理（一兩句，說清楚要去哪個畫面補什麼或按什麼）；"
+                "realistic＝一般使用者照正常步驟操作時會不會遇到（true／false：只有刻意刪光資料、"
+                "或系統內部狀況才會出現的填 false）。"
                 "繁體中文（台灣用語），不要改寫或翻譯訊息原文，不要寫技術欄位名，不確定就寫最常見的原因。\n"
-                "格式：{\"items\":[{\"id\":…,\"cause\":…,\"fix\":…}]}\n\n訊息：%s"
+                "格式：{\"items\":[{\"id\":…,\"cause\":…,\"fix\":…,\"realistic\":true}]}\n\n訊息：%s"
             ) % json.dumps(payload, ensure_ascii=False)
             try:
                 data = Ai.ask('manual_message_help', prompt, package=package, refresh_token=token)
@@ -660,7 +674,8 @@ class KnowledgeHooks(models.AbstractModel):
                 cause = guide_lib.clean_short(item.get('cause'))
                 fix = guide_lib.clean_short(item.get('fix'), 160)
                 if cause and fix:
-                    msgs[item['id']].update(cause=cause, fix=fix)
+                    msgs[item['id']].update(cause=cause, fix=fix,
+                                            realistic=item.get('realistic') is not False)
                     n += 1
             package.manual_messages_json = json.dumps(msgs, ensure_ascii=False)
         return n

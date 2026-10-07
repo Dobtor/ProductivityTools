@@ -285,25 +285,30 @@ class TestTutorial(ManualCase):
         jobs_seen = []
 
         def run(env, sandbox, jobs, settings):
-            jobs_seen.extend(jobs)
             from .common import png
-            shots = {j['id']: {'ok': True, 'images': [
-                {'name': 'before', 'file': '%s/before.png' % j['id'], 'regions': []},
-                {'name': 'after', 'file': '%s/after.png' % j['id']}]} for j in jobs}
-            files = {}
+            jobs_seen.extend(jobs)
+            out, files = {}, {}
             for j in jobs:
-                files['%s/before.png' % j['id']] = png()
-                files['%s/after.png' % j['id']] = png()
-            return {'shots': shots}, files
+                names = [st['shot'] for st in j['steps'] if 'shot' in st]
+                out[j['id']] = {'ok': True, 'images': [
+                    {'name': n, 'file': '%s/%s.png' % (j['id'], n), 'regions': []} for n in names],
+                    'transitions': [{'button': 'action_done', 'from': 'sent', 'to': 'done'}]}
+                for n in names:
+                    files['%s/%s.png' % (j['id'], n)] = png()
+            return {'shots': out}, files
         with patch.object(type(self.hooks), '_manual_seed', lambda s, sc: seed), \
                 patch.object(shooter, 'run_shots', run), \
+                patch.object(type(self.hooks), '_manual_wizard_confirms', lambda s, sb_, m: {}), \
                 patch.object(type(self.env['res.config.settings']), 'knowledge_shot_settings',
                              lambda s: {}, create=True):
             n = self.hooks._manual_shoot_tutorials(self.pkg, sb)
             again = self.hooks._manual_shoot_tutorials(self.pkg, sb)
         self.assertEqual((n, again), (1, 0), '輸入沒變不重拍')
-        self.assertEqual(len(jobs_seen), 2, '一步一個拍攝工作')
-        self.assertEqual(jobs_seen[0]['steps'][4], {'click': {'button': 'action_submit'}})
+        self.assertEqual(len(jobs_seen), 1, '整條教學一個拍攝工作（同一個瀏覽器一路點下去）')
+        clicks = [st['click']['button'] for st in jobs_seen[0]['steps'] if 'click' in st]
+        self.assertEqual(clicks, ['action_submit', 'action_done'])
+        self.assertTrue(all(st.get('optional') for st in jobs_seen[0]['steps'] if 'click' in st),
+                        '每一步都是選用：按鈕沒出現就略過那一組')
         self.assertTrue(sb.dirty, '按過按鈕：說明庫要重建')
         tut = self.Tutorial.search([('flow_id', '=', self.flow.id)])
         self.assertEqual((tut.state, len(tut.steps()), tut.record_label), ('ok', 2, '宏達報名'))
@@ -316,13 +321,34 @@ class TestTutorial(ManualCase):
         self.assertTrue(slide.is_published)
         self.assertEqual(slide.name, '線上報名：情境教學')
         html = slide.html_content
-        self.assertIn('第 2 步：已送出 → 完成', html)
+        self.assertIn('第 2 步：報名單 已送出 → 完成', html)
         self.assertIn('狀態列變成「完成」', html)
         self.assertIn('乙 完成報名', html, '連到那一步的參考篇')
-        self.assertIn('/web/image/%s' % tut.steps()[0]['after'], html)
         art_seqs = self.env['corpaas.knowledge.placement'].search(
             [('channel_id', '=', self._channel().id)]).mapped('slide_id.sequence')
         self.assertLess(slide.sequence, min(art_seqs), '教學排在參考篇之前')
+
+    def test_plan_follows_handoff_to_downstream(self):
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        pick = Flow.create({'model': 'stock.picking', 'model_name': '調撥', 'state_field': 'state',
+                            'field_type': 'selection', 'package_ids': [(4, self.pkg.id)]})
+        for i, v in enumerate(['draft', 'assigned', 'done']):
+            self.env['corpaas.knowledge.flow.step'].sudo().create(
+                {'flow_id': pick.id, 'sequence': i, 'value': v, 'label': v, 'on_statusbar': True})
+        T = self.env['corpaas.knowledge.flow.transition'].sudo()
+        T.create({'flow_id': pick.id, 'from_value': 'assigned', 'to_value': 'done',
+                  'button_name': 'button_validate', 'button_label': '驗證'})
+        self.flow.model = 'sale.order'
+        T.create({'flow_id': self.flow.id, 'from_value': 'done', 'button_name': 'action_view_delivery',
+                  'button_label': '交貨', 'opens_flow_id': pick.id})
+        plan = self.hooks._manual_tutorial_plan(self.flow, self.pkg)
+        kinds = [(p['kind'], p['button']) for p in plan]
+        self.assertIn(('open', 'action_view_delivery'), kinds, '沿交接打開下游單據')
+        self.assertEqual(plan[-1]['button'], 'button_validate')
+        self.assertEqual(plan[-1]['req'], [kinds.index(('open', 'action_view_delivery'))],
+                         '下游的步驟要先打開下游單據成功')
+        steps = self.hooks._manual_tutorial_steps(plan, 'sale.order', 7, {})
+        self.assertEqual(steps[0], {'open': {'model': 'sale.order', 'res_id': 7}})
 
 
 @tagged('post_install', '-at_install')
@@ -498,3 +524,42 @@ class TestRound3(ManualCase):
         from ..models.concept import full_width
         self.assertEqual(full_width('<p>報價單,寄給客戶;等回覆</p>'), '<p>報價單，寄給客戶；等回覆</p>')
         self.assertEqual(full_width('<p>v1,2 and a,b</p>'), '<p>v1,2 and a,b</p>')
+
+
+@tagged('post_install', '-at_install')
+class TestObserved(ManualCase):
+
+    def test_probe_observations_fill_unknown_ends_and_filter_unrealistic(self):
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        flow = Flow.create({'model': 'res.partner', 'model_name': '調撥', 'state_field': 'kbo_state',
+                            'field_type': 'selection', 'package_ids': [(4, self.pkg.id)],
+                            'capability_id': self.cap_a.id})
+        for i, v in enumerate(['draft', 'assigned', 'done']):
+            self.env['corpaas.knowledge.flow.step'].sudo().create(
+                {'flow_id': flow.id, 'sequence': i, 'value': v, 'label': v, 'on_statusbar': True})
+        T = self.env['corpaas.knowledge.flow.transition'].sudo()
+        blank = T.create({'flow_id': flow.id, 'from_value': 'assigned', 'button_name': 'button_validate',
+                          'button_label': '核實', 'ev_static': True})
+        sb = FakeSandbox(self.scenario)
+        sb.base_sig, sb.seed_applied = 'b', 's'
+
+        def shell(s, script):
+            if 'GROUPS' in script:
+                return {'items': {}, 'groups': {}}
+            self.assertIn('"first": "draft"', script, '帶流程第一個狀態：清空明細只在草稿試')
+            return {'messages': [{'flow': flow.id, 'button': 'button_validate', 'label': '核實',
+                                  'from': 'assigned', 'variant': 'as_is', 'message': '刪不掉稅金'}],
+                    'observed': [{'flow': flow.id, 'model': 'res.partner', 'button': 'button_validate',
+                                  'from': 'assigned', 'to': 'done'}]}
+        with patch.object(type(sb), '_shell', shell, create=True):
+            self.hooks._manual_guide_probe(self.pkg, sb)
+        got = flow.transition_ids.filtered(lambda t: t.to_value == 'done')
+        self.assertEqual((got.button_label, got.ev_shot), ('核實', True), '實測終點另建一筆、沿用名稱')
+        self.assertTrue(blank.exists(), '靜態那筆不動（結構雜湊只看靜態）')
+        self.assertNotIn(blank, flow.effective_transitions(), '說明用的轉換改用實測那筆')
+        with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', side_effect=lambda p, q, **k:
+                          {'items': [{'id': 0, 'cause': '已過帳的稅金明細不能刪', 'fix': '改開貸記單沖銷',
+                                      'realistic': False}]} if p == 'manual_message_help' else {}):
+            self.hooks._manual_guide_ai(self.pkg, 'tok', {'ai': False})
+        data = self.env['corpaas.knowledge.channel_section']._manual_messages_data(flow, self.pkg)
+        self.assertFalse(data, '一般操作遇不到的訊息不列')

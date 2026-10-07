@@ -78,6 +78,14 @@ class KnowledgeFlow(models.Model):
                             ('feature_id', 'in', self.mapped('feature_ids').ids)])
         return props.action_approve()
 
+    def effective_transitions(self):
+        """給說明用的轉換：同一顆按鈕在同一個起點已經實測到終點時，略過推不出終點的靜態那筆。"""
+        self.ensure_one()
+        known = {(t.from_value or '', t.button_name) for t in self.transition_ids
+                 if t.to_value and t.ev_shot}
+        return self.transition_ids.filtered(
+            lambda t: t.to_value or ((t.from_value or '', t.button_name) not in known))
+
     def step_label(self, value):
         self.ensure_one()
         step = self.step_ids.filtered(lambda s: s.value == value)[:1]
@@ -99,11 +107,16 @@ class KnowledgeFlow(models.Model):
                 hit = flow.transition_ids.filtered(
                     lambda t: (t.to_value or '') == to and (t.from_value or '') in (fr, '')
                     and (t.button_name or '') in (btn, ''))
+                # ★ 另建一筆實測轉換（不改靜態那筆：結構雜湊只看靜態轉換，改了會重新請 AI 命名）；
+                #   名稱與功能點沿用同一顆按鈕的
+                same = flow.transition_ids.filtered(lambda t: t.button_name == btn)[:1]
                 if hit:
                     hit.write({'ev_shot': True})
                 else:
                     Trans.create({'flow_id': flow.id, 'from_value': fr, 'to_value': to,
-                                  'button_name': btn, 'ev_shot': True})
+                                  'button_name': btn, 'ev_shot': True,
+                                  'button_label': same.button_label or False,
+                                  'button_feature_id': same.button_feature_id.id or False})
         return True
 
     def as_outline(self):
