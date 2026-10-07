@@ -325,8 +325,9 @@ _SAVED = {}
 
 def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings, images, regions):
     if kind == 'login':
-        # 換角色：登出再登入（同一張單據由不同角色往下推）
-        page.goto(base + '/web/session/logout')
+        # 換角色：清掉這個瀏覽器的 session 再登入（同一張單據由不同角色往下推）
+        # ☠️ 實機：GET /web/session/logout 之後仍是登入狀態，/web/login 直接轉回後台，找不到帳號欄
+        page.context.clear_cookies()
         login(page, base, arg['user'], arg['password'])
         return None
     if kind == 'remember':
