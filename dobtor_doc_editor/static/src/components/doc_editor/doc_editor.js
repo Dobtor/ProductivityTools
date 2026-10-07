@@ -1244,6 +1244,20 @@ export class DocEditor extends Component {
         return this.state.editTarget === "template";
     }
 
+    // 遙測用的識別。兩個遙測 model 的 doc_id 都是 doc.document 的外鍵，
+    // 所以編範本／編輸出時不能把 targetId 當 doc_id 送——那會違反外鍵。
+    // 編輯對象改放 extra（reportMetric/reportError 只認 docId/pageCount/extra，
+    // 之前直接傳 editTarget 其實是被丟掉的）。
+    get telemetryParams() {
+        return {
+            docId: this.state.editTarget === "doc" ? this.state.docId : null,
+            extra: {
+                editTarget: this.state.editTarget,
+                targetId: this.targetId || null,
+            },
+        };
+    }
+
     /** 輸出紀錄模式：唯讀瀏覽已產生的成品。 */
     get isOutputTarget() {
         return this.state.editTarget === "output";
@@ -1313,7 +1327,7 @@ export class DocEditor extends Component {
             this.state.editorReady = true;
             this.state.statusMsg = "已載入";
             this.state.statusType = "saved";
-            stopLoadTimer({ docId: this.targetId, editTarget: this.state.editTarget });
+            stopLoadTimer(this.telemetryParams);
         } catch (error) {
             // 標記載入失敗：擋住 autosave，避免把空白編輯器內容寫回既有記錄
             this._loadFailed = true;
@@ -1326,7 +1340,7 @@ export class DocEditor extends Component {
                 type: "other",
                 message: `Load failed: ${error.message || error}`,
                 stackTrace: error?.stack || "",
-                docId: this.targetId,
+                ...this.telemetryParams,
             });
         }
     }
@@ -1428,7 +1442,7 @@ export class DocEditor extends Component {
                 this.state.statusMsg = "已儲存";
                 this.state.statusType = "saved";
             }
-            stopSaveTimer({ docId: this.targetId, editTarget: this.state.editTarget });
+            stopSaveTimer(this.telemetryParams);
         } catch (error) {
             this.state.statusMsg = `儲存失敗：${error.message || error}`;
             this.state.statusType = "error";

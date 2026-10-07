@@ -1872,6 +1872,22 @@ body {{
 
     # ─── 監控與遙測（P2-4）─────────────────────────────────────────
 
+    def _telemetry_doc_id(self, doc_id):
+        """把前端傳來的 doc_id 收斂成真的 doc.document id。
+
+        兩個遙測 model 的 doc_id 都是指向 doc.document 的外鍵，但編輯器可以
+        編範本（doc.template）與輸出（doc.output）——前端若把那邊的 id 當
+        doc_id 送上來，INSERT 會違反外鍵。這裡先確認記錄存在，不存在就存
+        False（遙測筆數比綁對文件重要）。
+        """
+        try:
+            rid = int(doc_id)
+        except (TypeError, ValueError):
+            return False
+        if rid <= 0:
+            return False
+        return rid if request.env['doc.document'].sudo().browse(rid).exists() else False
+
     @http.route('/dobtor_doc/telemetry/error', type='json', auth='user', methods=['POST'])
     def telemetry_error(self, error_type='other', message='', stack_trace='',
                         user_agent='', url='', doc_id=None, extra=None, **kw):
@@ -1894,17 +1910,22 @@ body {{
         stack_trace = (stack_trace or '')[:8000]
 
         try:
-            request.env['doc.editor.error.log'].sudo().create({
-                'doc_id': int(doc_id) if doc_id else False,
-                'user_id': request.env.user.id,
-                'company_id': request.env.company.id,
-                'error_type': error_type,
-                'message': message,
-                'stack_trace': stack_trace,
-                'user_agent': user_agent,
-                'url': url,
-                'extra': extra or {},
-            })
+            # savepoint 不是保險起見而已：try/except 只接得住 Python 例外，
+            # PostgreSQL 這邊的交易已經是 aborted，接下來 Odoo 自己的
+            # env.cr.commit() 會丟 InFailedSqlTransaction——遙測失敗就變成
+            # 整筆請求失敗。瀏覽器 tour 的 log 就是這樣抓到的。
+            with request.env.cr.savepoint():
+                request.env['doc.editor.error.log'].sudo().create({
+                    'doc_id': self._telemetry_doc_id(doc_id),
+                    'user_id': request.env.user.id,
+                    'company_id': request.env.company.id,
+                    'error_type': error_type,
+                    'message': message,
+                    'stack_trace': stack_trace,
+                    'user_agent': user_agent,
+                    'url': url,
+                    'extra': extra or {},
+                })
             return {'success': True}
         except Exception as e:
             _logger.warning("Failed to log telemetry error: %s", e)
@@ -1929,14 +1950,15 @@ body {{
             return {'success': False, 'error': 'value must be numeric'}
 
         try:
-            request.env['doc.editor.perf.metric'].sudo().create({
-                'doc_id': int(doc_id) if doc_id else False,
-                'user_id': request.env.user.id,
-                'metric_type': metric_type,
-                'value': value_f,
-                'page_count': int(page_count) if page_count else 0,
-                'extra': extra or {},
-            })
+            with request.env.cr.savepoint():
+                request.env['doc.editor.perf.metric'].sudo().create({
+                    'doc_id': self._telemetry_doc_id(doc_id),
+                    'user_id': request.env.user.id,
+                    'metric_type': metric_type,
+                    'value': value_f,
+                    'page_count': int(page_count) if page_count else 0,
+                    'extra': extra or {},
+                })
             return {'success': True}
         except Exception as e:
             _logger.warning("Failed to log telemetry metric: %s", e)
