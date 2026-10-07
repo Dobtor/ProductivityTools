@@ -423,7 +423,7 @@ class TestValidationProbePerRow(TestQwebConverterBase):
         pairs = list(self.Conv._iter_validation_targets(
             res['tree'], self.parent))
         by_source = {}
-        for element, line in pairs:
+        for element, line, _loop in pairs:
             meta = (element.get('extension') or {}).get('dobtorField')
             if meta:
                 by_source[meta.get('source')] = line
@@ -639,3 +639,165 @@ class TestFilteredLambdaRewrite(TestQwebConverterBase):
                 if m.get('source') == 'repeat'][0]
         self.assertTrue(meta.get('unbound'),
                         '改寫不了就要標成待確認：%s' % meta)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestSubTemplateInlining(TestQwebConverterBase):
+    """t-call 的子範本要併進樹裡。
+
+    原本整段丟掉並留一句「需要人工處理」。出貨單的明細列（序號版與彙總版）
+    都在子範本裡，所以那張表只會剩表頭。
+    """
+
+    def _sub(self, body):
+        key = 'dobtor_doc_editor.conv_sub_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        return key
+
+    def test_sub_template_rows_join_the_caller_table(self):
+        sub = self._sub('<tr><td><span t-out="kid.name"/></td></tr>')
+        res = self._convert(
+            '<table><tbody><t t-foreach="o.child_ids" t-as="kid">'
+            '<t t-call="%s"/></t></tbody></table>' % sub
+        )
+        tables = list(self._tables(res['tree']['main']))
+        self.assertEqual(len(tables), 1, '子範本的列要併進同一張表格')
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        self.assertEqual(repeats[0].get('path'), 'child_ids')
+        lines = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'line']
+        self.assertEqual([m.get('path') for m in lines], ['name'])
+
+    def test_sub_template_cells_join_the_caller_row(self):
+        """子範本的內容是 <td>（出貨單的序號明細就是這個形狀）。"""
+        sub = self._sub('<td><span t-out="kid.name"/></td>'
+                        '<td><span t-out="kid.phone"/></td>')
+        res = self._convert(
+            '<table><tbody><tr t-foreach="o.child_ids" t-as="kid">'
+            '<t t-call="%s"/></tr></tbody></table>' % sub
+        )
+        table = list(self._tables(res['tree']['main']))[0]
+        self.assertEqual(len(table['trList'][0]['tdList']), 2,
+                         '兩個格子都要在同一列裡')
+
+    def test_condition_on_the_call_node_is_kept(self):
+        """t-call 節點自己的 t-if 不可以被吃掉。
+
+        併入後那個節點就是「一個帶 t-if 的行內節點」，而它裡面只有一個取值
+        ——走的是三元式那條路（等價、不多一個區塊容器），所以這裡驗的是
+        條件有沒有進到表達式裡。
+        """
+        sub = self._sub('<p><span t-out="o.name"/></p>')
+        # 呼叫端要自己有內容（這裡放一張表格）：_resolve_document_view 看到
+        # 「只有外殼、沒有自己的 t-field／表格」時會往下追 t-call，把子範本
+        # 當成真正的本文——那樣就驗不到呼叫端的條件了。
+        res = self._convert(
+            '<table><tr><td>x</td></tr></table>'
+            '<div><t t-if="o.active" t-call="%s"/></div>' % sub
+        )
+        exprs = [(m.get('expression') or '')
+                 for m in self._metas(res['tree']['main'])]
+        self.assertTrue(
+            any('if (object.active)' in e for e in exprs),
+            '條件不見了：%s' % list(self._metas(res['tree']['main'])),
+        )
+
+    def test_missing_sub_template_is_reported(self):
+        res = self._convert('<div><t t-call="nowhere.not_a_template"/></div>')
+        self.assertTrue(any('找不到子範本' in n for n in res['notes']),
+                        '%s' % res['notes'])
+
+    def test_same_sub_template_twice_gets_separate_sources(self):
+        """同一個子範本被呼叫兩次、參數不同。
+
+        不給每個呼叫點自己的變數名的話，同一個名字被賦值多次會被當成
+        QWeb 累加器而不內聯——那一整段的取值全部變成待確認。
+        """
+        sub = self._sub(
+            '<tr t-foreach="rows" t-as="row">'
+            '<td><span t-out="rows[row][\'x\']"/></td></tr>')
+        res = self._convert(
+            '<table><tbody>'
+            '<t t-set="rows" t-value="o.child_ids"/>'
+            '<t t-call="%(sub)s"/>'
+            '<t t-set="rows" t-value="o.bank_ids"/>'
+            '<t t-call="%(sub)s"/>'
+            '</tbody></table>' % {'sub': sub}
+        )
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        sources = {(m.get('path') or m.get('sourceExpression') or '')
+                   for m in repeats}
+        self.assertEqual(len(sources), 2,
+                         '兩個呼叫點要有各自的來源：%s' % sources)
+        self.assertEqual({m.get('repeatId') for m in repeats}.__len__(), 2,
+                         'repeatId 不可以撞——撞了會被當成同一組的列型，'
+                         '而來源只取第一個')
+
+    def test_source_subscript_collapses_to_line(self):
+        """QWeb 對 dict 跑 t-foreach 是走鍵，取值寫 SOURCE[key][...]。"""
+        sub = self._sub(
+            '<tr t-foreach="rows" t-as="row">'
+            '<td><span t-out="rows[row][\'name\']"/></td></tr>')
+        res = self._convert(
+            '<table><tbody><t t-set="rows" t-value="o.child_ids"/>'
+            '<t t-call="%s"/></tbody></table>' % sub
+        )
+        lines = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'line']
+        self.assertEqual(lines[0].get('expression'), "line['name']")
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestRowWrapperConditions(TestQwebConverterBase):
+    """列被 <t t-if=…> 包起來時的條件。
+
+    _emit_table 直接走 .//tr 找列，中間那層 <t t-if> 的條件原本就消失了。
+    實測後果：出貨單上「沒有包裝的品項」那一段的章節列，在有包裝的單據上
+    也會印出來。
+    """
+
+    def test_wrapper_condition_becomes_row_condition(self):
+        res = self._convert(
+            '<table><tbody><t t-if="o.active">'
+            '<tr><td><span t-out="o.name"/></td></tr>'
+            '</t></tbody></table>'
+        )
+        conds = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'condition']
+        self.assertEqual([m.get('expression') for m in conds],
+                         ['object.active'])
+
+    def test_wrapper_else_becomes_a_negation(self):
+        res = self._convert(
+            '<table><tbody>'
+            '<t t-if="o.active"><tr><td>A</td></tr></t>'
+            '<t t-else=""><tr><td>B</td></tr></t>'
+            '</tbody></table>'
+        )
+        conds = [(m.get('expression') or '') for m in
+                 self._metas(res['tree']['main'])
+                 if m.get('source') == 'condition']
+        self.assertIn('object.active', conds)
+        self.assertIn('not (object.active)', conds,
+                      't-else 的條件是「前面分支都不成立」：%s' % conds)
+
+    def test_loop_index_is_mapped_to_loop_context(self):
+        """原生的章節小計條件：line_last or lines[line_index+1].display_type…"""
+        res = self._convert(
+            '<table><tbody><t t-foreach="o.child_ids" t-as="kid">'
+            '<t t-if="kid_last or o.child_ids[kid_index+1].phone">'
+            '<tr><td><span t-out="kid.name"/></td></tr></t>'
+            '</t></tbody></table>'
+        )
+        conds = [(m.get('expression') or '') for m in
+                 self._metas(res['tree']['main'])
+                 if m.get('source') == 'condition']
+        self.assertTrue(conds)
+        self.assertIn('loop_last', conds[0])
+        self.assertIn('loop_index', conds[0])
+        self.assertNotIn('kid_', conds[0], '迴圈位置變數要換成沙箱認識的名字')

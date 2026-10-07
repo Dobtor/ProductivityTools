@@ -2765,3 +2765,146 @@ class TestRecordsetReprGuard(TransactionCase):
                   for cell in row['tdList'] for el in cell['value']
                   if (el.get('value') or '') != '\n']
         self.assertEqual(values, [self.parent.display_name])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestRepeatRowNestedBlocks(TransactionCase):
+    """重複列裡的巢狀表格（轉換器把「列內的條件」做成條件區塊）。
+
+    不往巢狀表格裡走的話，區塊內的 line 藥丸不會被求值，最後把標籤文字
+    原樣印進單據——實測在出貨單的包裝說明欄印出「aggregated_lines__c8」
+    這種變數名。而區塊的條件若交給後面那一關，那裡只有 object，
+    帶 line 的條件求值失敗就當成真，條件靜默失效。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.parent = self.env['res.partner'].create({'name': '巢狀母公司'})
+        self.env['res.partner'].create([
+            {'name': '1 有電話', 'parent_id': self.parent.id,
+             'phone': '02-1111'},
+            {'name': '2 沒電話', 'parent_id': self.parent.id},
+        ])
+
+    def _tree(self, block_condition=''):
+        inner_cell = [_pill('名稱', source='line', path='name')]
+        if block_condition:
+            inner_cell.insert(0, _pill('條件', source='condition',
+                                       expression=block_condition))
+        block = {'type': 'table', 'value': '',
+                 'extension': {'dobtorBlock': 'condition'},
+                 'colgroup': [{'width': 200}],
+                 'trList': [{'tdList': [_cell(*inner_cell)]}]}
+        return {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 400}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 block,
+             )]}]},
+            _text('\n'),
+        ]}
+
+    def _html(self, tree):
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        return self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(snapped))
+
+    def test_line_pill_inside_a_nested_block_is_evaluated(self):
+        html = self._html(self._tree())
+        self.assertIn('1 有電話', html)
+        self.assertIn('2 沒電話', html)
+        self.assertNotIn('名稱', html, '標籤文字不可以印進文件')
+
+    def test_condition_inside_a_nested_block_is_per_line(self):
+        html = self._html(self._tree(block_condition='line.phone'))
+        self.assertIn('1 有電話', html)
+        self.assertNotIn('2 沒電話', html, '條件要逐筆判斷')
+        self.assertNotIn('條件', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestLoopContext(TransactionCase):
+    """迴圈位置變數（loop_index / loop_first / loop_last / loop_size）。
+
+    原生報表的「章節小計」靠它：
+        lines[line_index+1].display_type == 'line_section'
+    沒有這組變數的話那個條件求值失敗 → 策略是當真 → 每一列後面都印一次小計。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.parent = self.env['res.partner'].create({'name': '迴圈母公司'})
+        self.env['res.partner'].create([
+            {'name': '1 甲', 'parent_id': self.parent.id},
+            {'name': '2 乙', 'parent_id': self.parent.id},
+            {'name': '3 丙', 'parent_id': self.parent.id},
+        ])
+
+    def _rows(self, condition):
+        tree = {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 400}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 _pill('列條件', source='condition', expression=condition),
+                 _pill('名稱', source='line', path='name'),
+             )]}]},
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        out = []
+        for row in snapped['main'][0]['trList'] if snapped['main'] else []:
+            out.append(''.join(
+                (el.get('value') or '') for cell in row['tdList']
+                for el in cell['value'] if (el.get('value') or '') != '\n'))
+        return out
+
+    def test_loop_last_keeps_only_the_last_row(self):
+        self.assertEqual(self._rows('loop_last'), ['3 丙'])
+
+    def test_loop_first_keeps_only_the_first_row(self):
+        self.assertEqual(self._rows('loop_first'), ['1 甲'])
+
+    def test_loop_index_is_zero_based_like_qweb(self):
+        self.assertEqual(self._rows('loop_index == 1'), ['2 乙'])
+
+    def test_loop_size_is_the_line_count(self):
+        self.assertEqual(len(self._rows('loop_size == 3')), 3)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestDictRepeatSource(TransactionCase):
+    """重複來源是 dict（計算欄位回傳的彙總資料）。
+
+    出貨單的彙總明細是 _get_aggregated_product_quantities() 回傳的 dict，
+    範本寫 aggregated_lines[key]['name'] 取值——也就是真正要重複的是「值」。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': 'dict 來源'})
+
+    def test_dict_source_iterates_values(self):
+        rows = {'k1': {'name': '甲品', 'qty': 2},
+                'k2': {'name': '乙品', 'qty': 5}}
+        original = type(self.Mixin)._traverse_path
+
+        def _fake(mixin_self, record, path):
+            if path == 'fake_agg':
+                return rows
+            return original(mixin_self, record, path)
+
+        self.patch(type(self.Mixin), '_traverse_path', _fake)
+        lines = self.Mixin._resolve_repeat_records(
+            self.partner, {'source': 'repeat', 'path': 'fake_agg'})
+        self.assertEqual([ln['name'] for ln in lines], ['甲品', '乙品'])
+
+    def test_dict_source_via_expression(self):
+        """sourceExpression 那條路也要一樣（_eval_collection）。"""
+        lines = self.Mixin._eval_collection(
+            "{'a': {'name': '丙品'}}", self.partner)
+        self.assertEqual(lines, [{'name': '丙品'}])

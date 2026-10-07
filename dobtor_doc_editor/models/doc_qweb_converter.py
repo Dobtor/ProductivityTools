@@ -98,9 +98,13 @@ class DocQwebConverter(models.AbstractModel):
                       'validated': 0, 'validate_failed': 0,
                       'validate_skipped': 0},
             'loop_vars': [],
+            'loop_sources': [],
             'page_format': page_format,
             'view': view,
         }
+        # 先把子範本併進來再收符號表：子範本自己的 t-set 要被看到，
+        # 而且併入後整棵樹就是 QWeb 實際渲染的那一棵。
+        self._inline_calls(root, state)
         self._collect_symbols(root, state)
         body_node, blocks = self._split_layout(root, state)
 
@@ -150,25 +154,32 @@ class DocQwebConverter(models.AbstractModel):
         """
         Mixin = self.env['doc.render.mixin']
 
-        def walk(elements, line):
+        def walk(elements, line, loop):
             for element in elements:
-                yield element, line
+                yield element, line, loop
                 if element.get('type') != 'table':
                     continue
                 for row in (element.get('trList') or []):
                     if not isinstance(row, dict):
                         continue
-                    row_line = line
+                    row_line, row_loop = line, loop
                     marker, meta = Mixin._row_repeat_meta(row)
                     if marker:
                         lines = Mixin._resolve_repeat_records(record, meta)
                         row_line = lines[0] if lines else None
+                        # 用「最後一筆」的迴圈位置試算：原生的章節小計條件寫
+                        #   line_last or lines[line_index+1].display_type == …
+                        # 假裝在中間的話 lines[index+1] 會超出範圍，變成一個
+                        # 假失敗；假裝在最後一筆則 or 會短路，跟原生一樣。
+                        row_loop = Mixin._loop_context(
+                            max(0, len(lines) - 1), len(lines))
                     for cell in (row.get('tdList') or []):
                         if isinstance(cell, dict):
-                            yield from walk(cell.get('value') or [], row_line)
+                            yield from walk(cell.get('value') or [],
+                                            row_line, row_loop)
 
         for zone in ('header', 'main', 'footer'):
-            yield from walk(tree.get(zone) or [], None)
+            yield from walk(tree.get(zone) or [], None, None)
 
     def validate_tree(self, tree, record, state):
         """拿一筆記錄試算所有藥丸的表達式。回傳 {'ok', 'failed'}。
@@ -178,7 +189,7 @@ class DocQwebConverter(models.AbstractModel):
         """
         Mixin = self.env['doc.render.mixin']
         ok = failed = skipped = 0
-        for element, line in self._iter_validation_targets(tree, record):
+        for element, line, loop in self._iter_validation_targets(tree, record):
             meta = Mixin._element_field_meta(element)
             if not meta:
                 continue
@@ -212,6 +223,11 @@ class DocQwebConverter(models.AbstractModel):
                     skipped += 1
                     continue
                 extra['line'] = line
+            if 'loop_' in expression:
+                if loop is None:
+                    skipped += 1
+                    continue
+                extra.update(loop)
             error = self._try_expression(expression, target, extra)
             if error:
                 failed += 1
@@ -312,6 +328,167 @@ class DocQwebConverter(models.AbstractModel):
         except Exception as e:
             _logger.warning('[qweb-import] arch 解析失敗 %s：%s', view.key, e)
             return None
+
+    def _inline_calls(self, root, state, seen=(), depth=0):
+        """把 t-call 的子範本內容就地併入樹裡。回傳併入的次數。
+
+        QWeb 的語意就是「把子範本在這裡渲染」，所以改樹最貼近原意。
+        不在呼叫點另外輸出的理由：子範本的內容常常是 <tr> 或 <td>
+        （出貨單的序號明細列是 <td>、彙總明細列是 <tr>），那些格子屬於
+        呼叫端那張表格。另外輸出的話 _emit_table 找不到它們——它找列用的是
+        「同一棵樹裡最近的 table 祖先」——明細整批消失。
+
+        呼叫節點原有的屬性（t-if / t-foreach）一定要留著：所以直接拿呼叫
+        節點當容器，只拿掉 t-call，子範本內容接在它原有的 t-set 參數後面
+        （參數要在前面，子範本才看得到）。
+        """
+        if depth > 3:
+            self._note(state, '子範本嵌太深（超過 4 層），最內層沒有展開。')
+            return 0
+        count = 0
+        for node in list(root.xpath('//*[@t-call]')):
+            key = (node.get('t-call') or '').strip()
+            if (not key or key in _WRAPPER_TEMPLATES
+                    or key in _LAYOUT_TEMPLATES
+                    or key in _TAX_TOTALS_TEMPLATES
+                    or key in _TAX_TOTALS_COMPANY_TEMPLATES):
+                continue
+            if key in seen:
+                self._note(
+                    state,
+                    '子範本 t-call="%s" 形成循環呼叫，已停止展開。' % key,
+                )
+                continue
+            view = self._view_by_key(key)
+            sub = self._parse_arch(view) if view is not None else None
+            if sub is None:
+                self._note(
+                    state,
+                    '找不到子範本 t-call="%s"，那一段沒有轉換。' % key,
+                )
+                continue
+            self._inline_calls(sub, state, seen=tuple(seen) + (key,),
+                               depth=depth + 1)
+            # 同一個子範本常在好幾處被呼叫，各處的參數值不同（出貨單的
+            # aggregated_lines 就有三處）。不改名的話同一個名字被賦值多次，
+            # 會被當成 QWeb 累加器而不內聯——那一整段的取值全部變成待確認。
+            # 所以每個呼叫點給自己的變數加一個序號後綴。
+            self._scope_call_vars(node, sub, state)
+            del node.attrib['t-call']
+            if sub.text and sub.text.strip():
+                children = list(node)
+                if children:
+                    children[-1].tail = (children[-1].tail or '') + sub.text
+                else:
+                    node.text = (node.text or '') + sub.text
+            for child in list(sub):
+                node.append(child)
+            count += 1
+            self._note(state, '子範本 t-call="%s" 已展開併入。' % key)
+        return count
+
+    def _tset_names(self, root):
+        return {(el.get('t-set') or '').strip()
+                for el in root.xpath('.//t[@t-set]')
+                if (el.get('t-set') or '').strip()}
+
+    def _tree_references(self, root, name):
+        """子樹的屬性值裡有沒有引用這個變數名。"""
+        pattern = re.compile(r'(?<![\w.])%s\b' % re.escape(name))
+        for el in root.iter():
+            if not isinstance(el.tag, str):
+                continue
+            for attr, value in el.attrib.items():
+                if attr in ('t-set', 't-call', 't-as'):
+                    continue
+                if pattern.search(value or ''):
+                    return True
+        return False
+
+    def _call_param_scopes(self, node, sub, limit=3):
+        """[(變數名, t-set 節點, 它所在層的「到呼叫點為止」的節點清單)]。
+
+        原生範本很常把參數寫成 t-call 的「前一個兄弟」而不是子節點：
+            <t t-set="aggregated_lines" t-value="…"/>
+            <t t-call="stock.stock_report_delivery_aggregated_move_lines"/>
+
+        只改「最靠近的那一個 t-set」與「它到呼叫點之間」的引用，不要整層一起
+        改：同一層可能有好幾組（set + call）成對出現，整層一起改會把後面那組
+        的 t-set 也改掉，於是後面那組反而找不到自己的參數——兩組都壞掉。
+        """
+        found = []
+        taken = set()
+        current = node
+        for _level in range(limit):
+            parent = current.getparent()
+            if parent is None:
+                break
+            siblings = []
+            for sib in parent:
+                if sib is current:
+                    break
+                siblings.append(sib)
+            # 由近而遠找，最靠近的那一個才是這次呼叫的參數
+            for idx in range(len(siblings) - 1, -1, -1):
+                sib = siblings[idx]
+                tag = sib.tag if isinstance(sib.tag, str) else ''
+                if not (tag == 't' and sib.get('t-set')
+                        and sib.get('t-value') is not None):
+                    continue
+                name = (sib.get('t-set') or '').strip()
+                if (not name or name in taken
+                        or not self._tree_references(sub, name)):
+                    continue
+                taken.add(name)
+                found.append((name, sib, siblings[idx + 1:] + [current]))
+            current = parent
+        return found
+
+    def _scope_call_vars(self, node, sub, state):
+        """把這個呼叫點用到的變數改成獨一無二的名字。"""
+        state['call_seq'] = state.get('call_seq', 0) + 1
+        suffix = '__c%d' % state['call_seq']
+
+        # ① 子範本自己的 t-set、以及寫成 t-call 子節點的參數
+        local = self._tset_names(node) | self._tset_names(sub)
+        if local:
+            mapping = {n: n + suffix for n in local}
+            self._rename_vars(node, mapping)
+            self._rename_vars(sub, mapping)
+
+        # ② 寫在 t-call 前面的參數
+        for name, tset, between in self._call_param_scopes(node, sub):
+            if name in local:
+                continue
+            mapping = {name: name + suffix}
+            tset.set('t-set', name + suffix)
+            self._rename_vars(tset, mapping)
+            for sib in between:
+                self._rename_vars(sib, mapping)
+            self._rename_vars(sub, mapping)
+
+    def _rename_vars(self, root, mapping):
+        """在整棵子樹的屬性值（與 t-set 名稱）裡改名。
+
+        t-as 與 t-call 不動：前者是迴圈變數（另一個命名空間，改了會讓
+        「來源[迴圈變數]」的配對失效），後者是範本 key。
+        """
+        for el in root.iter():
+            if not isinstance(el.tag, str):
+                continue
+            for attr, value in list(el.attrib.items()):
+                if attr in ('t-as', 't-call'):
+                    continue
+                if attr == 't-set':
+                    if value.strip() in mapping:
+                        el.set(attr, mapping[value.strip()])
+                    continue
+                new = value
+                for old, repl in mapping.items():
+                    new = re.sub(r'(?<![\w.])%s\b' % re.escape(old),
+                                 repl, new)
+                if new != value:
+                    el.set(attr, new)
 
     def _split_layout(self, root, state):
         """拆出 (本文節點, {區塊名: 節點})。
@@ -669,6 +846,8 @@ class DocQwebConverter(models.AbstractModel):
         if not expr or depth > 3:
             return expr, False
 
+        # 「來源[迴圈變數]」要在展開前收斂（見 _collapse_loop_subscript）
+        expr = self._collapse_loop_subscript(expr, state)
         expr, used_a = self._apply_rules(expr, state)
         expr, used_b = self._inline_symbols(expr, state, depth, seen=seen)
         expr, used_c = self._apply_rules(expr, state)
@@ -1324,11 +1503,14 @@ class DocQwebConverter(models.AbstractModel):
         for child in list(node):
             holder.append(child)
         state['loop_vars'].append(as_var)
+        state.setdefault('loop_sources', []).append((expr or '').strip())
         try:
             inner = []
             self._emit_children(holder, inner, state)
         finally:
             state['loop_vars'].pop()
+            if state.get('loop_sources'):
+                state['loop_sources'].pop()
         if not inner or (inner[-1].get('value') or '') != '\n':
             inner.append(self._newline())
 
@@ -1421,6 +1603,7 @@ class DocQwebConverter(models.AbstractModel):
 
         tr_list = []
         for tr in rows_src:
+            wrapper_conds = self._row_wrapper_conditions(tr, node)
             repeat = foreach_rows.get(tr)
             branches = self._row_branches(tr)
             if branches and repeat:
@@ -1431,7 +1614,7 @@ class DocQwebConverter(models.AbstractModel):
                         holder, state, repeat, th_conds, max_cols,
                         row_filter=self._map_condition(
                             cond, state, expand=True) if cond else '',
-                        with_marker=True,
+                        with_marker=True, wrapper_conds=wrapper_conds,
                     )
                     if row is not None:
                         tr_list.append(row)
@@ -1440,7 +1623,8 @@ class DocQwebConverter(models.AbstractModel):
                     '有條件的列型優先，條件留空的那一列接住其餘。' % len(branches)
                 )
                 continue
-            row = self._table_row(tr, state, repeat, th_conds, max_cols)
+            row = self._table_row(tr, state, repeat, th_conds, max_cols,
+                                  wrapper_conds=wrapper_conds)
             if row is not None:
                 tr_list.append(row)
         if foreach_rows:
@@ -1485,12 +1669,55 @@ class DocQwebConverter(models.AbstractModel):
             out.append((cond, w))
         return out
 
+    def _row_wrapper_conditions(self, tr, table):
+        """列被 <t t-if=…> 包起來時的條件（由外而內）。
+
+        原本整個被忽略：_emit_table 直接走 .//tr 找列，中間那層 <t t-if> 的
+        條件就消失了。實測後果：出貨單上「沒有包裝的品項」那一段的章節列，
+        在有包裝的單據上也會印出來。
+        t-else 的條件是「前面分支都不成立」，所以取反；t-elif 兩者都要。
+        """
+        conds = []
+        parent = tr.getparent()
+        while parent is not None and parent is not table:
+            tag = parent.tag if isinstance(parent.tag, str) else ''
+            if tag == 't':
+                negation = self._chain_negation(parent)
+                if parent.get('t-if') is not None:
+                    conds.append(parent.get('t-if'))
+                elif parent.get('t-elif') is not None:
+                    cond = parent.get('t-elif')
+                    conds.append('(%s) and %s' % (cond, negation)
+                                 if negation else cond)
+                elif parent.get('t-else') is not None and negation:
+                    conds.append(negation)
+            parent = parent.getparent()
+        return [c for c in reversed(conds) if (c or '').strip()]
+
+    def _chain_negation(self, node):
+        """「前面的 t-if / t-elif 分支都不成立」的條件式。"""
+        conds = []
+        sib = node.getprevious()
+        while sib is not None and isinstance(sib.tag, str):
+            if sib.get('t-elif') is not None:
+                conds.append(sib.get('t-elif'))
+            elif sib.get('t-if') is not None:
+                conds.append(sib.get('t-if'))
+                break
+            else:
+                break
+            sib = sib.getprevious()
+        if not conds:
+            return None
+        return ' and '.join('not (%s)' % c for c in reversed(conds))
+
     def _table_row(self, tr, state, repeat, th_conds, max_cols,
-                   row_filter='', with_marker=None):
+                   row_filter='', with_marker=None, wrapper_conds=()):
         pushed = False
         if repeat:
             expr, as_var = repeat
             state['loop_vars'].append(as_var)
+            state.setdefault('loop_sources', []).append((expr or '').strip())
             pushed = True
         try:
             # 分支容器（<t t-if>）本身不是 tr，所以 _row_cells 的 closest_row
@@ -1524,6 +1751,13 @@ class DocQwebConverter(models.AbstractModel):
                             '請在右欄確認（或改用欄條件）。' % cond[:70],
                         )
                 if first:
+                    for wrapper in wrapper_conds:
+                        value.append(self._pill(
+                            '列條件', state, source='condition',
+                            expression=self._map_condition(
+                                wrapper, state, expand=True),
+                        ))
+                        state['stats']['condition'] += 1
                     if row_cond:
                         value.append(self._pill(
                             '列條件', state, source='condition',
@@ -1553,17 +1787,37 @@ class DocQwebConverter(models.AbstractModel):
         finally:
             if pushed:
                 state['loop_vars'].pop()
+                if state.get('loop_sources'):
+                    state['loop_sources'].pop()
+
+    def _repeat_id(self, as_var, expr, state):
+        """同一個 (迴圈變數, 來源) 用同一個 repeatId，不同來源給不同的。
+
+        列型分派（商品／章節／備註各一種版面）靠「同一個 repeatId 的多個列」
+        表達，所以同源的分支必須拿到同一個 id。
+        反過來，子範本被展開到同一張表格好幾次時（出貨單的彙總明細列就被
+        展開三次，各自的來源不同），id 不能撞——撞了會被當成同一組的列型，
+        而來源只取第一個，結果是「第一個來源剛好是 0 筆」就整組不印。
+        """
+        ids = state.setdefault('repeat_ids', {})
+        key = (as_var, (expr or '').strip())
+        if key not in ids:
+            taken = sum(1 for k in ids if k[0] == as_var)
+            ids[key] = ('rp_%s' % as_var) if not taken \
+                else ('rp_%s_%d' % (as_var, taken + 1))
+        return ids[key]
 
     def _repeat_marker(self, repeat, state, row_filter=''):
         expr, as_var = repeat
+        repeat_id = self._repeat_id(as_var, expr, state)
         # t-foreach 的來源常是上面 t-set 出來的變數（lines_to_report），
         # 那個變數在這裡看不到定義 → 標成待辦讓使用者選欄位
-        bare = dict(state, loop_vars=[])
+        bare = dict(state, loop_vars=[], loop_sources=[])
         path, kind = self._strip_root(expr, bare)
         label = ('列型 × %s' % path) if row_filter else ('明細 × %s' % path)
         if path and _SIMPLE_PATH_RE.match(path):
             return self._pill(label, state, source='repeat',
-                              path=path, repeatId='rp_%s' % as_var,
+                              path=path, repeatId=repeat_id,
                               rowFilter=row_filter)
 
         # lines_to_report / lines 這類中間變數：展開後多半就是真正的
@@ -1574,7 +1828,7 @@ class DocQwebConverter(models.AbstractModel):
             return self._pill(
                 ('列型 × %s' if row_filter else '明細 × %s') % path2,
                 state, source='repeat', path=path2,
-                repeatId='rp_%s' % as_var, rowFilter=row_filter,
+                repeatId=repeat_id, rowFilter=row_filter,
                 unbound=used_rule,
             )
         mapped = self._map_condition(expanded, bare)
@@ -1591,7 +1845,7 @@ class DocQwebConverter(models.AbstractModel):
             return self._pill(
                 '列型 × 明細' if row_filter else '明細',
                 state, source='repeat', path='', sourceExpression=mapped,
-                repeatId='rp_%s' % as_var, rowFilter=row_filter,
+                repeatId=repeat_id, rowFilter=row_filter,
                 unbound=True,
             )
         self._note(
@@ -1601,7 +1855,7 @@ class DocQwebConverter(models.AbstractModel):
         )
         return self._pill(
             '列型（待設定）' if row_filter else '明細（待設定）',
-            state, source='repeat', path='', repeatId='rp_%s' % as_var,
+            state, source='repeat', path='', repeatId=repeat_id,
             rowFilter=row_filter, unbound=True,
         )
 
@@ -1618,7 +1872,19 @@ class DocQwebConverter(models.AbstractModel):
         # 只換帶點的形式會漏掉這兩種，表達式就留著沙箱不認識的名字。
         # 前面不接 \w 或點：避免把 partner.name 裡的 name（剛好是迴圈變數名）
         # 換成 partner.line。
+        out = self._collapse_loop_subscript(out, state)
         for var in reversed(state.get('loop_vars') or []):
+            # QWeb 的迴圈位置變數（<var>_index / _first / _last / _size）。
+            # 要排在整個 token 替換之前，不然 line_index 這種名字會被
+            # 「line → line」那條規則留在原地，變成沙箱認不得的名字。
+            for suffix, target in (('_index', 'loop_index'),
+                                   ('_first', 'loop_first'),
+                                   ('_last', 'loop_last'),
+                                   ('_size', 'loop_size'),
+                                   ('_value', 'line')):
+                out = re.sub(
+                    r'(?<![\w.])%s%s\b' % (re.escape(var), suffix),
+                    target, out)
             out = re.sub(r'(?<![\w.])%s\b' % re.escape(var), 'line', out)
         for var in _ROOT_VARS:
             if var == 'object':
@@ -1667,6 +1933,25 @@ class DocQwebConverter(models.AbstractModel):
             holder.append(child)
         self._emit_children(holder, inner, state)
         return inner
+
+    def _collapse_loop_subscript(self, expr, state):
+        """把「來源[迴圈變數]」收斂成 line。
+
+        QWeb 對 dict 跑 t-foreach 是走鍵，所以範本內一律寫
+        aggregated_lines[line]['name'] 取值——那整段其實就是「當前這一筆」。
+        必須在 t-set 展開**之前**做：展開後文字會變成
+        (report_helper(…))[line]['name']，正則就配不到來源名字了。
+        """
+        out = expr or ''
+        pairs = list(zip(state.get('loop_vars') or [],
+                         state.get('loop_sources') or []))
+        for var, src in reversed(pairs):
+            if not src or not _SIMPLE_PATH_RE.match(src):
+                continue
+            out = re.sub(
+                r'(?<![\w.])%s\s*\[\s*%s\s*\]'
+                % (re.escape(src), re.escape(var)), 'line', out)
+        return out
 
     def _condition_block(self, node, cond, state):
         inner = self._conditional_body(node, state)

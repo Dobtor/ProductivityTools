@@ -251,6 +251,8 @@ class DocRenderMixin(models.AbstractModel):
         ('account.move', '_is_eligible_for_early_payment_discount'),
         # 出貨單上的品項說明（去掉重複的品名前綴）。只有字串處理
         ('stock.move', '_get_report_description_picking'),
+        # 出貨單的彙總明細（同品項跨列合併）。只組一個 dict 回傳
+        ('stock.move.line', '_get_aggregated_product_quantities'),
     })
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')
@@ -1281,7 +1283,11 @@ class DocRenderMixin(models.AbstractModel):
             return list(value)
         if isinstance(value, (list, tuple)):
             return list(value)
-        # dict 本身不是清單（使用者大概漏了取某個鍵），回空比印出一堆鍵名好
+        if isinstance(value, dict):
+            # 取值而不是取鍵：QWeb 對 dict 跑 t-foreach 是走鍵，但範本內
+            # 一律寫 aggregated_lines[key][...] 取值（出貨單的彙總明細就是
+            # 這個形狀），所以真正要重複的是「值」。
+            return list(value.values())
         return []
 
     def _eval_raw(self, expression, record, extra=None):
@@ -1364,6 +1370,8 @@ class DocRenderMixin(models.AbstractModel):
             target = self._traverse_path(record, path)
             if hasattr(target, '_name') and hasattr(target, 'ids'):
                 lines = list(target)
+            elif isinstance(target, dict):
+                lines = list(target.values())
             elif isinstance(target, (list, tuple)):
                 # 計算欄位回傳 list of dict 的情形：發票的 payment_term_details
                 # （分期明細）就是這樣。原本只收 recordset，結果明細整個不印
@@ -1574,8 +1582,23 @@ class DocRenderMixin(models.AbstractModel):
                 return str(bucket[key])
         return ''
 
+    def _loop_context(self, index, size):
+        """QWeb 的迴圈位置變數。轉換器會把 <迴圈變數>_index 改成 loop_index。
+
+        原生報表的「章節小計」就靠它：
+            lines[line_index+1].display_type == 'line_section'
+        沒有這組變數的話那個條件求值失敗 → 策略是當真 → 每一列後面都印一次
+        小計。index 與 QWeb 一致是 0 起算。
+        """
+        return {
+            'loop_index': index,
+            'loop_first': index == 0,
+            'loop_last': index == max(0, size - 1),
+            'loop_size': size,
+        }
+
     def _fill_line_row(self, row, line, marker_el, stamp, state_bank=None,
-                       variant=0):
+                       variant=0, loop=None):
         """對複製出來的一列求值：source='line' 的藥丸以該明細為 object。
 
         流水藥丸（source='running'）的累加器以「列型索引 + 該藥丸在範本列中的
@@ -1585,32 +1608,63 @@ class DocRenderMixin(models.AbstractModel):
         列型索引也要進鍵裡：商品列的項次不該被備註列的流水藥丸影響，而兩者
         在各自版面裡的位置很可能剛好相同。
         """
-        eval_line = self._eval_for(line, extra={'line': line})
+        extra = dict(loop or {})
+        extra['line'] = line
+        eval_line = self._eval_for(line, extra=extra)
         for td_idx, cell in enumerate(row.get('tdList') or []):
             if not isinstance(cell, dict):
                 continue
             values = cell.get('value')
             if not isinstance(values, list):
                 continue
-            keep = []
-            for pos, el in enumerate(values):
-                meta = self._element_field_meta(el)
-                src = (meta.get('source') or '').strip() if meta else ''
-                if src == self._REPEAT_SOURCE:
-                    # 標記藥丸不進成品——它是設計期的宣告，不是內容
-                    continue
-                if src == self._LINE_SOURCE:
-                    expression = self._field_meta_expression(meta)
-                    el['value'] = eval_line(expression) if expression else ''
-                    meta['frozenAt'] = stamp
-                elif src == self._RUNNING_SOURCE and state_bank is not None:
-                    el['value'] = self._running_value(
-                        meta, line, state_bank, (variant, td_idx, pos),
-                        eval_line,
-                    )
-                    meta['frozenAt'] = stamp
-                keep.append(el)
-            cell['value'] = keep
+            cell['value'] = self._fill_line_values(
+                values, line, stamp, state_bank, eval_line, variant,
+                # 鍵一定要含 variant：商品列的項次不該被備註列的流水藥丸
+                # 影響，而兩者在各自版面裡的位置很可能剛好相同
+                (variant, td_idx),
+            )
+
+    def _fill_line_values(self, elements, line, stamp, state_bank, eval_line,
+                          variant, path):
+        """對一串元素求值（遞迴進巢狀表格）。
+
+        要遞迴的理由：轉換器會把「列內的條件」做成條件區塊，而那是一個巢狀
+        表格。不往裡面走的話，區塊裡的 source='line' 藥丸不會被求值，
+        最後把標籤文字原樣印進單據——實測在出貨單的包裝說明欄印出
+        「aggregated_lines__c8」這種變數名。
+        """
+        keep = []
+        for pos, el in enumerate(elements):
+            if not isinstance(el, dict):
+                continue
+            meta = self._element_field_meta(el)
+            src = (meta.get('source') or '').strip() if meta else ''
+            if src == self._REPEAT_SOURCE:
+                # 標記藥丸不進成品——它是設計期的宣告，不是內容
+                continue
+            if src == self._LINE_SOURCE:
+                expression = self._field_meta_expression(meta)
+                el['value'] = eval_line(expression) if expression else ''
+                meta['frozenAt'] = stamp
+            elif src == self._RUNNING_SOURCE and state_bank is not None:
+                el['value'] = self._running_value(
+                    meta, line, state_bank, path + (pos,), eval_line,
+                )
+                meta['frozenAt'] = stamp
+            elif (el.get('type') or '') == 'table':
+                for r_idx, inner in enumerate(el.get('trList') or []):
+                    if not isinstance(inner, dict):
+                        continue
+                    for c_idx, inner_cell in enumerate(inner.get('tdList') or []):
+                        if not isinstance(inner_cell, dict):
+                            continue
+                        inner_cell['value'] = self._fill_line_values(
+                            inner_cell.get('value') or [], line, stamp,
+                            state_bank, eval_line, variant,
+                            path + (pos, r_idx, c_idx),
+                        )
+            keep.append(el)
+        return keep
 
     def _fill_group_row(self, row, group, record, stamp):
         """對分組標題／小計列求值。
@@ -1764,16 +1818,17 @@ class DocRenderMixin(models.AbstractModel):
                         clone.pop('id', None)
                         self._fill_group_row(clone, group, record, stamp)
                         new_rows.append(clone)
-                    for line in group['lines']:
+                    for idx, line in enumerate(group['lines']):
                         tmpl, _m, v_idx = self._pick_row_variant(group_of, line)
                         clone = _copy.deepcopy(tmpl)
                         clone.pop('id', None)
+                        loop = self._loop_context(idx, len(group['lines']))
                         self._fill_line_row(
                             clone, line, marker_el, stamp, state_bank,
-                            variant=v_idx,
+                            variant=v_idx, loop=loop,
                         )
                         if not self._resolve_line_row_conditions(
-                                clone, record, line):
+                                clone, record, line, loop):
                             continue
                         new_rows.append(clone)
                         total += 1
@@ -1786,7 +1841,7 @@ class DocRenderMixin(models.AbstractModel):
                 table['trList'] = new_rows
         return total
 
-    def _resolve_line_row_conditions(self, row, record, line):
+    def _resolve_line_row_conditions(self, row, record, line, loop=None):
         """重複列內的條件標記：以該筆明細求值，不成立就整列不輸出。
 
         為什麼要在展開階段處理，而不是交給後面的 _apply_row_conditions：
@@ -1808,9 +1863,17 @@ class DocRenderMixin(models.AbstractModel):
 
         cells = [c for c in (row.get('tdList') or []) if isinstance(c, dict)]
         found = [(el, meta) for cell in cells for el, meta in _plain_markers(cell)]
+        # 巢狀表格（轉換器把「列內的條件」做成條件區塊）裡的條件，也要以
+        # 這筆明細求值。交給後面那一關的話那裡只有 object，帶 line 的條件
+        # 求值失敗 → 當成真 → 條件靜默失效。
+        for cell in cells:
+            for el in (cell.get('value') or []):
+                if isinstance(el, dict) and (el.get('type') or '') == 'table':
+                    self._resolve_nested_conditions(el, record, line, loop)
         if not found:
             return True
-        extra = {'line': line}
+        extra = dict(loop or {})
+        extra['line'] = line
         for _el, meta in found:
             expr = meta.get('expression') or meta.get('path') or ''
             # _eval_condition 求值失敗回 True（寧可多印），所以只在明確為
@@ -1826,6 +1889,40 @@ class DocRenderMixin(models.AbstractModel):
                 cell['value'] = [el for el in cell['value']
                                  if id(el) not in ids]
         return True
+
+    def _resolve_nested_conditions(self, table, record, line, loop=None):
+        """重複列裡的巢狀表格：逐列以該筆明細求值，不成立就移除那一列。"""
+        kept = []
+        for row in (table.get('trList') or []):
+            if not isinstance(row, dict):
+                continue
+            keep = True
+            markers = []
+            for cell in (row.get('tdList') or []):
+                if not isinstance(cell, dict):
+                    continue
+                for el in (cell.get('value') or []):
+                    meta = self._element_condition_meta(el)
+                    if meta and not (meta.get('groupId') or '').strip():
+                        markers.append((el, meta))
+                    elif isinstance(el, dict) and (el.get('type') or '') == 'table':
+                        self._resolve_nested_conditions(el, record, line, loop)
+            extra = dict(loop or {})
+            extra['line'] = line
+            for _el, meta in markers:
+                expr = meta.get('expression') or meta.get('path') or ''
+                if self._eval_condition(expr, record, extra=extra) is False:
+                    keep = False
+                    break
+            if not keep:
+                continue
+            ids = {id(el) for el, _m in markers}
+            for cell in (row.get('tdList') or []):
+                if isinstance(cell, dict) and isinstance(cell.get('value'), list):
+                    cell['value'] = [el for el in cell['value']
+                                     if id(el) not in ids]
+            kept.append(row)
+        table['trList'] = kept
 
     def _count_repeat_rows(self, tree):
         """統計樹中的重複列數（給 UI 顯示「此範本有 N 個重複列」用）。"""

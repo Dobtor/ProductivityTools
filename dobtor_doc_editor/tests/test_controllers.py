@@ -150,7 +150,11 @@ class TestControllerSecurityBoundary(HttpCase):
         self.assertNotEqual(resp.status_code, 500,
                             "Path traversal filename 不該觸發 500")
         # 確認 controller 已處理(回 JSON 而非 HTML 錯誤頁)
-        self.assertIn('application/json', resp.headers.get('Content-Type', ''))
+        self.assertIn(
+            'application/json', resp.headers.get('Content-Type', ''),
+            '不是 JSON：轉址紀錄 =%s；內容 =%s'
+            % ([r.status_code for r in resp.history], resp.text[:300]),
+        )
 
     def test_upload_template_null_byte_filename_rejected(self):
         """filename 含 null byte(`\\x00`) → graceful 400(Sprint 116 plus fix)。
@@ -175,8 +179,9 @@ class TestControllerSecurityBoundary(HttpCase):
         self.assertEqual(
             (resp.headers.get('Content-Type') or '').split(';')[0],
             'application/json',
-            '回應不是 JSON（可能被導去登入頁，session 沒建立）：%s'
-            % resp.text[:200],
+            '回應不是 JSON（可能被導去登入頁，session 沒建立）：'
+            '轉址紀錄 =%s；內容 =%s'
+            % ([r.status_code for r in resp.history], resp.text[:300]),
         )
         # Sprint 116 plus 後:graceful 400(非 500、非 200 silent success)
         self.assertEqual(
