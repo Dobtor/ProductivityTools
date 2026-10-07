@@ -61,29 +61,46 @@ class KnowledgeTutorial(models.Model):
     # ------------------------------------------------------------------
     @api.model
     def _path(self, flow):
-        """狀態列上的主線：[(transition, from, to)]，最多 MAX_STEPS 步。"""
+        """狀態列上的主線：[(transition, from, 預期的 to)]，最多 MAX_STEPS 步。
+
+        ☠️ 實機：靜態分析推不出很多按鈕的終點（調撥的「核實」終點空白），也常只記到其中一個
+          起點（銷售單的「確認」只記了「報價已傳送」→ 銷售訂單，草稿其實也看得到）。所以：
+          ① 起點相符、終點是後面的狀態 → 最優先；② 起點相符、終點不明 → 先假設推到下一格；
+          ③ 下一格狀態才記到的按鈕 → 當成現在也按得到。實際推到哪裡以拍攝時觀察到的為準。
+          列印、取消、鎖定、寄送、查看類按鈕不走；開精靈的只在它確實會改狀態時走。"""
+        import re
+        deny = re.compile(r'(?i)print|preview|report|export|download|cancel|lock|draft|send|'
+                          r'^action_(view|see|show|open)_')
         bar = [s.value for s in flow.step_ids.sorted('sequence') if s.on_statusbar]
         if len(bar) < 2:
             return []
+
+        def ok(t):
+            return t.button_name and not t.button_name.isdigit() and t.display_label() \
+                and not deny.search(t.button_name) and (not t.opens_model or t.to_value)
+
         cur, path, used = bar[0], [], set()
-        while len(path) < MAX_STEPS:
+        while len(path) < MAX_STEPS and bar.index(cur) < len(bar) - 1:
             idx = bar.index(cur)
-            best = None
-            for t in flow.transition_ids.sorted('id'):
-                if t.id in used or not t.button_name or t.opens_model:
-                    continue
-                if (t.from_value or '') != cur or t.to_value not in bar:
-                    continue
-                to_idx = bar.index(t.to_value)
-                if to_idx <= idx:
-                    continue
-                if best is None or to_idx < bar.index(best.to_value):
-                    best = t
-            if not best:
+            cands = [t for t in flow.transition_ids.sorted('id') if t.id not in used and ok(t)]
+            later = [t for t in cands if (t.from_value or '') == cur and t.to_value in bar
+                     and bar.index(t.to_value) > idx]
+            unknown = [t for t in cands if (t.from_value or '') == cur and not t.to_value]
+            skip = [t for t in cands if idx + 1 < len(bar) and t.from_value == bar[idx + 1]
+                    and t.to_value in bar and bar.index(t.to_value) > idx + 1]
+            if later:
+                best = min(later, key=lambda t: (bar.index(t.to_value), bool(t.opens_model)))
+                to = best.to_value
+            elif unknown:
+                best, to = unknown[0], bar[idx + 1]
+            elif skip:
+                best = min(skip, key=lambda t: (bar.index(t.to_value), bool(t.opens_model)))
+                to = best.to_value
+            else:
                 break
             used.add(best.id)
-            path.append((best, cur, best.to_value))
-            cur = best.to_value
+            path.append((best, cur, to))
+            cur = to
         return path
 
     @api.model
@@ -156,9 +173,13 @@ class KnowledgeHooks(models.AbstractModel):
         logins = json.loads(sandbox.sudo().role_logins or '{}')
         if not seed or not logins:
             return 0
-        default_role = next(iter(logins))
+        from odoo.addons.dobtor_corpaas_knowledge.models.flow_diagram import MODEL_ROLE
         jobs, plans = [], []
         for flow in self._manual_tutorial_flows(package):
+            # ☠️ 實機：按鈕多半沒有功能點繫結，退回第一個角色（業務）去按付款、採購申請 → 存取錯誤。
+            #   退回時用單據的負責角色。
+            default_role = MODEL_ROLE.get(flow.model) if MODEL_ROLE.get(flow.model) in logins \
+                else next(iter(logins))
             path = Tutorial._path(flow)
             bar = [s.value for s in flow.step_ids.sorted('sequence') if s.on_statusbar]
             rec = Tutorial._pick_record(flow, seed, bar[0])
@@ -233,7 +254,12 @@ class KnowledgeHooks(models.AbstractModel):
                 if 'after' not in atts:
                     error = _('第 %s 步沒有拍到按之後的畫面') % (i + 1)
                     break
+                seen = [o for o in r.get('transitions') or [] if o.get('to')]
+                if seen:
+                    st = dict(st, to=str(seen[-1]['to']))   # 實際推到的狀態
                 out.append(dict(st, before=atts.get('before'), after=atts['after']))
+                if i + 1 < len(steps) and steps[i + 1]['from'] != st['to']:
+                    break   # 跟預期不同：後面的步驟起點對不上，教到這裡為止
             vals = {'package_id': package.id, 'flow_id': flow.id, 'record_xmlid': rec['xmlid'],
                     'record_label': Tutorial._record_label(rec, seed),
                     'steps_json': json.dumps(out, ensure_ascii=False), 'inputs_sig': sig,

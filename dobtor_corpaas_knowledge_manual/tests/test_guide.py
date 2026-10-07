@@ -237,7 +237,7 @@ class TestTutorial(ManualCase):
                 'flow_id': self.flow.id, 'sequence': i, 'value': v, 'label': label,
                 'on_statusbar': v != 'cancel'})
         T = self.env['corpaas.knowledge.flow.transition'].sudo()
-        for fr, to, name, label, opens in [('draft', 'sent', 'action_send', '送出', False),
+        for fr, to, name, label, opens in [('draft', 'sent', 'action_submit', '送出', False),
                                            ('draft', 'done', 'action_skip', '直接完成', False),
                                            ('sent', 'done', 'action_wizard', '精靈', 'x.wizard'),
                                            ('sent', 'done', 'action_done', '完成', False),
@@ -250,8 +250,25 @@ class TestTutorial(ManualCase):
     def test_path_follows_statusbar_without_wizards(self):
         path = self.Tutorial._path(self.flow)
         self.assertEqual([(t.button_name, a, b) for t, a, b in path],
-                         [('action_send', 'draft', 'sent'), ('action_done', 'sent', 'done')],
+                         [('action_submit', 'draft', 'sent'), ('action_done', 'sent', 'done')],
                          '一步一格往下走；開精靈的、往回的不走')
+
+    def test_path_assumes_next_state_and_skips_recorded_later(self):
+        T = self.env['corpaas.knowledge.flow.transition'].sudo()
+        self.flow.transition_ids.unlink()
+        # 草稿沒記到按鈕；「確認」只記了從「已送出」起（實際上草稿也看得到）；「核實」終點不明
+        T.create({'flow_id': self.flow.id, 'from_value': 'sent', 'to_value': 'done',
+                  'button_name': 'action_confirm', 'button_label': '確認'})
+        T.create({'flow_id': self.flow.id, 'from_value': 'draft', 'to_value': 'sent',
+                  'button_name': 'print_quotation', 'button_label': '列印'})
+        path = self.Tutorial._path(self.flow)
+        self.assertEqual([(t.button_name, a, b) for t, a, b in path],
+                         [('action_confirm', 'draft', 'done')], '列印不走；下一格才記到的當成現在按得到')
+        self.flow.transition_ids.unlink()
+        T.create({'flow_id': self.flow.id, 'from_value': 'draft', 'to_value': False,
+                  'button_name': 'button_validate', 'button_label': '核實'})
+        path = self.Tutorial._path(self.flow)
+        self.assertEqual([(a, b) for _t, a, b in path], [('draft', 'sent')], '終點不明先假設下一格')
 
     def test_pick_record_prefers_first_state_with_lines(self):
         seed = [{'xmlid': 'x.r1', 'model': 'res.partner', 'values': {'kbt_state': 'done'}},
@@ -286,7 +303,7 @@ class TestTutorial(ManualCase):
             again = self.hooks._manual_shoot_tutorials(self.pkg, sb)
         self.assertEqual((n, again), (1, 0), '輸入沒變不重拍')
         self.assertEqual(len(jobs_seen), 2, '一步一個拍攝工作')
-        self.assertEqual(jobs_seen[0]['steps'][4], {'click': {'button': 'action_send'}})
+        self.assertEqual(jobs_seen[0]['steps'][4], {'click': {'button': 'action_submit'}})
         self.assertTrue(sb.dirty, '按過按鈕：說明庫要重建')
         tut = self.Tutorial.search([('flow_id', '=', self.flow.id)])
         self.assertEqual((tut.state, len(tut.steps()), tut.record_label), ('ok', 2, '宏達報名'))

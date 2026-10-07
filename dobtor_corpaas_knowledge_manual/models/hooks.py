@@ -934,7 +934,10 @@ class KnowledgeHooks(models.AbstractModel):
         picks = live.sorted(lambda p: p.synced_at or p.create_date, reverse=True)[:sample]
         ok = failed = 0
         for pl in picks:
-            url = base + (pl.slide_id.website_url or '')
+            # ☠️ 實機：website_url 在有網站網域時是完整網址，再接 base 就變 https://xhttps://x
+            url = pl.slide_id.website_url or ''
+            if not url.startswith('http'):
+                url = base + url
             problem = ''
             try:
                 resp = requests.get(url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識：操作說明',
-    'version': '18.0.1.7.0',
+    'version': '18.0.1.7.1',
     'category': 'Productivity/Knowledge',
     'summary': '方案知識出口一：功能 × 情境的操作說明，自動截圖標註、推到方案的文件型 slide 課程',
     'description': '''
