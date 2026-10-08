@@ -109,7 +109,9 @@ class KnowledgeHooksGaps(models.AbstractModel):
             ('package_id', '=', package.id), ('state', '=', 'open'),
             ('kind', 'in', SHOT_GAP_KINDS)])
         # ★ 等 AI 修腳本的（needs_repair）不算：修好會變「待拍」，那時才需要說明庫
-        actionable = gaps.filtered(lambda g: not (g.record() and g.record().needs_repair))
+        # ☠️ 流程路徑缺口掛的是流程（沒有 needs_repair）：實機整輪更新在準備階段當掉
+        actionable = gaps.filtered(
+            lambda g: not getattr(g.record(), 'needs_repair', False))
         return res | actionable.mapped('scenario_id')
 
     # ------------------------------------------------------------------

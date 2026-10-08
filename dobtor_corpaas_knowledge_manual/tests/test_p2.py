@@ -278,6 +278,9 @@ class TestDiagramOutlets(ManualCase):
                                                               ('res_model', '=', flow._name)])
         self.assertEqual((gap.kind, gap.feature_id), ('data', self.f1))
         self.assertIn('done', gap.evidence)
+        # 流程路徑缺口（掛流程、沒有 needs_repair）開著時，判斷要不要準備說明庫不能當掉
+        self.assertIn(self.scenario, self.hooks._knowledge_scenarios_needing_shots(
+            self.pkg, self.env['corpaas.knowledge.event']))
         with patch.object(type(sb), '_shell',
                           lambda s, script: {'res.partner': {'draft': 3, 'done': 1}}, create=True):
             self.hooks._manual_sync_path_gaps(self.pkg, sb)
