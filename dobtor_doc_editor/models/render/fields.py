@@ -132,10 +132,18 @@ class RenderFields:
     def _field_scale(self, field, default=2):
         """欄位的小數位數。
 
-        一定要走 get_digits(env)：digits 可以是 decimal.precision 的**名字**
-        （數量欄位就是 'Product Unit of Measure'），直接讀 field.digits 拿到
-        的是那個字串，isinstance(tuple) 不成立就退回兩位——於是數量印兩位
-        小數而原生印三位。這是原本轉換器裡那份複本的既有錯誤，一起修掉。
+        一定要走 get_digits(env)。☠️ Odoo 的 Field **沒有 `digits` 屬性**
+        （只有 `_digits` 與 `get_digits(env)`），所以原本那句
+        `getattr(field, 'digits', None)` 永遠回 None、`isinstance(None, tuple)`
+        永遠是 False——**每一個 float 都退回兩位**，不分型別。那段註解寫著
+        「float 看 digits」，實際上從來沒看過。
+
+        兩種形式都要吃：
+          * tuple：`partner_latitude` 是 (10, 7) → 七位
+          * decimal.precision 的**名字**：`product_uom_qty` 是
+            'Product Unit of Measure' → 要去查那筆設定（本機是 2，但客戶把
+            數量改成 3 位是常見設定，那時舊程式就印錯）
+        `_digits` 是 False（沒指定）時 get_digits 回 False → 用 default。
         """
         try:
             digits = field.get_digits(self.env)

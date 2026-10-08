@@ -1358,8 +1358,12 @@ ChienYi 以外的客戶要的是「單據」：同一份版面套不同記錄印
 - 編輯器左欄拖一個 date 進去印 `2026-10-08 00:00:00`、float 印 `100.0`
   ——**同一個欄位，走轉換器對、手工拉錯**
 - 巢狀 selection（「客戶-狀態」）印代碼，三份判斷都只處理頂層
-- 數量欄位的 `digits` 是 `'Product Unit of Measure'`（decimal.precision 的
-  名字），`isinstance(digits, tuple)` 不成立 → 退回兩位，而原生印三位
+- **每一個 float 都印兩位小數**。原本寫 `getattr(field, 'digits', None)` 再判
+  `isinstance(tuple)`，而 Odoo 的 `Field` **根本沒有 `digits` 屬性**（只有
+  `_digits` 與 `get_digits(env)`）——所以那句永遠回 None、永遠退回兩位。
+  註解寫著「float 看 digits」，實際上從來沒看過。影響兩種欄位：digits 是
+  tuple 的（`partner_latitude` 是 (10,7)）、以及 digits 是 decimal.precision
+  名字的（`product_uom_qty`；本機設定剛好是 2，客戶改成 3 位就會印錯）
 
 ### 決定
 
