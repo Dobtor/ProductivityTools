@@ -1440,3 +1440,90 @@ class TestAccumulatorToGroup(TestQwebConverterBase):
         res = self._convert(self._arch())
         self.assertTrue(any('累加器' in n and '分組' in n for n in res['notes']),
                         '%s' % res['notes'])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestNoteLevels(TestQwebConverterBase):
+    """待辦分級。
+
+    一張報表最多吐 64 條待辦，而「這一段沒有轉換、版面會不同」與
+    「我改寫了，你確認一下」的嚴重性差一個級。平鋪幾十條的實務結果是
+    使用者整段跳過——那等於待辦機制沒有發揮作用。
+    """
+
+    def test_classification_of_representative_notes(self):
+        cases = [
+            ('表達式需要人工確認：foo', 'blocker'),
+            ('試算失敗（UndefinedError）：foo', 'blocker'),
+            ('節點上的動態 inline 樣式 共 9 處沒有轉換（…）', 'blocker'),
+            ('找不到子範本 t-call="x"，那一段沒有轉換。', 'blocker'),
+            ('已自動改寫，請確認取值：a → b', 'check'),
+            ('「address」區塊原本依條件而有不同內容（…），已取第一份。', 'check'),
+            ('子範本 t-call="x" 已展開併入。', 'info'),
+            ('filtered(lambda … : …) 已改寫成 selectattr', 'info'),
+            ('groups 屬性 13 處已改寫成「依群組顯示」的條件（has_group）。', 'info'),
+        ]
+        for text, expected in cases:
+            self.assertEqual(self.Conv._note_level(text), expected,
+                             '分級錯了：%s' % text)
+
+    def test_unresolved_repeat_source_is_a_blocker(self):
+        """來源沒設定＝整張明細表印不出來，關鍵詞判不出來所以在呼叫點明寫。
+
+        那條待辦的文字含「請在右欄」，關鍵詞會判成 check——但它的後果是
+        整張明細表空白，必須是 blocker。這則測試釘住的是「明寫覆蓋」有效，
+        而不是推斷表的行為。
+        """
+        res = self._convert(
+            '<table><t t-foreach="mystery_lines" t-as="row">'
+            '<tr><td><span t-out="row.name"/></td></tr></t></table>')
+        blockers = res['notes_by_level']['blocker']
+        self.assertTrue(any('中間變數' in n for n in blockers),
+                        '%s' % res['notes_by_level'])
+
+    def test_levels_partition_the_notes_exactly(self):
+        """分級不可以吞掉或重複任何一條——使用者看到的總數必須一致。"""
+        res = self._convert(
+            '<table><tr t-att-class="compute(o)"><td>'
+            '<span t-out="mystery_var"/></td></tr></table>'
+            '<t t-call="nowhere.nope"/>'
+        )
+        by = res['notes_by_level']
+        flat = by['blocker'] + by['check'] + by['info']
+        self.assertEqual(sorted(flat), sorted(res['notes']))
+        self.assertEqual(len(flat), len(set(flat)), '有重複')
+
+    def test_explicit_level_overrides_the_guess(self):
+        state = {'notes': [], 'note_levels': {}}
+        self.Conv._note(state, '子範本已展開併入。', level='blocker')
+        self.assertEqual(state['note_levels']['子範本已展開併入。'], 'blocker')
+
+    def test_bad_level_falls_back_to_the_guess(self):
+        state = {'notes': [], 'note_levels': {}}
+        self.Conv._note(state, '表達式需要人工確認：x', level='nonsense')
+        self.assertEqual(state['note_levels']['表達式需要人工確認：x'],
+                         'blocker')
+
+    def test_wizard_shows_the_three_sections(self):
+        key = 'dobtor_doc_editor.conv_lvl_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">'
+                    '<table><tr t-att-style="\'padding:1mm\'">'
+                    '<td><span t-out="o.name"/></td></tr></table>'
+                    '<div><span t-out="unknown_thing"/></div>'
+                    '</t>' % key,
+        })
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        wizard = self.env['doc.qweb.import.wizard'].create({
+            'report_id': report.id, 'template_name': 'LVL 範本',
+        })
+        wizard.action_convert()
+        notes = wizard.notes or ''
+        self.assertIn('必須處理', notes)
+        self.assertIn('待辦', notes + '待辦')  # 區段標題存在就夠
+        self.assertNotIn('── 待辦（請逐項確認）──', notes,
+                         '還在用舊的平鋪格式')

@@ -120,10 +120,31 @@ class DocQwebImportWizard(models.TransientModel):
                 '——頁首頁尾目前是空的，公司 logo 與頁碼不會印出來。'
             )
         lines.append('')
+        # 待辦分三段：平鋪幾十條的實務結果是使用者整段跳過。
+        # 「要改的」擺最前面，「只是告知的」擺最後。
+        by_level = result.get('notes_by_level') or {}
+        sections = (
+            ('blocker', '── 必須處理（內容或版面會與原生不同）──'),
+            ('check', '── 請確認（已自動改寫）──'),
+            ('info', '── 告知（不需動作）──'),
+        )
         if result.get('notes'):
-            lines.append('── 待辦（請逐項確認）──')
-            lines += ['%d. %s' % (i, n)
-                      for i, n in enumerate(result['notes'], 1)]
+            shown = 0
+            for key, title in sections:
+                items = by_level.get(key) or []
+                if not items:
+                    continue
+                lines.append(title)
+                lines += ['%d. %s' % (i, n) for i, n in enumerate(items, 1)]
+                lines.append('')
+                shown += len(items)
+            if shown < len(result['notes']):
+                # 分級表沒涵蓋到的（舊版結果）還是要印出來，不可以吞掉
+                rest = [n for n in result['notes']
+                        if all(n not in (by_level.get(k) or [])
+                               for k, _t in sections)]
+                lines.append('── 其他 ──')
+                lines += ['%d. %s' % (i, n) for i, n in enumerate(rest, 1)]
         else:
             lines.append('沒有待辦項目。仍建議印一張比對原生輸出。')
 

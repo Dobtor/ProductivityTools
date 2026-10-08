@@ -97,6 +97,7 @@ class DocQwebConverter(models.AbstractModel):
 
         state = {
             'notes': [],
+            'note_levels': {},
             'stats': {'pill': 0, 'repeat': 0, 'condition': 0, 'table': 0,
                       'unbound': 0, 'image': 0, 'taxTotals': 0,
                       'validated': 0, 'validate_failed': 0,
@@ -138,9 +139,15 @@ class DocQwebConverter(models.AbstractModel):
                 _logger.warning('[qweb-import] 試算失敗：%s', e)
                 self._note(state, '無法用樣本記錄試算（%s）。'
                                   '請自行印一張比對。' % e)
+        levels = state.get('note_levels') or {}
+        by_level = {key: [n for n in state['notes']
+                          if levels.get(n, 'info') == key]
+                    for key in self._NOTE_LEVELS}
         return {
             'content_json': json.dumps(tree, ensure_ascii=False),
             'notes': state['notes'],
+            # 分級後的同一份待辦（notes 保持原樣，呼叫端不必改）
+            'notes_by_level': by_level,
             'stats': state['stats'],
             'needs_layout': needs_layout,
         }
@@ -765,9 +772,39 @@ class DocQwebConverter(models.AbstractModel):
             'extension': {'dobtorField': payload},
         }
 
-    def _note(self, state, text):
-        if text not in state['notes']:
-            state['notes'].append(text)
+    # 待辦分級。一張報表最多吐 59 條待辦，而「這一段沒有轉換、版面會不同」
+    # 與「我改寫了，你確認一下」的嚴重性差一個級——平鋪 59 條的實務結果是
+    # 使用者整段跳過，那等於待辦機制沒有發揮作用。
+    #
+    # 分級用關鍵詞推斷而不是逐個呼叫點標記：呼叫點有六十幾處，逐個標記的
+    # 漏標風險比這張表的誤判風險高。真的推斷錯的那幾處用 level= 明寫覆蓋。
+    _NOTE_LEVELS = ('blocker', 'check', 'info')
+    _NOTE_BLOCKER_HINTS = (
+        '試算失敗', '需要人工確認', '沒有轉換', '未轉換', '找不到',
+        '待設定', '請人工', '沒試算',
+    )
+    _NOTE_CHECK_HINTS = (
+        '請確認', '請自行', '請在右欄', '請改寫', '請改用', '請先',
+        '已取第一份', '沒有保留',
+    )
+
+    def _note_level(self, text):
+        """待辦的嚴重度：blocker（內容或版面會不同）／check（改寫了，要確認）
+        ／info（只是告知）。"""
+        for hint in self._NOTE_BLOCKER_HINTS:
+            if hint in text:
+                return 'blocker'
+        for hint in self._NOTE_CHECK_HINTS:
+            if hint in text:
+                return 'check'
+        return 'info'
+
+    def _note(self, state, text, level=None):
+        if text in state['notes']:
+            return
+        state['notes'].append(text)
+        state.setdefault('note_levels', {})[text] = (
+            level if level in self._NOTE_LEVELS else self._note_level(text))
 
     # ─── 表達式對應 ─────────────────────────────────────────────────
 
@@ -2690,6 +2727,9 @@ class DocQwebConverter(models.AbstractModel):
             state,
             '重複來源「%s」是範本內的中間變數，請在右欄改成實際的一對多欄位'
             '（或填「來源表達式」）。' % expr[:70],
+            # 關鍵詞會判成 check（有「請在右欄」），但來源沒設定＝整張明細表
+            # 印不出來，那是 blocker。明寫覆蓋。
+            level='blocker',
         )
         return self._pill(
             '列型（待設定）' if row_filter else '明細（待設定）',
