@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import os
 import zipfile
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 
 
@@ -1075,6 +1075,41 @@ class DocDocument(models.Model):
                 'doc_name': self.name,
             },
             'target': 'fullscreen',
+        }
+
+    @api.model
+    def action_new_and_open_editor(self):
+        """建一份空白文件後直接進編輯器（跳過表單）。
+
+        清單的「新增」與點開一筆都走編輯器——建立與開啟兩個入口要一致，
+        否則「新增」給表單、「點開」給編輯器，使用者會以為那是兩種東西。
+
+        範本取「空白文件」那一張（模組 data 帶的）。找不到就不帶範本，
+        編輯器會開一份真的空白的——比拋例外好。
+        """
+        template = self.env.ref(
+            'dobtor_doc_editor.doc_template_blank', raise_if_not_found=False)
+        values = {'name': _('未命名文件')}
+        if template:
+            values['template_id'] = template.id
+        doc = self.create(values)
+        return doc.action_open_editor()
+
+    def action_open_settings_form(self):
+        """開這份文件的表單（清單點開一筆會直接進編輯器，表單要有另一個入口）。
+
+        表單上才有的東西：關聯模型與記錄、協作者、版本、保留政策。那些是
+        設定而不是內容，所以不搬進編輯器，但一定要留得到的路。
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('文件設定'),
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
         }
 
     def action_quick_preview(self):

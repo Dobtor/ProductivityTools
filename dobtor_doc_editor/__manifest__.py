@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.8.0.0',
+    'version': '18.0.9.0.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -79,6 +79,8 @@ Dobtor Doc Editor v2.1
         'web.assets_backend': [
             # CSS
             'dobtor_doc_editor/static/src/css/doc_editor.css',
+            # 清單視圖：點一筆直接進編輯器
+            'dobtor_doc_editor/static/src/views/doc_document_list_open_editor.js',
             # Core 模組（AutoSave / Leader / Offline）
             'dobtor_doc_editor/static/src/core/auto_save_manager.js',
             'dobtor_doc_editor/static/src/core/leader_election.js',

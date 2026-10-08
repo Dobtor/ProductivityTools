@@ -28,7 +28,10 @@
         <field name="name">doc.document.list</field>
         <field name="model">doc.document</field>
         <field name="arch" type="xml">
-            <list string="文件" default_order="write_date desc">
+            <!-- js_class：點一筆直接進編輯器、「新增」也直接進編輯器。
+                 見 static/src/views/doc_document_list_open_editor.js -->
+            <list string="文件" default_order="write_date desc"
+                  js_class="doc_document_list_open_editor">
                 <field name="name"/>
                 <field name="model_id" optional="show"/>
                 <field name="res_id" optional="hide"/>
@@ -41,10 +44,12 @@
                         icon="fa-eye"
                         title="快速預覽（自動帶入關聯記錄）"
                         invisible="not model_id or not res_id"/>
-                <button name="action_open_editor"
+                <!-- 點一筆已經直接進編輯器，所以這裡換成「設定」——表單上才有
+                     的關聯記錄／協作者／版本／保留政策需要一條路進去 -->
+                <button name="action_open_settings_form"
                         type="object"
-                        icon="fa-edit"
-                        title="開啟編輯器"/>
+                        icon="fa-cog"
+                        title="文件設定（關聯記錄、協作者、版本）"/>
             </list>
         </field>
     </record>
