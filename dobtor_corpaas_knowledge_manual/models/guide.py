@@ -54,6 +54,7 @@ class SolutionPackage(models.Model):
     def _manual_redraft_review_run(self):
         self.ensure_one()
         return self.env['corpaas.knowledge.hooks'].sudo()._manual_redraft_review(self)
+    _manual_redraft_review_run.knowledge_commits = True
 
     def action_manual_redraft_handoff(self):
         """只重寫提到錯誤交接（查看上游單據的智慧按鈕、只有編號的按鈕名稱）的待審說明。"""
@@ -78,11 +79,13 @@ class SolutionPackage(models.Model):
         hooks = self.env['corpaas.knowledge.hooks'].sudo()
         return hooks._manual_redraft_review(self, features=hooks._manual_lint_features(self),
                                             states=('review', 'published'))
+    _manual_redraft_lint_run.knowledge_commits = True
 
     def _manual_redraft_handoff_run(self):
         self.ensure_one()
         hooks = self.env['corpaas.knowledge.hooks'].sudo()
         return hooks._manual_redraft_review(self, features=hooks._manual_wrong_handoff_features(self))
+    _manual_redraft_handoff_run.knowledge_commits = True
 
     def _manual_guide_data(self, field):
         self.ensure_one()
@@ -486,6 +489,27 @@ class KnowledgeHooks(models.AbstractModel):
         return out
 
     @api.model
+    def _manual_redraft_save(self, write):
+        """重寫一筆就提交一次：中途撞到並行更新，只有這一筆作廢，前面寫好的都保留。
+
+        ☠️ 實機：整批一個交易，重寫跑 44 分鐘時另一個作業重推了同一批文章 →
+          「could not serialize access due to concurrent update」，33 篇全部回滾。"""
+        from psycopg2 import OperationalError
+        from odoo.addons.dobtor_corpaas_knowledge.services import txn
+        if txn.in_tests(self.env):
+            write()
+            return True
+        try:
+            write()
+            self.env.cr.commit()
+            return True
+        except OperationalError as e:
+            self.env.cr.rollback()
+            self.env.invalidate_all()
+            _logger.warning('[knowledge.manual] 重寫的一筆因並行更新作廢（其餘照常）：%s', e)
+            return False
+
+    @api.model
     def _manual_lint_features(self, package):
         """文字檢查新規則抓到的功能（待審與已上線的文章都看）。"""
         Article = self.env['corpaas.knowledge.article'].sudo()
@@ -537,10 +561,11 @@ class KnowledgeHooks(models.AbstractModel):
             except AI_ERRORS as e:
                 _logger.warning('[knowledge.manual] 重寫步驟區塊失敗 %s：%s', blk.id, e)
                 continue
-            blk.write({'name': ai_text(data.get('title')) or blk.name,
-                       'html': manual_lib.steps_to_html(steps, blk.anchor)})
-            if blk.state == 'published':
-                blk.knowledge_propose('text', note=_('依新寫法重寫'))
+            if not self._manual_redraft_save(lambda b=blk, d=data, st=steps: (
+                    b.write({'name': ai_text(d.get('title')) or b.name,
+                             'html': manual_lib.steps_to_html(st, b.anchor)}),
+                    b.state == 'published' and b.knowledge_propose('text', note=_('依新寫法重寫')))):
+                continue
             nb += 1
         items = [('manual_scenario', self._manual_scenario_prompt(
             package, a.scenario_id, a.feature_id, a.capability_id, a.step_block_ids)) for a in arts]
@@ -556,9 +581,11 @@ class KnowledgeHooks(models.AbstractModel):
             except AI_ERRORS as e:
                 _logger.warning('[knowledge.manual] 重寫情境說明失敗 %s：%s', art.id, e)
                 continue
-            art.write({'scenario_html': html,
-                       'name': manual_lib.clean_title(title or art.name, art.scenario_id.name)})
-            art.knowledge_propose('text', note=_('依新寫法重寫'))
+            if not self._manual_redraft_save(lambda a=art, t=title, h=html: (
+                    a.write({'scenario_html': h,
+                             'name': manual_lib.clean_title(t or a.name, a.scenario_id.name)}),
+                    a.knowledge_propose('text', note=_('依新寫法重寫')))):
+                continue
             na += 1
         return nb, na
 

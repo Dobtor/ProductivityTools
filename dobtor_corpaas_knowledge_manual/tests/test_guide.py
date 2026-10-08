@@ -700,3 +700,19 @@ class TestLayout(ManualCase):
                        'data-bs-toggle="tab"', 'tab-pane', 'btn btn-sm btn-primary', '<figure',
                        '<figcaption', 'max-width:52rem'):
             self.assertIn(marker, got, marker)
+
+
+@tagged('post_install', '-at_install')
+class TestRedraftCommits(ManualCase):
+
+    def test_redraft_jobs_commit_per_item(self):
+        Pkg = type(self.pkg)
+        for name in ('_manual_redraft_review_run', '_manual_redraft_lint_run',
+                     '_manual_redraft_handoff_run'):
+            self.assertTrue(getattr(getattr(Pkg, name), 'knowledge_commits', False), name)
+        job = self.env['corpaas.knowledge.ai.job'].sudo().create({
+            'res_model': self.pkg._name, 'res_id': self.pkg.id,
+            'method': '_manual_redraft_lint_run', 'package_id': self.pkg.id})
+        with patch.object(type(self.hooks), '_manual_redraft_review', lambda s, *a, **k: (0, 0)):
+            job._run()
+        self.assertEqual(job.state, 'done', '逐筆提交的工作不包 savepoint 也照常完成')

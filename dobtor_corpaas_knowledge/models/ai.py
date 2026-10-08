@@ -306,9 +306,15 @@ class KnowledgeAiJob(models.Model):
         if not record:
             self.write({'state': 'failed', 'error': _('記錄已不存在')})
             return
+        method = getattr(record, self.method)
         try:
-            with self.env.cr.savepoint():
-                getattr(record, self.method)()
+            if getattr(method, 'knowledge_commits', False):
+                # ★ 長時間、逐筆提交的工作（例如重寫待審說明）：不包 savepoint——中途 commit 會讓
+                #   savepoint 失效；失敗時已提交的部分保留，只有當下那一筆作廢
+                method()
+            else:
+                with self.env.cr.savepoint():
+                    method()
             self.state = 'done'
             self._post(record, _('AI 工作完成：%s') % (self.note or self.method))
         except Exception as e:  # noqa: BLE001 - 失敗記在工作上，不讓佇列重試燒預算
