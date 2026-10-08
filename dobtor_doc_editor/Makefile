@@ -18,6 +18,7 @@ FIXTURE_DIR    ?= tests/fixtures
 .PHONY: help install build watch dev upgrade restart logs \
         scan-ooxml fixtures-golden fixtures-compare visual-regression \
         test-backend test-backend-font test-backend-zip \
+        test-local test-local-tour test-local-all \
         ci-frontend ci-python ci-xml ci-all \
         clean clean-build clean-deps verify
 
@@ -32,6 +33,9 @@ help: ## 列出所有 target
 	@echo ""
 	@echo "Odoo backend tests（Sprint 72/77）："
 	@grep -E '^(test-backend.*):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "本機兩容器 rig（host 端、跑全部測試）："
+	@grep -E '^(test-local.*):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "CI 鏡像（與 GitHub Actions 同樣）："
 	@grep -E '^(ci-.*):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -91,6 +95,20 @@ test-backend-font: ## 只跑 font_serve test（Sprint 64b/66/68/69）
 
 test-backend-zip: ## 只跑 zip_guard test（Sprint 20 W9-10 + Sprint 71）
 	docker exec $(ODOO_CONTAINER) bash /mnt/extra-addons/$(MODULE)/tests/scripts/run_backend_tests.sh --tag=zip_guard
+
+# ── 本機兩容器 rig：跑模組的全部測試 ──────────────────────────────────
+# 上面三個 test-backend 是在容器內跑、只挑 tag；下面這三個在 host 跑，
+# docker exec 進去跑 /dobtor_doc_editor 的全部測試。容器名與連線參數
+# 用環境變數覆寫，見 tests/scripts/run_local_rig.sh 的檔頭。
+
+test-local: ## 本機 rig 跑全部 backend 測試（約 480 則）
+	bash tests/scripts/run_local_rig.sh test
+
+test-local-tour: ## 本機 rig 跑瀏覽器 tour（另一個容器，前端唯一的驗證）
+	bash tests/scripts/run_local_rig.sh tour
+
+test-local-all: ## 本機 rig 跑 backend + tour（後端綠了才跑 tour）
+	bash tests/scripts/run_local_rig.sh all
 
 # ── CI 鏡像（在本地跑與 GitHub Actions 同樣的檢查） ──────────────────────────
 

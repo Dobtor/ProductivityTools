@@ -182,6 +182,8 @@
 | **parse_docx_cli.cjs** | TS parser CLI（subprocess 呼叫）| Phase E |
 | **`make dev`** | build + upgrade + restart 完整循環 |
 | **`run_backend_tests.sh`** | Sprint 72 加的 Odoo backend test 一鍵觸發 |
+| **`run_tour_tests.sh`** | 容器內跑瀏覽器 tour；開頭自檢 chromium 與 websocket-client，被跳過時 exit 2（skipped 不能當成過）|
+| **`run_local_rig.sh`** | host 端入口：`docker exec` 進本機兩容器 rig 跑**全部**測試（`test` / `tour` / `all`）。容器名與連線參數可用環境變數覆寫 |
 | **CI gate v1 dispatch** | workflow_dispatch 手動觸發、Sprint 114 落地 font_serve 12 test 進 CI | Sprint 114 |
 | **CI gate v2 nightly** | schedule cron 每晚自動跑、v1 跑穩 3 次後升級 | Sprint 114（規劃中）|
 | **CI gate v3 push / PR** | push / PR 阻擋式 gate、v2 跑穩 3 次後升級；最終 enforce 形式 | Sprint 114（規劃中）|
