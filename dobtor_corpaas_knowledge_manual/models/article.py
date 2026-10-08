@@ -24,7 +24,7 @@ from odoo.exceptions import UserError
 
 from odoo.addons.dobtor_corpaas_knowledge.services import phash
 
-from ..services import manual_lib
+from ..services import layout_lib, manual_lib
 from .placement import BATCH_KEY, sync_batch
 
 _logger = logging.getLogger(__name__)
@@ -262,6 +262,10 @@ class KnowledgeArticle(models.Model):
                 break
         if re.search(r'開始前要先有[^。]{0,60}才(能|會)(在列表|看到|顯示)', plain):
             problems.append(_('「開始前要先有」寫的是看得到資料的條件，不是操作前提'))
+        long_ones = [s for t in texts for s in layout_lib.long_sentences(t)]
+        if long_ones:
+            problems.append(_('句子太長（超過 %(n)s 字）：%(s)s…', n=layout_lib.LONG_SENTENCE,
+                              s=long_ones[0]))
         names = set(re.findall(r'\[\[shot:([^\]]+)\]\]', '\n'.join(texts)))
         if names and self.shot_binding_id:
             have = set(self.asset_ids.filtered(lambda a: a.state == 'current').mapped('shot_name'))
@@ -362,28 +366,36 @@ class KnowledgeArticle(models.Model):
                 alt += _('，紅框編號標示要看或要按的位置')
         except ValueError:
             pass
-        return ('<p><img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
-                'loading="lazy"/></p>' % (att.id, html_mod.escape(alt)))
+        img = ('<img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
+               'loading="lazy"/>' % (att.id, html_mod.escape(alt)))
+        try:
+            n = len(json.loads(asset.regions_json or '[]'))
+        except ValueError:
+            n = 0
+        caption = _('紅框 1–%s 對應上面說明裡的「（圖中 n）」') % n if n > 1 else \
+            (_('紅框標示要看或要按的位置') if n == 1 else '')
+        return layout_lib.figure(img, caption)
 
     def _manual_flow_position_html(self):
         """文章頂端的「流程位置」：規則產生（流程結構），不經 AI。"""
         self.ensure_one()
-        esc = html_mod.escape
-        lines = []
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        rows = []
         for c in self.env['corpaas.knowledge.hooks']._manual_flow_context(self.feature_id)[:2]:
+            flow = Flow.search([('name', '=', c['流程'])], limit=1)
+            states = [s.label or s.value for s in flow.step_ids.sorted('sequence')
+                      if s.on_statusbar] if flow else []
             if c.get('按鈕') and c.get('按之後的狀態'):
-                lines.append(_('%(f)s：%(a)s →（按「%(b)s」）→ %(t)s', f=c['流程'],
-                               a=c.get('按之前的狀態') or _('任何狀態'), b=c['按鈕'],
-                               t=c['按之後的狀態']))
+                rows.append({'name': c['流程'], 'states': states or [c['按之後的狀態']],
+                             'from': c.get('按之前的狀態'), 'to': c['按之後的狀態'],
+                             'button': _('按「%s」') % c['按鈕']})
             elif c.get('按鈕') and c.get('會開出'):
-                lines.append(_('%(f)s：按「%(b)s」開出「%(o)s」', f=c['流程'], b=c['按鈕'],
-                               o=c['會開出']))
+                rows.append({'name': c['流程'], 'states': states,
+                             'button': _('按「%(b)s」開出「%(o)s」', b=c['按鈕'], o=c['會開出'])})
             elif c.get('狀態順序'):
-                lines.append('%s：%s' % (c['流程'], c['狀態順序']))
-        if not lines:
-            return ''
-        return '<p class="text-muted small">%s%s</p>' % (
-            esc(_('流程位置｜')), esc('；'.join(lines)))
+                rows.append({'name': c['流程'],
+                             'states': states or [x.strip() for x in c['狀態順序'].split('→')]})
+        return layout_lib.flow_position([r for r in rows if r['states']])
 
     def _display_assets(self):
         """要顯示的圖：指紋相符的現行素材（B2）。
@@ -412,11 +424,12 @@ class KnowledgeArticle(models.Model):
             parts.append(position)
         intro = manual_lib.clean_html(live['scenario_html'] or '').strip()
         if intro:
-            parts.append('<div class="s_alert alert alert-info">%s</div>' % intro)
+            # 情境說明不再整段塞進提示框：第一句導言、其餘分段，例子成引用塊、設定成備註
+            parts.append('<div class="o_kb_intro mb-3">%s</div>' % layout_lib.lead_intro(intro))
         images = {}
         for asset in self._display_assets():
             images.setdefault(asset.shot_name, self._image_html(asset, preview=preview))
-        used = set()
+        used, blocks = set(), []
         for block in live['blocks'].sorted(lambda b: (b.sequence, b.id)):
             name, source = (block.name, block.html) if preview else block._manual_live_source()
             html = manual_lib.stamp_heading_ids(source or '', block.anchor)
@@ -424,10 +437,13 @@ class KnowledgeArticle(models.Model):
                 continue
             body, hit = manual_lib.replace_shot_markers(html, images)
             used |= hit
-            parts.append('<h3 id="%s">%s</h3>%s' % (block.anchor, html_mod.escape(name or ''),
-                                                    body))
+            blocks.append((block.anchor, name, body))
+        # 步驟版面：「開始前要先有」黃框 → 編號步驟（長段落切開）→「完成後會看到」綠框
+        steps, outline = layout_lib.steps_layout(blocks)
+        parts.append(layout_lib.outline_nav(outline))
+        parts.append(steps)
         parts.extend(v for k, v in images.items() if k not in used and v)
-        return ''.join(parts)
+        return layout_lib.page(''.join(parts))
 
     # ------------------------------------------------------------------
     # 審核畫面（D4：核准者不能盲簽）

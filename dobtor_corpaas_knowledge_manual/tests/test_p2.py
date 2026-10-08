@@ -46,7 +46,8 @@ class TestJourney(ManualCase):
         self.assertEqual([seq(slides[a3]), seq(slides[a2]), seq(slides[a1])], [102, 103, 104],
                          '章內依流程：入口畫面 → 按鈕 → 不在流程上的')
         html = journey.html_content
-        self.assertIn('草稿 → 完成', html)
+        self.assertIn('o_kb_flowpos', html, '流程狀態改成徽章列')
+        self.assertLess(html.index('草稿'), html.index('完成'))
         self.assertLess(html.index('丙 收款'), html.index('乙 報名確認'))
         self.assertIn(slides[a3].website_url, html)
         self.assertEqual(journey.category_id, section.slide_id)

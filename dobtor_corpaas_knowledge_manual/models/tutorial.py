@@ -475,46 +475,53 @@ class KnowledgeChannelSection(models.Model):
             name = Flow.browse(st['flow']).model_name or Flow.browse(st['flow']).name
             if name and name not in docs:
                 docs.append(name)
-        parts = ['<p>%s</p>' % esc(_(
+        parts = ['<p class="lead">%s</p>' % esc(_(
             '以下用示範系統裡的同一張「%(m)s」%(r)s，一路做下去%(chain)s。每一步先看要按哪顆按鈕'
             '（紅框），按完對照畫面確認。',
             m=root.model_name or root.name,
             r=('（%s）' % tutorial.record_label) if tutorial.record_label else '',
             chain=('，經過%s' % '、'.join('「%s」' % d for d in docs[1:])) if len(docs) > 1 else ''))]
+        from ..services import layout_lib as L
         for n, st in enumerate(steps, start=1):
             flow = Flow.browse(st['flow'])
             who = role_names.get(st.get('role')) or ''
             doc = flow.model_name or flow.name
             if st['kind'] == 'open':
                 parent = Flow.browse(st.get('parent'))
-                parts.append('<h3>%s</h3>' % esc(_('第 %(n)s 步：打開%(d)s', n=n, d=doc)))
-                parts.append('<p>%s</p>' % esc(_(
-                    '回到這張「%(p)s」，按「%(b)s」（圖中 1）打開它的%(d)s。',
-                    p=parent.model_name or parent.name, b=st['label'], d=doc)))
-                done_text = _('畫面換成這張單據的%s。') % doc
+                title = _('打開%s') % doc
+                text = _('回到這張「%(p)s」，按 %(b)s（圖中 1）打開它的%(d)s。',
+                         p=esc(parent.model_name or parent.name or ''), b=L.button(st['label']),
+                         d=esc(doc))
+                done = L.badge(_('畫面換成這張單據的%s') % doc, 'success')
             else:
                 fr, to = flow.step_label(st['from']), flow.step_label(st['to'])
-                parts.append('<h3>%s</h3>' % esc(_('第 %(n)s 步：%(d)s %(a)s → %(b)s',
-                                                   n=n, d=doc, a=fr, b=to)))
-                parts.append('<p>%s</p>' % esc(_(
-                    '%(who)s在「%(a)s」的%(d)s上按「%(btn)s」（圖中 1）%(wiz)s。',
-                    who=('由%s' % who) if who else '', a=fr, d=doc, btn=st['label'],
-                    wiz='，在跳出的視窗按確認' if st.get('wizard') else '')))
-                done_text = _('狀態列變成「%s」。') % to
-            if st.get('before'):
-                parts.append('<p><img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
-                             'loading="lazy"/></p>' % (st['before'], esc(_('按「%s」之前，紅框是要按的按鈕')
-                                                                       % st['label'])))
-            parts.append('<p><strong>%s</strong>%s</p>' % (esc(_('做完確認：')), esc(done_text)))
-            parts.append('<p><img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
-                         'loading="lazy"/></p>' % (st['after'], esc(done_text)))
+                title = _('%(d)s：%(a)s → %(b)s', d=doc, a=fr, b=to)
+                text = _('%(who)s在「%(a)s」的%(d)s上按 %(btn)s（圖中 1）%(wiz)s。',
+                         who=esc(('由%s' % who) if who else ''), a=esc(fr), d=esc(doc),
+                         btn=L.button(st['label']),
+                         wiz=esc('，在跳出的視窗按確認') if st.get('wizard') else '')
+                done = _('狀態列變成 %s') % L.badge(to, 'success')
+            parts.append('<h3 class="h5 fw-semibold mt-5"><span class="badge rounded-pill '
+                         'text-bg-primary me-2">%s</span>%s</h3>' % (n, esc(title)))
+            parts.append('<p>%s</p>' % text)
+            # 按之前／按之後並排：比上下堆疊好對照（手機上自動上下排）
+            before = L.figure('<img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
+                              'loading="lazy"/>' % (st['before'], esc(_('按「%s」之前') % st['label'])),
+                              _('按之前：紅框是要按的按鈕')) if st.get('before') else ''
+            after = L.figure('<img src="/web/image/%s" class="img-fluid rounded border" alt="%s" '
+                             'loading="lazy"/>' % (st['after'], esc(_('按「%s」之後') % st['label'])),
+                             _('按完之後'))
+            parts.append('<div class="row g-3">%s<div class="col-12 col-md-6">%s</div></div>' % (
+                ('<div class="col-12 col-md-6">%s</div>' % before) if before else '', after))
+            parts.append('<p><i class="fa fa-check-circle text-success me-1"></i><span class="fw-semibold">'
+                         '%s</span>%s</p>' % (esc(_('做完確認：')), done))
             t = flow.transition_ids.filtered(lambda x: x.button_name == st['button'])[:1]
             pl = articles.get(t.button_feature_id.id) if t and t.button_feature_id else None
             if pl and pl.slide_id:
-                parts.append('<p>%s<a href="%s">%s</a></p>' % (
+                parts.append('<p class="small">%s<a href="%s">%s</a></p>' % (
                     esc(_('這一步的詳細說明：')), esc(pl.slide_id.website_url or '#'),
                     esc(pl.article_id._manual_live_text().get('name') or '')))
-        return '<div class="o_kb_guide o_kb_tutorial">%s</div>' % ''.join(parts)
+        return L.page('<div class="o_kb_guide o_kb_tutorial">%s</div>' % ''.join(parts), '64rem')
 
     def _manual_sync_tutorial(self, flows, package, placements, publisher, shown):
         """本章的情境教學（排在整體流程之後、參考篇之前）。回傳 slide（可能空）。"""

@@ -117,5 +117,7 @@ class KnowledgeChannelSection(models.Model):
         snap = (cap._last_published_snapshot() or {}) if cap else {}
         html = full_width(manual_lib.clean_html(snap.get('manual_concept_html') or '')).strip()
         if html:
-            html = '<div class="o_kb_guide o_kb_concept">%s</div>' % html
+            from ..services import layout_lib as L
+            # 長段落切開（AI 的字不改，只重新分段）
+            html = L.page('<div class="o_kb_guide o_kb_concept">%s</div>' % L.split_paragraphs(html))
         return self._manual_upsert_guide('concept', html, publisher, shown)

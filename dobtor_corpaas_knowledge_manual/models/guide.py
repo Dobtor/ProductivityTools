@@ -490,7 +490,7 @@ class KnowledgeHooks(models.AbstractModel):
         """文字檢查新規則抓到的功能（待審與已上線的文章都看）。"""
         Article = self.env['corpaas.knowledge.article'].sudo()
         out = self.env['corpaas.knowledge.feature']
-        keys = ('標題含示範資料名稱', '「開始前要先有」')
+        keys = ('標題含示範資料名稱', '「開始前要先有」', '句子太長')
         for art in Article.search([('state', 'in', ('review', 'published')),
                                    ('scenario_id', 'in', package.knowledge_scenario_ids.ids)]):
             if any(p.startswith(keys) for p in art._manual_text_problems()):

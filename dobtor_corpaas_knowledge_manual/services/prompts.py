@@ -9,7 +9,7 @@
 import json
 
 ALLOWED_HTML = (
-    "HTML 只能用這些標籤：p、strong、em、ul、ol、li、table、thead、tbody、tr、th、td、span、br；"
+    "HTML 只能用這些標籤：p、strong、em、ul、ol、li、table、thead、tbody、tr、th、td、span、br、blockquote；"
     "class 只能用：s_alert alert alert-info、table table-bordered table-striped align-middle"
     "（thead 用 table-light）、badge text-bg-primary、d-flex。"
     "不可以有 <style>、<script>、<svg>、<a>、style 屬性或任何網址。"
@@ -110,8 +110,11 @@ def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, de
 
 #: 文字檢查（article._manual_text_problems）會擋的寫法：起草時就先講清楚，免得卡在核准
 WRITING_RULES = (
-    "★ 一律繁體中文（台灣用語），不要出現簡體字；畫面上的欄位與按鈕用畫面顯示的中文名稱，"
-    "不要寫技術欄位名（例如 partner_id）；不要留 TODO、XXX 之類的佔位字。\n")
+    "★ 一律繁體中文（台灣用語），不要出現簡體字；標點一律全形（，。；：）；畫面上的欄位與按鈕用畫面"
+    "顯示的中文名稱，不要寫技術欄位名（例如 partner_id）；不要留 TODO、XXX 之類的佔位字。\n"
+    "★ 分段：一段只講一件事、最多兩三句；一句不超過 60 字；舉例另起一段、以「例如」開頭；"
+    "設定的影響另起一段；三個以上並列的欄位或項目用 <ul> 條列，不要用「、」串成一長句。"
+    "按鈕寫成按「名稱」、選單路徑寫成「應用 / 選單 / 子選單」，系統會自動排版。\n")
 
 
 def _flow_note(flow_ctx):

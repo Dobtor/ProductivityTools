@@ -11,6 +11,8 @@ import re
 
 from odoo.addons.dobtor_corpaas_knowledge.services import scripts
 
+from . import layout_lib as L
+
 #: 開始前必設定的檢查項。model 不在說明庫（模組沒裝）就不列。
 #: count_min：至少要幾筆才算「已設定」（外幣：本國幣之外至少一種）。
 SETUP_ITEMS = [
@@ -216,106 +218,176 @@ print(MARK + json.dumps({'messages': out, 'observed': observed}))
 # ----------------------------------------------------------------------
 # HTML 組裝（純函式：輸入都是已整理好的 dict）
 # ----------------------------------------------------------------------
+def _p(text, cls=''):
+    return '<p%s>%s</p>' % (' class="%s"' % cls if cls else '', esc(text))
+
+
 def render_setup(data):
-    """開始前必設定。data = {'items': [...], 'toggles': [...], 'roles': [...]}。"""
-    parts = ['<p>%s</p>' % esc(
-        '這一頁列出開始使用前必須先設定好的項目。本說明的畫面都在已經設定好的系統上拍攝，'
-        '在新的系統照著做之前，請先逐項確認；標示「必要」的沒有設定，後面的操作會卡住。')]
-    rows = []
+    """開始前必設定：每個設定項一個手風琴（標題列＝名稱＋必要／建議＋狀態，展開＝現況／沒設會怎樣／去哪裡）。
+
+    ★ 表格儲存格放不下「沒設定會怎樣」這種一兩句的說明 → 改手風琴，長說明放展開內容。"""
+    parts = [_p('本說明的畫面都在已經設定好的系統上拍攝。', 'lead'),
+             _p('在新的系統照著做之前，請先逐項確認；標示「必要」的沒有設定，後面的操作會卡住。')]
+    items = []
+    first_open = False
     for it in data.get('items') or []:
         now = '、'.join(esc(n) for n in (it.get('names') or [])[:5])
         if it.get('count_only') and it.get('count'):
             now = esc('已有 %s 筆' % it['count'])
-        if not it.get('ok'):
-            now = '<strong>%s</strong>' % esc('尚未設定') + ((' ' + now) if now else '')
-        rows.append([
-            esc(it['label']), esc('必要' if it.get('required') else '建議'), now or '—',
-            esc(it.get('why') or ''), esc(it.get('menu') or '—')])
-    if rows:
-        parts.append(_table(['設定項目', '是否必要', '示範系統目前的設定', '沒設定會怎樣', '去哪裡設定'],
-                            rows))
+        need = L.badge('必要', 'danger') if it.get('required') else L.badge('建議', 'secondary')
+        state = ('<span class="ms-auto me-3 small text-success"><i class="fa fa-check-circle me-1">'
+                 '</i>已設定</span>') if it.get('ok') else (
+            '<span class="ms-auto me-3 small text-warning-emphasis"><i class="fa fa-exclamation-triangle '
+            'me-1"></i>尚未設定</span>')
+        title = '<span class="fw-semibold me-2">%s</span>%s%s' % (esc(it['label']), need, state)
+        body = ('<dl class="row mb-0"><dt class="col-sm-3">示範系統目前</dt><dd class="col-sm-9">%s</dd>'
+                '<dt class="col-sm-3">沒設定會怎樣</dt><dd class="col-sm-9">%s</dd>'
+                '<dt class="col-sm-3">去哪裡設定</dt><dd class="col-sm-9 mb-0">%s</dd></dl>') % (
+            now or '—', esc(it.get('why') or ''),
+            L.menu_path(it['menu']) if it.get('menu') else '—')
+        items.append((title, body))
+        if it.get('required') and not it.get('ok'):
+            first_open = first_open or len(items) == 1
+    if items:
+        parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3>' % esc('設定項目'))
+        parts.append(L.accordion('kbsetup', items, open_first=first_open))
     roles = data.get('roles') or []
     if roles:
-        parts.append('<p><strong>%s</strong></p>' % esc('使用者與權限'))
-        parts.append('<p>%s</p>' % esc('本說明以下列角色的帳號操作拍攝。請替每位使用者勾選對應的權限群組，'
-                                       '否則看到的選單和按鈕會跟說明不同：'))
-        parts.append(_table(['角色', '權限群組'], [
-            [esc(r['name']), '、'.join(esc(g) for g in r.get('groups') or []) or '—'] for r in roles]))
+        parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3>' % esc('使用者與權限'))
+        parts.append(_p('本說明以下列角色的帳號操作拍攝。請替每位使用者勾選對應的權限群組，'
+                        '否則看到的選單和按鈕會跟說明不同。'))
+        cards = ''.join(
+            '<div class="col-12 col-md-6 col-lg-4"><div class="card h-100"><div class="card-body">'
+            '<h4 class="h6 card-title"><i class="fa fa-user me-1"></i>%s</h4><div class="d-flex '
+            'flex-wrap gap-1">%s</div></div></div></div>' % (
+                esc(r['name']), ''.join(L.outline_badge(g) for g in r.get('groups') or []) or '—')
+            for r in roles)
+        parts.append('<div class="row g-3 mb-3">%s</div>' % cards)
     toggles = data.get('toggles') or []
     if toggles:
-        parts.append('<p><strong>%s</strong></p>' % esc('要先開啟的進階功能'))
-        parts.append('<p>%s</p>' % esc('下列功能預設是關閉的，本方案已經開啟；在新的系統要先到設定頁打開：'))
-        parts.append('<ul>%s</ul>' % ''.join(
-            '<li>%s：%s</li>' % (esc(t['path']), esc('、'.join(t.get('features') or [])))
-            for t in toggles))
-    return '<div class="o_kb_guide o_kb_setup">%s</div>' % ''.join(parts)
+        parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3>' % esc('要先開啟的進階功能'))
+        parts.append(_p('下列功能預設是關閉的，本方案已經開啟；在新的系統要先到設定頁打開。'))
+        groups = {}
+        for t in toggles:
+            segs = [x.strip() for x in re.split(r'\s*›\s*', t['path']) if x.strip()]
+            app = segs[1] if len(segs) > 2 and segs[0] in ('設定', 'Settings') else (segs[0] if segs else '')
+            groups.setdefault(app, []).append(t)
+        acc = []
+        for app, ts in groups.items():
+            body = '<ul class="mb-0">%s</ul>' % ''.join(
+                '<li>%s<span class="text-body-secondary">：%s</span></li>' % (
+                    L.menu_path(t['path']), esc('、'.join(t.get('features') or [])))
+                for t in ts)
+            acc.append(('<span class="fw-semibold me-2">%s</span>%s' % (
+                esc(app or '其他'), L.badge(str(len(ts)), 'secondary')), body))
+        parts.append(L.accordion('kbtoggle', acc))
+    return L.page('<div class="o_kb_guide o_kb_setup">%s</div>' % ''.join(parts))
 
 
 def render_howto(data):
     """本說明怎麼用。data = {product, chapters: [{name, url}], setup_url, roles: [{name, chapters}],
-    updated}。"""
+    updated, kinds}。"""
     kinds = set(data.get('kinds') or [])
+    parts = [_p('這是「%s」的操作說明。' % (data.get('product') or ''), 'lead'),
+             _p('每一章是一個工作領域：章首的「整體流程」用流程圖說明這一章的事情怎麼串起來%s，'
+                '接著是日常操作（每個畫面一篇），最後是報表與設定畫面。' % (
+                    '，「情境教學」用同一張示範單據從頭做到尾' if 'tutorial' in kinds else ''))]
     tail = '、'.join('「%s」' % n for k, n in (('status', '狀態速查'), ('messages', '訊息與狀況對照'))
                     if k in kinds)
-    parts = ['<p>%s</p>' % esc(
-        '這是「%s」的操作說明。每一章是一個工作領域：章首的「整體流程」用流程圖說明這一章的事情'
-        '怎麼串起來%s，接著是日常操作（每個畫面一篇），最後是報表與設定畫面%s。' % (
-            data.get('product') or '',
-            '，「情境教學」用同一張示範單據從頭做到尾' if 'tutorial' in kinds else '',
-            ('；章末有%s，遇到問題時可以直接查' % tail) if tail else ''))]
+    if tail:
+        parts.append(_p('章末有%s，遇到問題時可以直接查。' % tail))
+    chapters = [c for c in data.get('chapters') or [] if c.get('url')]
     steps = []
     if data.get('setup_url'):
-        steps.append('<li>%s<a href="%s">%s</a>%s</li>' % (
-            esc('先看「'), esc(data['setup_url']), esc('開始前必設定'), esc('」，確認系統已經設定好。')))
-    chapters = [c for c in data.get('chapters') or [] if c.get('url')]
+        steps.append('<a href="%s">%s</a><div class="small text-body-secondary">%s</div>' % (
+            esc(data['setup_url']), esc('先看「開始前必設定」'), esc('確認系統已經設定好')))
     if chapters:
-        steps.append('<li>%s%s</li>' % (esc('依序看各章的「整體流程」：'), '、'.join(
-            '<a href="%s">%s</a>' % (esc(c['url']), esc(c['name'])) for c in chapters)))
-    steps.append('<li>%s</li>' % esc('要做某件事時，到對應的章節找那個畫面的說明，照步驟操作，'
-                                     '做完對照「完成後會看到」確認結果。'))
-    parts.append('<p><strong>%s</strong></p><ol>%s</ol>' % (esc('第一次使用'), ''.join(steps)))
+        steps.append('%s<div class="d-flex flex-wrap gap-2 mt-2">%s</div>' % (
+            esc('依序看各章的「整體流程」'), ''.join(
+                '<a class="btn btn-sm btn-outline-primary" href="%s">%s</a>' % (
+                    esc(c['url']), esc(c['name'])) for c in chapters)))
+    steps.append('%s<div class="small text-body-secondary">%s</div>' % (
+        esc('要做某件事時，到對應章節找那個畫面的說明'), esc('照步驟操作，做完對照「完成後會看到」')))
+    parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3><ol class="list-group list-group-numbered '
+                 'mb-3">%s</ol>' % (esc('第一次使用'), ''.join(
+                     '<li class="list-group-item">%s</li>' % x for x in steps)))
     roles = [r for r in data.get('roles') or [] if r.get('chapters')]
     if roles:
-        parts.append('<p><strong>%s</strong></p>' % esc('誰該看哪幾章'))
-        parts.append(_table(['角色', '跟你最相關的章節'], [
-            [esc(r['name']), esc('、'.join(r['chapters']))] for r in roles]))
+        urls = {c['name']: c['url'] for c in chapters}
+        parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3>' % esc('誰該看哪幾章'))
+        parts.append(L.tabs('kbroles', [(r['name'], '<div class="d-flex flex-wrap gap-2">%s</div>' % ''.join(
+            ('<a class="btn btn-sm btn-outline-primary" href="%s">%s</a>' % (esc(urls[c]), esc(c)))
+            if urls.get(c) else L.outline_badge(c) for c in r['chapters'])) for r in roles]))
     if data.get('updated'):
-        parts.append('<p><em>%s</em></p>' % esc(
-            '本說明的畫面都在實際系統上、以上表角色的帳號操作拍攝；畫面改版時會自動重拍。'
-            '最近更新：%s。' % data['updated']))
-    return '<div class="o_kb_guide o_kb_howto">%s</div>' % ''.join(parts)
+        parts.append('<p class="small text-body-secondary mt-3"><i class="fa fa-camera me-1"></i>%s</p>'
+                     % esc('畫面都在實際系統上、以上述角色的帳號操作拍攝；畫面改版時會自動重拍。'
+                           '最近更新：%s。' % data['updated']))
+    return L.page('<div class="o_kb_guide o_kb_howto">%s</div>' % ''.join(parts))
+
+
+_NEXT = re.compile(r'^按「(.+?)」(?:\s*→\s*(.+)|開出「(.+)」)?$')
+
+
+def _action(line, primary=True):
+    """「按『確認』→ 完成」→ 按鈕外觀＋狀態徽章；看不懂的照原文。"""
+    m = _NEXT.match(line or '')
+    if not m:
+        return esc(line)
+    out = L.button(m.group(1), primary)
+    if m.group(2):
+        out += ' <i class="fa fa-long-arrow-right text-body-secondary"></i> ' + L.outline_badge(m.group(2))
+    elif m.group(3):
+        out += ' <span class="small text-body-secondary">開出</span> ' + L.outline_badge(m.group(3))
+    return '<div class="mb-1">%s</div>' % out
 
 
 def render_status(flows):
-    """狀態速查。flows = [{name, steps: [{label, meaning, next, back, roles}]}]。"""
-    parts = ['<p>%s</p>' % esc('單據停在某個狀態、不知道下一步要做什麼時，查這張表。')]
-    for flow in flows:
+    """狀態速查：每個流程一個手風琴項目（主線預設展開），狀態用徽章、按鈕用按鈕外觀。"""
+    parts = [_p('單據停在某個狀態、不知道下一步要做什麼時，查這張表。', 'lead')]
+    items = []
+    for fi, flow in enumerate(flows):
+        steps = flow['steps']
+        has_back = any(s.get('back') for s in steps)
         rows = []
-        has_back = any(s.get('back') for s in flow['steps'])
-        for s in flow['steps']:
-            last = s is flow['steps'][-1]
-            row = [esc(s['label']), esc(s.get('meaning') or '—'),
-                   '<br/>'.join(esc(x) for x in s.get('next') or [])
-                   or esc('（流程終點）' if last else '—')]
+        for i, s in enumerate(steps):
+            tone = 'secondary' if i == 0 else ('success' if i == len(steps) - 1 else 'info')
+            last = i == len(steps) - 1
+            row = ['<td class="text-nowrap">%s</td>' % L.badge(s['label'], tone),
+                   '<td>%s</td>' % esc(s.get('meaning') or '—'),
+                   '<td>%s</td>' % (''.join(_action(x) for x in s.get('next') or [])
+                                    or esc('（流程終點）' if last else '—'))]
             if has_back:
-                row.append('<br/>'.join(esc(x) for x in s.get('back') or []) or '—')
-            row.append(esc('、'.join(s.get('roles') or [])) or '—')
-            rows.append(row)
-        parts.append('<p><strong>%s</strong></p>' % esc(flow['name']))
-        parts.append(_table(['狀態', '意思', '怎麼往下一步'] + (['取消或退回'] if has_back else [])
-                            + ['誰負責往下推'], rows))
-    return '<div class="o_kb_guide o_kb_status">%s</div>' % ''.join(parts)
+                row.append('<td>%s</td>' % (''.join(_action(x, False) for x in s.get('back') or [])
+                                            or '—'))
+            row.append('<td class="small">%s</td>' % (esc('、'.join(s.get('roles') or [])) or '—'))
+            rows.append('<tr>%s</tr>' % ''.join(row))
+        heads = ['狀態', '意思', '怎麼往下一步'] + (['取消或退回'] if has_back else []) + ['誰負責往下推']
+        table = ('<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
+                 '<thead class="table-light"><tr>%s</tr></thead><tbody>%s</tbody></table></div>') % (
+            ''.join('<th>%s</th>' % esc(h) for h in heads), ''.join(rows))
+        items.append(('<span class="fw-semibold me-2">%s</span>%s' % (
+            esc(flow['name']), L.badge('%s 個狀態' % len(steps), 'secondary')), table))
+    parts.append(L.accordion('kbstatus', items, open_first=True))
+    return L.page('<div class="o_kb_guide o_kb_status">%s</div>' % ''.join(parts))
 
 
 def render_messages(groups):
-    """訊息與狀況對照。groups = [{name, items: [{message, when, cause, fix}]}]。"""
-    parts = ['<p>%s</p>' % esc('操作時系統跳出下列訊息，先照「怎麼處理」做；訊息是系統畫面上的原文。')]
-    for g in groups:
-        rows = [[esc(i['message']), esc(i.get('when') or ''), esc(i.get('cause') or '—'),
-                 esc(i.get('fix') or '—')] for i in g['items']]
-        parts.append('<p><strong>%s</strong></p>' % esc(g['name']))
-        parts.append(_table(['系統訊息', '什麼時候會出現', '為什麼', '怎麼處理'], rows))
-    return '<div class="o_kb_guide o_kb_messages">%s</div>' % ''.join(parts)
+    """訊息與狀況對照：每則訊息一個手風琴項目；標題列就是系統訊息原文（讀者拿訊息來查）。"""
+    parts = [_p('操作時系統跳出下列訊息，先照「怎麼處理」做。', 'lead'),
+             _p('訊息是系統畫面上的原文，可以直接用瀏覽器的「尋找」搜尋。', 'small text-body-secondary')]
+    for gi, g in enumerate(groups):
+        items = []
+        for it in g['items']:
+            title = '<i class="fa fa-times-circle text-danger me-2"></i><span>%s</span>' % esc(it['message'])
+            body = ('<p class="small text-body-secondary mb-2"><i class="fa fa-clock-o me-1"></i>%s</p>'
+                    '<p><span class="fw-semibold">為什麼：</span>%s</p>'
+                    '<div class="alert alert-success mb-0 py-2"><i class="fa fa-wrench me-1"></i>'
+                    '<span class="fw-semibold">怎麼處理：</span>%s</div>') % (
+                esc(it.get('when') or ''), esc(it.get('cause') or '—'), L.inline(esc(it.get('fix') or '—')))
+            items.append((title, body))
+        parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3>' % esc(g['name']))
+        parts.append(L.accordion('kbmsg%s' % gi, items))
+    return L.page('<div class="o_kb_guide o_kb_messages">%s</div>' % ''.join(parts))
 
 
 #: 常見簡體字：AI 補的短文含這些字就不用（跟文章的文字檢查同一份精神）

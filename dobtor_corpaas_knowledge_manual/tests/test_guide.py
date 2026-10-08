@@ -81,9 +81,10 @@ class TestGuide(ManualCase):
         setup = self._guide(front, 'setup')
         html = setup.html_content
         self.assertTrue(setup.is_published)
-        for text in ('新苗貿易', '尚未設定', '沒有倉庫就無法收貨', '庫存 › 倉庫', '銷售 / 管理員',
-                     '報價範本'):
+        for text in ('新苗貿易', '尚未設定', '沒有倉庫就無法收貨', '銷售 / 管理員', '報價範本',
+                     'accordion-item', 'card-title'):
             self.assertIn(text, html)
+        self.assertIn('fa-angle-right', html, '去哪裡設定用選單路徑樣式')
         howto = self._guide(front, 'howto')
         self.assertIn(setup.website_url, howto.html_content, '導讀連到開始前必設定')
 
@@ -94,7 +95,8 @@ class TestGuide(ManualCase):
         status = self._guide(section, 'status')
         self.assertTrue(status.is_published)
         self.assertEqual(status.name, '線上報名：狀態速查')
-        self.assertIn('按「確認」→ 完成', status.html_content)
+        self.assertIn('btn btn-sm btn-primary', status.html_content, '按鈕名稱用按鈕外觀')
+        self.assertIn('accordion-button', status.html_content, '每個流程一個手風琴項目')
         arts = self.env['corpaas.knowledge.placement'].search(
             [('channel_id', '=', self._channel().id)]).mapped('slide_id')
         self.assertGreater(status.sequence, max(arts.mapped('sequence')), '狀態速查排在章末')
@@ -189,8 +191,10 @@ class TestGuide(ManualCase):
     def test_article_shows_flow_position(self):
         self._flow()
         art = self._article(self.f2, self.cap_a, name='報名確認')
-        self.assertIn('流程位置｜', art.render_html(preview=True))
-        self.assertIn('草稿 →（按「確認」）→ 完成', art.render_html(preview=True))
+        html = art.render_html(preview=True)
+        self.assertIn('o_kb_flowpos', html)
+        self.assertIn('text-bg-primary">完成', html, '按完到達的狀態用實心徽章')
+        self.assertIn('按「確認」', html)
 
     def test_redraft_review_rewrites_drafts(self):
         tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
@@ -325,8 +329,9 @@ class TestTutorial(ManualCase):
         self.assertTrue(slide.is_published)
         self.assertEqual(slide.name, '線上報名：情境教學')
         html = slide.html_content
-        self.assertIn('第 2 步：報名單 已送出 → 完成', html)
-        self.assertIn('狀態列變成「完成」', html)
+        self.assertIn('報名單：已送出 → 完成', html)
+        self.assertIn('狀態列變成', html)
+        self.assertIn('col-md-6', html, '按之前／按之後並排')
         self.assertIn('乙 完成報名', html, '連到那一步的參考篇')
         art_seqs = self.env['corpaas.knowledge.placement'].search(
             [('channel_id', '=', self._channel().id)]).mapped('slide_id.sequence')
@@ -645,3 +650,53 @@ class TestLibraryAcceptance(ManualCase):
         wiz = [st for st in steps if st.get('click') == {'button': 'action_ok'}][0]
         self.assertEqual((wiz['grp'], wiz['req']), ('s0w', ['s0']),
                          '精靈沒跳出來不影響這一步')
+
+
+@tagged('post_install', '-at_install')
+class TestLayout(ManualCase):
+
+    def test_split_and_inline(self):
+        from ..services import layout_lib as L
+        out = L.lead_intro('<p>業務建立報價單,送出後待客戶確認;客戶同意就轉成訂單。例如報價 20 箱。'
+                           '此行為由設定「自動開票」決定。請依下方步驟操作。</p>')
+        self.assertTrue(out.startswith('<p class="lead">業務建立報價單，送出後待客戶確認；'),
+                        '第一句導言、半形標點轉全形')
+        self.assertIn('<blockquote', out, '例子成引用塊')
+        self.assertIn('fa-cog', out, '設定影響成灰色備註')
+        steps = L.split_paragraphs('<p>前往「銷售 / 訂單」，按「新增」後可設定客戶（圖中 1）、'
+                                   '發票地址（圖中 2）、送貨地址（圖中 3）等欄位。</p>')
+        self.assertIn('btn btn-sm btn-primary', steps, '按「新增」→ 按鈕外觀')
+        self.assertIn('fa-angle-right', steps, '選單路徑')
+        self.assertIn('<li>客戶（圖中 1）</li>', steps, '三個以上（圖中 n）改條列')
+
+    def test_steps_layout_boxes(self):
+        from ..services import layout_lib as L
+        html = ('<h4 id="a-1"><span class="badge text-bg-primary">1</span> 開啟</h4>'
+                '<p>開始前要先有：客戶資料。點選清單。</p>'
+                '<h4 id="a-2"><span class="badge text-bg-primary">2</span> 完成後會看到</h4>'
+                '<p>狀態變成銷售訂單。</p>')
+        out, outline = L.steps_layout([('a', '操作步驟', html)])
+        self.assertIn('alert-warning', out)
+        self.assertIn('alert-success', out)
+        self.assertIn('id="a"', out, '區塊錨點保留（help 連結用）')
+        self.assertIn('id="a-1"', out)
+        self.assertEqual([t for _i, t in outline], ['開啟'], '完成後會看到不算一步')
+        self.assertLess(out.index('alert-warning'), out.index('o_kb_step'))
+
+    def test_components_survive_slide_sanitize(self):
+        """手風琴、頁籤、按鈕外觀、figure 寫進 slide 後讀回不變（前台互動靠 data-bs-*）。"""
+        from ..services import layout_lib as L
+        html = L.page(L.accordion('kbt', [('<span>標題</span>', '<p>內容</p>')], open_first=True)
+                      + L.tabs('kbtab', [('甲', '<p>一</p>'), ('乙', '<p>二</p>')])
+                      + '<p>按%s</p>' % L.button('確認')
+                      + L.figure('<img src="/web/image/1" class="img-fluid rounded border" alt="x"/>',
+                                 '圖說'))
+        channel = self.env['slide.channel'].create({'name': 'kb layout test'})
+        slide = self.env['slide.slide'].create({
+            'name': 'layout', 'channel_id': channel.id, 'slide_category': 'article',
+            'html_content': html})
+        got = str(slide.html_content)
+        for marker in ('data-bs-toggle="collapse"', 'data-bs-target="#kbt-0"', 'accordion-button',
+                       'data-bs-toggle="tab"', 'tab-pane', 'btn btn-sm btn-primary', '<figure',
+                       '<figcaption', 'max-width:52rem'):
+            self.assertIn(marker, got, marker)

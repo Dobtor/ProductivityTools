@@ -238,37 +238,45 @@ class KnowledgeChannelSection(models.Model):
         return rank, flows
 
     def _manual_journey_html(self, capability, ordered, flows):
+        """章首整體流程：一句話成果（導言）→ 各流程的狀態徽章 → 日常操作清單 → 報表、設定（收合）。"""
+        from ..services import layout_lib as L
         esc = html_mod.escape
         snap = capability._last_published_snapshot() or {}
         parts = []
         for key in ('outcome', 'pain'):
             if snap.get(key):
-                parts.append('<p>%s</p>' % esc(snap[key]))
+                parts.append('<p class="lead">%s</p>' % esc(snap[key]))
                 break
         feats = set(ordered.mapped('article_id.feature_id').ids)
+        rows = []
         for flow in flows.sorted(lambda f: (-(f.usage_score or 0), f.id)):
             if not feats & set(flow.feature_ids.ids):
                 continue
             steps = [s.label for s in flow.step_ids.sorted('sequence')
                      if s.on_statusbar and s.label]
             if len(steps) >= 2:
-                parts.append('<p><strong>%s</strong>：%s</p>' % (
-                    esc(flow.name or ''), ' → '.join(esc(x) for x in steps)))
+                rows.append({'name': flow.name or '', 'states': steps})
+        parts.append(L.flow_position(rows))
         links = {GROUP_DAILY: [], GROUP_REPORT: [], GROUP_CONFIG: []}
         for pl in ordered:
             live = pl.article_id._manual_live_text()
-            links[article_group(pl.article_id.feature_id)].append('<a href="%s">%s</a>' % (
-                esc(pl.slide_id.website_url or '#'), esc(live.get('name') or '')))
+            links[article_group(pl.article_id.feature_id)].append(
+                '<a class="list-group-item list-group-item-action" href="%s">%s</a>' % (
+                    esc(pl.slide_id.website_url or '#'), esc(live.get('name') or '')))
         if links[GROUP_DAILY]:
-            parts.append('<p>%s</p><ol>%s</ol>' % (
-                esc(_('日常操作，依照做事的順序逐篇看下去：')),
-                ''.join('<li>%s</li>' % x for x in links[GROUP_DAILY])))
-        if links[GROUP_REPORT]:
-            parts.append('<p>%s%s</p>' % (esc(_('報表與分析：')), '、'.join(links[GROUP_REPORT])))
-        if links[GROUP_CONFIG]:
-            parts.append('<p>%s%s</p>' % (esc(_('設定（通常只在導入時做一次）：')),
-                                          '、'.join(links[GROUP_CONFIG])))
-        return '<div class="o_kb_journey">%s</div>' % ''.join(parts)
+            parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3><div class="list-group '
+                         'list-group-numbered mb-3">%s</div>' % (
+                             esc(_('日常操作（依照做事的順序）')), ''.join(links[GROUP_DAILY])))
+        acc = []
+        for group, title in ((GROUP_REPORT, _('報表與分析')),
+                             (GROUP_CONFIG, _('設定（通常只在導入時做一次）'))):
+            if links[group]:
+                acc.append(('<span class="fw-semibold me-2">%s</span>%s' % (
+                    esc(title), L.badge(str(len(links[group])), 'secondary')),
+                    '<div class="list-group list-group-flush">%s</div>' % ''.join(links[group])))
+        if acc:
+            parts.append(L.accordion('kbj%s' % capability.id, acc))
+        return L.page('<div class="o_kb_journey">%s</div>' % ''.join(parts))
 
     def _manual_sync_journey(self, placements, publisher, shown):
         """建立／更新本章的旅程篇 slide；不需要時取消發佈（不刪）。回傳 slide（可能空）。"""
@@ -286,8 +294,11 @@ class KnowledgeChannelSection(models.Model):
         if diagram:
             url = diagram._knowledge_public_image()
             if url:
-                html = ('<p><img src="%s" alt="%s" style="max-width:100%%"/></p>' % (
-                    url, html_mod.escape(_('%s 主線流程圖') % cap.name))) + html
+                from ..services import layout_lib as L
+                fig = L.figure('<img src="%s" class="img-fluid rounded border" alt="%s"/>' % (
+                    url, html_mod.escape(_('%s 主線流程圖') % cap.name)),
+                    _('%s 主線：各單據由哪個角色負責、怎麼交接') % cap.name)
+                html = fig + html
         name = _('%s：整體流程') % ((cap._last_published_snapshot() or {}).get('name') or cap.name)
         text_hash = manual_lib.text_signature(name + html)
         vals = {'name': name, 'slide_category': 'article', 'is_preview': True,
