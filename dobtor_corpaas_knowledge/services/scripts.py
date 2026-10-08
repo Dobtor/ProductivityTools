@@ -430,7 +430,22 @@ def seed_script(module, records, roles, password):
         "            users[r['code']] = u.login\n"
         "    except Exception as e:\n"
         "        errors.append({'xmlid': 'user_' + r['code'], 'model': 'res.users', 'error': str(e)[:500]})\n"
+        # ★ 資料包是跨方案共用的：方案沒裝的模組（集點、採購申請、批次調撥…）的記錄，
+        #   連同參照到它們的記錄一起略過，不算錯誤。
+        #   ☠️ 實機：社群電商方案沿用進銷存的資料包，21 筆重播「失敗」整座說明庫判失敗、
+        #     一張截圖都沒拍；資料包的錯又不歸 AI 修，永遠卡住。
+        "skipped, gone = [], set()\n"
+        "def _refs(rec):\n"
+        "    text = json.dumps(rec)\n"
+        "    out = set(re.findall(r'__ref__:([A-Za-z0-9_.]+)', text))\n"
+        "    if rec.get('ref'):\n"
+        "        out.add(rec['ref'])\n"
+        "    return {_full(x) for x in out}\n"
         "for rec in RECORDS:\n"
+        "    if rec.get('model') not in env.registry or (_refs(rec) & gone):\n"
+        "        gone.add(_full(rec.get('xmlid') or ''))\n"
+        "        skipped.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model')})\n"
+        "        continue\n"
         "    try:\n"
         "        with env.cr.savepoint():\n"
         "            if rec.get('call'):\n"
@@ -448,7 +463,8 @@ def seed_script(module, records, roles, password):
         "    except Exception as e:\n"
         "        errors.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model'), 'error': str(e)[:500]})\n"
         "env.cr.commit()\n"
-        "print(MARK + json.dumps({'done': done, 'errors': errors, 'users': users}))\n"
+        "print(MARK + json.dumps({'done': done, 'errors': errors, 'users': users,\n"
+        "                         'skipped': skipped}))\n"
     ) % (module, json.dumps(records), json.dumps(roles), password)
 
 

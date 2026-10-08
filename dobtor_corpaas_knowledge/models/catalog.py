@@ -12,6 +12,27 @@ from odoo.exceptions import AccessError, UserError
 
 _logger = logging.getLogger(__name__)
 
+
+def glossary_text(value):
+    """AI 回的用語對照 → 「原詞=情境用語」一行一組。
+
+    ★ 只收真的是對照的格式（字串、{原詞: 用語}、[{"from","to"}]）；名詞解釋
+      （[{"term","definition"}]）不是對照，丟掉——套用時會把原詞整個換成一段解釋。
+      ☠️ 實機：提示沒講格式，AI 回了名詞解釋，核准時整段被丟、情境沒有用語對照。"""
+    if isinstance(value, str):
+        return value.strip() or False
+    pairs = []
+    if isinstance(value, dict):
+        pairs = [(k, v) for k, v in value.items() if isinstance(v, str)]
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict) and isinstance(item.get('from'), str) \
+                    and isinstance(item.get('to'), str):
+                pairs.append((item['from'], item['to']))
+    lines = ['%s=%s' % (a.strip(), b.strip()) for a, b in pairs
+             if a.strip() and b.strip() and '=' not in a and len(b.strip()) <= 20]
+    return '\n'.join(lines) or False
+
 #: 起草／修正示範資料的共同規則（2026-10 實機：AI 起草 82 筆有 36 筆錯、89 個畫面 52 個空白，
 #: 錯在重複建產品變體、日記帳缺必填、完全沒有確認／過帳步驟）
 SEED_RULES = (
@@ -667,13 +688,27 @@ class KnowledgeScenario(models.Model):
         bad = {e['xmlid'] for e in errors}
         broken = [r for r in records if full(r['xmlid']) in bad]
         packs = self.pack_ids.mapped('code')
+        # ★ 附上出錯模型的真實欄位：方案自有模型 AI 沒看過，只給錯誤訊息它只能再猜一次
+        #   ☠️ 實機：dobtor.referral.visit 修兩次都還在寫不存在的 partner_id
+        fields_info = {}
+        bad_models = sorted({e.get('model') for e in errors if e.get('model')}
+                            - {'res.config.settings'})
+        if bad_models:
+            try:
+                from ..services import remote, scripts
+                golden = package._knowledge_master()._corpaas_golden_db()
+                fields_info = remote.shell_json(self.env, golden.instance_id, golden.name,
+                                                scripts.fields_script(bad_models))
+            except Exception as e:  # noqa: BLE001 — 拿不到欄位就照舊只給錯誤訊息
+                _logger.warning('[knowledge] 情境 %s 讀取欄位定義失敗：%s', self.code, e)
         # ★ 只送出錯的記錄＋其餘記錄的 xmlid 清單：實機每次送整份腳本，修三次花 1.45 美元
         prompt = (
             "情境「%s」的 Odoo 18 示範資料在測試庫重播時有問題。請修正「出錯的記錄」，並為"
             "「沒有資料的畫面」新增記錄；回傳修正後的出錯記錄（同 xmlid）加上新增的記錄，"
-            "其他記錄不用回傳、不要改。%s\n%s"
+            "其他記錄不用回傳、不要改。欄位只能用「出錯模型的欄位定義」裡有的；"
+            "對已經是確認／過帳狀態的記錄不要再呼叫確認或過帳。%s\n%s"
             "格式：{\"seed\":[…]}\n\n重播錯誤：%s\n\n出錯的記錄：%s\n\n"
-            "沒有資料的畫面：%s\n\n其餘記錄（只列 xmlid，可參照）：%s"
+            "沒有資料的畫面：%s\n\n其餘記錄（只列 xmlid，可參照）：%s\n\n出錯模型的欄位定義：%s"
         ) % (self.name,
              ('資料包（%s）會先重播、內容不能改；可用完整 xmlid 參照它們的記錄。' % '、'.join(packs))
              if packs else '',
@@ -683,7 +718,8 @@ class KnowledgeScenario(models.Model):
              json.dumps(broken, ensure_ascii=False),
              json.dumps(empty[:80], ensure_ascii=False),
              json.dumps([r['xmlid'] for r in records if full(r['xmlid']) not in bad][:300],
-                        ensure_ascii=False))
+                        ensure_ascii=False),
+             json.dumps(fields_info, ensure_ascii=False)[:60000])
 
         def check(data):
             seed = (data or {}).get('seed')
@@ -1243,7 +1279,7 @@ class KnowledgeSelection(models.Model):
         sc = Sc.create({
             'name': data['name'], 'code': code, 'parent_id': parent.id or False,
             'narrative': data.get('narrative') or data.get('reason'),
-            'glossary': data.get('glossary') if isinstance(data.get('glossary'), str) else False})
+            'glossary': glossary_text(data.get('glossary'))})
         sc.role_ids = [(6, 0, self._knowledge_proposed_roles(data).ids)]
         return sc
 

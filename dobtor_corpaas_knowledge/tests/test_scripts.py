@@ -86,6 +86,33 @@ class TestScripts(TransactionCase):
         self.assertFalse(p1.active, '動作有執行')
         self.assertEqual([e['xmlid'] for e in res['errors']], ['bad'], '只允許 action_／button_')
 
+    def test_seed_script_skips_uninstalled_models(self):
+        """方案沒裝的模型連同參照它的記錄略過，不算錯誤（資料包跨方案共用）。"""
+        src = scripts.seed_script(
+            '__doc_scenario_t3',
+            [{'xmlid': 'prog', 'model': 'no.such.model', 'values': {'name': 'x'}},
+             {'xmlid': 'child', 'model': 'res.partner',
+              'values': {'name': '依賴', 'comment': '__ref__:prog'}},
+             {'xmlid': 'child_archive', 'model': 'res.partner', 'call': 'action_archive',
+              'ref': 'child'},
+             {'xmlid': 'ok', 'model': 'res.partner', 'values': {'name': '正常'}}],
+            [], 'pw-123456')
+        src = src.replace('env.cr.commit()', 'pass')
+        printed = []
+        exec(compile(src, '<seed>', 'exec'), {'env': self.env, 'print': printed.append})
+        import json
+        res = json.loads(printed[-1][len(scripts.MARK):])
+        self.assertEqual(res['errors'], [])
+        self.assertEqual([s['xmlid'] for s in res['skipped']], ['prog', 'child', 'child_archive'])
+        self.assertTrue(self.env.ref('__doc_scenario_t3.ok'))
+
+    def test_glossary_text_only_accepts_mappings(self):
+        from ..models.catalog import glossary_text
+        self.assertEqual(glossary_text({'客戶': '會員'}), '客戶=會員')
+        self.assertEqual(glossary_text([{'from': '銷售訂單', 'to': '訂單'}]), '銷售訂單=訂單')
+        self.assertFalse(glossary_text([{'term': '會員中心', 'definition': '會員登入後的專屬頁面'}]))
+        self.assertEqual(glossary_text('客戶=會員'), '客戶=會員')
+
     def test_gate_script_flags_customer_records(self):
         customer = self.env['res.partner'].create({'name': '真實客戶'})
         src = scripts.gate_script({'res.partner': [customer.id,
