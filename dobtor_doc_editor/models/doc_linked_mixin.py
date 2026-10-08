@@ -87,6 +87,61 @@ class DocLinkedMixin(models.AbstractModel):
         compute='_compute_doc_output_count',
     )
 
+    # ─── 這一筆記錄自己的報表設定（報表引擎）────────────────────────
+    #
+    # 綁定（doc.report）管的是「這張報表用哪張範本、附哪幾頁」，依報表＋語言＋
+    # 公司決定。但有些事只有**這一筆**知道：
+    #
+    #   * 這張單要附它自己上傳的檢驗報告（每筆不同）
+    #   * 只有這一張合約要附標準條款（其他不要）
+    #   * 這一筆用特別的範本（客戶指定的版面）
+    #
+    # 三個都走「約定方法」，所以沒有繼承本 mixin 的模型也能自己實作；
+    # 本 mixin 只是順便提供欄位與預設實作，讓繼承者有現成的 UI 開關。
+    # 約定方法的名字在 doc.report 那邊（_RECORD_HOOKS），要改一起改。
+
+    doc_append_pages = fields.Boolean(
+        string='附加附頁',
+        default=True,
+        copy=False,
+        help='這一筆列印時要不要接上綁定設定的附頁。\n'
+             '只有在綁定的「附頁適用範圍」設成依記錄決定時才會被看。',
+    )
+    doc_report_template_id = fields.Many2one(
+        'doc.template',
+        string='指定列印範本',
+        domain="[('role', '=', 'content')]",
+        copy=False,
+        ondelete='set null',
+        help='只有這一筆改用別的範本（客戶指定的版面）。\n'
+             '留空＝用綁定設定的那一張。模型對不上時會被忽略並留下伺服器紀錄。',
+    )
+
+    def doc_report_append_enabled(self):
+        """這一筆要不要接附頁。預設讀 doc_append_pages 欄位。"""
+        self.ensure_one()
+        return bool(self.doc_append_pages)
+
+    def doc_report_template(self):
+        """這一筆要用的範本；回空＝用綁定那一張。"""
+        self.ensure_one()
+        return self.doc_report_template_id
+
+    def doc_report_append_pdfs(self):
+        """這一筆自己要附的 PDF。
+
+        預設回空——「哪些附件該印」是業務問題，猜錯會把不該外流的檔案印進
+        客戶拿到的單據裡。繼承者自己覆寫，例如：
+
+            def doc_report_append_pdfs(self):
+                return self.attachment_ids.filtered(
+                    lambda a: a.mimetype == 'application/pdf'
+                              and a.name.startswith('檢驗報告'))
+
+        回傳可以是 ir.attachment 的 recordset，也可以是一串 bytes。
+        """
+        return self.env['ir.attachment'].browse()
+
     def _compute_doc_output_count(self):
         Output = self.env['doc.output']
         if not self.ids:

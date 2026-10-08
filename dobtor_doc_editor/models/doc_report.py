@@ -124,15 +124,120 @@ class DocReport(models.Model):
         string='附頁位置', default='after', required=True,
         help='「放在前面」給封面頁用。',
     )
+    append_record_policy = fields.Selection(
+        [('always', '每一筆都附'),
+         ('opt_out', '預設附，記錄可以關掉'),
+         ('opt_in', '預設不附，記錄要開啟')],
+        string='附頁適用範圍', default='always', required=True,
+        help='「每一筆都附」＝不看記錄怎麼說（預設，設定了附頁就生效）。\n'
+             '另兩個會去問記錄的 doc_report_append_enabled()——'
+             'doc.linked.mixin 的實作是讀「附加附頁」那個勾選。\n'
+             '記錄沒有那支方法時：opt_out 當成要附、opt_in 當成不附。',
+    )
 
     output_count = fields.Integer(string='輸出筆數', compute='_compute_output_count')
+
+    # 記錄這一側的約定方法。名字不以底線開頭：要能被繼承者一眼看出是公開約定
+    #（與 doc_report_values() 同一套做法）。
+    _RECORD_HOOKS = {
+        'enabled': 'doc_report_append_enabled',
+        'pdfs': 'doc_report_append_pdfs',
+        'template': 'doc_report_template',
+    }
+
+    def _record_append_enabled(self, record):
+        """這一筆要不要接附頁。
+
+        policy='always' 時根本不問記錄——設定了附頁就生效，否則「在綁定上設好
+        附頁卻什麼都沒發生」會是個找不到原因的坑。
+        記錄沒有那支方法時：opt_out 當成要附、opt_in 當成不附（兩邊都取
+        「設定者寫下的預設」而不是猜）。
+        """
+        policy = self.append_record_policy or 'always'
+        if policy == 'always':
+            return True
+        hook = self._RECORD_HOOKS['enabled']
+        if not hasattr(record, hook):
+            return policy == 'opt_out'
+        try:
+            return bool(getattr(record, hook)())
+        except Exception as e:
+            _logger.warning(
+                '[doc.report] %s(%s).%s() 失敗，依政策 %s 處理：%s',
+                record._name, record.id, hook, policy, e)
+            return policy == 'opt_out'
+
+    def _record_append_pdfs(self, record):
+        """記錄自己提供的 PDF（ir.attachment 或一串 bytes 都收）。
+
+        這是靜態設定補不上的那一半：出貨單要附的是**這一張單自己上傳的**
+        檢驗報告，每筆都不一樣。
+        """
+        hook = self._RECORD_HOOKS['pdfs']
+        if not hasattr(record, hook):
+            return []
+        try:
+            value = getattr(record, hook)()
+        except Exception as e:
+            _logger.warning('[doc.report] %s(%s).%s() 失敗，略過記錄自備附頁：%s',
+                            record._name, record.id, hook, e)
+            return []
+        out = []
+        if hasattr(value, '_name') and hasattr(value, 'ids'):
+            for att in value:
+                try:
+                    # sudo 同固定附頁：決定「哪些附件要印」的是業務程式碼，
+                    # 不是操作者的讀取權（他本來就看得到這張單據）
+                    raw = att.sudo().raw
+                except Exception as e:
+                    _logger.warning('[doc.report] 記錄附件 %s 讀取失敗：%s',
+                                    att.display_name, e)
+                    continue
+                if raw:
+                    out.append(raw)
+            return out
+        for item in (value or []):
+            if isinstance(item, bytes) and item:
+                out.append(item)
+        return out
+
+    def _record_template_for(self, record):
+        """這一筆要用的範本；回空＝用綁定那一張。
+
+        模型對不上就忽略並留 log：拿 sale.order 的範本去印 account.move，
+        印出來會是一張看起來正常、值全空的單據——那比印出綁定的範本糟。
+        """
+        hook = self._RECORD_HOOKS['template']
+        if not hasattr(record, hook):
+            return self.env['doc.template'].browse()
+        try:
+            template = getattr(record, hook)()
+        except Exception as e:
+            _logger.warning('[doc.report] %s(%s).%s() 失敗，用綁定的範本：%s',
+                            record._name, record.id, hook, e)
+            return self.env['doc.template'].browse()
+        if not template:
+            return self.env['doc.template'].browse()
+        template = template[:1]
+        model = template.model_id.model if template.model_id else None
+        if model and model != record._name:
+            _logger.warning(
+                '[doc.report] %s(%s) 指定的範本「%s」是 %s 的，與 %s 不符，已忽略',
+                record._name, record.id, template.name, model, record._name)
+            return self.env['doc.template'].browse()
+        return template
 
     def _append_streams_for(self, record):
         """這筆記錄要接的 PDF 位元串清單（依設定順序）。
 
+        三段：綁定設定的報表 → 綁定設定的固定 PDF → **記錄自己提供的**。
+        記錄自備的放最後，因為它是「這一張單的附件」，順序上在通用條款之後。
+
         拿不到的那一張跳過並留 log，不讓整張單據失敗——使用者要的是手上
         那張單據，附頁壞掉是次要的（與留存輸出失敗同一個取捨）。
         """
+        if not self._record_append_enabled(record):
+            return []
         out = []
         for report in self.append_report_ids:
             if report.model != record._name:
@@ -142,14 +247,25 @@ class DocReport(models.Model):
                 )
                 continue
             try:
-                content, _ext = report.with_context(
+                content, ext = report.with_context(
                     # 防遞迴：附加的報表若自己也綁了 doc.report 並且附加回來，
                     # 不擋的話會無限互叫。看到這個旗標就不再接附頁。
                     doc_report_no_append=True,
+                    # 測試模式下 Odoo 會把 _render_qweb_pdf 短路成 HTML
+                    #（ir_actions_report.py:1008，怕 worker 不夠跑 wkhtmltopdf）。
+                    # 不強制的話這裡拿到的是 str，接下去 merge_pdf 會炸。
+                    force_report_rendering=True,
                 )._render_qweb_pdf(report.id, [record.id])
             except Exception as e:
                 _logger.warning('[doc.report] 附加報表 %s 產生失敗：%s',
                                 report.report_name, e)
+                continue
+            if not isinstance(content, bytes):
+                # 只收 bytes。拿到別的東西（HTML、None）就跳過並講清楚，
+                # 不要讓它流到 merge_pdf 變成一個看不懂的例外。
+                _logger.warning(
+                    '[doc.report] 附加報表 %s 回的不是 PDF 位元串（%s / %s），已跳過',
+                    report.report_name, type(content).__name__, ext)
                 continue
             if content:
                 out.append(content)
@@ -164,6 +280,7 @@ class DocReport(models.Model):
                 continue
             if raw:
                 out.append(raw)
+        out.extend(self._record_append_pdfs(record))
         return out
 
     def _compute_output_count(self):
@@ -260,6 +377,10 @@ class DocReport(models.Model):
             base_tree if frame == template
             else Mixin._parse_content_json(frame.content_json)
         )
+        # 逐筆範本覆寫（記錄身上的 doc_report_template()）。
+        # 解析結果依範本 id 快取：十張單據都指定同一張特別範本時只解析一次。
+        # 沒有任何記錄覆寫時這個 dict 一直是空的，等於這段不存在。
+        tree_cache = {template.id: base_tree}
 
         articles = []
         frozen_trees = {}
@@ -275,17 +396,36 @@ class DocReport(models.Model):
             )
             record = Mixin._record_in_lang(raw_record, lang)
             langs[raw_record.id] = lang
-            if base_tree is None:
+            # 這一筆要用哪張範本。頁首頁尾（frame_tree）仍然只有一份——
+            # wkhtmltopdf 的頁首頁尾是整份 PDF 共用的，做不到逐筆不同。
+            # 覆寫的範本如果外框不一樣，會留下 log 並沿用綁定那一份外框。
+            record_template = self._record_template_for(record)
+            if record_template and record_template != template:
+                if record_template.id not in tree_cache:
+                    tree_cache[record_template.id] = Mixin._parse_content_json(
+                        record_template.content_json)
+                    if record_template.frame_template() != frame:
+                        _logger.warning(
+                            '[doc.report] %s(%s) 指定的範本「%s」外框與綁定不同，'
+                            '頁首頁尾仍沿用綁定那一份（wkhtmltopdf 的頁首頁尾'
+                            '整份 PDF 共用）',
+                            record._name, record.id, record_template.name)
+                this_tree = tree_cache[record_template.id]
+                this_template = record_template
+            else:
+                this_tree = base_tree
+                this_template = template
+            if this_tree is None:
                 # 範本還沒用編輯器存過（只有 content_html）：退回舊的 alias 渲染，
                 # 至少印得出東西，而不是給一張空白紙。
-                body = template._render_template(
-                    template.get_content_html(), record,
+                body = this_template._render_template(
+                    this_template.get_content_html(), record,
                 )
                 frozen_trees[record.id] = None
             else:
                 import copy as _copy
                 tree = Mixin._snapshot_content_json(
-                    _copy.deepcopy(base_tree), record,
+                    _copy.deepcopy(this_tree), record,
                 )
                 frozen_trees[record.id] = tree
                 body = Mixin._content_json_to_html(

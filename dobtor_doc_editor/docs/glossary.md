@@ -186,6 +186,10 @@
 | **欄位標籤藥丸** | `source='fieldLabel'` — 印欄位名稱而非值，文字取 `fields_get()['string']`，跟著語言變 |
 | **`doc_report_values()`** | 模型自備的報表值；範本用 `data.<鍵>`。整合者加自己算的值用這道口，不是擴 `_SAFE_REPORT_METHODS` |
 | **附頁** | `doc.report.append_report_ids` / `append_attachment_ids` — 把別的報表或固定 PDF 逐筆接在單據後面 |
+| **`doc_report_append_pdfs()`** | 記錄自備的附頁（這一張單自己上傳的檢驗報告）。`doc.report._RECORD_HOOKS` 之一 |
+| **`doc_report_append_enabled()`** | 這一筆要不要接附頁；只在綁定的「附頁適用範圍」是 opt_in/opt_out 時被問 |
+| **`doc_report_template()`** | 這一筆改用別的範本（客戶指定版面）。模型對不上會被忽略 |
+| **附頁適用範圍** | `append_record_policy`：always（預設，不問記錄）／opt_out／opt_in |
 | **`run_tour_tests.sh`** | 容器內跑瀏覽器 tour；開頭自檢 chromium 與 websocket-client，被跳過時 exit 2（skipped 不能當成過）|
 | **`run_local_rig.sh`** | host 端入口：`docker exec` 進本機兩容器 rig 跑**全部**測試（`test` / `tour` / `all`）。容器名與連線參數可用環境變數覆寫 |
 | **CI gate v1 dispatch** | workflow_dispatch 手動觸發、Sprint 114 落地 font_serve 12 test 進 CI | Sprint 114 |

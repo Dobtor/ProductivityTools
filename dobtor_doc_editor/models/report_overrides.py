@@ -121,8 +121,16 @@ class IrActionsReport(models.Model):
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
         report = self._get_report(report_ref)
         doc_report = self.env['doc.report']._resolve_for_report(report)
+        # 要不要進這條路：綁定設了附頁，**或**這個模型自己會提供附頁。
+        # 後者用 hasattr 問「模型」而不是逐筆問記錄——列印 80 張單據時
+        # 光是為了決定要不要進來就呼叫 80 次業務方法太貴。
+        hook = self.env['doc.report']._RECORD_HOOKS['pdfs']
+        model_supplies = bool(
+            report.model and report.model in self.env
+            and hasattr(self.env[report.model], hook))
         appends = doc_report and (
-            doc_report.append_report_ids or doc_report.append_attachment_ids)
+            doc_report.append_report_ids or doc_report.append_attachment_ids
+            or model_supplies)
         if not appends or self._context.get('doc_report_no_append'):
             return super()._render_qweb_pdf_prepare_streams(
                 report_ref, data, res_ids=res_ids)

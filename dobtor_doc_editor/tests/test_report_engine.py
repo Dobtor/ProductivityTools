@@ -5,6 +5,7 @@ ir_actions_report._prepare_html() 的期待，失敗方式是 IndexError 或 Use
 而不是「版面有點怪」。所以結構比內容更該被釘住。
 """
 import json
+from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, tagged
@@ -710,3 +711,330 @@ class TestConvertEntryPoints(TransactionCase):
             'arch': '<t t-name="label">x</t>',
         })
         self.assertFalse(view._doc_candidate_reports())
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestRecordLevelReportSettings(TransactionCase):
+    """記錄這一側的三個約定方法。
+
+    綁定管的是「這張報表用哪張範本、附哪幾頁」，依報表＋語言＋公司決定。
+    但有些事只有**這一筆**知道：這張單要附它自己上傳的檢驗報告、只有這一張
+    合約要附條款、這一筆用客戶指定的版面。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.model = self.env['ir.model']._get('res.partner')
+        self.template = self.env['doc.template'].create({
+            'name': '綁定的範本', 'role': 'content',
+            'model_id': self.model.id,
+            'content_json': json.dumps({'main': [_text('綁定範本的本文')]}),
+        })
+        self.report = self.env['ir.actions.report'].create({
+            'name': '逐筆設定測試報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf',
+            'report_name': 'dobtor_doc_editor.record_probe',
+        })
+        self.binding = self.env['doc.report'].create({
+            'name': '逐筆設定測試綁定',
+            'template_id': self.template.id,
+            'report_id': self.report.id,
+        })
+        self.partner = self.env['res.partner'].create({'name': '逐筆設定客戶'})
+        import base64
+        self.att = self.env['ir.attachment'].create({
+            'name': '條款.pdf', 'mimetype': 'application/pdf',
+            'datas': base64.b64encode(b'%PDF-FIXED'),
+        })
+        self.binding.append_attachment_ids = [(6, 0, self.att.ids)]
+
+    def _patch(self, name, value):
+        """把一支約定方法掛到 res.partner 上（測試結束自動還原）。
+
+        不能用 self.patch()：它沒帶 create=True，而這幾支約定方法在
+        res.partner 上本來不存在——patch.object 找不到原屬性就直接拋。
+        """
+        patcher = patch.object(type(self.partner), name, value, create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    # ── ② 記錄層級的附頁開關 ───────────────────────────────────
+    def test_always_does_not_even_ask_the_record(self):
+        """設了附頁卻什麼都沒發生，是個找不到原因的坑。預設不問記錄。"""
+        asked = []
+        self._patch('doc_report_append_enabled',
+                    lambda rec: asked.append(1) or False)
+        self.assertEqual(self.binding.append_record_policy, 'always')
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-FIXED'])
+        self.assertFalse(asked, 'policy=always 還是去問了記錄')
+
+    def test_opt_out_lets_the_record_turn_it_off(self):
+        self.binding.append_record_policy = 'opt_out'
+        self._patch('doc_report_append_enabled', lambda rec: False)
+        self.assertEqual(self.binding._append_streams_for(self.partner), [])
+        self._patch('doc_report_append_enabled', lambda rec: True)
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-FIXED'])
+
+    def test_opt_in_needs_the_record_to_say_yes(self):
+        self.binding.append_record_policy = 'opt_in'
+        self.assertEqual(self.binding._append_streams_for(self.partner), [],
+                         '模型沒有那支方法時 opt_in 應該當成不附')
+        self._patch('doc_report_append_enabled', lambda rec: True)
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-FIXED'])
+
+    def test_missing_hook_falls_back_to_the_policy_default(self):
+        self.binding.append_record_policy = 'opt_out'
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-FIXED'],
+            '模型沒有那支方法時 opt_out 應該當成要附')
+
+    def test_failing_hook_falls_back_to_the_policy_default(self):
+        self.binding.append_record_policy = 'opt_in'
+        self._patch('doc_report_append_enabled',
+                    lambda rec: (_ for _ in ()).throw(ValueError('壞了')))
+        self.assertEqual(self.binding._append_streams_for(self.partner), [])
+
+    # ── ① 記錄自備附頁 ─────────────────────────────────────────
+    def test_record_supplied_attachments_are_appended_last(self):
+        """記錄自備的放最後：它是「這一張單的附件」，在通用條款之後。"""
+        import base64
+        own = self.env['ir.attachment'].create({
+            'name': '檢驗報告.pdf', 'mimetype': 'application/pdf',
+            'datas': base64.b64encode(b'%PDF-OWN'),
+        })
+        self._patch('doc_report_append_pdfs', lambda rec: own)
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner),
+            [b'%PDF-FIXED', b'%PDF-OWN'])
+
+    def test_record_may_return_raw_bytes_too(self):
+        self._patch('doc_report_append_pdfs', lambda rec: [b'%PDF-A', b'%PDF-B'])
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner),
+            [b'%PDF-FIXED', b'%PDF-A', b'%PDF-B'])
+
+    def test_record_pdfs_without_the_hook_is_empty(self):
+        self.assertEqual(self.binding._record_append_pdfs(self.partner), [])
+
+    def test_failing_record_pdfs_does_not_lose_the_fixed_ones(self):
+        self._patch('doc_report_append_pdfs',
+                    lambda rec: (_ for _ in ()).throw(ValueError('壞了')))
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-FIXED'])
+
+    def test_model_supplying_pdfs_alone_triggers_the_pdf_hook(self):
+        """綁定沒設附頁、但模型自己會給 → 攔截點還是要進去。"""
+        self.binding.append_attachment_ids = [(5, 0, 0)]
+        self._patch('doc_report_append_pdfs', lambda rec: [b'%PDF-OWN'])
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-OWN'])
+
+    # ── ③ 記錄層級的範本覆寫 ───────────────────────────────────
+    def test_record_template_overrides_the_binding(self):
+        special = self.env['doc.template'].create({
+            'name': '客戶指定版面', 'role': 'content',
+            'model_id': self.model.id,
+            'content_json': json.dumps({'main': [_text('客戶指定的本文')]}),
+        })
+        self._patch('doc_report_template', lambda rec: special)
+        self.assertEqual(
+            self.binding._record_template_for(self.partner), special)
+        html, _frozen = self.binding._build_report_html(self.partner)
+        self.assertIn('客戶指定的本文', html)
+        self.assertNotIn('綁定範本的本文', html)
+
+    def test_wrong_model_template_is_ignored(self):
+        """拿別的模型的範本去印，會印出一張看起來正常、值全空的單據。"""
+        other = self.env['doc.template'].create({
+            'name': '別的模型', 'role': 'content',
+            'model_id': self.env['ir.model']._get('res.users').id,
+            'content_json': json.dumps({'main': [_text('不該出現')]}),
+        })
+        self._patch('doc_report_template', lambda rec: other)
+        self.assertFalse(self.binding._record_template_for(self.partner))
+        html, _frozen = self.binding._build_report_html(self.partner)
+        self.assertIn('綁定範本的本文', html)
+        self.assertNotIn('不該出現', html)
+
+    def test_no_override_uses_the_binding_template(self):
+        html, _frozen = self.binding._build_report_html(self.partner)
+        self.assertIn('綁定範本的本文', html)
+
+    def test_failing_template_hook_uses_the_binding_template(self):
+        self._patch('doc_report_template',
+                    lambda rec: (_ for _ in ()).throw(ValueError('壞了')))
+        html, _frozen = self.binding._build_report_html(self.partner)
+        self.assertIn('綁定範本的本文', html)
+
+    def test_two_records_with_different_templates_parse_once_each(self):
+        """逐筆覆寫不可以變成「每筆都重新解析一次 content_json」。"""
+        special = self.env['doc.template'].create({
+            'name': '共用的特別範本', 'role': 'content',
+            'model_id': self.model.id,
+            'content_json': json.dumps({'main': [_text('特別本文')]}),
+        })
+        others = self.env['res.partner'].create([
+            {'name': '甲'}, {'name': '乙'}, {'name': '丙'}])
+        self._patch('doc_report_template', lambda rec: special)
+        calls = []
+        Mixin = type(self.env['doc.render.mixin'])
+        original = Mixin._parse_content_json
+
+        def _spy(mixin_self, raw):
+            calls.append(1)
+            return original(mixin_self, raw)
+
+        self.patch(Mixin, '_parse_content_json', _spy)
+        html, _frozen = self.binding._build_report_html(others)
+        self.assertIn('特別本文', html)
+        # 綁定的範本 1 次 + 特別範本 1 次（外框與綁定同一張時不重複解析）
+        self.assertLessEqual(len(calls), 3,
+                             '解析了 %d 次，逐筆範本沒有快取' % len(calls))
+
+    # ── mixin 的預設實作 ───────────────────────────────────────
+    def test_mixin_provides_the_three_hooks_and_two_fields(self):
+        Mixin = self.env['doc.linked.mixin']
+        for hook in ('doc_report_append_enabled', 'doc_report_append_pdfs',
+                     'doc_report_template'):
+            self.assertTrue(hasattr(Mixin, hook), '少了 %s' % hook)
+        self.assertIn('doc_append_pages', Mixin._fields)
+        self.assertIn('doc_report_template_id', Mixin._fields)
+
+    def test_hook_names_are_declared_in_one_place(self):
+        """名字散在兩邊會各自漂移。"""
+        hooks = self.env['doc.report']._RECORD_HOOKS
+        self.assertEqual(
+            set(hooks.values()),
+            {'doc_report_append_enabled', 'doc_report_append_pdfs',
+             'doc_report_template'})
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAppendPagesEndToEnd(TransactionCase):
+    """附頁：真的產一份 PDF、數頁數。
+
+    其他附頁測試釘的是「取哪些、順序、失敗取捨」——那些不需要 wkhtmltopdf。
+    但「頁數對不對」與「多筆列印時每張後面都有自己那份」只能用真的 PDF 驗，
+    而那正是最容易壞的地方（在 _render_qweb_pdf 之後動手的話，附頁會全部堆在
+    最後一張單據後面，而單筆列印時完全看不出差別）。
+
+    ☠️ **這一組需要多個 worker。** 測試模式下 Odoo 會把 _render_qweb_pdf 短路
+    成 HTML（ir_actions_report.py:1008），註解寫明理由是「worker 不夠跑
+    wkhtmltopdf」。用 force_report_rendering 強制的話，wkhtmltopdf 會回頭向
+    同一個 Odoo 行程要 assets，而 --workers=0 只有一條執行緒在跑測試
+    ——直接死結到 timeout（實測：一則測試卡 5 分鐘以上）。
+
+    所以 workers=0 時 skip，訊息裡講明「附頁的頁數未由測試驗證」。
+    本機 rig 就是 workers=0，所以這一組在那裡永遠是 skip；我用 odoo shell
+    手動驗過一次（shell 不對外服務 HTTP，沒有那個死結），數字記在
+    docs/qweb_converter_coverage.md。CI 若以多 worker 跑就會真的執行。
+    """
+
+    def setUp(self):
+        super().setUp()
+        from odoo.tools import config
+        from odoo.tools.misc import find_in_path
+        try:
+            find_in_path('wkhtmltopdf')
+        except (IOError, OSError):
+            self.skipTest('沒有 wkhtmltopdf——附頁的頁數未由測試驗證')
+        if not (config['workers'] or 0):
+            self.skipTest(
+                'workers=0：強制產 PDF 會與 wkhtmltopdf 的回呼死結'
+                '——附頁的頁數未由測試驗證（見本類別的 docstring）')
+        model = self.env['ir.model']._get('res.partner')
+        self.template = self.env['doc.template'].create({
+            'name': 'E2E 附頁範本', 'role': 'content', 'model_id': model.id,
+            'content_json': json.dumps(
+                {'main': [_text('本體內容'), _text('\n')]}),
+        })
+        self.report = self.env['ir.actions.report'].create({
+            'name': 'E2E 附頁報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf',
+            'report_name': 'base.report_partnercontact',
+        })
+        self.binding = self.env['doc.report'].create({
+            'name': 'E2E 附頁綁定',
+            'template_id': self.template.id, 'report_id': self.report.id,
+        })
+        self.p1 = self.env['res.partner'].create({'name': 'E2E 甲'})
+        self.p2 = self.env['res.partner'].create({'name': 'E2E 乙'})
+
+    def _pages(self, content):
+        import io
+        from odoo.tools.pdf import PdfFileReader
+        return PdfFileReader(io.BytesIO(content), strict=False).getNumPages()
+
+    def _print(self, records):
+        # force_report_rendering：測試模式下 Odoo 會把 _render_qweb_pdf 短路成
+        # HTML（ir_actions_report.py:1008）。不強制的話這一整組測試量到的是
+        # 字串長度而不是頁數——**而且會綠**。
+        content, ext = self.report.with_context(
+            force_report_rendering=True)._render_qweb_pdf(
+                self.report.id, records.ids)
+        self.assertEqual(ext, 'pdf', '拿到的不是 PDF（%s）' % ext)
+        return self._pages(content)
+
+    def _two_page_pdf(self):
+        """拿同一張報表印兩筆當成「兩頁的固定 PDF」。"""
+        content, _ext = self.report.with_context(
+            doc_report_no_append=True,
+            force_report_rendering=True)._render_qweb_pdf(
+                self.report.id, (self.p1 + self.p2).ids)
+        self.assertEqual(self._pages(content), 2)
+        return content
+
+    def test_fixed_pdf_adds_its_pages(self):
+        import base64
+        base = self._print(self.p1)
+        two = self._two_page_pdf()
+        self.binding.append_attachment_ids = [(0, 0, {
+            'name': '標準條款.pdf', 'mimetype': 'application/pdf',
+            'datas': base64.b64encode(two),
+        })]
+        self.assertEqual(self._print(self.p1), base + 2)
+
+    def test_record_supplied_pdf_adds_its_pages(self):
+        base = self._print(self.p1)
+        two = self._two_page_pdf()
+        patcher = patch.object(
+            type(self.p1), 'doc_report_append_pdfs',
+            lambda rec: [two], create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.assertEqual(self._print(self.p1), base + 2)
+
+    def test_record_can_turn_appends_off(self):
+        import base64
+        base = self._print(self.p1)
+        two = self._two_page_pdf()
+        self.binding.append_attachment_ids = [(0, 0, {
+            'name': '標準條款.pdf', 'mimetype': 'application/pdf',
+            'datas': base64.b64encode(two),
+        })]
+        self.binding.append_record_policy = 'opt_out'
+        patcher = patch.object(
+            type(self.p1), 'doc_report_append_enabled',
+            lambda rec: False, create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.assertEqual(self._print(self.p1), base)
+
+    def test_each_record_gets_its_own_appendix(self):
+        """**這一則是重點。**
+
+        在 _render_qweb_pdf 之後合併的話，兩筆列印會變成
+        「本體A + 本體B + 附頁」而不是「本體A + 附頁 + 本體B + 附頁」——
+        頁數少了一份，而單筆列印時完全看不出差別。
+        """
+        import base64
+        base = self._print(self.p1)
+        two = self._two_page_pdf()
+        self.binding.append_attachment_ids = [(0, 0, {
+            'name': '標準條款.pdf', 'mimetype': 'application/pdf',
+            'datas': base64.b64encode(two),
+        })]
+        self.assertEqual(self._print(self.p1 + self.p2), (base + 2) * 2)

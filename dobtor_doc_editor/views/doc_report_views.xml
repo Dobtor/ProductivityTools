@@ -100,6 +100,7 @@
                                    placeholder="例：標準條款、安全資料表"/>
                             <field name="append_position"
                                    invisible="not append_report_ids and not append_attachment_ids"/>
+                            <field name="append_record_policy"/>
                         </group>
                     </group>
                     <div class="alert alert-info mb-3" role="alert"
