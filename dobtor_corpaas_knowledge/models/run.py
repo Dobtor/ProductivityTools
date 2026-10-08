@@ -9,6 +9,11 @@ import json
 from odoo import _, api, fields, models
 
 RUN_STATES = [('running', '進行中'), ('done', '完成'), ('failed', '失敗')]
+#: 這個 worker 程序的啟動時間：比它早、卻還停在「處理中」的知識佇列工作，執行緒已經不在了
+#:（部署重啟後所有 worker 都重新載入，任何一個 worker 的這個值都晚於重啟前的工作）
+_BOOT = fields.Datetime.now()
+#: 重啟後自動重跑的上限（同一張佇列工作）；超過就取消、留給人看
+MAX_REQUEUE = 1
 STAGES = [('prepare', '盤點與說明庫'), ('shoot', '拍攝'), ('outlets', '出口與收尾')]
 
 
@@ -157,9 +162,44 @@ class KnowledgeRun(models.Model):
         return True
 
     @api.model
+    def _knowledge_release_dead_jobs(self):
+        """部署重啟後，停在「處理中」的知識佇列工作永遠不會完成（執行緒已經不在）：
+        ☠️ 實機四次：續跑排程看到「處理中」就當它還活著而跳過，整條更新卡住，要人工清佇列。
+
+        判準：最後更新早於本程序啟動、且超過 5 分鐘沒動。
+        · 更新的階段工作 → 取消（下面的續跑邏輯會從同一階段重新排）。
+        · 說明庫重建／重播檢查、AI 工作 → 設回待處理重跑一次；已經重跑過就取消。
+        回傳處理了幾張。"""
+        Queue = self.env['corpaas.queue'].sudo()
+        ICP = self.env['ir.config_parameter'].sudo()
+        quiet = fields.Datetime.subtract(fields.Datetime.now(), minutes=5)
+        dead = Queue.search([('channel', '=', 'knowledge'), ('state', '=', 'processing'),
+                             ('write_date', '<', min(_BOOT, quiet))])
+        if not dead:
+            return 0
+        try:
+            tries = json.loads(ICP.get_param('corpaas_knowledge.requeued') or '{}')
+        except ValueError:
+            tries = {}
+        for q in dead:
+            key = str(q.id)
+            if q.operate in ('knowledge_stage', 'knowledge_refresh') or tries.get(key, 0) >= MAX_REQUEUE:
+                q.write({'state': 'cancel'})
+                if q.operate == 'knowledge_ai_job':
+                    job = self.env['corpaas.knowledge.ai.job'].sudo().search(
+                        [('queue_id', '=', q.id), ('state', '=', 'pending')], limit=1)
+                    job.write({'state': 'failed', 'error': _('部署重啟中斷，自動重跑後仍未完成')})
+            else:
+                tries[key] = tries.get(key, 0) + 1
+                q.write({'state': 'pending'})
+        ICP.set_param('corpaas_knowledge.requeued', json.dumps(dict(list(tries.items())[-200:])))
+        return len(dead)
+
+    @api.model
     def _cron_resume_orphans(self):
         """重啟回收：進行中的執行紀錄，佇列裡卻沒有它的作業（部署重啟、worker 被殺）→
         從中斷的階段續跑。同一筆最多自動續跑 3 次，超過標失敗等人看。"""
+        self._knowledge_release_dead_jobs()
         Queue = self.env['corpaas.queue'].sudo()
         stale = fields.Datetime.subtract(fields.Datetime.now(), minutes=15)
         for run in self.sudo().search([('state', '=', 'running'), ('stage', '!=', False),

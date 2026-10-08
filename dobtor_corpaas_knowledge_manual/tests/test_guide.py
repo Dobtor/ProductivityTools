@@ -4,6 +4,7 @@
 import json
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.tests.common import tagged
 
 from ..services import guide_lib, prompts
@@ -716,3 +717,39 @@ class TestRedraftCommits(ManualCase):
         with patch.object(type(self.hooks), '_manual_redraft_review', lambda s, *a, **k: (0, 0)):
             job._run()
         self.assertEqual(job.state, 'done', '逐筆提交的工作不包 savepoint 也照常完成')
+
+
+@tagged('post_install', '-at_install')
+class TestOps(ManualCase):
+
+    def test_acceptance_history_trend(self):
+        with patch.object(type(self.pkg), '_knowledge_save_library', lambda s, note=None: 0):
+            first = {c['key']: c for c in self.hooks._manual_acceptance(self.pkg)}
+            self.f3.capability_ids = [(5,)]
+            self.cap_b.feature_ids = [(5,)]
+            self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+            self._publish(*[self._article(f, self.cap_a, name=n) for f, n in
+                            ((self.f1, '甲'), (self.f2, '乙'), (self.f3, '丙'))])
+            second = {c['key']: c for c in self.hooks._manual_acceptance(self.pkg)}
+        self.assertFalse(first['articles']['ok'])
+        self.assertEqual(second['articles']['trend'], 'changed', '仍未過，但數字變了')
+        self.assertEqual(second['articles']['prev_value'], first['articles']['value'])
+        logs = self.pkg.manual_acceptance_log_ids
+        self.assertEqual(len(logs), 2, '每次驗收留一筆紀錄')
+        self.assertIn('和上次比', self.pkg.manual_acceptance_html)
+
+    def test_dead_queue_jobs_released_after_restart(self):
+        from odoo.addons.dobtor_corpaas_knowledge.models import run as run_mod
+        Queue = self.env['corpaas.queue'].sudo()
+        stage = Queue._enqueue(self.pkg, 'knowledge_stage', {'run_id': 0, 'stage': 'outlets'})
+        ai = Queue._enqueue(self.pkg, 'knowledge_ai_job', {'job_id': 0})
+        (stage | ai).write({'channel': 'knowledge', 'state': 'processing'})
+        self.env.flush_all()
+        self.env.cr.execute("UPDATE corpaas_queue SET write_date = now() at time zone 'UTC' "
+                            "- interval '1 hour' WHERE id IN %s", (tuple((stage | ai).ids),))
+        (stage | ai).invalidate_recordset()
+        with patch.object(run_mod, '_BOOT', fields.Datetime.now()):
+            n = self.env['corpaas.knowledge.run']._knowledge_release_dead_jobs()
+        self.assertEqual(n, 2)
+        self.assertEqual(stage.state, 'cancel', '階段工作取消，交給續跑邏輯從同一階段重排')
+        self.assertEqual(ai.state, 'pending', 'AI 工作重跑一次')

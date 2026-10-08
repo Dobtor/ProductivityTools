@@ -20,6 +20,16 @@
                     <field name="manual_acceptance_at"/>
                     <field name="manual_acceptance_ok"/>
                     <field name="manual_acceptance_html" nolabel="1" colspan="2"/>
+                    <field name="manual_acceptance_log_ids" nolabel="1" colspan="2" readonly="1">
+                        <list limit="10">
+                            <field name="create_date" string="時間"/>
+                            <field name="passed"/>
+                            <field name="total"/>
+                            <field name="better"/>
+                            <field name="worse"/>
+                            <field name="summary"/>
+                        </list>
+                    </field>
                 </group>
             </xpath>
         </field>

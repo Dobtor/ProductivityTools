@@ -19,9 +19,29 @@ _logger = logging.getLogger(__name__)
 DEFAULT_TARGETS = {'article_ratio': 0.9, 'tutorials': 3}
 
 
+class AcceptanceLog(models.Model):
+    """每次驗收留一筆：清除重跑或改版後，跟上一次比是變好還是變差。"""
+    _name = 'corpaas.knowledge.acceptance_log'
+    _description = '說明書驗收紀錄'
+    _order = 'id desc'
+
+    package_id = fields.Many2one('infrastructure.solution.package', required=True,
+                                 ondelete='cascade', index=True)
+    run_id = fields.Many2one('corpaas.knowledge.run', ondelete='set null')
+    ok = fields.Boolean(string='全部通過')
+    passed = fields.Integer(string='通過')
+    total = fields.Integer(string='項目')
+    better = fields.Integer(string='變好')
+    worse = fields.Integer(string='變差')
+    summary = fields.Char(string='摘要')
+    checks_json = fields.Text()
+
+
 class SolutionPackage(models.Model):
     _inherit = 'infrastructure.solution.package'
 
+    manual_acceptance_log_ids = fields.One2many('corpaas.knowledge.acceptance_log', 'package_id',
+                                                string='驗收紀錄')
     manual_acceptance_json = fields.Text(readonly=True, copy=False)
     manual_acceptance_ok = fields.Boolean(string='說明書驗收通過', readonly=True, copy=False)
     manual_acceptance_at = fields.Datetime(string='驗收時間', readonly=True, copy=False)
@@ -38,14 +58,22 @@ class SolutionPackage(models.Model):
             if not checks:
                 rec.manual_acceptance_html = False
                 continue
+            trend = {'better': '<span class="text-success">▲ %s</span>' % esc(_('變好')),
+                     'worse': '<span class="text-danger">▼ %s</span>' % esc(_('變差')),
+                     'changed': '<span class="text-body-secondary">≈ %s</span>' % esc(_('數字變了')),
+                     'new': '<span class="text-body-secondary">%s</span>' % esc(_('新項目'))}
             rows = ''.join(
-                '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
+                '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
                     '✅' if c['ok'] else '❌', esc(c['label']), esc(str(c.get('value', ''))),
-                    esc(str(c.get('target', '')))) for c in checks)
+                    esc(str(c.get('target', ''))),
+                    trend.get(c.get('trend'), '') + (
+                        '<div class="small text-body-secondary">%s</div>' % esc(
+                            _('上次：%s') % c['prev_value']) if c.get('trend') in ('better', 'worse', 'changed')
+                        else '')) for c in checks)
             rec.manual_acceptance_html = (
                 '<table class="table table-sm table-bordered"><thead><tr><th></th><th>%s</th>'
-                '<th>%s</th><th>%s</th></tr></thead><tbody>%s</tbody></table>') % (
-                esc(_('項目')), esc(_('結果')), esc(_('標準')), rows)
+                '<th>%s</th><th>%s</th><th>%s</th></tr></thead><tbody>%s</tbody></table>') % (
+                esc(_('項目')), esc(_('結果')), esc(_('標準')), esc(_('和上次比')), rows)
 
 
 class KnowledgeHooks(models.AbstractModel):
@@ -143,7 +171,35 @@ class KnowledgeHooks(models.AbstractModel):
             ('package_id', '=', package.id), ('kind', '=', 'publish'), ('state', '!=', 'resolved')])
         add('public', _('前台抽查'), not public, _('%s 個待修') % public, _('0 個待修'))
 
+        # 和上一次比：通過↔不通過是變好／變差；結果數字不同是「數字變了」
+        try:
+            prev = {c['key']: c for c in json.loads(package.manual_acceptance_json or '[]')}
+        except ValueError:
+            prev = {}
+        for c in checks:
+            p = prev.get(c['key'])
+            if not p:
+                c['trend'] = 'new' if prev else ''
+            elif c['ok'] and not p['ok']:
+                c['trend'] = 'better'
+            elif p['ok'] and not c['ok']:
+                c['trend'] = 'worse'
+            elif str(p.get('value')) != str(c['value']):
+                c['trend'] = 'changed'
+            else:
+                c['trend'] = ''
+            if p:
+                c['prev_value'] = p.get('value')
         ok = all(c['ok'] for c in checks)
+        self.env['corpaas.knowledge.acceptance_log'].sudo().create({
+            'package_id': package.id,
+            'run_id': self.env['corpaas.knowledge.run'].sudo().search(
+                [('package_id', '=', package.id)], order='id desc', limit=1).id or False,
+            'ok': ok, 'passed': sum(1 for c in checks if c['ok']), 'total': len(checks),
+            'better': sum(1 for c in checks if c.get('trend') == 'better'),
+            'worse': sum(1 for c in checks if c.get('trend') == 'worse'),
+            'summary': '、'.join(c['label'][:12] for c in checks if not c['ok'])[:250] or _('全部通過'),
+            'checks_json': json.dumps(checks, ensure_ascii=False)})
         package.write({'manual_acceptance_json': json.dumps(checks, ensure_ascii=False),
                        'manual_acceptance_ok': ok, 'manual_acceptance_at': fields.Datetime.now()})
         self._manual_commit()   # 同上：別讓方案記錄的鎖擋住之後的心跳
