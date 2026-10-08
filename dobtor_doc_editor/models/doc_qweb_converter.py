@@ -1361,6 +1361,14 @@ class DocQwebConverter(models.AbstractModel):
             out.append(self._tax_totals_block(state, mode))
             state['stats']['taxTotals'] += 1
             return
+        if call in _WRAPPER_TEMPLATES:
+            # 外殼範本（html_container / basic_layout / minimal_layout）本身
+            # 只有版面骨架，真正的本文是「呼叫節點的子節點」——QWeb 用
+            # t-out="0" 把它們塞進外殼裡。原本連子節點一起丟掉，所以凡是
+            # 本文直接寫在外殼裡（沒有再包 external_layout）的報表整份都是
+            # 空的。實測：36 張報表有 17 張（標籤與條碼類）就是這樣變空白。
+            self._emit_children(node, out, state)
+            return
         if call:
             self._note(state, '子範本 t-call="%s" 未轉換，需要人工處理。' % call)
             return

@@ -1050,3 +1050,44 @@ class TestTaxTotalsLabels(TestQwebConverterBase):
         for idx in (0, 1):
             self.assertEqual(self._metas_of(rows[idx])[0].get('source'),
                              'taxTotals')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestWrapperTemplateBody(TestQwebConverterBase):
+    """外殼範本的子節點就是本文，不可以跟著 t-call 一起丟掉。
+
+    web.html_container / web.basic_layout / web.minimal_layout 本身只有版面
+    骨架，真正的本文是「呼叫節點的子節點」（QWeb 用 t-out="0" 把它們塞進
+    外殼裡）。原本連子節點一起丟，所以凡是本文直接寫在外殼裡、沒有再包
+    external_layout 的報表整份都是空的——實測 36 張報表裡有 17 張
+    （標籤與條碼類）就是這樣變空白。
+    """
+
+    def test_body_inside_basic_layout_is_kept(self):
+        res = self._convert(
+            '<t t-call="web.basic_layout">'
+            '<table><tr><td><span t-out="o.name"/></td></tr></table>'
+            '</t>'
+        )
+        self.assertTrue(list(self._tables(res['tree']['main'])),
+                        '本文整份不見了：%s' % res['notes'])
+        metas = list(self._metas(res['tree']['main']))
+        self.assertEqual(metas[0].get('path'), 'name')
+
+    def test_body_inside_html_container_is_kept(self):
+        res = self._convert(
+            '<t t-call="web.html_container">'
+            '<table><tr><td><span t-out="o.name"/></td></tr></table>'
+            '</t>'
+        )
+        self.assertTrue(list(self._metas(res['tree']['main'])),
+                        '%s' % res['notes'])
+
+    def test_unknown_sub_template_still_reported(self):
+        """外殼之外的子範本找不到時還是要留待辦，不要默默吞掉。"""
+        res = self._convert(
+            '<table><tr><td>x</td></tr></table>'
+            '<t t-call="nowhere.nope"/>'
+        )
+        self.assertTrue(any('子範本' in n for n in res['notes']),
+                        '%s' % res['notes'])
