@@ -105,6 +105,12 @@
                             <field name="page_format" string="預設頁面格式"/>
                             <field name="header_spacing" string="頁首間距 (mm)"/>
                             <field name="footer_spacing" string="頁尾間距 (mm)"/>
+                            <!-- 頁首是鋪滿紙寬的另一份文件，本文的左右邊距對它
+                                 無效，所以要自己留（見 doc.report._zone_style）-->
+                            <field name="header_padding_x"/>
+                            <field name="footer_padding_x"/>
+                            <field name="header_rule"/>
+                            <field name="footer_rule"/>
                             <field name="active" string="啟用"/>
                             <field name="company_id"
                                    string="公司"

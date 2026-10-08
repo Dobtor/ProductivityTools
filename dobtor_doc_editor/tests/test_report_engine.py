@@ -1038,3 +1038,130 @@ class TestAppendPagesEndToEnd(TransactionCase):
             'datas': base64.b64encode(two),
         })]
         self.assertEqual(self._print(self.p1 + self.p2), (base + 2) * 2)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestHeaderFooterLayout(TransactionCase):
+    """頁首頁尾的版面屬性與「哪一頁要出現」。
+
+    wkhtmltopdf 的頁首是**另一份文件**、鋪滿紙張寬度，本文的左右邊距對它
+    無效——所以左右內距要自己留，否則頁首與本文左右對不齊。
+    """
+
+    def setUp(self):
+        super().setUp()
+        model = self.env['ir.model']._get('res.partner')
+        self.frame = self.env['doc.template'].create({
+            'name': '頁首頁尾測試外框', 'role': 'layout',
+            'model_id': model.id,
+            'content_json': json.dumps({
+                'header': [_text('頁首文字'), _text('\n')],
+                'footer': [_text('頁尾文字'), _text('\n')],
+                'main': [],
+            }),
+        })
+        self.template = self.env['doc.template'].create({
+            'name': '頁首頁尾測試範本', 'role': 'content',
+            'model_id': model.id, 'layout_id': self.frame.id,
+            'content_json': json.dumps({'main': [_text('本文'), _text('\n')]}),
+        })
+        self.report = self.env['ir.actions.report'].create({
+            'name': '頁首頁尾測試報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf',
+            'report_name': 'dobtor_doc_editor.hf_probe',
+        })
+        self.binding = self.env['doc.report'].create({
+            'name': '頁首頁尾測試綁定',
+            'template_id': self.template.id, 'report_id': self.report.id,
+        })
+        self.partner = self.env['res.partner'].create({'name': '頁首測試客戶'})
+
+    def _html(self):
+        html, _frozen = self.binding._build_report_html(self.partner)
+        return html
+
+    def test_defaults_add_no_style(self):
+        """沒設就不要吐 style——頁首是每頁重載的，多一段都是每頁的成本。"""
+        html = self._html()
+        self.assertIn('頁首文字', html)
+        self.assertNotIn('div.header{', html)
+
+    def test_padding_is_emitted(self):
+        self.frame.header_padding_x = 40
+        self.assertIn('padding-left:40px', self._html())
+
+    def test_rule_is_emitted_on_the_right_side(self):
+        self.frame.header_rule = True
+        self.frame.footer_rule = True
+        html = self._html()
+        self.assertIn('border-bottom:1px solid #000', html)
+        self.assertIn('border-top:1px solid #000', html)
+
+    def test_page_scope_script_only_when_used(self):
+        """沒用到頁面範圍標記就不要塞那段 script。"""
+        self.assertNotIn('doc-pg-', self._html())
+        self.frame.content_json = json.dumps({
+            'header': [
+                _pill('只在首頁', source='pageScope', scope='first',
+                      isMarker=True),
+                _text('信紙'), _text('\n'),
+            ],
+            'footer': [], 'main': [],
+        })
+        html = self._html()
+        self.assertIn('doc-page-first', html)
+        self.assertIn('doc-pg-first', html, '少了決定頁次的 script')
+        self.assertIn('document.location.search', html)
+
+    def test_script_reads_the_page_param_wkhtmltopdf_passes(self):
+        """頁次只能從網址參數拿——Odoo 自己的 subst() 也是這樣做的
+        （web/views/report_templates.xml）。"""
+        self.frame.content_json = json.dumps({
+            'header': [
+                _pill('X', source='pageScope', scope='odd', isMarker=True),
+                _text('奇數頁'), _text('\n')],
+            'footer': [], 'main': [],
+        })
+        html = self._html()
+        self.assertIn('v.page', html)
+        self.assertIn('doc-pg-odd', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestOpenEditorDirectly(TransactionCase):
+    """點開文件直接進編輯器（做法沿用 dobtor_xmind）。
+
+    文件的內容就是編輯器裡那一份。原本點一筆開表單，使用者看到一堆設定欄位，
+    還要再按一次「開啟編輯器」——他想做的事在第二層。
+    """
+
+    def test_create_and_open_returns_the_editor(self):
+        action = self.env['doc.document'].action_new_and_open_editor()
+        self.assertEqual(action['type'], 'ir.actions.client')
+        self.assertEqual(action['tag'], 'dobtor_doc_editor.action_doc_editor')
+        self.assertTrue(action['context']['doc_id'])
+        doc = self.env['doc.document'].browse(action['context']['doc_id'])
+        self.assertTrue(doc.exists())
+
+    def test_create_and_open_uses_the_blank_template(self):
+        blank = self.env.ref('dobtor_doc_editor.doc_template_blank',
+                             raise_if_not_found=False)
+        if not blank:
+            self.skipTest('找不到「空白文件」範本')
+        action = self.env['doc.document'].action_new_and_open_editor()
+        doc = self.env['doc.document'].browse(action['context']['doc_id'])
+        self.assertEqual(doc.template_id, blank)
+
+    def test_settings_form_is_still_reachable(self):
+        """點開一筆直接進編輯器，表單上才有的設定要留一條路。"""
+        doc = self.env['doc.document'].create({'name': '設定入口測試'})
+        action = doc.action_open_settings_form()
+        self.assertEqual(action['type'], 'ir.actions.act_window')
+        self.assertEqual(action['res_model'], 'doc.document')
+        self.assertEqual(action['res_id'], doc.id)
+        self.assertEqual(action['view_mode'], 'form')
+
+    def test_list_view_declares_the_js_class(self):
+        """少了 js_class，點一筆還是會開表單——而那是靜默的。"""
+        view = self.env.ref('dobtor_doc_editor.view_doc_document_list')
+        self.assertIn('doc_document_list_open_editor', view.arch)

@@ -19,6 +19,22 @@ from odoo.exceptions import UserError
 
 class RenderOutput:
 
+    def _drop_marker_at_flatten(self, element):
+        """攤平時要丟掉的標記藥丸。
+
+        pageScope 是唯一的例外：它要活到攤平這一步，才轉成一個不印字的
+        pageScope 元素，由 _elements_to_html 變成段落的 class。
+        跟著其他標記一起丟掉的話，「只在首頁」那一段會變成每一頁都印
+        ——而且完全不報錯。
+
+        它仍然是標記（isMarker=True）：快照的純量迴圈照樣跳過它，不求值、
+        不印標籤文字。差別只在「什麼時候消失」。
+        """
+        if not self._is_marker_element(element):
+            return False
+        meta = self._element_field_meta(element) or {}
+        return (meta.get('source') or '') != self._PAGE_SCOPE_SOURCE
+
     def _flatten_content_json(self, tree):
         """把藥丸攤平成純文字元素（就地改寫並回傳 tree）。
 
@@ -28,9 +44,9 @@ class RenderOutput:
         if not tree:
             return tree
         for elements in self._iter_element_lists(tree):
-            # 標記藥丸整個丟掉（見 _MARKER_SOURCES 的說明）
+            # 標記藥丸整個丟掉（見 _MARKER_SOURCES 的說明），pageScope 例外
             elements[:] = [el for el in elements
-                           if not self._is_marker_element(el)]
+                           if not self._drop_marker_at_flatten(el)]
             for idx, el in enumerate(elements):
                 if not isinstance(el, dict) or el.get('type') != 'label':
                     continue
@@ -54,6 +70,13 @@ class RenderOutput:
                     # 區塊級：不能當行內塞進 <p> 裡，否則變成
                     # <p><p>…</p></p> 的非法嵌套
                     plain['type'] = 'htmlBlock'
+                elif src == self._PAGE_SCOPE_SOURCE:
+                    # 不印字，只把「這一段限哪些頁」帶到組 HTML 那一步
+                    plain['type'] = 'pageScope'
+                    scope = (meta.get('scope') or '').strip()
+                    plain['scope'] = (
+                        scope if scope in self._PAGE_SCOPES else '')
+                    plain['value'] = ''
                 elif src == self._PAGE_SOURCE:
                     plain['type'] = 'pageField'
                     plain['pageKind'] = (
@@ -197,15 +220,19 @@ class RenderOutput:
         """
         out = []
         buf = []
+        # 這一段的頁面範圍（由段落內的 pageScope 元素設定）。每沖一次就清掉。
+        scope = {'value': ''}
 
         def _flush(row_el=None):
+            cls = (' class="doc-page-%s"' % scope['value']) if scope['value'] else ''
+            scope['value'] = ''
             if not buf:
                 # 空段落也要保留，否則多個空行會被吃掉、版面走樣
-                out.append('<p><br/></p>')
+                out.append('<p%s><br/></p>' % cls)
                 return
             align = self._ROW_FLEX_ALIGN.get((row_el or {}).get('rowFlex') or '')
             style = ' style="text-align:%s"' % align if align else ''
-            out.append('<p%s>%s</p>' % (style, ''.join(buf)))
+            out.append('<p%s%s>%s</p>' % (cls, style, ''.join(buf)))
             buf.clear()
 
         for el in (elements or []):
@@ -223,6 +250,11 @@ class RenderOutput:
                 if buf:
                     _flush()
                 out.append(el.get('value') or '')
+                continue
+            if etype == 'pageScope':
+                # 標記本身不印字；它只決定所在段落的 class
+                if el.get('scope'):
+                    scope['value'] = el['scope']
                 continue
             if etype == 'pageBreak':
                 if buf:

@@ -462,10 +462,13 @@ class DocReport(models.Model):
             Mixin._flatten_content_json(hf_tree)
             head = Mixin._content_json_to_html(hf_tree, zone='header')
             foot = Mixin._content_json_to_html(hf_tree, zone='footer')
+            scope_js = self._page_scope_script(head + foot)
             if head.strip() and head != '<p><br/></p>':
-                header_footer += '<div class="header">%s</div>' % head
+                header_footer += '<div class="header">%s%s%s</div>' % (
+                    self._zone_style(frame, 'header'), scope_js, head)
             if foot.strip() and foot != '<p><br/></p>':
-                header_footer += '<div class="footer">%s</div>' % foot
+                header_footer += '<div class="footer">%s%s%s</div>' % (
+                    self._zone_style(frame, 'footer'), scope_js, foot)
 
         html = (
             '<html %s><head><meta charset="utf-8"/><style>%s</style></head>'
@@ -477,6 +480,63 @@ class DocReport(models.Model):
             )
         )
         return html, frozen_trees
+
+    # ─── 頁首頁尾的版面與「哪一頁要出現」 ─────────────────────────
+    #
+    # Odoo 把我們的 div.header / div.footer 整個序列化後塞進 web.minimal_layout
+    # 的 <body>（ir_actions_report.py:441，Markup 不逸出），再交給 wkhtmltopdf
+    # 當 --header-html。wkhtmltopdf **每一頁都重載一次**那份 HTML，並在網址上
+    # 帶 page / topage 等參數——Odoo 自己的 subst() 就是靠這個填頁碼
+    #（web/views/report_templates.xml:239）。
+    #
+    # 所以「首頁不同」「奇偶頁不同」只能在那一刻決定：我們一起塞一小段
+    # script，讓它依 page 參數在 <body> 上掛 class，再用 CSS 決定哪一段顯示。
+    # 不能在後端算——後端不知道這一頁是第幾頁。
+
+    _PAGE_SCOPE_SCRIPT = (
+        '<style>'
+        '.doc-page-first,.doc-page-rest,.doc-page-odd,.doc-page-even'
+        '{display:none}'
+        'body.doc-pg-first .doc-page-first,'
+        'body.doc-pg-rest .doc-page-rest,'
+        'body.doc-pg-odd .doc-page-odd,'
+        'body.doc-pg-even .doc-page-even{display:block}'
+        '</style>'
+        '<script>(function(){'
+        'var v={},a=document.location.search.substring(1).split("&");'
+        'for(var i=0;i<a.length;i++){var kv=a[i].split("=",2);v[kv[0]]=kv[1];}'
+        'var p=parseInt(v.page||v.sitepage||"1",10)||1;'
+        'var c=document.body||document.documentElement;'
+        'c.className+=" doc-pg-"+(p===1?"first":"rest")'
+        '+" doc-pg-"+(p%2?"odd":"even");'
+        '})();</script>'
+    )
+
+    def _page_scope_script(self, html):
+        """頁首頁尾裡有頁面範圍標記時才塞那段 script／style。
+
+        沒用到就不塞：頁首是每一頁都重載一次的，多一段沒用的 script 是
+        每一頁的成本，而且會讓 debug 時的 HTML 更難讀。
+        """
+        return self._PAGE_SCOPE_SCRIPT if 'doc-page-' in (html or '') else ''
+
+    def _zone_style(self, frame, zone):
+        """頁首／頁尾自己的左右內距與分隔線。
+
+        wkhtmltopdf 的頁首是另一份文件、鋪滿紙張寬度，本文的左右邊距對它
+        無效——所以要在這裡自己留，否則頁首會與本文左右對不齊。
+        """
+        pad = frame['%s_padding_x' % zone] or 0
+        rule = frame['%s_rule' % zone]
+        bits = []
+        if pad:
+            bits.append('padding-left:%dpx;padding-right:%dpx' % (pad, pad))
+        if rule:
+            side = 'bottom' if zone == 'header' else 'top'
+            bits.append('border-%s:1px solid #000;padding-%s:4px' % (side, side))
+        if not bits:
+            return ''
+        return '<style>div.%s{%s}</style>' % (zone, ';'.join(bits))
 
     def _paperformat_attrs(self):
         """範本的頁面邊距 → 根 <html> 的 data-report-* 屬性。

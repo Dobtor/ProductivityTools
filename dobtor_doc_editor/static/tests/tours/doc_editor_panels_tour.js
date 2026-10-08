@@ -323,6 +323,34 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
             trigger: ".doc-inspector-field:contains('欄位所屬模型')",
             run: () => {},
         },
+        // ─── 頁面範圍標記 ───
+        // 對應 LibreOffice 的「首頁相同」「左右頁相同」。
+        {
+            content: "選取頁面範圍標記",
+            trigger: "body",
+            run: selectPill({ source: "pageScope", scope: "first",
+                              isMarker: true, labelText: "只在首頁" }),
+        },
+        expectInspector("頁面範圍"),
+        {
+            content: "「出現在」選單有四個範圍",
+            trigger: ".doc-inspector-field:contains('出現在')",
+            run: () => {
+                const opts = Array.from(document.querySelectorAll(
+                    ".doc-inspector-field select option")).map((o) => o.value);
+                for (const want of ["first", "rest", "odd", "even"]) {
+                    if (!opts.includes(want)) {
+                        throw new Error(`「出現在」少了選項 ${want}`);
+                    }
+                }
+            },
+        },
+        {
+            content: "左欄有「只在首頁」的插入項",
+            trigger: ".doc-field-palette-item:contains('只在首頁')",
+            run: () => {},
+        },
+
         {
             // 這顆鈕的 CSS 是 opacity:0、只有 .doc-field-palette-item:hover 才顯示
             //（doc_editor.css:3208）。tour 的 trigger 要求元素可見，所以不能直接
@@ -499,6 +527,66 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
                     throw new Error(`role 應為 if/else，實際 ${a.role}/${b.role}`);
                 }
             },
+        },
+
+        // ─── 左右側面板收合 ───
+        // 放在最後：收起來時面板內容會不見，前面的步驟都還需要它們。
+        // 每一組都「收起→驗→展開→驗」，不要留下收合狀態給下一次執行
+        //（狀態存在 localStorage，會跨 tour 執行殘留）。
+        {
+            content: "收合左側面板",
+            trigger: ".doc-thumbnail-panel .doc-panel-collapse-btn",
+            run: "click",
+        },
+        {
+            content: "左側只剩展開帶，而且中間變寬了",
+            trigger: ".doc-thumbnail-panel.is-collapsed .doc-panel-collapse-strip",
+            run: () => {
+                const cols = document.querySelector(".doc-main")
+                    .style.gridTemplateColumns || "";
+                if (!cols.startsWith("28px")) {
+                    throw new Error(`grid 第一欄應為 28px，實際「${cols}」`);
+                }
+                if (document.querySelector(".doc-left-tabs")) {
+                    throw new Error("收合後左欄分頁還在");
+                }
+            },
+        },
+        {
+            content: "展開左側面板",
+            trigger: ".doc-thumbnail-panel .doc-panel-collapse-strip",
+            run: "click",
+        },
+        {
+            content: "左欄分頁回來了",
+            trigger: ".doc-left-tabs",
+            run: () => {},
+        },
+        {
+            content: "收合右側面板",
+            trigger: ".doc-inspector-panel .doc-panel-collapse-btn",
+            run: "click",
+        },
+        {
+            content: "右側只剩展開帶",
+            trigger: ".doc-inspector-panel.is-collapsed .doc-panel-collapse-strip",
+            run: () => {
+                const cols = document.querySelector(".doc-main")
+                    .style.gridTemplateColumns || "";
+                if (!cols.trim().endsWith("28px")) {
+                    throw new Error(`grid 第三欄應為 28px，實際「${cols}」`);
+                }
+            },
+        },
+        {
+            content: "展開右側面板（不要留下收合狀態給下一次執行）",
+            trigger: ".doc-inspector-panel .doc-panel-collapse-strip",
+            run: "click",
+        },
+        {
+            content: "右欄回來了",
+            trigger: ".doc-inspector-topbar .doc-panel-collapse-btn",
+            run: () => {},
         },
     ],
 });

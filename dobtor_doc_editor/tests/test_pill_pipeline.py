@@ -3661,3 +3661,69 @@ class TestModelReportValues(TransactionCase):
     def test_model_without_the_method_is_fine(self):
         self.assertEqual(self.Mixin._model_report_values(self.partner), {})
         self.assertEqual(self._render("data"), '{}')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPageScopeMarker(TransactionCase):
+    """頁面範圍標記：這一段只在首頁／續頁／奇數頁／偶數頁出現。
+
+    對應 LibreOffice Writer 頁首的「首頁相同」與「左右頁相同」。做法不同：
+    那兩個是版面設定，這裡是標記——我們的頁首頁尾是一份 HTML，wkhtmltopdf
+    每頁重載一次並在網址帶 page 參數，所以「哪一段要出現」只能在那一刻決定。
+    後端不知道這一頁是第幾頁。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '頁面範圍測試'})
+
+    def _html(self, *elements):
+        tree = {'main': list(elements)}
+        self.Mixin._snapshot_content_json(tree, self.partner)
+        return self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree))
+
+    def test_marker_becomes_a_paragraph_class(self):
+        html = self._html(
+            _pill('只在首頁', source='pageScope', scope='first', isMarker=True),
+            _text('信紙'), _text('\n'))
+        self.assertIn('class="doc-page-first"', html)
+        self.assertIn('信紙', html)
+
+    def test_marker_never_prints_its_own_label(self):
+        """標記是宣告不是內容。印出「只在首頁」四個字就是缺陷。"""
+        html = self._html(
+            _pill('只在首頁', source='pageScope', scope='first', isMarker=True),
+            _text('信紙'), _text('\n'))
+        self.assertNotIn('只在首頁', html)
+
+    def test_each_scope_gets_its_own_class(self):
+        for scope in ('first', 'rest', 'odd', 'even'):
+            html = self._html(
+                _pill('X', source='pageScope', scope=scope, isMarker=True),
+                _text('內容'), _text('\n'))
+            self.assertIn('class="doc-page-%s"' % scope, html)
+
+    def test_unknown_scope_is_dropped_not_guessed(self):
+        html = self._html(
+            _pill('X', source='pageScope', scope='somewhere', isMarker=True),
+            _text('內容'), _text('\n'))
+        self.assertNotIn('doc-page-', html)
+        self.assertIn('內容', html)
+
+    def test_scope_does_not_leak_to_the_next_paragraph(self):
+        """每沖一段就要清掉，否則後面每一段都繼承同一個範圍。"""
+        html = self._html(
+            _pill('X', source='pageScope', scope='first', isMarker=True),
+            _text('第一段'), _text('\n'),
+            _text('第二段'), _text('\n'))
+        self.assertEqual(html.count('doc-page-first'), 1)
+        self.assertIn('<p>第二段</p>', html)
+
+    def test_scope_coexists_with_alignment(self):
+        html = self._html(
+            _pill('X', source='pageScope', scope='even', isMarker=True),
+            _text('靠右'), _text('\n', rowFlex='right'))
+        self.assertIn('doc-page-even', html)
+        self.assertIn('text-align:right', html)

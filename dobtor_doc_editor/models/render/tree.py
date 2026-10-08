@@ -90,6 +90,13 @@ class RenderTree:
     # Odoo 的翻譯再抄一遍，每個語言一次，而且之後各自漂移。
     # 這個來源直接讀 fields_get()['string']，語言跟著渲染語言走。
     _FIELD_LABEL_SOURCE = 'fieldLabel'
+    # 頁面範圍標記：這一段只在「首頁／續頁／奇數頁／偶數頁」出現。
+    # 對應 LibreOffice 的「首頁相同」與「左右頁相同」兩個勾選，但做法不同：
+    # 那兩個是版面設定，這裡是標記——因為我們的頁首頁尾是一份 HTML，
+    # wkhtmltopdf 每頁重畫一次並在網址上帶 page 參數，所以「哪一段要出現」
+    # 只能在那一刻決定（見 doc.report._page_scope_script）。
+    _PAGE_SCOPE_SOURCE = 'pageScope'
+    _PAGE_SCOPES = ('first', 'rest', 'odd', 'even')
 
     def _element_field_meta(self, element):
         """取出元素的綁定定義；不是模型變數藥丸就回 None。"""
@@ -219,6 +226,9 @@ class RenderTree:
     _MARKER_SOURCES = (
         _REPEAT_SOURCE, _GROUP_HEADER_SOURCE, _GROUP_FOOTER_SOURCE,
         'condition', 'format', 'column',
+        # pageScope 不在這裡：它要活到攤平那一刻，由 _flatten_content_json
+        # 轉成一個不印字的 pageScope 元素，讓 _elements_to_html 把它變成
+        # 段落的 class。放進這個清單會讓它在攤平時被整個丟掉。
     )
 
     def _is_marker_element(self, element):

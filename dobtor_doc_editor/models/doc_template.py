@@ -100,6 +100,40 @@ class DocTemplate(models.Model):
         string='頁尾間距 (mm)', default=5,
         help='頁尾與本文之間的間距。',
     )
+    # ─── 頁首頁尾的版面屬性（對應 LibreOffice Writer 的「頁首／頁尾」頁籤）
+    #
+    # LibreOffice 有這幾個，這裡的對照與取捨：
+    #   間距（頁首與本文之間）     → header_spacing / footer_spacing（已有）
+    #   高度 / 自動調整高度        → 不另開欄位：wkhtmltopdf 的頁首高度就是
+    #                              上邊距（margin_top）扣掉間距，另開一個會
+    #                              出現「兩個欄位互相矛盾」的狀態
+    #   左／右邊距                 → header_padding_x / footer_padding_x
+    #                              （wkhtmltopdf 的頁首是另一份文件、鋪滿紙寬，
+    #                               本文的左右邊距對它無效，所以要自己留）
+    #   邊框（頁首下方那條線）     → header_rule / footer_rule
+    #   背景                       → 不做：單據上的頁首底色實務上極少，
+    #                              要的話用藥丸放一張圖更可控
+    #   「首頁相同」「左右頁相同」 → 不是版面欄位，走頁面範圍標記
+    #                              （_PAGE_SCOPE_SOURCE）。理由見那裡的註解
+    header_padding_x = fields.Integer(
+        string='頁首左右內距 (px)', default=0,
+        help='頁首是鋪滿紙張寬度的另一份文件，本文的左右邊距對它無效。\n'
+             '要讓頁首與本文對齊，這裡填與左邊距相同的值；\n'
+             '要讓 logo 貼齊紙張邊緣就填 0。',
+    )
+    footer_padding_x = fields.Integer(
+        string='頁尾左右內距 (px)', default=0,
+        help='同頁首。',
+    )
+    header_rule = fields.Boolean(
+        string='頁首下方分隔線',
+        help='對應 LibreOffice 頁首的「邊框」。單據上幾乎都要這條線。',
+    )
+    footer_rule = fields.Boolean(
+        string='頁尾上方分隔線',
+        help='對應 LibreOffice 頁尾的「邊框」。',
+    )
+
     page_format = fields.Selection([
         ('A4', 'A4'),
         ('A3', 'A3'),
