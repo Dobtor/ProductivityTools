@@ -10,9 +10,18 @@ Odoo 原生的「列印」按鈕、走原生的下載流程，只有「HTML 從�
     ir.actions.report._render_qweb_html()
     ——不是 _render_qweb_pdf_prepare_streams，也不是 selection_add 新 report_type。
     理由與 Odoo 期待的 HTML 結構都寫在 _build_report_html() 的註解裡。
+
+「附頁」是上面那個選擇的**唯一例外**：把別的報表或固定 PDF 接在單據後面
+必須在 PDF 層做（HTML 裡沒有 PDF 可接），所以多了第二個攔截點
+_render_qweb_pdf_prepare_streams。只有設了附頁的綁定會走到那裡，
+沒設的完全不碰——見 report_overrides.py 的那支覆寫。
 """
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 def _lang_get(self):
@@ -84,7 +93,75 @@ class DocReport(models.Model):
         default=0,
         help='0＝永久保留。大於 0 時由排程清理逾期的輸出紀錄。',
     )
+    # ─── 附頁：把別的報表或固定 PDF 接在這張單據後面 ───────────────
+    #
+    # 真實需求是「這張單據**不只**我們產的那幾頁」：合約後面接標準條款、
+    # 出貨單後面接 MSDS、估驗計價單後面接原生的明細報表。
+    # 以前的做法是列印兩次再自己用 PDF 工具合併——而人會忘記，或接錯版本。
+    #
+    # 逐筆記錄合併（不是整批合併完才接）：接的是「這張單據的附頁」，
+    # 多筆列印時每張單據後面都要有自己那份。
+    append_report_ids = fields.Many2many(
+        'ir.actions.report',
+        'doc_report_append_report_rel', 'doc_report_id', 'report_id',
+        string='附加報表',
+        domain="[('report_type', 'in', ['qweb-pdf', 'qweb-html'])]",
+        help='接在這張單據後面的其他報表（會以同一筆記錄渲染）。\n'
+             '模型必須與本報表相同，否則那一張會被跳過並留下 log。',
+    )
+    append_attachment_ids = fields.Many2many(
+        'ir.attachment',
+        'doc_report_append_attachment_rel', 'doc_report_id', 'attachment_id',
+        string='附加固定 PDF',
+        domain="[('mimetype', '=', 'application/pdf')]",
+        help='接在後面的固定 PDF（標準條款、安全資料表…）。與記錄無關，每張單據都接同一份。',
+    )
+    append_position = fields.Selection(
+        [('after', '接在後面'), ('before', '放在前面')],
+        string='附頁位置', default='after', required=True,
+        help='「放在前面」給封面頁用。',
+    )
+
     output_count = fields.Integer(string='輸出筆數', compute='_compute_output_count')
+
+    def _append_streams_for(self, record):
+        """這筆記錄要接的 PDF 位元串清單（依設定順序）。
+
+        拿不到的那一張跳過並留 log，不讓整張單據失敗——使用者要的是手上
+        那張單據，附頁壞掉是次要的（與留存輸出失敗同一個取捨）。
+        """
+        out = []
+        for report in self.append_report_ids:
+            if report.model != record._name:
+                _logger.warning(
+                    '[doc.report] 附加報表 %s 的模型是 %s，與 %s 不符，已跳過',
+                    report.report_name, report.model, record._name,
+                )
+                continue
+            try:
+                content, _ext = report.with_context(
+                    # 防遞迴：附加的報表若自己也綁了 doc.report 並且附加回來，
+                    # 不擋的話會無限互叫。看到這個旗標就不再接附頁。
+                    doc_report_no_append=True,
+                )._render_qweb_pdf(report.id, [record.id])
+            except Exception as e:
+                _logger.warning('[doc.report] 附加報表 %s 產生失敗：%s',
+                                report.report_name, e)
+                continue
+            if content:
+                out.append(content)
+        for att in self.append_attachment_ids:
+            try:
+                # sudo 讀位元組：這幾份 PDF 是**報表設定的一部分**，由能編輯
+                # doc.report 的人挑的（標準條款、安全資料表），不是使用者資料。
+                # 不 sudo 的話，沒有該附件讀取權的一般使用者列印時會靜默少頁。
+                raw = att.sudo().raw
+            except Exception as e:
+                _logger.warning('[doc.report] 附加 PDF %s 讀取失敗：%s', att.name, e)
+                continue
+            if raw:
+                out.append(raw)
+        return out
 
     def _compute_output_count(self):
         data = self.env['doc.output']._read_group(

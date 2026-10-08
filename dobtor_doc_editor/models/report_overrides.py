@@ -1,6 +1,8 @@
+import io
 import logging
 
 from odoo import models
+from odoo.tools.pdf import merge_pdf
 
 
 _logger = logging.getLogger(__name__)
@@ -100,3 +102,66 @@ class IrActionsReport(models.Model):
                         record._name, record.id, e,
                     )
         return html, 'html'
+
+    # ══════════════════════════════════════════════════════════════════
+    # 附頁：第二個攔截點，而且只為設了附頁的綁定存在
+    #
+    # 上面那支刻意攔在 HTML 層，好處是 wkhtmltopdf、attachment、多筆切割
+    # 全部不必碰。但「把別的報表或固定 PDF 接在單據後面」在 HTML 層做不到
+    # ——HTML 裡沒有 PDF 可接。所以這裡多開一個 PDF 層的攔截點。
+    #
+    # 選 _render_qweb_pdf_prepare_streams 而不是 _render_qweb_pdf：
+    # 前者給的是 {res_id: {'stream': …}}，一筆記錄一份。接的是「這張單據的
+    # 附頁」，多筆列印時每張後面都要有自己那一份；在 _render_qweb_pdf 之後
+    # 動手只剩一份合併好的 PDF，附頁只能全部堆在最後面。
+    #
+    # 沒設附頁時這支等於不存在（第一個 if 就 return super 的結果）。
+    # ══════════════════════════════════════════════════════════════════
+
+    def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
+        report = self._get_report(report_ref)
+        doc_report = self.env['doc.report']._resolve_for_report(report)
+        appends = doc_report and (
+            doc_report.append_report_ids or doc_report.append_attachment_ids)
+        if not appends or self._context.get('doc_report_no_append'):
+            return super()._render_qweb_pdf_prepare_streams(
+                report_ref, data, res_ids=res_ids)
+
+        # 重用既有附件的那幾筆要跳過：那份 PDF 是上次產的，**已經含附頁**，
+        # 再接一次會變兩份。條件與 Odoo 自己判斷重用的條件一致
+        #（ir_actions_report.py:817）。
+        reused = set()
+        if (report.attachment and report.attachment_use and res_ids
+                and not self._context.get('report_pdf_no_attachment')):
+            for record in self.env[report.model].browse(res_ids):
+                if report.retrieve_attachment(record):
+                    reused.add(record.id)
+
+        collected = super()._render_qweb_pdf_prepare_streams(
+            report_ref, data, res_ids=res_ids)
+
+        for res_id, entry in (collected or {}).items():
+            if not res_id or res_id in reused:
+                continue
+            stream = (entry or {}).get('stream')
+            if not stream:
+                continue
+            record = self.env[report.model].browse(res_id)
+            if not record.exists():
+                continue
+            extra = doc_report._append_streams_for(record)
+            if not extra:
+                continue
+            try:
+                own = stream.getvalue()
+                parts = ([own] + extra) if doc_report.append_position == 'after' \
+                    else (extra + [own])
+                entry['stream'] = io.BytesIO(merge_pdf(parts))
+            except Exception as e:
+                # 合併失敗就給原本那份。使用者要的是單據本身，少了附頁
+                # 看得出來；整張產不出來才是災難。
+                _logger.warning(
+                    '[doc.report] 附頁合併失敗 %s(%s)，只輸出本體：%s',
+                    report.model, res_id, e,
+                )
+        return collected

@@ -91,7 +91,24 @@
                             <field name="retention_days"
                                    invisible="not persist_output"/>
                         </group>
+                        <group string="附頁">
+                            <field name="append_report_ids" widget="many2many_tags"
+                                   domain="[('model', '=', report_model),
+                                            ('report_type', 'in', ['qweb-pdf', 'qweb-html'])]"
+                                   placeholder="例：原生的明細報表"/>
+                            <field name="append_attachment_ids" widget="many2many_tags"
+                                   placeholder="例：標準條款、安全資料表"/>
+                            <field name="append_position"
+                                   invisible="not append_report_ids and not append_attachment_ids"/>
+                        </group>
                     </group>
+                    <div class="alert alert-info mb-3" role="alert"
+                         invisible="not append_report_ids and not append_attachment_ids">
+                        <i class="fa fa-paperclip me-1"/>
+                        附頁是<strong>逐筆記錄</strong>合併的——一次列印十張單據，
+                        每張後面都會接自己那一份。附頁產不出來時只會少那幾頁並留下
+                        伺服器紀錄，單據本身照印。
+                    </div>
                     <div class="alert alert-warning mb-0" role="alert"
                          invisible="not persist_output">
                         <i class="fa fa-exclamation-triangle me-1"/>
