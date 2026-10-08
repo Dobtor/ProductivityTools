@@ -843,11 +843,27 @@
                  Sprint A：canvas-editor 不能被 t-if unmount（會炸），改用 inline style
                  在非「範本」分頁時隱藏。dashboard/requests/settings 分頁則接著在後方渲染。 -->
             <div class="doc-main"
-                 t-att-style="state.activeSubNav === 'templates' ? '' : 'display: none;'">
+                 t-att-style="mainGridStyle">
                 <!-- 左：頁面縮圖 panel — Sprint C 接 canvas.toDataURL 真實縮圖 -->
-                <aside class="doc-thumbnail-panel" aria-label="頁面與欄位">
+                <aside t-attf-class="doc-thumbnail-panel #{state.leftPanelCollapsed ? 'is-collapsed' : ''}"
+                       aria-label="頁面與欄位">
+                    <!-- 收合帶：收起來時整個面板只剩這一條 -->
+                    <button class="doc-panel-collapse-strip"
+                            t-if="state.leftPanelCollapsed"
+                            t-on-click="onToggleLeftPanel"
+                            title="展開左側面板（頁面縮圖與欄位）"
+                            aria-label="展開左側面板">
+                        <i class="fa fa-angle-double-right" aria-hidden="true"/>
+                    </button>
+                    <t t-if="!state.leftPanelCollapsed">
                     <!-- Phase 6：左欄兩個分頁——頁面縮圖（原有）／模型欄位調色盤（新增） -->
                     <div class="doc-left-tabs" role="tablist">
+                        <button class="doc-panel-collapse-btn"
+                                t-on-click="onToggleLeftPanel"
+                                title="收合左側面板"
+                                aria-label="收合左側面板">
+                            <i class="fa fa-angle-double-left" aria-hidden="true"/>
+                        </button>
                         <button class="doc-left-tab"
                                 role="tab"
                                 t-att-class="state.leftPanelTab === 'pages' ? 'is-active' : ''"
@@ -982,6 +998,17 @@
                                     <span class="doc-field-palette-label">總頁數</span>
                                     <span class="doc-field-palette-type">頁首／頁尾</span>
                                 </li>
+                                <!-- 頁面範圍標記（對應 LibreOffice 的「首頁相同」
+                                     「左右頁相同」）。只在頁首／頁尾生效。 -->
+                                <t t-foreach="[['first','只在首頁','信紙只印第一頁'],['rest','只在續頁','第 2 頁起印「接前頁」'],['odd','只在奇數頁','雙面列印的外側'],['even','只在偶數頁','雙面列印的外側']]" t-as="ps" t-key="ps[0]">
+                                    <li class="doc-field-palette-item"
+                                        t-on-click="() => this.onInsertPageScope(ps[0])"
+                                        t-attf-title="讓這一段只在指定的頁出現。#{ps[2]}。只在頁首／頁尾生效。">
+                                        <i class="fa fa-clone doc-palette-repeat-icon" aria-hidden="true"/>
+                                        <span class="doc-field-palette-label" t-esc="ps[1]"/>
+                                        <span class="doc-field-palette-type">頁首／頁尾</span>
+                                    </li>
+                                </t>
                             </ul>
 
                             <!-- ─── 重複列（表格明細）─── -->
@@ -1386,6 +1413,7 @@
                             </t>
                         </t>
                     </div>
+                    </t>
                 </aside>
 
                 <!-- 中：canvas-editor workspace（既有 _initCanvasEditor 邏輯不動）
@@ -1516,7 +1544,24 @@
                 </section>
 
                 <!-- 右：Inspector panel — Phase 2.1 補項：雙向綁定 selectedField -->
-                <aside class="doc-inspector-panel" aria-label="欄位屬性">
+                <aside t-attf-class="doc-inspector-panel #{state.rightPanelCollapsed ? 'is-collapsed' : ''}"
+                       aria-label="欄位屬性">
+                    <button class="doc-panel-collapse-strip"
+                            t-if="state.rightPanelCollapsed"
+                            t-on-click="onToggleRightPanel"
+                            title="展開右側面板（欄位屬性）"
+                            aria-label="展開右側面板">
+                        <i class="fa fa-angle-double-left" aria-hidden="true"/>
+                    </button>
+                    <t t-if="!state.rightPanelCollapsed">
+                    <div class="doc-inspector-topbar">
+                        <button class="doc-panel-collapse-btn"
+                                t-on-click="onToggleRightPanel"
+                                title="收合右側面板"
+                                aria-label="收合右側面板">
+                            <i class="fa fa-angle-double-right" aria-hidden="true"/>
+                        </button>
+                    </div>
                     <!-- Sprint L：所有欄位清單（點 row 跳到 document 對應 control）
                          Sprint M：標出孤兒 record + 提供批次清理按鈕
                          Sprint O：search filter input（>5 fields 才顯示） -->
@@ -2191,6 +2236,30 @@
                         </div>
                     </t>
 
+                    <!-- ═══ 頁面範圍標記 ═══ -->
+                    <t t-elif="isPageScopePill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-clone me-2" aria-hidden="true"/>
+                            <span>頁面範圍</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            它所在的<b>那一段</b>只在指定的頁出現。<b>只在頁首／頁尾生效</b>
+                            ——本文不是每頁重畫的，沒有「這是第幾頁」可問。<br/>
+                            對應 LibreOffice 頁首的「首頁相同」與「左右頁相同」。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>出現在</label>
+                            <select t-on-change="(ev) => this.onVariablePropertyChange('scope', ev.target.value)">
+                                <t t-foreach="[['first','首頁'],['rest','續頁（第 2 頁起）'],['odd','奇數頁'],['even','偶數頁']]" t-as="ps" t-key="ps[0]">
+                                    <option t-att-value="ps[0]"
+                                            t-att-selected="state.selectedVariable.scope === ps[0] ? 'selected' : ''"
+                                            t-esc="ps[1]"/>
+                                </t>
+                            </select>
+                        </div>
+                    </t>
+
                     <!-- ═══ 頁碼藥丸 ═══ -->
                     <t t-elif="isPagePill and !isOutputTarget">
                         <div class="doc-inspector-header">
@@ -2552,6 +2621,7 @@
                             </ul>
                         </t>
                     </div>
+                    </t>
                 </aside>
             </div>
 

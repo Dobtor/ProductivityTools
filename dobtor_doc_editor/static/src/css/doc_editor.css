@@ -3299,3 +3299,52 @@
     margin: 2px 0 0;
     flex: none;
 }
+
+/* ─── 左右側面板收合 ─────────────────────────────────────────────
+   編輯區在 1366 寬的筆電上只剩約 900px，而左 180 + 右 280 佔掉了紙張寬度的
+   三分之一。收合後兩側各只留 28px 的一條帶子（還看得見、點得到）。
+   grid 的欄寬由 JS 的 mainGridStyle 綁在 .doc-main 的 style 上——改 class
+   沒辦法蓋掉 media query 裡的 grid-template-columns。 */
+.doc-thumbnail-panel.is-collapsed,
+.doc-inspector-panel.is-collapsed {
+    padding: 0;
+    overflow: hidden;
+    align-items: center;
+}
+
+/* 收起來時整個面板只剩這一條；滿高好點 */
+.doc-panel-collapse-strip {
+    border: 0;
+    background: #fafafa;
+    color: #6c757d;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+.doc-panel-collapse-strip:hover {
+    background: #f0ebf8;
+    color: #7b5ea7;
+}
+
+/* 展開狀態下的收合鈕 */
+.doc-panel-collapse-btn {
+    border: 0;
+    background: transparent;
+    color: #9aa0a6;
+    cursor: pointer;
+    padding: 2px 6px;
+    margin-left: auto;
+    flex: none;
+}
+.doc-panel-collapse-btn:hover { color: #7b5ea7; }
+
+.doc-inspector-topbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: -6px -6px 2px 0;
+    flex-shrink: 0;
+}

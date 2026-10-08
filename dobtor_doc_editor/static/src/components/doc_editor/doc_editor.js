@@ -417,6 +417,12 @@ export class DocEditor extends Component {
             // 與 selectedFieldId（待填欄位的後端記錄 id）互斥——兩類欄位的定義
             // 存在不同地方，inspector 也因此分兩區顯示。
             selectedVariable: null,
+            // ─── 左右側面板收合 ───
+            // 編輯區在 1366 寬的筆電上只剩 900px——左 180 + 右 280 幾乎是
+            // 整個紙張寬度的三分之一。收合狀態存 localStorage：這是「每個人
+            // 自己的看法偏好」，不是文件內容，不該進資料庫。
+            leftPanelCollapsed: _lsGet('dobtor_doc_editor_left_collapsed') === '1',
+            rightPanelCollapsed: _lsGet('dobtor_doc_editor_right_collapsed') === '1',
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -2625,6 +2631,46 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      * 只在 PDF 與 DOCX 有意義，而且要放在頁首或頁尾——放在本文裡 wkhtmltopdf
      * 不會替換（替換 JS 只套用在被抽出來的 header/footer 上）。
      */
+    /**
+     * 插入「頁面範圍標記」——這一段只在某些頁出現。
+     *
+     * 對應 LibreOffice Writer 頁首／頁尾的「首頁相同」與「左右頁相同」兩個
+     * 勾選，但做法不同：那兩個是版面設定，這裡是標記。原因是我們的頁首頁尾
+     * 是一份 HTML，wkhtmltopdf 每一頁重載一次並在網址帶 page 參數——
+     * 「哪一段要出現」只能在那一刻決定，後端不知道這一頁是第幾頁。
+     *
+     * 業務上最常用的三個：
+     *   首頁   公司信紙（logo＋完整公司資訊）只印第一頁
+     *   續頁   第 2 頁起才印「（接前頁）」與單號
+     *   奇／偶 雙面列印時頁碼放外側、裝訂邊左右交換
+     */
+    onInsertPageScope(scope) {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const labels = {
+            first: "只在首頁", rest: "只在續頁",
+            odd: "只在奇數頁", even: "只在偶數頁",
+        };
+        const ok = this.insertPill({
+            source: "pageScope",
+            scope,
+            isMarker: true,
+            labelText: labels[scope] || "頁面範圍",
+        });
+        if (ok) {
+            this.notification.add(
+                "這個標記讓它所在的那一段只在指定的頁出現，而且只在頁首／頁尾生效。",
+                { type: "info" }
+            );
+        }
+    }
+
+    get isPageScopePill() {
+        return (this.state.selectedVariable || {}).source === "pageScope";
+    }
+
     onInsertPageField(part) {
         if (!this.canPlaceVariables) {
             this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
@@ -2715,6 +2761,47 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             style: I18N_PILL_STYLE,
         });
         this.loadLanguages();
+    }
+
+    // ─── 左右側面板收合 ───────────────────────────────────────────
+    //
+    // 為什麼不用 t-if 整個拿掉：canvas-editor 的實例掛在工作區裡，而
+    // 「t-if 把 canvas-editor unmount 會炸」是這個檔案開頭就記著的既有限制。
+    // 側面板本身 t-if 掉是安全的（它們沒有 canvas），但 grid 的欄寬要跟著變，
+    // 否則收合後中間不會變寬——所以用 style 綁 grid-template-columns。
+
+    get leftPanelWidth() {
+        return this.state.leftPanelCollapsed ? '28px' : '';
+    }
+
+    get rightPanelWidth() {
+        return this.state.rightPanelCollapsed ? '28px' : '';
+    }
+
+    /** .doc-main 的 grid 欄寬。空字串＝用 CSS 的預設值（含 media query）。 */
+    get mainGridStyle() {
+        const l = this.state.leftPanelCollapsed;
+        const r = this.state.rightPanelCollapsed;
+        if (!l && !r) {
+            return this.state.activeSubNav === 'templates'
+                ? '' : 'display: none;';
+        }
+        const cols = `${l ? '28px' : '180px'} 1fr ${r ? '28px' : '280px'}`;
+        const hidden = this.state.activeSubNav === 'templates'
+            ? '' : 'display: none;';
+        return `grid-template-columns: ${cols}; ${hidden}`;
+    }
+
+    onToggleLeftPanel() {
+        this.state.leftPanelCollapsed = !this.state.leftPanelCollapsed;
+        _lsSet('dobtor_doc_editor_left_collapsed',
+               this.state.leftPanelCollapsed ? '1' : '0');
+    }
+
+    onToggleRightPanel() {
+        this.state.rightPanelCollapsed = !this.state.rightPanelCollapsed;
+        _lsSet('dobtor_doc_editor_right_collapsed',
+               this.state.rightPanelCollapsed ? '1' : '0');
     }
 
     get isI18nPill() {
