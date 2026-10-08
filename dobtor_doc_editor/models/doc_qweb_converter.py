@@ -1987,15 +1987,6 @@ class DocQwebConverter(models.AbstractModel):
                     return self._CLASS_ALIGN[token]
         return None
 
-    def _inline_style(self, tag):
-        if tag in ('strong', 'b'):
-            return {'bold': True}
-        if tag in ('em', 'i'):
-            return {'italic': True}
-        if tag == 'u':
-            return {'underline': True}
-        return None
-
     # ─── 圖片 ───────────────────────────────────────────────────────
 
     def _image_pill(self, node, state):

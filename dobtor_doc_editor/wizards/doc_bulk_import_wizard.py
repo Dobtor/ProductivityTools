@@ -17,15 +17,10 @@ import logging
 import zipfile
 import base64
 
-from odoo import api, fields, models, _
+from odoo import fields, models, _
 from odoo.exceptions import UserError
 
-from ..models.doc_zip_guard import (
-    ZipBombError,
-    inspect_zip_safe,
-    DEFAULT_OUTPUT_MAX_BYTES,
-    DEFAULT_MAX_ENTRIES,
-)
+from ..models.doc_zip_guard import ZipBombError, inspect_zip_safe
 
 _logger = logging.getLogger(__name__)
 

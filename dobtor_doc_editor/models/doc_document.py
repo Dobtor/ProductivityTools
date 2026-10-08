@@ -27,10 +27,6 @@ _RGB_RE = re.compile(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)')
 _LEN_RE = re.compile(r'^([\d.]+)\s*(px|pt|em|rem)?$')
 
 # 行內樣式可繼承的屬性：巢狀 <span> 時外層設定要傳進內層
-_INHERITABLE = ('bold', 'italic', 'underline', 'strike',
-                'color', 'size_pt', 'font_name', 'highlight')
-
-
 def _css_color_to_hex(value):
     """CSS 顏色 → 六位 hex（不帶 #）；無法解析回 None。
 

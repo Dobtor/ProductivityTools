@@ -1,6 +1,6 @@
 """Tests for doc.linked.mixin (W9-10 P2-1, W5-6 P1-2)."""
 
-from odoo import models, fields
+
 from odoo.tests.common import TransactionCase, tagged
 
 

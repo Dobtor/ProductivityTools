@@ -1134,6 +1134,9 @@ class DocRenderMixin(models.AbstractModel):
         #   2-3. 條件（列→欄→段落）——條件自成一體、不依賴藥丸的值，放在求值前
         #      可以少算被移除那部分。欄一定排在列之後：列條件的標記可能就放在
         #      某一欄裡，先刪欄會讓那個列條件無聲消失
+        #   3.6. 條件式格式——排在條件之後（被移除的列不必再算格式），
+        #      排在求值之前（格式與值無關）。重複列內的格式標記在第 1 關就
+        #      逐筆處理掉了，這一關只處理重複列以外的
         #   3.5. 清掉空表格——1 與 2 都可能把表格的列全部移除（零筆明細、
         #      條件區塊為假），留著空表格會在版面上印出一個空段落
         #   4. 純量藥丸求值（下方既有迴圈）
@@ -1179,10 +1182,10 @@ class DocRenderMixin(models.AbstractModel):
             if only_pending and meta.get('frozenAt'):
                 continue  # 已凍結過：維持原值，不重新求值
             src = meta.get('source') or 'record'
-            if src == self._FORMAT_SOURCE:
-                # 條件式格式是標記不是取值。走到這裡表示它沒被自己那一關
-                # 處理掉（only_pending 的匯出路徑），留著不動比把條件的
-                # 求值結果印進文件好。
+            if self._is_marker_element(element):
+                # 標記不是取值。走到這裡表示它沒被自己那一關處理掉
+                #（only_pending 的匯出路徑），不可以把條件的求值結果寫成它的
+                # 值——那會變成單據上一段看起來像內容的東西。攤平時會丟掉。
                 continue
             if src in self._EXPANSION_SOURCES:
                 # 由 _expand_repeat_rows 負責。走到這裡只有兩種情況：
@@ -1257,6 +1260,22 @@ class DocRenderMixin(models.AbstractModel):
         _GROUP_HEADER_SOURCE, _GROUP_FOOTER_SOURCE, _GROUP_VALUE_SOURCE,
         _RUNNING_SOURCE, 'taxTotals', 'column', 'page',
     )
+
+    # 「宣告」而不是「內容」的藥丸。正常路徑上各自那一關會吃掉它們，但
+    # only_pending=True 的匯出路徑不跑那些關卡（它只補值），所以攤平時一定
+    # 要丟掉——不丟的話單據上會多出「條件格式」這種標籤文字，更糟的是條件
+    # 標記會印出「條件求值的結果」，看起來像真的內容。（實測過三種都會印）
+    _MARKER_SOURCES = (
+        _REPEAT_SOURCE, _GROUP_HEADER_SOURCE, _GROUP_FOOTER_SOURCE,
+        'condition', 'format', 'column',
+    )
+
+    def _is_marker_element(self, element):
+        meta = self._element_field_meta(element)
+        if not meta:
+            return False
+        return (bool(meta.get('isMarker'))
+                or (meta.get('source') or '') in self._MARKER_SOURCES)
 
     def _iter_tables(self, tree):
         """yield 樹中所有表格元素（含表格內巢狀表格）。"""
@@ -2663,21 +2682,6 @@ class DocRenderMixin(models.AbstractModel):
                     removed += 1
         return removed
 
-    def _count_pending_pills(self, tree):
-        """統計尚未凍結過的模型變數藥丸數。
-
-        給 UI 用：匯出前要讓使用者知道「有 N 個變數還沒帶值」，
-        而不是等他看到 PDF 上印著「客戶名稱」四個字才發現。
-        """
-        if not tree:
-            return 0
-        count = 0
-        for element in self._iter_elements(tree):
-            meta = self._element_field_meta(element)
-            if meta and not meta.get('frozenAt'):
-                count += 1
-        return count
-
     def _flatten_content_json(self, tree):
         """把藥丸攤平成純文字元素（就地改寫並回傳 tree）。
 
@@ -2687,6 +2691,9 @@ class DocRenderMixin(models.AbstractModel):
         if not tree:
             return tree
         for elements in self._iter_element_lists(tree):
+            # 標記藥丸整個丟掉（見 _MARKER_SOURCES 的說明）
+            elements[:] = [el for el in elements
+                           if not self._is_marker_element(el)]
             for idx, el in enumerate(elements):
                 if not isinstance(el, dict) or el.get('type') != 'label':
                     continue

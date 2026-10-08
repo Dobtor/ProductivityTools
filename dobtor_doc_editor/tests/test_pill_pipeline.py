@@ -3165,3 +3165,55 @@ class TestConditionalFormat(TransactionCase):
         self.Mixin._snapshot_content_json(tree, self.parent)
         cell_el = tree['main'][0]['trList'][0]['tdList'][0]['value'][0]
         self.assertFalse(cell_el.get('bold'))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestMarkersNeverPrint(TransactionCase):
+    """標記藥丸（條件／格式／重複／分組）絕對不可以印進文件。
+
+    它們是設計期的宣告，不是內容。正常路徑上各自那一關會把它們吃掉，
+    但 only_pending=True 的匯出路徑**不跑**那些關卡（它只補值），
+    所以使用者在「已快照過的文件」裡插一個標記再匯出時，攤平會把標記的
+    標籤文字當成內容印出來——單據上就多一個「條件格式」四個字。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '標記測試'})
+
+    def _html_after_export_path(self, pill):
+        tree = {'header': [], 'footer': [], 'main': [
+            pill, _text('正常內容'), _text('\n'),
+        ]}
+        # 匯出路徑：只補還沒凍結過的值，不跑條件／重複／格式那幾關
+        self.Mixin._snapshot_content_json(tree, self.partner, only_pending=True)
+        return self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree))
+
+    def test_condition_marker_does_not_print(self):
+        html = self._html_after_export_path(
+            _pill('條件', source='condition', expression='object.name'))
+        self.assertIn('正常內容', html)
+        self.assertNotIn('條件', html)
+
+    def test_format_marker_does_not_print(self):
+        html = self._html_after_export_path(
+            _pill('條件格式', source='format', expression='object.name',
+                  bold=True))
+        self.assertIn('正常內容', html)
+        self.assertNotIn('條件格式', html)
+
+    def test_repeat_marker_does_not_print(self):
+        html = self._html_after_export_path(
+            _pill('明細 × child_ids', source='repeat', path='child_ids',
+                  repeatId='rp1'))
+        self.assertIn('正常內容', html)
+        self.assertNotIn('明細', html)
+
+    def test_group_markers_do_not_print(self):
+        for source in ('groupHeader', 'groupFooter'):
+            html = self._html_after_export_path(
+                _pill('〔分組標題〕', source=source, isMarker=True,
+                      repeatId='rp1'))
+            self.assertNotIn('分組', html, '%s 的標記印出來了' % source)

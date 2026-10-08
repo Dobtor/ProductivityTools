@@ -9,7 +9,7 @@
 
 ## 0. ADR 索引（Sprint 118 彙整）
 
-21 個 ADR。編號 004-007 為歷史保留缺口（早期 numbering、無 ADR 文件）。
+23 個 ADR。編號 004-007 為歷史保留缺口（早期 numbering、無 ADR 文件）。
 
 | # | 主題 | Sprint / Phase | 一句話 |
 |---|---|---|---|
@@ -31,6 +31,8 @@
 | 019 | `run_backend_tests.sh` | Sprint 72 | 統一 21 個 backend tests、紀律 #13 候選 |
 | 020 | Autonomous docs sprint 範式 | Sprint 73-74 | glossary + retro 是有實質產出的 sprint |
 | **021** | **Portal cross-company collaboration by collaborator_ids** | **Sprint 117** | **不加 company filter、collaborator_ids 即 explicit access grant、配合 lock-in test 防回歸** |
+| 022 | 後台 UI 擴充為範本欄位拖曳建構器 | Phase 8 | （本文件已有 §ADR-022，先前漏列於索引） |
+| **023** | **報表管線（藥丸／快照）與 QWeb 轉換器** | **2026-09～10** | **範本＋綁定取代「每張報表一支程式」；轉換器只轉不搬；標記與取值分離；失敗策略逐層明寫** |
 
 ---
 
@@ -1274,3 +1276,53 @@ User 提供 `test-risen.dobtor.com/.../esign_configure` 介面截圖，要求 `d
 - Sprint 90-109 revert：[docs/sprint90_to_109_revert.md](sprint90_to_109_revert.md)
 - 紀律 #18 出處：規劃書 [§6.5 18 條開發紀律](../dobtor_doc_editor_高保真匯入開發規劃.md#65-18-條開發紀律)
 
+
+---
+
+## ADR-023：報表管線（藥丸／快照）與 QWeb 轉換器
+
+**日期**：2026-09～2026-10
+**狀態**：已落地（`doc.render.mixin` / `doc.report` / `doc.qweb.converter`）
+
+### 問題
+
+ChienYi 以外的客戶要的是「單據」：同一份版面套不同記錄印出來。既有的
+`doc.document` 是「一份文件一筆記錄」，套不到這個需求；而 Odoo 原生報表要
+改版面就得改 XML，使用者碰不到。
+
+### 決策
+
+1. **範本 + 綁定**：`doc.template`（版面，含藥丸）＋ `doc.report`（把範本綁到
+   `ir.actions.report`）。綁定存在時接管 `_render_qweb_html`，不存在就完全
+   不影響原生。
+2. **藥丸分兩類，語意不可混**：
+   - **取值**（`record` / `line` / `group` / `running` / `taxTotals` / `image`
+     / `page` / `html` / `i18n`）——會變成內容
+   - **標記**（`repeat` / `condition` / `column` / `format` / `groupHeader`
+     / `groupFooter`）——設計期的宣告，**絕對不印**；各自的 pass 吃掉它，
+     攤平時再保險地丟一次（`_MARKER_SOURCES`）
+3. **標記放哪裡就決定作用範圍**：表格列內＝整列、段落裡＝整段。理由是
+   canvas-editor 的元素串列是扁平的，只有「列」與「`\n` 切出的段落」是可靠
+   的邊界；任意區塊的起訖標記會被使用者編輯時拆散。
+4. **失敗策略逐層明寫，而且不一致是故意的**：
+   - 條件求值失敗 → **當真**（寧可多印；少印會被當成資料問題，追不到渲染層）
+   - 條件式格式求值失敗 → **不套用**（格式套錯比沒套上難追）
+   - 取值求值失敗 → 空字串（一個壞欄位不該讓整份文件產不出來）
+   - 分組的分隔判斷失敗 → 當成「不是分隔點」（退化成不分組，比印出 N 個
+     空組好看）
+5. **沙箱只開一道窄門**：底線開頭的方法一律擋，白名單
+   （`_SAFE_REPORT_METHODS`）逐筆讀過實作確認唯讀才加，呼叫走
+   `report_helper()`。`_generate_qr_code` 刻意不收——它會回寫
+   `qr_code_method`，也就是印一張 PDF 會改資料。
+6. **轉換器只轉不搬**：`doc.qweb.converter` 把原生 arch 轉成範本，原生報表
+   不動（見 [scope_decision.md](scope_decision.md) §7）。唯一會「猜」的地方
+   是改寫規則表，猜完一定拿樣本記錄試算一遍；認不出來的寫法原樣保留並標成
+   待確認，**不猜**。
+
+### 後果
+
+- 36 張原生報表全部轉得出來、34 張有內容（剩 2 張是版面預覽，本來就沒內容）
+- 覆蓋範圍、刻意不支援的項目、量測方法：
+  [qweb_converter_coverage.md](qweb_converter_coverage.md)
+- 代價：快照管線的 pass 順序變成一條不可對調的鏈（`_snapshot_content_json`
+  的註解是權威），每加一個新 pass 都要說清楚它為什麼在那個位置
