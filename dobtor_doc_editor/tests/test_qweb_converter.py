@@ -1091,3 +1091,233 @@ class TestWrapperTemplateBody(TestQwebConverterBase):
         )
         self.assertTrue(any('子範本' in n for n in res['notes']),
                         '%s' % res['notes'])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestGroupsAttribute(TestQwebConverterBase):
+    """groups 屬性＝「在這些群組之一才印」。
+
+    原本整個被忽略：36 張報表有 52 處，最多的是 uom.group_uom（計量單位欄）
+    ——沒有那個群組的使用者，單據上那一欄本來不該出現，而我們照印。
+    """
+
+    def _conds(self, res):
+        return [(m.get('expression') or '') for m in
+                self._metas(res['tree']['main'])]
+
+    def test_single_group_becomes_a_condition(self):
+        res = self._convert(
+            '<div groups="uom.group_uom"><span t-out="o.name"/></div>')
+        self.assertTrue(
+            any("has_group('uom.group_uom')" in c for c in self._conds(res)),
+            '%s' % self._conds(res))
+
+    def test_comma_is_or(self):
+        res = self._convert(
+            '<div groups="a.b,c.d"><span t-out="o.name"/></div>')
+        joined = ' '.join(self._conds(res))
+        self.assertIn("has_group('a.b') or has_group('c.d')", joined)
+
+    def test_bang_is_negation(self):
+        res = self._convert(
+            '<div groups="!a.b"><span t-out="o.name"/></div>')
+        self.assertIn("not has_group('a.b')", ' '.join(self._conds(res)))
+
+    def test_merged_with_an_existing_condition(self):
+        """同節點已經有 t-if 時要 and 起來，不可以覆蓋掉任何一邊。"""
+        res = self._convert(
+            '<div t-if="o.active" groups="a.b"><span t-out="o.name"/></div>')
+        joined = ' '.join(self._conds(res))
+        self.assertIn('object.active', joined)
+        self.assertIn("has_group('a.b')", joined)
+
+    def test_groups_on_else_is_flagged_not_merged(self):
+        """t-else 上沒辦法 and 條件——併了語意就不是「否則」了。"""
+        res = self._convert(
+            '<table><tr><td>x</td></tr></table>'
+            '<div t-if="o.active"><span t-out="o.name"/></div>'
+            '<div t-else="" groups="a.b"><span t-out="o.ref"/></div>'
+        )
+        self.assertTrue(any('t-else' in n for n in res['notes']),
+                        '要留待辦說明那一段會一直印：%s' % res['notes'])
+
+    def test_env_user_has_group_is_rewritten(self):
+        """範本裡直接寫 env.user.has_group(...) 的也要能用（沙箱擋 env）。"""
+        res = self._convert(
+            '<span t-out="o.name if env.user.has_group(\'a.b\') else \'\'"/>')
+        joined = ' '.join(self._conds(res))
+        self.assertIn("has_group('a.b')", joined)
+        self.assertNotIn('env.user', joined)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestBarcodeWidget(TestQwebConverterBase):
+    """t-options widget="barcode" → 條碼藥丸。
+
+    標籤與條碼類報表的主角（36 張報表裡 44 處）。原本只會變成一顆普通取值
+    藥丸，單據上印出來的是條碼的「文字」而不是條碼本身。
+    """
+
+    def _bars(self, res):
+        return [m for m in self._metas(res['tree']['main'])
+                if m.get('barcodeType')]
+
+    def test_barcode_widget_becomes_a_barcode_pill(self):
+        res = self._convert(
+            '<span t-field="o.barcode" t-options="{\'widget\': \'barcode\','
+            ' \'symbology\': \'EAN13\', \'width\': 600, \'height\': 150}"/>')
+        bars = self._bars(res)
+        self.assertEqual(len(bars), 1, '%s' % list(self._metas(res['tree']['main'])))
+        self.assertEqual(bars[0].get('barcodeType'), 'EAN13')
+        self.assertEqual(bars[0].get('path'), 'barcode')
+        self.assertEqual(bars[0].get('width'), 600)
+        self.assertEqual(bars[0].get('height'), 150)
+
+    def test_unknown_symbology_falls_back_with_a_note(self):
+        res = self._convert(
+            '<span t-field="o.barcode" t-options="{\'widget\': \'barcode\','
+            ' \'symbology\': \'ECC200\'}"/>')
+        self.assertEqual(self._bars(res)[0].get('barcodeType'), 'Code128')
+        self.assertTrue(any('條碼型別' in n for n in res['notes']))
+
+    def test_humanreadable_sets_the_text_flag(self):
+        res = self._convert(
+            '<span t-field="o.barcode" t-options="{\'widget\': \'barcode\','
+            ' \'humanreadable\': 1}"/>')
+        self.assertTrue(self._bars(res)[0].get('barcodeText'))
+
+    def test_barcode_with_a_condition_is_still_a_barcode(self):
+        """條碼是圖，收不成三元式——節點上的 t-if 不可以把它變成文字。"""
+        res = self._convert(
+            '<span t-if="o.barcode" t-field="o.barcode"'
+            ' t-options="{\'widget\': \'barcode\'}"/>')
+        self.assertEqual(len(self._bars(res)), 1,
+                         '%s' % list(self._metas(res['tree']['main'])))
+
+    def test_barcode_in_a_branch_is_not_collapsed(self):
+        res = self._convert(
+            '<div t-if="o.barcode"><span t-field="o.barcode"'
+            ' t-options="{\'widget\': \'barcode\'}"/></div>'
+            '<div t-else=""><span t-out="o.name"/></div>'
+        )
+        self.assertEqual(len(self._bars(res)), 1,
+                         '分支收斂把條碼變成文字了：%s'
+                         % list(self._metas(res['tree']['main'])))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestClassFormatting(TestQwebConverterBase):
+    """class → 文件屬性。
+
+    只收「表達得出來又看得出來」的那幾個：text-end 120 處、text-center
+    101 處（金額欄的右對齊）、fw-bold 13 處。其餘（col-*、mb-*…）是版面
+    網格，文件模型沒有對應物。
+    """
+
+    def _elements(self, res):
+        out = []
+        def walk(els):
+            for el in els:
+                out.append(el)
+                if el.get('type') == 'table':
+                    for tr in el.get('trList') or []:
+                        for td in tr.get('tdList') or []:
+                            walk(td.get('value') or [])
+        walk(res['tree']['main'])
+        return out
+
+    def test_fw_bold_becomes_bold(self):
+        res = self._convert('<div class="fw-bold">粗體字</div>')
+        self.assertTrue(any(el.get('bold') for el in self._elements(res)),
+                        '%s' % self._elements(res))
+
+    def test_text_muted_becomes_a_colour(self):
+        res = self._convert('<div class="text-muted">灰字</div>')
+        self.assertTrue(any(el.get('color') for el in self._elements(res)))
+
+    def test_cell_alignment_from_the_cell_class(self):
+        res = self._convert(
+            '<table><tr><td class="text-end"><span t-out="o.name"/></td>'
+            '</tr></table>')
+        cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
+        self.assertEqual(cell['value'][-1].get('rowFlex'), 'right')
+
+    def test_cell_alignment_from_the_inner_span(self):
+        """原生也常把 text-end 放在裡面那個 span 上。"""
+        res = self._convert(
+            '<table><tr><td><span class="text-center"'
+            ' t-out="o.name"/></td></tr></table>')
+        cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
+        self.assertEqual(cell['value'][-1].get('rowFlex'), 'center')
+
+    def test_grid_classes_are_ignored(self):
+        """col-6 / mb-4 這種網格 class 不該變成任何文件屬性。"""
+        res = self._convert('<div class="col-6 mb-4">一般字</div>')
+        for el in self._elements(res):
+            self.assertFalse(el.get('bold'))
+            self.assertFalse(el.get('color'))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestColumnWidths(TestQwebConverterBase):
+    """欄寬吃 style="width: N%"。
+
+    原生用百分比指定明細表的欄寬（36 張報表 22 處）。不讀的話每一欄都一樣
+    寬——品名欄被壓窄、金額欄留一大片空白。
+    """
+
+    def _colgroup(self, body):
+        res = self._convert(body)
+        return [c['width'] for c in
+                list(self._tables(res['tree']['main']))[0]['colgroup']]
+
+    def test_percentage_widths_are_honoured(self):
+        widths = self._colgroup(
+            '<table><tr><th style="width: 60%">品名</th>'
+            '<th style="width: 40%">金額</th></tr></table>')
+        self.assertEqual(len(widths), 2)
+        self.assertGreater(widths[0], widths[1], '60% 的那一欄要比較寬')
+
+    def test_unspecified_columns_share_the_rest(self):
+        widths = self._colgroup(
+            '<table><tr><th style="width: 50%">品名</th>'
+            '<th>甲</th><th>乙</th></tr></table>')
+        self.assertEqual(len(widths), 3)
+        self.assertGreater(widths[0], widths[1])
+        self.assertAlmostEqual(widths[1], widths[2], delta=2)
+
+    def test_no_widths_means_equal_columns(self):
+        widths = self._colgroup(
+            '<table><tr><th>甲</th><th>乙</th><th>丙</th></tr></table>')
+        self.assertAlmostEqual(min(widths), max(widths), delta=2)
+
+    def test_total_width_fits_the_page(self):
+        widths = self._colgroup(
+            '<table><tr><th style="width: 30%">甲</th>'
+            '<th style="width: 30%">乙</th></tr></table>')
+        self.assertLessEqual(sum(widths), 794 - 192 + 1)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestUnconvertedAttrNotes(TestQwebConverterBase):
+    """轉不過去又會影響輸出的屬性，要逐類留一條待辦。
+
+    完整性普查的結論：靜默忽略的那幾類才是真正的風險。
+    """
+
+    def test_dynamic_style_is_reported(self):
+        res = self._convert(
+            '<div t-att-style="\'padding: 20mm\'">甲</div>')
+        self.assertTrue(any('inline 樣式' in n for n in res['notes']),
+                        '%s' % res['notes'])
+
+    def test_dynamic_class_is_reported(self):
+        res = self._convert(
+            '<div t-att-class="\'fw-bold\' if o.active else \'\'">甲</div>')
+        self.assertTrue(any('動態 class' in n for n in res['notes']),
+                        '%s' % res['notes'])
+
+    def test_clean_arch_has_no_such_notes(self):
+        res = self._convert('<div>乾淨</div>')
+        self.assertFalse([n for n in res['notes'] if '沒有轉換' in n],
+                         '%s' % res['notes'])

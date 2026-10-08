@@ -67,6 +67,12 @@
 | 條碼圖片 | 條碼藥丸（預設 QR） | 型別與取值欄位要人工確認 |
 | `len(x)` | 同名 helper | Jinja 本身沒有 `len` |
 | dict 當 `t-foreach` 來源 | 重複（走**值**不走鍵） | 配合 `來源[迴圈變數]` → `line` 收斂 |
+| `groups="a,b"` / `groups="!a"` | 併進同節點的 `t-if`（`has_group(…)`） | 逗號是 OR、`!` 是反向；掛在 `t-else` 上的不併，留待辦 |
+| `env.user.has_group(…)` | 同名 helper | 沙箱擋 `env`，但 helper 等價 |
+| `t-options` widget `barcode` | 條碼藥丸（symbology / width / height / humanreadable） | 型別不在支援清單時退回 Code128 並留待辦 |
+| `class` 的 `text-end` / `text-center` / `text-start` | 段落對齊（`rowFlex`） | `<td>` 與裡面的 `<span>` 都看 |
+| `class` 的 `fw-bold` / `fst-italic` / `text-muted` | 粗體／斜體／灰字 | 其餘（`col-*`、`mb-*`…）是版面網格，沒有對應物 |
+| `style="width: N%"` | colgroup 欄寬 | 沒指定的欄平分剩下的寬度 |
 
 ### 自動改寫的慣用寫法
 
@@ -168,6 +174,9 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 | `current_subtotal` 這類**累加器** | 那是 QWeb 只能單次順序掃描才被迫用的手法，不是使用者的需求。本模組改用「分組重複」：在重複列設定分組，再放一列分組小計。要自動轉換就得猜「依哪個欄位分組」，猜錯只會印出錯的數字 |
 | `any(u._is_portal() for u in X)` 這類**生成式 + 方法呼叫** | Jinja 沒有生成式，而 `map`/`select` 不能呼叫方法。編一個語意出來比留著語法錯誤危險（前者會少印） |
 | **條件欄**（整個 `<td>` 存不存在取決於某個累加器變數） | 「欄條件」機制要求 `<th>` 與 `<td>` 掛同一個 `t-if`；出貨單的 `has_serial_number` 是累加器變數，對不上 |
+| **動態 inline 樣式**（`t-att-style` 45、`t-attf-style` 31） | 多是標籤紙的版面幾何（`padding_page`、`visibility:hidden`、SVG 的 `stroke`）。文件模型沒有對應物，硬湊只會得到一個似是而非的版面。逐類留待辦 |
+| **動態 class**（`t-att-class` 10、`t-attf-class` 28） | 條件式的粗體／對齊。靜態 class 已經吃了，條件式的要先有「條件式格式」這個機制才談得上 |
+| SVG / canvas 繪圖 | 標籤報表用 SVG 畫線。文件模型只有文字、表格、圖片 |
 | `.sudo()` | 沙箱不開放提權。欄位受 ACL 限制讀不到的話，要在 `doc.report` 層先算好 |
 | 外部 / 靜態 URL 圖片 | 匯出不該在使用者按下載時去連外——那會讓匯出時間取決於第三方網站，在無外網的容器還會直接卡住 |
 | 任意區塊重複（非表格列） | canvas-editor 的元素串列是扁平的，任意區塊的起訖標記在使用者編輯時極易被拆散。表格列有天然邊界 |

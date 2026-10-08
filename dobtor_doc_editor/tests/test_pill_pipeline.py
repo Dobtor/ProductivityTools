@@ -3023,3 +3023,41 @@ class TestTaxTotalsRowsRepeat(TransactionCase):
             'total_amount_currency': 1.0,
         })
         self.assertEqual(len(with_rounding), 2, '有設定就要印那一列')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestHasGroupHelper(TransactionCase):
+    """has_group —— 對應 QWeb 節點的 groups 屬性。
+
+    沙箱不開放 env，所以「使用者在不在某個群組」只能由 helper 代為查。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '群組測試'})
+
+    def _render(self, expression):
+        env_j = self.Mixin._get_sandbox_env(self.partner)
+        return env_j.from_string('{{ %s }}' % expression).render(
+            object=self.partner, user=self.env.user)
+
+    def test_true_for_a_group_the_user_has(self):
+        self.assertEqual(self._render("has_group('base.group_user')"), 'True')
+
+    def test_false_for_a_group_the_user_lacks(self):
+        self.assertEqual(self._render("has_group('base.group_portal')"),
+                         'False')
+
+    def test_unknown_group_is_false_not_an_error(self):
+        """群組不存在時回 False（與 Odoo 的 has_group 一致），不可以拋例外。
+
+        條件求值失敗的策略是「當真」，所以拋例外會變成「那一段照印」——
+        與原生（看不到該群組就不印）相反。
+        """
+        self.assertEqual(self._render("has_group('nope.nope')"), 'False')
+
+    def test_env_is_still_blocked(self):
+        """helper 開的是一道窄門，不是把 env 放出來。"""
+        with self.assertRaises(Exception):
+            self._render("env.user.has_group('base.group_user')")

@@ -207,6 +207,19 @@ class DocRenderMixin(models.AbstractModel):
                 value if isinstance(value, str) else (value or ''),
             )
 
+        def has_group(xmlid):
+            """使用者在不在這個群組（對應 QWeb 節點的 groups 屬性）。
+
+            原生報表用 groups="uom.group_uom" 這種屬性做「只有某個群組看得到
+            的欄位」。沙箱不開放 env，所以這件事只能由 helper 代為查。
+            唯讀、只吃一個 xmlid 字串；查不到群組回 False（與 Odoo 的
+            has_group 一致）。
+            """
+            try:
+                return self.env.user.has_group(str(xmlid))
+            except Exception:
+                return False
+
         def _safe_len(value):
             try:
                 return len(value)
@@ -248,6 +261,7 @@ class DocRenderMixin(models.AbstractModel):
             'format_money': format_money,
             'format_address': format_address,
             'report_helper': report_helper,
+            'has_group': has_group,
             # Jinja 沒有 len()（它只有 |length），而 QWeb 條件到處寫
             # len(x) > 1。沒有這個 helper，那種條件會以 UndefinedError 收場
             # ——而條件求值失敗是「當真」，於是該藏起來的區塊照印。

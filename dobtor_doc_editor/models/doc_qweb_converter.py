@@ -112,6 +112,8 @@ class DocQwebConverter(models.AbstractModel):
         # 先把子範本併進來再收符號表：子範本自己的 t-set 要被看到，
         # 而且併入後整棵樹就是 QWeb 實際渲染的那一棵。
         self._inline_calls(root, state)
+        self._rewrite_groups(root, state)
+        self._note_unconverted_attrs(root, state)
         self._collect_symbols(root, state)
         body_node, blocks = self._split_layout(root, state)
 
@@ -497,6 +499,95 @@ class DocQwebConverter(models.AbstractModel):
                 if new != value:
                     el.set(attr, new)
 
+    def _groups_condition(self, raw):
+        """groups="a,!b" → 沙箱條件式。
+
+        QWeb 的語意：逗號是 OR（在其中一個群組就看得到），前面加 ! 是反向。
+        """
+        pos, neg = [], []
+        for part in (raw or '').split(','):
+            part = part.strip()
+            if not part:
+                continue
+            if part.startswith('!'):
+                neg.append(part[1:].strip())
+            else:
+                pos.append(part)
+        terms = []
+        if pos:
+            terms.append('(%s)' % ' or '.join(
+                "has_group('%s')" % g for g in pos))
+        terms.extend("(not has_group('%s'))" % g for g in neg if g)
+        return ' and '.join(terms)
+
+    def _rewrite_groups(self, root, state):
+        """把 groups 屬性併進同一個節點的 t-if。回傳改寫的處數。
+
+        原本整個被忽略：36 張報表有 52 處，最多的是 uom.group_uom（計量單位
+        欄）——沒有那個群組的使用者，單據上那一欄本來不該出現，而我們照印。
+        改寫成條件之後就沿用既有的條件機制（列／欄／段落／三元式），
+        不必在每一條分支各做一次。
+        """
+        count = 0
+        skipped = 0
+        for el in root.xpath('//*[@groups]'):
+            raw = (el.get('groups') or '').strip()
+            del el.attrib['groups']
+            cond = self._groups_condition(raw)
+            if not cond:
+                continue
+            if el.get('t-else') is not None or el.get('t-elif') is not None:
+                # t-else 上沒辦法用 and 併條件——併了語意就不是「否則」了
+                skipped += 1
+                continue
+            existing = (el.get('t-if') or '').strip()
+            el.set('t-if', '(%s) and %s' % (existing, cond) if existing
+                   else cond)
+            count += 1
+        if count:
+            self._note(
+                state,
+                'groups 屬性 %d 處已改寫成「依群組顯示」的條件（has_group）。'
+                '那是原生的語意：沒有該群組的使用者看不到那一段。' % count,
+            )
+        if skipped:
+            self._note(
+                state,
+                '有 %d 處 groups 掛在 t-else／t-elif 上，沒有改寫（併進去語意'
+                '就不是「否則」了）。那幾段會一直印，請自行加條件。' % skipped,
+            )
+        return count
+
+    # 會影響輸出、但本模組的文件模型表達不了的屬性——逐類留一條待辦，
+    # 不要靜默忽略（完整性普查的結論：靜默忽略的那幾類才是真正的風險）
+    _UNCONVERTED_ATTRS = (
+        ('t-att-style', '節點上的動態 inline 樣式'),
+        ('t-attf-style', '節點上的動態 inline 樣式'),
+        ('t-att-class', '動態 class（條件式的粗體／對齊）'),
+        ('t-attf-class', '動態 class（條件式的粗體／對齊）'),
+        ('t-att-colspan', '動態跨欄數'),
+    )
+
+    def _note_unconverted_attrs(self, root, state):
+        """數一數「會影響輸出但轉不過去」的屬性，逐類留一條待辦。"""
+        counts = {}
+        for el in root.iter():
+            if not isinstance(el.tag, str):
+                continue
+            for name in el.attrib:
+                for prefix, desc in self._UNCONVERTED_ATTRS:
+                    if name == prefix:
+                        counts[desc] = counts.get(desc, 0) + 1
+            if el.tag.lower() in ('svg', 'canvas'):
+                counts['SVG／canvas 繪圖'] = counts.get('SVG／canvas 繪圖', 0) + 1
+        for desc, n in sorted(counts.items()):
+            self._note(
+                state,
+                '%s 共 %d 處沒有轉換（文件模型表達不了）。版面可能與原生不同，'
+                '請在編輯器裡自行調整。' % (desc, n),
+            )
+        return counts
+
     def _split_layout(self, root, state):
         """拆出 (本文節點, {區塊名: 節點})。
 
@@ -689,6 +780,11 @@ class DocQwebConverter(models.AbstractModel):
          '_generate_qr_code() 會在回傳前回寫 qr_code_method（印一張 PDF 就'
          '改資料），所以不呼叫它，改用公開的 build_qr_code_base64()：'
          '參數與原生相同，只是不回寫 qr_method'),
+        # 範本裡直接寫 env.user.has_group(...)（批號標籤就有）。沙箱擋 env，
+        # 但我們有同名的 helper，所以這條是等價改寫而不是降級。
+        (r'\b(?:env\.user|request\.env\.user)\.has_group\(',
+         'has_group(',
+         'env.user.has_group(…) 已改用同名的 helper（沙箱不開放 env）'),
         (r'([\w\.]+)\.sudo\(\s*\)',
          r'\1',
          'sudo() 已移除（沙箱不開放提權）。若該欄位受 ACL 限制可能讀不到，'
@@ -1032,11 +1128,49 @@ class DocQwebConverter(models.AbstractModel):
             return "format_date(%s, '%s')" % (base, fmt)
         return None
 
+    def _barcode_value_pill(self, node, expr, state):
+        """t-options widget="barcode" → 條碼藥丸。
+
+        標籤與條碼類報表的主角（36 張報表裡 44 處）。原本只會變成一顆普通
+        取值藥丸，單據上印出來的是條碼的「文字」而不是條碼本身。
+        """
+        opts = node.get('t-options') or ''
+        kinds = self.env['doc.render.mixin']._BARCODE_TYPES
+        m = re.search(r'["\']symbology["\']\s*:\s*["\']([\w-]+)["\']', opts)
+        kind = (m.group(1) if m else '') or 'Code128'
+        if kind not in kinds:
+            self._note(
+                state,
+                '條碼型別「%s」本模組不支援，已改用 Code128。支援的有：%s'
+                % (kind, '、'.join(kinds)),
+            )
+            kind = 'Code128'
+        meta = {'source': 'image', 'barcodeType': kind}
+        for key in ('width', 'height'):
+            num = re.search(r'["\']%s["\']\s*:\s*(\d+)' % key, opts)
+            if num:
+                meta[key] = int(num.group(1))
+        if re.search(r'["\']humanreadable["\']\s*:\s*(1|[\'"]?[Tt]rue)', opts):
+            meta['barcodeText'] = True
+        path, kind_of = self._strip_root(expr, state)
+        if path and _SIMPLE_PATH_RE.match(path):
+            meta['path'] = path
+        else:
+            mapped = self._map_condition(
+                self._expand_symbols(expr, state)[0], state)
+            meta['expression'] = mapped
+            meta['unbound'] = True
+            self._note(state, '條碼的取值是算出來的，請確認：%s' % mapped[:80])
+        label = '條碼：%s' % (meta.get('path') or '表達式').split('.')[-1]
+        return self._pill(label[:20], state, **meta)
+
     def _value_pill(self, node, expr, state):
         """t-field / t-out / t-esc → 藥丸。"""
         index_pill = self._loop_index_pill(expr, state)
         if index_pill is not None:
             return index_pill
+        if self._parse_options(node) == 'barcode':
+            return self._barcode_value_pill(node, expr, state)
         path, kind = self._strip_root(expr, state)
         widget = self._parse_options(node)
         label = (path or expr).split('.')[-1] or expr
@@ -1198,6 +1332,8 @@ class DocQwebConverter(models.AbstractModel):
         """分支裡沒有藥丸來源、沒有表格、沒有圖片——可以收成一句表達式。"""
         if self._is_content_tag(node):
             return False
+        if self._parse_options(node) == 'barcode':
+            return False
         if node.xpath('.//table | .//tr | .//img'
                       ' | .//*[@t-field or @t-out or @t-esc'
                       ' or @t-foreach or @t-call]'):
@@ -1228,6 +1364,8 @@ class DocQwebConverter(models.AbstractModel):
         if (len(values) == 1
                 and not self._is_content_tag(node)
                 and not node.xpath('.//table | .//tr | .//img')
+                # 條碼是圖，收成三元式就變成印出條碼的文字
+                and self._parse_options(values[0]) != 'barcode'
                 and not self._branch_extra_text(node, values[0])):
             v = values[0]
             for attr in ('t-field', 't-out', 't-esc'):
@@ -1379,6 +1517,12 @@ class DocQwebConverter(models.AbstractModel):
             if expr:
                 # 節點內的文字是給設計師看的範例值（<span t-field="x">3</span>
                 # 裡的那個 3），不可當成內容——原生渲染時也會被值取代
+                if self._parse_options(node) == 'barcode':
+                    # 條碼是圖，收不成三元式。節點上的 t-if 幾乎都是
+                    # 「欄位有值才印」，而值為空時圖本來就不印、段落收合會把
+                    # 那一段帶走——結果與原生一致。
+                    out.append(self._barcode_value_pill(node, expr, state))
+                    return
                 cond = node.get('t-if')
                 if cond and not node.get('t-foreach'):
                     # <span t-if="o.ref" t-field="o.ref"/>：條件與值在同一個
@@ -1487,19 +1631,76 @@ class DocQwebConverter(models.AbstractModel):
         if tag in _BLOCK_TAGS:
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
+            start = len(out)
             self._emit_children(node, out, state)
+            style = self._node_style(node, tag)
+            if style:
+                for el in out[start:]:
+                    if el.get('type') not in ('label', 'table'):
+                        el.update(style)
+            align = self._node_align(node)
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
+            if align and len(out) > start:
+                # 段落的對齊掛在結尾那個換行元素上（_elements_to_html 就是
+                # 讀它的 rowFlex 決定 text-align）
+                out[-1]['rowFlex'] = align
             return
 
         # span / strong / t 等行內容器
         inline = []
         self._emit_children(node, inline, state)
-        style = self._inline_style(tag)
+        style = self._node_style(node, tag)
         for el in inline:
             if style and el.get('type') != 'label':
                 el.update(style)
         out.extend(inline)
+
+    # Bootstrap class → 文件屬性。只收「表達得出來又看得出來」的那幾個：
+    # text-end/center 120+101 處（金額欄的右對齊）、fw-bold 13 處。
+    # 其餘（text-nowrap、col-*、mb-*…）是版面網格，文件模型沒有對應物。
+    _CLASS_STYLE = {
+        'fw-bold': {'bold': True},
+        'fw-bolder': {'bold': True},
+        'fw-semibold': {'bold': True},
+        'fst-italic': {'italic': True},
+        'text-decoration-underline': {'underline': True},
+        'text-muted': {'color': '#6c757d'},
+    }
+    _CLASS_ALIGN = {
+        'text-end': 'right',
+        'text-center': 'center',
+        'text-start': 'left',
+    }
+
+    def _class_tokens(self, node):
+        return set((node.get('class') or '').split())
+
+    def _node_style(self, node, tag):
+        """標籤與 class 一起決定的文字屬性。"""
+        style = {}
+        if tag in ('strong', 'b'):
+            style['bold'] = True
+        elif tag in ('em', 'i'):
+            style['italic'] = True
+        elif tag == 'u':
+            style['underline'] = True
+        for token in self._class_tokens(node):
+            style.update(self._CLASS_STYLE.get(token) or {})
+        return style or None
+
+    def _node_align(self, node):
+        """節點（或它的第一個子節點）的對齊 class。
+
+        原生常把 text-end 放在 <td> 上，也常放在裡面那個 <span> 上。
+        """
+        for candidate in [node] + list(node)[:1]:
+            if not isinstance(candidate.tag, str):
+                continue
+            for token in self._class_tokens(candidate):
+                if token in self._CLASS_ALIGN:
+                    return self._CLASS_ALIGN[token]
+        return None
 
     def _inline_style(self, tag):
         if tag in ('strong', 'b'):
@@ -1789,10 +1990,7 @@ class DocQwebConverter(models.AbstractModel):
                 max_cols = max(max_cols, len(self._row_cells(tr)) or 1)
 
         inner = self._inner_width(state)
-        per = inner // max_cols
-        colgroup = [{'width': per} for _ in range(max_cols)]
-        if colgroup:
-            colgroup[-1]['width'] = inner - per * (max_cols - 1)
+        colgroup = self._colgroup_from_widths(rows_src, max_cols, inner)
 
         # 欄條件：同一個 t-if 同時出現在 th 與 td 上 → 欄層級
         th_conds = {}
@@ -1835,6 +2033,43 @@ class DocQwebConverter(models.AbstractModel):
             'trList': tr_list or [{'tdList': [
                 {'colspan': 1, 'rowspan': 1, 'value': [self._newline()]}]}],
         }
+
+    def _colgroup_from_widths(self, rows_src, max_cols, inner):
+        """欄寬：有 style="width: N%" 就照它，其餘平分剩下的寬度。
+
+        原生用百分比寬度指定明細表的欄寬（36 張報表有 22 處）。不讀的話
+        每一欄都一樣寬——品名欄被壓窄、金額欄留一大片空白。
+        """
+        pct = [None] * max_cols
+        for tr in rows_src:
+            col = 0
+            for cell in self._row_cells(tr):
+                span = max(1, min(int(cell.get('colspan') or 1), max_cols))
+                m = re.search(r'width\s*:\s*([\d.]+)\s*%',
+                              cell.get('style') or '')
+                if m and span == 1 and col < max_cols and pct[col] is None:
+                    try:
+                        pct[col] = float(m.group(1))
+                    except ValueError:
+                        pass
+                col += span
+            if all(p is not None for p in pct):
+                break
+        known = [p for p in pct if p is not None]
+        if not known:
+            per = inner // max_cols
+            colgroup = [{'width': per} for _ in range(max_cols)]
+            colgroup[-1]['width'] = inner - per * (max_cols - 1)
+            return colgroup
+        used = min(sum(known), 95.0)
+        rest = [i for i, p in enumerate(pct) if p is None]
+        share = (100.0 - used) / len(rest) if rest else 0.0
+        widths = [int(inner * ((p if p is not None else share) / 100.0))
+                  for p in pct]
+        widths = [max(20, w) for w in widths]
+        # 最後一欄吸收湊整的誤差，總寬要剛好等於可用寬度
+        widths[-1] = max(20, inner - sum(widths[:-1]))
+        return [{'width': w} for w in widths]
 
     def _row_cells(self, tr):
         """這一列的格子。
@@ -1974,9 +2209,20 @@ class DocQwebConverter(models.AbstractModel):
                             repeat, state, row_filter=row_filter,
                         ))
                     first = False
+                cell_start = len(value)
                 self._emit_children(cell, value, state)
+                cell_style = self._node_style(cell, 'td')
+                if cell_style:
+                    for el in value[cell_start:]:
+                        if el.get('type') not in ('label', 'table'):
+                            el.update(cell_style)
                 if not value or (value[-1].get('value') or '') != '\n':
                     value.append(self._newline())
+                # 金額欄的右對齊就是靠這個：原生把 text-end 放在 <td>
+                # 或裡面那個 <span> 上，段落的對齊掛在結尾的換行元素
+                align = self._node_align(cell)
+                if align:
+                    value[-1]['rowFlex'] = align
                 # colspan 夾在欄數內：QWeb 的 colspan="99" 是「跨滿整列」
                 td = {'colspan': max(1, min(int(cell.get('colspan') or 1),
                                             max_cols)),
