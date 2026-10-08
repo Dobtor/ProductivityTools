@@ -3,7 +3,7 @@
 全部 per-sprint audit log 已合併進 **[SPRINT_AUDIT_CONSOLIDATED.md](SPRINT_AUDIT_CONSOLIDATED.md)** 單一權威檔（涵蓋 **Sprint 1-353 主線 + 收尾迭代至 357 + Phase 8 Sprint A-Y58c 全系列**，共 339 個 sprint 區塊）。
 原始 339 個獨立 sprint 檔已刪除；本索引每條連結指向合併檔內對應 anchor。
 
-> 各 sprint 的 root cause / 修法 / 設計取捨 / 關鍵紀律編號保留於合併檔對應區塊。權威設計文件（architecture_decision、glossary、各 *_design、scope_decision、ooxml_whitelist、word_pagebreak_rules、capability_audit 等）仍為獨立檔，未併入。
+> 各 sprint 的 root cause / 修法 / 設計取捨 / 關鍵紀律編號保留於合併檔對應區塊。權威設計文件（architecture_decision、glossary、各 *_design、scope_decision、ooxml_whitelist、word_pagebreak_rules、capability_audit、[qweb_converter_coverage](qweb_converter_coverage.md)（QWeb 報表轉換器的覆蓋範圍與政策）等）仍為獨立檔，未併入。
 
 ---
 

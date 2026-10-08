@@ -25,15 +25,20 @@ TAG="${TAG#--tag=}"
 ODOO_DB="${ODOO_DB:-odoo18_dev}"
 ODOO_CONF="${ODOO_CONF:-/etc/odoo/odoo.conf}"
 HTTP_PORT="${HTTP_PORT:-8169}"
+# 預設讀 odoo.conf。資料庫不在本機 socket（例如 pg 在另一個容器）時，
+# 用 ODOO_ARGS 自帶 --db_host / --addons-path，不要去改 odoo.conf。
+ODOO_ARGS="${ODOO_ARGS:--c ${ODOO_CONF}}"
 
 echo "─── dobtor_doc_editor backend tests ───"
 echo "  Tag(s):       ${TAG}"
+echo "  Odoo args:    ${ODOO_ARGS}"
 echo "  DB:           ${ODOO_DB}"
 echo "  HTTP port:    ${HTTP_PORT}（避開 production 8069）"
 echo "─────────────────────────────────────────"
 
 # 跑 odoo --test-tags、stop-after-init、不啟動 cron worker
-odoo -c "${ODOO_CONF}" -d "${ODOO_DB}" \
+# shellcheck disable=SC2086
+odoo ${ODOO_ARGS} -d "${ODOO_DB}" \
   --test-enable \
   --test-tags="${TAG}" \
   --stop-after-init \
