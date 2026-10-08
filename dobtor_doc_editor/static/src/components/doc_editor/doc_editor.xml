@@ -1040,6 +1040,14 @@
                                                 t-attf-title="拖到重複列的儲存格內。值會對應每一筆明細。">
                                                 <span class="doc-field-palette-label" t-esc="lf.label or lf.name"/>
                                                 <span class="doc-field-palette-type" t-esc="lf.type"/>
+                                                <!-- 明細欄位的標籤 → 表頭。放在重複列
+                                                     外面也成立（藥丸自己記得是哪個模型） -->
+                                                <button class="doc-field-palette-cond-btn"
+                                                        t-on-click.stop="() => this.onInsertLineFieldLabel(lf)"
+                                                        t-attf-title="插入「#{lf.label or lf.name}」的欄位標籤（表頭用）"
+                                                        aria-label="插入欄位標籤">
+                                                    <i class="fa fa-tag" aria-hidden="true"/>
+                                                </button>
                                             </li>
                                         </t>
                                         <t t-if="!filteredLineFields.length">
@@ -1308,6 +1316,14 @@
                                                 <i class="fa fa-map-marker" aria-hidden="true"/>
                                             </button>
                                         </t>
+                                        <!-- 欄位標籤（不是值）。表頭用，翻譯跟著
+                                             Odoo 自己的 .po 走，不必再抄一遍 -->
+                                        <button class="doc-field-palette-cond-btn"
+                                                t-on-click.stop="() => this.onInsertFieldLabel(f)"
+                                                t-attf-title="插入「#{f.label or f.name}」的欄位標籤（印名稱不印值；會跟著語言變）"
+                                                aria-label="插入欄位標籤">
+                                            <i class="fa fa-tag" aria-hidden="true"/>
+                                        </button>
                                         <button class="doc-field-palette-cond-btn"
                                                 t-on-click.stop="() => this.onInsertFieldCondition(f)"
                                                 t-attf-title="插入條件：只在「#{f.label or f.name}」有值時列印這一段"
@@ -1324,6 +1340,12 @@
                                                 t-attf-title="插入《#{f.label}-#{sub.label or sub.name}》">
                                                 <span class="doc-field-palette-label" t-esc="sub.label or sub.name"/>
                                                 <span class="doc-field-palette-type" t-esc="sub.type"/>
+                                                <button class="doc-field-palette-cond-btn"
+                                                        t-on-click.stop="() => this.onInsertFieldLabel(sub, f)"
+                                                        t-attf-title="插入「#{sub.label or sub.name}」的欄位標籤"
+                                                        aria-label="插入欄位標籤">
+                                                    <i class="fa fa-tag" aria-hidden="true"/>
+                                                </button>
                                             </li>
                                         </t>
                                     </t>
@@ -2203,6 +2225,43 @@
                     </t>
 
                     <!-- ═══ 多語文字藥丸 ═══ -->
+                    <t t-elif="isFieldLabelPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-tag me-2" aria-hidden="true"/>
+                            <span>欄位標籤</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            印的是<b>欄位名稱</b>而不是值，翻譯直接取 Odoo 自己的
+                            （欄位定義的 string），所以換語言會跟著變，<b>不必逐語言輸入</b>。<br/>
+                            表頭用這個而不是多語文字藥丸：那會請你把 Odoo 的翻譯再抄一遍。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>欄位路徑</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.path or ''"
+                                   t-on-change="(ev) => this.onVariablePropertyChange('path', ev.target.value)"
+                                   placeholder="如 price_unit 或 partner_id.vat"/>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>欄位所屬模型</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.labelModel or ''"
+                                   t-on-change="(ev) => this.onVariablePropertyChange('labelModel', ev.target.value)"
+                                   placeholder="如 sale.order.line"/>
+                            <p class="doc-inspector-hint">
+                                表頭的標籤要填<b>明細</b>的模型——那顆藥丸放在重複列外面，
+                                推斷不出來。留空時當成主記錄的模型。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>查不到時印</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.labelText or ''"
+                                   t-on-change="(ev) => this.onVariablePropertyChange('labelText', ev.target.value)"
+                                   placeholder="後備文字"/>
+                        </div>
+                    </t>
                     <t t-elif="isI18nPill and !isOutputTarget">
                         <div class="doc-inspector-header">
                             <i class="fa fa-language me-2" aria-hidden="true"/>

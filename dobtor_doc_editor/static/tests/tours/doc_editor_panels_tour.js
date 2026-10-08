@@ -308,6 +308,38 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
             run: () => {},
         },
 
+        // ─── 欄位標籤藥丸（ADR-024）───
+        // 表頭用它而不是多語文字藥丸：翻譯取自 Odoo 的欄位定義。
+        {
+            content: "選取欄位標籤藥丸",
+            trigger: "body",
+            run: selectPill({ source: "fieldLabel", path: "price_unit",
+                              labelModel: "sale.order.line",
+                              labelText: "單價" }),
+        },
+        expectInspector("欄位標籤"),
+        {
+            content: "欄位所屬模型的輸入框在（表頭要能指定明細模型）",
+            trigger: ".doc-inspector-field:contains('欄位所屬模型')",
+            run: () => {},
+        },
+        {
+            // 這顆鈕的 CSS 是 opacity:0、只有 .doc-field-palette-item:hover 才顯示
+            //（doc_editor.css:3208）。tour 的 trigger 要求元素可見，所以不能直接
+            // 拿它當 trigger——會卡到 timeout。改成在可見的群組標題上停住，
+            // 用 querySelector 驗「模板真的渲染出這顆鈕」。
+            content: "左欄的欄位列上有「插入欄位標籤」鈕（hover 才顯示，用 DOM 驗）",
+            trigger: ".doc-palette-group-head:contains('主記錄欄位')",
+            run: () => {
+                const n = document.querySelectorAll(
+                    ".doc-field-palette-item button[aria-label='插入欄位標籤']"
+                ).length;
+                if (!n) {
+                    throw new Error("欄位列上沒有「插入欄位標籤」鈕");
+                }
+            },
+        },
+
         // ─── 插入條件區塊：這是最容易壞的一段 ───
         // insertBlockContainer 要先插表格、再用內容簽章認出剛插入的那一個。
         // 認錯的話會把使用者既有的表格改成區塊容器，而那在畫面上看不出來。

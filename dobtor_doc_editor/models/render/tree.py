@@ -85,6 +85,11 @@ class RenderTree:
     # i18n：使用者自己打進範本的靜態文字。欄位「值」的語言由 ORM 依
     # with_context(lang=) 負責，不需要這個。
     _I18N_SOURCE = 'i18n'
+    # 欄位標籤（不是值）。明細表的表頭「品名／數量／單價／小計」就是欄位
+    # 標籤，而 Odoo 自己的 .po 早就翻好了——走 i18n 藥丸等於請使用者把
+    # Odoo 的翻譯再抄一遍，每個語言一次，而且之後各自漂移。
+    # 這個來源直接讀 fields_get()['string']，語言跟著渲染語言走。
+    _FIELD_LABEL_SOURCE = 'fieldLabel'
 
     def _element_field_meta(self, element):
         """取出元素的綁定定義；不是模型變數藥丸就回 None。"""
