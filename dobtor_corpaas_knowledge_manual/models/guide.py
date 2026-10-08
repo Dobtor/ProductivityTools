@@ -578,6 +578,9 @@ class KnowledgeHooks(models.AbstractModel):
                 ctx.setdefault('stats', {})['concepts_drafted'] = n
         except Exception as e:  # noqa: BLE001
             _logger.warning('[knowledge.manual] 觀念頁起草失敗：%s', e)
+        # ☠️ 實機：上面寫了方案記錄（訊息說明），不提交就一直鎖著；之後對帳迴圈的心跳另開連線
+        #   更新同一筆方案 → 互等，發佈階段卡死（資料庫偵測不到跨連線的自我死結）
+        self._manual_commit()
         res = super()._knowledge_dispatch_events(package, events, ctx)
         # 文章沒有變動時不會觸發重新編號：規則頁（探測結果、短文）可能變了，主動同步一次
         tmpl = package.product_tmpl_id

@@ -146,11 +146,13 @@ class KnowledgeHooks(models.AbstractModel):
         ok = all(c['ok'] for c in checks)
         package.write({'manual_acceptance_json': json.dumps(checks, ensure_ascii=False),
                        'manual_acceptance_ok': ok, 'manual_acceptance_at': fields.Datetime.now()})
+        self._manual_commit()   # 同上：別讓方案記錄的鎖擋住之後的心跳
         if ok:
             try:
                 package._knowledge_save_library(note=_('驗收全部通過，自動存檔'))
             except Exception as e:  # noqa: BLE001
                 _logger.warning('[knowledge.manual] 存範本庫失敗：%s', e)
+            self._manual_commit()
         return checks
 
     @api.model
