@@ -21,3 +21,4 @@ from . import profile
 from . import gap
 from . import flow_diagram
 from . import capability_order
+from . import library

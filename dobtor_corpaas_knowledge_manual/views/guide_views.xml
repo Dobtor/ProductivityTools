@@ -14,6 +14,14 @@
             <xpath expr="//field[@name='knowledge_gap_human']" position="after">
                 <field name="manual_guide_at"/>
             </xpath>
+            <xpath expr="//page[@name='knowledge']" position="inside">
+                <group string="說明書驗收（每次全量更新後；全部通過自動存成範本庫）"
+                       invisible="not manual_acceptance_at">
+                    <field name="manual_acceptance_at"/>
+                    <field name="manual_acceptance_ok"/>
+                    <field name="manual_acceptance_html" nolabel="1" colspan="2"/>
+                </group>
+            </xpath>
         </field>
     </record>
 

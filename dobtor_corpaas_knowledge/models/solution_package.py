@@ -334,6 +334,13 @@ class SolutionPackage(models.Model):
                 self._knowledge_flows(golden, token, analysis.get('flows'))
             except Exception as e:  # noqa: BLE001 - 流程是輔助資料，失敗不擋說明更新
                 _logger.warning('[knowledge] %s 流程推導失敗：%s', self.display_name, e)
+        try:
+            # 範本庫（清除重跑時）：能力、情境、流程名稱與實測轉換直接套用，不重新叫 AI 生
+            lstats = self._knowledge_restore_library()
+            lstats['library_flows'] = self._knowledge_restore_flows()
+            run.add_stats(**{k: v for k, v in lstats.items() if v})
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] %s 範本庫套用失敗：%s', self.display_name, e)
         with self._op_step('kb_ai_catalog'):
             self._knowledge_ai_catalog(added, token)
             self._knowledge_official_docs(token)

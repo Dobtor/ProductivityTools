@@ -91,12 +91,15 @@ class KnowledgeTutorial(models.Model):
             skip = [t for t in cands if idx + 1 < len(bar) and t.from_value == bar[idx + 1]
                     and t.to_value in bar and bar.index(t.to_value) > idx + 1]
             if later:
-                best = min(later, key=lambda t: (bar.index(t.to_value), bool(t.opens_model)))
+                # 實測過的轉換優先（截圖證據），其次才是靜態推的
+                best = min(later, key=lambda t: (not t.ev_shot, bar.index(t.to_value),
+                                                 bool(t.opens_model)))
                 to = best.to_value
             elif unknown:
                 best, to = unknown[0], bar[idx + 1]
             elif skip:
-                best = min(skip, key=lambda t: (bar.index(t.to_value), bool(t.opens_model)))
+                best = min(skip, key=lambda t: (not t.ev_shot, bar.index(t.to_value),
+                                                bool(t.opens_model)))
                 to = best.to_value
             else:
                 break
@@ -118,10 +121,22 @@ class KnowledgeTutorial(models.Model):
         if not cands:
             return None
 
-        def has_lines(r):
+        by = {x['xmlid']: x for x in seed}
+
+        def lines(r):
             ref = '__ref__:%s' % r['xmlid']
-            return any(ref in (x.get('values') or {}).values() for x in seed)
-        return sorted(cands, key=lambda r: (not has_lines(r), cands.index(r)))[0]
+            return [x for x in seed if ref in (x.get('values') or {}).values()]
+
+        def storable(r):
+            # ★ 有實體（庫存）商品的單據才會開出出貨／收貨單：跨單據教學要接得下去
+            for line in lines(r):
+                for v in (line.get('values') or {}).values():
+                    if isinstance(v, str) and v.startswith('__ref__:'):
+                        pv = (by.get(v[len('__ref__:'):]) or {}).get('values') or {}
+                        if pv.get('is_storable') or pv.get('type') == 'product':
+                            return True
+            return False
+        return sorted(cands, key=lambda r: (not storable(r), not lines(r), cands.index(r)))[0]
 
     @api.model
     def _record_label(self, rec, seed):
@@ -247,8 +262,11 @@ class KnowledgeHooks(models.AbstractModel):
             steps.append(dict({'click': {'button': st['button']}}, **base))
             steps.append(dict({'wait': {'ms': 1200}}, **base))
             if st.get('wizard') and confirm.get(st['wizard']):
-                steps.append(dict({'click': {'button': confirm[st['wizard']]}}, **base))
-                steps.append(dict({'wait': {'ms': 1500}}, **base))
+                # ★ 精靈不一定會跳（採購單沒有替代報價就不跳）：確認鈕自成一組，
+                #   沒出現不影響這一步（實機：整組被略過，但單據其實已經確認了）
+                wiz = {'optional': True, 'grp': grp + 'w', 'req': [grp]}
+                steps.append(dict({'click': {'button': confirm[st['wizard']]}}, **wiz))
+                steps.append(dict({'wait': {'ms': 1500}}, **wiz))
             steps.append(dict({'shot': '%s_after' % grp}, **base))
             if st['kind'] == 'open':
                 opened[i] = 'g%s' % i
@@ -268,7 +286,13 @@ class KnowledgeHooks(models.AbstractModel):
             "for x, (model, rid) in SRC.items():\n"
             "    try:\n"
             "        with env.cr.savepoint():\n"
-            "            new = env[model].browse(rid).copy()\n"
+            "            src = env[model].browse(rid)\n"
+            "            new = src.copy()\n"
+            # ☠️ 實機：批次調撥複製後裡面的調撥單沒跟著來 → 明細變少就不用複本
+            "            lost = [f for f, fld in src._fields.items() if fld.type in ('one2many', 'many2many')\n"
+            "                    and ('line' in f or f == 'picking_ids') and len(src[f]) and len(new[f]) < len(src[f])]\n"
+            "            if lost:\n"
+            "                raise ValueError(lost)\n"
             "            out[x] = [model, new.id]\n"
             "    except Exception:\n"
             "        pass\n"

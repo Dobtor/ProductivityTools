@@ -36,8 +36,13 @@
                                     groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
                             <button name="action_open_knowledge_gaps" type="object" class="btn-link"
                                     string="缺口清單"/>
+                            <button name="action_knowledge_save_library" string="存成範本庫" type="object"
+                                    groups="dobtor_corpaas_knowledge.group_knowledge_manager"
+                                    confirm="把目前上線中的能力、情境、流程存成範本：清除重跑時直接套用，不重新叫 AI 生。要繼續嗎？"/>
                             <field name="knowledge_gap_open"/>
                             <field name="knowledge_gap_human"/>
+                            <field name="knowledge_library_at"/>
+                            <field name="knowledge_library_note"/>
                         </group>
                     </group>
                     <group string="AI 成本估算（下一次全量更新）" invisible="not knowledge_cost_plan_at">

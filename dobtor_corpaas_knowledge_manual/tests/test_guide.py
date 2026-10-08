@@ -577,3 +577,71 @@ class TestObserved(ManualCase):
             self.hooks._manual_guide_ai(self.pkg, 'tok', {'ai': False})
         data = self.env['corpaas.knowledge.channel_section']._manual_messages_data(flow, self.pkg)
         self.assertFalse(data, '一般操作遇不到的訊息不列')
+
+
+@tagged('post_install', '-at_install')
+class TestLibraryAcceptance(ManualCase):
+
+    def test_save_and_restore_library_after_wipe(self):
+        self.cap_a._do_publish('new')
+        self.cap_b._do_publish('new')
+        self.scenario.seed_json = json.dumps([{'xmlid': 'p', 'model': 'res.partner',
+                                               'values': {'name': '甲'}}])
+        self.scenario._do_publish('new')
+        flow = self.env['corpaas.knowledge.flow'].sudo().create({
+            'model': 'res.partner', 'state_field': 'kbl_state', 'ai_name': '報名流程',
+            'capability_id': self.cap_a.id, 'package_ids': [(4, self.pkg.id)]})
+        self.env['corpaas.knowledge.flow.step'].sudo().create(
+            {'flow_id': flow.id, 'sequence': 0, 'value': 'draft', 'label': '草稿',
+             'on_statusbar': True, 'meaning': '還沒送出'})
+        self.env['corpaas.knowledge.flow.transition'].sudo().create(
+            {'flow_id': flow.id, 'from_value': 'draft', 'to_value': 'done',
+             'button_name': 'action_done', 'button_label': '完成', 'ev_shot': True})
+        self.assertEqual(self.pkg._knowledge_save_library(note='t'), 3)
+        # 清除：能力、情境、流程名稱與實測轉換都拿掉
+        codes = {self.cap_a.code: self.cap_a.name, self.cap_b.code: self.cap_b.name}
+        (self.cap_a | self.cap_b).unlink()
+        sc_code = self.scenario.code
+        self.scenario.unlink()
+        flow.write({'ai_name': False, 'capability_id': False})
+        flow.transition_ids.unlink()
+        flow.step_ids.meaning = False
+        stats = self.pkg._knowledge_restore_library()
+        self.assertEqual(stats, {'library_caps': 2, 'library_scenarios': 1})
+        caps = self.pkg.knowledge_capability_ids
+        self.assertEqual({c.code: c.name for c in caps}, codes, '能力名稱照範本，不重新叫 AI')
+        self.assertTrue(all(c.state == 'published' for c in caps), '範本是核准過的：直接上線')
+        cap_a = caps.filtered(lambda c: c.code == 'kb_reg')
+        self.assertEqual(cap_a.feature_ids, self.f1 | self.f2, '功能點照功能鍵掛回去')
+        sc = self.pkg.knowledge_scenario_ids
+        self.assertEqual((sc.code, sc.state), (sc_code, 'published'))
+        self.assertEqual(self.pkg._knowledge_restore_flows(), 1)
+        self.assertEqual((flow.ai_name, flow.capability_id), ('報名流程', cap_a))
+        self.assertEqual(flow.named_hash, flow.structure_hash, '記成已命名：不再請 AI 命名')
+        self.assertEqual(flow.step_ids.meaning, '還沒送出')
+        self.assertTrue(flow.transition_ids.filtered(lambda t: t.ev_shot and t.to_value == 'done'))
+        self.assertFalse(self.pkg._knowledge_restore_library(), '已經有能力／情境就不再套用')
+
+    def test_acceptance_report(self):
+        self.f3.capability_ids = [(5,)]
+        self.cap_b.feature_ids = [(5,)]
+        self.cap_a.feature_ids = [(6, 0, (self.f1 | self.f2 | self.f3).ids)]
+        arts = [self._article(f, self.cap_a, name=n) for f, n in
+                ((self.f1, '甲'), (self.f2, '乙'), (self.f3, '丙'))]
+        self._publish(*arts)
+        with patch.object(type(self.pkg), '_knowledge_save_library', lambda s, note=None: 0):
+            checks = {c['key']: c for c in self.hooks._manual_acceptance(self.pkg)}
+        self.assertEqual(checks['articles']['value'], '3／4（75%）', '共通操作的 f4 還沒有文章')
+        self.assertFalse(checks['articles']['ok'], '低於 90%')
+        self.assertTrue(checks['text_lint']['ok'])
+        self.assertFalse(checks['front']['ok'], '沒有開始前必設定資料：前置頁不完整')
+        self.assertFalse(self.pkg.manual_acceptance_ok)
+        self.assertIn('❌', self.pkg.manual_acceptance_html)
+
+    def test_wizard_confirm_is_its_own_group(self):
+        plan = [{'kind': 'press', 'flow': 1, 'button': 'button_confirm', 'label': '確認',
+                 'from': 'draft', 'to': 'purchase', 'wizard': 'x.wizard'}]
+        steps = self.hooks._manual_tutorial_steps(plan, 'purchase.order', 3, {'x.wizard': 'action_ok'})
+        wiz = [st for st in steps if st.get('click') == {'button': 'action_ok'}][0]
+        self.assertEqual((wiz['grp'], wiz['req']), ('s0w', ['s0']),
+                         '精靈沒跳出來不影響這一步')
