@@ -177,6 +177,35 @@ class TestManualHooks(ManualCase):
         self.assertEqual(self.tmpl1.repair_count, 1)
         self.assertEqual(self.binding.state, 'pending')
 
+    def test_backend_down_preflight_skips_shooting_and_ai(self):
+        """說明庫後台打不開：拍攝前的登入就擋下，不寫腳本、不拍、不叫 AI。"""
+        self._only_f1()
+        result = {'shots': {'preflight': {
+            'ok': False, 'error': '後台沒有載入（Timeout）：{"url": "/odoo"}'}}}
+        ctx = {'token': 'tok', 'full': False}
+        with patch.object(self.Ai, 'ask') as ask, \
+                patch(_RUN_SHOTS, return_value=(result, {})) as run:
+            self.hooks.with_context(kb_test_preflight=True)._knowledge_shoot(
+                self.pkg, FakeSandbox(self.scenario), self.Event.browse(), ctx)
+        self.assertEqual(run.call_count, 1, '只有拍攝前那一次登入')
+        self.assertEqual(run.call_args[0][2][0]['id'], 'preflight')
+        self.assertFalse([c for c in ask.call_args_list if c[0][0].startswith('manual_')])
+        self.assertTrue(ctx['manual_backend_down'])
+        self.assertEqual(ctx['stats']['shots_backend_down'], 1)
+
+    def test_backend_down_batch_not_repaired(self):
+        """批次裡後台沒載入：留待下次重拍、不送 AI 修，後面的批次不拍。"""
+        self._only_f1()
+        result = {'shots': {'b%s' % self.binding.id: {
+            'ok': False, 'error': '後台沒有載入（前 3 張都打不開，其餘略過）'}}}
+        with patch.object(self.Ai, 'ask', return_value={'steps': [], 'reason': 'x'}) as ask:
+            _run, ctx = self._shoot(result, {})
+        self.assertNotIn('manual_repair', [c[0][0] for c in ask.call_args_list])
+        self.assertEqual(self.binding.state, 'pending')
+        self.assertFalse(self.binding.needs_repair)
+        self.assertTrue(ctx['manual_backend_down'])
+        self.assertEqual(self.hooks._manual_failure_kind(self.binding.last_error), 'backend')
+
     def test_repair_attempts_capped(self):
         self._only_f1()
         self.binding.write({'state': 'failed', 'needs_repair': True, 'repair_attempts': 3})

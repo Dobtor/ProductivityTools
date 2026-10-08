@@ -38,6 +38,8 @@ _logger = logging.getLogger(__name__)
 AI_ERRORS = (hub_client.HubError, remote.RemoteError, ValueError, KeyError, TypeError)
 #: 同一個繫結連續 AI 修補的上限；超過就停在 failed 等人處理（action_reset）
 MAX_REPAIRS = 3
+#: 截圖程式回報「說明庫後台沒有載入」的錯誤開頭（與 shot_runner/run.py 的 BACKEND_DOWN 相同）
+BACKEND_DOWN = '後台沒有載入'
 
 
 def ai_dict(data, purpose):
@@ -314,6 +316,8 @@ class KnowledgeHooks(models.AbstractModel):
         token = ctx.get('token')
         stop = ctx.setdefault('manual_ai_stopped', {'ai': False})
         stats = ctx.setdefault('stats', {})
+        if not self._manual_backend_preflight(sandbox, ctx):
+            return res
         stats['templates_rule'] = stats.get('templates_rule', 0) + (
             self._manual_prepare_templates(package, sandbox, token, stop) or 0)
         self._manual_commit()
@@ -339,6 +343,8 @@ class KnowledgeHooks(models.AbstractModel):
             failed |= self._manual_run_batch(package, sandbox, chunk, token, ctx)
             self._manual_commit()
             self._manual_check_cancel(ctx)
+            if ctx.get('manual_backend_down'):
+                break
         stats['shots_ok'] = stats.get('shots_ok', 0) + len(todo.filtered(
             lambda b: b.state == 'ok'))
         stats['shots_failed'] = stats.get('shots_failed', 0) + len(todo.filtered(
@@ -352,10 +358,42 @@ class KnowledgeHooks(models.AbstractModel):
         self._manual_commit()
         return res
 
+    @api.model
+    def _manual_backend_preflight(self, sandbox, ctx):
+        """拍攝前先登入一次：說明庫的後台打不開就不寫腳本、不拍、不叫 AI（回傳 False）。
+
+        ☠️ 實機：社群電商方案的說明庫後台動作區不渲染，87 張全部逾時，
+          探索、寫情境、寫步驟、修腳本照樣跑完，一輪燒掉 $25 一張圖都沒有。"""
+        from odoo.addons.dobtor_corpaas_knowledge.services import txn
+        if txn.in_tests(self.env) and not self.env.context.get('kb_test_preflight'):
+            return True   # 其他測試的 run_shots 假資料不含這次登入
+        sb = sandbox.sudo()
+        logins = json.loads(sb.role_logins or '{}')
+        login = logins.get('admin') or next(iter(logins.values()), None)
+        if not login:
+            return True
+        settings = self.env['res.config.settings'].knowledge_shot_settings()
+        try:
+            result, _files = shooter.run_shots(self.env, sandbox, [
+                {'id': 'preflight', 'login': login, 'password': sb.password, 'steps': []}],
+                settings)
+        except (shooter.ShotError, remote.RemoteError):
+            return True   # 執行環境的錯照舊由批次處理
+        error = ((result or {}).get('shots') or {}).get('preflight', {}).get('error') or ''
+        if not error.startswith(BACKEND_DOWN):
+            return True
+        ctx['manual_backend_down'] = True
+        ctx.setdefault('stats', {})['shots_backend_down'] = 1
+        _logger.warning('[knowledge.manual] 說明庫 %s 後台打不開，本輪不拍：%s',
+                        getattr(sandbox, 'display_name', ''), error[:1500])
+        return False
+
     @staticmethod
     def _manual_failure_kind(error):
         """截圖失敗分類（通用化第三階段）：空白＝示範資料缺口、權限＝角色群組、其他＝腳本定位。"""
         error = error or ''
+        if error.startswith(BACKEND_DOWN):
+            return 'backend'
         if '空白引導頁' in error or '找不到示範資料' in error:
             return 'empty'
         if '存取錯誤' in error or '權限' in error or 'Access' in error:
@@ -366,7 +404,7 @@ class KnowledgeHooks(models.AbstractModel):
     def _manual_record_failures(self, scenario, bindings, stats):
         """失敗分類寫進執行紀錄；空白畫面寫回情境，下次 AI 組裝／修正示範資料時優先補。"""
         failed = bindings.filtered(lambda b: b.state == 'failed')
-        kinds = {'empty': [], 'access': [], 'locator': []}
+        kinds = {'empty': [], 'access': [], 'locator': [], 'backend': []}
         for b in failed:
             kinds[self._manual_failure_kind(b.last_error)].append(b.template_id.feature_id.name)
         for k, names in kinds.items():
@@ -739,10 +777,18 @@ class KnowledgeHooks(models.AbstractModel):
                 b.write({'state': 'pending', 'last_error': str(e)[:4000]})
             return failed
         threshold = int(settings.get('phash_threshold') or 10)
+        down = 0
         for sid, b in by_id.items():
             # 逐張採用（D1 檢查要開 shell，每張約 5 秒）：送心跳，否則看門狗只看得到拍攝前的時間
             package._knowledge_heartbeat('kb_shoot', b.template_id.feature_id.name)
             r = (result.get('shots') or {}).get(sid) or {'ok': False, 'error': _('沒有結果')}
+            if not r.get('ok') and (r.get('error') or '').startswith(BACKEND_DOWN):
+                # 說明庫的後台打不開（執行環境的錯）：不叫 AI 修，留著下次重拍
+                b.write({'state': 'pending', 'needs_repair': False,
+                         'last_error': (r.get('error') or '')[:4000],
+                         'last_shot_at': fields.Datetime.now()})
+                down += 1
+                continue
             if not r.get('ok'):
                 if (r.get('error') or '').startswith('畫面出現錯誤對話框'):
                     self._manual_retire_assets(b)
@@ -777,6 +823,10 @@ class KnowledgeHooks(models.AbstractModel):
                         shot_scope_hash=b.template_id.fingerprint,
                         shot_inputs=self._manual_shot_inputs(b))
             b.write(vals)
+        if down and down == len(by_id):
+            # 整批都打不開後台：後面的批次也一樣，停止這一輪拍攝（不再寫腳本、不叫 AI）
+            ctx['manual_backend_down'] = True
+            ctx.setdefault('stats', {})['shots_backend_down'] = down
         return failed
 
     @api.model

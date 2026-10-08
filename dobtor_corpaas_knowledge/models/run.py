@@ -75,6 +75,8 @@ class KnowledgeRun(models.Model):
                   'shots_failed_empty': _('失敗：空白畫面'),
                   'shots_failed_access': _('失敗：權限'),
                   'shots_failed_locator': _('失敗：定位'),
+                  'shots_failed_backend': _('失敗：後台打不開'),
+                  'shots_backend_down': _('說明庫後台打不開'),
                   'public_ok': _('前台抽查通過'), 'public_failed': _('前台抽查失敗'),
                   'gaps_open': _('待修缺口'), 'gaps_fixed_shot': _('修補截圖缺口'),
                   'iterate_stopped': _('已達每日輪數上限'),

@@ -261,6 +261,27 @@ class Recorder:
                 {k: sorted(v) for k, v in self.refs.items()})
 
 
+#: 後台沒有載入的錯誤開頭（呼叫端據此判斷：不是腳本的錯、不叫 AI 修）
+BACKEND_DOWN = '後台沒有載入'
+#: 這一頁的 console 錯誤（診斷後台為什麼沒載入）
+_CONSOLE = []
+
+
+def _backend_diag(page):
+    """後台沒載入時留下看得出原因的線索：停在哪、標題、後台骨架有沒有出來、console 錯誤。"""
+    info = {'url': page.url}
+    for key, fn in (('title', lambda: page.title()),
+                    ('navbar', lambda: page.locator('.o_main_navbar').count()),
+                    ('action_manager', lambda: page.locator('.o_action_manager').count()),
+                    ('body', lambda: page.locator('body').inner_text(timeout=2000)[:300])):
+        try:
+            info[key] = fn()
+        except Exception as e:  # noqa: BLE001
+            info[key] = 'ERR %s' % str(e)[:80]
+    info['console'] = _CONSOLE[-8:]
+    return json.dumps(info, ensure_ascii=False)
+
+
 def login(page, base, login_name, password):
     page.goto(base + '/web/login')
     page.fill('input[name="login"]', login_name)
@@ -268,7 +289,13 @@ def login(page, base, login_name, password):
     # ☠️ 不能點 `button[type="submit"]`：裝了 website 的庫，登入頁 header 還有一顆隱藏的
     #   搜尋送出鈕，選擇器先抓到它，等它可見等到逾時。直接在密碼欄按 Enter 送出登入表單。
     page.press('input[name="password"]', 'Enter')
-    page.wait_for_selector('.o_action_manager, .alert-danger', timeout=30000)
+    try:
+        page.wait_for_selector('.o_action_manager, .alert-danger', timeout=30000)
+    except Exception as e:  # noqa: BLE001
+        # ☠️ 實機：社群電商方案 87 張全卡在這裡，AI 每張修一次腳本（$7.84）——
+        #   後台根本沒載入，改腳本修不好
+        raise RuntimeError('%s（%s）：%s' % (BACKEND_DOWN, str(e).splitlines()[0][:120],
+                                           _backend_diag(page)))
     if page.locator('.alert-danger').count():
         raise RuntimeError('登入失敗：%s' % page.locator('.alert-danger').first.inner_text())
     _settle(page)
@@ -481,10 +508,16 @@ def main():
         result['cjk_fonts_error'] = str(e)[:300]
     base = job['base_url'].rstrip('/')
     args = ['--host-resolver-rules=%s' % job['resolver_rule']] if job.get('resolver_rule') else []
+    down = 0
     with sync_playwright() as p:
         browser = p.chromium.launch(args=args)
         for shot in job['shots']:
             sid = shot['id']
+            if down >= 3:
+                # 連續三張後台都沒載入：其餘不拍了（每張白等 30 秒，結果一樣）
+                result['shots'][sid] = {'ok': False, 'images': [], 'transitions': [],
+                                        'error': '%s（前 3 張都打不開，其餘略過）' % BACKEND_DOWN}
+                continue
             out_dir = os.path.join(OUT_DIR, sid)
             os.makedirs(out_dir, exist_ok=True)
             _MAKE_PAGE[0] = lambda: _new_page(browser, job)
@@ -495,6 +528,10 @@ def main():
             _ROLE_PAGES.clear()
             _ROLE_PAGES[shot['login']] = page
             page.on('response', recorder.on_response)
+            _CONSOLE.clear()
+            page.on('console', lambda m: m.type in ('error', 'warning') and _CONSOLE.append(
+                '%s: %s' % (m.type, m.text[:200])))
+            page.on('pageerror', lambda e: _CONSOLE.append('pageerror: %s' % str(e)[:300]))
             try:
                 images, observed = [], []
                 login(page, base, shot['login'], shot['password'])
@@ -506,7 +543,9 @@ def main():
                 result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed,
                                         'warnings': warnings}
                 _log(sid, 'ok', len(images))
+                down = 0
             except Exception as e:  # noqa: BLE001
+                down = down + 1 if str(e).startswith(BACKEND_DOWN) else 0
                 err_png = os.path.join(out_dir, '_error.png')
                 try:
                     page.screenshot(path=err_png)
