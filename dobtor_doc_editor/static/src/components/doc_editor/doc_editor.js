@@ -2721,6 +2721,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         return (this.state.selectedVariable || {}).source === "i18n";
     }
 
+    get isFieldLabelPill() {
+        return (this.state.selectedVariable || {}).source === "fieldLabel";
+    }
+
     /** 某個語言的文字（inspector 的輸入框用）。 */
     i18nTextFor(code) {
         const texts = (this.state.selectedVariable || {}).texts || {};
@@ -3401,13 +3405,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         const labelText = parent
             ? `${parent.label || parent.name}-${field.label || field.name}`
             : (field.label || field.name);
-        const meta = { source: "line", path, labelText };
-        if (field.type === "monetary") {
-            // format_money 的幣別從「當前求值記錄」身上找，而明細列求值時
-            // 那就是該筆明細，所以不必指定幣別
-            meta.expression = `format_money(line.${path})`;
-        }
-        return meta;
+        // 同 _metaForModelField：只帶路徑，格式由渲染層依型別決定。
+        // 明細藥丸求值時 object 綁的就是那筆明細，所以金額的幣別、float 的
+        // digits 都查得到——不需要在這裡寫死任何表達式。
+        return { source: "line", path, labelText };
     }
 
     onLineFieldDragStart(ev, field, parent = null) {
@@ -3521,6 +3522,9 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             expression: `line.${field.name}`,
             resetOn: "",
             asMoney: field.type === "monetary",
+            // 同 onInsertGroupSubtotal：累計是跨列狀態，不是欄位路徑，
+            // 小數位要明講才會和明細欄一致
+            numberFormat: `,.${field.digits ?? 2}f`,
             labelText: `累計 ${field.label || field.name}`,
         });
     }
@@ -3700,11 +3704,18 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             return;
         }
         // 金額用 format_money、其他數值用 format_number——同一張單上
-        // 小計有幣別符號、明細沒有（或反過來）看起來像兩個系統拼起來的
-        const wrap = field.type === "monetary" ? "format_money" : "format_number";
+        // 小計有幣別符號、明細沒有（或反過來）看起來像兩個系統拼起來的。
+        //
+        // 聚合藥丸的來源是 sum(...) 而不是一條欄位路徑，渲染層的型別表查不到
+        // 型別，所以格式只能在插入時寫進表達式。至少小數位要跟著欄位走：
+        // 固定兩位的話，數量欄位（digits 常是三位）明細三位、小計兩位。
+        const sum = `group.lines|sum(attribute='${field.name}')`;
+        const expression = field.type === "monetary"
+            ? `format_money(${sum})`
+            : `format_number(${sum}, ',.${field.digits ?? 2}f')`;
         this.insertPill({
             source: "group",
-            expression: `${wrap}(group.lines|sum(attribute='${field.name}'))`,
+            expression,
             labelText: `本組 ${field.label || field.name}`,
         });
     }
@@ -3728,19 +3739,41 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         const labelText = parent
             ? `${parent.label || parent.name}-${field.label || field.name}`
             : (field.label || field.name);
-        const meta = { source: "record", path, labelText };
-        // Selection 欄位預設帶中文標籤而不是代碼，這幾乎總是使用者要的
-        if (field.type === "selection" && !parent) {
-            meta.source = "expression";
-            meta.expression = `selection_label('${field.name}')`;
-        }
-        // 金額欄位預設帶幣別格式。原生報表的 monetary widget 做的就是這件事；
-        // 印成 1000.0 而不是 NT$ 1,000.00 在單據上會被當成錯誤。
-        if (field.type === "monetary") {
-            meta.source = "expression";
-            meta.expression = `format_money(object.${path})`;
-        }
-        return meta;
+        // 只帶路徑，格式交給渲染層依欄位型別決定
+        //（doc.render.mixin 的 _type_format_expression，唯一一份表）。
+        //
+        // 這裡原本自己判 selection 與 monetary 並寫成固定的 expression。
+        // 問題不是寫錯，是那份判斷只有兩種型別、而且 selection 還漏了巢狀
+        // 路徑（`!parent` 條件）——拖一個「客戶-狀態」進來印的是代碼。
+        // date / float / integer 乾脆沒有，於是同一個欄位走轉換器會格式化、
+        // 手工拉就不會。改成只帶 path 以後兩條路徑結果一致。
+        return { source: "record", path, labelText };
+    }
+
+    /**
+     * 插入「欄位標籤」藥丸——印的是欄位名稱而不是值。
+     *
+     * 明細表的表頭「品名／數量／單價／小計」就是欄位標籤，而 Odoo 自己的
+     * .po 早就翻好了。走 i18n 藥丸等於請使用者把 Odoo 的翻譯再抄一遍、
+     * 每個語言一次，之後兩邊各自漂移。
+     *
+     * labelModel 要明講：表頭那顆藥丸放在重複列**外面**，求值時的記錄是主
+     * 記錄，推斷不出明細的模型。
+     */
+    onInsertFieldLabel(field, parent = null, model = null) {
+        const path = parent ? `${parent.name}.${field.name}` : field.name;
+        this.insertPill({
+            source: "fieldLabel",
+            path,
+            labelModel: model || this._loadedModelName || "",
+            labelText: field.label || field.name,
+        });
+    }
+
+    /** 明細欄位的標籤（給表頭用）——模型是重複來源的模型，不是主記錄。 */
+    onInsertLineFieldLabel(field) {
+        const ctx = this.state.repeatContext;
+        this.onInsertFieldLabel(field, null, (ctx && ctx.model) || "");
     }
 
     onModelFieldDragStart(ev, field, parent = null) {

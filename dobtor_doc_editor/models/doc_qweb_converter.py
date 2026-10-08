@@ -1176,7 +1176,7 @@ class DocQwebConverter(models.AbstractModel):
         那不是 widget，所以不能只看 widget 名稱——不處理的話我們會印出
         「Oct 8, 2026 3:36:48 AM」而原生印「10/08/2026」。
         """
-        raw = node.get('t-options') or ''
+        raw = (node.get('t-options') or '') if node is not None else ''
         m = re.search(r'["\']date_only["\']\s*:\s*([^,}]+)', raw)
         if not m:
             return False
@@ -1236,23 +1236,12 @@ class DocQwebConverter(models.AbstractModel):
         return wrapped if wrapped is not None else base
 
     def _resolve_field(self, model, path):
-        """沿著 a.b.c 查最後一個欄位。查不到回 None。"""
-        if not model or not path:
-            return None
-        Model = self.env.get(model)
-        field = None
-        parts = path.split('.')
-        for idx, part in enumerate(parts):
-            if Model is None:
-                return None
-            field = Model._fields.get(part)
-            if field is None:
-                return None
-            if idx < len(parts) - 1:
-                if not getattr(field, 'comodel_name', None):
-                    return None
-                Model = self.env.get(field.comodel_name)
-        return field
+        """沿著 a.b.c 查最後一個欄位。查不到回 None。
+
+        實作在 doc.render.mixin——這支原本是一份一字不差的複本，而它和型別表
+        是同一件事的兩半（走路徑、看型別），分開放遲早會只改一邊。
+        """
+        return self.env['doc.render.mixin']._resolve_path_field(model, path)
 
     def _path_model(self, state, kind):
         """路徑是相對於哪個模型。"""
@@ -1269,23 +1258,25 @@ class DocQwebConverter(models.AbstractModel):
         而我們是直接 str()。實測差異：`100.0` vs `100.00`、
         `1000.0` vs `1,000.00`、`2026-10-08` vs `10/08/2026`。
         每一行數字都不一樣，單據直接不能用。
+
+        型別表本身在 doc.render.mixin（RenderFields._type_format_expression），
+        這裡只負責「要不要套」。刻意只套數字與日期（numeric_only）：
+
+          * selection / many2one / x2many **不在這裡套**，而是讓藥丸只帶
+            path，由渲染層依型別處理。那條路同時照顧到手工做的範本，而且
+            換語言時標籤跟著換（表達式寫死 selection_label 也會，但沒必要
+            在兩個地方各做一次）。
+          * 不擴大到其他型別：目前這組範圍是已經量過保真度（漏印 2 / 4）的
+            現狀。原生 QWeb 對 `t-out` 的數字其實也不格式化，要不要跟著分
+            t-field / t-out 是另一件事，要連著重新量一次才能動。
         """
-        field = self._resolve_field(self._path_model(state, kind), path)
-        ttype = getattr(field, 'type', None)
-        if ttype == 'monetary':
-            return 'format_money(%s)' % base
-        if ttype == 'float':
-            digits = getattr(field, 'digits', None)
-            spec = ',.%df' % (digits[1] if isinstance(digits, tuple) else 2)
-            return "format_number(%s, '%s')" % (base, spec)
-        if ttype == 'integer':
-            return "format_number(%s, ',.0f')" % base
-        if ttype == 'date':
+        model = self._path_model(state, kind)
+        if (getattr(self._resolve_field(model, path), 'type', None) == 'datetime'
+                and self._option_date_only(node)):
+            # 原範本明講只要日期（t-options 的 date-only）→ 不走表的預設
             return "format_date(%s, 'lang')" % base
-        if ttype == 'datetime':
-            fmt = 'lang' if self._option_date_only(node) else 'lang_datetime'
-            return "format_date(%s, '%s')" % (base, fmt)
-        return None
+        return self.env['doc.render.mixin']._type_format_expression(
+            model, path, base, numeric_only=True)
 
     def _barcode_value_pill(self, node, expr, state):
         """t-options widget="barcode" → 條碼藥丸。

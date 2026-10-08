@@ -13,6 +13,7 @@
 失敗策略也在這一層定案：條件失敗當真、取值失敗空字串。理由寫在各自的
 docstring 裡，不要在呼叫端再發明一套。
 """
+import logging
 import re
 
 from jinja2.sandbox import SandboxedEnvironment
@@ -20,6 +21,8 @@ from jinja2.sandbox import SandboxedEnvironment
 from odoo.tools.misc import format_amount
 from odoo.tools.misc import format_date as odoo_format_date
 from odoo.tools.misc import format_datetime as odoo_format_datetime
+
+_logger = logging.getLogger(__name__)
 
 
 # 禁止透過屬性存取觸碰的 ORM 提權／IO 向量。
@@ -79,16 +82,63 @@ class RenderSandbox:
         子類別可覆寫加入更多 helper（例如格式化、權限相關 lookup）。
         helper 內避免直接暴露 _fields 等 sandboxed attribute，由本層代為呼叫。
         """
-        def selection_label(fieldname):
-            """回傳 Selection 欄位的人類可讀標籤；非 Selection 或空值回空字串。"""
-            if not record or not fieldname:
+        def selection_label(path):
+            """回傳 Selection 欄位的人類可讀標籤；非 Selection 或空值回空字串。
+
+            接受帶點的路徑（partner_id.state），不只是本模型的欄位名。
+            原本只接受欄位名，於是編輯器插一個巢狀的 selection（例如
+            「客戶-狀態」）只能印出代碼——而且不會報錯。
+            """
+            if not record or not path:
                 return ''
-            field = record._fields.get(fieldname)
+            target = record
+            parts = str(path).split('.')
+            # 只沿著 _fields 走，不用 getattr：範本是使用者可編輯的，
+            # selection_label('env.cr') 這種字串若用 getattr 會走到
+            # Environment 身上，下一步 ._fields 直接 AttributeError。
+            # 走 _fields 的話不是欄位就在這裡停住，回空字串。
+            for part in parts[:-1]:
+                field = target._fields.get(part)
+                if field is None or not getattr(field, 'comodel_name', None):
+                    return ''
+                target = target[part][:1]
+                if not target:
+                    return ''
+            fieldname = parts[-1]
+            field = target._fields.get(fieldname)
             if not field or field.type != 'selection':
                 return ''
-            selection = field._description_selection(record.env)
-            value = record[fieldname]
+            selection = field._description_selection(target.env)
+            value = target[fieldname]
             return dict(selection).get(value, value or '')
+
+        def names(value, sep=', '):
+            """recordset → display_name 串接。空值回空字串。
+
+            many2many / one2many 直接字串化會變成 "account.tax(1, 2)" 這種
+            repr。_fix_recordset_repr 事後會修，但它的條件是「整個輸出剛好
+            就是一個 repr」——表達式裡混了別的文字就修不到。這個 helper 讓
+            型別表可以**事前**包好，不必靠猜輸出長相。
+            """
+            if not value:
+                return ''
+            if hasattr(value, 'ids') and hasattr(value, '_name'):
+                return str(sep).join(
+                    n for n in (value.mapped('display_name') or []) if n)
+            if isinstance(value, (list, tuple)):
+                return str(sep).join(str(v) for v in value if v)
+            return str(value)
+
+        def checkmark(value, checked='\u2611', unchecked='\u2610'):
+            """布林 → ☑ / ☐。
+
+            刻意**不**進型別表：原生 QWeb 對布林欄位沒有 field converter，
+            True 印 "True"、False 印空白（ir_qweb_fields.py 的
+            record_to_html：`return False if value is False else …`）。
+            放進預設表會讓轉換過來的報表與原生不一致。
+            自主檢查表這類範本要方框時明寫 checkmark(object.x)。
+            """
+            return checked if value else unchecked
 
         def format_date(value, fmt='%Y-%m-%d'):
             """安全地格式化 date / datetime；None 與字串原樣回傳。
@@ -255,6 +305,8 @@ class RenderSandbox:
 
         return {
             'selection_label': selection_label,
+            'names': names,
+            'checkmark': checkmark,
             'format_date': format_date,
             'is_html_empty': is_html_empty,
             'format_number': format_number,
@@ -354,6 +406,37 @@ class RenderSandbox:
     # 見 security/ir.model.access.csv:25，一般編輯者對 doc.template.field 唯讀。
     # ══════════════════════════════════════════════════════════════════
 
+    # 模型可以自備一支 doc_report_values() 回一個 dict，範本就能用 data.<鍵>。
+    #
+    # 為什麼要有這個，而不是叫人加到 _SAFE_REPORT_METHODS：那份白名單是給
+    # **別人家的**方法開的窄門，每加一筆都要讀過 Odoo 原始碼確認不寫資料。
+    # 整合者要加自己算的值（複雜的分段稅率表、客製編號、跨模型彙總）時，
+    # 那道門是錯的門——那是他自己寫的程式碼，不需要我們信任誰。
+    #
+    # 名字刻意不以底線開頭：沙箱擋掉所有底線方法，而這支要能被我們呼叫、也
+    # 要能被人一眼看出是公開約定。
+    _REPORT_VALUES_METHOD = 'doc_report_values'
+
+    def _model_report_values(self, record):
+        """呼叫記錄所屬模型的 doc_report_values()；沒有或失敗回空 dict。
+
+        失敗回空 dict 而不是讓它炸：整合者的一支輔助方法不該讓整張單據產不
+        出來（與其他 helper 的失敗策略一致）。回的不是 dict 也當沒有——
+        範本寫 data.x 時 Undefined 至少是空白，而不是一段 Python repr。
+        """
+        name = self._REPORT_VALUES_METHOD
+        if record is None or not hasattr(record, name):
+            return {}
+        try:
+            values = getattr(record, name)()
+        except Exception as e:
+            _logger.warning(
+                '[doc.render] %s.%s() 失敗，data.* 當成空的：%s',
+                getattr(record, '_name', '?'), name, e,
+            )
+            return {}
+        return values if isinstance(values, dict) else {}
+
     def _get_sandbox_env(self, record, undefined=None):
         """唯一的 Jinja 沙箱建構點。
 
@@ -366,10 +449,21 @@ class RenderSandbox:
         env_j = _DocSandboxedEnvironment(**kwargs)
         for name, fn in self._get_render_helpers(record).items():
             env_j.globals[name] = fn
+        # 模型自備的值。_snapshot_content_json 入口算一次放進 context，
+        # 所以這裡每筆明細都拿到同一份，不會重複呼叫整合者的方法。
+        env_j.globals['data'] = self.env.context.get('doc_report_values') or {}
         return env_j
 
-    def _field_meta_expression(self, meta):
-        """把綁定 meta 轉成一段 Jinja 表達式；靜態值與空定義回 None。"""
+    def _field_meta_expression(self, meta, record=None):
+        """把綁定 meta 轉成一段 Jinja 表達式；靜態值與空定義回 None。
+
+        只帶 path 的藥丸會依**欄位型別**補上格式（_type_format_expression，
+        唯一一份表在 RenderFields）。給 record 才查得到型別——查不到就退回
+        原本的 object.<path>，印原值至少看得出是什麼。
+
+        優先序：明寫的 expression > meta 裡的 format > 型別預設。
+        前兩個是使用者（或原範本的 widget）明講的，不可以被預設蓋掉。
+        """
         source = (meta.get('source') or 'record').strip()
         if source == 'static':
             return None
@@ -379,11 +473,19 @@ class RenderSandbox:
         path = (meta.get('path') or '').strip()
         if not path:
             return None
+        # 一律 object.<path>：明細藥丸求值時 object 綁的就是那筆明細
+        #（_fill_line_values → _eval_for(line)）。改寫成 line.<path> 雖然
+        # 也會過，但那是多餘的改動。
         expression = f'object.{path}'
         fmt = (meta.get('format') or '').strip()
         if fmt:
             # 目前只支援 strftime 形態；非日期欄位給了格式也不會炸（helper 會原樣回傳）
-            expression = "format_date(%s, '%s')" % (expression, fmt.replace("'", ''))
+            return "format_date(%s, '%s')" % (expression, fmt.replace("'", ''))
+        if record is not None:
+            typed = self._type_format_expression(
+                getattr(record, '_name', None), path, expression)
+            if typed:
+                return typed
         return expression
 
     def _eval_collection(self, expression, record):

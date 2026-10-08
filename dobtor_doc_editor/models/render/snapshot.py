@@ -107,7 +107,7 @@ class RenderSnapshot:
         '<p><br></p>' 這類空殼若原樣輸出，自動收合空段落會判斷成「有值」，
         於是單據上多出一段看不見的空白。
         """
-        expression = self._field_meta_expression(meta)
+        expression = self._field_meta_expression(meta, record)
         if not expression or record is None:
             return ''
         env_j = self._get_sandbox_env(record)
@@ -184,6 +184,12 @@ class RenderSnapshot:
         """
         if not tree or record is None:
             return tree
+
+        # 模型自備的值（data.*）。整份快照只算一次，放在 context 裡傳下去
+        # ——所有求值都走 _get_sandbox_env，它會從 context 讀。不走 extra 的
+        # 理由：extra 在十幾個地方各自組，逐一加等於又一份要同步的東西。
+        self = self.with_context(
+            doc_report_values=self._model_report_values(record))
 
         # ─── Pass 鏈（順序有意義，不可對調）───────────────────────
         #
@@ -278,8 +284,10 @@ class RenderSnapshot:
                 element['value'] = self._html_field_value(record, meta)
             elif src == self._I18N_SOURCE:
                 element['value'] = self._i18n_text(record, meta)
+            elif src == self._FIELD_LABEL_SOURCE:
+                element['value'] = self._field_label_text(record, meta)
             else:
-                expression = self._field_meta_expression(meta)
+                expression = self._field_meta_expression(meta, record)
                 element['value'] = _eval(expression) if expression else ''
             meta['frozenAt'] = stamp
 
@@ -572,7 +580,7 @@ class RenderSnapshot:
                 # 標記藥丸不進成品——它是設計期的宣告，不是內容
                 continue
             if src == self._LINE_SOURCE:
-                expression = self._field_meta_expression(meta)
+                expression = self._field_meta_expression(meta, line)
                 el['value'] = eval_line(expression) if expression else ''
                 meta['frozenAt'] = stamp
             elif src == self._RUNNING_SOURCE and state_bank is not None:
@@ -625,7 +633,7 @@ class RenderSnapshot:
                     el['value'] = eval_group(expression) if expression else ''
                     meta['frozenAt'] = stamp
                 elif src == self._LINE_SOURCE:
-                    expression = self._field_meta_expression(meta)
+                    expression = self._field_meta_expression(meta, header)
                     el['value'] = (
                         eval_header(expression)
                         if (eval_header and expression) else ''
