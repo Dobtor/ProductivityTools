@@ -932,6 +932,17 @@ class KnowledgeHooks(models.AbstractModel):
             'corpaas_knowledge.public_check_sample', 5) or 5)
         base = (self.env['ir.config_parameter'].sudo().get_param('web.base.url') or '').rstrip('/')
         picks = live.sorted(lambda p: p.synced_at or p.create_date, reverse=True)[:sample]
+        # ☠️ 實機：只抽最近更新的幾篇，曾經失敗的那篇沒被抽到，缺口就永遠解不掉 →
+        #   有待修（含轉人工）發佈缺口的位置一定重抽，通過了就解除
+        gapped = self.env['corpaas.knowledge.gap_item'].sudo().search([
+            ('package_id', '=', package.id), ('kind', '=', 'publish'), ('state', '!=', 'resolved'),
+            ('res_model', '=', Placement._name)])
+        for gap in gapped:
+            pl = Placement.browse(gap.res_id).exists()
+            if pl and pl in live:
+                picks |= pl
+            elif not pl or pl.manual_retired:
+                gap.resolve(_('發佈位置已撤下或不存在'))
         ok = failed = 0
         for pl in picks:
             # ☠️ 實機：website_url 在有網站網域時是完整網址，再接 base 就變 https://xhttps://x

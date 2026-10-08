@@ -422,6 +422,9 @@ def seed_script(module, records, roles, password):
         "            u = env['res.users'].sudo().with_context(no_reset_password=True)._load_records([\n"
         "                {'xml_id': MODULE + '.user_' + r['code'], 'noupdate': False, 'values': {\n"
         "                    'name': r.get('name') or r['code'], 'login': 'doc_' + r['code'],\n"
+        # ☠️ 實機：角色帳號沒有電郵，批次調撥「核實」會留言給相關人 → 「未能傳送訊息。請設定寄件者電郵地址」
+        #   （說明庫已作失效處理，不會真的寄出；example.com 是保留網域）
+        "                    'email': 'doc_' + r['code'] + '@example.com',\n"
         "                    'lang': _lang('zh_TW'), 'tz': 'Asia/Taipei', 'groups_id': [(6, 0, gids)]}}])\n"
         "            u.password = PASSWORD\n"
         "            users[r['code']] = u.login\n"
