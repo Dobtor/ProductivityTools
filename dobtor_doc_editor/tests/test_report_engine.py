@@ -544,3 +544,169 @@ class TestAppendPages(TransactionCase):
         self.binding._append_streams_for(self.partner)
         self.assertTrue(seen.get('flag'), '少了防遞迴旗標')
         self.assertTrue(callable(original))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestFilenamePattern(TransactionCase):
+    """檔名樣式。
+
+    這個欄位原本是**死的**：宣告了、表單上也有、但沒有任何程式讀它——使用者
+    填了下載下來還是原生名字，而且沒有訊息。Odoo 只在 web 的 report_download
+    決定檔名，讀報表自己的 print_report_name，沒有留 hook。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '檔名測試客戶'})
+
+    def test_renders_with_the_same_syntax_as_templates(self):
+        self.assertEqual(
+            self.Mixin._render_filename('報價單-{{ object.name }}', self.partner),
+            '報價單-檔名測試客戶')
+
+    def test_slash_becomes_underscore(self):
+        """單號含 / 很常見（S00001/2026）。不換掉下載會壞。"""
+        self.partner.name = 'S00001/2026'
+        self.assertEqual(
+            self.Mixin._render_filename('{{ object.name }}', self.partner),
+            'S00001_2026')
+
+    def test_windows_reserved_chars_are_replaced(self):
+        self.partner.ref = 'a:b*c?d"e<f>g|h'
+        self.assertEqual(
+            self.Mixin._render_filename('{{ object.ref }}', self.partner),
+            'a_b_c_d_e_f_g_h')
+
+    def test_repeated_and_edge_underscores_are_tidied(self):
+        self.partner.ref = '//x//'
+        self.assertEqual(
+            self.Mixin._render_filename('{{ object.ref }}', self.partner), 'x')
+
+    def test_bad_expression_returns_empty_so_caller_keeps_native_name(self):
+        """為了一個檔名讓整個下載失敗是最糟的結果。"""
+        self.assertEqual(
+            self.Mixin._render_filename('{{ object.no_such_field }}',
+                                        self.partner), '')
+        self.assertEqual(self.Mixin._render_filename('', self.partner), '')
+        self.assertEqual(self.Mixin._render_filename('{{ x', self.partner), '')
+
+    def test_empty_result_is_not_a_filename(self):
+        self.partner.ref = False
+        self.assertEqual(
+            self.Mixin._render_filename('{{ object.ref }}', self.partner), '')
+
+    def test_length_is_capped(self):
+        """檔案系統上限 255 bytes，中文一個字 3 bytes。"""
+        self.partner.ref = '長' * 200
+        name = self.Mixin._render_filename('{{ object.ref }}', self.partner)
+        self.assertLessEqual(len(name), 80)
+        self.assertTrue(name)
+
+    def test_sandbox_still_applies(self):
+        """檔名樣式也是使用者可編輯的字串，不可以是提權入口。"""
+        self.assertEqual(
+            self.Mixin._render_filename(
+                "{{ object.env['res.users'].sudo().browse(1).login }}",
+                self.partner),
+            '')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestConvertEntryPoints(TransactionCase):
+    """「轉成列印範本」的入口。
+
+    轉換器與精靈早就做完整件事，但**只能從選單進去**，而那張表單的第一個欄位
+    是一個有幾百筆的下拉。使用者是在看某一張報表時想到要轉它的。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.report = self.env['ir.actions.report'].create({
+            'name': '入口測試報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf',
+            'report_name': 'dobtor_doc_editor.entry_probe',
+        })
+
+    def test_report_button_opens_the_wizard_prefilled(self):
+        action = self.report.action_convert_to_doc_template()
+        self.assertEqual(action.get('res_model'), 'doc.qweb.import.wizard')
+        self.assertEqual(action['context']['default_report_id'], self.report.id)
+        self.assertIn('入口測試報表', action['context']['default_template_name'])
+
+    def test_non_qweb_report_is_refused_with_a_reason(self):
+        text = self.env['ir.actions.report'].create({
+            'name': '文字報表', 'model': 'res.partner',
+            'report_type': 'qweb-text', 'report_name': 'x.y',
+        })
+        with self.assertRaises(UserError):
+            text.action_convert_to_doc_template()
+
+    def test_multi_selection_takes_the_first_and_flags_it(self):
+        """批次轉等於把待辦清單丟掉，所以只帶第一張並講清楚。"""
+        other = self.env['ir.actions.report'].create({
+            'name': '另一張', 'model': 'res.partner',
+            'report_type': 'qweb-pdf', 'report_name': 'a.b',
+        })
+        action = (self.report + other).action_convert_to_doc_template()
+        self.assertEqual(action['context']['default_report_id'], self.report.id)
+        self.assertEqual(action['context']['doc_convert_multi_warning'], 2)
+
+    def test_binding_count_is_shown_on_the_report(self):
+        model = self.env['ir.model']._get('res.partner')
+        tmpl = self.env['doc.template'].create({
+            'name': '入口測試範本', 'role': 'content',
+            'model_id': model.id, 'content_json': json.dumps({'main': []}),
+        })
+        self.assertEqual(self.report.doc_report_count, 0)
+        self.env['doc.report'].create({
+            'name': '入口測試綁定', 'template_id': tmpl.id,
+            'report_id': self.report.id,
+        })
+        self.report.invalidate_recordset(['doc_report_count'])
+        self.assertEqual(self.report.doc_report_count, 1)
+        action = self.report.action_view_doc_reports()
+        self.assertEqual(action['res_model'], 'doc.report')
+
+    # ── 從 qweb 範本反查報表 ────────────────────────────────────
+    def test_view_finds_the_report_by_exact_xml_id(self):
+        sale = self.env.ref('sale.action_report_saleorder', raise_if_not_found=False)
+        if not sale:
+            self.skipTest('sale 未安裝')
+        view = self.env.ref('sale.report_saleorder', raise_if_not_found=False)
+        if not view:
+            self.skipTest('找不到 sale.report_saleorder 範本')
+        self.assertIn(sale, view._doc_candidate_reports())
+
+    def test_view_strips_the_document_suffix(self):
+        """sale.report_saleorder_document 的報表是 sale.report_saleorder。"""
+        sale = self.env.ref('sale.action_report_saleorder', raise_if_not_found=False)
+        doc_view = self.env.ref('sale.report_saleorder_document',
+                                raise_if_not_found=False)
+        if not (sale and doc_view):
+            self.skipTest('sale 未安裝')
+        self.assertIn(sale, doc_view._doc_candidate_reports())
+
+    def test_non_qweb_view_is_refused(self):
+        view = self.env['ir.ui.view'].search([('type', '=', 'form')], limit=1)
+        with self.assertRaises(UserError):
+            view.action_convert_to_doc_template()
+
+    def test_unrelated_qweb_view_explains_rather_than_guessing(self):
+        """猜一張錯的報表去轉，使用者會以為轉換器壞了。"""
+        view = self.env['ir.ui.view'].create({
+            'name': 'doc_entry_probe_orphan',
+            'type': 'qweb',
+            'arch': '<t t-name="x">沒有報表用我</t>',
+        })
+        self.assertFalse(view._doc_candidate_reports())
+        with self.assertRaises(UserError):
+            view.action_convert_to_doc_template()
+
+    def test_short_stem_does_not_match_everything(self):
+        """太短的詞幹（report、label）會比到一堆無關報表。"""
+        view = self.env['ir.ui.view'].create({
+            'name': 'label', 'type': 'qweb',
+            'arch': '<t t-name="label">x</t>',
+        })
+        self.assertFalse(view._doc_candidate_reports())

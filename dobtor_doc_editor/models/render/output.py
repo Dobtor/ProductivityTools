@@ -289,6 +289,40 @@ class RenderOutput:
             apply_align(para, blk)
             add_runs(para, blk)
 
+    # 下載檔名不能有的字。'/' 是真的會壞（單號 S00001/2026 很常見），
+    # 其餘是 Windows 的保留字元。
+    _FILENAME_BAD_CHARS = '/\\:*?"<>|\r\n\t'
+
+    def _render_filename(self, pattern, record):
+        """把檔名樣式算成一個可以當檔名的字串；算不出來回空字串。
+
+        用同一套沙箱（所以樣式寫 {{ object.name }} 與範本裡一致），而不是
+        Odoo 的 safe_eval——使用者學一種語法就好。
+
+        回空字串而不是拋例外：呼叫端會退回原生檔名。為了一個檔名讓下載失敗
+        是最糟的結果。
+        """
+        pattern = (pattern or '').strip()
+        if not pattern or record is None:
+            return ''
+        try:
+            env_j = self._get_sandbox_env(record)
+            text = env_j.from_string(pattern).render(
+                object=record, user=self.env.user)
+        except Exception:
+            return ''
+        text = (text or '').strip()
+        if text in ('', 'False', 'None'):
+            return ''
+        for ch in self._FILENAME_BAD_CHARS:
+            text = text.replace(ch, '_')
+        # 連續底線收成一個，首尾的去掉——'/' 被取代後常常留下一串
+        while '__' in text:
+            text = text.replace('__', '_')
+        text = text.strip('_ ')
+        # 檔案系統的上限是 255 bytes，中文一個字 3 bytes；留副檔名的空間
+        return text[:80] or ''
+
     def _docx_bytes_from_html(self, body_html, page_format='A4', margins=None,
                               header_text='', footer_text=''):
         """body HTML → DOCX bytes。

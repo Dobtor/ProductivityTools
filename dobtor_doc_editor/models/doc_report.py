@@ -78,8 +78,11 @@ class DocReport(models.Model):
     )
     filename_pattern = fields.Char(
         string='檔名樣式',
-        help="下載檔名，可用 {{ object.name }} 這類表達式。"
-             "留空時沿用報表自己的 print_report_name。",
+        help="下載檔名，可用 {{ object.name }} 這類表達式（與範本同一套語法）。\n"
+             "留空時沿用報表自己的 print_report_name。\n"
+             "會自動把 / \\ : * ? 等不能當檔名的字換成底線"
+             "——單號常含 /（S00001/2026），不換掉下載會壞。\n"
+             "只在「單筆列印」時生效：多筆合併成一份 PDF 時沒有單一記錄可取值。",
     )
     persist_output = fields.Boolean(
         string='留存輸出紀錄',
