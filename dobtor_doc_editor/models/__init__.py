@@ -1,4 +1,5 @@
 from . import doc_zip_guard
+from . import render  # 分層實作（doc_render_mixin 組合它們）
 from . import doc_render_mixin
 from . import doc_sanitizer
 from . import doc_template
