@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- 報表表單：統計按鈕（已接管幾筆）＋ 轉換按鈕。
+         放在 Odoo 原生的 button_box 裡，和「加入列印選單」「Qweb 範本」並排
+         ——使用者在那一排找動作，不會想到去選單。 -->
+    <record id="view_ir_actions_report_doc_form" model="ir.ui.view">
+        <field name="name">ir.actions.report.form.doc.editor</field>
+        <field name="model">ir.actions.report</field>
+        <field name="inherit_id" ref="base.act_report_xml_view"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_view_doc_reports" type="object"
+                        class="oe_stat_button" icon="fa-file-text-o"
+                        invisible="doc_report_count == 0"
+                        groups="dobtor_doc_editor.group_doc_editor"
+                        help="這張報表已經由列印範本接管。按下看是哪一張範本。">
+                    <field name="doc_report_count" widget="statinfo"
+                           string="列印範本綁定"/>
+                </button>
+                <button name="action_convert_to_doc_template" type="object"
+                        class="oe_stat_button" icon="fa-magic"
+                        invisible="report_type not in ['qweb-pdf', 'qweb-html']"
+                        groups="dobtor_doc_editor.group_doc_manager"
+                        help="把這張報表的版面轉成可編輯的列印範本。原生報表不會被修改。">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">轉成列印範本</span>
+                    </div>
+                </button>
+            </div>
+        </field>
+    </record>
+
+    <!-- 報表清單：綁定筆數當選用欄位，一眼看出哪幾張已經接管 -->
+    <record id="view_ir_actions_report_doc_tree" model="ir.ui.view">
+        <field name="name">ir.actions.report.list.doc.editor</field>
+        <field name="model">ir.actions.report</field>
+        <field name="inherit_id" ref="base.act_report_xml_view_tree"/>
+        <field name="arch" type="xml">
+            <field name="report_type" position="after">
+                <field name="doc_report_count" string="列印範本"
+                       optional="show"
+                       groups="dobtor_doc_editor.group_doc_editor"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- 齒輪動作：報表清單上可以直接選一張（或幾張）叫出精靈 -->
+    <record id="action_convert_report_to_doc_template" model="ir.actions.server">
+        <field name="name">轉成列印範本</field>
+        <field name="model_id" ref="base.model_ir_actions_report"/>
+        <field name="binding_model_id" ref="base.model_ir_actions_report"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[(4, ref('dobtor_doc_editor.group_doc_manager'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_convert_to_doc_template()</field>
+    </record>
+
+    <!-- qweb 範本表單：使用者常常是在看範本原始碼時才決定要轉。
+         這顆鈕會從 view 反查用它的報表（見 _doc_candidate_reports）。 -->
+    <record id="view_ir_ui_view_doc_form" model="ir.ui.view">
+        <field name="name">ir.ui.view.form.doc.editor</field>
+        <field name="model">ir.ui.view</field>
+        <field name="inherit_id" ref="base.view_view_form"/>
+        <field name="arch" type="xml">
+            <sheet position="before">
+                <header>
+                    <button name="action_convert_to_doc_template" type="object"
+                            string="轉成列印範本" class="btn-secondary"
+                            invisible="type != 'qweb'"
+                            groups="dobtor_doc_editor.group_doc_manager"
+                            help="找出使用這個 QWeb 範本的報表，開啟轉換精靈。"/>
+                </header>
+            </sheet>
+        </field>
+    </record>
+
+</odoo>

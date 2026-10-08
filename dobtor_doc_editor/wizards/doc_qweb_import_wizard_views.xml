@@ -12,10 +12,19 @@
                     <br/>
                     原生報表不會被修改，轉出來的是一張新範本。
                 </div>
+                <div class="alert alert-warning" role="alert"
+                     invisible="multi_warning &lt; 2 or state == 'done'">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    你選了 <field name="multi_warning" readonly="1" class="oe_inline"/> 張報表，
+                    這裡只帶第一張。<b>轉換要逐張看待辦清單</b>——批次轉等於把那份
+                    清單丟掉，而裡面有「這一段沒有轉換」這種非看不可的項目。
+                </div>
                 <group invisible="state == 'done'">
                     <group>
+                        <field name="candidate_report_ids" invisible="1"/>
                         <field name="report_id"
-                               options="{'no_create': True}"/>
+                               options="{'no_create': True}"
+                               domain="candidate_report_ids and [('id', 'in', candidate_report_ids)] or [('report_type', 'in', ['qweb-pdf', 'qweb-html'])]"/>
                         <field name="report_model" readonly="1"
                                invisible="not report_id"/>
                         <field name="template_name"

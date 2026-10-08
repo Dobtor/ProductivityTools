@@ -62,6 +62,7 @@ Dobtor Doc Editor v2.1
         'views/doc_template_views.xml',
         'views/doc_report_views.xml',
         'views/doc_output_views.xml',
+        'views/report_entry_points_views.xml',
         'views/portal_templates.xml',
         'views/doc_telemetry_views.xml',
         'views/menu.xml',

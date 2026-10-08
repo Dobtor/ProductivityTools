@@ -12,6 +12,24 @@ class DocQwebImportWizard(models.TransientModel):
     _name = 'doc.qweb.import.wizard'
     _description = 'QWeb 報表匯入精靈'
 
+    # 從報表（或 qweb 範本）那邊帶進來的候選限縮。
+    # 從 view 反查報表時可能比到好幾張，那時不替使用者挑，只把下拉縮小。
+    candidate_report_ids = fields.Many2many(
+        'ir.actions.report', string='候選報表',
+        compute='_compute_candidate_report_ids',
+        help='從 QWeb 範本進來時的候選清單；留空＝不限縮。',
+    )
+    multi_warning = fields.Integer(
+        string='選了幾張', compute='_compute_candidate_report_ids')
+
+    @api.depends_context('doc_candidate_report_ids', 'doc_convert_multi_warning')
+    def _compute_candidate_report_ids(self):
+        ids = self.env.context.get('doc_candidate_report_ids') or []
+        count = self.env.context.get('doc_convert_multi_warning') or 0
+        for rec in self:
+            rec.candidate_report_ids = [(6, 0, list(ids))]
+            rec.multi_warning = count
+
     report_id = fields.Many2one(
         'ir.actions.report', string='原生報表', required=True,
         domain="[('report_type', 'in', ['qweb-pdf', 'qweb-html'])]",
