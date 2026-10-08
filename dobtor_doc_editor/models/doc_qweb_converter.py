@@ -32,8 +32,10 @@ _TAX_TOTALS_COMPANY_TEMPLATES = frozenset({
 # t-options 的 widget → 本模組對應的包法
 _WIDGET_WRAPPERS = {
     'monetary': 'format_money(%s)',
-    'date': 'format_date(%s)',
-    'datetime': "format_date(%s, '%%Y-%%m-%%d %%H:%%M')",
+    # 日期一律走語言格式：原生印 10/08/2026，ISO 的 2026-10-08 在單據上
+    # 是看得出來的差別（實測比對原生輸出時第一個跳出來的就是它）
+    'date': "format_date(%s, 'lang')",
+    'datetime': "format_date(%s, 'lang_datetime')",
     'integer': "format_number(%s, ',.0f')",
     'float': 'format_number(%s)',
     'contact': 'format_address(%s)',
@@ -99,6 +101,11 @@ class DocQwebConverter(models.AbstractModel):
                       'validate_skipped': 0},
             'loop_vars': [],
             'loop_sources': [],
+            'loop_models': [],
+            'model': report.model,
+            # 樣本記錄：迴圈來源是「白名單方法」或算式時，路徑查不出模型，
+            # 只能實際跑一次拿第一筆的 _name（見 _loop_model）
+            'sample': validate_with[:1] if validate_with else None,
             'page_format': page_format,
             'view': view,
         }
@@ -913,6 +920,20 @@ class DocQwebConverter(models.AbstractModel):
         m = re.match(r'^["\'](\w+)["\']$', raw.strip())
         return m.group(1) if m else None
 
+    def _option_date_only(self, node):
+        """t-options 裡的 date_only。
+
+        採購單用 t-options="{'date_only': 'true'}" 把 datetime 印成日期，
+        那不是 widget，所以不能只看 widget 名稱——不處理的話我們會印出
+        「Oct 8, 2026 3:36:48 AM」而原生印「10/08/2026」。
+        """
+        raw = node.get('t-options') or ''
+        m = re.search(r'["\']date_only["\']\s*:\s*([^,}]+)', raw)
+        if not m:
+            return False
+        return (m.group(1) or '').strip().strip('\'"').lower() in (
+            'true', '1', 'yes')
+
     def _parse_option_fields(self, node):
         """t-options 裡 "fields": [...] 的欄位名清單（沒寫回空清單）。"""
         raw = node.get('t-options') or ''
@@ -953,7 +974,63 @@ class DocQwebConverter(models.AbstractModel):
         base = ('line.%s' % path) if kind == 'line' else ('object.%s' % path)
         widget = self._parse_options(node)
         wrapped = self._widget_expr(widget, node, base) if widget else None
+        if wrapped is None and not widget:
+            # 分支（三元式）裡的取值也要補格式：明細的折扣、金額、單價都是
+            # 「有條件的取值」，少了這一步那幾欄會印成 10.0 / 180.0。
+            wrapped = self._auto_format(node, state, path, kind, base)
         return wrapped if wrapped is not None else base
+
+    def _resolve_field(self, model, path):
+        """沿著 a.b.c 查最後一個欄位。查不到回 None。"""
+        if not model or not path:
+            return None
+        Model = self.env.get(model)
+        field = None
+        parts = path.split('.')
+        for idx, part in enumerate(parts):
+            if Model is None:
+                return None
+            field = Model._fields.get(part)
+            if field is None:
+                return None
+            if idx < len(parts) - 1:
+                if not getattr(field, 'comodel_name', None):
+                    return None
+                Model = self.env.get(field.comodel_name)
+        return field
+
+    def _path_model(self, state, kind):
+        """路徑是相對於哪個模型。"""
+        if kind == 'line':
+            models = state.get('loop_models') or []
+            return models[-1] if models else None
+        return state.get('model')
+
+    def _auto_format(self, node, state, path, kind, base):
+        """沒有 t-options 時，依欄位型別補上格式。回 None 表示不用補。
+
+        原生報表大量依賴 widget 來格式化，但也有一堆欄位**沒有**帶 widget
+        ——那時 QWeb 仍然會依欄位型別印（float 看 digits、date 看語言格式），
+        而我們是直接 str()。實測差異：`100.0` vs `100.00`、
+        `1000.0` vs `1,000.00`、`2026-10-08` vs `10/08/2026`。
+        每一行數字都不一樣，單據直接不能用。
+        """
+        field = self._resolve_field(self._path_model(state, kind), path)
+        ttype = getattr(field, 'type', None)
+        if ttype == 'monetary':
+            return 'format_money(%s)' % base
+        if ttype == 'float':
+            digits = getattr(field, 'digits', None)
+            spec = ',.%df' % (digits[1] if isinstance(digits, tuple) else 2)
+            return "format_number(%s, '%s')" % (base, spec)
+        if ttype == 'integer':
+            return "format_number(%s, ',.0f')" % base
+        if ttype == 'date':
+            return "format_date(%s, 'lang')" % base
+        if ttype == 'datetime':
+            fmt = 'lang' if self._option_date_only(node) else 'lang_datetime'
+            return "format_date(%s, '%s')" % (base, fmt)
+        return None
 
     def _value_pill(self, node, expr, state):
         """t-field / t-out / t-esc → 藥丸。"""
@@ -1008,6 +1085,8 @@ class DocQwebConverter(models.AbstractModel):
         base = ('line.%s' % path) if kind == 'line' else ('object.%s' % path)
 
         wrapped = self._widget_expr(widget, node, base) if widget else None
+        if wrapped is None and not widget:
+            wrapped = self._auto_format(node, state, path, kind, base)
         if wrapped is not None:
             return self._pill(label, state, source=source,
                               path=path, expression=wrapped)
@@ -1041,9 +1120,33 @@ class DocQwebConverter(models.AbstractModel):
 
     # ─── 走訪 ───────────────────────────────────────────────────────
 
+    def _append_text(self, out, raw):
+        """把一段原始文字加進輸出，保留「原本有沒有前後空白」。
+
+        原本一律 .strip()，於是標籤與值之間那個空格不見了——實測印出
+        「Date2026-10-08」「2.0Units」「AddressW1」。HTML 把連續空白算成
+        一個空格，所以這裡照同一個規則：壓成一個空格、但不要讓它消失。
+        段落開頭的空格仍然丟掉（那個是縮排，不是內容）。
+        """
+        if not raw:
+            return
+        collapsed = ' '.join(raw.split())
+        if collapsed:
+            value = '%s%s%s' % (' ' if raw[:1].isspace() else '',
+                                collapsed,
+                                ' ' if raw[-1:].isspace() else '')
+        else:
+            # 純空白：兩個行內元素之間的那一個空格
+            value = ' '
+        prev = (out[-1].get('value') or '') if out else ''
+        if not out or prev == '\n' or prev.endswith(' '):
+            value = value.lstrip()
+        if not value:
+            return
+        out.append(self._text(value))
+
     def _emit_children(self, node, out, state):
-        if node.text and node.text.strip():
-            out.append(self._text(node.text.strip()))
+        self._append_text(out, node.text)
         children = list(node)
         idx = 0
         while idx < len(children):
@@ -1053,12 +1156,10 @@ class DocQwebConverter(models.AbstractModel):
                 self._emit_chain(chain, out, state)
                 idx += len(chain)
                 last = chain[-1][1]
-                if last.tail and last.tail.strip():
-                    out.append(self._text(last.tail.strip()))
+                self._append_text(out, last.tail)
                 continue
             self._emit(child, out, state)
-            if child.tail and child.tail.strip():
-                out.append(self._text(child.tail.strip()))
+            self._append_text(out, child.tail)
             idx += 1
 
     # ─── t-if / t-elif / t-else 兄弟鏈 ──────────────────────────────
@@ -1122,9 +1223,12 @@ class DocQwebConverter(models.AbstractModel):
         # 節點自己是表格（或裡面有表格列）時不可以收成一顆藥丸——整張表
         # 會被丟掉。實測：<table t-if> 的表身剛好只有一個取值節點時，
         # 出貨單的明細表整張變成一顆三元式藥丸。
+        # 分支裡除了那個值還有別的文字時也不能收：那段文字會被丟掉
+        #（實測採購單少印「Order Deadline」「Request for Quotation」）。
         if (len(values) == 1
                 and not self._is_content_tag(node)
-                and not node.xpath('.//table | .//tr | .//img')):
+                and not node.xpath('.//table | .//tr | .//img')
+                and not self._branch_extra_text(node, values[0])):
             v = values[0]
             for attr in ('t-field', 't-out', 't-esc'):
                 if v.get(attr):
@@ -1135,6 +1239,18 @@ class DocQwebConverter(models.AbstractModel):
                 ensure_ascii=False,
             )
         return None
+
+    def _branch_extra_text(self, node, value_node):
+        """分支裡除了那個取值節點，還有沒有其他可見文字。
+
+        <div><strong>Order Deadline:</strong><p t-field="o.date_order"/></div>
+        收成「只有值」的三元式會把標籤整段丟掉。節點內的文字是設計師放的
+        範例值，所以比對時要先把取值節點自己的文字扣掉。
+        """
+        whole = ''.join(node.itertext())
+        inner = ''.join(value_node.itertext())
+        rest = whole.replace(inner, '', 1) if inner else whole
+        return bool(rest.strip())
 
     def _branch_value(self, node, expr, state):
         """分支裡的取值節點 → 表達式片段。
@@ -1281,16 +1397,39 @@ class DocQwebConverter(models.AbstractModel):
 
         # ── 表格
         if tag == 'table':
-            table = self._emit_table(node, state)
-            state['stats']['table'] += 1
+            # 稅額彙總的 t-call 常常直接掛在 <table> 下面（銷售訂單與發票
+            # 都是），而 _emit_table 只走 tr / td——那個節點永遠到不了
+            # _emit 的稅額彙總分支，結果是「稅前小計／稅額／總計」整塊不印。
+            # 實測：那是三張單據上最大的一塊漏印。
+            totals_mode, totals_first = self._table_tax_totals(node)
+            rows = [tr for tr in node.xpath('.//tr')
+                    if self._closest_table(tr) is node]
+            pieces = []
+            if totals_mode:
+                block = self._tax_totals_block(state, totals_mode)
+                state['stats']['taxTotals'] += 1
+                if not rows:
+                    # 這張表格本身就是稅額彙總表（內容全在子範本裡）
+                    pieces = [block]
+                elif totals_first:
+                    pieces = [block, self._newline(),
+                              self._emit_table(node, state)]
+                    state['stats']['table'] += 1
+                else:
+                    pieces = [self._emit_table(node, state), self._newline(),
+                              block]
+                    state['stats']['table'] += 1
+            else:
+                pieces = [self._emit_table(node, state)]
+                state['stats']['table'] += 1
             # <table t-if="…"> 的條件原本被丟掉（表格分支排在條件分支前面）。
             # 出貨單的兩張明細表就是這個形狀。
             table_cond = node.get('t-if')
             if table_cond:
                 out.append(self._condition_wrap(
-                    table_cond, [table, self._newline()], state))
+                    table_cond, pieces + [self._newline()], state))
             else:
-                out.append(table)
+                out.extend(pieces)
             out.append(self._newline())
             return
 
@@ -1504,6 +1643,7 @@ class DocQwebConverter(models.AbstractModel):
             holder.append(child)
         state['loop_vars'].append(as_var)
         state.setdefault('loop_sources', []).append((expr or '').strip())
+        state.setdefault('loop_models', []).append(self._loop_model(state, expr))
         try:
             inner = []
             self._emit_children(holder, inner, state)
@@ -1511,6 +1651,8 @@ class DocQwebConverter(models.AbstractModel):
             state['loop_vars'].pop()
             if state.get('loop_sources'):
                 state['loop_sources'].pop()
+            if state.get('loop_models'):
+                state['loop_models'].pop()
         if not inner or (inner[-1].get('value') or '') != '\n':
             inner.append(self._newline())
 
@@ -1543,6 +1685,36 @@ class DocQwebConverter(models.AbstractModel):
     def _inner_width(self, state):
         page_w = 1123 if state.get('page_format') == 'A4_landscape' else 794
         return max(200, page_w - 192)
+
+    def _table_tax_totals(self, node):
+        """表格裡有沒有稅額彙總子範本的呼叫。
+
+        回 (mode, 是否排在第一列之前)；沒有回 (None, False)。
+        順序要看：發票那張表格除了稅額彙總還有付款紀錄列，原生是
+        「先彙總、後付款」。
+        """
+        mode = None
+        call_pos = None
+        for idx, el in enumerate(node.iter()):
+            key = (el.get('t-call') or '').strip() if isinstance(el.tag, str) \
+                else ''
+            if not key:
+                continue
+            if key in _TAX_TOTALS_COMPANY_TEMPLATES:
+                mode, call_pos = 'company', idx
+                break
+            if key in _TAX_TOTALS_TEMPLATES:
+                mode, call_pos = 'document', idx
+                break
+        if mode is None:
+            return None, False
+        first_row = None
+        for idx, el in enumerate(node.iter()):
+            tag = el.tag if isinstance(el.tag, str) else ''
+            if tag.lower() == 'tr' and self._closest_table(el) is node:
+                first_row = idx
+                break
+        return mode, first_row is None or call_pos < first_row
 
     def _closest_table(self, node):
         parent = node.getparent()
@@ -1718,6 +1890,8 @@ class DocQwebConverter(models.AbstractModel):
             expr, as_var = repeat
             state['loop_vars'].append(as_var)
             state.setdefault('loop_sources', []).append((expr or '').strip())
+            state.setdefault('loop_models', []).append(
+                self._loop_model(state, expr))
             pushed = True
         try:
             # 分支容器（<t t-if>）本身不是 tr，所以 _row_cells 的 closest_row
@@ -1789,6 +1963,41 @@ class DocQwebConverter(models.AbstractModel):
                 state['loop_vars'].pop()
                 if state.get('loop_sources'):
                     state['loop_sources'].pop()
+                if state.get('loop_models'):
+                    state['loop_models'].pop()
+
+    def _loop_model(self, state, expr):
+        """這個迴圈跑的是哪個模型（查不出來回 None，那時就不自動補格式）。
+
+        先用 t-foreach 的原式，不行再展開 t-set 中間變數。
+        """
+        bare = dict(state, loop_vars=[], loop_sources=[], loop_models=[])
+        expanded = self._expand_symbols(expr, bare)[0]
+        for candidate in (expr, expanded):
+            path, kind = self._strip_root(candidate or '', bare)
+            if not path or not _SIMPLE_PATH_RE.match(path):
+                continue
+            field = self._resolve_field(self._path_model(state, kind), path)
+            comodel = getattr(field, 'comodel_name', None)
+            if comodel:
+                return comodel
+        # 路徑查不出來（來源是白名單方法或一串 filter）→ 拿樣本實際跑一次。
+        # 銷售訂單的明細就是這種：來源是
+        # report_helper(object, '_get_order_lines_to_report')，
+        # 查不出模型的話整張明細表的數字都不會被格式化（2.0 而不是 2.00）。
+        sample = state.get('sample')
+        if sample:
+            mapped = self._map_condition(expanded, bare)
+            try:
+                lines = self.env['doc.render.mixin']._eval_collection(
+                    mapped, sample)
+            except Exception:
+                lines = []
+            for line in lines[:1]:
+                name = getattr(line, '_name', None)
+                if name:
+                    return name
+        return None
 
     def _repeat_id(self, as_var, expr, state):
         """同一個 (迴圈變數, 來源) 用同一個 repeatId，不同來源給不同的。
@@ -1812,7 +2021,7 @@ class DocQwebConverter(models.AbstractModel):
         repeat_id = self._repeat_id(as_var, expr, state)
         # t-foreach 的來源常是上面 t-set 出來的變數（lines_to_report），
         # 那個變數在這裡看不到定義 → 標成待辦讓使用者選欄位
-        bare = dict(state, loop_vars=[], loop_sources=[])
+        bare = dict(state, loop_vars=[], loop_sources=[], loop_models=[])
         path, kind = self._strip_root(expr, bare)
         label = ('列型 × %s' % path) if row_filter else ('明細 × %s' % path)
         if path and _SIMPLE_PATH_RE.match(path):

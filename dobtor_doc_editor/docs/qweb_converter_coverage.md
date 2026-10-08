@@ -40,6 +40,9 @@
 | `t-field` / `t-out` / `t-esc`（簡單路徑） | 欄位藥丸 | many2one 由管線印 `display_name`：Jinja 的字串化會給 `res.partner(7,)`，偵測到這種 repr 就改用 `display_name` 重算 |
 | `t-options` widget `monetary` / `date` / `datetime` / `integer` / `float` | 包成 `format_money` / `format_date` / `format_number` | |
 | `t-options` widget `contact` | `format_address(…)` | 依 `fields` 決定要不要帶名稱 |
+| `t-options` 的 `date_only` | `format_date(…, 'lang')` | 那不是 widget，採購單用它把 datetime 印成日期 |
+| **沒帶 widget 的 float / monetary / integer** | `format_number` / `format_money`（float 看欄位 digits） | 原生 QWeb 也會依型別印，不補會印成 `100.0` |
+| **沒帶 widget 的 date / datetime** | `format_date(…, 'lang')` / `'lang_datetime'` | 語言格式；原生印 `10/08/2026` |
 | `<table>` + `<tr t-foreach>` | 重複列（`source='repeat'` 標記） | 只支援「表格列」粒度 |
 | `<t t-foreach>` 包 `<tr>` | 同上 | |
 | 非表格的 `t-foreach`（`<div>` 清單） | 自動包成**單欄無框表格**再重複 | 迴圈體含表格時不包，標待辦 |
@@ -173,22 +176,54 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 
 ## 7. 五張原生報表實測（2026-10-08）
 
+### 7.1 轉換與試算
+
 都給了樣本記錄試算，都「內容齊全、標記無殘留」：
 
 | 報表 | 藥丸 | 條件 | 試算成功 | 試算失敗 | 待確認 |
 |---|---|---|---|---|---|
-| `sale.action_report_saleorder` | 48 | 21 | 42 | 0 | 4 |
-| `sale.action_report_pro_forma_invoice` | 48 | 21 | 42 | 0 | 4 |
-| `account.account_invoices` | 109 | 52 | 90 | 0 | 6 |
-| `stock.action_report_delivery` | 139 | 55 | 48 | 0 | 39 |
-| `purchase.action_report_purchase_order` | 36 | 12 | 35 | 1 | 1 |
+| `sale.action_report_saleorder` | 54 | 21 | 43 | 0 | 4 |
+| `sale.action_report_pro_forma_invoice` | 54 | 21 | 43 | 0 | 4 |
+| `account.account_invoices` | 115 | 52 | 91 | 0 | 6 |
+| `stock.action_report_delivery` | 144 | 56 | 51 | 0 | 39 |
+| `purchase.action_report_purchase_order` | 49 | 13 | 41 | 1 | 1 |
 
 - 採購單那一個失敗就是 §6 的生成式。
-- 出貨單的「待確認 39 / 未試算」偏高是因為它有兩套明細表（未驗證走
+- 出貨單的「待確認 39 / 未試算 78」偏高是因為它有兩套明細表（未驗證走
   `move_ids`、已驗證走彙總的 `move_line_ids`），一筆樣本只會命中一套。
   兩套分別用「已確認」與「已驗證」的揀貨單實測過都印得出來。
 
----
+### 7.2 輸出比對（與原生報表的 HTML 逐 token 比）
+
+「表達式算得出來」不等於「印出來一樣」。這一項的量法：兩邊都渲染成 HTML、
+去標籤、比對可見 token 的多重集合。
+
+**量的時候有兩個坑**（兩個都踩過，第一次量出「完全一致」的假結果）：
+
+1. `doc.report` 的綁定會接管 `_render_qweb_html`。**原生一定要先渲染**，
+   建綁定之後所謂的「原生」就是我們自己的輸出。
+2. 量完要把綁定拆掉，否則下一個用到同一張報表的案例也會被接管。
+
+| 報表 | 原生 token | 我們 | 漏印 | 多印 |
+|---|---|---|---|---|
+| `sale.action_report_saleorder` | 60 | 69 | 5 | 14 |
+| `account.account_invoices` | 42 | 53 | 5 | 16 |
+| `purchase.action_report_purchase_order` | 59 | 57 | 18 | 16 |
+
+剩下的漏印是這幾類（都不是「值算錯」）：
+
+- `Odoo Report`——原生的 `<title>`，不是內容。
+- `Subtotal` 與它的金額——內建的稅額彙總區塊只有三列（稅前小計／稅別／
+  總計），原生在有稅別時還有一列 Subtotal。那是內建區塊的設計，不是轉換
+  漏掉。
+- `Total` vs 我們的「總計」——內建區塊的標籤是中文的。
+- 採購單：公司的 `information_block`（公司地址電話）沒有帶進來。
+
+多印的主要來源：
+
+- 位址區塊取了第一個分支（有待辦），發票上還會印兩次。
+- 頁碼「第 N / M 頁」是我們的外框印的，原生在 HTML 階段是空的（PDF 才填）。
+- 條件求值失敗時「寧可多印」的代價看得見：採購單印出原生沒印的行銷區塊。
 
 ## 8. 怎麼自己量一次
 

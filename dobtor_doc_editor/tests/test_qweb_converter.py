@@ -801,3 +801,205 @@ class TestRowWrapperConditions(TestQwebConverterBase):
         self.assertIn('loop_last', conds[0])
         self.assertIn('loop_index', conds[0])
         self.assertNotIn('kid_', conds[0], '迴圈位置變數要換成沙箱認識的名字')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAutoFormat(TestQwebConverterBase):
+    """沒帶 t-options 的欄位也要依型別補格式。
+
+    原生 QWeb 對 float 看 digits、對 date 看語言格式，而我們原本直接
+    str()。比對原生輸出時這是最密集的一類差異：`100.0` vs `100.00`、
+    `1000.0` vs `1,000.00`、`2026-10-08` vs `10/08/2026`。
+    單據上每一行數字都不一樣，等於不能用。
+    """
+
+    def _expr(self, body, model='res.partner'):
+        res = self._convert(body, model=model)
+        metas = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') in ('record', 'line')]
+        return (metas[0].get('expression') or '') if metas else ''
+
+    def test_float_gets_format_number(self):
+        self.assertEqual(self._expr('<span t-out="o.credit_limit"/>'),
+                         "format_number(object.credit_limit, ',.2f')")
+
+    def test_monetary_gets_format_money(self):
+        self.assertEqual(self._expr('<span t-out="o.debit_limit"/>'),
+                         'format_money(object.debit_limit)')
+
+    def test_integer_gets_zero_decimals(self):
+        self.assertEqual(self._expr('<span t-out="o.color"/>'),
+                         "format_number(object.color, ',.0f')")
+
+    def test_datetime_uses_language_format(self):
+        self.assertEqual(self._expr('<span t-out="o.write_date"/>'),
+                         "format_date(object.write_date, 'lang_datetime')")
+
+    def test_date_only_option_drops_the_time(self):
+        """採購單用 t-options="{'date_only': 'true'}" 把 datetime 印成日期。
+
+        那不是 widget，所以不能只看 widget 名稱——不處理的話我們印
+        「Oct 8, 2026 3:36:48 AM」而原生印「10/08/2026」。
+        """
+        self.assertEqual(
+            self._expr('<span t-out="o.write_date"'
+                       ' t-options="{\'date_only\': \'true\'}"/>'),
+            "format_date(object.write_date, 'lang')")
+
+    def test_char_is_left_alone(self):
+        """字串不要包任何東西——路徑型藥丸在右欄才看得懂。"""
+        res = self._convert('<span t-out="o.name"/>')
+        meta = [m for m in self._metas(res['tree']['main'])][0]
+        self.assertEqual(meta.get('path'), 'name')
+        self.assertFalse(meta.get('expression'))
+
+    def test_line_level_fields_are_formatted_too(self):
+        """明細欄位的模型要從迴圈來源推出來。"""
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-out="kid.credit_limit"/></td></tr></t></table>'
+        )
+        lines = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'line']
+        self.assertEqual(lines[0].get('expression'),
+                         "format_number(line.credit_limit, ',.2f')")
+
+    def test_branch_values_are_formatted(self):
+        """三元式裡的取值也要補格式（明細的折扣／金額／單價都是這種）。"""
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid">'
+            '<tr><td><span t-if="kid.credit_limit"'
+            ' t-out="kid.credit_limit"/></td></tr></t></table>'
+        )
+        exprs = [(m.get('expression') or '')
+                 for m in self._metas(res['tree']['main'])]
+        self.assertTrue(any('format_number(line.credit_limit' in e
+                            for e in exprs), exprs)
+
+    def test_widget_still_wins(self):
+        res = self._convert(
+            '<span t-out="o.credit_limit"'
+            ' t-options=\'{"widget": "integer"}\'/>')
+        metas = [m for m in self._metas(res['tree']['main'])]
+        self.assertEqual(metas[0].get('expression'),
+                         "format_number(object.credit_limit, ',.0f')")
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestBoundaryWhitespace(TestQwebConverterBase):
+    """標籤與值之間那個空格不可以被吃掉。
+
+    原本收文字一律 .strip()，實測印出「Date2026-10-08」「2.0Units」
+    「AddressW1」——每一個標籤都黏在值上。
+    """
+
+    def _texts(self, res):
+        out = []
+        for el in res['tree']['main']:
+            if (el.get('extension') or {}).get('dobtorField'):
+                out.append('〔值〕')
+            elif el.get('type') == 'table':
+                out.append('〔表格〕')
+            else:
+                out.append(el.get('value'))
+        return out
+
+    def test_space_between_label_and_value_is_kept(self):
+        res = self._convert('<div><strong>Date</strong> <span t-out="o.name"/></div>')
+        joined = ''.join(t for t in self._texts(res) if t != '\n')
+        self.assertIn('Date ', joined, '%s' % self._texts(res))
+
+    def test_whitespace_only_tail_becomes_one_space(self):
+        """換行＋縮排也算一個空格（HTML 就是這樣算的）。"""
+        res = self._convert('<div><strong>Date</strong>\n    '
+                            '<span t-out="o.name"/></div>')
+        joined = ''.join(t for t in self._texts(res) if t != '\n')
+        self.assertIn('Date ', joined, '%s' % self._texts(res))
+
+    def test_no_space_at_paragraph_start(self):
+        """段落開頭的縮排是縮排，不是內容。"""
+        res = self._convert('<div>\n    <strong>甲</strong></div>')
+        texts = [t for t in self._texts(res) if t and t != '\n']
+        self.assertTrue(texts and not texts[0].startswith(' '),
+                        '%s' % self._texts(res))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestTaxTotalsInTable(TestQwebConverterBase):
+    """稅額彙總的 t-call 常直接掛在 <table> 下面。
+
+    _emit_table 只走 tr / td，所以那個節點永遠到不了 _emit 的稅額彙總
+    分支——實測銷售訂單與發票的「稅前小計／稅額／總計」整塊不印，
+    那是三張單據上最大的一塊漏印。
+    """
+
+    def _blocks(self, res):
+        return [t for t in self._tables(res['tree']['main'])
+                if (t.get('extension') or {}).get('dobtorBlock') == 'taxTotals']
+
+    def test_totals_call_alone_in_a_table(self):
+        res = self._convert(
+            '<table class="o_total_table">'
+            '<t t-call="account.document_tax_totals">'
+            '<t t-set="tax_totals" t-value="o.name"/></t></table>',
+            model='res.partner',
+        )
+        blocks = self._blocks(res)
+        self.assertEqual(len(blocks), 1, '要產生內建的稅額彙總區塊')
+        self.assertEqual(len(blocks[0]['trList']), 3, '稅前小計／稅別／總計')
+        self.assertEqual(res['stats']['taxTotals'], 1)
+        # 那張空殼表格不該留下來
+        self.assertEqual(len(list(self._tables(res['tree']['main']))), 1)
+
+    def test_totals_call_before_other_rows_keeps_the_order(self):
+        """發票那張表格除了彙總還有付款紀錄列，原生是先彙總後付款。"""
+        res = self._convert(
+            '<table>'
+            '<t t-call="account.document_tax_totals">'
+            '<t t-set="tax_totals" t-value="o.name"/></t>'
+            '<tr><td><span t-out="o.name"/></td></tr></table>',
+            model='res.partner',
+        )
+        tables = list(self._tables(res['tree']['main']))
+        self.assertEqual(len(tables), 2)
+        self.assertEqual((tables[0].get('extension') or {}).get('dobtorBlock'),
+                         'taxTotals', '彙總要排在前面')
+
+    def test_company_currency_template_uses_company_mode(self):
+        res = self._convert(
+            '<table><t t-call="account.document_tax_totals'
+            '_company_currency_template"/></table>',
+            model='res.partner',
+        )
+        blocks = self._blocks(res)
+        self.assertTrue(blocks)
+        metas = [m for m in self._metas(blocks[0]['trList'][0]['tdList'][0]['value'])]
+        self.assertEqual(metas[0].get('currencyMode'), 'company')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestBranchKeepsLabels(TestQwebConverterBase):
+
+    def test_branch_with_a_label_is_not_collapsed(self):
+        """分支裡除了值還有文字時不可以收成三元式——那段文字會被丟掉。
+
+        實測採購單少印「Order Deadline」「Request for Quotation」。
+        """
+        res = self._convert(
+            '<div t-if="o.active"><strong>Order Deadline:</strong>'
+            '<span t-out="o.write_date"/></div>'
+            '<div t-else=""><strong>Other:</strong>'
+            '<span t-out="o.name"/></div>'
+        )
+        raw = res['content_json']
+        self.assertIn('Order Deadline', raw)
+        self.assertIn('Other', raw)
+
+    def test_value_only_branch_still_collapses(self):
+        """只有值的分支照舊收成三元式（明細的價格欄就靠這條不變成子表格）。"""
+        res = self._convert(
+            '<div t-if="o.active"><span t-out="o.credit_limit"/></div>'
+            '<div t-else=""><span t-out="o.debit_limit"/></div>'
+        )
+        self.assertFalse(list(self._tables(res['tree']['main'])),
+                         '不該退回區塊級的若／否則')

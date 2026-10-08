@@ -2908,3 +2908,52 @@ class TestDictRepeatSource(TransactionCase):
         lines = self.Mixin._eval_collection(
             "{'a': {'name': '丙品'}}", self.partner)
         self.assertEqual(lines, [{'name': '丙品'}])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestLocaleDateFormat(TransactionCase):
+    """format_date 的兩個語言格式。
+
+    原生報表印的是語言格式（10/08/2026），ISO 的 2026-10-08 在單據上是
+    看得出來的差別。但**預設值刻意不動**：既有範本（含使用者手工做的）
+    的輸出不該因為這個改動而位移，要語言格式的是轉換器產生的表達式，
+    它會明寫 'lang'。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '日期格式'})
+
+    def _render(self, expression):
+        env_j = self.Mixin._get_sandbox_env(self.partner)
+        return env_j.from_string('{{ %s }}' % expression).render(
+            object=self.partner, user=self.env.user)
+
+    def test_default_is_still_iso(self):
+        self.assertEqual(
+            self._render("format_date(object.create_date)"),
+            self.partner.create_date.strftime('%Y-%m-%d'),
+        )
+
+    def test_lang_uses_odoo_date_format(self):
+        from odoo.tools.misc import format_date as odoo_format_date
+        self.assertEqual(
+            self._render("format_date(object.create_date, 'lang')"),
+            odoo_format_date(self.env, self.partner.create_date),
+        )
+
+    def test_lang_datetime_includes_the_time(self):
+        from odoo.tools.misc import format_datetime
+        self.assertEqual(
+            self._render("format_date(object.create_date, 'lang_datetime')"),
+            format_datetime(self.env, self.partner.create_date),
+        )
+
+    def test_empty_value_is_still_empty(self):
+        self.assertEqual(self._render("format_date(False, 'lang')"), '')
+
+    def test_bad_value_does_not_raise(self):
+        """格式化不了就退回字串——一個壞欄位不該讓整份文件產不出來。"""
+        self.assertEqual(self._render("format_date('不是日期', 'lang')"),
+                         '不是日期')

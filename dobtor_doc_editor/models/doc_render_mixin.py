@@ -10,6 +10,8 @@ from jinja2.sandbox import SandboxedEnvironment
 from odoo import models, api, fields
 from odoo.exceptions import UserError, AccessError
 from odoo.tools.misc import format_amount
+from odoo.tools.misc import format_date as odoo_format_date
+from odoo.tools.misc import format_datetime as odoo_format_datetime
 from odoo.tools.image import FILETYPE_BASE64_MAGICWORD, image_data_uri
 from odoo.tools.mail import html_sanitize
 
@@ -96,9 +98,29 @@ class DocRenderMixin(models.AbstractModel):
             return dict(selection).get(value, value or '')
 
         def format_date(value, fmt='%Y-%m-%d'):
-            """安全地格式化 date / datetime；None 與字串原樣回傳。"""
+            """安全地格式化 date / datetime；None 與字串原樣回傳。
+
+            fmt 兩個特殊值走 Odoo 自己的語言格式（原生報表印的就是這個，
+            `2026-10-08` 與 `10/08/2026` 在單據上是看得出來的差別）：
+                'lang'           → odoo.tools.misc.format_date（只有日期）
+                'lang_datetime'  → odoo.tools.misc.format_datetime（含時間）
+            預設值刻意不動：既有範本（含使用者手工做的）的輸出不該因為這個
+            改動而位移，要語言格式的是轉換器產生的表達式，它會明寫 'lang'。
+            """
             if value is None or value is False:
                 return ''
+            if fmt in ('lang', 'lang_datetime'):
+                try:
+                    if fmt == 'lang_datetime':
+                        out = odoo_format_datetime(self.env, value)
+                    else:
+                        out = odoo_format_date(self.env, value)
+                except Exception:
+                    out = ''
+                # Odoo 的 format_date 對不是日期的值回空字串（不是拋例外）。
+                # 原樣回傳字串是這個 helper 既有的約定——回空的話，
+                # 把 format_date 套在非日期欄位上會靜默吃掉內容。
+                return out or str(value)
             if hasattr(value, 'strftime'):
                 return value.strftime(fmt)
             return str(value)
