@@ -3217,3 +3217,114 @@ class TestMarkersNeverPrint(TransactionCase):
                 _pill('〔分組標題〕', source=source, isMarker=True,
                       repeatId='rp1'))
             self.assertNotIn('分組', html, '%s 的標記印出來了' % source)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestSnapshotPassOrder(TransactionCase):
+    """快照管線的 pass 順序本身。
+
+    467 則測試驗的都是「每一關的行為」，沒有一則驗「順序」——而
+    _snapshot_content_json 的註解自稱「順序有意義，不可對調」。
+    少了這一則，把欄條件搬到列條件前面不會有任何測試變紅，
+    症狀是某張單據的列條件無聲消失（那個標記剛好放在被刪掉的欄裡）。
+
+    這則測試刻意同時釘住「順序」與「註解」：順序寫在 EXPECTED 裡，
+    而註解裡的那份清單是權威——兩邊不一致時，是提醒去看註解有沒有漏寫。
+    """
+
+    # 依 _snapshot_content_json 註解裡的 1 → 5
+    EXPECTED = [
+        '_expand_repeat_rows',          # 1
+        '_expand_tax_totals_rows',      # 1.5
+        '_condition_group_results',     # 2 的前置（兩關共用同一份結果）
+        '_apply_row_conditions',        # 2
+        '_apply_column_conditions',     # 3（一定排在列之後）
+        '_apply_paragraph_conditions',  # 3
+        '_apply_format_markers',        # 3.6
+        '_drop_empty_tables',           # 3.5
+        '_collapse_empty_paragraphs',   # 5（4 是下方的求值迴圈，不是方法）
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '順序測試'})
+
+    def _record_order(self, tree):
+        calls = []
+        klass = type(self.Mixin)
+        for name in self.EXPECTED:
+            original = getattr(klass, name)
+
+            def make(name, original):
+                def wrapper(mixin_self, *args, **kwargs):
+                    calls.append(name)
+                    return original(mixin_self, *args, **kwargs)
+                return wrapper
+
+            self.patch(klass, name, make(name, original))
+        self.Mixin._snapshot_content_json(tree, self.partner)
+        return calls
+
+    def _tree(self):
+        return {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 300}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 _pill('名稱', source='line', path='name'),
+             )]}]},
+            _text('\n'),
+            _pill('條件', source='condition', expression='object.name'),
+            _text('有條件的一段'),
+            _text('\n'),
+        ]}
+
+    def test_passes_run_in_the_documented_order(self):
+        self.assertEqual(self._record_order(self._tree()), self.EXPECTED)
+
+    def test_every_pass_actually_runs(self):
+        """少跑一關比順序錯更嚴重：那一關的功能整個靜默失效。"""
+        calls = self._record_order(self._tree())
+        self.assertEqual(sorted(set(calls)), sorted(set(self.EXPECTED)))
+
+    def test_export_path_skips_the_structural_passes(self):
+        """only_pending=True 是匯出時補值用的，不可以再動結構。
+
+        那時版面已經定案（條件算過、重複展開過），再跑一次會把已經填好的
+        列又當成模板複製一遍。
+        """
+        calls = []
+        klass = type(self.Mixin)
+        for name in self.EXPECTED:
+            original = getattr(klass, name)
+
+            def make(name, original):
+                def wrapper(mixin_self, *args, **kwargs):
+                    calls.append(name)
+                    return original(mixin_self, *args, **kwargs)
+                return wrapper
+
+            self.patch(klass, name, make(name, original))
+        self.Mixin._snapshot_content_json(
+            self._tree(), self.partner, only_pending=True)
+        self.assertEqual(calls, [], '匯出路徑不該跑結構關卡：%s' % calls)
+
+    def test_the_comment_block_lists_every_pass(self):
+        """註解是權威，所以它必須提到每一關的名字。
+
+        加了新的 pass 卻沒更新那段註解，就是「順序約束只存在於某人腦袋裡」
+        的開始——實測發生過一次（條件式格式）。
+        """
+        import inspect
+        source = inspect.getsource(
+            type(self.Mixin)._snapshot_content_json)
+        head = source[:source.index('env_j = self._get_sandbox_env')]
+        comment = '\n'.join(line for line in head.split('\n')
+                            if line.strip().startswith('#'))
+        for name in self.EXPECTED:
+            if name == '_condition_group_results':
+                continue  # 它是前置計算，註解裡以「if/else 群組」描述
+            self.assertIn(
+                name, comment,
+                '%s 沒有寫進 _snapshot_content_json 的順序註解' % name)
