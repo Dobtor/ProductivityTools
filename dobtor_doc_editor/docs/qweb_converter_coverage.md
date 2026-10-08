@@ -206,17 +206,17 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 
 | 報表 | 原生 token | 我們 | 漏印 | 多印 |
 |---|---|---|---|---|
-| `sale.action_report_saleorder` | 60 | 69 | 5 | 14 |
-| `account.account_invoices` | 42 | 53 | 5 | 16 |
-| `purchase.action_report_purchase_order` | 59 | 57 | 18 | 16 |
+| `sale.action_report_saleorder` | 60 | 69 | 4 | 13 |
+| `account.account_invoices` | 42 | 53 | 4 | 15 |
+| `purchase.action_report_purchase_order` | 59 | 57 | 17 | 15 |
 
 剩下的漏印是這幾類（都不是「值算錯」）：
 
 - `Odoo Report`——原生的 `<title>`，不是內容。
-- `Subtotal` 與它的金額——內建的稅額彙總區塊只有三列（稅前小計／稅別／
-  總計），原生在有稅別時還有一列 Subtotal。那是內建區塊的設計，不是轉換
-  漏掉。
-- `Total` vs 我們的「總計」——內建區塊的標籤是中文的。
+- `Subtotal` 與它的金額——那是**章節小計**（`current_subtotal` 累加器，
+  見 §6），不是稅額彙總的列。稅額彙總的列數與原生一致（小計依
+  `tax_totals['subtotals']` 筆數、稅別依 `tax_groups` 筆數、現金捨入有設定
+  才印、最後總計）。
 - 採購單：公司的 `information_block`（公司地址電話）沒有帶進來。
 
 多印的主要來源：

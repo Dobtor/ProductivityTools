@@ -946,7 +946,8 @@ class TestTaxTotalsInTable(TestQwebConverterBase):
         )
         blocks = self._blocks(res)
         self.assertEqual(len(blocks), 1, '要產生內建的稅額彙總區塊')
-        self.assertEqual(len(blocks[0]['trList']), 3, '稅前小計／稅別／總計')
+        self.assertEqual(len(blocks[0]['trList']), 4,
+                         '小計／稅別／現金捨入／總計')
         self.assertEqual(res['stats']['taxTotals'], 1)
         # 那張空殼表格不該留下來
         self.assertEqual(len(list(self._tables(res['tree']['main']))), 1)
@@ -1003,3 +1004,49 @@ class TestBranchKeepsLabels(TestQwebConverterBase):
         )
         self.assertFalse(list(self._tables(res['tree']['main'])),
                          '不該退回區塊級的若／否則')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestTaxTotalsLabels(TestQwebConverterBase):
+    """彙總區塊裡寫死的標籤要走多語文字藥丸。
+
+    稅前小計與稅別的名稱是 Odoo 給的（已依記錄語言翻好），只有「總計」與
+    「現金捨入」是我們自己寫的字——寫死中文的話，英文單據上就會夾一個
+    中文的「總計」。
+    """
+
+    def _block(self):
+        res = self._convert(
+            '<table><t t-call="account.document_tax_totals"/></table>',
+            model='res.partner',
+        )
+        return [t for t in self._tables(res['tree']['main'])
+                if (t.get('extension') or {}).get('dobtorBlock')
+                == 'taxTotals'][0]
+
+    def _metas_of(self, row):
+        return [m for cell in row['tdList']
+                for m in self._metas(cell['value'])]
+
+    def test_total_label_is_an_i18n_pill(self):
+        rows = self._block()['trList']
+        meta = self._metas_of(rows[3])[0]
+        self.assertEqual(meta.get('source'), 'i18n')
+        self.assertEqual(meta.get('key'), 'doc_tax_total')
+        self.assertEqual(meta.get('texts'),
+                         {'zh_TW': '總計', 'en_US': 'Total'})
+
+    def test_rounding_row_exists_with_an_i18n_label(self):
+        rows = self._block()['trList']
+        meta = self._metas_of(rows[2])[0]
+        self.assertEqual(meta.get('source'), 'i18n')
+        self.assertEqual(meta.get('key'), 'doc_tax_rounding')
+        amount = self._metas_of(rows[2])[1]
+        self.assertEqual(amount.get('part'), 'rounding')
+
+    def test_data_driven_labels_stay_tax_totals_pills(self):
+        """小計與稅別的名稱不要改成 i18n——那是資料，Odoo 已經翻好了。"""
+        rows = self._block()['trList']
+        for idx in (0, 1):
+            self.assertEqual(self._metas_of(rows[idx])[0].get('source'),
+                             'taxTotals')

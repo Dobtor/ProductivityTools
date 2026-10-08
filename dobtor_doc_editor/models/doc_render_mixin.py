@@ -1978,7 +1978,7 @@ class DocRenderMixin(models.AbstractModel):
     #   小計    name / base_amount_currency / tax_amount_currency / tax_groups
     #   稅別    group_name / group_label / tax_amount_currency /
     #           display_base_amount_currency
-    _TAX_PARTS = ('untaxed', 'groups', 'total')
+    _TAX_PARTS = ('untaxed', 'groups', 'rounding', 'total')
 
     def _row_tax_totals_meta(self, row):
         el, meta, _src = self._row_source_meta(row, (self._TAX_TOTALS_SOURCE,))
@@ -2086,22 +2086,47 @@ class DocRenderMixin(models.AbstractModel):
                 if part not in self._TAX_PARTS:
                     part = 'total'
                 if part == 'untaxed':
-                    subs = data.get('subtotals') or []
-                    sub = subs[0] if subs else {}
-                    self._fill_tax_row(row, {
-                        'document': {
-                            'label': sub.get('name') or '',
-                            'amount': sub.get('base_amount_currency'),
-                            'base': sub.get('base_amount_currency'),
-                        },
-                        'company': {
-                            'label': sub.get('name') or '',
-                            'amount': sub.get('base_amount'),
-                            'base': sub.get('base_amount'),
-                        },
-                    }, stamp, currencies)
-                    new_rows.append(row)
-                    count += 1
+                    # 原生是 for subtotal in tax_totals['subtotals']——
+                    # 多個稅基時（含稅與未稅混用）會有好幾列小計。
+                    # 原本只取 subtotals[0]，那時後面幾列整個不見。
+                    for sub in (data.get('subtotals') or []):
+                        clone = _copy.deepcopy(row)
+                        clone.pop('id', None)
+                        self._fill_tax_row(clone, {
+                            'document': {
+                                'label': sub.get('name') or '',
+                                'amount': sub.get('base_amount_currency'),
+                                'base': sub.get('base_amount_currency'),
+                            },
+                            'company': {
+                                'label': sub.get('name') or '',
+                                'amount': sub.get('base_amount'),
+                                'base': sub.get('base_amount'),
+                            },
+                        }, stamp, currencies)
+                        new_rows.append(clone)
+                        count += 1
+                elif part == 'rounding':
+                    # 現金捨入列：沒設定現金捨入時 tax_totals 裡沒有這個鍵，
+                    # 那一列就不該出現（與零稅別時稅別列消失同一個規則）
+                    if 'cash_rounding_base_amount_currency' in data:
+                        self._fill_tax_row(row, {
+                            'document': {
+                                'label': '',
+                                'amount': data.get(
+                                    'cash_rounding_base_amount_currency'),
+                                'base': data.get(
+                                    'cash_rounding_base_amount_currency'),
+                            },
+                            'company': {
+                                'label': '',
+                                'amount': data.get(
+                                    'cash_rounding_base_amount'),
+                                'base': data.get('cash_rounding_base_amount'),
+                            },
+                        }, stamp, currencies)
+                        new_rows.append(row)
+                        count += 1
                 elif part == 'groups':
                     # 零稅別時整列消失——印一列 0 元的稅額比不印更容易被誤讀
                     for sub in (data.get('subtotals') or []):

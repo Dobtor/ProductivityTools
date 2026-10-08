@@ -3140,17 +3140,25 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         const val = (part, field, labelText) => ({
             source: "taxTotals", part, field, labelText,
         });
-        // 總計那列的名稱刻意留白讓使用者自己打「總計」——Odoo 只給得出
-        // 稅前小計與稅別的名稱，總計沒有對應的資料欄位。
+        // 稅前小計與稅別的名稱是 Odoo 給的（已依記錄語言翻好），
+        // 「總計」與「現金捨入」是我們自己寫的字——用多語文字藥丸，
+        // 寫死中文的話英文單據上會夾一個中文的「總計」。
         // 後端靠「列內任一個 taxTotals 藥丸的 part」認列，不需要額外的標記藥丸。
+        const i18n = (key, zh, en) => ({
+            source: "i18n", key, labelText: zh, texts: { zh_TW: zh, en_US: en },
+        });
         const ok = this.insertBlockContainer("taxTotals", [
             [[val("untaxed", "label", "稅前小計")], [val("untaxed", "amount", "金額")]],
             [[val("groups", "label", "稅別")], [val("groups", "amount", "稅額")]],
-            [[], [val("total", "amount", "總計金額")]],
+            [[i18n("doc_tax_rounding", "現金捨入", "Rounding")],
+             [val("rounding", "amount", "捨入金額")]],
+            [[i18n("doc_tax_total", "總計", "Total")],
+             [val("total", "amount", "總計金額")]],
         ]);
         if (ok) {
             this.notification.add(
-                "已插入稅額彙總。第二列會依稅別數自動複製；沒有稅時該列不印。",
+                "已插入稅額彙總。小計列依稅基數、稅別列依稅別數自動複製；"
+                + "沒有稅或沒設現金捨入時那一列不印。",
                 { type: "info" }
             );
         }
@@ -3164,6 +3172,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         return [
             { value: "untaxed", label: "稅前小計" },
             { value: "groups", label: "稅別（每稅別一列）" },
+            { value: "rounding", label: "現金捨入（沒設定就不印）" },
             { value: "total", label: "總計" },
         ];
     }

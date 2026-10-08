@@ -1541,10 +1541,26 @@ class DocQwebConverter(models.AbstractModel):
 
     # ─── 稅額彙總 ───────────────────────────────────────────────────
 
+    # 彙總區塊裡寫死的標籤 → 多語文字藥丸。
+    # 稅前小計與稅別的名稱是 Odoo 給的（已經依記錄語言翻好），只有「總計」
+    # 與「現金捨入」是我們自己寫的字——寫死中文的話，英文單據上就會夾一個
+    # 中文的「總計」。
+    _TAX_TOTALS_LABELS = {
+        'total': ('doc_tax_total', {'zh_TW': '總計', 'en_US': 'Total'}),
+        'rounding': ('doc_tax_rounding',
+                     {'zh_TW': '現金捨入', 'en_US': 'Rounding'}),
+    }
+
     def _tax_totals_block(self, state, mode='document'):
         def val(part, field, label):
             return self._pill(label, state, source='taxTotals', part=part,
                               field=field, currencyMode=mode)
+
+        def label(part):
+            key, texts = self._TAX_TOTALS_LABELS[part]
+            return self._pill(texts['zh_TW'], state, source='i18n',
+                              key=key, texts=dict(texts))
+
         cell = lambda *els: {'colspan': 1, 'rowspan': 1,
                              'value': list(els) + [self._newline()]}
         inner = self._inner_width(state)
@@ -1555,11 +1571,15 @@ class DocQwebConverter(models.AbstractModel):
             'colgroup': [{'width': int(inner * 0.6)},
                          {'width': inner - int(inner * 0.6)}],
             'trList': [
+                # 小計列依 tax_totals['subtotals'] 的筆數複製（多稅基時有好幾列）
                 {'tdList': [cell(val('untaxed', 'label', '稅前小計')),
                             cell(val('untaxed', 'amount', '金額'))]},
                 {'tdList': [cell(val('groups', 'label', '稅別')),
                             cell(val('groups', 'amount', '稅額'))]},
-                {'tdList': [cell(self._text('總計')),
+                # 現金捨入：沒設定時 tax_totals 裡沒有那個鍵，這一列不印
+                {'tdList': [cell(label('rounding')),
+                            cell(val('rounding', 'amount', '捨入金額'))]},
+                {'tdList': [cell(label('total')),
                             cell(val('total', 'amount', '總計金額'))]},
             ],
         }

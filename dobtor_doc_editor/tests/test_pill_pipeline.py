@@ -1146,13 +1146,17 @@ class TestTaxTotalsBlock(TransactionCase):
         ]
 
     def test_missing_source_yields_blanks_not_crash(self):
-        """欄位不存在（非銷售單據）時印空白，不可讓整份文件產不出來。"""
+        """欄位不存在（非銷售單據）時不可讓整份文件產不出來。
+
+        小計列與稅別列都是「有幾筆資料就幾列」（原生也是 t-foreach），
+        所以沒有 tax_totals 時兩列都不出現，只剩總計那一列印 0。
+        小計列原本固定印一列，資料沒有時會留一條空白列。
+        """
         tree = self._tree()
         self.Mixin._snapshot_content_json(tree, self.partner)
         rows = self._rows(tree)
-        self.assertEqual(len(rows), 2, '沒有稅別資料 → 稅別列整列不印')
-        self.assertEqual(rows[0], ['', ''])
-        self.assertEqual(rows[1][0], '總計')
+        self.assertEqual(len(rows), 1, '沒有資料 → 小計列與稅別列都不印')
+        self.assertEqual(rows[0][0], '總計')
 
     def test_fill_tax_row_formats_numbers(self):
         """金額套千分位；名稱原樣輸出。"""
@@ -2957,3 +2961,65 @@ class TestLocaleDateFormat(TransactionCase):
         """格式化不了就退回字串——一個壞欄位不該讓整份文件產不出來。"""
         self.assertEqual(self._render("format_date('不是日期', 'lang')"),
                          '不是日期')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestTaxTotalsRowsRepeat(TransactionCase):
+    """小計列依 tax_totals['subtotals'] 複製、現金捨入列沒設定就不印。
+
+    原生是 for subtotal in tax_totals['subtotals']——多個稅基時（含稅與
+    未稅混用）會有好幾列小計，而我們原本只取 subtotals[0]。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '彙總列'})
+
+    def _tree(self):
+        def val(part, field, label):
+            return _pill(label, source='taxTotals', part=part, field=field)
+        return {'header': [], 'footer': [], 'main': [{
+            'type': 'table', 'value': '',
+            'extension': {'dobtorBlock': 'taxTotals'},
+            'colgroup': [{'width': 200}, {'width': 200}],
+            'trList': [
+                {'tdList': [_cell(val('untaxed', 'label', '小計')),
+                            _cell(val('untaxed', 'amount', '金額'))]},
+                {'tdList': [_cell(val('rounding', 'label', '捨入')),
+                            _cell(val('rounding', 'amount', '捨入金額'))]},
+                {'tdList': [_cell(_text('總計')),
+                            _cell(val('total', 'amount', '總計金額'))]},
+            ],
+        }, _text('\n')]}
+
+    def _rows(self, data):
+        original = type(self.Mixin)._tax_totals_data
+        self.patch(type(self.Mixin), '_tax_totals_data',
+                   lambda mixin, record, meta: data)
+        tree = self._tree()
+        self.Mixin._expand_tax_totals_rows(tree, self.partner)
+        self.patch(type(self.Mixin), '_tax_totals_data', original)
+        return [[''.join(e.get('value') or '' for e in cell['value']).strip()
+                 for cell in row['tdList']]
+                for row in tree['main'][0]['trList']]
+
+    def test_two_subtotals_give_two_rows(self):
+        rows = self._rows({
+            'subtotals': [
+                {'name': '未稅金額', 'base_amount_currency': 100.0},
+                {'name': '含稅金額', 'base_amount_currency': 50.0},
+            ],
+            'total_amount_currency': 150.0,
+        })
+        self.assertEqual([r[0] for r in rows], ['未稅金額', '含稅金額', '總計'])
+
+    def test_rounding_row_appears_only_when_configured(self):
+        without = self._rows({'subtotals': [], 'total_amount_currency': 1.0})
+        self.assertEqual([r[0] for r in without], ['總計'])
+        with_rounding = self._rows({
+            'subtotals': [],
+            'cash_rounding_base_amount_currency': -0.03,
+            'total_amount_currency': 1.0,
+        })
+        self.assertEqual(len(with_rounding), 2, '有設定就要印那一列')
