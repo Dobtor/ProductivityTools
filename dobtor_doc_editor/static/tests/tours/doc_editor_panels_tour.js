@@ -203,6 +203,23 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
             trigger: ".doc-inspector-field:contains('幣別') select",
             run: () => {},
         },
+        {
+            // 不可以用 option:contains(...) 當 trigger：tour 的 trigger 要求
+            // 元素可見，而關起來的 <select> 裡的 <option> 不可見，
+            // 這一步會卡到 timeout（實測）。改成抓 select 再用 JS 看選項。
+            content: "列別下拉要有現金捨入（原生有這一列，我們本來沒有）",
+            trigger: ".doc-inspector-field:contains('這一列是') select",
+            run: () => {
+                const field = [...document.querySelectorAll(
+                    ".doc-inspector-field")].find(
+                    (el) => el.textContent.includes("這一列是"));
+                const values = [...field.querySelector("select").options]
+                    .map((o) => o.value);
+                if (!values.includes("rounding")) {
+                    throw new Error(`列別下拉少了 rounding，實際 ${values}`);
+                }
+            },
+        },
 
         {
             content: "選取圖片藥丸",
@@ -317,6 +334,78 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
                 }
             },
         },
+        // ─── 插入稅額彙總：列結構與多語標籤 ───
+        // 這一段驗的是「插入出來的東西對不對」，不只是按鈕在不在。
+        // 小計列要依稅基數複製、要有現金捨入列、而「總計」與「現金捨入」
+        // 這兩個寫死的字要是多語文字藥丸——寫死中文的話英文單據上會夾一個
+        // 中文的「總計」。
+        {
+            content: "記下插入前的表格數（稅額彙總）",
+            trigger: "body",
+            run: () => {
+                const cmp = window._docEditorCmp;
+                window.__ttBefore = cmp._collectTables(
+                    cmp.editor.command.getValue().data).length;
+            },
+        },
+        {
+            content: "點「插入稅額彙總」",
+            trigger: ".doc-field-palette-item:contains('稅額彙總')",
+            run: "click",
+        },
+        {
+            content: "彙總區塊要有四列，後兩列的標籤是多語文字藥丸",
+            trigger: "body",
+            run: () => {
+                const cmp = window._docEditorCmp;
+                const tables = cmp._collectTables(
+                    cmp.editor.command.getValue().data);
+                if (tables.length !== window.__ttBefore + 1) {
+                    throw new Error(
+                        `表格數應為 ${window.__ttBefore + 1}，實際 ${tables.length}`);
+                }
+                const blocks = tables.filter(
+                    (t) => (t.extension || {}).dobtorBlock === "taxTotals");
+                if (!blocks.length) {
+                    throw new Error("沒有表格被標成 dobtorBlock=taxTotals");
+                }
+                const b = blocks[blocks.length - 1];
+                if ((b.trList || []).length !== 4) {
+                    throw new Error(
+                        `應為 4 列（小計／稅別／現金捨入／總計），實際 ${
+                            (b.trList || []).length}`);
+                }
+                const metaOf = (row, col) => ((row.tdList[col].value || [])
+                    .map((el) => (el.extension || {}).dobtorField)
+                    .filter(Boolean)[0]) || {};
+                const parts = b.trList.map((r) => metaOf(r, 1).part);
+                if (parts.join(",") !== "untaxed,groups,rounding,total") {
+                    throw new Error(`列的 part 應為 untaxed,groups,rounding,total，實際 ${parts}`);
+                }
+                for (const [idx, key] of [[2, "doc_tax_rounding"],
+                                          [3, "doc_tax_total"]]) {
+                    const label = metaOf(b.trList[idx], 0);
+                    if (label.source !== "i18n") {
+                        throw new Error(
+                            `第 ${idx + 1} 列的標籤應是多語文字藥丸，實際 ${label.source}`);
+                    }
+                    if (label.key !== key) {
+                        throw new Error(`翻譯鍵應為 ${key}，實際 ${label.key}`);
+                    }
+                    if (!(label.texts || {}).en_US) {
+                        throw new Error(`${key} 少了 en_US 的文字`);
+                    }
+                }
+                // 小計與稅別的名稱是 Odoo 給的資料，不該被改成多語文字
+                for (const idx of [0, 1]) {
+                    if (metaOf(b.trList[idx], 0).source !== "taxTotals") {
+                        throw new Error(
+                            `第 ${idx + 1} 列的名稱應該是 taxTotals 藥丸（那是資料）`);
+                    }
+                }
+            },
+        },
+
         {
             content: "插入若／否則區塊",
             trigger: ".doc-field-palette-item:contains('插入若／否則區塊')",

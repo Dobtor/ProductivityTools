@@ -61,7 +61,10 @@ echo "─── 結果 ───"
 grep -aE "odoo\.tests\.result:.*tests when loading database" "$LOG" | tail -1
 grep -aoE '\[[0-9]+/[0-9]+\] Tour [a-z_]+' "$LOG" | tail -1
 
-OK=$(grep -ac 'tour succeeded' "$LOG")
+# 比對要錨在「真的 log 行」上：Odoo 的 traceback 裡也印得出
+# success_signal="tour succeeded" 這串字，不錨的話失敗的執行也會被判成成功
+# （實測過，而且它騙過了我自己）
+OK=$(grep -acE '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*tour succeeded' "$LOG")
 SKIPPED=$(grep -ac 'skipped\|未執行（前端未驗證）' "$LOG")
 FAILED=$(grep -acE 'odoo\.tests\.result:.*[1-9][0-9]* (failed|error)' "$LOG")
 

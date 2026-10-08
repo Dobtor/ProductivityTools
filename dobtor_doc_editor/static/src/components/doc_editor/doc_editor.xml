@@ -1961,7 +1961,8 @@
                         <div class="doc-inspector-note">
                             <i class="fa fa-info-circle me-1" aria-hidden="true"/>
                             取自 Odoo 自己算好的 <code>tax_totals</code>，與原生報表同一份數字。<br/>
-                            <b>稅別</b>那一列會依實際稅別數複製；沒有稅時整列不印。
+                            <b>小計</b>依稅基數、<b>稅別</b>依稅別數自動複製；
+                            沒有稅或沒設現金捨入時那一列不印。
                         </div>
                         <div class="doc-inspector-field">
                             <label>這一列是</label>
