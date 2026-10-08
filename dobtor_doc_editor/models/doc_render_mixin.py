@@ -125,7 +125,8 @@ class DocRenderMixin(models.AbstractModel):
                 return value.strftime(fmt)
             return str(value)
 
-        def format_address(partner, without_company=False, with_name=False):
+        def format_address(partner, without_company=False, with_name=False,
+                           with_phone=False):
             """依國別格式排版的地址（對應原生的 t-options widget="contact"）。
 
             委派給 res.partner._display_address()——那支就是 Odoo 自己用的，
@@ -147,10 +148,16 @@ class DocRenderMixin(models.AbstractModel):
                 if not target:
                     return ''
                 body = target._display_address(without_company=without_company)
-                if not with_name:
-                    return body
-                name = str(target.display_name or '').strip()
-                return ('%s\n%s' % (name, body)) if name else body
+                if with_name:
+                    name = str(target.display_name or '').strip()
+                    body = ('%s\n%s' % (name, body)) if name else body
+                if with_phone:
+                    # 原生 contact widget 的 fields 常含 phone（採購單、出貨單
+                    # 都有）。不帶的話單據上少一行電話。
+                    phone = str(target.phone or target.mobile or '').strip()
+                    if phone:
+                        body = '%s\n%s' % (body, phone)
+                return body
             except Exception:
                 # 不是 partner（或沒有這支方法）→ 退回 display_name，
                 # 至少印得出東西而不是讓整份文件產不出來
@@ -289,6 +296,8 @@ class DocRenderMixin(models.AbstractModel):
         ('stock.move', '_get_report_description_picking'),
         # 出貨單的彙總明細（同品項跨列合併）。只組一個 dict 回傳
         ('stock.move.line', '_get_aggregated_product_quantities'),
+        # 發票上要印的批號／序號明細（sale_stock 加的）。只讀 stock move
+        ('account.move', '_get_invoiced_lot_values'),
     })
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')
@@ -1138,6 +1147,9 @@ class DocRenderMixin(models.AbstractModel):
             self._apply_row_conditions(tree, record, groups)
             self._apply_column_conditions(tree, record, groups)
             self._apply_paragraph_conditions(tree, record, groups)
+            # 3.6 條件式格式——排在條件之後（被移除的列不必再算格式），
+            #     排在求值之前（格式與值無關，先算完後面就不用管它）
+            self._apply_format_markers(tree, record)
             self._drop_empty_tables(tree)
 
         env_j = self._get_sandbox_env(record)
@@ -1167,6 +1179,11 @@ class DocRenderMixin(models.AbstractModel):
             if only_pending and meta.get('frozenAt'):
                 continue  # 已凍結過：維持原值，不重新求值
             src = meta.get('source') or 'record'
+            if src == self._FORMAT_SOURCE:
+                # 條件式格式是標記不是取值。走到這裡表示它沒被自己那一關
+                # 處理掉（only_pending 的匯出路徑），留著不動比把條件的
+                # 求值結果印進文件好。
+                continue
             if src in self._EXPANSION_SOURCES:
                 # 由 _expand_repeat_rows 負責。走到這裡只有兩種情況：
                 #   1. 展開已處理過（那時已蓋 frozenAt，上一個 continue 就擋掉了）
@@ -1866,6 +1883,10 @@ class DocRenderMixin(models.AbstractModel):
                         if not self._resolve_line_row_conditions(
                                 clone, record, line, loop):
                             continue
+                        # 條件式格式要逐筆算：原生的
+                        # t-att-class="'fw-bold' if line.display_type == …"
+                        # 就是每一列各自判斷
+                        self._resolve_format_markers(clone, record, line, loop)
                         new_rows.append(clone)
                         total += 1
                     if ftr_tmpl is not None:
@@ -2203,6 +2224,122 @@ class DocRenderMixin(models.AbstractModel):
     # 條件，或做兩張範本由 doc.report 挑。
 
     _CONDITION_SOURCE = 'condition'
+
+    # ─── 條件式格式 ─────────────────────────────────────────────────
+    #
+    # 「條件成立就把這一列（或這一段）變成粗體／改色／改對齊」。
+    # 為什麼需要它：原生報表用 t-att-class 做這件事
+    #   <tr t-att-class="'fw-bold o_line_section' if line.display_type == …">
+    # 而我們只能吃靜態 class——條件式的那些只能留待辦。
+    #
+    # 設計與條件標記對稱（同一套心智模型，使用者學一次就會）：
+    #   * 標記藥丸放哪裡決定作用範圍：放在表格列內＝整列，放在段落裡＝整段
+    #   * 條件成立才套用；條件求值失敗一律「不套用」
+    #     ——這裡刻意與條件標記的「寧可多印」相反：格式套錯（整份變粗體）
+    #     比沒套上難追得多，而沒套上只是看起來樸素一點
+    #   * 套用完標記就移除，不會印出來
+    _FORMAT_SOURCE = 'format'
+    _FORMAT_KEYS = ('bold', 'italic', 'underline', 'strikeout',
+                    'color', 'highlight', 'size', 'font')
+
+    def _element_format_meta(self, element):
+        meta = self._element_field_meta(element)
+        if meta and (meta.get('source') or '') == self._FORMAT_SOURCE:
+            return meta
+        return None
+
+    def _format_style(self, meta):
+        """標記上要套用的屬性（不含對齊）。"""
+        return {key: meta[key] for key in self._FORMAT_KEYS
+                if meta.get(key) not in (None, '', False)}
+
+    def _apply_format_to(self, elements, meta, align_on=None):
+        """把格式套到一串元素上（表格元素不碰，它自己的格子會各自處理）。
+
+        align_on 是「段落結尾的那個換行元素」——對齊掛在它身上
+        （_elements_to_html 讀它的 rowFlex）。段落區間不含那個換行，
+        所以要另外傳進來。
+        """
+        style = self._format_style(meta)
+        align = (meta.get('align') or '').strip()
+        for el in elements:
+            if not isinstance(el, dict):
+                continue
+            if self._element_format_meta(el):
+                continue
+            if (el.get('type') or '') == 'table':
+                continue
+            if style:
+                el.update(style)
+            if align and (el.get('value') or '') == '\n':
+                el['rowFlex'] = align
+        if align and isinstance(align_on, dict):
+            align_on['rowFlex'] = align
+
+    def _resolve_format_markers(self, row, record, line=None, loop=None):
+        """表格列裡的條件式格式標記：成立就套用到整列，然後移除標記。"""
+        cells = [c for c in (row.get('tdList') or []) if isinstance(c, dict)]
+        found = [(el, meta) for cell in cells
+                 for el in (cell.get('value') or [])
+                 for meta in [self._element_format_meta(el)] if meta]
+        if not found:
+            return
+        extra = dict(loop or {})
+        if line is not None:
+            extra['line'] = line
+        for _el, meta in found:
+            expression = (meta.get('expression') or '').strip()
+            # 格式的失敗策略與條件相反：算不出來就不套用
+            if expression and self._try_eval_condition(
+                    expression, record, extra) is not True:
+                continue
+            for cell in cells:
+                self._apply_format_to(cell.get('value') or [], meta)
+        ids = {id(el) for el, _m in found}
+        for cell in cells:
+            if isinstance(cell.get('value'), list):
+                cell['value'] = [el for el in cell['value']
+                                 if id(el) not in ids]
+
+    def _apply_format_markers(self, tree, record):
+        """重複列以外的條件式格式：表格列套整列、段落套整段。"""
+        if not tree:
+            return 0
+        count = 0
+        for table in self._iter_tables(tree):
+            for row in (table.get('trList') or []):
+                if isinstance(row, dict):
+                    before = sum(len(c.get('value') or [])
+                                 for c in (row.get('tdList') or [])
+                                 if isinstance(c, dict))
+                    self._resolve_format_markers(row, record)
+                    after = sum(len(c.get('value') or [])
+                                for c in (row.get('tdList') or [])
+                                if isinstance(c, dict))
+                    if after != before:
+                        count += 1
+        for elements in self._iter_element_lists(tree):
+            for span in reversed(self._iter_paragraph_spans(elements)):
+                start, end, _nl = span
+                markers = [(elements[i], self._element_format_meta(elements[i]))
+                           for i in range(start, end)
+                           if self._element_format_meta(elements[i])]
+                if not markers:
+                    continue
+                nl = elements[_nl] if _nl is not None and _nl < len(
+                    elements) else None
+                for _el, meta in markers:
+                    expression = (meta.get('expression') or '').strip()
+                    if expression and self._try_eval_condition(
+                            expression, record) is not True:
+                        continue
+                    self._apply_format_to(elements[start:end], meta,
+                                          align_on=nl)
+                ids = {id(el) for el, _m in markers}
+                elements[start:end] = [el for el in elements[start:end]
+                                       if id(el) not in ids]
+                count += 1
+        return count
 
     def _eval_condition(self, expression, record, extra=None):
         """求值一個條件表達式。

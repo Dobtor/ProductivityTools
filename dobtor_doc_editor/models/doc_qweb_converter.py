@@ -48,6 +48,8 @@ _BLOCK_TAGS = frozenset({
 _SKIP_TAGS = frozenset({'script', 'style', 'link', 'meta'})
 
 _SIMPLE_PATH_RE = re.compile(r'^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$')
+# class 字面值（單引號或雙引號）
+_LIT = r"'[^']*'" + r'|"[^"]*"'
 # 表達式有沒有綁到沙箱裡的根變數（object / line）。
 # 一律用 token 比對，不要寫 'line.' in expr：迴圈變數是 dict 時 QWeb 寫
 # 下標（line['date']），帶點的字串比對會判成「不是明細欄位」，
@@ -328,8 +330,28 @@ class DocQwebConverter(models.AbstractModel):
         return view
 
     def _parse_arch(self, view):
+        """範本的 arch（**含所有繼承進來的修改**）。
+
+        一定要用 _get_combined_arch()：view.arch_db 只有這張 view 自己寫的
+        那一段，模組對報表做的擴充完全看不到。實測後果——採購單少印
+        purchase_stock 加上去的「Shipping address」整塊，而普查時看到樹裡有
+        <xpath> 與 <attribute> 標籤（那是繼承指令，不該出現在要轉換的樹裡），
+        就是這個原因留下的痕跡。
+        """
+        from lxml import etree
         try:
-            from lxml import etree
+            root = view.sudo()._get_combined_arch()
+            if root is not None:
+                # 註解在 combined arch 裡還留著，清掉以免被當成內容
+                for comment in root.xpath('//comment()'):
+                    parent = comment.getparent()
+                    if parent is not None:
+                        parent.remove(comment)
+                return root
+        except Exception as e:
+            _logger.warning('[qweb-import] combined arch 取不到 %s：%s',
+                            view.key, e)
+        try:
             return etree.fromstring(
                 view.arch_db or view.arch or '<t/>',
                 etree.XMLParser(recover=True, remove_comments=True),
@@ -568,6 +590,10 @@ class DocQwebConverter(models.AbstractModel):
         ('t-att-colspan', '動態跨欄數'),
     )
 
+    def _known_class_shape(self, raw):
+        """這個 t-att-class 的寫法我們轉得掉嗎。"""
+        return bool(self._parse_class_chain(raw))
+
     def _note_unconverted_attrs(self, root, state):
         """數一數「會影響輸出但轉不過去」的屬性，逐類留一條待辦。"""
         counts = {}
@@ -575,6 +601,9 @@ class DocQwebConverter(models.AbstractModel):
             if not isinstance(el.tag, str):
                 continue
             for name in el.attrib:
+                if name == 't-att-class' and self._known_class_shape(
+                        el.get(name)):
+                    continue  # 這一種我們轉得掉（條件式格式／固定格式）
                 for prefix, desc in self._UNCONVERTED_ATTRS:
                     if name == prefix:
                         counts[desc] = counts.get(desc, 0) + 1
@@ -785,6 +814,17 @@ class DocQwebConverter(models.AbstractModel):
         (r'\b(?:env\.user|request\.env\.user)\.has_group\(',
          'has_group(',
          'env.user.has_group(…) 已改用同名的 helper（沙箱不開放 env）'),
+        # 渲染時的 context 旗標（proforma 之類）。文件是先存下來再印的，
+        # 沒有那個 context，所以一律取 get() 的預設值——這與「使用者直接印
+        # 一張普通單據」一致。要兩種版本請複製一份範本。
+        (r"\benv\.context\.get\(\s*['\"][^'\"]+['\"]\s*,\s*([^()]*?)\s*\)",
+         r'\1',
+         'env.context.get(…) 是渲染時的旗標（例如 proforma），文件沒有那個'
+         ' context，已取 get() 的預設值。要另一種版本請複製一份範本'),
+        (r"\benv\.context\.get\(\s*['\"][^'\"]+['\"]\s*\)",
+         'False',
+         'env.context.get(…) 沒有預設值，已當成 False（文件沒有渲染時的'
+         ' context）'),
         (r'([\w\.]+)\.sudo\(\s*\)',
          r'\1',
          'sudo() 已移除（沙箱不開放提權）。若該欄位受 ACL 限制可能讀不到，'
@@ -860,7 +900,83 @@ class DocQwebConverter(models.AbstractModel):
         # 根變數的 with_context 重新賦值不算累加器，也不必內聯
         state['accumulators'] -= set(_ROOT_VARS)
         state['symbols'] = symbols
+        state['accumulator_meta'] = self._accumulator_meta(root, state)
         return symbols
+
+    def _accumulator_meta(self, root, state):
+        """累加器的「加什麼」與「什麼時候歸零」。
+
+        原生的章節小計是這個形狀：
+            <t t-set="current_subtotal" t-value="0"/>
+            <t t-foreach="lines" t-as="line">
+                <t t-set="current_subtotal"
+                   t-value="current_subtotal + line.price_subtotal"/>
+                <t t-if="line.display_type == 'line_section'">
+                    <t t-set="current_subtotal" t-value="0"/>   ← 歸零＝分組邊界
+                </t>
+        所以「加什麼」給得出分組小計的聚合欄位，「在什麼條件下歸零」就是
+        分組的切分條件。兩者都是從 arch 讀出來的，不是猜的。
+        """
+        meta = {}
+        for name in (state.get('accumulators') or ()):
+            info = {}
+            for node in root.xpath('//t[@t-set=%s]' % json.dumps(name)):
+                value = (node.get('t-value') or '').strip()
+                m = re.match(
+                    r'^%s\s*\+\s*(.+)$' % re.escape(name), value)
+                if m:
+                    info['sum'] = m.group(1).strip()
+                    continue
+                if value in ('0', '0.0', '0.00') and 'reset' not in info:
+                    # 歸零通常包在一個 t-if 裡，那個條件就是分組邊界
+                    parent = node.getparent()
+                    for _level in range(3):
+                        if parent is None:
+                            break
+                        cond = parent.get('t-if')
+                        if cond:
+                            info['reset'] = cond.strip()
+                            break
+                        parent = parent.getparent()
+            if info.get('sum') and not info.get('reset'):
+                info['reset'] = self._section_split_condition(root)
+            if info.get('sum'):
+                meta[name] = info
+        return meta
+
+    # 「這一列是章節列」的慣用判斷：<迴圈變數>.<欄位> == '<值>'。
+    # 用 search 而不是 match：原生的章節判斷常是複合條件
+    #   line.display_type == 'line_section' or line.product_type == 'combo'
+    # 整條都是章節的邊界，所以比對到其中一段就取整條。
+    _SECTION_COND_RE = re.compile(r"(?<![\w.])(\w+)\.(\w+)\s*==\s*'([^']+)'")
+
+    def _section_split_condition(self, root):
+        """分組邊界：從迴圈裡的「列型判斷」找。找不到回空字串。
+
+        這一版的 Odoo 不是在一個 t-if 裡把累加器歸零（歸零寫在小計列後面、
+        沒有條件），所以抓不到「歸零條件」。退而求其次：整棵樹裡找
+        `line.display_type == 'line_section'` 這種列型判斷——那就是章節的
+        邊界，而且是從 arch 讀出來的。找不到就留空，讓使用者自己指定。
+        """
+        # t-elif 也要看：列型分派常寫成 t-if（商品）→ t-elif（章節）→
+        # t-elif（備註），章節那一條就在 t-elif 上（實測漏過一次）
+        fallback = ''
+        for node in root.xpath('//*[@t-if] | //*[@t-elif]'):
+            cond = ' '.join(
+                (node.get('t-if') or node.get('t-elif') or '').split())
+            for m in self._SECTION_COND_RE.finditer(cond):
+                var, field, value = m.group(1), m.group(2), m.group(3)
+                if var in _ROOT_VARS:
+                    # doc.company_price_include == 'tax_included' 這種是主記錄
+                    # 的設定，不是列型判斷——不可以當分組邊界（實測踩過）
+                    continue
+                if 'section' in value or 'section' in field:
+                    # 章節優先：同一份範本裡 display_type 的比較有好幾條
+                    #（章節、備註…），取到備註那一條就會按備註分組（踩過）
+                    return cond
+                if field == 'display_type' and not fallback:
+                    fallback = cond
+        return fallback
 
     def _apply_rules(self, expr, state):
         """套用慣用寫法改寫表。回 (改寫後, 是否命中)。"""
@@ -1051,9 +1167,15 @@ class DocQwebConverter(models.AbstractModel):
             # 就是要印名稱。寫了就照它寫的來——這是從 arch 讀出來的事實，
             # 不是猜的。
             opt = self._parse_option_fields(node)
+            args = []
             if ('name' in opt) if opt else True:
-                return 'format_address(%s, with_name=True)' % base
-            return 'format_address(%s)' % base
+                args.append('with_name=True')
+            # 原生 contact widget 的 fields 常含 phone（採購單、出貨單都有），
+            # 不帶的話單據上少一行電話
+            if 'phone' in opt or 'mobile' in opt:
+                args.append('with_phone=True')
+            return 'format_address(%s%s)' % (
+                base, (', ' + ', '.join(args)) if args else '')
         if widget in _WIDGET_WRAPPERS:
             return _WIDGET_WRAPPERS[widget] % base
         return None
@@ -1164,11 +1286,41 @@ class DocQwebConverter(models.AbstractModel):
         label = '條碼：%s' % (meta.get('path') or '表達式').split('.')[-1]
         return self._pill(label[:20], state, **meta)
 
+    def _accumulator_pill(self, expr, state):
+        """累加器的取值 → 分組小計的聚合藥丸。回 None 表示不是累加器。
+
+        current_subtotal 這種值在本模組是「這一組明細的小計」，
+        所以取值要換成 group.lines|sum(attribute='…')——聚合而不是累加。
+        """
+        text = (expr or '').strip()
+        meta = state.get('accumulator_meta') or {}
+        info = meta.get(text)
+        if info is None:
+            return None
+        # 用現在的 state：這時候我們就在迴圈裡，loop_vars 才是真正的迴圈
+        # 變數名（寫死 'line' 的話 kid.credit_limit 不會被換掉——實測踩過）
+        summed = self._map_condition(info.get('sum') or '', state)
+        m = re.match(r'^line\.(\w+)$', summed.strip())
+        if m:
+            agg = "group.lines|sum(attribute='%s')" % m.group(1)
+        else:
+            agg = "group.lines|map(attribute='%s')|sum" % summed
+            self._note(
+                state,
+                '累加器加的是算式（%s），分組小計已改成 map|sum，請確認。'
+                % (info.get('sum') or '')[:60],
+            )
+        return self._pill('本組小計', state, source='group',
+                          expression='format_money(%s)' % agg)
+
     def _value_pill(self, node, expr, state):
         """t-field / t-out / t-esc → 藥丸。"""
         index_pill = self._loop_index_pill(expr, state)
         if index_pill is not None:
             return index_pill
+        acc_pill = self._accumulator_pill(expr, state)
+        if acc_pill is not None:
+            return acc_pill
         if self._parse_options(node) == 'barcode':
             return self._barcode_value_pill(node, expr, state)
         path, kind = self._strip_root(expr, state)
@@ -1409,7 +1561,11 @@ class DocQwebConverter(models.AbstractModel):
         # widget 不可以在這條路上掉掉：原生的
         # t-out="o.move_ids[0].partner_id or o.partner_id"
         # 帶 widget="contact"，掉了之後單據上印的是 "res.partner(7,)"。
-        return self._wrap_widget(node, self._map_condition(expr, state))
+        # expand=True 也不可少：慣用寫法的改寫（.sudo()、filtered(lambda …)）
+        # 都在 _apply_rules 裡，少了這一步分支裡的算式會原樣留著
+        # ——實測出貨單的 incoterm 欄留著 object.sudo()，試算直接 SecurityError。
+        return self._wrap_widget(
+            node, self._map_condition(expr, state, expand=True))
 
     def _emit_chain(self, chain, out, state):
         state['chain_unsure'] = False
@@ -1430,8 +1586,11 @@ class DocQwebConverter(models.AbstractModel):
         expr = exprs[-1][1] if chain[-1][0] is None else '""'
         tail = exprs[:-1] if chain[-1][0] is None else exprs
         for cond, piece in reversed(tail):
+            # expand=True：慣用寫法的改寫（.sudo()、filtered(lambda …)）在
+            # _apply_rules 裡，少了這一步分支的條件會原樣留著
+            # ——實測出貨單的 incoterm 條件留著 sudo()，試算 SecurityError。
             expr = '%s if (%s) else %s' % (
-                piece, self._map_condition(cond, state), expr,
+                piece, self._map_condition(cond, state, expand=True), expr,
             )
         label = ' '.join((''.join(chain[0][1].itertext()) or '').split())
         if not label:
@@ -1632,8 +1791,12 @@ class DocQwebConverter(models.AbstractModel):
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
             start = len(out)
+            block_markers, block_static = self._format_markers_for(node, state)
+            out.extend(block_markers)
             self._emit_children(node, out, state)
-            style = self._node_style(node, tag)
+            style = dict(self._node_style(node, tag) or {})
+            style.update({k: v for k, v in block_static.items()
+                          if k != 'align'})
             if style:
                 for el in out[start:]:
                     if el.get('type') not in ('label', 'table'):
@@ -1672,6 +1835,128 @@ class DocQwebConverter(models.AbstractModel):
         'text-center': 'center',
         'text-start': 'left',
     }
+
+    # cond and 'a' or 'b' → 'a' if cond else 'b'（先正規化再走鏈式解析）
+    _AND_OR_CLASS_RE = re.compile(
+        r"^\s*(?P<cond>.+?)\s+and\s+(?P<a>%s)\s+or\s+(?P<b>%s|None)\s*$"
+        % (_LIT, _LIT), re.S)
+
+    def _parse_class_chain(self, raw):
+        """class 的三元式鏈 → [(條件 or None, class 字串)]。認不出來回 []。
+
+        不能用一條正則：原生寫的是**鏈式**三元式
+            'fw-bold …' if <章節> else 'fst-italic …' if <備註> else ''
+        非貪婪的 .+? 會為了讓結尾對上而把中間那段吞進條件裡
+        （實測吞出一個 TemplateSyntaxError）。所以自己掃到「括號深度 0 的
+        else」為止。
+        """
+        text = ' '.join((raw or '').split())
+        m = self._AND_OR_CLASS_RE.match(text)
+        if m:
+            other = m.group('b')
+            text = "%s if %s else %s" % (
+                m.group('a'), m.group('cond'),
+                "''" if other == 'None' else other)
+        out = []
+        while True:
+            head = re.match(r"^\s*(%s)\s+if\s+(.+)$"
+                            % _LIT, text, re.S)
+            if not head:
+                break
+            classes, rest = head.group(1), head.group(2)
+            depth, idx, i = 0, None, 0
+            while i < len(rest):
+                ch = rest[i]
+                if ch in '([{':
+                    depth += 1
+                elif ch in ')]}':
+                    depth -= 1
+                elif depth == 0 and rest.startswith(' else ', i):
+                    idx = i
+                    break
+                i += 1
+            if idx is None:
+                return []
+            out.append((rest[:idx].strip(), classes))
+            text = rest[idx + len(' else '):].strip()
+        tail = re.match(r"^\s*(%s)\s*$" % _LIT, text)
+        if tail:
+            out.append((None, tail.group(1)))
+        elif text:
+            return []
+        return out
+
+    def _style_of_classes(self, raw):
+        """一串 class 字面值 → 文件屬性（含 align）。"""
+        style = {}
+        for token in (raw or '').strip('\'"').split():
+            style.update(self._CLASS_STYLE.get(token) or {})
+            if token in self._CLASS_ALIGN:
+                style['align'] = self._CLASS_ALIGN[token]
+        return style
+
+    def _format_markers_for(self, node, state):
+        """t-att-class → (條件式格式標記清單, 靜態屬性)。
+
+        原生就是這樣做「章節列要粗體、備註列要斜體」：
+            <tr t-att-class="'fw-bold o_line_section' if <章節>
+                             else 'fst-italic o_line_note' if <備註> else ''">
+        只吃得懂靜態 class 的話，這一類格式只能留待辦。
+        """
+        source = node
+        tag = (node.tag if isinstance(node.tag, str) else '').lower()
+        if tag != 'tr':
+            # 列型分派時 _table_row 收到的是 <t> 分支容器，而 class 在它的
+            # **祖先** tr 上（分支包的是格子，不是整列）。往上找，找不到再往下。
+            ancestor = self._closest_row(node)
+            if ancestor is not None:
+                source = ancestor
+            else:
+                inner = node.xpath('./tr')
+                if inner:
+                    source = inner[0]
+        raw = (source.get('t-att-class') or '').strip()
+        if not raw:
+            return [], {}
+        chain = self._parse_class_chain(raw)
+        if not chain:
+            return [], {}
+        markers = []
+        static = {}
+        seen_conds = []
+        for cond, classes in chain:
+            style = self._style_of_classes(classes)
+            if cond is None:
+                if not style:
+                    continue
+                if not seen_conds:
+                    static = style          # 只有字面值＝固定格式
+                    continue
+                expression = ' and '.join(
+                    'not (%s)' % c for c in seen_conds)
+            else:
+                mapped = self._map_condition(cond, state, expand=True)
+                seen_conds.append(mapped)
+                if not style:
+                    continue
+                # 鏈式三元式的後面幾段要排除前面幾段（原生的 elif 語意）
+                parts = ['(%s)' % mapped] + [
+                    'not (%s)' % c for c in seen_conds[:-1]]
+                expression = ' and '.join(parts)
+            markers.append(self._pill(
+                '條件格式', state, source='format',
+                expression=expression, **style,
+            ))
+        if markers or static:
+            # 刻意不刪屬性：同一個 tr 的多個列型各自都要拿到自己的那一顆標記
+            self._note(
+                state,
+                '動態 class「%s」已轉成%s。' % (
+                    ' '.join(raw.split())[:56],
+                    '條件式格式標記（條件成立才套用）' if markers
+                    else '固定格式'),
+            )
+        return markers, static
 
     def _class_tokens(self, node):
         return set((node.get('class') or '').split())
@@ -1999,10 +2284,50 @@ class DocQwebConverter(models.AbstractModel):
                 if cell.get('t-if'):
                     th_conds[cell.get('t-if')] = idx
 
+        # 印累加器的那一列＝原生的章節小計列。本模組用「分組重複」表達：
+        # 重複列設分組切分條件，再放一列分組小計。
+        acc_rows = {}
+        acc_meta = state.get('accumulator_meta') or {}
+        for tr in rows_src:
+            for el in tr.xpath('.//*[@t-out or @t-field or @t-esc]'):
+                expr = (el.get('t-out') or el.get('t-field')
+                        or el.get('t-esc') or '')
+                for name in acc_meta:
+                    if re.search(r'(?<![\w.])%s\b' % re.escape(name), expr):
+                        acc_rows[tr] = name
+                        break
+                if tr in acc_rows:
+                    break
+        if acc_rows:
+            name = next(iter(acc_rows.values()))
+            info = acc_meta.get(name) or {}
+            state['group_split'] = info.get('reset') or ''
+            # 分隔列本身也要印出來：原生把章節列當成明細的一種列型印出，
+            # 分組之後若不把分隔列放回組內，章節名稱整排消失（實測）。
+            # 有列型分派就表示範本裡有一列是給章節用的。
+            state['group_include_header'] = any(
+                len(self._row_branches(tr)) > 1 for tr in rows_src)
+            self._note(
+                state,
+                '「%s」這個累加器已轉成「分組重複」：重複列的分組切分條件取'
+                '它歸零的那個條件（%s），小計列改用 group.lines|sum。%s'
+                % (name, (info.get('reset') or '沒抓到，請在右欄自己指定'),
+                   '' if info.get('reset')
+                   else '（右欄的「分組方式」要選「依條件切分」並填條件）'),
+            )
+
         tr_list = []
         for tr in rows_src:
             wrapper_conds = self._row_wrapper_conditions(tr, node)
             repeat = foreach_rows.get(tr)
+            if tr in acc_rows:
+                row = self._table_row(
+                    tr, state, repeat, th_conds, max_cols,
+                    wrapper_conds=(), group_role='footer',
+                )
+                if row is not None:
+                    tr_list.append(row)
+                continue
             branches = self._row_branches(tr)
             if branches and repeat:
                 # 迴圈內的 t-if / t-elif / t-else 包住不同的格子組合
@@ -2147,7 +2472,8 @@ class DocQwebConverter(models.AbstractModel):
         return ' and '.join('not (%s)' % c for c in reversed(conds))
 
     def _table_row(self, tr, state, repeat, th_conds, max_cols,
-                   row_filter='', with_marker=None, wrapper_conds=()):
+                   row_filter='', with_marker=None, wrapper_conds=(),
+                   group_role=''):
         pushed = False
         if repeat:
             expr, as_var = repeat
@@ -2167,8 +2493,11 @@ class DocQwebConverter(models.AbstractModel):
             # 條件藥丸放列內任一格即可。
             # 分支容器（<t t-if>）的條件已經當成 rowFilter 用掉了，不要再加。
             row_cond = tr.get('t-if') if tag.lower() == 'tr' else None
+            if group_role:
+                row_cond = None
             td_list = []
             first = True
+            row_static_style = {}
             for cell in cells:
                 value = []
                 # 欄條件 / 格條件
@@ -2187,7 +2516,23 @@ class DocQwebConverter(models.AbstractModel):
                             '儲存格條件「%s」已轉成列型條件的候選，'
                             '請在右欄確認（或改用欄條件）。' % cond[:70],
                         )
+                if first and group_role:
+                    # 分組小計列：標記換成 groupFooter，而且不要帶列條件
+                    # ——原生那個條件（「是這一節的最後一列」）是累加器時代
+                    # 的產物，分組之後每組輸出一次就已經是對的。
+                    value.append(self._pill(
+                        '〔分組小計〕', state, source='group%s'
+                        % group_role.capitalize(), isMarker=True,
+                        repeatId=self._repeat_id(
+                            (repeat or ('', 'line'))[1],
+                            (repeat or ('', ''))[0], state),
+                    ))
+                    first = False
                 if first:
+                    # <tr t-att-class="'fw-bold' if … else ''"> → 列層級
+                    markers, static_style = self._format_markers_for(tr, state)
+                    value.extend(markers)
+                    row_static_style.update(static_style)
                     for wrapper in wrapper_conds:
                         value.append(self._pill(
                             '列條件', state, source='condition',
@@ -2231,6 +2576,14 @@ class DocQwebConverter(models.AbstractModel):
                 td_list.append(td)
             if not td_list:
                 return None
+            if row_static_style:
+                align = row_static_style.pop('align', None)
+                for cell in td_list:
+                    for el in cell.get('value') or []:
+                        if el.get('type') not in ('label', 'table'):
+                            el.update(row_static_style)
+                        if align and (el.get('value') or '') == '\n':
+                            el['rowFlex'] = align
             return {'tdList': td_list}
         finally:
             if pushed:
@@ -2298,10 +2651,21 @@ class DocQwebConverter(models.AbstractModel):
         bare = dict(state, loop_vars=[], loop_sources=[], loop_models=[])
         path, kind = self._strip_root(expr, bare)
         label = ('列型 × %s' % path) if row_filter else ('明細 × %s' % path)
+        group_kw = {}
+        if state.get('group_split') is not None:
+            # 分組設定掛在同一個 repeatId 的每一個列型上。後端取第一個列型的
+            # 設定，所以至少要有一個帶著；全部帶著最省事也不會互相矛盾。
+            split = state.get('group_split') or ''
+            group_kw = {'groupMode': 'marker'}
+            if split:
+                group_kw['groupSplitOn'] = self._map_condition(
+                    split, state, expand=True)
+            if state.get('group_include_header'):
+                group_kw['groupIncludeHeader'] = True
         if path and _SIMPLE_PATH_RE.match(path):
             return self._pill(label, state, source='repeat',
                               path=path, repeatId=repeat_id,
-                              rowFilter=row_filter)
+                              rowFilter=row_filter, **group_kw)
 
         # lines_to_report / lines 這類中間變數：展開後多半就是真正的
         # 一對多欄位（或帶篩選／排序的表達式）
@@ -2312,7 +2676,7 @@ class DocQwebConverter(models.AbstractModel):
                 ('列型 × %s' if row_filter else '明細 × %s') % path2,
                 state, source='repeat', path=path2,
                 repeatId=repeat_id, rowFilter=row_filter,
-                unbound=used_rule,
+                unbound=used_rule, **group_kw,
             )
         mapped = self._map_condition(expanded, bare)
         # 同樣用 token 比對：白名單改寫後的來源是
@@ -2329,7 +2693,7 @@ class DocQwebConverter(models.AbstractModel):
                 '列型 × 明細' if row_filter else '明細',
                 state, source='repeat', path='', sourceExpression=mapped,
                 repeatId=repeat_id, rowFilter=row_filter,
-                unbound=True,
+                unbound=True, **group_kw,
             )
         self._note(
             state,
@@ -2339,7 +2703,7 @@ class DocQwebConverter(models.AbstractModel):
         return self._pill(
             '列型（待設定）' if row_filter else '明細（待設定）',
             state, source='repeat', path='', repeatId=repeat_id,
-            rowFilter=row_filter, unbound=True,
+            rowFilter=row_filter, unbound=True, **group_kw,
         )
 
     # ─── 條件 ───────────────────────────────────────────────────────

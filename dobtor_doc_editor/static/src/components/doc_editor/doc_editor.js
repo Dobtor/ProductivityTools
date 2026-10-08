@@ -2486,6 +2486,54 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         }
     }
 
+    /**
+     * 插入條件式格式標記。放在表格列內＝整列，放在段落裡＝整段。
+     *
+     * 為什麼需要它：原生報表用 t-att-class 做「章節列要粗體、備註列要斜體」
+     *   <tr t-att-class="'fw-bold' if line.display_type == 'line_section' …">
+     * 而範本只吃得懂靜態 class，條件式的那些本來只能留待辦。
+     *
+     * 與條件標記刻意對稱（同一套心智模型）：標記放哪裡就決定作用範圍。
+     * 失敗策略相反——條件算不出來時「不套用」：格式套錯（整份變粗體）
+     * 比沒套上難追得多。
+     */
+    onInsertFormatMarker(expression = "") {
+        if (!this.canPlaceVariables) {
+            this.notification.add("目前的版面或權限不允許放置變數。", { type: "warning" });
+            return;
+        }
+        const ok = this.insertPill({
+            source: "format",
+            expression,
+            bold: true,
+            labelText: "條件格式",
+        });
+        if (ok) {
+            this.notification.add(
+                "已插入條件式格式。放在表格列內＝整列套用、放在段落裡＝整段套用；"
+                + "條件算不出來時不套用。",
+                { type: "info" }
+            );
+        }
+    }
+
+    get isFormatPill() {
+        return (this.state.selectedVariable || {}).source === "format";
+    }
+
+    get FORMAT_ALIGNS() {
+        return [
+            { value: "", label: "不變" },
+            { value: "left", label: "靠左" },
+            { value: "center", label: "置中" },
+            { value: "right", label: "靠右" },
+        ];
+    }
+
+    onFormatPropertyChange(key, value) {
+        this.updateSelectedPill({ [key]: value });
+    }
+
     // ═══ 圖片 / 地址 / 頁碼 ════════════════════════════════════════
 
     /**

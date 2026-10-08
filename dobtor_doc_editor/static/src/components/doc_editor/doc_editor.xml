@@ -943,6 +943,15 @@
                                     <span class="doc-field-palette-label">插入欄條件</span>
                                     <span class="doc-field-palette-type">整欄</span>
                                 </li>
+                                <!-- 條件式格式：原生用 t-att-class 做「章節列
+                                     粗體、備註列斜體」，範本只吃靜態 class。 -->
+                                <li class="doc-field-palette-item is-cond"
+                                    t-on-click="() => this.onInsertFormatMarker()"
+                                    title="條件成立時把這一列（或這一段）變粗體／改色／改對齊。">
+                                    <i class="fa fa-paint-brush doc-palette-cond-icon" aria-hidden="true"/>
+                                    <span class="doc-field-palette-label">插入條件式格式</span>
+                                    <span class="doc-field-palette-type">格式</span>
+                                </li>
                             </ul>
 
                             <!-- ─── 內建區塊 ───
@@ -1639,6 +1648,71 @@
                     </t>
 
                     <!-- ═══ 欄條件標記 ═══ -->
+                    <t t-elif="isFormatPill and !isOutputTarget">
+                        <div class="doc-inspector-header">
+                            <i class="fa fa-paint-brush me-2" aria-hidden="true"/>
+                            <span>條件式格式</span>
+                        </div>
+                        <div class="doc-inspector-note">
+                            <i class="fa fa-info-circle me-1" aria-hidden="true"/>
+                            放在<b>表格列內</b>＝條件成立時整列套用；放在<b>段落裡</b>
+                            ＝整段套用。套用完標記就消失，不會印出來。<br/>
+                            條件算不出來時<b>不套用</b>——這與條件標記的「寧可多印」
+                            相反：格式套錯（整份變粗體）比沒套上難追得多。
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>條件表達式</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.expression or ''"
+                                   t-on-change="(ev) => this.onFormatPropertyChange('expression', ev.target.value)"
+                                   placeholder="如 line.display_type == 'line_section'"/>
+                            <p class="doc-inspector-hint">
+                                在重複列內用 <code>line.</code>（逐筆求值），
+                                其他地方用 <code>object.</code>。留空＝一律套用。
+                            </p>
+                        </div>
+                        <div class="doc-inspector-field is-check">
+                            <label>
+                                <input type="checkbox"
+                                       t-att-checked="state.selectedVariable.bold or false"
+                                       t-on-change="(ev) => this.onFormatPropertyChange('bold', ev.target.checked)"/>
+                                粗體
+                            </label>
+                        </div>
+                        <div class="doc-inspector-field is-check">
+                            <label>
+                                <input type="checkbox"
+                                       t-att-checked="state.selectedVariable.italic or false"
+                                       t-on-change="(ev) => this.onFormatPropertyChange('italic', ev.target.checked)"/>
+                                斜體
+                            </label>
+                        </div>
+                        <div class="doc-inspector-field is-check">
+                            <label>
+                                <input type="checkbox"
+                                       t-att-checked="state.selectedVariable.underline or false"
+                                       t-on-change="(ev) => this.onFormatPropertyChange('underline', ev.target.checked)"/>
+                                底線
+                            </label>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>文字顏色</label>
+                            <input type="text"
+                                   t-att-value="state.selectedVariable.color or ''"
+                                   t-on-change="(ev) => this.onFormatPropertyChange('color', ev.target.value)"
+                                   placeholder="如 #c0392b（留空＝不變）"/>
+                        </div>
+                        <div class="doc-inspector-field">
+                            <label>對齊</label>
+                            <select t-on-change="(ev) => this.onFormatPropertyChange('align', ev.target.value)">
+                                <t t-foreach="FORMAT_ALIGNS" t-as="fa" t-key="fa.value">
+                                    <option t-att-value="fa.value"
+                                            t-att-selected="(state.selectedVariable.align or '') === fa.value"
+                                            t-esc="fa.label"/>
+                                </t>
+                            </select>
+                        </div>
+                    </t>
                     <t t-elif="isColumnPill and !isOutputTarget">
                         <div class="doc-inspector-header">
                             <i class="fa fa-columns me-2" aria-hidden="true"/>

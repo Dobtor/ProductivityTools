@@ -1321,3 +1321,122 @@ class TestUnconvertedAttrNotes(TestQwebConverterBase):
         res = self._convert('<div>乾淨</div>')
         self.assertFalse([n for n in res['notes'] if '沒有轉換' in n],
                          '%s' % res['notes'])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestDynamicClassFormat(TestQwebConverterBase):
+    """t-att-class → 條件式格式標記。
+
+    原生用它做「章節列粗體、備註列斜體」，而且寫的是**鏈式**三元式：
+        'fw-bold …' if <章節> else 'fst-italic …' if <備註> else ''
+    非貪婪的正則會為了讓結尾對上而把中間那段吞進條件裡（實測吞出一個
+    TemplateSyntaxError），所以要自己掃到「括號深度 0 的 else」。
+    """
+
+    def _formats(self, res):
+        return [m for m in self._metas(res['tree']['main'])
+                if m.get('source') == 'format']
+
+    def test_simple_ternary(self):
+        res = self._convert(
+            '<table><tr t-att-class="\'fw-bold\' if o.active else \'\'">'
+            '<td><span t-out="o.name"/></td></tr></table>')
+        fmts = self._formats(res)
+        self.assertEqual(len(fmts), 1)
+        self.assertTrue(fmts[0].get('bold'))
+        self.assertEqual(fmts[0].get('expression'), '(object.active)')
+
+    def test_chained_ternary_keeps_each_branch(self):
+        res = self._convert(
+            '<table><tr t-att-class="\'fw-bold\' if o.active'
+            ' else \'fst-italic\' if o.ref else \'\'">'
+            '<td><span t-out="o.name"/></td></tr></table>')
+        fmts = self._formats(res)
+        self.assertEqual(len(fmts), 2, '%s' % fmts)
+        self.assertTrue(fmts[0].get('bold'))
+        self.assertTrue(fmts[1].get('italic'))
+        # 後面那一段要排除前面那一段（原生的 elif 語意）
+        self.assertIn('not (object.active)', fmts[1].get('expression'))
+
+    def test_compound_condition_is_not_swallowed(self):
+        res = self._convert(
+            '<table><tr t-att-class="\'fw-bold\' if (o.active or o.ref)'
+            ' else \'fst-italic\' if o.vat else \'\'">'
+            '<td><span t-out="o.name"/></td></tr></table>')
+        fmts = self._formats(res)
+        self.assertEqual(len(fmts), 2)
+        self.assertNotIn('else', fmts[0].get('expression'),
+                         '條件被吞進中間那一段了：%s' % fmts[0].get('expression'))
+
+    def test_and_or_shape(self):
+        res = self._convert(
+            '<table><tr t-att-class="o.active and \'fw-bold\' or None">'
+            '<td><span t-out="o.name"/></td></tr></table>')
+        fmts = self._formats(res)
+        self.assertEqual(len(fmts), 1)
+        self.assertTrue(fmts[0].get('bold'))
+
+    def test_static_literal_is_not_a_marker(self):
+        """只有字面值＝固定格式，不必做成條件標記。"""
+        res = self._convert(
+            '<table><tr t-att-class="\'fw-bold\'">'
+            '<td><span t-out="o.name"/></td></tr></table>')
+        self.assertFalse(self._formats(res))
+        cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
+        self.assertTrue(any(el.get('bold') for el in cell['value']),
+                        '%s' % cell['value'])
+
+    def test_unknown_shape_is_still_reported(self):
+        res = self._convert(
+            '<table><tr t-att-class="compute_my_class(o)">'
+            '<td><span t-out="o.name"/></td></tr></table>')
+        self.assertFalse(self._formats(res))
+        self.assertTrue(any('動態 class' in n and '沒有轉換' in n
+                            for n in res['notes']), '%s' % res['notes'])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAccumulatorToGroup(TestQwebConverterBase):
+    """QWeb 累加器 → 分組重複。
+
+    原生的章節小計是「宣告變數、每列累加、遇到章節歸零」。本模組改用分組：
+    重複列設分組切分條件，再放一列分組小計（group.lines|sum）。
+    「加什麼」與「在什麼條件下切分」都是從 arch 讀出來的。
+    """
+
+    def _arch(self):
+        return (
+            '<t t-set="total" t-value="0"/>'
+            '<table><tbody>'
+            '<t t-foreach="o.child_ids" t-as="kid">'
+            '<t t-set="total" t-value="total + kid.credit_limit"/>'
+            '<t t-if="kid.type == \'invoice\'"><tr><td>甲</td></tr></t>'
+            '<t t-else=""><tr><td><span t-out="kid.name"/></td></tr></t>'
+            '<tr><td>小計<span t-out="total"/></td></tr>'
+            '</t></tbody></table>'
+        )
+
+    def test_accumulator_row_becomes_a_group_footer(self):
+        res = self._convert(self._arch())
+        sources = [m.get('source') for m in self._metas(res['tree']['main'])]
+        self.assertIn('groupFooter', sources, '%s' % sources)
+
+    def test_accumulator_value_becomes_a_group_sum(self):
+        res = self._convert(self._arch())
+        groups = [m for m in self._metas(res['tree']['main'])
+                  if m.get('source') == 'group']
+        self.assertTrue(groups)
+        self.assertIn("group.lines|sum(attribute='credit_limit')",
+                      groups[0].get('expression') or '')
+
+    def test_repeat_marker_gets_the_group_settings(self):
+        res = self._convert(self._arch())
+        repeats = [m for m in self._metas(res['tree']['main'])
+                   if m.get('source') == 'repeat']
+        self.assertTrue(repeats)
+        self.assertEqual(repeats[0].get('groupMode'), 'marker')
+
+    def test_note_explains_what_to_check(self):
+        res = self._convert(self._arch())
+        self.assertTrue(any('累加器' in n and '分組' in n for n in res['notes']),
+                        '%s' % res['notes'])

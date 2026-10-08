@@ -3061,3 +3061,107 @@ class TestHasGroupHelper(TransactionCase):
         """helper 開的是一道窄門，不是把 env 放出來。"""
         with self.assertRaises(Exception):
             self._render("env.user.has_group('base.group_user')")
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestConditionalFormat(TransactionCase):
+    """條件式格式：條件成立就把這一列（或這一段）變粗體／改色／改對齊。
+
+    原生用 t-att-class 做這件事（章節列粗體、備註列斜體），而範本原本只吃
+    得懂靜態 class。設計與條件標記對稱——標記放哪裡就決定作用範圍——
+    但失敗策略相反：條件算不出來時**不套用**，因為格式套錯（整份變粗體）
+    比沒套上難追得多。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.parent = self.env['res.partner'].create({'name': '格式母公司'})
+        self.env['res.partner'].create([
+            {'name': '1 有電話', 'parent_id': self.parent.id,
+             'phone': '02-1'},
+            {'name': '2 沒電話', 'parent_id': self.parent.id},
+        ])
+
+    def _repeat_tree(self, expression, **style):
+        return {'header': [], 'footer': [], 'main': [
+            {'type': 'table', 'value': '', 'colgroup': [{'width': 400}],
+             'trList': [{'tdList': [_cell(
+                 _pill('明細', source='repeat', path='child_ids',
+                       repeatId='rp1'),
+                 _pill('條件格式', source='format', expression=expression,
+                       **style),
+                 _pill('名稱', source='line', path='name'),
+             )]}]},
+            _text('\n'),
+        ]}
+
+    def _rows(self, tree):
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        out = []
+        for row in snapped['main'][0]['trList']:
+            texts, bolds = [], []
+            for cell in row['tdList']:
+                for el in cell['value']:
+                    if (el.get('value') or '') != '\n':
+                        texts.append(el.get('value'))
+                        bolds.append(bool(el.get('bold')))
+            out.append((''.join(texts), any(bolds)))
+        return out
+
+    def test_applies_per_line_in_a_repeat_row(self):
+        rows = self._rows(self._repeat_tree('line.phone', bold=True))
+        self.assertEqual(rows, [('1 有電話', True), ('2 沒電話', False)])
+
+    def test_marker_is_removed(self):
+        tree = self._repeat_tree('line.phone', bold=True)
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(snapped))
+        self.assertNotIn('條件格式', html)
+
+    def test_broken_condition_does_not_apply(self):
+        """條件算不出來時不套用——與條件標記的「寧可多印」刻意相反。"""
+        rows = self._rows(self._repeat_tree('line.sudo()', bold=True))
+        self.assertEqual([b for _t, b in rows], [False, False])
+
+    def test_empty_condition_always_applies(self):
+        rows = self._rows(self._repeat_tree('', bold=True))
+        self.assertEqual([b for _t, b in rows], [True, True])
+
+    def test_paragraph_scope_outside_a_table(self):
+        tree = {'header': [], 'footer': [], 'main': [
+            _pill('條件格式', source='format', expression='object.name',
+                  bold=True),
+            _text('這一段要粗體'),
+            _text('\n'),
+            _text('這一段不要'),
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        elements = snapped['main']
+        bolded = [el.get('value') for el in elements if el.get('bold')]
+        self.assertEqual(bolded, ['這一段要粗體'])
+
+    def test_align_sets_paragraph_alignment(self):
+        tree = {'header': [], 'footer': [], 'main': [
+            _pill('條件格式', source='format', expression='', align='right'),
+            _text('靠右'),
+            _text('\n'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        nl = [el for el in snapped['main'] if (el.get('value') or '') == '\n']
+        self.assertEqual(nl[0].get('rowFlex'), 'right')
+
+    def test_table_inside_the_span_is_not_restyled(self):
+        """同段落裡的表格是獨立區塊，它的格子各自處理，不該被整段套用。"""
+        inner = {'type': 'table', 'value': '', 'colgroup': [{'width': 100}],
+                 'trList': [{'tdList': [_cell(_text('格子'))]}]}
+        tree = {'header': [], 'footer': [], 'main': [
+            _pill('條件格式', source='format', expression='', bold=True),
+            inner,
+            _text('\n'),
+        ]}
+        self.Mixin._snapshot_content_json(tree, self.parent)
+        cell_el = tree['main'][0]['trList'][0]['tdList'][0]['value'][0]
+        self.assertFalse(cell_el.get('bold'))

@@ -134,6 +134,38 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
         },
 
         {
+            content: "條件式格式的按鈕在",
+            trigger: ".doc-field-palette-item:contains('插入條件式格式')",
+            run: () => {},
+        },
+        {
+            content: "選取條件式格式標記",
+            trigger: "body",
+            run: selectPill({ source: "format", bold: true,
+                              expression: "line.display_type == 'line_section'",
+                              labelText: "條件格式" }),
+        },
+        expectInspector("條件式格式"),
+        {
+            content: "粗體勾選在",
+            trigger: ".doc-inspector-field.is-check:contains('粗體')",
+            run: () => {},
+        },
+        {
+            content: "對齊下拉有「靠右」",
+            trigger: ".doc-inspector-field:contains('對齊') select",
+            run: () => {
+                const field = [...document.querySelectorAll(
+                    ".doc-inspector-field")].find(
+                    (el) => el.textContent.includes("對齊"));
+                const values = [...field.querySelector("select").options]
+                    .map((o) => o.value);
+                if (!values.includes("right")) {
+                    throw new Error(`對齊下拉少了 right，實際 ${values}`);
+                }
+            },
+        },
+        {
             content: "選取欄條件",
             trigger: "body",
             run: selectPill({ source: "column", expression: "object.name",

@@ -26,6 +26,12 @@
 條件求值失敗當成真、來源取不到當成空。猜錯的語意會變成「少印」，
 而少印在單據上幾乎追不到。
 
+**③ arch 一定要用 combined。**
+`view.arch_db` 只有那張 view 自己寫的一段，模組對報表做的擴充完全看不到。
+一定要 `_get_combined_arch()`——實測漏掉 purchase_stock 加上去的整塊
+「Shipping address」，而且普查時看到樹裡有 `<xpath>`／`<attribute>`
+（那是繼承指令）就是這個原因留下的痕跡。
+
 轉換完如果給了樣本記錄（`convert_report(report, validate_with=record)`），
 每個藥丸的表達式都會被試算一遍：算得出來的把「待確認」拿掉，算不出來的
 留著並附上真正的錯誤訊息。**強烈建議給樣本**——那是把「規則表猜的」變成
@@ -73,6 +79,8 @@
 | `class` 的 `text-end` / `text-center` / `text-start` | 段落對齊（`rowFlex`） | `<td>` 與裡面的 `<span>` 都看 |
 | `class` 的 `fw-bold` / `fst-italic` / `text-muted` | 粗體／斜體／灰字 | 其餘（`col-*`、`mb-*`…）是版面網格，沒有對應物 |
 | `style="width: N%"` | colgroup 欄寬 | 沒指定的欄平分剩下的寬度 |
+| `t-att-class` 的三元式（含鏈式） | **條件式格式標記** | 條件成立才套用粗體／斜體／顏色／對齊；放在列內＝整列、段落裡＝整段 |
+| QWeb 累加器（`current_subtotal`） | **分組重複 + 分組小計** | 「加什麼」與「在什麼條件下切分」都從 arch 讀；抓不到切分條件時留空讓使用者指定 |
 
 ### 自動改寫的慣用寫法
 
@@ -171,11 +179,10 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 
 | 構造 | 為什麼不做 |
 |---|---|
-| `current_subtotal` 這類**累加器** | 那是 QWeb 只能單次順序掃描才被迫用的手法，不是使用者的需求。本模組改用「分組重複」：在重複列設定分組，再放一列分組小計。要自動轉換就得猜「依哪個欄位分組」，猜錯只會印出錯的數字 |
 | `any(u._is_portal() for u in X)` 這類**生成式 + 方法呼叫** | Jinja 沒有生成式，而 `map`/`select` 不能呼叫方法。編一個語意出來比留著語法錯誤危險（前者會少印） |
 | **條件欄**（整個 `<td>` 存不存在取決於某個累加器變數） | 「欄條件」機制要求 `<th>` 與 `<td>` 掛同一個 `t-if`；出貨單的 `has_serial_number` 是累加器變數，對不上 |
 | **動態 inline 樣式**（`t-att-style` 45、`t-attf-style` 31） | 多是標籤紙的版面幾何（`padding_page`、`visibility:hidden`、SVG 的 `stroke`）。文件模型沒有對應物，硬湊只會得到一個似是而非的版面。逐類留待辦 |
-| **動態 class**（`t-att-class` 10、`t-attf-class` 28） | 條件式的粗體／對齊。靜態 class 已經吃了，條件式的要先有「條件式格式」這個機制才談得上 |
+| **`t-attf-class`**（28 處） | `#{…}` / `{{…}}` 內插的字串。裡面多是 `report_type == 'html'` 的螢幕／列印切換與 col-* 網格，對 PDF 沒有意義 |
 | SVG / canvas 繪圖 | 標籤報表用 SVG 畫線。文件模型只有文字、表格、圖片 |
 | `.sudo()` | 沙箱不開放提權。欄位受 ACL 限制讀不到的話，要在 `doc.report` 層先算好 |
 | 外部 / 靜態 URL 圖片 | 匯出不該在使用者按下載時去連外——那會讓匯出時間取決於第三方網站，在無外網的容器還會直接卡住 |
@@ -215,18 +222,19 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 
 | 報表 | 原生 token | 我們 | 漏印 | 多印 |
 |---|---|---|---|---|
-| `sale.action_report_saleorder` | 60 | 69 | 4 | 13 |
-| `account.account_invoices` | 42 | 53 | 4 | 15 |
-| `purchase.action_report_purchase_order` | 59 | 57 | 17 | 15 |
+| `sale.action_report_saleorder` | 60 | 71 | 2 | 13 |
+| `account.account_invoices` | 42 | 54 | 2 | 14 |
+| `purchase.action_report_purchase_order` | 59 | 79 | 4 | 24 |
 
-剩下的漏印是這幾類（都不是「值算錯」）：
+銷售訂單與發票剩下的 2 個漏印都是 `Odoo` 與 `Report`——原生的 `<title>`，
+不是單據內容。採購單多的那 2 個是電話號碼的斷詞（`+1`、`555-555-5556`
+在我們這邊黏在一起）。
 
-- `Odoo Report`——原生的 `<title>`，不是內容。
-- `Subtotal` 與它的金額——那是**章節小計**（`current_subtotal` 累加器，
-  見 §6），不是稅額彙總的列。稅額彙總的列數與原生一致（小計依
-  `tax_totals['subtotals']` 筆數、稅別依 `tax_groups` 筆數、現金捨入有設定
-  才印、最後總計）。
-- 採購單：公司的 `information_block`（公司地址電話）沒有帶進來。
+多印的主要來源：
+
+- 位址區塊取了第一個分支（有待辦），發票上還會印兩次。
+- 頁碼「第 N / M 頁」是我們的外框印的，原生在 HTML 階段是空的（PDF 才填）。
+- 條件求值失敗時「寧可多印」的代價看得見：採購單印出原生沒印的行銷區塊。
 
 多印的主要來源：
 
