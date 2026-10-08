@@ -448,3 +448,99 @@ class TestDocOutputReadOnly(TransactionCase):
         """管理者保留 unlink，供清理用。"""
         self.output.with_user(self.manager).unlink()
         self.assertFalse(self.output.exists())
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAppendPages(TransactionCase):
+    """附頁：把別的報表或固定 PDF 接在這張單據後面。
+
+    真實需求是「這張單據不只我們產的那幾頁」——合約後面接標準條款、
+    出貨單後面接 MSDS。以前要列印兩次再自己合併，而人會忘記或接錯版本。
+
+    這批測試不跑 wkhtmltopdf（CI 上不一定有），釘的是取附頁與排序的邏輯，
+    以及三個「壞掉時不要連單據一起毀掉」的取捨。
+    """
+
+    def setUp(self):
+        super().setUp()
+        model = self.env['ir.model']._get('res.partner')
+        self.template = self.env['doc.template'].create({
+            'name': '附頁測試範本',
+            'model_id': model.id,
+            'content_json': json.dumps({'main': [_text('本體')]}),
+        })
+        self.report = self.env['ir.actions.report'].create({
+            'name': '附頁測試報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf', 'report_name': 'base.report_partnercontact',
+        })
+        self.binding = self.env['doc.report'].create({
+            'name': '附頁測試綁定',
+            'template_id': self.template.id,
+            'report_id': self.report.id,
+        })
+        self.partner = self.env['res.partner'].create({'name': '附頁客戶'})
+
+    def _pdf_attachment(self, name, payload=b'%PDF-1.4 fake'):
+        import base64
+        return self.env['ir.attachment'].create({
+            'name': name, 'mimetype': 'application/pdf',
+            'datas': base64.b64encode(payload),
+        })
+
+    def test_attachments_are_collected_in_order(self):
+        a = self._pdf_attachment('條款A.pdf', b'%PDF-A')
+        b = self._pdf_attachment('條款B.pdf', b'%PDF-B')
+        self.binding.append_attachment_ids = [(6, 0, (a + b).ids)]
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner),
+            [b'%PDF-A', b'%PDF-B'],
+        )
+
+    def test_report_with_a_different_model_is_skipped(self):
+        """跳過並留 log，不要讓整張單據失敗，也不要拿錯模型去 browse。"""
+        other = self.env['ir.actions.report'].create({
+            'name': '別的模型的報表', 'model': 'res.users',
+            'report_type': 'qweb-pdf', 'report_name': 'base.report_x',
+        })
+        self.binding.append_report_ids = [(6, 0, other.ids)]
+        self.assertEqual(self.binding._append_streams_for(self.partner), [])
+
+    def test_failing_append_report_does_not_break_the_rest(self):
+        """附加報表產不出來時，固定 PDF 還是要接上。"""
+        broken = self.env['ir.actions.report'].create({
+            'name': '壞掉的報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf', 'report_name': 'no.such_template',
+        })
+        att = self._pdf_attachment('還在.pdf', b'%PDF-OK')
+        self.binding.append_report_ids = [(6, 0, broken.ids)]
+        self.binding.append_attachment_ids = [(6, 0, att.ids)]
+        self.assertEqual(
+            self.binding._append_streams_for(self.partner), [b'%PDF-OK'])
+
+    def test_no_appends_means_the_hook_is_inert(self):
+        """沒設附頁時那支覆寫等於不存在——不可以多跑一次 PDF 產生。"""
+        self.assertFalse(self.binding.append_report_ids)
+        self.assertFalse(self.binding.append_attachment_ids)
+        self.assertEqual(self.binding._append_streams_for(self.partner), [])
+
+    def test_position_default_is_after(self):
+        self.assertEqual(self.binding.append_position, 'after')
+
+    def test_recursion_guard_context_is_set_for_appended_reports(self):
+        """附加的報表若自己也綁了附頁並接回來，不擋就會無限互叫。"""
+        inner = self.env['ir.actions.report'].create({
+            'name': '互相附加', 'model': 'res.partner',
+            'report_type': 'qweb-pdf', 'report_name': 'base.report_partnercontact',
+        })
+        self.binding.append_report_ids = [(6, 0, inner.ids)]
+        seen = {}
+        original = type(inner)._render_qweb_pdf
+
+        def _spy(report_self, *args, **kwargs):
+            seen['flag'] = report_self.env.context.get('doc_report_no_append')
+            return (b'%PDF-inner', 'pdf')
+
+        self.patch(type(inner), '_render_qweb_pdf', _spy)
+        self.binding._append_streams_for(self.partner)
+        self.assertTrue(seen.get('flag'), '少了防遞迴旗標')
+        self.assertTrue(callable(original))

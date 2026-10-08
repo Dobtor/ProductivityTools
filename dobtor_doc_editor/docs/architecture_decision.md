@@ -33,6 +33,7 @@
 | **021** | **Portal cross-company collaboration by collaborator_ids** | **Sprint 117** | **不加 company filter、collaborator_ids 即 explicit access grant、配合 lock-in test 防回歸** |
 | 022 | 後台 UI 擴充為範本欄位拖曳建構器 | Phase 8 | （本文件已有 §ADR-022，先前漏列於索引） |
 | **023** | **報表管線（藥丸／快照）與 QWeb 轉換器** | **2026-09～10** | **範本＋綁定取代「每張報表一支程式」；轉換器只轉不搬；標記與取值分離；失敗策略逐層明寫** |
+| **024** | **型別→格式只有一份表、欄位標籤走欄位定義、模型自備值、附頁** | **2026-10-08** | **對照 report_extend_bf 的 `bf_` 引用設計；格式規則收斂到渲染層，標籤取 `fields_get` 的 string，整合者用 `doc_report_values()` 而不是擴白名單** |
 
 ---
 
@@ -1326,3 +1327,86 @@ ChienYi 以外的客戶要的是「單據」：同一份版面套不同記錄印
   [qweb_converter_coverage.md](qweb_converter_coverage.md)
 - 代價：快照管線的 pass 順序變成一條不可對調的鏈（`_snapshot_content_json`
   的註解是權威），每加一個新 pass 都要說清楚它為什麼在那個位置
+
+---
+
+## ADR-024：型別→格式只有一份表、欄位標籤走欄位定義、模型自備值、附頁
+
+**日期**：2026-10-08
+**狀態**：已實作
+**起因**：對照 `report_extend_bf`（py3o/ODT 的報表模組）的「引用設計」。
+它在範本裡寫 `o.bf_<欄位>` 就自動依型別格式化、寫 `o.bf_label_<欄位>` 就得到
+欄位標籤，兩者都由一個 attribute-lookup hook 在**渲染時**依欄位定義決定。
+
+### 問題
+
+我們的格式規則有**五份**，互不相交，而且沒有一份在渲染層：
+
+| 位置 | 涵蓋 |
+|---|---|
+| `doc_qweb_converter._auto_format` | monetary / float / integer / date / datetime |
+| `doc_editor.js _metaForModelField` | selection（限頂層）/ monetary |
+| `doc_editor.js _metaForLineField` | monetary |
+| `doc_editor.js onInsertGroupSubtotal` | monetary；其餘固定兩位小數 |
+| `fields._expr_for`（已退場的 alias） | date / datetime / selection / many2one |
+
+渲染層只有兩個「看輸出長相」的事後修正（`_RECORDSET_REPR_RE`、
+`rendered in ('False','None')`）。實際症狀全是靜默的：
+
+- 轉換器不補 selection → `t-field="o.state"` 印 `done` 而不是「完成」
+  （`stock` 的 `report_stockpicking_operations` 與 `report_stock_reception`）
+- 編輯器左欄拖一個 date 進去印 `2026-10-08 00:00:00`、float 印 `100.0`
+  ——**同一個欄位，走轉換器對、手工拉錯**
+- 巢狀 selection（「客戶-狀態」）印代碼，三份判斷都只處理頂層
+- 數量欄位的 `digits` 是 `'Product Unit of Measure'`（decimal.precision 的
+  名字），`isinstance(digits, tuple)` 不成立 → 退回兩位，而原生印三位
+
+### 決定
+
+1. **型別→格式只有一份表**：`RenderFields._type_format_expression`，在渲染層。
+   藥丸只要帶 `path`，格式就是對的。優先序：明寫的 `expression` > `meta.format`
+   > 型別預設。轉換器與編輯器都呼叫它，編輯器**不再**自己寫型別判斷。
+   - 轉換器只套數字與日期（`numeric_only=True`）。那組範圍是已經量過保真度
+     （漏印 2 / 4）的現狀；原生 QWeb 對 `t-out` 的數字其實也不格式化，要不要
+     分 `t-field` / `t-out` 是另一件事，要連著重新量才能動。
+   - selection / 關聯欄位改成讓藥丸只帶 `path`，由渲染層處理——同一條路同時
+     照顧手工做的範本。
+   - **boolean 刻意不在表裡**：原生 QWeb 對布林沒有 field converter
+     （`True` 印 "True"、`False` 印空白）。放進去會讓轉換的報表與原生不一致。
+     要方框的範本（自主檢查表）明寫 `checkmark(object.x)`。
+2. **欄位標籤藥丸**（`source='fieldLabel'`）：文字取 `fields_get()['string']`，
+   跟著渲染語言走。表頭的「品名／數量／單價」就是欄位標籤，而 Odoo 的 .po
+   早就翻好了；走 i18n 藥丸等於請使用者把 Odoo 的翻譯再抄一遍、每個語言一次，
+   之後兩邊各自漂移。`labelModel` 要明講，因為表頭那顆藥丸放在重複列**外面**，
+   求值記錄是主記錄，推斷不出明細的模型。
+3. **模型自備值**（`doc_report_values()` → 範本用 `data.<鍵>`）：
+   `_SAFE_REPORT_METHODS` 那份白名單是給**別人家的**方法開的窄門，每加一筆都
+   要讀過 Odoo 原始碼確認不寫資料。整合者要加自己算的值時那是錯的門——那是他
+   自己寫的程式碼。整份快照呼叫一次（結果放在 context 傳下去），失敗回空 dict。
+4. **附頁**：把別的報表或固定 PDF 接在單據後面（合約＋標準條款、出貨單＋MSDS）。
+   這是「攔在 HTML 層」的**唯一例外**——HTML 裡沒有 PDF 可接，所以多開一個
+   `_render_qweb_pdf_prepare_streams` 攔截點。選它而不是 `_render_qweb_pdf`：
+   前者給 `{res_id: {'stream': …}}`，接的是「這張單據的附頁」，多筆列印時每張
+   後面都要有自己那一份。沒設附頁時那支覆寫等於不存在。
+   - 重用既有附件的那幾筆要跳過：那份 PDF 上次就含附頁了，再接一次變兩份。
+   - 固定 PDF 以 `sudo()` 讀位元組：它是**報表設定的一部分**，由能編輯
+     `doc.report` 的人挑的，不是使用者資料。不 sudo 的話一般使用者列印會靜默少頁。
+
+### 刻意不採用 bf 的做法
+
+- `setattr(LookupBase, 'lookup_attr', …)`：行程層級 monkeypatch genshi，會影響
+  同一個 Odoo 裡所有用到 genshi 的模組
+- `key.split('bf_')[1]`：任何含 `bf_` 的屬性名都會被誤判，`IndexError` 還被
+  下面的 `except` 吞掉
+- `except (KeyError, TypeError, IndexError): val = undefined`：真正的錯誤變成
+  靜默空白
+- PyPDF2（已停止維護）／`unoconv`（需要外部 LibreOffice 行程）——附頁用 Odoo
+  自己的 `odoo.tools.pdf.merge_pdf`，不加依賴
+
+### 後果
+
+- 格式規則從五份變一份，`_resolve_field` 的複本也收掉（轉換器委派給渲染層）
+- 順手修掉 `digits` 是 decimal.precision 名字時退回兩位的既有錯誤
+- 代價：渲染層現在會對每顆「只帶 path」的藥丸查一次欄位型別。走的是
+  `_fields` 字典，成本可忽略，但它讓「藥丸的輸出」多依賴一個東西：模型定義。
+  欄位型別改了，既有文件重新帶值時格式會跟著變（快照過的不受影響）。

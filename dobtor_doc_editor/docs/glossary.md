@@ -182,6 +182,10 @@
 | **parse_docx_cli.cjs** | TS parser CLI（subprocess 呼叫）| Phase E |
 | **`make dev`** | build + upgrade + restart 完整循環 |
 | **`run_backend_tests.sh`** | Sprint 72 加的 Odoo backend test 一鍵觸發 |
+| **型別→格式表** | `RenderFields._type_format_expression` — 「欄位型別該怎麼格式化」的唯一權威，在渲染層（ADR-024）|
+| **欄位標籤藥丸** | `source='fieldLabel'` — 印欄位名稱而非值，文字取 `fields_get()['string']`，跟著語言變 |
+| **`doc_report_values()`** | 模型自備的報表值；範本用 `data.<鍵>`。整合者加自己算的值用這道口，不是擴 `_SAFE_REPORT_METHODS` |
+| **附頁** | `doc.report.append_report_ids` / `append_attachment_ids` — 把別的報表或固定 PDF 逐筆接在單據後面 |
 | **`run_tour_tests.sh`** | 容器內跑瀏覽器 tour；開頭自檢 chromium 與 websocket-client，被跳過時 exit 2（skipped 不能當成過）|
 | **`run_local_rig.sh`** | host 端入口：`docker exec` 進本機兩容器 rig 跑**全部**測試（`test` / `tour` / `all`）。容器名與連線參數可用環境變數覆寫 |
 | **CI gate v1 dispatch** | workflow_dispatch 手動觸發、Sprint 114 落地 font_serve 12 test 進 CI | Sprint 114 |

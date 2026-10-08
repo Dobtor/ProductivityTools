@@ -3328,3 +3328,336 @@ class TestSnapshotPassOrder(TransactionCase):
             self.assertIn(
                 name, comment,
                 '%s 沒有寫進 _snapshot_content_json 的順序註解' % name)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestTypeFormatTable(TransactionCase):
+    """「欄位型別該怎麼格式化」只有一份表，而且在渲染層。
+
+    原本有五份（轉換器、編輯器左欄主記錄、編輯器左欄明細、本組小計、
+    已退場的 alias），互不相交。症狀全都是靜默的：
+      * 轉換器不補 selection → t-field="o.state" 印 done 而不是「完成」
+      * 編輯器左欄拖一個 date 進去印 2026-10-08 00:00:00、float 印 100.0
+      * 巢狀 selection（客戶-狀態）印代碼——那三份都只處理頂層
+      * 數量欄位的 digits 是 'Product Unit of Measure'（字串），
+        舊的 isinstance(tuple) 判斷不成立 → 退回兩位，而原生印三位
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.parent = self.env['res.partner'].create({'name': '母公司'})
+        self.partner = self.env['res.partner'].create({
+            'name': '型別測試', 'parent_id': self.parent.id,
+            'type': 'invoice', 'partner_latitude': 12.5,
+        })
+
+    def _value(self, record=None, **meta):
+        tree = {'main': [_pill('X', **meta), _text('\n')]}
+        self.Mixin._snapshot_content_json(tree, record or self.partner)
+        return tree['main'][0]['value']
+
+    # ── selection ───────────────────────────────────────────────
+    def test_selection_path_prints_label_not_key(self):
+        """只帶 path 的 selection 藥丸要印標籤。轉換器產生的就是這種。"""
+        value = self._value(source='record', path='type')
+        expected = dict(
+            self.partner._fields['type']._description_selection(self.env)
+        )['invoice']
+        self.assertEqual(value, expected)
+        self.assertNotEqual(value, 'invoice', 'selection 印出代碼')
+
+    def test_nested_selection_path_prints_label(self):
+        """巢狀路徑也要——編輯器那份判斷有 `!parent` 條件，漏掉這種。"""
+        self.parent.type = 'delivery'
+        value = self._value(source='record', path='parent_id.type')
+        expected = dict(
+            self.parent._fields['type']._description_selection(self.env)
+        )['delivery']
+        self.assertEqual(value, expected)
+
+    # ── 數字與日期 ──────────────────────────────────────────────
+    def test_float_uses_field_digits(self):
+        """digits=(10, 7) → 七位小數，不是寫死的兩位。"""
+        value = self._value(source='record', path='partner_latitude')
+        self.assertEqual(value, '12.5000000')
+
+    def test_float_digits_from_decimal_precision_name(self):
+        """digits 是 decimal.precision 的**名字**時也要讀對。
+
+        舊寫法 isinstance(digits, tuple) 不成立 → 退回兩位。數量欄位全中。
+        """
+        field = self.env['sale.order.line']._fields.get('product_uom_qty') \
+            if 'sale.order.line' in self.env else None
+        if field is None:
+            self.skipTest('sale 未安裝')
+        scale = self.Mixin._field_scale(field)
+        precision = self.env['decimal.precision'].precision_get(
+            'Product Unit of Measure')
+        self.assertEqual(scale, precision)
+        self.assertEqual(
+            self.Mixin._type_format_expression(
+                'sale.order.line', 'product_uom_qty', 'line.product_uom_qty'),
+            "format_number(line.product_uom_qty, ',.%df')" % precision)
+
+    def test_date_uses_locale_format(self):
+        expr = self.Mixin._type_format_expression(
+            'ir.sequence.date_range', 'date_from', 'object.date_from')
+        self.assertEqual(expr, "format_date(object.date_from, 'lang')")
+
+    def test_datetime_includes_the_time(self):
+        expr = self.Mixin._type_format_expression(
+            'res.partner', 'write_date', 'object.write_date')
+        self.assertEqual(
+            expr, "format_date(object.write_date, 'lang_datetime')")
+
+    def test_integer_gets_thousands_separator(self):
+        expr = self.Mixin._type_format_expression(
+            'res.partner', 'color', 'object.color')
+        self.assertEqual(expr, "format_number(object.color, ',.0f')")
+
+    # ── 關聯欄位：事前依型別，不是事後猜輸出長相 ────────────────
+    def test_many2one_formatted_by_type_not_by_repr_guess(self):
+        expr = self.Mixin._type_format_expression(
+            'res.partner', 'parent_id', 'object.parent_id')
+        self.assertEqual(expr, 'object.parent_id.display_name')
+        self.assertEqual(
+            self._value(source='record', path='parent_id'),
+            self.parent.display_name)
+
+    def test_many2many_joined_by_names_helper(self):
+        expr = self.Mixin._type_format_expression(
+            'res.partner', 'category_id', 'object.category_id')
+        self.assertEqual(expr, 'names(object.category_id)')
+        tag = self.env['res.partner.category'].create({'name': '甲類'})
+        tag2 = self.env['res.partner.category'].create({'name': '乙類'})
+        self.partner.category_id = [(6, 0, (tag + tag2).ids)]
+        value = self._value(source='record', path='category_id')
+        self.assertIn('甲類', value)
+        self.assertIn('乙類', value)
+        self.assertNotIn('res.partner.category(', value)
+
+    # ── 不在表裡的：刻意的 ──────────────────────────────────────
+    def test_boolean_is_deliberately_not_in_the_table(self):
+        """原生 QWeb 對布林沒有 field converter。放進表會與原生不一致。"""
+        self.assertIsNone(self.Mixin._type_format_expression(
+            'res.partner', 'is_company', 'object.is_company'))
+
+    def test_checkmark_helper_is_available_for_opt_in(self):
+        """要方框的範本（自主檢查表）明寫 checkmark()。"""
+        self.partner.is_company = True
+        self.assertEqual(
+            self._value(source='expression',
+                        expression='checkmark(object.is_company)'), '☑')
+        self.partner.is_company = False
+        self.assertEqual(
+            self._value(source='expression',
+                        expression='checkmark(object.is_company)'), '☐')
+
+    def test_unknown_field_returns_none_rather_than_guessing(self):
+        self.assertIsNone(self.Mixin._type_format_expression(
+            'res.partner', 'no_such_field', 'object.no_such_field'))
+        self.assertIsNone(self.Mixin._type_format_expression(
+            'no.such.model', 'name', 'object.name'))
+
+    # ── 優先序 ──────────────────────────────────────────────────
+    def test_explicit_expression_beats_the_table(self):
+        """原範本有 widget、或使用者自己打的，不可以被預設蓋掉。"""
+        meta = {'source': 'record', 'path': 'partner_latitude',
+                'expression': 'object.partner_latitude'}
+        self.assertEqual(
+            self.Mixin._field_meta_expression(meta, self.partner),
+            'object.partner_latitude')
+
+    def test_meta_format_beats_the_table(self):
+        meta = {'source': 'record', 'path': 'write_date', 'format': '%Y/%m'}
+        self.assertEqual(
+            self.Mixin._field_meta_expression(meta, self.partner),
+            "format_date(object.write_date, '%Y/%m')")
+
+    def test_without_record_falls_back_to_plain_path(self):
+        """查不到型別就印原值——至少看得出是什麼。"""
+        self.assertEqual(
+            self.Mixin._field_meta_expression(
+                {'source': 'record', 'path': 'partner_latitude'}),
+            'object.partner_latitude')
+
+    # ── 轉換器用的是同一份表 ────────────────────────────────────
+    def test_converter_shares_the_same_table(self):
+        Conv = self.env['doc.qweb.converter']
+        state = {'model': 'res.partner', 'loop_models': []}
+        for path in ('partner_latitude', 'color', 'write_date'):
+            self.assertEqual(
+                Conv._auto_format(None, state, path, 'record',
+                                  'object.%s' % path),
+                self.Mixin._type_format_expression(
+                    'res.partner', path, 'object.%s' % path,
+                    numeric_only=True),
+                '轉換器又長出自己的一份表了（%s）' % path)
+
+    def test_converter_leaves_relational_to_the_render_layer(self):
+        """轉換器只補數字與日期：那組範圍是已經量過保真度的現狀。
+
+        selection / 關聯欄位改成讓藥丸只帶 path，由渲染層處理——同一條路
+        也照顧到手工做的範本。
+        """
+        Conv = self.env['doc.qweb.converter']
+        state = {'model': 'res.partner', 'loop_models': []}
+        for path in ('type', 'parent_id', 'category_id'):
+            self.assertIsNone(
+                Conv._auto_format(None, state, path, 'record',
+                                  'object.%s' % path))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestFieldLabelPill(TransactionCase):
+    """欄位標籤藥丸：翻譯取自 Odoo 的欄位定義，不要逐語言手打。
+
+    表頭的「品名／數量／單價」就是欄位標籤。走 i18n 藥丸等於請使用者把
+    Odoo 的 .po 再抄一遍，而且之後兩邊各自漂移。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '標籤測試'})
+
+    def _value(self, record=None, **meta):
+        tree = {'main': [_pill('後備文字', **meta), _text('\n')]}
+        self.Mixin._snapshot_content_json(tree, record or self.partner)
+        return tree['main'][0]['value']
+
+    def test_prints_the_field_label(self):
+        expected = self.env['res.partner'].fields_get(
+            ['vat'], ['string'])['vat']['string']
+        self.assertEqual(
+            self._value(source='fieldLabel', path='vat'), expected)
+
+    def test_label_model_lets_a_header_name_a_line_field(self):
+        """表頭那顆藥丸放在重複列外面，求值記錄是主記錄——模型要明講。"""
+        if 'sale.order.line' not in self.env:
+            self.skipTest('sale 未安裝')
+        expected = self.env['sale.order.line'].fields_get(
+            ['price_unit'], ['string'])['price_unit']['string']
+        self.assertEqual(
+            self._value(source='fieldLabel', path='price_unit',
+                        labelModel='sale.order.line'),
+            expected)
+
+    def test_nested_path_uses_the_owning_model(self):
+        expected = self.env['res.country'].fields_get(
+            ['name'], ['string'])['name']['string']
+        self.assertEqual(
+            self._value(source='fieldLabel', path='country_id.name'), expected)
+
+    def test_unknown_path_falls_back_to_label_text(self):
+        """空白在單據上像資料掉了；後備文字看得出是哪一顆藥丸要修。"""
+        self.assertEqual(
+            self._value(source='fieldLabel', path='no_such_field'), '後備文字')
+        self.assertEqual(
+            self._value(source='fieldLabel', path=''), '後備文字')
+
+    def test_follows_the_render_language(self):
+        """換語言時標籤跟著換——這正是不用 i18n 藥丸的理由。"""
+        lang = self.env['res.lang']._activate_lang('zh_TW') \
+            or self.env['res.lang'].search([('code', '=', 'zh_TW')], limit=1)
+        if not lang:
+            self.skipTest('zh_TW 未安裝')
+        record = self.partner.with_context(lang='zh_TW')
+        value_tw = self._value(record=record, source='fieldLabel', path='vat')
+        expected = self.env['res.partner'].with_context(
+            lang='zh_TW').fields_get(['vat'], ['string'])['vat']['string']
+        self.assertEqual(value_tw, expected)
+
+    def test_is_not_treated_as_a_marker(self):
+        """標記藥丸不會印；這一顆要印。"""
+        element = _pill('標籤', source='fieldLabel', path='vat')
+        self.assertFalse(self.Mixin._is_marker_element(element))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestModelReportValues(TransactionCase):
+    """模型可以自備一支 doc_report_values() 回 dict，範本用 data.<鍵>。
+
+    為什麼需要這道口：_SAFE_REPORT_METHODS 那份白名單是給**別人家的**方法
+    開的窄門，每加一筆都要讀過 Odoo 原始碼確認不寫資料。整合者要加自己算的
+    值（分段稅率表、客製編號、跨模型彙總）時那是錯的門——那是他自己寫的
+    程式碼，不需要我們信任誰。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.partner = self.env['res.partner'].create({'name': '自備值測試'})
+
+    def _render(self, expression, record=None):
+        tree = {'main': [
+            _pill('X', source='expression', expression=expression), _text('\n')]}
+        self.Mixin._snapshot_content_json(tree, record or self.partner)
+        return tree['main'][0]['value']
+
+    def test_values_are_available_as_data(self):
+        with patch.object(
+            type(self.partner), 'doc_report_values',
+            create=True, return_value={'口號': '德博資訊', '件數': 3},
+        ):
+            self.assertEqual(self._render("data['口號']"), '德博資訊')
+            self.assertEqual(self._render("data['件數']"), '3')
+
+    def test_called_once_per_snapshot_not_once_per_pill(self):
+        """每顆藥丸各建一個沙箱 env，所以這很容易變成 N 次呼叫。
+
+        整合者的方法可能很重（跨模型彙總）。一份快照呼叫一次是約定。
+        """
+        calls = []
+
+        def _values(record_self):
+            calls.append(1)
+            return {'n': len(calls)}
+
+        tree = {'main': [
+            _pill('A', source='expression', expression="data['n']"),
+            _pill('B', source='expression', expression="data['n']"),
+            _pill('C', source='expression', expression="data['n']"),
+            _text('\n'),
+        ]}
+        with patch.object(type(self.partner), 'doc_report_values',
+                          _values, create=True):
+            self.Mixin._snapshot_content_json(tree, self.partner)
+        self.assertEqual(len(calls), 1, '呼叫了 %d 次' % len(calls))
+        # 三顆藥丸都看到同一份值
+        self.assertEqual(
+            [el['value'] for el in tree['main'][:3]], ['1', '1', '1'])
+
+    def test_failure_leaves_data_empty_and_document_still_renders(self):
+        """整合者的一支輔助方法不該讓整張單據產不出來。
+
+        藥丸自己那一段會被規則 A 收掉（段落內藥丸全空 → 整段移除，標籤一起），
+        那是定案行為；要釘的是**別的段落還在**、而且沒有拋例外。
+        """
+        with patch.object(
+            type(self.partner), 'doc_report_values',
+            create=True, side_effect=ValueError('壞了'),
+        ):
+            tree = {'main': [
+                _pill('X', source='expression', expression="data['任何']"),
+                _text('\n'),
+                _text('留下來的本文'), _text('\n'),
+            ]}
+            self.Mixin._snapshot_content_json(tree, self.partner)
+            self.assertEqual(
+                self.Mixin._model_report_values(self.partner), {})
+        values = [el.get('value') for el in tree['main']]
+        self.assertIn('留下來的本文', values, '別的段落被連帶刪掉了')
+        self.assertNotIn('X', values, '壞掉的 data 藥丸應該收掉，不是印標籤')
+
+    def test_non_dict_return_is_ignored(self):
+        """回的不是 dict 就當沒有——不要讓單據上出現一段 Python repr。"""
+        with patch.object(type(self.partner), 'doc_report_values',
+                          create=True, return_value=['不是', 'dict']):
+            self.assertEqual(
+                self.Mixin._model_report_values(self.partner), {})
+
+    def test_model_without_the_method_is_fine(self):
+        self.assertEqual(self.Mixin._model_report_values(self.partner), {})
+        self.assertEqual(self._render("data"), '{}')

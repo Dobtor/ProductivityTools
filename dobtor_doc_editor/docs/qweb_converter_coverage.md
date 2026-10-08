@@ -49,6 +49,9 @@
 | `t-options` 的 `date_only` | `format_date(…, 'lang')` | 那不是 widget，採購單用它把 datetime 印成日期 |
 | **沒帶 widget 的 float / monetary / integer** | `format_number` / `format_money`（float 看欄位 digits） | 原生 QWeb 也會依型別印，不補會印成 `100.0` |
 | **沒帶 widget 的 date / datetime** | `format_date(…, 'lang')` / `'lang_datetime'` | 語言格式；原生印 `10/08/2026` |
+| **沒帶 widget 的 selection** | 藥丸只帶 `path`，由渲染層印標籤 | 原生 `t-field` 走 `ir.qweb.field.selection` 印標籤；不處理會印出 `done`（實測兩張 stock 報表） |
+| **沒帶 widget 的 many2one / x2many** | 藥丸只帶 `path`，渲染層補 `.display_name` / `names(…)` | 事前依型別，不是事後猜「輸出長得像 repr」 |
+| **沒帶 widget 的 boolean** | 不動（`True` 印 "True"、`False` 印空白） | **刻意**：原生 QWeb 對布林沒有 field converter，補 ☑/☐ 會與原生不一致。要方框的範本明寫 `checkmark(object.x)` |
 | `<table>` + `<tr t-foreach>` | 重複列（`source='repeat'` 標記） | 只支援「表格列」粒度 |
 | `<t t-foreach>` 包 `<tr>` | 同上 | |
 | 非表格的 `t-foreach`（`<div>` 清單） | 自動包成**單欄無框表格**再重複 | 迴圈體含表格時不包，標待辦 |
@@ -103,6 +106,23 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 認不出來的形狀一律原樣保留 ＋ 待辦，**不猜**。
 
 ---
+
+## 2.5 格式規則只有一份表
+
+「欄位型別該怎麼格式化」的權威是 `doc.render.mixin`
+（`RenderFields._type_format_expression`），在**渲染層**。轉換器呼叫它，
+編輯器插入藥丸時**不帶格式**（只帶 `path`），於是：
+
+* 轉換過來的範本與手工做的範本，同一個欄位印出來一樣
+* 換語言時 selection 的標籤跟著換，不必重新轉換
+* 要改格式規則只有一個地方
+
+優先序：藥丸明寫的 `expression` > `meta.format` > 型別預設。前兩個是使用者
+（或原範本的 widget）明講的，預設不會蓋掉它們。
+
+轉換器只套數字與日期（`numeric_only=True`）。那組範圍是已經量過保真度的現狀；
+原生 QWeb 對 `t-out` 的數字其實也不格式化，要不要分 `t-field` / `t-out` 得連著
+重新量一次才能動。詳見 ADR-024。
 
 ## 3. 底線方法白名單
 
