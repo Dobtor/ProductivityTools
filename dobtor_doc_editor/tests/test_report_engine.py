@@ -1165,3 +1165,27 @@ class TestOpenEditorDirectly(TransactionCase):
         """少了 js_class，點一筆還是會開表單——而那是靜默的。"""
         view = self.env.ref('dobtor_doc_editor.view_doc_document_list')
         self.assertIn('doc_document_list_open_editor', view.arch)
+
+    def test_template_list_also_opens_the_editor(self):
+        view = self.env.ref('dobtor_doc_editor.view_doc_template_list')
+        self.assertIn('doc_template_list_open_editor', view.arch)
+
+    def test_template_settings_form_is_reachable(self):
+        model = self.env['ir.model']._get('res.partner')
+        tmpl = self.env['doc.template'].create({
+            'name': '設定入口測試範本', 'role': 'content',
+            'model_id': model.id, 'content_json': json.dumps({'main': []}),
+        })
+        action = tmpl.action_open_settings_form()
+        self.assertEqual(action['res_model'], 'doc.template')
+        self.assertEqual(action['res_id'], tmpl.id)
+
+    def test_template_new_deliberately_still_uses_the_form(self):
+        """刻意不一致：一張新範本沒有適用模型就沒有欄位可拖，進編輯器第一件事
+        是再出來，而編輯器沒有選模型的介面。
+
+        這一則是把那個決定釘住——哪天有人「順手修成一致」，要先做選模型的介面。
+        """
+        self.assertFalse(
+            hasattr(self.env['doc.template'], 'action_new_and_open_editor'),
+            '範本多了 action_new_and_open_editor：要一致的前提是編輯器先能選模型')

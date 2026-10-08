@@ -1,7 +1,7 @@
 import html as html_mod
 import json
 
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 from odoo.exceptions import UserError, ValidationError
 
 
@@ -333,6 +333,24 @@ class DocTemplate(models.Model):
         """
         self.ensure_one()
         return self.layout_id or self
+
+    def action_open_settings_form(self):
+        """開這張範本的表單（清單點一筆會直接進編輯器，設定要有另一條路）。
+
+        表單上才有而編輯器沒有的：適用模型、角色（內容／外框）、使用的外框、
+        紙張格式、頁首頁尾的版面屬性、簽約人與待填欄位。那些是**設計時決定
+        一次**的設定，不是內容。
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('範本設定'),
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
+        }
 
     def action_open_editor(self):
         """開啟全螢幕編輯器編輯「範本本身」。

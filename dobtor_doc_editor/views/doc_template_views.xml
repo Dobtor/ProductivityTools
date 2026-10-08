@@ -47,7 +47,10 @@
         <field name="name">doc.template.list</field>
         <field name="model">doc.template</field>
         <field name="arch" type="xml">
-            <list string="文件範本">
+            <!-- js_class：點一筆直接進編輯器。
+                 「新增」照舊走表單——一張新範本沒有適用模型就沒有欄位可拖，
+                 理由寫在 static/src/views/doc_document_list_open_editor.js。 -->
+            <list string="文件範本" js_class="doc_template_list_open_editor">
                 <field name="name"/>
                 <field name="role" optional="show"/>
                 <field name="layout_id" optional="show"/>
@@ -58,6 +61,12 @@
                 <field name="field_count" optional="show"/>
                 <field name="alias_count" optional="show" string="對映數"/>
                 <field name="active" optional="show"/>
+                <!-- 點一筆已經直接進編輯器，設定要留一條路：適用模型、角色、
+                     外框、紙張格式、頁首頁尾版面都只在表單上 -->
+                <button name="action_open_settings_form"
+                        type="object"
+                        icon="fa-cog"
+                        title="範本設定（適用模型、角色、外框、紙張與頁首頁尾）"/>
             </list>
         </field>
     </record>
