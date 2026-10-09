@@ -39,6 +39,7 @@
 | **027** | **HTML → content_json 只處理自己的子集，`noupdate` 資料靠 migration** | **2026-10-09** | **對任意 HTML 不可靠（需要瀏覽器端的 executeSetHTML），但對我們自己寫的 12 個標籤可靠；資料檔是 noupdate，改 XML 到不了既有庫** |
 | **028** | ~~CI 分兩層~~ **撤回：不做 GitHub Actions CI** | **2026-10-09** | 專案決定當天撤回；撤回前量到的三個前提留在 ADR 本文（schedule 只從預設分支讀、paths 要含 workflow 自己、第一次執行就紅在檢查自己）|
 | **029** | **移除未出貨的 TS OOXML 子系統** | **2026-10-09** | 76k 行測試＋33k 行原始碼＋82MB fixture 不產生 production 行為；回退 tag `doc-editor-before-ts-removal` |
+| **030** | **授權 LGPL-3 → OPL-1** | **2026-10-09** | Dobtor 統一政策；depends 全 LGPL-3 核心（無 AGPL）、自有檔案零授權標頭、隨附第三方皆寬鬆式（JSZip 雙授權選 MIT）|
 
 ---
 
@@ -1809,3 +1810,66 @@ manifest / flake8 / XML / `make test-js` 全過。
 **剩下的已知項（不改）**：`models/qweb/expr.py:538` 的 F811（區域變數 `models`
 遮蔽照抄 import 區塊裡的 `from odoo import models`，而那個名字在該檔從未以
 `models.` 使用過——無害、且早於本次變更）。
+
+---
+
+## ADR-030：授權由 LGPL-3 改為 OPL-1
+
+**日期**：2026-10-09
+**狀態**：已實作（版本 `18.0.12.1.0`）
+
+### 決定
+
+`__manifest__.py` 的 `license` 由 `LGPL-3` 改為 `OPL-1`，依 Dobtor 模組授權統一
+政策（新舊模組皆是）。新增模組根目錄的 `LICENSE`（官方 OPL-1 全文 ＋ 版權聲明
+＋ 變更紀錄 ＋ 第三方盤點），並重寫 `LICENSES/README.md`。
+
+`OPL-1` 是 Odoo 18 `ir.module.module.license` 的合法選項值
+（`odoo/addons/base/models/ir_module.py:321`）——不是自訂字串。
+
+### 改之前查證了什麼（這是重點，不是形式）
+
+| 項目 | 結果 |
+|---|---|
+| **depends 的授權** | 六支全為 Odoo 18 CE 核心（`base` / `web` / `mail` / `html_editor` / `bus` / `portal`），**皆 LGPL-3，無 AGPL**。LGPL-3 相依不妨礙以 OPL-1 散布 |
+| **自有檔案的授權標頭** | **0 個**——`models/` `controllers/` `wizards/` `views/` `security/` `data/` `static/src/` 全掃過，沒有任何檔案宣告 LGPL / AGPL / 第三方版權 |
+| **有沒有 vendoring Odoo 核心碼** | 沒有。模組用 `_inherit` / override 擴充。唯一一處「一字不差的複本」註記（`models/qweb/expr.py:530`）指的是**本模組自己的** `doc.render.mixin`，不是核心 |
+| **隨附第三方** | 三支檔案，詳見下 |
+
+### 隨附第三方的實際組成（從打包檔的授權橫幅讀出，不是憑印象）
+
+* `canvas-editor.umd.min.js` — `@hufe921/canvas-editor` 0.9.128，**MIT**
+* `canvas-editor-plugin-docx.umd.js` — 同專案 docx plugin，**內嵌**：
+  * **JSZip 3.10.1：MIT 或 GPLv3 雙授權 → 本模組選用 MIT**
+  * pako：MIT（JSZip 的授權聲明中載明）
+  * ieee754：BSD-3-Clause
+  * `String.fromCodePoint` shim：MIT
+* `canvas-editor-shim.js` — 本模組自有（414 bytes）
+
+☠️ 第一版我把 `mammoth` 寫成「BSD-2-Clause、已內嵌」——**那是憑印象**。打包檔裡
+只看得到 `http://schemas.zwobble.org/mammoth/style-map` 命名空間與 style-map
+讀寫函式，不足以斷定內嵌範圍與授權。已改成據實記錄「可能內嵌，要回 upstream
+的 `package.json` 才能確認」。
+
+同理選用 Python 套件的授權改成**從已安裝版本的 package metadata 讀出**：
+`python-docx` MIT、`docxtpl` **LGPL-2.1-only**（我原本寫 LGPL-3，錯）、
+`odfpy` License 欄為 UNKNOWN 而 classifier 同時列 Apache-2.0 / GPL / LGPL。
+這三者由使用者自行 pip 安裝、**不隨模組散布**，不影響本模組以 OPL-1 散布。
+
+### 連帶清掉三份不再適用的授權檔
+
+`LICENSES/` 原有 `fflate` / `opentype.js` / `harfbuzzjs` 三份——它們是**已移除的
+TS 子系統**（ADR-029）的 npm 相依，會被打包進那個從未掛進 manifest 的
+`canvas-editor-custom.umd.js`。模組現在完全沒有隨附這三個程式庫
+（`grep -rli` 在 `static/` 下 0 筆），所以刪除並在 `LICENSES/README.md` 記明原因。
+
+### 既有散布版本
+
+2026-10-09 之前已散布的 LGPL-3 版本，其授權不受本次變更影響（已授出的 LGPL
+權利無法追回）。這一點寫在 `LICENSE` 的「授權變更紀錄」。
+
+### 驗證
+
+乾淨資料庫全新安裝成功，`ir_module_module` 實際存到
+`dobtor_doc_editor | OPL-1 | 18.0.12.1.0`；後端 **590 則 0 失敗**、
+`make ci-all` 全過。

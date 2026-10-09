@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.12.0.0',
+    'version': '18.0.12.1.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -26,7 +26,13 @@ Dobtor Doc Editor v2.1
     """,
     'category': 'Productivity',
     'author': 'Dobtor',
-    'license': 'LGPL-3',
+    # Dobtor 模組授權統一政策：OPL-1（新舊模組皆是）。
+    # 2026-10-09 由 LGPL-3 改為 OPL-1——變更前的查證與第三方盤點寫在根目錄的
+    # LICENSE 與 LICENSES/README.md：depends 六支全為 LGPL-3 核心 Odoo（無
+    # AGPL）、自有檔案零授權標頭、隨附的三支第三方檔案授權皆為寬鬆式
+    # （JSZip 的 MIT/GPLv3 雙授權中選用 MIT）。
+    # 已散布的 LGPL-3 版本其授權不受本次變更影響。
+    'license': 'OPL-1',
     'depends': [
         'base',
         'web',
