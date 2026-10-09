@@ -38,6 +38,20 @@
 > 沒有 CI（ADR-028），上面那些要**人跑**。要取回被移除的東西：
 > `git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/<path>`
 
+
+> ## ⚠️ 2026-10-09：檔案匯入已拆成獨立模組（ADR-033）
+>
+> `.docx` / `.odt` 匯入、整條自寫 OOXML 管線（33,076 行 TS）、222 支 vitest
+> （3,059 則）、82MB fixture、三份 rollup 設定、`scripts/` 量測 harness、
+> 批次匯入精靈、`/dobtor/fonts/*` 字型服務——**全部搬到 `dobtor_doc_import`**。
+>
+> 核心拆分後**完全沒有 TypeScript**，`make` 只剩 Odoo 操作與 Python 靜態檢查。
+> 本文件下面提到 npm / rollup / vitest / fixtures 的段落，一律改看
+> `../dobtor_doc_import/README.md`。
+>
+> 核心仍然有的匯入相關功能：**「匯入」按鈕**（`/dobtor_doc/upload_template`
+> ＋ canvas-editor 的 docx plugin），沒裝 `dobtor_doc_import` 也可用。
+
 ---
 
 ## 1. 快速開始

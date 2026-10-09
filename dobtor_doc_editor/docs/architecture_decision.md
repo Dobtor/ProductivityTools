@@ -42,6 +42,7 @@
 | **030** | **授權 LGPL-3 → OPL-1** | **2026-10-09** | Dobtor 統一政策；depends 全 LGPL-3 核心（無 AGPL）、自有檔案零授權標頭、隨附第三方皆寬鬆式（JSZip 雙授權選 MIT）|
 | **031** | **移除模組內的 Claude Code hooks** | **2026-10-09** | 573 行、4 支 hook；它要求的三層 SOP 與 sprint artifact 都已不存在，且實測已不生效。紀律本身保留在 CONTRIBUTING §5 |
 | **032** | **取回 TS OOXML 子系統＋補上從未接上的兩條線** | **2026-10-09** | CLI 產物進版控（`!tools/dist/`）、bundle 掛進 manifest 並加瀏覽器端消費者；三道守門員都驗過會紅 |
+| **033** | **檔案匯入拆成 dobtor_doc_import** | **2026-10-09** | 核心 0 行 TS / 36 條路由；新模組 33,076 行 TS、3,059 則 vitest、82MB fixture、5 條路由。跨模組介面只有四個 |
 
 ---
 
@@ -2026,3 +2027,96 @@ dist/
   canvas-editor 的 docx plugin。兩條 TS 通道（後端 CLI、瀏覽器 parser）都是
   驗收用，要不要升為預設是另一個決定，需要先有 A/B 保真度數據。
 * **CI 沒有**（ADR-028 撤回），所以 `npm test` 的 3059 則與 tour 都靠人跑。
+
+---
+
+## ADR-033：檔案匯入拆成 `dobtor_doc_import` 獨立模組
+
+**日期**：2026-10-09
+**狀態**：已實作（核心 `18.0.15.1.0`、新模組 `18.0.1.3.0`）
+**不含 migration**：此模組尚未正式商轉，依使用者指示略過既有 DB 升級路徑
+
+### 為什麼拆
+
+匯入這條線比核心編輯器還大，而它與核心的介面很窄：
+
+| | 核心 `dobtor_doc_editor` | 新模組 `dobtor_doc_import` |
+|---|---|---|
+| Python | 44 檔 / 15,001 行 | 4 檔 |
+| 出貨 JS | 29 檔 / 12,035 行 | 1 支 patch ＋ 1 個 bundle |
+| TypeScript | **0** | 160 檔 / 33,076 行 |
+| vitest | **0** | 222 檔 / 3,059 則 |
+| fixtures | 0 | 82MB |
+| 路由 | 36 | 5 |
+
+混在一起的代價：每次部署都要帶上整套解析器的測試資料。
+
+### 命名
+
+`dobtor_doc_import`。評估過四個候選，理由寫在 2/5 的 commit：與
+`dobtor_doc_editor` 同家族、夠短（XML ID 前綴每天都要打）、說的是能力不是技術。
+否決 `dobtor_docx_import`（綁死格式，現在就同時吃 ODT）與 `dobtor_ooxml`
+（說技術不說能力）。
+
+### 跨模組介面只有四個
+
+| 留在核心 | 為什麼 |
+|---|---|
+| `models/doc_zip_guard.py` | 核心的範本上傳也在用 |
+| `models/doc_ins_syntax.py` | **只有**核心的範本上傳在用（步驟 1 從 doc_convert.py 抽出來的） |
+| `controllers/doc_controller_base.py` | 新模組的 controller 繼承它拿 `json_http_route` |
+| `tests/session_probe.py` | 新模組的 HttpCase 沿用，不複製一份 |
+
+☠️ 核心的 `tests/` 因此變成**公開介面**（它是 Python 套件，跨模組 import 得到）。
+改 `session_probe.py` 要想到新模組也在用。
+
+### 五步，每步獨立驗證
+
+拆之前刻意不一次搬完——937 檔那次移除（ADR-029）就是一次做完、結果留了 5 處殘留。
+
+### 提案裡錯掉的一個前提（值得記）
+
+提案寫「匯入按鈕在核心，路由搬走之後按鈕得改成 patch 注入」。量過之後不是：
+`onImportClick` 打的是 `/dobtor_doc/upload_template`（**核心**路由）＋
+canvas-editor 的 docx plugin（**核心**資源），**沒裝新模組也完全可用**。
+真正依賴新模組的只有兩支沒有 UI 入口的驗收方法。步驟 5 因此從「重做入口」
+縮成「patch 兩支方法」。
+
+**先量再寫提案也還是會錯——提案的前提一樣要驗。**
+
+### 搬的過程抓到的真問題
+
+1. **批次精靈建出 0 份文件**（我搬壞的，但原因值得記）：它在**迴圈裡**
+   `from ..controllers.doc_controller import _docx_to_html_with_format`——那是
+   2026-05 controller 拆層**之前**的位置。拆層後仍然能動，是因為
+   `doc_controller.py` 的「import 區塊整份照抄」慣例把那支 **re-export** 出來。
+   搬到新模組後 ImportError 被 `except Exception` 吞掉 → 每個檔案走「跳過」分支
+   → 精靈回報成功但建出 0 份。改成檔頭 import 正確的模組。
+   **那個照抄慣例是為了安全（少一個 import ＝ 執行期 ReferenceError），但它
+   也造成了隱性 re-export 耦合。**
+2. **manifest assets 守門員守錯了模組**：原本由新模組的 vitest 守，但拆完之後
+   核心才是有 28 支出貨 JS 的那一個、而核心沒有 vitest。核心補了
+   `tests/test_manifest_assets.py`（3 則，Python，不需要 node）。
+3. `scripts/font_probe.mjs` 等兩支寫死 `/mnt/d/work/...` 的 WSL 路徑——在任何
+   其他機器上都不存在（早於拆模組）。
+4. `jinja2_scanner.test.ts` 的被測對象是**核心**出貨的 JS，留在核心 → 改成跨模組
+   相對路徑指回 sibling 目錄，代價寫在檔頭（核心搬那支檔案時這裡會以 Failed
+   Suite 的形式壞掉，不靜默）。
+5. 搬測試時漏帶兩個模組層名稱（`HAS_PYTHON_DOCX`、`_make_minimal_docx_bytes`）
+   ——症狀是 NameError 被報成「測試錯誤」，看起來像被測路由壞了。
+
+### 14 支 `Overlay*.ts` 是「寄放」不是歸屬
+
+它們是 Phase 8 的 Phase 2.2 前置碼（§5 `[ ]` 未啟動），三個 rollup entry 都到
+不了、出貨 JS 沒引用。放新模組的唯一理由是**拆完之後只有那裡有 TS 工具鏈**。
+說明寫在 `static/src/components/doc_editor/README.md`。
+
+### 驗證
+
+| | |
+|---|---|
+| 兩個模組都裝 | **615 則 0 失敗**（591 核心 + 24 匯入） |
+| **只裝核心** | **591 則 0 失敗**，新模組 uninstalled ← 拆乾淨的證明 |
+| 核心 tour | 78/78 |
+| 匯入模組 vitest | **3,059 passed / 108 skipped / 0 failed** |
+| 兩邊靜態 | manifest / flake8 / XML / test-js 全過 |
