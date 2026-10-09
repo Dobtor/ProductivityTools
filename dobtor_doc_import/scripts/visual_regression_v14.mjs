@@ -409,6 +409,33 @@ async function main() {
       `\n     report=${reportPath}`,
   );
 
+  // ☠️ 「一頁都沒量到」不可以算通過。
+  //    原本只看 failedPages 跟 bootFailed，所以
+  //    `rendered=0/0 comparedPages=0 failedPages=0` 會 exit 0——
+  //    --filter 打錯、fixture 目錄没搶到、goldens 沒產生，
+  //    都走到這條路：跟跑得漂亮完全分不出來。
+  //    （run_visual_regression.sh 的 threshold gate 有一模一樣的洞，
+  //      同一次 2026-10-09 稽核一起補。）
+  if (report.totalFixtures === 0) {
+    console.error(
+      '[v14] ✗ 找不到任何 fixture'
+        + (args.filter ? `（filter=${args.filter}）` : '')
+        + '——這是設定／環境問題，不是「通過」。',
+    );
+    process.exit(2);
+  }
+  if (report.rendered === 0) {
+    console.error('[v14] ✗ totalFixtures=' + report.totalFixtures
+      + ' 但 rendered=0——一份都沒港出來。');
+    process.exit(1);
+  }
+  if (!args.noDiff && report.comparedPages === 0) {
+    console.error('[v14] ✗ diff 模式下 comparedPages=0'
+      + '——港出來了卻沒跟任何 golden 比過'
+      + '（golden PNG 沒產生？跑 make fixtures-golden）。');
+    process.exit(1);
+  }
+
   if (!args.noDiff && report.failedPages > 0) process.exit(1);
   if (report.bootFailed > 0) process.exit(1);
   process.exit(0);

@@ -94,7 +94,19 @@ export class SettingsParser {
           out.footnotePr = parseNotePr(child, 'footnote');
           break;
         case 'w:endnotePr':
-          out.endnotePr = parseNotePr(child, 'endnote');
+          // ☠️ 型別收種：parseNotePr 的回傳型別是 **footnote** 那一組
+          //    （NotePr = DocumentSettings['footnotePr']），而 OOXML 规格裡
+          //    footnote 的 w:pos 有四個值
+          //    （pageBottom / beneathText / sectEnd / docEnd）、
+          //    endnote 只有兩個（sectEnd / docEnd）——types.ts 那兩個
+          //    型別是對的，不要把 endnote 放寬來消掉這個錯誤。
+          //    parseNotePr 已經依 kind 在**執行期**擋掉了 pageBottom /
+          //    beneathText（見該函式的 valid 清單），所以這裡的收種
+          //    有執行期保証。把它停在這一行（而不是改型別定義），
+          //    是因為轉換行為本身完全没改。
+          out.endnotePr = parseNotePr(child, 'endnote') as NonNullable<
+            DocumentSettings['endnotePr']
+          >;
           break;
         case 'w:compat': {
           const names: string[] = [];

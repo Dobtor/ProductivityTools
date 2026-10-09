@@ -92,6 +92,22 @@ print(f"Errors           : {len(errors)}")
 
 failures = []
 
+# ☠️ 「一個 fixture 都沒比到」不可以算通過。
+#    原本：results 是空陣列 → errors=[] 、ok=[] → failures=[] →
+#    印出「✓ Visual regression PASSED」並 exit 0。打錯一個 --category
+#    、fixture 目錄搶不到、或 compare_fixtures.cjs 寫出空 JSON，
+#    都會走到這條路——閘门在沒量到任何東西的情況下說通過。
+#    （跟本模組今天反覆抓到的失效模式是同一個：
+#      檢查存在、但它的判決空洞。）
+if not results:
+    msg = "compare_fixtures.cjs 回了 0 筆結果——這道閘門沒有量到任何東西"
+    print(f"::error::{msg}")
+    failures.append(msg)
+elif not ok:
+    msg = f"{len(results)} 筆結果裡沒有任何一筆成功算出 meanDiff"
+    print(f"::error::{msg}")
+    failures.append(msg)
+
 if len(errors) > max_errors:
     msg = f"errors {len(errors)} > MAX_ERRORS {max_errors}"
     print(f"::error::{msg}")

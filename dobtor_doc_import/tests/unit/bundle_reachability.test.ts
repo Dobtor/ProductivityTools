@@ -236,8 +236,15 @@ function relative(abs: string): string {
 
 describe("build 產物的可達性", () => {
     const live = new Set([...reachable(ENTRIES)].map(relative));
+    // ☠️ 排除 *.d.ts。宣告檔是 ambient 型別，**本質上不會被 import**
+    //    （FontMetrics.ts 寄託 opentype.js 的那一份就是這樣），把它算進
+    //    「必須可達」的集合是分類錯誤——這一則真的在我加
+    //    static/src/core/types/opentype.d.ts 時紅了。
+    //    這**不是漏洞**：TypeScript 禁止宣告檔裝實作，所以沒有人
+    //    能利用 .d.ts 藏一段「存在但不執行」的執行期程式碼。
     const allTs = globSync("static/src/**/*.ts", { cwd: MODULE_ROOT, nodir: true })
-        .map((p) => p.replace(/\\/g, "/"));
+        .map((p) => p.replace(/\\/g, "/"))
+        .filter((p) => !p.endsWith(".d.ts"));
     const unreachable = allTs.filter((p) => !live.has(p)).sort();
     const declared = (p: string) =>
         DECLARED_UNREACHABLE.find((d) => p.startsWith(d.prefix));
