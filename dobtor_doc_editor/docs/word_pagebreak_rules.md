@@ -1,5 +1,10 @@
 # Word page-break 規則樣本資料庫
 
+> ⚠️ **對應的 Paginator 與 fixture 都已移除（2026-10-09，ADR-029）**：本檔是自寫
+> TS 排版引擎的 heuristic 依據，那套引擎不出貨、已整批刪除。保留是因為這些 Word
+> 行為觀察本身不會過期。
+
+
 **目的**：累積真實 .docx fixture 觀察到的 Word 內部 pagination 行為，作為 Paginator
 heuristic 的依據；避免「對單一 fixture 修 paginator → 其他 fixture 退步」的隨機修法。
 

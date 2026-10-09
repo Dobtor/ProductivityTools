@@ -1,5 +1,12 @@
 # dobtor_doc_editor — 術語表（Glossary）
 
+> ⚠️ **2026-10-09（ADR-029）**：本詞彙表大半是**歷史紀錄**。VR / vitest /
+> rollup / goldens / fixtures / 三層 SOP / OoxmlParser 相關的詞條，對應的程式碼與
+> 資料已整批移除（未出貨的 TS 子系統）。這些詞條**刻意保留**——它們記錄的是當時
+> 的衡量方式與紀律，刪掉會讓 `SPRINT_AUDIT_CONSOLIDATED.md` 裡幾百處引用變成死連結。
+> 判斷哪些還有效：**看 `make help`**，那是權威。
+
+
 > Sprint 73 落地、Sprint 119 擴充到 Sprint 118 era、**Sprint 155 catch-up 到 Sprint 154 era**（+ Sprint 145-153 三新變體 / autonomous 邊界第二次揭示 / Phase 1 90% 整數里程碑 / 紀律 #21.a 潛在子候選等）。規畫書附錄 B 已有 OOXML 對映表、本 glossary 補完 *sprint 紀律 / 衡量指標 / 內部子系統 / 工具鏈 / process 模式* 術語。新貢獻者 / 跨 sprint 回顧時對齊用語。
 
 ## 0. 章節索引（Sprint 119 加、Sprint 155 更新；驗證紀律 #20 候選）
@@ -170,15 +177,15 @@
 
 | 名稱 | 用途 |
 |---|---|
-| **rollup** | TS → IIFE bundle |
-| **vitest** | unit + integration test runner（Sprint 153 結尾 **1331 passed + 1 skipped**；Sprint 110 → 153 期間 +355 test）|
+| **rollup** | ~~TS → IIFE bundle~~ **已移除（ADR-029）** |
+| **vitest** | ~~unit + integration test runner~~ **已移除（ADR-029）**；現在純函式 JS 單測走 `make test-js`（node，無 runner 相依） |
 | **pixelmatch** | PNG pixel-level diff |
-| **puppeteer** | headless Chromium、跑 VR |
+| **puppeteer** | ~~headless Chromium、跑 VR~~ **已移除（ADR-029）** |
 | **HttpCase** | Odoo runtime HTTP test base class |
 | **TransactionCase** | Odoo runtime DB test base class（無 HTTP）|
-| **`--test-tags=<tag>`** | Odoo test 選取 query；常用 `font_serve` / `zip_guard` |
+| **`--test-tags=<tag>`** | Odoo test 選取 query。⚠️ `font_serve` tag 已隨 ADR-029 移除——打它會回「0 failed, 0 error of **0 tests**」而看起來是綠的。現在只剩 `zip_guard`、`security`、`dobtor_doc_editor` |
 | **`--http-port=8169`** | 避開 production server 8069 |
-| **IIFE bundle** | `tools/dist/visual_regression_pipeline.iife.js` — VR pipeline browser-side |
+| **IIFE bundle** | ~~`tools/dist/visual_regression_pipeline.iife.js`~~ **已移除（ADR-029）** |
 | **parse_docx_cli.cjs** | TS parser CLI（subprocess 呼叫）| Phase E |
 | **`make dev`** | build + upgrade + restart 完整循環 |
 | **`run_backend_tests.sh`** | Sprint 72 加的 Odoo backend test 一鍵觸發 |

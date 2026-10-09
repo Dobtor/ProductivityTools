@@ -6,14 +6,19 @@
 # 涵蓋 tag：
 #   - zip_guard（Sprint 20 W9-10 + Sprint 71 補測 — DOCX zip bomb 防護）
 #
-# 執行方式：
-#   docker exec odoo18 bash /mnt/extra-addons/dobtor_doc_editor/tests/scripts/run_backend_tests.sh
-#   docker exec odoo18 bash /mnt/extra-addons/dobtor_doc_editor/tests/scripts/run_backend_tests.sh --tag=font_serve
+# 執行方式（建議走 Makefile，它會把連線參數帶進來）：
+#   make test-backend              # 預設 tag
+#   make test-backend TAG=security # 指定 tag
 #
-# 環境需求：
-#   - Odoo container `odoo18` 已運行（或 ODOO_CONTAINER env 覆寫）
-#   - DB `odoo18_dev` 已 install dobtor_doc_editor
-#   - port 8169 可用（避開既有 server 的 8069）
+# 直接 docker exec 的話要自己帶 ODOO_ARGS——這個 rig 的 Postgres 在**另一個
+# 容器**，不帶就會去找容器內的 unix socket 然後 psycopg2.OperationalError：
+#   docker exec -e ODOO_DB=docedit \
+#     -e ODOO_ARGS="--db_host=qcpg --db_user=odoo --db_password=odoo \
+#                   --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/pt" \
+#     qcodoo bash /mnt/pt/dobtor_doc_editor/tests/scripts/run_backend_tests.sh
+#
+# ⚠️ 打了不存在的 tag，Odoo 會回「0 failed, 0 error of **0 tests**」——看起來
+#    是綠的。腳本結尾有擋這件事。
 
 set -euo pipefail
 
@@ -21,7 +26,7 @@ set -euo pipefail
 TAG="${1:-zip_guard}"
 TAG="${TAG#--tag=}"
 
-ODOO_DB="${ODOO_DB:-odoo18_dev}"
+ODOO_DB="${ODOO_DB:-docedit}"
 ODOO_CONF="${ODOO_CONF:-/etc/odoo/odoo.conf}"
 HTTP_PORT="${HTTP_PORT:-8169}"
 # 預設讀 odoo.conf。資料庫不在本機 socket（例如 pg 在另一個容器）時，

@@ -1,5 +1,10 @@
 # OOXML 元素白名單
 
+> ⚠️ **產生它的工具與資料都已移除（2026-10-09，ADR-029）**：本檔由
+> `tools/scan_ooxml_elements.py` 依 `tests/fixtures/` 統計產生，兩者都隨未出貨的
+> TS 子系統刪除，所以這份清單不會再更新。保留是當 OOXML 元素分布的參考。
+
+
 > 本檔由 `tools/scan_ooxml_elements.py` 自動產生，依 fixture 實際出現的元素統計。
 > Parser 僅需實作此清單；超出範圍的元素先做 fallback 不擋上線。
 

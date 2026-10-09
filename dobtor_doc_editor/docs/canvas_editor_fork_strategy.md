@@ -1,5 +1,11 @@
 # canvas-editor Fork 策略
 
+> ⚠️ **已不適用（2026-10-09，ADR-029）**：本文描述的 fork 做法（patch-package
+> ＋ rollup 打包 `canvas-editor-custom.umd.js`）整套已移除——那個 bundle 從頭到尾
+> 沒有掛進 manifest，模組載的一直是上游 `canvas-editor.umd.min.js`。
+> 保留本文是給將來真的要 fork 時當起點。
+
+
 ## 背景
 
 `@hufe921/canvas-editor` 是本模組 docx 編輯器的渲染基礎。規劃文件預期會對它做大量修補（接收 OoxmlParser 產出的 LineMetrics、表格 vMerge 跨頁、CJK 避頭尾、自訂 Layout Engine 等）。本文件記錄兩種 fork 策略的選擇邏輯與切換時機。

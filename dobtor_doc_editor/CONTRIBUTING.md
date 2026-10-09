@@ -15,6 +15,29 @@
 9. [Scope 決策（何時用 QWeb vs dobtor_doc_editor）](#9-scope-決策何時用-qweb-vs-dobtor_doc_editor)
 10. [Issue / Bug 回報](#10-issue--bug-回報)
 
+
+> ## ⚠️ 2026-10-09：工具鏈與驗證流程已大幅改變（ADR-029）
+>
+> 未出貨的 TS OOXML 子系統（parser、vitest 222 支、82MB fixture、rollup、
+> VR harness、`scripts/`、`font_serve`）已**整批移除**。本文件下面關於
+> **npm / rollup / vitest / fixtures / visual regression / 三層 SOP** 的章節
+> 都已過期，保留是為了記錄當時的紀律與踩過的坑（紀律 5 那類仍然有教育價值）。
+>
+> **現在的日常循環**（`make help` 是權威）：
+>
+> | 場景 | 指令 |
+> |---|---|
+> | 改 Python（model / controller） | `make upgrade restart` |
+> | 改 XML（views / templates） | `make upgrade` |
+> | 改 JS / CSS | F5（dev_mode reload assets） |
+> | 跑全部後端測試（590 則） | `make test-local` |
+> | 跑瀏覽器 tour（78 步，前端唯一的驗證） | `make test-local-tour` |
+> | 純函式 JS 單測 | `make test-js` |
+> | 靜態檢查 | `make ci-all`（＝`ci-python` + `ci-xml` + `test-js`） |
+>
+> 沒有 CI（ADR-028），上面那些要**人跑**。要取回被移除的東西：
+> `git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/<path>`
+
 ---
 
 ## 1. 快速開始
@@ -36,9 +59,8 @@ make upgrade
 make restart
 ```
 
-完整循環一行：`make dev`（build + upgrade + restart）。
-
-驗證：`make verify`（typecheck + rollup build 通電檢查）。
+完整循環：`make upgrade restart`。驗證：`make ci-all` 與 `make test-local`。
+（`make dev` / `make verify` 已隨 rollup 一起移除——見本檔開頭的提醒。）
 
 ---
 
@@ -49,8 +71,7 @@ make restart
 | 工具 | 最低版本 | 來源 |
 |---|---|---|
 | Docker Desktop | 4.x | Windows WSL2 backend |
-| Node.js | 20.x（**鎖 v20 LTS**，與 CI 對齊） | nvm 建議 |
-| npm | 10.x | 隨 Node 安裝 |
+| Node.js | 任一近期版本（只有 `make test-js` 用到，不再需要鎖版） | nvm 建議 |
 | Python | 3.10+（容器內為 Odoo 18 內建版本） | 容器內 |
 
 ### 容器與資料庫
@@ -79,35 +100,30 @@ docker restart odoo18
 
 | 場景 | 指令 |
 |---|---|
-| 改 TypeScript（pipeline / parser / renderer） | `make build` → `npm test` → `make build` 重打 IIFE |
 | 改 Python（model / controller） | `make upgrade restart` |
 | 改 XML（views / templates） | `make upgrade`（dev_mode reload XML，F5 即生效但保險仍 upgrade） |
 | 改 SCSS / CSS | F5 即生效（dev_mode reload assets） |
-| 改 unit test | `npm test`（vitest） |
-| 跑 VR baseline | `node scripts/visual_regression_v14.mjs`（42 fixture × 126 pages，~3-5 分鐘） |
-| 跑 grid analysis（per-page diff 診斷） | `node scripts/grid_analysis.cjs <fixture>` |
+| 改純函式 JS 單測 | `make test-js` |
 
 ### 完整 Make targets
 
+以 `make help` 為權威。2026-10-09 之後只剩：
+
 ```
 help                  列出所有 target
-install               安裝 npm 依賴（含 patch-package 套用）
-build                 rollup 打包 OOXML Parser → canvas-editor-custom.umd.js
-watch                 rollup --watch（修改 .ts 即時重打包）
 upgrade               odoo -u dobtor_doc_editor（更新 DB schema / views / ACL）
 restart               重啟 Odoo container（載入 Python controller 變更）
 logs                  跟看 Odoo container 日誌
-dev                   build + upgrade + restart 完整循環
-scan-ooxml            掃 tests/fixtures/ 全部 DOCX 統計 OOXML 元素
-fixtures-golden       用 LibreOffice + pdftoppm 為每份 DOCX 產 golden PNG
-fixtures-compare      用 puppeteer + pixelmatch 比對 canvas-editor 與 golden
-visual-regression     跑視覺回歸 + threshold 判定（PR block 用）
-ci-frontend           CI 前端 job：typecheck + vitest + build
-ci-python             CI Python job：flake8 + manifest 驗證
-ci-xml                CI XML job：全 XML well-formed
-ci-all                ci-frontend + ci-python + ci-xml
-clean / clean-build / clean-deps   清理
-verify                build 鏈通電（type check + rollup build）
+test-backend          容器內跑 backend tests（挑 tag）
+test-backend-zip      只跑 zip_guard tag
+test-local            本機 rig 跑全部 backend 測試（590 則）
+test-local-tour       本機 rig 跑瀏覽器 tour（78 步）
+test-local-all        backend 綠了才跑 tour
+test-js               純函式 JS 單測（node，約 1 秒）
+ci-python             flake8 + manifest 驗證
+ci-xml                全 XML well-formed
+ci-all                ci-python + ci-xml + test-js
+clean                 刪除 Python 編譯暫存
 ```
 
 ---
@@ -116,11 +132,18 @@ verify                build 鏈通電（type check + rollup build）
 
 **自 Sprint 23 起所有 sprint 適用 — 缺一視為不過。**
 
+⚠️ **這三層已不存在**（2026-10-09，ADR-029）：L1 的 vitest、L2 的 VR harness
+與 fixture、L3 的 golden PNG 全部隨未出貨的 TS 子系統移除。保留這一節是為了
+記錄「缺一視為不過」這條紀律當時怎麼執行的。
+
+**現在的驗證層**：
+
 | 層 | 目的 | 指令 | 通過標準 |
 |---|---|---|---|
-| **L1 Vitest** | unit + integration 測試覆蓋 root cause | `npm test` | 全綠（當前 976 passed + 1 skipped） |
-| **L2 Visual Regression v14** | 42 fixture × 126 pages × pixelmatch | `node scripts/visual_regression_v14.mjs` | mean ≤ baseline（當前 0.073191）、0 failed pages |
-| **L3 Visual spot check** | 比對 render PNG vs golden 確認結構性差異消除 | 人工開 `tests/fixtures/*.golden.png` 與 render 並列 | 主 diff anchor 消除 |
+| **後端** | Odoo 側全部行為 | `make test-local` | 590 則 0 失敗（**不可以是 0 則**） |
+| **前端** | OWL 掛載與面板互動，唯一的前端驗證 | `make test-local-tour` | 78/78 `tour succeeded` |
+| **純函式 JS** | 不需瀏覽器的 JS 邏輯 | `make test-js` | 全綠 |
+| **靜態** | 會讓模組載不進去的那幾類 | `make ci-all` | 全綠 |
 
 每個 sprint 的 audit doc（`docs/sprintN_*.md`）必須記錄三層 SOP 的具體數據。
 
@@ -423,7 +446,6 @@ User 提供 `test-risen.dobtor.com` esign UI 截圖、Claude 誤判為「規畫�
 ### CI gates
 
 PR 必須通過：
-- `make ci-frontend`：typecheck + vitest + build
 - `make ci-python`：flake8 + manifest 驗證
 - `make ci-xml`：所有 XML well-formed
 - VR baseline drift ≤ 容差（手動跑、附結果於 PR）

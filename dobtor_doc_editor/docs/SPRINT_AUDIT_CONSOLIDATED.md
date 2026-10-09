@@ -1,5 +1,23 @@
 # Sprint Audit — 合併權威檔（SPRINT_AUDIT_CONSOLIDATED.md）
 
+> ## ⚠️ 2026-10-09：本檔有約 60 條連結指向已移除的檔案（ADR-029）
+>
+> 未出貨的 TS OOXML 子系統整批移除，所以本檔內指向下列路徑的連結都已失效：
+> `static/src/core/**`（.ts）、`static/src/components/doc_editor/*.ts`、
+> `tests/unit/**`、`tests/integration/**`、`tests/fixtures/**`、`scripts/**`、
+> `tools/**`、`controllers/font_serve.py`、`rollup*.config.js`。
+>
+> **本檔內容刻意不改**——它是 339 個 sprint 的歷史紀錄，改掉等於竄改當時量到的
+> 數據與決策依據。要看那些檔案當時的樣子：
+>
+> ```bash
+> git show doc-editor-before-ts-removal:dobtor_doc_editor/<path>
+> ```
+>
+> （另有一批連結在 2026-05 的 sprint 檔合併時就已失效，與本次無關。）
+
+---
+
 > 本檔由 **339 個 per-sprint audit log**（`sprintN_*.md` 257 個 + `phase8_sprint_*.md` 82 個）合併而成。
 > 原始 339 個 per-sprint 檔已於合併後**刪除**（使用者明確授權，無 archive）。
 > 涵蓋 Sprint 編號範圍：**Sprint 1-353**（主線 sprint 1-353 + 收尾迭代至 357）＋ **Phase 8 Sprint A-Y58c** 全系列。

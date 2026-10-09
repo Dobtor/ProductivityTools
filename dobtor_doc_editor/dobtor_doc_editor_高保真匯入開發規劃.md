@@ -1,5 +1,12 @@
 # Dobtor Doc Editor — 高保真 docx 匯入開發規劃
 
+> ⚠️ **2026-10-09 狀態說明（不改本規劃的內容）**：本規劃中「自寫 TS OOXML
+> Parser / 排版引擎」那條路線的程式碼、測試與 fixture 已整批移除（ADR-029）——
+> 它不出貨、不產生 production 行為。**規劃本身保留原樣**，它記錄的是當時要達成
+> 什麼與為什麼；要重啟那條路線，從 `doc-editor-before-ts-removal` 取回。
+> 目前出貨的 DOCX 匯入走 LibreOffice 與 canvas-editor 的 docx plugin。
+
+
 **目標等級**：對標 **OnlyOffice / Google Docs** 的 docx 匯入還原度（95%+ 真實文件無跑版）
 
 **產出日期**：2026-04-20

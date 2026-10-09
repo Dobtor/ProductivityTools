@@ -147,59 +147,12 @@ export const DocEditorIo = (Base) => class extends Base {
         }
     }
 
-    /**
-     * 用本模組的 TS OOXML Parser（Phase E 並行通道）匯入 .docx。
-     *
-     * 與 _handleImportFile 的差異：
-     *   - _handleImportFile 走 canvas-editor 的 docx plugin（@hufe921 內建）
-     *   - importViaTsEngine 走後端 /dobtor_doc/import?engine=ts → 我們自寫的 OoxmlParser → IElement[]
-     *
-     * 驗收用途：
-     *   chichi 在 DevTools 跑 `window._docEditor.importViaTsEngine(file)`
-     *   比對兩條解析路徑對同一份 .docx 的渲染差異。
-     *
-     * @param {File} file 使用者上傳的 .docx File 物件
-     * @param {Object} [options] 預留選項，目前無
-     * @returns {Promise<{success: boolean, elementCount?: number, error?: string}>}
-     */
-    async importViaTsEngine(file) {
-        if (!file) {
-            return { success: false, error: "未提供檔案" };
-        }
-        if (!this.editor) {
-            return { success: false, error: "Canvas editor 尚未初始化" };
-        }
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("engine", "ts");
+    // `importViaTsEngine()` 原本在這裡——走後端 /dobtor_doc/import?engine=ts
+    // 取自寫 TS OOXML Parser 的 IElement[]，給人在 DevTools 手動比對兩條解析
+    // 路徑用。2026-10-09 連同整個未出貨的 TS 子系統一起移除（ADR-029）：後端
+    // 已經不會回 elements，它必然卡在 Array.isArray(result.elements) 那一行。
+    // 要取回：git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/<path>
 
-            const resp = await fetch("/dobtor_doc/import", {
-                method: "POST",
-                body: formData,
-            });
-            const result = await this._readJsonResponse(resp);
-            if (result.error) throw new Error(result.error);
-            if (!Array.isArray(result.elements)) {
-                throw new Error("Backend 未回傳 elements 陣列（engine=ts 可能 fallback 到 libreoffice）");
-            }
-
-            // 用 canvas-editor 的 setValue 命令直接餵 IElement[]
-            this.editor.command.executeSetValue({ main: result.elements });
-
-            this.state.statusMsg = `TS Parser 匯入成功（${result.elements.length} elements）`;
-            this.state.statusType = "saved";
-            this.notification.add(
-                `TS Parser 匯入成功：${result.elements.length} 個 IElement`,
-                { type: "success" }
-            );
-            return { success: true, elementCount: result.elements.length };
-        } catch (e) {
-            console.error("[DocEditor] importViaTsEngine 失敗：", e);
-            this.notification.add(`TS Parser 匯入失敗：${e.message || e}`, { type: "danger" });
-            return { success: false, error: e.message || String(e) };
-        }
-    }
 
 
     // ─── 匯出 PDF ────────────────────────────────────────────────────

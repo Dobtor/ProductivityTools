@@ -1,14 +1,25 @@
-# dobtor_doc_editor — Sprint 0 Makefile
+# dobtor_doc_editor — Makefile（`make help` 是權威，CONTRIBUTING 指向這裡）
 #
 # 用法：在 dobtor_doc_editor/ 目錄下執行 make <target>
-# 目標分組：
-#   build / dev          — 前端打包與 Odoo 重啟
-#   docker / odoo        — Odoo container 操作
-#   clean / verify       — 清理與健檢
+#
+# ☠️ 2026-10-09：預設值原本還是 2026-05 的開發環境（odoo18 / odoo18_dev /
+#    /mnt/extra-addons），在現在的 rig 上全部打不中——`make upgrade` / `restart`
+#    / `logs` / `test-backend` 都會對著不存在的容器執行。改成與
+#    tests/scripts/run_local_rig.sh 同一組預設，仍可用環境變數覆寫：
+#
+#      ODOO_CONTAINER=odoo18 ODOO_DB=odoo18_dev MODULE_MOUNT=/mnt/extra-addons/dobtor_doc_editor make upgrade
+#
+#    MODULE_MOUNT **已含模組名**（與 rig 腳本一致），不要再接 $(MODULE)。
 
-ODOO_CONTAINER ?= odoo18
-ODOO_DB        ?= odoo18_dev
+ODOO_CONTAINER ?= qcodoo
+ODOO_DB        ?= docedit
 MODULE         ?= dobtor_doc_editor
+MODULE_MOUNT   ?= /mnt/pt/$(MODULE)
+PG_HOST        ?= qcpg
+ADDONS_PATH    ?= /usr/lib/python3/dist-packages/odoo/addons,/mnt/pt
+# run_backend_tests.sh 預設讀 odoo.conf，但這個 rig 的 Postgres 在另一個容器
+# ——不傳這組就會去找容器內的 unix socket 然後 OperationalError。
+ODOO_ARGS      ?= --db_host=$(PG_HOST) --db_user=odoo --db_password=odoo --addons-path=$(ADDONS_PATH)
 
 # 預設執行 help
 .DEFAULT_GOAL := help
@@ -49,18 +60,19 @@ logs: ## 跟看 Odoo container 日誌
 	docker logs -f --tail 50 $(ODOO_CONTAINER)
 
 # ── Sprint 77：Odoo backend HttpCase / TransactionCase 一鍵觸發 ──────────
-test-backend: ## 跑 Odoo backend tests（容器內，挑 tag）
-	docker exec $(ODOO_CONTAINER) bash /mnt/extra-addons/$(MODULE)/tests/scripts/run_backend_tests.sh
+test-backend: ## 跑 Odoo backend tests（容器內，挑 tag；TAG=<名稱> 可指定）
+	docker exec -e ODOO_DB=$(ODOO_DB) -e ODOO_ARGS="$(ODOO_ARGS)" $(ODOO_CONTAINER) \
+		bash $(MODULE_MOUNT)/tests/scripts/run_backend_tests.sh $(if $(TAG),--tag=$(TAG),)
 
-test-backend-zip: ## 只跑 zip_guard test（Sprint 20 W9-10 + Sprint 71）
-	docker exec $(ODOO_CONTAINER) bash /mnt/extra-addons/$(MODULE)/tests/scripts/run_backend_tests.sh --tag=zip_guard
+test-backend-zip: ## 只跑 zip_guard tag
+	$(MAKE) test-backend TAG=zip_guard
 
 # ── 本機兩容器 rig：跑模組的全部測試 ──────────────────────────────────
 # 上面三個 test-backend 是在容器內跑、只挑 tag；下面這三個在 host 跑，
 # docker exec 進去跑 /dobtor_doc_editor 的全部測試。容器名與連線參數
 # 用環境變數覆寫，見 tests/scripts/run_local_rig.sh 的檔頭。
 
-test-local: ## 本機 rig 跑全部 backend 測試（約 480 則）
+test-local: ## 本機 rig 跑全部 backend 測試（590 則）
 	bash tests/scripts/run_local_rig.sh test
 
 test-local-tour: ## 本機 rig 跑瀏覽器 tour（另一個容器，前端唯一的驗證）
@@ -74,10 +86,19 @@ test-js: ## 純函式 JS 單測（node，不需要 Odoo 或瀏覽器，約 1 秒
 
 # ── 本機靜態檢查（沒有 CI，這幾支就是唯一的關卡）─────────────────────────────
 
-ci-python: ## CI Python job: flake8 + manifest 驗證
-	flake8 --max-line-length=120 --extend-ignore=E501,W503 \
-	       --select=E9,F63,F7,F82 controllers models wizards
-	python3 -c "import ast; ast.literal_eval(open('__manifest__.py').read())"
+ci-python: ## 靜態檢查：flake8（擋載不進去的那幾類）+ manifest 是合法 literal
+	# ☠️ host 不一定裝得有 flake8（實測這台就沒有），所以**優先用容器裡的**
+	#    ——那也是測試真正跑的環境。host 有就用 host，兩邊都沒有才報錯。
+	#    scope 含 tests/：那批測試漏 import 或打錯名稱一樣會讓整批不執行。
+	@FLAKE="--max-line-length=120 --extend-ignore=E501,W503 --select=E9,F63,F7,F82 controllers models wizards tests"; \
+	if python3 -m flake8 --version >/dev/null 2>&1; then \
+		python3 -m flake8 $$FLAKE; \
+	elif docker ps --format '{{.Names}}' | grep -qx "$(ODOO_CONTAINER)"; then \
+		docker exec $(ODOO_CONTAINER) sh -c "cd $(MODULE_MOUNT) && python3 -m flake8 $$FLAKE"; \
+	else \
+		echo "✗ 找不到 flake8（host 沒裝、容器 $(ODOO_CONTAINER) 沒在跑）"; exit 1; \
+	fi
+	@python3 -c "import ast; ast.literal_eval(open('__manifest__.py').read())" && echo "✓ manifest literal"
 
 ci-xml: ## CI XML job: 全 XML well-formed
 	@find . -name '*.xml' -not -path './node_modules/*' \

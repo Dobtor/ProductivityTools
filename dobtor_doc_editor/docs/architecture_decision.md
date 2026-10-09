@@ -545,6 +545,7 @@ Phase A（Sprint 0 通電）與 Phase B（Sprint 1-2 Parser 全套補完）合�
 - `OoxmlParser` 統一持有兩者的 instance，避免重複實例化。
 
 **參考**：[`OoxmlParser.ts`](../static/src/core/ooxml/OoxmlParser.ts)
+> ⚠️ 上面這個路徑已不存在（ADR-029 整批移除）：`git show doc-editor-before-ts-removal:dobtor_doc_editor/static/src/core/ooxml/OoxmlParser.ts`
 
 #### ADR-008.2：cell.content 限定 ParagraphNode[]（暫）
 
@@ -1772,5 +1773,39 @@ git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/static/src/core/o
 ### 驗證
 
 後端 **590 則 0 失敗**（原 602，減掉 font_serve 的 12 則）、tour **78/78**、
-manifest / flake8 / XML / `make test-js` 全過。模組在既有 DB 上 `-u` 升級成功
-（驗證 manifest 少掉 `views/test_layout.xml` 之後仍裝得起來）。
+manifest / flake8 / XML / `make test-js` 全過。
+
+### 移除後的完整複查（同日第二輪）
+
+第一次移除留了殘留，複查抓到並修掉：
+
+| 殘留 | 為什麼漏掉 |
+|---|---|
+| `static/src/core/ooxml/worker/node_worker_entry.mjs` | 我只刪了 `*.ts`，那棵樹裡還有一支 `.mjs` |
+| `canvas-editor-custom.umd.js` ＋ `.map`（695KB） | 在 `lib/` 不在 `dist/`，rollup 移除後再也 build 不出來 |
+| 前端 `importViaTsEngine()`（53 行） | 後端已不回 `elements`，它必然卡在 `Array.isArray()` |
+| `tests/scripts/run_backend_tests.sh` 預設 tag 仍是 `font_serve` | 打不存在的 tag ＝「0 則測試」看起來是綠的 |
+| Makefile 的容器／DB／mount 預設還是 2026-05 的 `odoo18` / `odoo18_dev` / `/mnt/extra-addons` | `upgrade` / `restart` / `logs` / `test-backend` 在現在的 rig 上全都打不中；`ci-python` 還假設 host 有 flake8（這台沒有）|
+
+**精確比對**（同一支 AST 腳本跑移除前後）：路由 **41 → 37**，差異正好是那四條
+（`/dobtor_doc_editor/test`、`/dobtor_doc_editor/test_data`、
+`/dobtor/fonts/<string:family>`、`/dobtor/fonts/list`），沒有多也沒有少。
+（先前稽核記的「39 條」「40 條」都是正則漏數——AST 才準。）
+
+**乾淨資料庫全新安裝**：`-i dobtor_doc_editor,sale,account,stock,purchase` 成功，
+再於該新庫跑全部測試 **590 則 0 失敗**——證明沒有任何東西依賴舊庫的殘留狀態。
+舊庫的 `test_layout` view 記錄已被 Odoo 自動清除（`ir_model_data` 查 0 筆）。
+
+安裝期間的 docutils 錯誤與 `<i>` 無障礙警告都**本來就有**（manifest 的
+`description` 與 views 都沒動過，用 `git diff` 對過 tag）。
+
+**文件處理原則**：authoritative 的改（`CONTRIBUTING.md` 的指令表與 make target
+清單、`glossary.md` 的 `--test-tags` 那條），**歷史與計畫 artifact 不改內容、
+只加狀態 banner**（`SPRINT_AUDIT_CONSOLIDATED.md` 約 60 條死連結、
+`高保真匯入開發規劃.md`、`canvas_editor_fork_strategy.md`、
+`ooxml_whitelist.md`、`word_pagebreak_rules.md`）——改掉等於竄改當時的數據與
+決策依據。
+
+**剩下的已知項（不改）**：`models/qweb/expr.py:538` 的 F811（區域變數 `models`
+遮蔽照抄 import 區塊裡的 `from odoo import models`，而那個名字在該檔從未以
+`models.` 使用過——無害、且早於本次變更）。
