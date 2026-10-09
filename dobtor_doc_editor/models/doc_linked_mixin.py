@@ -157,6 +157,9 @@ class DocLinkedMixin(models.AbstractModel):
         for rec in self:
             rec.doc_output_count = mapped.get(rec.id, 0)
 
+    # ⚠️ 下面兩支 action 本模組內沒有呼叫者，它們是**給整合者的 API**：
+    # 繼承本 mixin 的模型在自己的 form view 上掛智慧按鈕時用名稱引用。
+    # 死碼稽核會列出來——判斷依據是「有沒有別的模組引用」，不是「本模組有沒有」。
     def action_view_doc_outputs(self):
         """開啟此記錄的列印紀錄清單。
 
@@ -319,6 +322,10 @@ class DocLinkedMixin(models.AbstractModel):
         """從 doc_id 反查回原始 record。
 
         前提：建立時 _create_linked_doc() 有寫入 model_id + res_id 到 doc.document。
+
+        ⚠️ **本模組內沒有呼叫者，但它是跨模組契約**：
+        dobtor_doc_editor_chienyi 的 tests/test_chienyi_bridge.py 用它。
+        死碼稽核會把它列出來——不要刪，刪掉會讓那邊的測試紅。
         """
         Doc = self.env['doc.document'].sudo()
         if 'model_id' not in Doc._fields or 'res_id' not in Doc._fields:

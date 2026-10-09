@@ -1751,24 +1751,6 @@ body {{
             headers=[('Content-Type', 'text/html; charset=utf-8')],
         )
 
-    @http.route('/dobtor_doc/template_aliases/auto_init', type='json', auth='user', methods=['POST'])
-    def auto_init_template_aliases(self, doc_id, overwrite=False, **kw):
-        """從 doc 綁定 model 自動生成範本級 alias，寫入 doc.template_id。"""
-        doc = self._require_document(doc_id, 'write')
-        if not doc.template_id:
-            return {'success': False, 'error': '此文件未綁定範本'}
-        if not doc.model_id:
-            return {'success': False, 'error': '此文件未綁定 Odoo 模型'}
-        # 借用 doc 的 init_aliases_from_model 邏輯，但寫入點改為 template
-        tmpl = doc.template_id
-        tmpl.check_access('write')
-        # 暫借 doc 的方法計算，再把結果搬到 template
-        # 用 _new() 避免污染現有 doc.field_aliases；直接呼叫靜態生成
-        return tmpl.init_aliases_from_model_for(
-            doc.model_id.model,
-            overwrite=bool(overwrite),
-        )
-
     @http.route('/dobtor_doc/export', type='json', auth='user', methods=['POST'])
     def export_document(self, doc_id, format='pdf', quality='high',
                         record_model=None, record_id=None, **kw):

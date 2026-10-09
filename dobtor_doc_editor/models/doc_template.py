@@ -2,7 +2,7 @@ import html as html_mod
 import json
 
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import ValidationError
 
 
 class DocTemplate(models.Model):
@@ -556,33 +556,6 @@ class DocTemplate(models.Model):
                 f'{_section("變數名（{{ xxx }} 形式）", var_rows)}'
                 '</div>'
             )
-
-    def action_auto_init_aliases(self):
-        """從 self.model_id 自動補上欄位對映（保留既有）。
-
-        **目前沒有 UI 入口**：alias 機制退場中（見 doc_template_views.xml
-        的「不再提供新增對映入口」註解），所以這支只剩 API 用途。
-        留著是因為 action_* 可能被主模組的視圖以名稱引用，刪掉會讓那邊
-        ParseError；真的要清除要先確認沒有外部引用。
-        """
-        self.ensure_one()
-        if not self.model_id:
-            raise UserError('請先設定「適用模型」後再使用此功能。')
-        result = self.init_aliases_from_model_for(self.model_id.model, overwrite=False)
-        if not result.get('success'):
-            raise UserError(result.get('error') or '自動生成失敗')
-        added = len(result.get('added') or [])
-        skipped = len(result.get('skipped') or [])
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': '自動生成完成',
-                'message': f'已新增 {added} 個對映、跳過 {skipped} 個既有對映。',
-                'type': 'success',
-                'sticky': False,
-            },
-        }
 
     def action_clear_aliases(self):
         """清空所有對映（需確認）。"""

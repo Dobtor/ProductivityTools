@@ -245,68 +245,6 @@ class RenderFields:
             merged.update(getattr(self, 'field_aliases', None) or {})
         return merged
 
-    def init_aliases_from_model_for(self, model_name, overwrite=False):
-        """從給定 model_name 的欄位自動生成 alias，寫入 self.field_aliases。
-
-        生成兩種 key（同個 dict）：
-          1) 中文 token（field.field_description）→ 完整 expression
-          2) 純變數名（field.name）→ 完整 expression — 沿用既有 {{ varname }} 也能渲染
-
-        參數 overwrite：False=保留既有 token；True=整批以模型欄位重建。
-        """
-        self.ensure_one()
-        if not self._fields.get('field_aliases'):
-            return {'success': False, 'error': '此 model 沒有 field_aliases 欄位'}
-        if not model_name or model_name not in self.env:
-            return {'success': False, 'error': f"模型 '{model_name}' 不存在"}
-
-        existing = dict(self.field_aliases or {})
-        added = []
-        skipped = []
-        IrModelFields = self.env['ir.model.fields']
-        ttypes = ('char', 'text', 'integer', 'float', 'monetary',
-                  'date', 'datetime', 'boolean', 'selection', 'many2one')
-        records = IrModelFields.search([
-            ('model', '=', model_name),
-            ('store', '=', True),
-            ('ttype', 'in', list(ttypes)),
-        ], order='field_description asc')
-
-        def _expr_for(f):
-            if f.ttype in ('date', 'datetime'):
-                return f'format_date(object.{f.name})'
-            if f.ttype == 'selection':
-                return f"selection_label('{f.name}')"
-            if f.ttype == 'many2one':
-                return f'object.{f.name}.display_name'
-            return f'object.{f.name}'
-
-        for f in records:
-            expr = _expr_for(f)
-            label = (f.field_description or '').strip()
-            # 中文 token alias
-            if label:
-                if label in existing and not overwrite:
-                    skipped.append(label)
-                else:
-                    existing[label] = expr
-                    added.append(label)
-            # 純變數名 alias（同 expression）
-            varname = f.name
-            if varname in existing and not overwrite:
-                skipped.append(varname)
-            else:
-                existing[varname] = expr
-                added.append(varname)
-
-        self.write({'field_aliases': existing})
-        return {
-            'success': True,
-            'aliases': existing,
-            'added': added,
-            'skipped': skipped,
-        }
-
     @api.model
     def get_available_fields(self, model_name, max_depth=2):
         """回傳指定 model 的可用欄位清單（含 Many2one 子欄位，深度限制 2）。"""

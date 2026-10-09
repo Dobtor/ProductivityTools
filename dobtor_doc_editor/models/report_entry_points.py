@@ -26,11 +26,9 @@ _logger = logging.getLogger(__name__)
 class IrActionsReportEntry(models.Model):
     _inherit = 'ir.actions.report'
 
-    doc_report_ids = fields.One2many(
-        'doc.report', 'report_id',
-        string='列印範本綁定',
-        help='接管這張報表的範本綁定。有一筆以上時依語言／公司決定用哪一筆。',
-    )
+    # 刻意**沒有** doc_report_ids 的 One2many：表單顯示的是計數（統計按鈕），
+    # 按下去開一個帶 domain 的清單，沒有任何地方需要那個關聯欄位。
+    # 原本加了一個，整個模組只有宣告處提到它——那就是死欄位（稽核時抓到）。
     doc_report_count = fields.Integer(
         string='綁定筆數', compute='_compute_doc_report_count')
 
