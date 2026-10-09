@@ -114,6 +114,26 @@ class TestScripts(TransactionCase):
         self.assertFalse(p1.active, '動作有執行')
         self.assertEqual([e['xmlid'] for e in res['errors']], ['bad'], '只允許 action_／button_')
 
+    def test_seed_script_role_partner_xmlid_and_publishes_products(self):
+        """角色帳號的聯絡人有 xmlid（示範訂單可開給會員）；網路商店的示範商品自動上架。"""
+        recs = [{'xmlid': 'p_shop', 'model': 'product.product',
+                 'values': {'name': '示範商品', 'sale_ok': True}},
+                {'xmlid': 'c1', 'model': 'res.partner',
+                 'values': {'name': '會員的朋友', 'parent_id': '__ref__:user_member_partner'}}]
+        src = scripts.seed_script('__doc_scenario_t4', recs,
+                                  [{'code': 'member', 'name': '會員', 'groups': ['base.group_portal']}],
+                                  'pw-123456').replace('env.cr.commit()', 'pass')
+        printed = []
+        exec(compile(src, '<seed>', 'exec'), {'env': self.env, 'print': printed.append})
+        import json
+        res = json.loads(printed[-1][len(scripts.MARK):])
+        self.assertEqual(res['errors'], [])
+        member = self.env.ref('__doc_scenario_t4.user_member')
+        self.assertEqual(self.env.ref('__doc_scenario_t4.c1').parent_id, member.partner_id)
+        tmpl = self.env.ref('__doc_scenario_t4.p_shop').product_tmpl_id
+        if 'is_published' in tmpl._fields:
+            self.assertTrue(tmpl.is_published, '網路商店的示範商品要上架')
+
     def test_seed_script_skips_uninstalled_models(self):
         """方案沒裝的模型連同參照它的記錄略過，不算錯誤（資料包跨方案共用）。"""
         src = scripts.seed_script(

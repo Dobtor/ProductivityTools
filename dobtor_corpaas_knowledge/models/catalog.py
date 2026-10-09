@@ -46,7 +46,10 @@ SEED_RULES = (
     "每類單據要有草稿、已確認、已完成各至少一筆，清單才看得到不同狀態。\n"
     "★ 單據的負責人指定角色帳號（可用：%(roles)s），例如 \"user_id\": \"__ref__:user_sales\"。\n"
     "★ 公司與倉庫改成情境裡的名稱：{\"xmlid\":\"base.main_company\",\"model\":\"res.company\","
-    "\"values\":{\"name\":…}}、stock.warehouse0 同理。\n")
+    "\"values\":{\"name\":…}}、stock.warehouse0 同理。\n"
+    "★ 角色帳號的聯絡人可用 __ref__:user_<角色>_partner 參照（例如 __ref__:user_member_partner）。"
+    "方案有網站會員（user_member）時，替會員的聯絡人建 2–3 張已確認的銷售訂單與已過帳的發票"
+    "（partner_id 用 __ref__:user_member_partner），前台「我的訂單／我的發票」才有內容。\n")
 
 #: 會改變畫面（多出公司切換、幣別欄位）的設定群組：拍照角色一律不給，免得截圖跟一般租戶看到的不同
 SCREEN_CHANGING_GROUPS = ('base.group_multi_company', 'base.group_multi_currency')

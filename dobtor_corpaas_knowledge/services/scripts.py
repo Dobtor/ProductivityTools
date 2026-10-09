@@ -573,6 +573,10 @@ def seed_script(module, records, roles, password):
         "                    'lang': _lang('zh_TW'), 'tz': 'Asia/Taipei', 'groups_id': [(6, 0, gids)]}}])\n"
         "            u.password = PASSWORD\n"
         "            users[r['code']] = u.login\n"
+        # 角色帳號的聯絡人另給一個 xmlid，示範資料可以把訂單、發票開給會員（__ref__:user_member_partner）
+        "            env['ir.model.data'].sudo()._update_xmlids([{\n"
+        "                'xml_id': MODULE + '.user_' + r['code'] + '_partner',\n"
+        "                'record': u.partner_id, 'noupdate': False}])\n"
         "    except Exception as e:\n"
         "        errors.append({'xmlid': 'user_' + r['code'], 'model': 'res.users', 'error': str(e)[:500]})\n"
         # ★ 資料包是跨方案共用的：方案沒裝的模組（集點、採購申請、批次調撥…）的記錄，
@@ -607,8 +611,25 @@ def seed_script(module, records, roles, password):
         "        done += 1\n"
         "    except Exception as e:\n"
         "        errors.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model'), 'error': str(e)[:500]})\n"
+        # ★ 方案有網路商店：示範商品一律在網站上架（AI 不一定記得設 is_published）
+        #   ☠️ 實機：客戶商品清掉後，商城只剩「未指定產品」
+        "published = 0\n"
+        "Tmpl = env['product.template'].sudo() if 'product.template' in env else None\n"
+        "if Tmpl is not None and 'is_published' in Tmpl._fields:\n"
+        "    mine = env['ir.model.data'].sudo().search([('module', '=like', '__doc_%%'),\n"
+        "        ('model', 'in', ['product.template', 'product.product'])])\n"
+        "    tids = set()\n"
+        "    for d in mine:\n"
+        "        rec = env[d.model].sudo().browse(d.res_id).exists()\n"
+        "        if rec:\n"
+        "            tids.add(rec.product_tmpl_id.id if d.model == 'product.product' else rec.id)\n"
+        "    todo = Tmpl.browse(list(tids)).filtered(lambda t: t.sale_ok and not t.is_published)\n"
+        "    if todo:\n"
+        "        todo.write({'is_published': True})\n"
+        "        published = len(todo)\n"
         "env.cr.commit()\n"
         "print(MARK + json.dumps({'done': done, 'errors': errors, 'users': users,\n"
+        "                         'published': published,\n"
         "                         'skipped': skipped}))\n"
     ) % (module, json.dumps(records), json.dumps(roles), password)
 

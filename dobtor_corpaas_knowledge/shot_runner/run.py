@@ -590,6 +590,9 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
                 # ☠️ 實機：會員的「我的訂單」拍成「您的帳戶目前沒有銷售訂單」照樣採用
                 empty = bool(page.locator('main .alert-warning:visible').count()) and \
                     not page.locator('main table tbody tr').count()
+                # 網路商店：商品區在、卻一個商品都沒有（「未指定產品」）
+                empty = empty or (bool(page.locator('#products_grid').count())
+                                  and not page.locator('#products_grid .oe_product').count())
             images.append({'name': name, 'file': os.path.relpath(path, OUT_DIR),
                            'regions': list(regions), 'records': pairs, 'refs': refs,
                            'empty': empty})
