@@ -37,6 +37,22 @@ HIDE_CSS = """
 #oe_neutralize_ribbon, #website_cookies_bar, #cookies_bar { display: none !important; }
 """
 
+#: 畫面上的說明庫內部網址（http://docsbx-….internal:8069）換成示意網址再拍
+#: ☠️ 實機：會員「我的帳戶」的推薦連結拍出說明庫的內部主機名
+DISPLAY_ORIGIN = 'https://www.example.com'
+MASK_JS = r'''(args) => {
+    const [origin, shown] = args;
+    const host = new URL(origin).host;
+    const fix = (s) => s && s.includes(host) ? s.split(origin).join(shown).split(host)
+        .join(new URL(shown).host) : s;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) { const v = fix(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; }
+    for (const el of document.querySelectorAll('input, textarea')) {
+        const v = fix(el.value); if (v !== el.value) el.value = v;
+    }
+}'''
+
 PROBE_JS = r'''() => {
   const vis = (el) => !!(el && el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
   const txt = (el) => (el && el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 80);
@@ -560,6 +576,11 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
             name = arg if isinstance(arg, str) else arg.get('name')
             path = os.path.join(out_dir, '%s.png' % name)
             _fail_on_error_dialog(page)
+            try:
+                page.evaluate(MASK_JS, [urlparse(page.url).scheme + '://' + urlparse(page.url).netloc,
+                                        DISPLAY_ORIGIN])
+            except Exception:  # noqa: BLE001 - 遮不到就照拍
+                pass
             page.screenshot(path=path, full_page=False)
             pairs, refs = recorder.dump()
             # 空白引導頁（沒有資料的清單／看板／報表）：照拍，但標記出來由控制台決定不採用
