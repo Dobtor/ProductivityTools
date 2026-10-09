@@ -164,6 +164,12 @@ class DocEditorExportLog(models.Model):
         也就是說沒有 savepoint 的話，上面那句「絕不可擋住下載」是**做不到的
         承諾**：下載照樣壞，只是壞在一個跟真正原因無關的地方。
         （同一個理由寫在 doc_controller_devtools.py:83，那裡先踩過。）
+
+        連「延遲到 flush 才爆的 INSERT」也圍得住——查過 Odoo 18 的
+        `_FlushingSavepoint._close()`（odoo/sql_db.py:132）：它在 savepoint
+        **內部**呼叫 flush，flush 丟例外就把 rollback 設成 True 再
+        `ROLLBACK TO SAVEPOINT`。所以不必擔心 ORM 把 INSERT 推遲到
+        savepoint 結束之後。
         """
         try:
             record_ref = False

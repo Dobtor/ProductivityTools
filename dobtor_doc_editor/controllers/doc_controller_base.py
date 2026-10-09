@@ -88,6 +88,25 @@ class DocControllerBase:
             try:
                 return func(self, *args, **kwargs)
             except Exception as e:
+                # ☠️ 先把「Odoo 自己處理得更好的那兩類」放過去，不要吞：
+                #
+                #   HTTPException（werkzeug 的 NotFound / Forbidden …）
+                #       handler 刻意拋這個就是要那個 status；Odoo 的
+                #       HttpDispatcher.handle_error 原樣回傳它。
+                #   SessionExpiredException
+                #       Odoo 對它是 303 轉址到 /web/login，而前端靠**認得出
+                #       那個轉址**來顯示「請重新登入」
+                #       （doc_editor_shared.js 的 isSessionExpiredResponse）。
+                #       吞成 500 JSON 的話那條路就斷了。
+                #
+                # 目前這兩支路由的呼叫鏈都不會拋這兩類（量過），所以這是
+                # **給下一個加路由的人**擋的——decorator 包的是 Exception，
+                # 不先排除就會把它們一起收走。
+                from werkzeug.exceptions import HTTPException
+                from odoo.http import SessionExpiredException
+                if isinstance(e, (HTTPException, SessionExpiredException)):
+                    raise
+
                 # UserError / MissingError / AccessError 都是「正常的錯誤路徑」，
                 # 給 400 與可讀訊息；其餘當 500 但仍然是 JSON。
                 from odoo.exceptions import AccessError, MissingError, UserError

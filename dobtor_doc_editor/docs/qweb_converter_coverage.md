@@ -572,6 +572,116 @@ warning**（每天叫一次狼來了就沒人看了）。
 2. 它的 docstring **承諾**了什麼？那個承諾**可驗證**嗎？
 3. 同一個教訓模組裡**別處**有沒有寫過？（有就是漏套，不是新發現）
 
+## 7.11 第三輪稽核（2026-10-09）——十類，兩個真修正
+
+接在第一輪（`40a0572`）、第二輪（`19e0da5`）之後。這一輪的重點是**驗證偵測器
+本身**：前兩輪「全綠」有一部分是偵測器太寬或太窄造成的。
+
+| # | 類別 | 結果 |
+|---|---|---|
+| ① | 13 個自有具體模型 vs ACL | 綠，缺 0 |
+| ② | migration 版本 ≤ manifest | 綠（`18.0.10.1.0` ≤ `18.0.11.1.4`）|
+| ③ | 死欄位 | 綠，0 |
+| ④ | 死方法 | 綠，**0**（第一版偵測器報 62，全是誤判——見下）|
+| ⑤ | OWL 模板引用的成員 | 綠（報 23 個，22 個是 `t-as` 迴圈變數，1 個在已停用的舊資源）|
+| ⑥ | 39 條路由的可達性與 auth | 綠（3 條「沒人用」分別由 portal pager、`t-attf-href`、`doc_document.py:971` 的 action URL 使用；`auth='public'` 2 條都是字型）|
+| ⑦ | 同名方法重複實作 | **部分重複，建議不動**——量過了，見下 |
+| ⑧ | JSON 回應樣板 | 14 處 `make_response`，其中 2 條路由走 `json_http_route` 統一 |
+| ⑨ | TODO / FIXME / HACK | 綠，**0** |
+| ⑩ | i18n | 綠——`docs/a11y_i18n_design.md` 明訂「預設語系 zh_TW、hardcode 中文是刻意的」，完整 string sweep 列為「等英文需求出現」。所以硬寫中文**符合需求定義**，不要去包 `_()` |
+
+### ☠️ 死碼偵測器的兩個寫法錯誤（這才是這一輪最該留下的）
+
+**第一版報 62 支死方法，真實是 0。** 兩個錯：
+
+1. 只找 `.name` 與 `'name'`，**漏掉裸呼叫**——module-level 函式與巢狀 closure
+   都是 `_foo(...)` 沒有點。
+2. 改成找 `name(` 之後還剩 11 支，仍然全錯：那 11 支是**當 callable 傳出去**
+   的（`candidates.sorted(key=specificity)`、`_ALIAS_PATTERN.sub(_replace_token, …)`、
+   `fields.Selection(_lang_get)`、`'len': _safe_len`），引用處**沒有括號**。
+
+正確判準是「**裸名稱**出現過」而不是「被呼叫過」。同理 `auth='public'` 我第一次
+只 grep 單引號，漏數了一條（font_serve 用雙引號）——**兩種引號都要數**。
+
+### ⑦ 版本歷史那組重複：量過，建議不動
+
+`doc_template.py` 與 `doc_document.py` 有 10 支同名方法。逐支比對行多重集相似度：
+
+| 方法 | template | document | 相似度 |
+|---|---|---|---|
+| `_find_version_entry` | 5 | 6 | 91% |
+| `get_version_list` | 19 | 21 | 75% |
+| `action_open_settings_form` | 17 | 16 | 73% |
+| `action_open_editor` | 16 | 12 | 71% |
+| `diff_versions` | 39 | 44 | 67% |
+| `get_version_content` | 12 | 22 | 53% |
+| `get_content_html` | 7 | 6 | 46% |
+| `action_save_version` | 16 | 42 | 41% |
+| `action_new_and_open_editor` | 15 | 16 | 26% |
+| `restore_version` | 12 | 28 | 20% |
+| **合計** | **158** | **213** | — |
+
+**不是乾淨的複製**：`doc.document` 的版本要多處理頁首頁尾、綁定記錄與快照，
+所以 `restore_version`（20%）、`action_save_version`（41%）實質不同。抽 mixin
+只有那三支高相似的（約 63 行）真的共用，省下來的不到 40 行，代價是多一層抽象
+加一堆 hook。依「不對正常運作的程式做多餘優化」**不動**，量測結果記在這裡，
+免得下一輪稽核又把它當 finding 提一次。
+
+### 兩個真修正
+
+1. **`json_http_route` 會吞掉 `HTTPException` 與 `SessionExpiredException`。**
+   這是我今天自己埋的——decorator 包的是 `Exception`。目前兩支路由的呼叫鏈都
+   不會拋這兩類（量過），但下一個加路由的人踩得到，而且吞掉
+   `SessionExpiredException` 正好會把我同一天加的 `isSessionExpiredResponse`
+   那條路切斷（Odoo 對它是 303 轉址到 `/web/login`，前端靠認出那個轉址）。
+   改成先 `raise` 放行。測試直接測 decorator 本身（沒有路由會拋，所以不經
+   HTTP），移掉放行會變紅（驗過）。
+
+2. **`record_export` 的 savepoint 補上查證**：連「延遲到 flush 才爆的 INSERT」
+   也圍得住——`_FlushingSavepoint._close()`（`odoo/sql_db.py:132`）在 savepoint
+   **內部**呼叫 flush，flush 丟例外就把 rollback 設 True 再
+   `ROLLBACK TO SAVEPOINT`。原本只證明了立即錯誤那一半。
+
+### 稽核範圍外、但應該被看見的三件
+
+寫在 §7.12。
+
+## 7.12 不是缺陷，但需要一個決定（2026-10-09）
+
+### 1. 33,771 行 TypeScript 服務的是一條 DevTools 驗收通道
+
+`static/src/core/ooxml/`（160 檔、含 layout / font shaping / revision / worker）
+＋ `tests/unit/` 的 **136 支 vitest 測試** ＋ 兩份 rollup config，產出兩個成品：
+
+| 成品 | 狀態 |
+|---|---|
+| `canvas-editor-custom.umd.js` | git 有追蹤，但 **manifest 沒有掛**——模組載的是上游 `canvas-editor.umd.min.js`（@hufe921 0.9.128）。除了產生它的 rollup config，沒有任何地方引用 |
+| `tools/dist/parse_docx_cli.cjs` | **被 `.gitignore` 排除**（`dist/`），本機不存在。`engine=ts` 找不到它就記 warning 回 `None` |
+
+唯一的消費者是 `importViaTsEngine()`，它的 docstring 寫明是**驗收用途**
+（「chichi 在 DevTools 跑 `window._docEditor.importViaTsEngine(file)`」），
+沒有 UI 入口。production 的 DOCX 匯入走 LibreOffice 或 canvas-editor 的
+docx plugin，**不經這條**。
+
+所以：這不是「壞掉的功能」，是一筆**目前不產生任何 production 行為的投資**。
+而且 `node_modules` 沒裝 → `npm test`（136 支）、`npm run typecheck`、
+`build:cli` 現在都跑不了。要不要繼續投、要不要把 CLI 產物進 git（讓
+`engine=ts` 在部署上真的可用）、還是收攏範圍——**是業務決定，不是技術決定**，
+所以沒有動它。
+
+### 2. 授權仍是 LGPL-3
+
+`__manifest__.py` 是 `'license': 'LGPL-3'`，而「Dobtor 模組統一 OPL-1（新舊
+皆是）」。內附四個第三方 lib（canvas-editor / fflate / opentype.js /
+harfbuzzjs）授權都是 MIT 或 Apache，**不擋**改成 OPL-1。
+但改授權前要先確認已散布版本的處理，所以列為建議、沒有動。
+
+### 3. 紀律 13 的缺口是敞著的
+
+GitHub Actions CI 已撤（ADR-028）。測試與靜態檢查靠人跑
+`make test-local` / `test-local-tour` / `test-js` / `ci-all`。
+**這是已知且被接受的狀態**，不是漏掉——寫在這裡，下一輪稽核不要再提。
+
 ## 8. 怎麼自己量一次
 
 ```bash

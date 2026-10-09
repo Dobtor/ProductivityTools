@@ -509,6 +509,35 @@ class TestHttpRoutesAlwaysReturnJson(HttpCase):
             'log 裡找不到同一組代碼 %s；log=%r' % (refs[0], captured.output),
         )
 
+    def test_decorator_does_not_swallow_http_exceptions(self):
+        """☠️ decorator 包的是 Exception——不先排除就會把這兩類一起收走。
+
+        HTTPException：handler 刻意拋 NotFound 就是要那個 404，吞成 500 JSON
+                       會把狀態碼改掉。
+        SessionExpiredException：Odoo 對它是 303 轉址到 /web/login，而前端靠
+                       認得出那個轉址來顯示「請重新登入」
+                       （doc_editor_shared.js 的 isSessionExpiredResponse）。
+                       吞掉的話那條路就斷了。
+
+        直接測 decorator 本身（不經 HTTP），因為目前沒有路由會拋這兩類——
+        這一則擋的是**未來**有人加了會拋的路由。
+        """
+        from werkzeug.exceptions import NotFound
+        from odoo.http import SessionExpiredException
+        from odoo.addons.dobtor_doc_editor.controllers.doc_controller_base import (
+            DocControllerBase,
+        )
+
+        class _Fake:
+            @DocControllerBase.json_http_route
+            def boom(self, exc):
+                raise exc
+
+        fake = _Fake()
+        for exc in (NotFound('nope'), SessionExpiredException('expired')):
+            with self.assertRaises(type(exc)):
+                fake.boom(exc)
+
     def test_every_json_http_route_has_the_decorator(self):
         """新加的 type='http' 回 JSON 路由也要掛上——少掛是靜默的。
 
