@@ -155,21 +155,31 @@ class DocEditorExportLog(models.Model):
 
     @api.model
     def record_export(self, doc, file_format, with_alias, file_size, source='other'):
-        """寫一筆匯出紀錄。任何例外都吞掉——log 失敗絕不可擋住下載。"""
+        """寫一筆匯出紀錄。任何例外都吞掉——log 失敗絕不可擋住下載。
+
+        ☠️ savepoint 不是保險起見：**try/except 只接得住 Python 例外**。
+        資料庫層的錯誤（FK / NOT NULL / 型別）會讓 PostgreSQL 的整筆交易進入
+        aborted 狀態，於是這裡吞掉之後，呼叫端接下來的 DB 動作全部會失敗——
+        `action_export_pdf` 在這一行之後 4 行就 `ir.attachment.create(...)`。
+        也就是說沒有 savepoint 的話，上面那句「絕不可擋住下載」是**做不到的
+        承諾**：下載照樣壞，只是壞在一個跟真正原因無關的地方。
+        （同一個理由寫在 doc_controller_devtools.py:83，那裡先踩過。）
+        """
         try:
             record_ref = False
             if doc.model_id and doc.res_id:
                 record_ref = f'{doc.model_id.model},{doc.res_id}'
-            return self.sudo().create({
-                'doc_id': doc.id,
-                'user_id': self.env.uid,
-                'company_id': self.env.company.id,
-                'file_format': file_format,
-                'with_alias': bool(with_alias),
-                'file_size': file_size or 0,
-                'record_ref': record_ref,
-                'source': source,
-            })
+            with self.env.cr.savepoint():
+                return self.sudo().create({
+                    'doc_id': doc.id,
+                    'user_id': self.env.uid,
+                    'company_id': self.env.company.id,
+                    'file_format': file_format,
+                    'with_alias': bool(with_alias),
+                    'file_size': file_size or 0,
+                    'record_ref': record_ref,
+                    'source': source,
+                })
         except Exception:
             _logger.warning("doc.editor.export.log: 寫入匯出紀錄失敗", exc_info=True)
             return False

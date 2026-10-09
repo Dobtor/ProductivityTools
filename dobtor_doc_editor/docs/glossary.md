@@ -197,6 +197,8 @@
 | **CI 兩層** | static 擋 PR、backend 夜間不擋（ADR-028）|
 | **附頁適用範圍** | `append_record_policy`：always（預設，不問記錄）／opt_out／opt_in |
 | **`run_tour_tests.sh`** | 容器內跑瀏覽器 tour；開頭自檢 chromium 與 websocket-client，被跳過時 exit 2（skipped 不能當成過）|
+| **`record_export()` 的 savepoint** | 吞掉例外不等於擋住失敗：DB 層錯誤會讓整筆交易 aborted，呼叫端後續的 `ir.attachment.create` 跟著炸。try/except 只接得住 Python 例外 |
+| **`_cron_health_check_no_alias`** | 每天檢查「匯出了 token 原文」（文件漏綁 model_id/res_id）→ 記 warning 給監控抓；刻意不發 mail |
 | **`json_http_route`** | `type='http'` 但回 JSON 的路由的保證：任何漏出來的例外都變成 JSON（400 可讀訊息 / 500 帶可追代碼）。擋的是 Odoo 把例外渲成 HTML 錯誤頁 |
 | **可追代碼（ref）** | 500 那一路的 8 碼 id，同時進 log 與回應訊息。內容不能給使用者（洩 traceback），指標可以 |
 | **`isSessionExpiredResponse()`** | 前端辨識「session 逾時」：Odoo 對它是 303 轉址到 `/web/login`，fetch 跟過去拿到登入頁 HTML + status 200，不是 4xx |

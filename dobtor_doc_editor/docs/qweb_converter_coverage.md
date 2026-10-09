@@ -496,6 +496,77 @@ auth 那半被辨識成逾時。剝標籤那段因此降為真正的最後一道
 ⚠️ 量測時踩到的坑：用 `--log-level=warn` 跑會**看不到 `tests.result` 那一行**
 （它是 INFO），於是看起來像「沒有結果」。量 flaky 率要用 `--log-level=test`。
 
+## 7.10 「寫好了但從沒真的執行過」——順著這條線索查全模組（2026-10-09）
+
+static CI 第一次真的在 GitHub 上跑（`77ebe40` 寫好之後一直沒推，所以從沒執行
+過）就紅在**檢查本身**判準太寬。那件事給了一條可以複用的線索：**模組裡還有
+什麼是「寫好了、看起來在運作、但其實從沒被執行或驗證過」的？**
+
+### 查了四類，結果
+
+| 類別 | 結果 |
+|---|---|
+| 測試的 tag | **綠**。113 個類別全部有效帶 tag（四個沒寫 `@tagged` 的繼承 `NativeReportCase`，Odoo 的 `test_tags` 是類別屬性會被繼承）。沒有任何測試被標成不在標準範圍 |
+| 五支 cron 的方法 | **都存在、都在對的模型上**。⚠️ `gc_old_logs` 在 `doc.editor.error.log`（30 天）與 `doc.editor.export.log`（180 天）**同名不同實作**，用檔案全文搜尋會誤判成「測過了」 |
+| cron 有沒有被測試呼叫 | **一支沒有**：`_cron_health_check_no_alias`，每天跑 |
+| 吞掉例外卻沒 savepoint | 掃到 7 處，**只有 1 處是真的**（詳下） |
+
+### 真缺陷：`record_export()` 的承諾做不到
+
+`doc.editor.export.log` **整支模型零測試**，四支方法（`record_export` /
+`gc_old_logs` / `get_no_alias_summary` / `_cron_health_check_no_alias`）
+一個都沒被測過，其中一支每天跑。這比紀律 13 的「半死測試」更糟：不是測試
+沒人跑，是**production 程式碼每天在無人看管下跑，而沒有任何東西證明它還
+能跑**。
+
+而 `record_export` 的 docstring 寫：
+
+> 任何例外都吞掉——log 失敗絕不可擋住下載。
+
+☠️ **try/except 只接得住 Python 例外**。資料庫層的錯誤（FK / NOT NULL /
+型別）會讓 PostgreSQL 整筆交易進入 aborted，於是吞掉之後呼叫端接下來的 DB
+動作全部失敗——`action_export_pdf` 在那一行之後**4 行**就
+`ir.attachment.create(...)`。
+
+實測（移掉 savepoint 再跑）：
+
+```
+psycopg2.errors.InFailedSqlTransaction: current transaction is aborted,
+commands ignored until end of transaction block
+```
+
+所以那句承諾原本是**做不到的**：下載照樣壞，只是壞在一個跟真正原因無關的
+地方。修法是 `with self.env.cr.savepoint():`——同一個理由模組**自己**已經
+寫在 `doc_controller_devtools.py:83`（那裡先踩過），只是沒套到這裡。
+
+### 另外六處為什麼不動
+
+- `doc_controller.py:254` / `:352`、`doc_convert.py:513`：我的 AST 掃描
+  **誤判**——那幾個 `.write(` 是**檔案**寫入（`f.write(bytes)`）不是 ORM。
+- `doc_controller_template.py:235` / `:279` / `:310`：真的是 ORM
+  create/write/unlink，但吞掉之後**立刻 return**、沒有後續 DB 動作。那幾支
+  route 一次只做一件事，交易被中止正好就是想要的結果。依「不對正常運作的
+  程式做多餘優化」不動。
+
+### 補了八則測試
+
+`TestExportLog`：`record_export` 寫入與 `record_ref`、**交易被圍住**（移掉
+savepoint 會紅，驗過）、`gc_old_logs(180)`、`get_no_alias_summary` 的計數與
+時間窗、cron 有沒有寫出可被監控抓取的 warning、以及**沒問題時不可以留
+warning**（每天叫一次狼來了就沒人看了）。
+
+☠️ 那一則刻意失敗的測試要 `mute_logger('odoo.sql_db', '…doc_telemetry')`：
+不消音的話每次跑測試都在 log 裡留一筆 ERROR——那正是「訓練大家無視紅燈」，
+跟「阻擋式 gate 不該配上偶發失敗」是同一個理由。
+
+### 這條線索的用法
+
+下次想找缺陷又沒有症狀可循時，問這三個問題比通讀程式碼有效：
+
+1. 這段**什麼時候真的被執行過**？（cron / CI / 只在本機 / 從來沒有）
+2. 它的 docstring **承諾**了什麼？那個承諾**可驗證**嗎？
+3. 同一個教訓模組裡**別處**有沒有寫過？（有就是漏套，不是新發現）
+
 ## 8. 怎麼自己量一次
 
 ```bash
