@@ -24,7 +24,8 @@ import shutil
 import subprocess
 import tempfile
 
-from odoo import http
+from odoo import _, http
+from odoo.exceptions import AccessError
 from odoo.http import request
 
 from odoo.addons.dobtor_doc_editor.controllers.doc_controller_base import DocControllerBase
@@ -45,6 +46,27 @@ _logger = logging.getLogger(__name__)
 
 
 class DocImportController(DocControllerBase, http.Controller):
+
+    # ─── 視覺回歸 harness 的入口守衛 ───────────────────────────────
+    #
+    # ☠️ 這兩條路由會讀 `tests/fixtures/` 底下的 .docx，而那些是**真實的台灣
+    # 企業／政府文件樣本**（監造會議記錄、自主檢查表、估驗計價單…）。原本只有
+    # `auth='user'`，也就是**任何登入者**都打得到——在已安裝的 production 上
+    # 等於把模組隨附的樣本文件開放給全體內部使用者。
+    #
+    # 路徑防護（normpath + startswith + 只收 .docx）本來就有，擋的是 traversal；
+    # 這裡擋的是另一件事：**誰可以看**。
+    #
+    # 收緊到 group_doc_manager 而不是「只在 dev_mode 開」：harness
+    # （compare_fixtures.cjs / generate_golden.sh / probe_dom.cjs）都是以 admin
+    # 登入後打這兩條，而 admin 是 doc manager——所以收緊不會把 harness 弄壞。
+    # 綁 dev_mode 反而會：generate_golden.sh 是在普通設定的容器裡跑的。
+    def _require_harness_access(self):
+        if not request.env.user.has_group('dobtor_doc_editor.group_doc_manager'):
+            raise AccessError(_(
+                '視覺回歸 harness 只開放給文件管理者——它會讀取模組隨附的'
+                '文件樣本。'))
+
 
     @http.route('/dobtor_doc/import', type='http', auth='user', methods=['POST'], csrf=False)
     @DocControllerBase.json_http_route
@@ -204,6 +226,7 @@ class DocImportController(DocControllerBase, http.Controller):
         Phase F 視覺回歸 pipeline 入口。puppeteer 對此 URL 截圖，
         對比 tests/fixtures/<category>/golden/<fixture>-<page>.png。
         """
+        self._require_harness_access()
         if not fixture:
             return request.make_response('missing ?fixture=<rel_path>', status=400)
 
@@ -233,6 +256,7 @@ class DocImportController(DocControllerBase, http.Controller):
 
         回傳：{'elements': [...IElement...]} 或 {'error': str}
         """
+        self._require_harness_access()
         if not fixture:
             return {'error': 'missing fixture parameter'}
 

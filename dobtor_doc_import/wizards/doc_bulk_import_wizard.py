@@ -47,6 +47,10 @@ class DocBulkImportWizard(models.TransientModel):
         'res.company', string='目標公司',
         default=lambda self: self.env.company,
         required=True,
+        # UI 層只給自己所屬的公司。
+        # ☠️ 這只是第一層——domain **擋不住 RPC**，真正的把關在
+        #    action_run_import 開頭那道檢查。
+        domain=lambda self: [('id', 'in', self.env.companies.ids)],
     )
     skip_failures = fields.Boolean(
         string='略過失敗檔案', default=True,
@@ -88,6 +92,25 @@ class DocBulkImportWizard(models.TransientModel):
             })
             return self._reload_self()
 
+        # ☠️ 2026-10-09 實測的真缺陷：這裡原本是 `Doc.sudo().create(...)`，而
+        #    target_company_id 沒有任何約束。一個只屬於 A 公司的 doc manager
+        #    可以用 RPC 把 target 設成他**連讀都讀不到**的 B 公司，文件就被建到
+        #    B 公司去了（實測建出 1 份）。
+        #
+        #    兩層修正：
+        #      1. 這道檢查——domain 擋不住 RPC，所以伺服端要自己判。
+        #      2. 底下的 create 去掉 sudo()——讓 doc.document 的 record rule
+        #         （rule_doc_document_company）真的發揮作用。
+        #
+        #    為什麼需要「1」而不是只靠「2」：create 在逐檔的 try/except 裡，
+        #    AccessError 會被算進 failed_count，使用者只看到「全部失敗」而不知道
+        #    原因。這道檢查讓它變成一句清楚的訊息。
+        if self.target_company_id not in self.env.companies:
+            raise UserError(_(
+                '目標公司「%(company)s」不在你目前啟用的公司範圍內，不能匯入到那裡。',
+                company=self.target_company_id.sudo().display_name,
+            ))
+
         Doc = self.env['doc.document']
         created_count = 0
         failed_count = 0
@@ -120,7 +143,7 @@ class DocBulkImportWizard(models.TransientModel):
                     if '/' in name:
                         name = name.rsplit('/', 1)[-1]
 
-                    Doc.sudo().create({
+                    Doc.create({
                         'name': '%s [%s]' % (name, category_label),
                         'company_id': self.target_company_id.id,
                         'content_html': body_html,

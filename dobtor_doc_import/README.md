@@ -33,6 +33,10 @@ npm install          # 一次
 make build-all       # 三個產物
 ```
 
+☠️ `npm install` 原本有個 `postinstall: patch-package` 的 hook，但 `patches/`
+從頭到尾是空的（5 個月 0 個 patch），所以那是個 no-op。2026-10-09 連同
+`patches/` 一起移除。要 patch 上游 canvas-editor 的話重新加回來即可。
+
 | 產物 | 進 git？ | 為什麼 |
 |---|---|---|
 | `tools/dist/parse_docx_cli.cjs` | **是** | production 的 `engine=ts` 在用，而部署端容器**只有 node、沒有 npm**，不可能現場 build。`.gitignore` 有 `!` 例外 |
@@ -80,3 +84,52 @@ dobtor_doc_editor.tests.session_probe           HttpCase 的 session 健康檢�
 
 `static/src/components/doc_editor/` 的 14 支 `.ts` 是 Phase 8 Phase 2.2 的前置碼
 （未啟動），放這裡只因為 TS 工具鏈在這裡。見該目錄的 `README.md`。
+
+## 2026-10-09 的設計檢討與清理
+
+### 修掉兩個安全缺口（都實測過、都有會變紅的測試）
+
+**① 批次匯入可以寫進使用者沒有的公司**
+
+`target_company_id` 沒有任何約束，而建立文件用 `Doc.sudo().create(...)`。
+一個只屬於 A 公司的 doc manager 可以用 RPC 把 target 設成他**連讀都讀不到**的
+B 公司——實測建出 1 份。與核心匯出紀錄那次同一類：**`sudo()` 繞過 record rule
+＋ 使用者可控的公司欄位**。
+
+三層修正：欄位加 domain（UI）、`action_run_import` 開頭檢查
+`in env.companies`（RPC 擋不住 domain）、`create` 去掉 `sudo()`（讓
+`rule_doc_document_company` 真的生效）。
+
+**② 視覺回歸 harness 的兩條路由對任何登入者開放**
+
+`/dobtor_doc_editor/test` 與 `test_data` 會讀 `tests/fixtures/` 的 .docx，而那些
+是**真實的台灣企業／政府文件樣本**。原本只有 `auth='user'`。路徑防護
+（normpath + startswith + 只收 .docx）擋的是 traversal，擋不住「誰可以看」。
+收緊到 `group_doc_manager`——harness 都以 admin 跑，不會壞。
+
+### 清掉的
+
+| | 理由 |
+|---|---|
+| `scripts/verify_sprint277.mjs` | 它存在的理由是「WSL ENOMEM 時走此路徑」，那台機器已不存在；對應的 `tests/unit/sprint277_linebreaker_mvp.test.ts`（6 則）在 3059 則裡跑 |
+| `patches/` ＋ `postinstall: patch-package` ＋ devDep | 5 個月 **0 個 patch**，而 README 的計畫停在「當下我們在 Day 1 階段」。custom bundle 實測也不含 canvas-editor，所以那個機制從來沒用上 |
+| `models/` 空套件 | 拆模組時建的佔位，沒有任何內容 |
+| `tests/fixtures/.visual_regression_tmp/` | 52MB 未追蹤產生物，VR 跑一次就重生 |
+
+`npm install` 之後 `package-lock.json` 少了 43 個套件。
+
+### 刻意不清的（量過，都有理由）
+
+| | 為什麼留 |
+|---|---|
+| 82MB fixtures | **11 個目錄全部**被 8–41 支測試引用，沒有閒置的 |
+| `scripts/visual_regression.mjs` | `visual_regression_v14.mjs` 的檔頭明寫「老 CLI 仍保留：可比對 canvas-editor 端的 IElement 邏輯本身有沒有改錯」 |
+| 6 份 report JSON | 是 `SPRINT_AUDIT_CONSOLIDATED.md` 引用的量測證據 |
+| `tools/build_phase5_fixtures.py` | grep 不到引用，但它是 07/08/09/11 四個 fixture 目錄**唯一的來源憑證**。差點被當成孤兒刪掉 → 補了 `tests/fixtures/PROVENANCE.md` 把這件事寫下來 |
+| 14 支 `Overlay*.ts` | Phase 8 Phase 2.2 未啟動，寄放理由寫在那個目錄的 README |
+
+### 檢討過、確認不缺的
+
+`static/description/` 圖示（Odoo 會給預設的）、`i18n/`（核心
+`docs/a11y_i18n_design.md` 明訂預設 zh_TW、硬寫中文是刻意的）、`migrations/`
+（尚未商轉）、record rule（本模組沒有自己的 model）。

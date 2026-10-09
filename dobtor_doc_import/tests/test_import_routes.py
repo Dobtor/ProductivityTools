@@ -186,3 +186,57 @@ class TestTsEngineChannel(SessionAliveMixin, HttpCase):
         self.assertIn('audit', payload, 'engine=both 要帶 audit')
         self.assertIn('ts_element_count', payload['audit'],
                       'audit 沒有 TS 的元素數——TS 那條沒跑成功')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_import', 'security')
+class TestHarnessRoutesRequireManager(SessionAliveMixin, HttpCase):
+    """視覺回歸 harness 的兩條路由只開放給文件管理者。
+
+    ☠️ 它們會讀 `tests/fixtures/` 底下的 .docx——那些是**真實的台灣企業／政府
+    文件樣本**。原本只有 `auth='user'`，也就是任何登入者都打得到；在已安裝的
+    production 上等於把模組隨附的樣本文件開放給全體內部使用者。
+
+    路徑防護（normpath + startswith + 只收 .docx）擋的是 traversal；
+    這一組擋的是另一件事：**誰可以看**。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.plain = self.env['res.users'].create({
+            'name': '普通內部使用者',
+            'login': 'harness_plain_user',
+            'password': 'harness_plain_user',
+            'groups_id': [(6, 0, [self.env.ref('base.group_user').id])],
+        })
+
+    def test_plain_user_cannot_reach_test_data(self):
+        """只有 base.group_user 的人打 test_data → 不可以拿到 elements。"""
+        from odoo.tests.common import JsonRpcException
+        self.authenticate('harness_plain_user', 'harness_plain_user')
+        self._assert_session_alive('以普通使用者登入後')
+        # ☠️ `type='json'` 的路由拋 AccessError 時，make_jsonrpc_request 會丟
+        #    JsonRpcException 而**不是**回傳帶 error 的 dict。第一版我寫成
+        #    「斷言回應裡沒有 elements」，結果測試以 ERROR 收場——守衛其實是
+        #    生效的，是斷言的形狀不對。
+        with self.assertRaises(JsonRpcException):
+            self.make_jsonrpc_request(
+                '/dobtor_doc_editor/test_data', {'fixture': '01_simple/x.docx'})
+
+    def test_plain_user_cannot_reach_test_render(self):
+        """同上，HTML 那一條。"""
+        self.authenticate('harness_plain_user', 'harness_plain_user')
+        resp = self.url_open('/dobtor_doc_editor/test?fixture=01_simple/x.docx')
+        self.assertNotEqual(
+            resp.status_code, 200,
+            '普通使用者成功渲染了 fixture 頁面（status 200）')
+
+    def test_manager_can_still_reach_it(self):
+        """收緊不可以把 harness 弄壞——它都是以 admin（doc manager）跑的。"""
+        self.authenticate('admin', 'admin')
+        self._assert_session_alive('以 admin 登入後')
+        result = self.make_jsonrpc_request(
+            '/dobtor_doc_editor/test_data', {'fixture': 'does/not/exist.docx'})
+        # 管理者要能「通過守衛」——會停在「fixture not found」而不是權限錯誤。
+        self.assertIn('error', result)
+        self.assertIn('fixture not found', result['error'],
+                      '管理者被權限擋住了：%s' % result.get('error'))

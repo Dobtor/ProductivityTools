@@ -3,9 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "dobtor_doc_editor — Frontend build pipeline (OOXML Parser + patched canvas-editor)",
+  "description": "dobtor_doc_import — OOXML parser / layout / render 管線與建置鏈",
   "scripts": {
-    "postinstall": "patch-package",
     "build:frontend": "rollup -c rollup.config.js",
     "build:cli": "rollup -c rollup.cli.config.js",
     "build:vr": "rollup -c rollup.visual_regression.config.js",
@@ -29,7 +28,6 @@
     "@xmldom/xmldom": "^0.9.10",
     "fake-indexeddb": "^6.2.5",
     "glob": "^11.0.0",
-    "patch-package": "^8.0.0",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0",
     "puppeteer": "^24.0.0",

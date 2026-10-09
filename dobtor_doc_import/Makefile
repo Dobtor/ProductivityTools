@@ -85,7 +85,7 @@ ci-all: ci-frontend ci-python ## 跑全部靜態檢查（不含 visual-regressio
 
 # ── 前端打包 ─────────────────────────────────────────────────────────────────
 
-install: ## 安裝 npm 依賴（含 patch-package 套用）
+install: ## 安裝 npm 依賴
 	npm install --no-audit --no-fund
 
 build: ## rollup 打包 OOXML Parser → canvas-editor-custom.umd.js

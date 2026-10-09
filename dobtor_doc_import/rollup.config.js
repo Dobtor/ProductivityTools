@@ -1,12 +1,20 @@
-// rollup.config.js — dobtor_doc_editor Frontend Build
+// rollup.config.js — dobtor_doc_import Frontend Build
 //
 // 輸入：static/src/core/ooxml/index.ts（我們的 OOXML Parser 入口）
 // 輸出：static/src/lib/canvas_editor/canvas-editor-custom.umd.js
 //
 // 打包策略：
-//   將 OOXML Parser TypeScript 原始碼，加上被 patch-package 修改過的
-//   @hufe921/canvas-editor，一起打包成單一 UMD bundle。
-//   Odoo 的靜態資源系統直接引用這個 bundle，不需要任何 npm 工具鏈。
+//   把 OOXML Parser 的 TypeScript 原始碼打包成單一 UMD bundle，全域
+//   `window.DobtorCanvasEditor`。manifest 的 web.assets_backend 引用它。
+//
+//   ☠️ 這段原本寫「加上被 patch-package 修改過的 @hufe921/canvas-editor 一起
+//      打包」——**那是錯的**，實測 bundle 裡沒有 canvas-editor 的編輯器 API
+//      （executeSetValue / CanvasEvent / command.execute 皆 0 筆），而 patches/
+//      從頭到尾是空的（patch-package 回報 No patch files found）。
+//      2026-10-09 清理時連同 patches/ 一起移除，這段據實改寫。
+//
+//   ☠️ 也曾寫「Odoo 的靜態資源系統直接引用這個 bundle」——在 2026-10-09 之前
+//      那也是錯的：它從未掛進任何 manifest（ADR-032 修的）。
 //
 // 注意：Phase 1 開始前 static/src/core/ooxml/ 尚未存在，
 //   build 會失敗——這是預期行為，Phase 1 建立 Parser 後再執行 build。

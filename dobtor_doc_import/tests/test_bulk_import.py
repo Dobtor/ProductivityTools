@@ -4,6 +4,9 @@ import io
 import base64
 import zipfile
 
+from importlib.util import find_spec
+
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -122,3 +125,86 @@ class TestBulkImport(TransactionCase):
         new_docs = self.Doc.search([('id', 'not in', before_ids)])
         self.assertEqual(len(new_docs), 1)
         self.assertEqual(new_docs.company_id, self.env.company)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_import', 'security')
+class TestBulkImportCompanyBoundary(TransactionCase):
+    """批次匯入不可以把文件建到使用者沒有的公司。
+
+    ☠️ 2026-10-09 實測的真缺陷：`target_company_id` 沒有任何約束，而建立文件用
+    `Doc.sudo().create(...)`。一個只屬於 A 公司的 doc manager 可以用 RPC 把
+    target 設成他**連讀都讀不到**的 B 公司，文件就被建到 B 去了（實測 1 份）。
+
+    和匯出紀錄那次（核心的 TestExportLogAccess）同一類：**`sudo()` 繞過
+    record rule ＋ 使用者可控的公司欄位**。
+
+    修法兩層，這組測試分別驗：
+      1. 伺服端檢查 `target_company_id in env.companies` → 給可讀訊息
+      2. create 去掉 `sudo()` → doc.document 的公司 rule 真的生效
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.company_a = self.env.company
+        self.company_b = self.env['res.company'].create({'name': '邊界測試公司B'})
+        self.manager_a = self.env['res.users'].create({
+            'name': 'A 公司的文件管理者',
+            'login': 'bulk_boundary_mgr_a',
+            'company_id': self.company_a.id,
+            'company_ids': [(6, 0, [self.company_a.id])],
+            'groups_id': [(6, 0, [
+                self.env.ref('base.group_user').id,
+                self.env.ref('dobtor_doc_editor.group_doc_manager').id,
+            ])],
+        })
+
+    def _archive_with_one_docx(self):
+        from docx import Document
+        buf = io.BytesIO()
+        doc = Document()
+        doc.add_paragraph('邊界測試')
+        doc.save(buf)
+        zbuf = io.BytesIO()
+        with zipfile.ZipFile(zbuf, 'w') as zf:
+            zf.writestr('boundary.docx', buf.getvalue())
+        return base64.b64encode(zbuf.getvalue())
+
+    def test_cannot_import_into_a_company_the_user_does_not_have(self):
+        """把 target 設成看不到的公司 → UserError，而且 B 公司一份都不該多。"""
+        if find_spec('docx') is None:
+            self.skipTest('需要 python-docx 才產得出測試用的 docx')
+        before = self.env['doc.document'].sudo().search_count(
+            [('company_id', '=', self.company_b.id)])
+        wizard = self.env['doc.bulk.import.wizard'].with_user(self.manager_a).create({
+            'archive_file': self._archive_with_one_docx(),
+            'archive_filename': 'boundary.zip',
+            'target_company_id': self.company_b.id,
+        })
+        with self.assertRaises(UserError):
+            wizard.action_run_import()
+        after = self.env['doc.document'].sudo().search_count(
+            [('company_id', '=', self.company_b.id)])
+        self.assertEqual(
+            after, before,
+            '文件被建到使用者沒有的公司去了——跨公司寫入成立（建了 %d 份）'
+            % (after - before))
+
+    def test_can_import_into_own_company(self):
+        """自己的公司當然要能匯入——修正不可以把正常路徑擋掉。"""
+        if find_spec('docx') is None:
+            self.skipTest('需要 python-docx 才產得出測試用的 docx')
+        wizard = self.env['doc.bulk.import.wizard'].with_user(self.manager_a).create({
+            'archive_file': self._archive_with_one_docx(),
+            'archive_filename': 'boundary.zip',
+            'target_company_id': self.company_a.id,
+        })
+        wizard.action_run_import()
+        self.assertEqual(wizard.created_count, 1,
+                         '自己公司的匯入被擋住了：%s' % wizard.log_text)
+
+    def test_target_company_field_has_a_domain(self):
+        """UI 層也要擋——domain 只是第一層，但不能沒有。"""
+        field = self.env['doc.bulk.import.wizard']._fields['target_company_id']
+        self.assertTrue(
+            field.domain,
+            'target_company_id 沒有 domain，UI 會把所有公司都列出來')
