@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.13.1.0',
+    'version': '18.0.13.2.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1

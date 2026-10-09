@@ -19,6 +19,7 @@ from odoo import http
 from odoo.exceptions import MissingError, UserError
 from odoo.http import request
 
+from ..models.doc_ins_syntax import _convert_ins_to_jinja  # noqa: F401（import 區塊整份照抄，見檔頭）
 from ..models.doc_zip_guard import (
     assert_input_size,
     inspect_zip_safe,
@@ -52,7 +53,6 @@ from .doc_convert import (
     _lo_convert_to_html,
     _extract_page_margins,
     _lo_postprocess,
-    _convert_ins_to_jinja,
 )
 
 
