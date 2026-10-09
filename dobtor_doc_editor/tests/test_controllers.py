@@ -170,7 +170,7 @@ class TestControllerSecurityBoundary(SessionAliveMixin, HttpCase):
         if not HAS_PYTHON_DOCX:
             self.skipTest('python-docx 未安裝（選用相依）')
         docx_bytes = _make_minimal_docx_bytes()
-        resp = self.url_open(
+        resp = self._url_open_live(
             '/dobtor_doc/upload_template',
             data={'doc_id': str(self.doc.id)},
             files={'docx_file': ('../../../etc/passwd.docx', docx_bytes,
@@ -181,10 +181,14 @@ class TestControllerSecurityBoundary(SessionAliveMixin, HttpCase):
         self.assertNotEqual(resp.status_code, 500,
                             "Path traversal filename 不該觸發 500")
         # 確認 controller 已處理(回 JSON 而非 HTML 錯誤頁)
+        # ☠️ 這裡原本自己組了一句弱的訊息，而同檔已經寫好了
+        #    `_why_not_json()`（它會把轉址紀錄、session store 裡的
+        #    uid、token 對不對得上一起印出來）。診断工具寫好卻沒接上
+        #    ——這支測試 2026-10-09 就是因為這樣，偶發紅了一次卻只留下
+        #    「不是 JSON」五個字。
         self.assertIn(
             'application/json', resp.headers.get('Content-Type', ''),
-            '不是 JSON：轉址紀錄 =%s；內容 =%s'
-            % ([r.status_code for r in resp.history], resp.text[:300]),
+            self._why_not_json(resp, self.session.sid),
         )
 
     def test_upload_template_null_byte_filename_rejected(self):
@@ -214,7 +218,7 @@ class TestControllerSecurityBoundary(SessionAliveMixin, HttpCase):
         self.authenticate('admin', 'admin')
         self._assert_session_alive('upload_template 請求前')
         _sid = self.session.sid
-        resp = self.url_open(
+        resp = self._url_open_live(
             '/dobtor_doc/upload_template',
             data={'doc_id': str(self.doc.id)},
             files={'docx_file': ('evil\x00.docx', docx_bytes,
@@ -397,7 +401,7 @@ class TestHttpRoutesAlwaysReturnJson(SessionAliveMixin, HttpCase):
 
     def test_upload_template_missing_doc_returns_json_not_html(self):
         """文件 id 不存在 → 以前是 HTML 錯誤頁（MissingError 在 try 之外）。"""
-        resp = self.url_open(
+        resp = self._url_open_live(
             '/dobtor_doc/upload_template',
             data={'doc_id': '999999999'},
             files={'docx_file': ('x.docx', b'PK\x03\x04', 'application/octet-stream')},
@@ -408,7 +412,7 @@ class TestHttpRoutesAlwaysReturnJson(SessionAliveMixin, HttpCase):
 
     def test_upload_template_blank_doc_id_returns_json_not_html(self):
         """doc_id 空 → _require_document 拋 UserError（也在 try 之外）。"""
-        resp = self.url_open(
+        resp = self._url_open_live(
             '/dobtor_doc/upload_template',
             data={'doc_id': ''},
             files={'docx_file': ('x.docx', b'PK\x03\x04', 'application/octet-stream')},
@@ -430,7 +434,7 @@ class TestHttpRoutesAlwaysReturnJson(SessionAliveMixin, HttpCase):
         """
         logger = 'odoo.addons.dobtor_doc_editor.controllers.doc_controller_base'
         with self.assertLogs(logger, level='ERROR') as captured:
-            resp = self.url_open(
+            resp = self._url_open_live(
                 '/dobtor_doc/upload_template',
                 data={'doc_id': 'abc'},
                 files={'docx_file': ('x.docx', b'PK\x03\x04',

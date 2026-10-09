@@ -1,4 +1,4 @@
-"""HttpCase 的 session 健康檢查——共用 mixin。
+r"""HttpCase 的 session 健康檢查與重試——共用 mixin。
 
 為什麼需要：這些測試打的是 `auth='user'` 的路由。session 沒建立時 Odoo 不會
 回 4xx，而是把請求**轉址到 `/web/login`**，於是回應變成 HTML 200。那時失敗會
@@ -9,39 +9,183 @@
 檔案，而這支沒有類別。叫 `test_session_probe.py` 的話，「有類別卻沒 import」
 那條檢查就要為它開例外（`test_pill_helpers.py` 已經讓 CI 誤判過一次）。
 
-除了 `_assert_session_alive()`（setUp 時的一次性檢查），本 mixin 另提供
-`_jsonrpc_with_evidence()`——**偶發失敗發生的當下**把證據留下來。
+════════════════════════════════════════════════════════════════════════════
+2026-10-09：這支探針原本是**安慰劑**，而且有 log 可以證明
+════════════════════════════════════════════════════════════════════════════
 
-☠️ 為什麼需要後者：`HttpCase.make_jsonrpc_request()` 在回應不是 JSON 時會丟
-`JSONDecodeError`，而那個例外**不帶回應內文**。於是測試報告只看得到
-「JSON 解析失敗」，看不出到底是轉址到 /web/login、500 的 HTML 錯誤頁，
-還是別的東西——也就是說偶發發生了一次，卻什麼都沒留下。
-`TestTelemetryRoutes` 的 error 形狀偶發（2026-10-09，3 次）就是這樣跑掉的：
-事後連跑 30 輪全綠，無法重現，而當時沒有任何證據。
+整份測試連跑 25 輪，第 19 輪紅了一次
+（`TestControllerSecurityBoundary.test_upload_template_path_traversal_filename_handled`）。
+log 寫得一清二楚：
 
-歷史：2026-10-09 追一則偶發失敗時，這段原本只寫在
-`TestControllerSecurityBoundary` 裡。同一天驗證另一件事時，
-**`TestTelemetryRoutes` 也偶發了一次**（1 failed + 1 error，隨後連跑三次全綠）
-——那個類別沒有這段檢查，所以那一次的原因沒有留下任何證據。抽成共用就是為了
-讓下一次自己說出原因。見 docs/qweb_converter_coverage.md §7.9。
+    ,203  Login successful ... admin               ← setUp 的 authenticate()
+    ,214  odoo.http: Session expired               ← **探針那個請求自己**被判過期
+    ,214  POST /web/session/get_session_info 200 - 1   ← 但探針通過了
+    ,224  odoo.http: Session expired
+    ,224  POST /dobtor_doc/upload_template   303   ← 轉址
+    ,268  GET /web/login?redirect=...        200   ← 測試拿到 HTML
+
+原本的 `_assert_session_alive()` 只檢查 Content-Type 是不是 `application/json`
+——而 `/web/session/get_session_info` 是 **`auth='public'`** 的路由，session 死了
+它照樣回 JSON 200（只是從 66 個 query 變成 1 個）。也就是說**它永遠不可能
+偵測到 session 掉了**。它「從沒觸發過」不是因為沒發生，是因為它測不出來。
+
+這就是本模組一整天反覆出現的失效模式套在診斷工具上的版本：
+**工具存在、被呼叫、回報通過，而它量的東西跟它聲稱的不是同一件事。**
+
+修法：比對伺服器回報的 `uid` 與 `self.session.uid`——那才是「session 還活著」
+的定義。
+
+### 為什麼 session 會在 10 毫秒內失效
+
+`res.users._compute_session_token()` 掛了 `@tools.ormcache('sid')`，而 ormcache
+是 **registry 層的快取、不隨交易回滾**。整份測試裡每個 `TransactionCase` 都
+在自己的交易裡建記錄然後回滾（本模組有三支測試會 `create` res.users），
+而 `check_session()` 比的是「存在 session 裡的 token」對「當下算出來的 token」。
+快取與 DB 的真實狀態一旦錯開，`check_session()` 回 False → uid 被丟掉 →
+`ir_http._auth_method_user()` 丟 SessionExpiredException → 303 到 /web/login。
+
+這是 Odoo 框架在測試情境下的行為，**不是被測路由的缺陷**。而這些測試要驗的
+是路由行為、不是 session 壽命——所以本 mixin 的請求 helper 偵測到 auth 層
+轉址時會重登一次再試，並且**大聲記錄**（`_session_recovered` 計數 ＋
+logger.warning），不是靜靜吞掉。
+
+重現率：整份測試 25 輪裡 1 次（約 4%）。
 """
-
-
 import json
+import logging
+
+_logger = logging.getLogger(__name__)
+
+# auth 層把請求導去登入頁的痕跡
+_LOGIN_PATH = '/web/login'
 
 
 class SessionAliveMixin:
-    """提供 session 檢查與帶證據的 JSON-RPC 呼叫。與 HttpCase 一起繼承。"""
+    """session 檢查、帶證據的 JSON-RPC、以及 session 失效時的一次重試。
 
-    def _assert_session_alive(self, where):
+    與 HttpCase 一起繼承，而且要放在 HttpCase **前面**（它覆寫
+    `authenticate()` 來記住憑證，好在 session 掉了之後重登）。
+    """
+
+    #: 被 auth 層轉址而重登的次數。測試可以斷言它是 0，
+    #: 但預設不斷言——重登是為了讓測試驗它真正要驗的東西。
+    _session_recovered = 0
+
+    def authenticate(self, user, password):
+        """記住憑證，好讓 `_url_open_live()` 在 session 掉了之後重登。
+
+        覆寫而不是另開一個 `authenticate_for_test()`，是為了讓既有的
+        `self.authenticate('admin', 'admin')` 呼叫點**一個都不用改**。
+        """
+        self._test_credentials = (user, password)
+        return super().authenticate(user, password)
+
+    # ── 檢查 ──────────────────────────────────────────────────────────
+
+    def _assert_session_alive(self, where, expected_uid=None):
+        """確認 session 真的活著——比對 uid，不是只看 Content-Type。
+
+        ☠️ 只看 Content-Type 的版本是安慰劑，見檔頭。`get_session_info` 是
+        `auth='public'`，session 死了它照樣回 JSON 200、只是 uid 變成公開
+        使用者。
+        """
+        want = expected_uid if expected_uid is not None else \
+            getattr(getattr(self, 'session', None), 'uid', None)
+        self.assertTrue(
+            want,
+            '_assert_session_alive(%r) 在還沒 authenticate() 之前被呼叫——'
+            '那時它什麼都驗不到。' % where)
+        uid = self._session_info_uid()
+        self.assertEqual(
+            uid, want,
+            'session 在 %s 時已經不是登入狀態（伺服器回報 uid=%r，'
+            '預期 %r）——後面的失敗都是這個造成的，不是被測路由的問題。\n'
+            '見 tests/session_probe.py 檔頭：ormcache 不隨交易回滾。'
+            % (where, uid, want))
+
+    def _session_info_uid(self):
+        """問伺服器「你現在認為我是誰」。認不出來就回 None。"""
         resp = self.url_open(
             '/web/session/get_session_info', data='{}',
             headers={'Content-Type': 'application/json'})
         ct = (resp.headers.get('Content-Type') or '').split(';')[0]
-        self.assertEqual(
-            ct, 'application/json',
-            'session 在 %s 時不可用（回應 %s / %s）——後面的失敗都是這個造成的，'
-            '不是被測路由的問題' % (where, resp.status_code, ct))
+        if ct != 'application/json':
+            return None
+        try:
+            return ((resp.json() or {}).get('result') or {}).get('uid')
+        except ValueError:
+            return None
+
+    # ── 請求（session 掉了就重登一次）─────────────────────────────────
+
+    @staticmethod
+    def _is_auth_redirect(resp):
+        """`type='http'` 路由的 session 失效形狀：最終落在 /web/login。
+
+        ☠️ 只認「最終 URL 是登入頁」這一個訊號。第一版寫成「history 裡有任何
+        轉址就算」，結果 POST /web/login 自己也會轉一次 → 被誤判成 session
+        失效 → 白白重登。**本模組自己的測試抓到了這個誤判。**
+        """
+        return _LOGIN_PATH in (getattr(resp, 'url', '') or '')
+
+    @staticmethod
+    def _is_session_expired_json(resp):
+        """`type='json'` 路由的 session 失效形狀——**和 http 路由不一樣**。
+
+        ☠️ 這是 2026-10-09 寫重試機制時量到的：`type='json'` 路由遇到
+        SessionExpiredException **不會轉址**，它回 HTTP 200 + JSON-RPC error，
+        `error.data.name` 是 `odoo.http.SessionExpiredException`。
+        只看轉址的偵測器對 json 路由完全無效——而本模組的遙測、匯入路由
+        全都是 `type='json'`。
+        """
+        if 'application/json' not in (resp.headers.get('Content-Type') or ''):
+            return False
+        try:
+            body = resp.json()
+        except ValueError:
+            return False
+        # ☠️ resp.json() 不一定是 dict。本模組的 `type='http'` 路由有幾條
+        #    回的是 JSON 字串（json.dumps 了一個字串），第一版直接
+        #    `.get()` 下去 → AttributeError: 'str' object has no attribute 'get'
+        #    ——本模組自己的 4 則測試當場抓到。
+        if not isinstance(body, dict):
+            return False
+        err = body.get('error')
+        if not isinstance(err, dict):
+            return False
+        data = err.get('data')
+        if not isinstance(data, dict):
+            return False
+        return 'SessionExpired' in (data.get('name') or '')
+
+    @classmethod
+    def _looks_session_expired(cls, resp):
+        return cls._is_auth_redirect(resp) or cls._is_session_expired_json(resp)
+
+    def _recover_session(self, where):
+        """重登。回 True＝重登了，False＝沒有憑證可用。"""
+        creds = getattr(self, '_test_credentials', None)
+        if not creds:
+            return False
+        type(self)._session_recovered += 1
+        _logger.warning(
+            '[session_probe] %s：session 在測試中途失效，重登 %r 後重試一次。'
+            '這不是被測路由的缺陷——見 tests/session_probe.py 檔頭'
+            '（ormcache 不隨交易回滾）。本類別累計重登 %d 次。',
+            where, creds[0], type(self)._session_recovered)
+        self.authenticate(*creds)
+        return True
+
+    def _url_open_live(self, url, where='', **kw):
+        """`url_open`，但 session 中途失效時重登一次再試。
+
+        ☠️ 只重試**一次**。第二次還是被導去登入頁就讓測試失敗——那代表問題
+        不是偶發的 session 失效，蓋掉它只會換成更難查的症狀。
+        """
+        resp = self.url_open(url, **kw)
+        if self._looks_session_expired(resp) and self._recover_session(where or url):
+            resp = self.url_open(url, **kw)
+        return resp
 
     def _jsonrpc_with_evidence(self, route, params, where=''):
         """打 `type='json'` 路由，失敗時**把證據寫進失敗訊息**。
@@ -53,14 +197,16 @@ class SessionAliveMixin:
             現形）/ 回應內文前 400 字 / Odoo 放在 error.data.debug 的 traceback
 
         為什麼要自己組 envelope 而不是包在 make_jsonrpc_request 外面：
-        失敗之後**不能重發**請求（會改變狀態，而且偶發的那一次就錯過了），
+        後者在回應不是 JSON 時丟的 JSONDecodeError **不帶回應內文**，而失敗
+        之後**不能重發**請求（會改變狀態，而且偶發的那一次就錯過了），
         所以證據必須在同一次呼叫裡取得。
         """
         payload = json.dumps({
             'jsonrpc': '2.0', 'method': 'call', 'id': 0, 'params': params,
         })
-        resp = self.url_open(
-            route, data=payload, headers={'Content-Type': 'application/json'})
+        headers = {'Content-Type': 'application/json'}
+        resp = self._url_open_live(
+            route, where=where or route, data=payload, headers=headers)
         ct = (resp.headers.get('Content-Type') or '').split(';')[0]
         tag = ' @%s' % where if where else ''
         if ct != 'application/json':
@@ -69,13 +215,25 @@ class SessionAliveMixin:
                 '  狀態碼      : %s\n'
                 '  Content-Type: %s\n'
                 '  最終 URL    : %s   ← 是 /web/login 就代表 session 掉了\n'
+                '  重登次數    : %s（重登一次之後還是這樣，就不是偶發）\n'
                 '  內文前 400 字: %r'
-                % (route, tag, resp.status_code, ct or '(無)',
-                   resp.url, (resp.text or '')[:400]))
+                % (route, tag, resp.status_code, ct or '(無)', resp.url,
+                   type(self)._session_recovered, (resp.text or '')[:400]))
         body = resp.json()
+        if not isinstance(body, dict):
+            self.fail(
+                '%s%s 回的 JSON 不是物件（JSON-RPC 的回應一定是物件）：%r'
+                % (route, tag, body))
         if 'error' in body:
             err = body['error'] or {}
             data = err.get('data') or {}
+            if 'SessionExpired' in (data.get('name') or ''):
+                # 重登一次之後還是過期 → 不是偶發，別把它報成「路由回了錯誤」
+                self.fail(
+                    '%s%s：重登之後 session 依然過期（累計重登 %d 次）。'
+                    '這不是偶發的 ormcache 競態，而是 session 建立本身有問題'
+                    '——見 tests/session_probe.py 檔頭。'
+                    % (route, tag, type(self)._session_recovered))
             self.fail(
                 '%s%s 回了 JSON-RPC error。\n'
                 '  message: %s\n'

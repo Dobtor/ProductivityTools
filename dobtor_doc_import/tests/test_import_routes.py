@@ -83,7 +83,7 @@ class TestImportRoutes(SessionAliveMixin, HttpCase):
         docx_bytes = _make_minimal_docx_bytes()
         # 用 zip guard 攔截(最小 docx 也是合法 zip、guard 放行,但接下來 LO 處理是另一層)。
         # 此 test 焦點是「engine 參數注入不該繞過白名單」、不關心 LO 結果。
-        resp = self.url_open(
+        resp = self._url_open_live(
             '/dobtor_doc/import',
             data={'engine': '<script>alert(1)</script>'},
             files={'file': ('test.docx', docx_bytes,
@@ -238,7 +238,7 @@ class TestHarnessRoutesRequireManager(SessionAliveMixin, HttpCase):
     def test_plain_user_cannot_reach_test_render(self):
         """同上，HTML 那一條。"""
         self.authenticate('harness_plain_user', 'harness_plain_user')
-        resp = self.url_open('/dobtor_doc_editor/test?fixture=01_simple/x.docx')
+        resp = self._url_open_live('/dobtor_doc_editor/test?fixture=01_simple/x.docx')
         self.assertNotEqual(
             resp.status_code, 200,
             '普通使用者成功渲染了 fixture 頁面（status 200）')
