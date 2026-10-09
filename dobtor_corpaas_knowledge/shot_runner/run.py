@@ -33,6 +33,8 @@ HIDE_CSS = """
 .o-mail-Chatter-content, .o-mail-Message-date,
 .o_activity_view .o_activity_cell_timestamp { visibility: hidden !important; }
 #oe_neutralize_banner { display: none !important; }
+/* 前台：說明庫的「已作失效處理」斜條、Cookie 同意列蓋住畫面（實機每張前台截圖都有） */
+#oe_neutralize_ribbon, #website_cookies_bar, #cookies_bar { display: none !important; }
 """
 
 PROBE_JS = r'''() => {
@@ -562,6 +564,11 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
             pairs, refs = recorder.dump()
             # 空白引導頁（沒有資料的清單／看板／報表）：照拍，但標記出來由控制台決定不採用
             empty = bool(page.locator('.o_view_nocontent:visible').count())
+            if not empty and not _is_backend(page):
+                # 前台空白頁：入口網站「目前沒有訂單／發票」只有一個黃色提示、沒有資料表
+                # ☠️ 實機：會員的「我的訂單」拍成「您的帳戶目前沒有銷售訂單」照樣採用
+                empty = bool(page.locator('main .alert-warning:visible').count()) and \
+                    not page.locator('main table tbody tr').count()
             images.append({'name': name, 'file': os.path.relpath(path, OUT_DIR),
                            'regions': list(regions), 'records': pairs, 'refs': refs,
                            'empty': empty})
