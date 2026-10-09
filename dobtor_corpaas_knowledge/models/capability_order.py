@@ -11,20 +11,40 @@ from collections import Counter
 
 from odoo import models
 
-#: 模組的上下游先後（同一組同一名次）；不在清單的（儀表板、報表類）排最後
+#: 模組的上下游先後（同一組同一名次）；不在清單的（儀表板、報表類）排最後。
+#: 每組第二項是自訂模組的名稱關鍵字（方案自己的模組沒列在這裡，看名字歸組）。
+#: ☠️ 實機：社群電商方案的推薦佣金、會員、客服、網站各章都不在清單 → 全排最後（又因順序值
+#:   重複被擠到最前面），驗收「章節依上下游排序」不過。
 MODULE_ORDER = [
-    ('contacts', 'mail', 'base', 'calendar'),
-    ('product', 'uom'),
-    ('crm',),
-    ('sale', 'sale_management', 'sales_team', 'sale_stock', 'loyalty', 'sale_loyalty'),
-    ('purchase', 'purchase_requisition', 'purchase_stock'),
-    ('mrp',),
-    ('stock', 'stock_account', 'stock_picking_batch', 'stock_landed_costs', 'delivery',
-     'stock_dropshipping'),
-    ('account', 'account_payment', 'payment'),
+    (('contacts', 'mail', 'base', 'calendar'), ()),
+    (('product', 'uom'), ()),
+    (('website', 'website_blog', 'website_event', 'website_slides'), ('website', 'blog', 'theme')),
+    (('portal', 'auth_signup', 'auth_oauth'),
+     ('signup', 'sso', 'login', 'portal', 'member', 'user_profile', 'user_apps')),
+    (('crm',), ()),
+    (('sale', 'sale_management', 'sales_team', 'sale_stock', 'loyalty', 'sale_loyalty',
+      'website_sale'), ('checkout', 'shop', 'cart')),
+    ((), ('commission', 'referral', 'promote', 'affiliate', 'reward')),
+    (('purchase', 'purchase_requisition', 'purchase_stock'), ()),
+    (('mrp',), ()),
+    (('stock', 'stock_account', 'stock_picking_batch', 'stock_landed_costs', 'delivery',
+      'stock_dropshipping'), ()),
+    (('account', 'account_payment', 'payment'), ('invoice', 'wallet', 'payment')),
+    (('im_livechat', 'website_livechat', 'helpdesk'), ('livechat', 'helpdesk', 'support')),
 ]
-_RANK = {m: i for i, group in enumerate(MODULE_ORDER) for m in group}
+_RANK = {m: i for i, (group, _kw) in enumerate(MODULE_ORDER) for m in group}
 LAST_RANK = len(MODULE_ORDER) + 1
+
+
+def module_rank(module):
+    """模組的上下游名次：官方模組查表；自訂模組看名稱關鍵字；都不中排最後。"""
+    if module in _RANK:
+        return _RANK[module]
+    name = (module or '').lower()
+    for i, (_group, words) in enumerate(MODULE_ORDER):
+        if any(w in name for w in words):
+            return i
+    return LAST_RANK
 
 
 class KnowledgeCapability(models.Model):
@@ -42,7 +62,7 @@ class KnowledgeCapability(models.Model):
 
     def _knowledge_rank(self):
         self.ensure_one()
-        return _RANK.get(self._knowledge_main_module(), LAST_RANK)
+        return module_rank(self._knowledge_main_module())
 
 
 class SolutionPackage(models.Model):
@@ -94,8 +114,9 @@ class SolutionPackage(models.Model):
                 continue   # 別的方案的能力：不動
             flow.capability_id = best
             stats['flows_moved'] += 1
-        if len(caps) > 1 and len(set(caps.mapped('sequence'))) == 1:
-            ordered = caps.sorted(lambda c: (c._knowledge_rank(), c.id))
+        # 沒人排過（順序值有重複：AI 新增的能力都是預設 10）就依上下游排；人排過的值不會重複
+        if len(caps) > 1 and len(set(caps.mapped('sequence'))) < len(caps):
+            ordered = caps.sorted(lambda c: (c._knowledge_rank(), c.sequence, c.id))
             for i, cap in enumerate(ordered, start=1):
                 cap.sudo().sequence = i * 10
             stats['caps_ordered'] = len(ordered)

@@ -429,6 +429,31 @@ class TestRound2(ManualCase):
         self.cap_a.sequence = 99
         self.assertFalse(self.pkg._knowledge_tidy_capabilities()['caps_ordered'], '有人排過就不動')
 
+    def test_module_rank_places_custom_and_web_modules(self):
+        from odoo.addons.dobtor_corpaas_knowledge.models.capability_order import (
+            LAST_RANK, module_rank)
+        r = module_rank
+        self.assertLess(r('product'), r('website'))
+        self.assertLess(r('website'), r('corpaas_sso_client'), '網站內容 → 會員')
+        self.assertLess(r('dobtor_user_apps'), r('sale'), '會員 → 銷售')
+        self.assertLess(r('sale'), r('dobtor_sale_commission'), '銷售 → 推薦佣金')
+        self.assertLess(r('dobtor_sale_commission'), r('purchase'))
+        self.assertLess(r('account'), r('im_livechat'), '應收付 → 客服')
+        self.assertEqual(r('spreadsheet_dashboard'), LAST_RANK)
+
+    def test_new_capabilities_with_default_sequence_get_placed(self):
+        """已排好的章節後來又加了新能力（預設順序值重複）：依上下游重排。"""
+        stock = self.Feature.create({'feature_key': 'kbtest.action:pk2', 'module': 'stock',
+                                     'kind': 'action', 'anchor': 'kbtest.pk2', 'name': '調撥',
+                                     'model': 'stock.picking', 'package_ids': [(6, 0, self.pkg.ids)]})
+        comm = self.Feature.create({'feature_key': 'kbtest.action:cm', 'module': 'dobtor_sale_commission',
+                                    'kind': 'action', 'anchor': 'kbtest.cm', 'name': '佣金',
+                                    'model': 'res.partner', 'package_ids': [(6, 0, self.pkg.ids)]})
+        self.cap_a.write({'sequence': 10, 'feature_ids': [(6, 0, comm.ids)]})
+        self.cap_b.write({'sequence': 10, 'feature_ids': [(6, 0, stock.ids)]})
+        self.pkg._knowledge_tidy_capabilities()
+        self.assertLess(self.cap_a.sequence, self.cap_b.sequence, '推薦佣金在庫存前面')
+
     def test_status_excludes_print_and_splits_cancel(self):
         flow = self.env['corpaas.knowledge.flow'].sudo().create({
             'model': 'res.partner', 'model_name': '調撥', 'state_field': 'kbr_state',

@@ -401,6 +401,8 @@ CONFIG_MODELS = (
     'uom.uom', 'uom.category', 'product.category', 'product.pricelist', 'mail.alias',
     'mail.activity.type', 'mail.activity.plan', 'crm.team', 'delivery.carrier',
     'payment.provider', 'payment.method', 'res.lang', 'res.country', 'res.country.state',
+    # 設定頁都會顯示郵件網域（系統設定，不是客戶資料）：實機 10 張設定頁截圖被誤擋
+    'mail.alias.domain',
 )
 
 
@@ -436,6 +438,27 @@ def purge_script(models):
         "            ('module', 'in', list(mods))]).mapped('res_id'))\n"
         "        keep |= {r['id'] for r in rows if r[f.name] and r[f.name][0] in pkeep}\n"
         "    return keep\n"
+        # ★ 已確認／已過帳的單據 Odoo 不准直接刪：先退回草稿或取消再刪
+        #   ☠️ 實機：社群電商方案的說明庫留下 8 張客戶銷售訂單、14 張佣金結算單，截圖拍到客戶資料
+        "RESETS = ('action_unlock', 'button_draft', '_action_cancel', 'action_cancel',\n"
+        "          'button_cancel', 'action_draft')\n"
+        "def _reset_and_unlink(Model, rid):\n"
+        "    rec = Model.browse(rid).with_context(disable_cancel_warning=True,\n"
+        "        tracking_disable=True, mail_notrack=True)\n"
+        "    for meth in RESETS:\n"
+        "        if not hasattr(rec, meth):\n"
+        "            continue\n"
+        "        try:\n"
+        "            with env.cr.savepoint():\n"
+        "                getattr(rec, meth)()\n"
+        "        except Exception:\n"
+        "            pass\n"
+        "    try:\n"
+        "        with env.cr.savepoint():\n"
+        "            rec.unlink()\n"
+        "        return True\n"
+        "    except Exception:\n"
+        "        return False\n"
         "deleted, residual = {}, {}\n"
         "for _pass in range(3):\n"
         "    for name in TARGET:\n"
@@ -452,7 +475,8 @@ def purge_script(models):
         "                    Model.browse(rid).unlink()\n"
         "                deleted[name] = deleted.get(name, 0) + 1\n"
         "            except Exception:\n"
-        "                pass\n"
+        "                if _reset_and_unlink(Model, rid):\n"
+        "                    deleted[name] = deleted.get(name, 0) + 1\n"
         "for name in TARGET:\n"
         "    Model = env[name].sudo().with_context(active_test=False)\n"
         "    if Model._abstract or not Model._auto:\n"

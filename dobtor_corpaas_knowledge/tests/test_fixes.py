@@ -95,6 +95,22 @@ class TestSandboxAndGate(TransactionCase):
         bad = json.loads(printed[-1][len(scripts.MARK):])['bad']
         self.assertIn(['res.partner', customer.id], bad)
 
+    def test_purge_cancels_confirmed_orders_before_delete(self):
+        """已確認的客戶銷售訂單：先取消再刪（Odoo 不准直接刪已確認的訂單）。"""
+        if 'sale.order' not in self.env:
+            self.skipTest('沒有 sale')
+        customer = self.env['res.partner'].create({'name': '真實客戶'})
+        product = self.env['product.product'].create({'name': '客戶商品', 'type': 'service'})
+        order = self.env['sale.order'].create({'partner_id': customer.id, 'order_line': [
+            (0, 0, {'product_id': product.id, 'product_uom_qty': 1, 'price_unit': 100})]})
+        order.action_confirm()
+        src = scripts.purge_script(['sale.order', 'sale.order.line']).replace(
+            'env.cr.commit()', 'pass')
+        printed = []
+        exec(compile(src, '<purge>', 'exec'), {'env': self.env, 'print': printed.append})
+        self.env.invalidate_all()
+        self.assertFalse(order.exists(), '已確認的客戶訂單也要清掉')
+
     def test_purge_anonymizes_customer_users(self):
         user = self.env['res.users'].create({'name': '客戶員工王小明', 'login': 'wang_x'})
         customer = self.env['res.partner'].create({'name': '真實客戶'})
