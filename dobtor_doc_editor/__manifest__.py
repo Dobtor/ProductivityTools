@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.9.1.0',
+    'version': '18.0.10.0.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -101,6 +101,13 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
+            # doc_editor 拆成四層 mixin + 共用常數（見各檔檔頭）。
+            # 順序無所謂（Odoo 的 asset 走 define/require），但照相依序列著好讀。
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shared.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shell.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_io.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_pills.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_templateui.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
             # 版本歷史面板（W7-8 P1-1）
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.xml',
@@ -147,6 +154,13 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
+            # doc_editor 拆成四層 mixin + 共用常數（見各檔檔頭）。
+            # 順序無所謂（Odoo 的 asset 走 define/require），但照相依序列著好讀。
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shared.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shell.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_io.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_pills.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_templateui.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
             # 版本歷史面板（讓 portal 協作者也能查看歷次儲存）
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.xml',

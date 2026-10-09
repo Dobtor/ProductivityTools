@@ -1739,8 +1739,12 @@ class TestFieldListCoverage(TransactionCase):
         import os
         import re
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # 常數的權威在 doc_editor_shared.js——doc_editor.js 2026-10-09 拆成
+        # 四層 mixin 時把模組層級常數搬到那裡（避免循環 import）。
+        # 這一則原本指著 doc_editor.js，拆檔後就紅了，正是它該有的行為。
         path = os.path.join(
-            here, 'static', 'src', 'components', 'doc_editor', 'doc_editor.js',
+            here, 'static', 'src', 'components', 'doc_editor',
+            'doc_editor_shared.js',
         )
         with open(path, encoding='utf-8') as fh:
             src = fh.read()

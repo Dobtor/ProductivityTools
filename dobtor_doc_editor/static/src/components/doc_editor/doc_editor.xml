@@ -24,7 +24,7 @@
                     <i class="fa fa-file-text-o doc-header-icon" aria-hidden="true"/>
                     <input class="doc-header-title"
                            t-att-value="state.docName"
-                           t-on-change="onTitleChange"
+                           t-on-change="onDocNameChange"
                            placeholder="未命名文件"
                            aria-label="文件標題"/>
                 </div>

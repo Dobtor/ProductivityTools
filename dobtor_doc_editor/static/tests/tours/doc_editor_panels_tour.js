@@ -533,6 +533,30 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
         // 放在最後：收起來時面板內容會不見，前面的步驟都還需要它們。
         // 每一組都「收起→驗→展開→驗」，不要留下收合狀態給下一次執行
         //（狀態存在 localStorage，會跨 tour 執行殘留）。
+        // ─── 標題欄改名（2026-10-09 拆檔時發現的缺陷的回歸測試）───
+        // 原本標題欄與「標題樣式」下拉都接 onTitleChange，而同 class 的同名
+        // 方法後面那個會無聲覆蓋前面那個 → 改名完全沒作用。
+        {
+            content: "標題欄接的是 onDocNameChange 而不是 onTitleChange",
+            trigger: "input.doc-header-title",
+            run: () => {
+                const cmp = window._docEditorCmp;
+                if (typeof cmp.onDocNameChange !== "function") {
+                    throw new Error("少了 onDocNameChange");
+                }
+                // 兩支必須是不同的函式，否則就是又被覆蓋了
+                if (cmp.onDocNameChange === cmp.onTitleChange) {
+                    throw new Error("onDocNameChange 與 onTitleChange 是同一支——又被覆蓋了");
+                }
+                const input = document.querySelector("input.doc-header-title");
+                input.value = "改名測試文件";
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+                if (cmp.state.docName !== "改名測試文件") {
+                    throw new Error(`改名沒生效，state.docName = ${cmp.state.docName}`);
+                }
+            },
+        },
+
         {
             content: "收合左側面板",
             trigger: ".doc-thumbnail-panel .doc-panel-collapse-btn",
