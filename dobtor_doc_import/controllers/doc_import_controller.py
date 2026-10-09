@@ -25,7 +25,7 @@ import subprocess
 import tempfile
 
 from odoo import _, http
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 
 from odoo.addons.dobtor_doc_editor.controllers.doc_controller_base import DocControllerBase
@@ -94,6 +94,14 @@ class DocImportController(DocControllerBase, http.Controller):
         Args:
             engine: 'libreoffice' / 'ts' / 'both'（從 form 或 query string 取）
         """
+        # ☠️ 2026-10-09：這支只負責**成功**的回應。
+        #    錯誤路徑原本也走它，於是「未收到檔案」「zip bomb」「不支援格式」
+        #    「轉換失敗」全都回 **HTTP 200** ＋ `{'error': …}`，而同一條路由掛的
+        #    `json_http_route` 給的是 400／500——**同一條路由兩套錯誤慣例**，
+        #    前端能動是湊巧而非設計。
+        #
+        #    現在錯誤一律 `raise UserError`，由 decorator 統一成
+        #    400 ＋ `{'success': False, 'error': …}`。
         def _json_resp(data):
             return request.make_response(
                 json.dumps(data, ensure_ascii=False),
@@ -102,7 +110,7 @@ class DocImportController(DocControllerBase, http.Controller):
 
         upload = request.httprequest.files.get('file')
         if not upload:
-            return _json_resp({'error': '未收到檔案'})
+            raise UserError(_('未收到檔案。'))
 
         filename = upload.filename or ''
         ext = os.path.splitext(filename)[1].lower()
@@ -150,7 +158,7 @@ class DocImportController(DocControllerBase, http.Controller):
                         "import_document rejected by zip_guard: %s (file=%s, uid=%s)",
                         e, filename, request.env.user.id,
                     )
-                    return _json_resp({'error': str(e)})
+                    raise UserError(str(e)) from e
 
             page_margins = None
             body_html = None
@@ -189,12 +197,13 @@ class DocImportController(DocControllerBase, http.Controller):
                         audit['lo_fallback'] = 'odt_python'
                 else:
                     if not shutil.which('soffice'):
-                        return _json_resp({
-                            'error': f'不支援的格式（{ext}）。支援格式：.docx、.odt'
-                        })
+                        raise UserError(_(
+                            '不支援的格式（%(ext)s）。支援格式：.docx、.odt',
+                            ext=ext))
                     lo_result = _lo_convert_to_html(file_bytes, ext)
                     if lo_result is None:
-                        return _json_resp({'error': f'LibreOffice 無法轉換格式：{ext}'})
+                        raise UserError(_(
+                            'LibreOffice 無法轉換格式：%(ext)s', ext=ext))
                     body_html, page_margins = lo_result
 
             resp = {'engine': engine}
@@ -209,15 +218,20 @@ class DocImportController(DocControllerBase, http.Controller):
 
             # 至少要有一條路徑成功
             if body_html is None and elements is None:
-                return _json_resp({
-                    'error': 'TS 與 LibreOffice 皆無法轉換此檔案',
-                    'audit': audit,
-                })
+                _logger.warning('import_document: 兩條路徑都失敗，audit=%s', audit)
+                raise UserError(_('TS 與 LibreOffice 皆無法轉換此檔案。'))
 
             return _json_resp(resp)
 
-        except Exception as e:
-            return _json_resp({'error': str(e)})
+        except UserError:
+            # 使用者層的錯誤交給 json_http_route（400 ＋ 可讀訊息），
+            # 不要在這裡吞成 200。
+            raise
+        except Exception:
+            # 非預期的例外也交給 decorator：它會記 log 並回 500 ＋ 可追代碼。
+            # ☠️ 原本這裡是 `return _json_resp({'error': str(e)})`，等於把任何
+            #    例外的 str() 送到瀏覽器（LibreOffice 的 stderr 就是這樣漏出去的）。
+            raise
 
     @http.route('/dobtor_doc_editor/test', type='http', auth='user', methods=['GET'])
     def test_render(self, fixture=None, **kw):

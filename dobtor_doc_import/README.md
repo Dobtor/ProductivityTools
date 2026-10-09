@@ -133,3 +133,37 @@ B 公司——實測建出 1 份。與核心匯出紀錄那次同一類：**`sud
 `static/description/` 圖示（Odoo 會給預設的）、`i18n/`（核心
 `docs/a11y_i18n_design.md` 明訂預設 zh_TW、硬寫中文是刻意的）、`migrations/`
 （尚未商轉）、record rule（本模組沒有自己的 model）。
+
+## 錯誤處理的約定（2026-10-09 統一）
+
+**一條路由只有一套慣例**：使用者層的錯誤 `raise UserError`，由繼承自核心的
+`json_http_route` 統一成 **400 ＋ `{'success': False, 'error': …}`**；
+非預期的例外讓它漏出去，decorator 給 **500 ＋ 可追代碼**並記 log。
+
+改之前不是這樣：`/dobtor_doc/import` 的錯誤路徑走本地的 `_json_resp`，
+所以「未收到檔案」「zip bomb」「不支援格式」「轉換失敗」全都回 **HTTP 200**
+＋ `{'error': …}`——同一條路由兩套慣例，前端能動是湊巧而非設計。
+
+**函式庫與子程序的原文只進 log，不給使用者看。** LibreOffice 的 stderr 原本
+會被 `raise Exception(f'…{stderr[:400]}')` 一路送到瀏覽器（含容器路徑）。
+
+### ☠️ 兩處「把失敗當成文件內容」
+
+`_docx_to_html_with_format()` 原本在解析失敗時回傳
+`<p>（無法解析 DOCX：…）</p>`。可達情境：**把改名的 .zip 當 .docx 上傳**
+——zip_guard 放行（它確實是合法 zip），使用者於是得到一份內容是英文函式庫
+錯誤訊息的文件；經**批次精靈更糟**：那份文件會被建出來並**計為成功**。
+
+兩處都改成 `raise UserError`：路由 → 400；精靈 → `failed_count` ＋ log
+（精靈本來就是為這件事準備了那兩個欄位）。
+
+## 轉換函式的測試覆蓋
+
+`controllers/doc_convert.py` 的九支原本**只靠路由間接覆蓋**，而其中一整條是
+**降級路徑**：`_lo_convert_to_html()` 沒有 LibreOffice 時回 `None`，呼叫端改走
+純 python-docx 的 `_docx_to_html_with_format()`。容器裡有 `soffice`，所以那條
+降級鏈在測試裡**永遠走不到**——「寫好了但從沒被執行過」的典型。
+
+`tests/test_doc_convert.py` 用 `patch.object(doc_convert.shutil, 'which')`
+把 LibreOffice 拿掉，讓降級鏈真的跑一次；另外直接驗純函式的行為（段落、表格、
+粗體、HTML 轉義、頁面邊距、壞 CSS 不炸）。

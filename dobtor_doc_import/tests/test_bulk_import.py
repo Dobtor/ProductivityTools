@@ -208,3 +208,59 @@ class TestBulkImportCompanyBoundary(TransactionCase):
         self.assertTrue(
             field.domain,
             'target_company_id 沒有 domain，UI 會把所有公司都列出來')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_import')
+class TestBulkImportCountsCorruptFilesAsFailed(TransactionCase):
+    """壞檔要算進 failed_count，不可以建出一份「內容是錯誤訊息」的文件。
+
+    ☠️ 2026-10-09 之前：`_docx_to_html_with_format()` 遇到「合法 zip 但不是
+    docx」會回傳 `<p>（無法解析 DOCX：…）</p>`——也就是把失敗當內容。精靈於是
+    把那份文件**建出來並計為成功**。改成 raise 之後，精靈逐檔的 except 會把它
+    算進 failed_count 並寫進 log——精靈本來就是為這件事準備了那兩個欄位。
+    """
+
+    def setUp(self):
+        super().setUp()
+        if find_spec('docx') is None:
+            self.skipTest('需要 python-docx')
+
+    def _archive(self, entries):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, blob in entries:
+                zf.writestr(name, blob)
+        return base64.b64encode(buf.getvalue())
+
+    def _good_docx(self):
+        from docx import Document
+        b = io.BytesIO()
+        d = Document()
+        d.add_paragraph('好的文件')
+        d.save(b)
+        return b.getvalue()
+
+    def _renamed_zip(self):
+        b = io.BytesIO()
+        with zipfile.ZipFile(b, 'w') as zf:
+            zf.writestr('readme.txt', 'hello')
+        return b.getvalue()
+
+    def test_corrupt_entry_counts_as_failed_not_created(self):
+        wizard = self.env['doc.bulk.import.wizard'].create({
+            'archive_file': self._archive([
+                ('good.docx', self._good_docx()),
+                ('renamed.docx', self._renamed_zip()),
+            ]),
+            'archive_filename': 'mixed.zip',
+            'skip_failures': True,
+        })
+        wizard.action_run_import()
+        self.assertEqual(wizard.created_count, 1, '好的那份沒建出來')
+        self.assertEqual(wizard.failed_count, 1,
+                         '壞檔沒被算進 failed_count（log=%s）' % wizard.log_text)
+        created = self.env['doc.document'].search(
+            [('name', 'like', 'renamed')])
+        self.assertFalse(
+            created,
+            '壞檔建出了文件——那份的內容會是錯誤訊息（id=%s）' % created.ids)

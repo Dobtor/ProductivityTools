@@ -52,16 +52,24 @@ class TestImportRoutes(SessionAliveMixin, HttpCase):
     def _ct(self, resp):
         return (resp.headers.get('Content-Type') or '').split(';')[0]
 
-    def test_import_document_no_file_returns_error_json(self):
-        """POST /dobtor_doc/import 沒附 file → graceful '未收到檔案'。"""
-        # url_open 帶 data 預設仍可能是 GET;明確 POST 用 opener
+    def test_import_document_no_file_returns_400_with_message(self):
+        """POST /dobtor_doc/import 沒附 file → **400** ＋ 可讀訊息。
+
+        ☠️ 2026-10-09 改過：原本這一則斷言 `status_code == 200`。那是因為錯誤
+        路徑走的是本地的 `_json_resp`（不帶 status），而同一條路由掛的
+        `json_http_route` 給的是 400／500——**同一條路由兩套錯誤慣例**。
+        現在錯誤一律 `raise UserError` → decorator 統一成 400。
+        """
         resp = self.opener.post(
             f"{self.base_url()}/dobtor_doc/import",
-            data={'_': '1'},  # 必帶任意 form data 才會 POST(不影響邏輯)
+            data={'_': '1'},  # 必帶任意 form data 才會 POST（不影響邏輯）
         )
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 400,
+                         '錯誤路徑應該回 400，不是 %s' % resp.status_code)
+        self.assertEqual(self._ct(resp), 'application/json',
+                         '回了非 JSON：%s' % resp.text[:200])
         body = resp.json()
-        self.assertIn('error', body)
+        self.assertFalse(body.get('success'))
         self.assertIn('未收到檔案', body['error'])
 
     def test_import_document_invalid_engine_falls_back(self):
@@ -82,14 +90,19 @@ class TestImportRoutes(SessionAliveMixin, HttpCase):
                             'application/vnd.openxmlformats-officedocument'
                             '.wordprocessingml.document')},
         )
-        # 不該 500、不該洩漏 traceback
-        self.assertNotEqual(resp.status_code, 500,
-                            "engine 注入不該觸發 500")
+        # 不該 500、不該洩漏 traceback。LO 跑通 → 200；LO 轉不動 → 400。
+        self.assertIn(resp.status_code, (200, 400),
+                      'engine 注入導致 %s' % resp.status_code)
+        self.assertEqual(self._ct(resp), 'application/json',
+                         '回了非 JSON：%s' % resp.text[:200])
         body = json.loads(resp.content)
-        # 結果可能成功(LO 跑通)或 graceful error(LO 沒裝),都不會是 stack trace
-        self.assertTrue('error' in body or 'success' in body or 'html' in body
-                        or 'elements' in body,
+        self.assertTrue('error' in body or 'html' in body or 'elements' in body,
                         f"Response 結構不對: {body}")
+        # ☠️ 不可以把 LibreOffice 的 stderr 原樣送到前端（2026-10-09 修的）。
+        if 'error' in body:
+            for leak in ('soffice', 'Traceback', '/tmp/', '/usr/lib'):
+                self.assertNotIn(leak, body['error'],
+                                 '錯誤訊息洩漏了內部細節：%s' % body['error'])
 
 
     def test_import_document_bad_extension_returns_json_not_html(self):

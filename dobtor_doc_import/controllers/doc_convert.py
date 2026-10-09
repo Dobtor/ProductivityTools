@@ -19,6 +19,9 @@ import os
 import zipfile
 import html as html_mod
 from lxml import etree
+
+from odoo import _
+from odoo.exceptions import UserError
 from odoo import http
 from odoo.exceptions import MissingError, UserError
 from odoo.http import request
@@ -60,7 +63,23 @@ def _docx_to_html_with_format(file_bytes):
             except KeyError:
                 styles_xml = None
     except Exception as e:
-        return f'<p>（無法解析 DOCX：{html_mod.escape(str(e))}）</p>'
+        # ☠️ 2026-10-09：這裡原本是
+        #        return f'<p>（無法解析 DOCX：{escape(str(e))}）</p>'
+        #    也就是**把失敗當成文件內容回傳**。可達的情境：把改名的 .zip 當
+        #    .docx 上傳——zip_guard 放行（它確實是合法 zip），然後使用者得到
+        #    一份內容是「（無法解析 DOCX："There is no item named
+        #    'word/document.xml' in the archive"）」的文件。
+        #    經批次精靈更糟：那份文件會被**建出來並計為成功**。
+        #
+        #    改成 raise：
+        #      - 路由 → json_http_route 給 400 ＋ 可讀訊息
+        #      - 批次精靈 → 逐檔的 except 把它算進 failed_count 並寫進 log
+        #                   （精靈本來就是為這件事準備了 failed_count 與 log）
+        #    函式庫的原文（英文）只進 log，不給使用者看。
+        _logger.warning('無法解析 DOCX：%s', e)
+        raise UserError(_(
+            '這個檔案不是有效的 Word 文件（.docx）。'
+            '如果它原本是壓縮檔或其他格式，請先轉存成 .docx。')) from e
 
     # ── 解析段落樣式的預設字體大小 ──────────────────────────────────────────
     style_default_sizes = {}   # styleId → font-size (pt)
@@ -85,7 +104,11 @@ def _docx_to_html_with_format(file_bytes):
     try:
         body = etree.fromstring(doc_xml).find(f'{{{_W}}}body')
     except Exception as e:
-        return f'<p>（DOCX document.xml 解析失敗：{html_mod.escape(str(e))}）</p>'
+        # ☠️ 同上一處的型態：把失敗當成文件內容回傳。這裡是 document.xml 存在
+        #    但 XML 本身壞了（截斷、編碼錯）。一樣改成 raise。
+        _logger.warning('DOCX document.xml 解析失敗：%s', e)
+        raise UserError(_(
+            '這個 Word 文件的內容已損毀，無法讀取。')) from e
 
     parts = []
     for child in body:
@@ -574,14 +597,29 @@ def _lo_convert_to_html(file_bytes, ext):
             capture_output=True, timeout=120,
             env={**os.environ, 'HOME': tmpdir},   # 每次獨立 config 目錄，避免鎖定衝突
         )
+        # ☠️ 2026-10-09：這兩處原本是 `raise Exception(f'…{proc.stderr[:400]}')`，
+        #    而 import_document 的 `except Exception as e: return {'error': str(e)}`
+        #    會把那段 stderr **原樣送到瀏覽器**——裡面有容器路徑、字型警告之類的
+        #    內部訊息。
+        #
+        #    改成：stderr 進 log（管理員看）、UserError 給使用者看得懂的一句。
+        #    用 UserError 而不是 Exception 還有第二個效果——`json_http_route`
+        #    把 UserError 判成「正常的錯誤路徑」給 400 ＋ 可讀訊息，裸 Exception
+        #    會被判成非預期而變成 500 ＋ 籠統訊息。「LibreOffice 轉不動這個檔」
+        #    是使用者層的錯誤，不是伺服器壞了。
         if proc.returncode != 0:
-            raise Exception(
-                f'LibreOffice 轉換失敗：'
-                f'{proc.stderr.decode("utf-8", errors="replace")[:400]}'
+            _logger.warning(
+                'LibreOffice 轉換失敗 (rc=%d, ext=%s): %s',
+                proc.returncode, ext,
+                proc.stderr.decode('utf-8', errors='replace')[:800],
             )
+            raise UserError(_(
+                'LibreOffice 無法轉換這個檔案。可能是檔案損毀或格式不受支援；'
+                '詳細原因已記在伺服器日誌。'))
         html_path = os.path.join(tmpdir, 'input.html')
         if not os.path.exists(html_path):
-            raise Exception('LibreOffice：找不到輸出 HTML 檔案')
+            _logger.warning('LibreOffice 沒有產出 %s（ext=%s）', html_path, ext)
+            raise UserError(_('LibreOffice 沒有產出轉換結果，請確認檔案內容。'))
 
         with open(html_path, 'r', encoding='utf-8', errors='replace') as fp:
             raw_html = fp.read()
