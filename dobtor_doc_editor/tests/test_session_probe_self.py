@@ -59,17 +59,39 @@ class TestSessionProbeItself(SessionAliveMixin, HttpCase):
 
     # ── 負向：探針必須抓到 ────────────────────────────────────────────
 
-    def test_assert_session_alive_detects_a_dead_session(self):
-        """token 對不上時，探針**必須**紅。
+    def test_assert_session_alive_detects_and_recovers_a_dead_session(self):
+        """token 對不上時，探針必須**偵測到**並且自救。
 
-        這是整支檔案最重要的一則：舊版探針在這個情境下會回報通過。
+        這是整支檔案最重要的一則：舊版探針在這個情境下會回報通過
+        （而且什麼都沒做），所以「偵測到了」這件事必須有東西證明
+        ——`_session_recovered` 增加就是那個證明。
+        """
+        before = type(self)._session_recovered
+        self._break_session_token()
+        self._assert_session_alive('負向測試')      # 不該紅：自救得回來
+        self.assertGreater(
+            type(self)._session_recovered, before,
+            '探針沒有偵測到 session 已死——它又變成安慰劑了')
+        # 自救之後要真的活著
+        self.assertEqual(self._session_info_uid(), self.session.uid)
+
+    def test_assert_session_alive_fails_when_recovery_is_impossible(self):
+        """救不回來的時候**必須**紅，而且要帶 store 狀態。
+
+        模擬「不是偶發、而是 session 建立本身壞了」：把憑證拿掉，
+        `_recover_session()` 就無法重登。
         """
         self._break_session_token()
+        self._test_credentials = None
         with self.assertRaises(AssertionError) as caught:
-            self._assert_session_alive('負向測試')
+            self._assert_session_alive('負向測試（無法自救）')
         msg = str(caught.exception)
-        self.assertIn('已經不是登入狀態', msg)
-        self.assertIn('uid=', msg, '失敗訊息要寫出伺服器回報的 uid')
+        self.assertIn('重登之後還是', msg)
+        for expected in ('store 裡的 uid', 'store 裡有 token', '重算的 token 相符'):
+            self.assertIn(
+                expected, msg,
+                '失敗訊息裡少了「%s」——偶發紅的時候只有 store 狀態能用。'
+                '實際訊息：\n%s' % (expected, msg))
 
     def test_old_content_type_only_check_was_a_placebo(self):
         """舊判準（只看 Content-Type）在 session 已死時**依然會通過**。

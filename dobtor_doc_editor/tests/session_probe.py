@@ -83,11 +83,25 @@ class SessionAliveMixin:
     # ── 檢查 ──────────────────────────────────────────────────────────
 
     def _assert_session_alive(self, where, expected_uid=None):
-        """確認 session 真的活著——比對 uid，不是只看 Content-Type。
+        """確認 session 真的活著；死了就先自救，救不回來才紅。
 
         ☠️ 只看 Content-Type 的版本是安慰劑，見檔頭。`get_session_info` 是
         `auth='public'`，session 死了它照樣回 JSON 200、只是 uid 變成公開
         使用者。
+
+        ☠️ 為什麼偵測到不直接紅：量過了——**`authenticate()` 本身就會偶發
+        產出一個伺服器看不到的 session**。整份測試 7 輪裡 2 次，log 的形狀是
+
+            ,879  Login successful ... admin        ← authenticate()
+            ,882  odoo.http: Session expired
+            ,882  POST get_session_info 200 - 0     ← 0 個 query ＝ 沒載到 session
+
+        根因在 Odoo 的測試 session 機制（`HttpCase.authenticate()` 內部做
+        `self.cr.flush()` ＋ `self.cr.clear()`，再用 `@ormcache('sid')` 的
+        `_compute_session_token()` 算 token，而 ormcache 不隨交易回滾），
+        **不在被測路由**。這些測試要驗的是路由行為、不是 session 壽命，
+        所以偵測到就重登再確認一次，並且**大聲記錄**。
+        救不回來才紅——那時就不是偶發，而是 session 建立本身壞了。
         """
         want = expected_uid if expected_uid is not None else \
             getattr(getattr(self, 'session', None), 'uid', None)
@@ -96,12 +110,42 @@ class SessionAliveMixin:
             '_assert_session_alive(%r) 在還沒 authenticate() 之前被呼叫——'
             '那時它什麼都驗不到。' % where)
         uid = self._session_info_uid()
+        if uid != want and self._recover_session('%s（探針）' % where):
+            want = getattr(self.session, 'uid', want)
+            uid = self._session_info_uid()
         self.assertEqual(
             uid, want,
-            'session 在 %s 時已經不是登入狀態（伺服器回報 uid=%r，'
-            '預期 %r）——後面的失敗都是這個造成的，不是被測路由的問題。\n'
-            '見 tests/session_probe.py 檔頭：ormcache 不隨交易回滾。'
-            % (where, uid, want))
+            'session 在 %s 時已經不是登入狀態，而且**重登之後還是**'
+            '（伺服器回報 uid=%r，預期 %r，累計重登 %d 次）。\n'
+            '這時候就不是偶發的 ormcache 競態，而是 session 建立本身有問題。\n'
+            '%s\n見 tests/session_probe.py 檔頭。'
+            % (where, uid, want, type(self)._session_recovered,
+               self._session_store_state(
+                   getattr(getattr(self, 'session', None), 'sid', None))))
+
+    def _session_store_state(self, sid):
+        """把 session store 裡的實際狀態印出來——偶發紅的時候只有這個能用。
+
+        原本這段只存在於 `test_controllers.py` 的 `_why_not_json()` 裡，
+        而那支診斷**那時還沒接到會紅的那則測試上**。搬進 mixin，兩邊共用。
+        """
+        if not sid:
+            return '  （沒有 sid 可查）'
+        import odoo.http
+        from odoo.service import security
+        try:
+            stored = odoo.http.root.session_store.get(sid)
+            uid = stored.get('uid')
+            expected = security.compute_session_token(stored, self.env) \
+                if uid else None
+            match = bool(stored.get('session_token') and expected
+                         and stored['session_token'] == expected)
+            return ('  store 裡的 uid   = %r\n'
+                    '  store 裡有 token = %r\n'
+                    '  重算的 token 相符 = %r'
+                    % (uid, bool(stored.get('session_token')), match))
+        except Exception as e:
+            return '  session store 讀不到：%s' % e
 
     def _session_info_uid(self):
         """問伺服器「你現在認為我是誰」。認不出來就回 None。"""

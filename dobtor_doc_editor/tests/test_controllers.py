@@ -136,27 +136,18 @@ class TestControllerSecurityBoundary(SessionAliveMixin, HttpCase):
 
         這個端點掛了 json_http_route，**handler 不可能回非 JSON**
         （任何漏出的例外都被包成 JSON）。所以回應不是 JSON 只剩一個來源：
-        auth 層把請求導去登入頁。這裡把那個判斷需要的三件事一起印出來：
-        轉址紀錄、session 在 store 裡還有沒有 uid、token 對不對得上。
+        auth 層把請求導去登入頁。
+
+        ☠️ store 狀態那三行原本重複實作在這裡，現在用 mixin 的
+        `_session_store_state()`——它同時被 `_assert_session_alive()` 的失敗
+        訊息用到，兩邊不該各有一份。
         """
-        import odoo.http
-        from odoo.service import security
-        try:
-            stored = odoo.http.root.session_store.get(sid)
-            uid = stored.get('uid')
-            expected = security.compute_session_token(stored, self.env) \
-                if uid else None
-            token_match = bool(stored.get('session_token') and expected
-                               and stored['session_token'] == expected)
-        except Exception as e:
-            uid, token_match = None, 'store 讀不到：%s' % e
         return (
             '回應不是 JSON。這個端點有 json_http_route，handler 不可能回非 '
             'JSON——所以是 auth 層導去登入頁。\n'
-            '  轉址紀錄 = %s\n  session uid = %s\n  token 對得上 = %s\n'
-            '  內容 = %s'
-            % ([r.status_code for r in resp.history], uid, token_match,
-               resp.text[:300]))
+            '  轉址紀錄 = %s\n  最終 URL = %s\n%s\n  內容 = %s'
+            % ([r.status_code for r in resp.history], resp.url,
+               self._session_store_state(sid), resp.text[:300]))
 
     # ── upload_template 邊界 ───────────────────────────────────────
 
