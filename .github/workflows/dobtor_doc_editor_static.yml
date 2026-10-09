@@ -10,10 +10,17 @@
 name: dobtor_doc_editor static
 
 on:
+  # ☠️ paths 要**連 workflow 自己**一起列：只寫 dobtor_doc_editor/** 的話，
+  # 改了這支 gate 本身不會重跑它——gate 壞掉要等到下一次有人改模組才發現。
+  # （第一次真的在 GitHub 上跑就紅在判準太寬，修完卻推不動，就是這個。）
   push:
-    paths: ['dobtor_doc_editor/**']
+    paths:
+      - 'dobtor_doc_editor/**'
+      - '.github/workflows/dobtor_doc_editor_*.yml'
   pull_request:
-    paths: ['dobtor_doc_editor/**']
+    paths:
+      - 'dobtor_doc_editor/**'
+      - '.github/workflows/dobtor_doc_editor_*.yml'
   workflow_dispatch:
 
 jobs:
