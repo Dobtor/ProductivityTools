@@ -89,11 +89,8 @@ class MeetingRecord(models.Model):
 > 藥丸會過型別格式表（date 走語言格式、monetary 帶幣別、selection 印標籤）、
 > 跟著渲染語言、可以條件化、可以逐筆重複。context dict 一個都做不到。
 >
-> ⚠️ `dobtor_doc_editor_chienyi` 目前還有 6 個模型覆寫 `_doc_render_context()`
->（meeting_record / review_application / reservation_self_inspection /
-> general_self_inspection / payment_estimate / supervision_defect）。
-> 它們都沒有呼叫 `super()`，所以不會壞——但那 6 支已經是死碼，要在那個 repo
-> 清掉並改成上面的做法。
+> 已經覆寫過 `_doc_render_context()` 的模型不會因此壞掉（那些覆寫不呼叫
+> `super()`），但它們不再有任何作用——要讓欄位真的有值，請照上面四步改。
 
 ### 2.2 後台 form view 加開啟按鈕
 

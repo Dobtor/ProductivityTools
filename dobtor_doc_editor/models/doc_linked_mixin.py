@@ -210,11 +210,9 @@ class DocLinkedMixin(models.AbstractModel):
     # doc_report_values()。藥丸會過型別格式表、跟著渲染語言、可以條件化，
     # 這些 context dict 一個都做不到。
     #
-    # ⚠️ dobtor_doc_editor_chienyi 還有 6 個模型覆寫這支方法
-    #（meeting_record / review_application / reservation_self_inspection /
-    #  general_self_inspection / payment_estimate / supervision_defect）。
-    # 它們都**沒有呼叫 super()**，所以刪掉這裡不會讓它們壞掉——但那 6 支
-    # 現在是該模組裡的死碼，要在那個 repo 清掉並改成藥丸。
+    # 刪除前確認過：外部模組對這支的覆寫都是「完全取代、不呼叫 super()」，
+    # 所以拿掉基底實作不會讓它們壞；那些覆寫只是變成各自模組裡的死碼。
+    # 本模組不追蹤誰覆寫了它——那是各整合模組自己的事。
 
     def _doc_initial_name(self):
         """新建立的文件名稱。"""
@@ -331,9 +329,9 @@ class DocLinkedMixin(models.AbstractModel):
 
         前提：建立時 _create_linked_doc() 有寫入 model_id + res_id 到 doc.document。
 
-        ⚠️ **本模組內沒有呼叫者，但它是跨模組契約**：
-        dobtor_doc_editor_chienyi 的 tests/test_chienyi_bridge.py 用它。
-        死碼稽核會把它列出來——不要刪，刪掉會讓那邊的測試紅。
+        ⚠️ **本模組內沒有呼叫者，但它是給整合模組用的公開 API**（有外部模組
+        在用）。死碼稽核會把它列出來——判斷依據是「**本模組之外**有沒有引用」，
+        不是「本模組內有沒有」。要刪之前先掃過所有相依模組。
         """
         Doc = self.env['doc.document'].sudo()
         if 'model_id' not in Doc._fields or 'res_id' not in Doc._fields:
