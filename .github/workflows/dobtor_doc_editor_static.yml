@@ -83,8 +83,18 @@ jobs:
                       bad.append('%s → %s' % (bundle, p))
           miss = [d for d in man.get('data', []) if not (root / d).exists()]
           init = (root / 'tests/__init__.py').read_text()
-          not_imported = [p.stem for p in sorted((root / 'tests').glob('test_*.py'))
-                          if p.stem not in init]
+          # ☠️ 判準是「這支**有測試類別**卻沒被 import」，不是「檔名是 test_*」。
+          # tests/test_pill_helpers.py 只有三個共用 helper 函式、零個類別，
+          # 由五支 test_pill_*.py import——它不該進 __init__.py（Odoo 是從
+          # __init__.py 收類別的）。用檔名判斷會把它當成漏 import。
+          # 要擋的失效模式是「那批測試根本沒跑而結果仍然全綠」，而沒有類別的
+          # 檔案不可能有那個模式。
+          not_imported = []
+          for f in sorted((root / 'tests').glob('test_*.py')):
+              has_class = any(isinstance(n, ast.ClassDef)
+                              for n in ast.parse(f.read_text()).body)
+              if has_class and f.stem not in init:
+                  not_imported.append(f.stem)
           ok = True
           for label, items in (('assets 解析不到檔案', bad),
                                ('data 檔案不存在', miss),
