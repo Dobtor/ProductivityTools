@@ -151,6 +151,16 @@ clean                 刪除 Python 編譯暫存
 
 ## 5. Sprint 紀律（Sprint 50-154 累積 22 條 + 6 子 + 1 候選 + 1 潛在子原則）
 
+> ⚠️ **2026-10-09：這些紀律不再有機器強制（ADR-031）**
+>
+> 模組原本有 `dobtor_doc_editor/.claude/`（4 支 hook ＋ settings.json，573 行）
+> 在編輯／Bash／Stop／SessionStart 四個時機強制部分紀律。整組已移除——它要求的
+> 產出（三層 SOP 的 vitest / VR 數據、`docs/sprintN_*.md` audit doc、
+> `.antigravity/autopilot/state.json` 的 sprint 狀態）**都已經不存在**。
+>
+> 下面這些紀律**本身仍然有效**，只是靠人遵守與 review，不會被擋下。
+> 要取回那組 hook：`git log --diff-filter=D -- dobtor_doc_editor/.claude`
+
 這 8 條紀律是從 Sprint 50-66 連 17 個 sprint 累積的、實戰證實會踩坑的工程紀律。**新 sprint 開工前先讀完**。
 
 ### 紀律 1（Sprint 57）：改 BrowserCanvasRenderContext / CanvasRenderer 後強制跑全 42-fixture VR

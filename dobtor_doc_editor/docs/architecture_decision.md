@@ -40,6 +40,7 @@
 | **028** | ~~CI 分兩層~~ **撤回：不做 GitHub Actions CI** | **2026-10-09** | 專案決定當天撤回；撤回前量到的三個前提留在 ADR 本文（schedule 只從預設分支讀、paths 要含 workflow 自己、第一次執行就紅在檢查自己）|
 | **029** | **移除未出貨的 TS OOXML 子系統** | **2026-10-09** | 76k 行測試＋33k 行原始碼＋82MB fixture 不產生 production 行為；回退 tag `doc-editor-before-ts-removal` |
 | **030** | **授權 LGPL-3 → OPL-1** | **2026-10-09** | Dobtor 統一政策；depends 全 LGPL-3 核心（無 AGPL）、自有檔案零授權標頭、隨附第三方皆寬鬆式（JSZip 雙授權選 MIT）|
+| **031** | **移除模組內的 Claude Code hooks** | **2026-10-09** | 573 行、4 支 hook；它要求的三層 SOP 與 sprint artifact 都已不存在，且實測已不生效。紀律本身保留在 CONTRIBUTING §5 |
 
 ---
 
@@ -1872,4 +1873,59 @@ TS 子系統**（ADR-029）的 npm 相依，會被打包進那個從未掛進 ma
 
 乾淨資料庫全新安裝成功，`ir_module_module` 實際存到
 `dobtor_doc_editor | OPL-1 | 18.0.12.1.0`；後端 **590 則 0 失敗**、
+`make ci-all` 全過。
+
+---
+
+## ADR-031：移除模組內的 Claude Code hooks
+
+**日期**：2026-10-09
+**狀態**：已實作（版本 `18.0.12.1.1`）
+
+### 移除什麼
+
+`dobtor_doc_editor/.claude/`（git 追蹤，共 573 行）：
+
+| 檔案 | 行數 | 原本在哪個時機強制什麼 |
+|---|---|---|
+| `settings.json` | 48 | 註冊下列四支到 PreToolUse / PostToolUse / Stop / SessionStart |
+| `pre_bash_guard.py` | 110 | 擋 `git push`、production 升級、含 `stub`/`Phase D` 的 commit message、`rm -rf .claude\|.antigravity\|.git` |
+| `post_edit_regulation_guard.py` | 120 | 偵測規畫書 §5 的違規寫法（勾選欄加敘述／百分比／刪除線） |
+| `stop_audit_check.py` | 141 | `sprint-N-*` 分支結束時要求 `docs/sprintN_*.md` ≥ 50 行、含三層 SOP 數據、有 production code 變更 |
+| `session_start_context.py` | 154 | 每個 session 注入當前 sprint 狀態與紀律提醒 |
+
+### 為什麼
+
+三個前提全部已經不成立：
+
+1. **三層 SOP 的產出不存在了**。`stop_audit_check` 要求 audit doc 記錄
+   「vitest + VR + spot check 結果」——那三層隨 ADR-029 移除，產不出來。
+2. **sprint 流程的 artifact 不存在了**。339 份 `docs/sprintN_*.md` 在 2026-05
+   合併成 `SPRINT_AUDIT_CONSOLIDATED.md` 並刪除；`session_start_context` 讀的
+   `.antigravity/autopilot/state.json` 被 `.gitignore`、per-machine，實測這台
+   機器沒有（它降級成不含 sprint 狀態的版本，不會炸）。
+3. **`pre_bash_guard` 的「不 `git push`」與現在的工作方式衝突**。2026-10-09
+   使用者明確指示推送（「推 dev-18.0」「直接執行」），而該 hook 的設計是擋下它。
+
+☠️ 另一個發現：那四支 hook 在 2026-10-09 的工作 session **實際上沒有生效**
+（推送全部成功、編輯沒有被攔）。也就是說它們已經是「寫著但沒在守」的狀態
+——這和 ADR-029 移除的那個子系統、以及撤回 CI 的 ADR-028 是同一個形態：
+**存在但不執行的東西，比不存在更糟，因為它會讓人以為有在把關。**
+
+### 紀律本身沒有取消
+
+`CONTRIBUTING.md` §5 的 22 條紀律仍然有效，只是回到靠人遵守與 review。
+該節開頭已加註說明「不再有機器強制」，免得有人以為被擋下才算違規。
+
+### 取回方式
+
+```bash
+git log --diff-filter=D -- dobtor_doc_editor/.claude
+git checkout <那個 commit>^ -- dobtor_doc_editor/.claude
+```
+
+### 驗證
+
+模組的安裝與測試完全不受影響（`.claude/` 不在 `manifest` 的 `data` 或
+`assets`，也不被任何 Python / JS 引用）：後端 590 則 0 失敗、tour 78/78、
 `make ci-all` 全過。
