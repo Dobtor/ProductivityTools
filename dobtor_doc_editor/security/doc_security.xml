@@ -18,10 +18,25 @@
         </record>
 
         <!-- 管理者可存取所有文件 -->
+        <!-- ☠️ 2026-10-09：這條原本是 `[(1, '=', 1)]`，而 Odoo 的**非 global rule
+             之間是 OR**——所以它把 `rule_doc_document_company` 的公司範圍整條 OR 掉了，
+             manager 讀得到**所有公司**的文件內容。實測過：
+             tests/test_acl_company_isolation.py 第一次跑就紅。
+
+             而 `rule_doc_output_manager_all` 跟 `rule_doc_editor_export_log_company`
+             的 manager rule **都有**公司範圍——doc.document 是這三者裡唯一
+             沒有的，而它是裝文件內容的那一個。這是 02897ec 補 export.log
+             公司隔隻時沒回頭檢查其他 model 的漏網。
+
+             改成跟 doc.output 同一個形狀（而不是把公司 rule 改成 global）：
+             global 會連 portal 協作者一起範圍，那會打断跳公司分享的正常
+             用法——這裡只要修 manager 那一條就夠了。 -->
         <record id="rule_doc_document_manager_all" model="ir.rule">
-            <field name="name">doc.document：管理者完整存取</field>
+            <field name="name">doc.document：管理者完整存取（限自己的公司）</field>
             <field name="model_id" ref="model_doc_document"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="domain_force">
+                ['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]
+            </field>
             <field name="groups" eval="[(4, ref('dobtor_doc_editor.group_doc_manager'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -225,5 +240,66 @@
             <field name="perm_create" eval="True"/>
             <field name="perm_unlink" eval="False"/>
         </record>
+    
+        <!-- ☠️ 2026-10-09：這三個子 model 原本**完全沒有 record rule**，
+             而母體 doc.template 有公司隔隻（rule_doc_template_company）。
+             Odoo 不會讓子記錄自動繼承母體的 rule，所以 editor / portal
+             讀得到**所有公司**的欄位定義、選項與签核人設定
+             （欄位名稱、標籤、坐標、選單內容都是別家範本的結構資訊）。
+             實測過：tests/test_acl_company_isolation.py 第一次跑就紅。
+
+             跟著母體走（template_id.company_id / field_id.template_id.company_id），
+             不在子 model 上再存一份 company_id——複寫一份就會有两份真相。 -->
+        <record id="rule_doc_template_field_company" model="ir.rule">
+            <field name="name">doc.template.field：跟隨母體範本的公司範圍</field>
+            <field name="model_id" ref="model_doc_template_field"/>
+            <field name="domain_force">
+                ['|', ('template_id.company_id', '=', False),
+                      ('template_id.company_id', 'in', company_ids)]
+            </field>
+            <field name="groups" eval="[
+                (4, ref('dobtor_doc_editor.group_doc_editor')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <record id="rule_doc_template_field_option_company" model="ir.rule">
+            <field name="name">doc.template.field.option：跟隨母體範本的公司範圍</field>
+            <field name="model_id" ref="model_doc_template_field_option"/>
+            <field name="domain_force">
+                ['|', ('field_id.template_id.company_id', '=', False),
+                      ('field_id.template_id.company_id', 'in', company_ids)]
+            </field>
+            <field name="groups" eval="[
+                (4, ref('dobtor_doc_editor.group_doc_editor')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <record id="rule_doc_template_signer_company" model="ir.rule">
+            <field name="name">doc.template.signer：跟隨母體範本的公司範圍</field>
+            <field name="model_id" ref="model_doc_template_signer"/>
+            <field name="domain_force">
+                ['|', ('template_id.company_id', '=', False),
+                      ('template_id.company_id', 'in', company_ids)]
+            </field>
+            <field name="groups" eval="[
+                (4, ref('dobtor_doc_editor.group_doc_editor')),
+                (4, ref('dobtor_doc_editor.group_doc_portal')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
     </data>
 </odoo>
