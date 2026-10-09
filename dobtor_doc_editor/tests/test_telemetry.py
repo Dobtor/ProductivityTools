@@ -159,17 +159,55 @@ class TestTelemetryRoutes(SessionAliveMixin, HttpCase):
     def _post_metric(self, doc_id):
         # make_jsonrpc_request 遇到 JSON-RPC error 會 raise——修好之前這裡
         # 會因為 InFailedSqlTransaction 直接炸，所以這個呼叫本身就是斷言。
+        #
+        # ☠️ extra 裡帶一個唯一標記，讓 _find_my_metric() 找得到「**我剛建的
+        #    那一筆**」。原本是用 `order='id desc', limit=1` 猜最新那筆——
+        #    見 _find_my_metric() 的註解，那個猜測是錯的。
         return self.make_jsonrpc_request('/dobtor_doc/telemetry/metric', {
             'metric_type': 'load_doc_ms',
             'value': 123.4,
             'doc_id': doc_id,
+            'extra': {'test_probe': self._probe_token()},
         })
+
+    def _probe_token(self):
+        """本測試方法專屬的標記（self.id() 是完整的 模組.類別.方法 名）。"""
+        return self.id()
+
+    def _find_my_metric(self):
+        """找出**這個測試方法剛剛送上去的**那筆 metric。
+
+        ☠️ 原本三處都寫
+            search([('metric_type','=','load_doc_ms')], order='id desc', limit=1)
+        那不是識別，是猜測——而這個猜測有具體的翻車路徑：
+        編輯器前端自己就會送同一個 metric_type，走同一條路由
+        （`static/src/components/doc_editor/doc_editor_shell.js:483`
+        的 `mark("load_doc_ms")`）。所以**任何瀏覽器驅動的測試**（tour）
+        只要開過編輯器，就會往同一張表插 load_doc_ms；它的請求如果比
+        本測試的 INSERT 晚落地，`order='id desc'` 拿到的就是別人那筆，
+        接下來的 doc_id 斷言當然對不上。
+
+        這解釋了「單獨連跑 25 輪全綠、但整份測試一起跑時偶發紅」
+        ——那是跨測試干擾的典型形狀，不是這個類別自己的問題。
+
+        extra 是 fields.Json，domain 比對 JSON 欄位在不同後端行為不一致，
+        所以撈回來在 Python 端過濾（這張表在測試交易裡筆數很少）。
+        """
+        token = self._probe_token()
+        recs = self.env['doc.editor.perf.metric'].sudo().search(
+            [('metric_type', '=', 'load_doc_ms')], order='id desc', limit=50)
+        mine = recs.filtered(lambda r: (r.extra or {}).get('test_probe') == token)
+        self.assertEqual(
+            len(mine), 1,
+            '應該剛好有一筆帶著本測試標記的 metric，實際 %d 筆。'
+            '0 筆＝路由沒寫進去；多筆＝同一個測試送了不只一次。'
+            '（撈最近 50 筆來找，若這張表在測試交易裡筆數暴增要調大）'
+            % len(mine))
+        return mine
 
     def test_metric_with_real_doc_id_is_linked(self):
         self.assertTrue(self._post_metric(self.doc.id)['success'])
-        metric = self.env['doc.editor.perf.metric'].sudo().search(
-            [('metric_type', '=', 'load_doc_ms')], order='id desc', limit=1)
-        self.assertEqual(metric.doc_id, self.doc)
+        self.assertEqual(self._find_my_metric().doc_id, self.doc)
 
     def test_metric_with_template_id_does_not_break_request(self):
         """範本 id 不是文件 id：寫進去會違反外鍵，但請求必須照樣成功。"""
@@ -185,14 +223,16 @@ class TestTelemetryRoutes(SessionAliveMixin, HttpCase):
                           % template.id)
         result = self._post_metric(template.id)
         self.assertTrue(result['success'])
-        metric = self.env['doc.editor.perf.metric'].sudo().search(
-            [('metric_type', '=', 'load_doc_ms')], order='id desc', limit=1)
         # 寧可遺失關聯也要留下這筆：doc_id 存 False，不是整筆丟掉。
-        self.assertFalse(metric.doc_id)
+        self.assertFalse(self._find_my_metric().doc_id)
 
     def test_metric_with_nonexistent_doc_id(self):
         ghost = self.env['doc.document'].sudo().search([], order='id desc', limit=1).id + 10000
         self.assertTrue(self._post_metric(ghost)['success'])
+        # 原本只驗 success，沒驗那筆到底有沒有寫進去——`success: True` 配上
+        # 「其實沒寫」是這條路由最容易出現的假綠（它把例外吞掉回 False，
+        # 但回 True 卻沒寫就只能靠這裡抓）。
+        self.assertFalse(self._find_my_metric().doc_id)
 
     def test_error_log_with_nonexistent_doc_id(self):
         ghost = self.env['doc.document'].sudo().search([], order='id desc', limit=1).id + 10000

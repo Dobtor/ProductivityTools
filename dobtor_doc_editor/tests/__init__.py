@@ -21,3 +21,4 @@ from . import test_qweb_converter_native  # 原生報表實際轉換＋渲染
 from . import test_editor_tour
 from . import test_manifest_assets
 from . import test_static_checks_wiring  # Makefile 靜態檢查的接線守門員
+from . import test_cron_wiring  # ir.cron 的 code 字串接線守門員
