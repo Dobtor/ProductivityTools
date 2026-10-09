@@ -12,7 +12,7 @@ import os
 import zipfile
 import html as html_mod
 from lxml import etree
-from odoo import http
+from odoo import _, http
 from odoo.exceptions import MissingError, UserError
 from odoo.http import request
 
@@ -46,8 +46,14 @@ from .doc_controller_base import DocControllerBase
 class DocTemplateController(DocControllerBase, http.Controller):
 
     @http.route('/dobtor_doc/fields', type='json', auth='user', methods=['POST'])
-    def get_fields(self, model_name, doc_id=None, **kw):
+    def get_fields(self, model_name=None, doc_id=None, **kw):
         """取得指定模型的可用欄位清單。"""
+        # ☠️ 稽核尺 3：這個參數原本是**必填位置參數且沒有預設**，所以前端漏送時
+        #    使用者拿到的是赤裸的 Python TypeError，而 Odoo 會把 traceback 放進
+        #    error.data.debug 一起送出去（檔案路徑、class 名稱）。本模組的慣例是
+        #    `raise UserError`（訊息可讀）——這幾條是漏掉的。
+        if not model_name:
+            raise UserError(_("沒有收到模型名稱（model_name）。"))
         mixin = request.env['doc.render.mixin']
         try:
             return mixin.get_available_fields(model_name)
@@ -62,14 +68,28 @@ class DocTemplateController(DocControllerBase, http.Controller):
         精靈與抽象模型沒有記錄可指。
         也過濾掉使用者讀不到的——列出來卻一碰就 AccessError 更糟。
         """
-        domain = [('transient', '=', False), ('abstract', '=', False)]
+        # ☠️ Odoo 18 的 `ir.model` 有 `transient` 但**沒有 `abstract` 欄位**。
+        #    原本 domain 寫 `('abstract', '=', False)` → 每次呼叫都丟
+        #    `ValueError: Invalid field ir.model.abstract`，也就是這條路由
+        #    （編輯器的「選模型」選單）**一直是壞的**。
+        #    抱象模型要在 Python 端用 `_abstract` 判，不能寫進 domain。
+        #    （2026-10-09 稽核尺 3 量到。原本的「測試」只断言
+        #      `hasattr(DocTemplateController, 'list_models')`——它從沒呼叫過它。）
+        domain = [('transient', '=', False)]
         if query:
             domain += ['|', ('name', 'ilike', query), ('model', 'ilike', query)]
         out = []
         for rec in request.env['ir.model'].search(domain, limit=int(limit) * 3,
                                                   order='name'):
             try:
-                request.env[rec.model].check_access('read')
+                model = request.env[rec.model]
+            except KeyError:
+                # ir.model 有列但 registry 沒載入（模組被移除後殘留的列）
+                continue
+            if model._abstract:
+                continue
+            try:
+                model.check_access('read')
             except Exception:
                 continue
             out.append({'id': rec.id, 'model': rec.model, 'name': rec.name})
@@ -78,7 +98,7 @@ class DocTemplateController(DocControllerBase, http.Controller):
         return out
 
     @http.route('/dobtor_doc/set_model', type='json', auth='user', methods=['POST'])
-    def set_edit_target_model(self, model_id, doc_id=None, template_id=None, **kw):
+    def set_edit_target_model(self, model_id=None, doc_id=None, template_id=None, **kw):
         """設定範本的「適用模型」／文件的「關聯模型」。
 
         為什麼要有這支：沒有它，一張新範本就沒有欄位可拖，而編輯器左欄只能
@@ -87,6 +107,12 @@ class DocTemplateController(DocControllerBase, http.Controller):
 
         要 write 權限（改的是範本的設定，不是內容）。
         """
+        # ☠️ 稽核尺 3：這個參數原本是**必填位置參數且沒有預設**，所以前端漏送時
+        #    使用者拿到的是赤裸的 Python TypeError，而 Odoo 會把 traceback 放進
+        #    error.data.debug 一起送出去（檔案路徑、class 名稱）。本模組的慣例是
+        #    `raise UserError`（訊息可讀）——這幾條是漏掉的。
+        if not model_id:
+            raise UserError(_("沒有收到模型 id（model_id）。"))
         record, kind = self._resolve_edit_target(
             doc_id=doc_id, template_id=template_id, access='write')
         if kind == 'output':

@@ -15,7 +15,7 @@ import os
 import zipfile
 import html as html_mod
 from lxml import etree
-from odoo import http
+from odoo import _, http
 from odoo.exceptions import MissingError, UserError
 from odoo.http import request
 
@@ -382,8 +382,14 @@ class DocEditorController(DocControllerBase, http.Controller):
         }
 
     @http.route('/dobtor_doc/render_preview', type='json', auth='user', methods=['POST'])
-    def render_preview(self, doc_id, record_model, record_id, **kw):
+    def render_preview(self, doc_id=None, record_model=None, record_id=None, **kw):
         """將欄位變數渲染為實際值（預覽用）。"""
+        # ☠️ 稽核尺 3：這個參數原本是**必填位置參數且沒有預設**，所以前端漏送時
+        #    使用者拿到的是赤裸的 Python TypeError，而 Odoo 會把 traceback 放進
+        #    error.data.debug 一起送出去（檔案路徑、class 名稱）。本模組的慣例是
+        #    `raise UserError`（訊息可讀）——這幾條是漏掉的。
+        if not record_model or record_id is None:
+            raise UserError(_("預覽需要指定來源記錄（record_model 與 record_id）。"))
         doc = self._require_document(doc_id, 'read')
         try:
             record = request.env[record_model].browse(record_id)
@@ -685,12 +691,18 @@ body {{
         return {'success': True, **result}
 
     @http.route('/dobtor_doc/aliases/save', type='json', auth='user', methods=['POST'])
-    def save_aliases(self, doc_id, aliases, **kw):
+    def save_aliases(self, doc_id=None, aliases=None, **kw):
         """整批覆寫文件的中文 token → Jinja2 expression 對映。
 
         aliases: dict[str, str]，key=中文 token、value=Jinja2 expression（不含 {{ }}）。
         例：{"工程名稱": "object.project_id.name"}
         """
+        # ☠️ 稽核尺 3：這個參數原本是**必填位置參數且沒有預設**，所以前端漏送時
+        #    使用者拿到的是赤裸的 Python TypeError，而 Odoo 會把 traceback 放進
+        #    error.data.debug 一起送出去（檔案路徑、class 名稱）。本模組的慣例是
+        #    `raise UserError`（訊息可讀）——這幾條是漏掉的。
+        if aliases is None:
+            raise UserError(_("沒有收到要儲存的別名（aliases）。"))
         if not isinstance(aliases, dict):
             return {'error': 'aliases 必須為 dict'}
         # 防呆：剝除空 key / 空 value、key 移除前後 《》
@@ -707,8 +719,14 @@ body {{
         return {'success': True, 'aliases': cleaned}
 
     @http.route('/dobtor_doc/template_aliases/save', type='json', auth='user', methods=['POST'])
-    def save_template_aliases(self, doc_id, aliases, **kw):
+    def save_template_aliases(self, doc_id=None, aliases=None, **kw):
         """覆寫 doc 所屬 template 的 alias map。所有使用此範本的 doc 都會生效。"""
+        # ☠️ 稽核尺 3：這個參數原本是**必填位置參數且沒有預設**，所以前端漏送時
+        #    使用者拿到的是赤裸的 Python TypeError，而 Odoo 會把 traceback 放進
+        #    error.data.debug 一起送出去（檔案路徑、class 名稱）。本模組的慣例是
+        #    `raise UserError`（訊息可讀）——這幾條是漏掉的。
+        if aliases is None:
+            raise UserError(_("沒有收到要儲存的別名（aliases）。"))
         if not isinstance(aliases, dict):
             return {'error': 'aliases 必須為 dict'}
         cleaned = {}
