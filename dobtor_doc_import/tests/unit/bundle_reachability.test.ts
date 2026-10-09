@@ -88,9 +88,15 @@ const DECLARED_UNREACHABLE: {
            + "字寬決定換行位置，所以它對 1:1 重現是有效果的。"
            + "活的字型路徑是 core/layout 的 FontMetricsAdapter + "
            + "BrowserTextMetrics（量測用近似值）。",
-        activation: "條件：VR 量到的差異可歸因於字寬誤差。接法是讓 "
-           + "FontMetricsAdapter 走 ShapingEngine。代價是 ~400KB WASM，"
-           + "要 lazy。",
+        activation: "☠️ **已量測，條件不成立**（2026-10-09 優化 2）。"
+           + "原條件是「VR 量到的差異可歸因於字寬誤差」。"
+           + "跟全量 42 fixtures／126 頁量過：advanceDrift"
+           + "（文字列裡 diff 是否由左往右遞增，字寬累積的特徵）"
+           + "平均 0.034、中位數 0.000、**>0.5 的頁 0/126**。"
+           + "接 HarfBuzz（~400KB WASM）不會顯著改善 7.89%。"
+           + "誤差實際落在文字渲染 51.8% 與圖片渲染／定位 28.9%"
+           + "（工具：scripts/vr_attribution.mjs，逐條數據見 "
+           + "dobtor_doc_editor/docs/REQUIREMENTS_CONFORMANCE.md 的附錄）。",
     },
     {
         prefix: "static/src/core/ooxml/font/index.ts",

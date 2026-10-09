@@ -74,6 +74,7 @@ function parseArgs(argv) {
     maxFixtures: Number.POSITIVE_INFINITY,
     maxDiff: 0.5, // baseline 階段先寬鬆
     noDiff: false,
+    attribute: false,
     headful: false,
     /** Sprint 61：開啟 BrowserTextMetrics（canvas.measureText 真實字寬）— 量 VR mean 改變 */
     browserMetrics: false,
@@ -98,6 +99,7 @@ function parseArgs(argv) {
     else if (a === '--max-fixtures') args.maxFixtures = parseInt(argv[++i], 10);
     else if (a === '--max-diff') args.maxDiff = parseFloat(argv[++i]);
     else if (a === '--no-diff') args.noDiff = true;
+    else if (a === '--attribute') args.attribute = true;
     else if (a === '--headful') args.headful = true;
     else if (a === '--browser-metrics') args.browserMetrics = true;
     // Sprint 62 引入；Sprint 65 後 default = true（用 --no-font-metrics 退回）
@@ -185,12 +187,16 @@ async function main() {
   }
 
   let puppeteer = null;
+  let attribution = null;
   let pixelmatch = null;
   let PNG = null;
   try {
     puppeteer = (await import('puppeteer')).default;
     if (!args.noDiff) {
       pixelmatch = (await import('pixelmatch')).default;
+      if (args.attribute) {
+        attribution = await import('./vr_attribution.mjs');
+      }
       PNG = (await import('pngjs')).PNG;
     }
   } catch (err) {
@@ -354,11 +360,45 @@ async function main() {
                   );
                   const diffRatio = numDiff / (w * h);
                   const passed = diffRatio <= args.maxDiff;
+                  // ☠️ 誤差拆解（--attribute）。預設關閉：它會多做一次完整
+                  //    pixelmatch（在最佳位移處），常規 VR 不該為此變慢。
+                  //    拆解的用途是回答「要先修什麼」，不是「有沒有退步」
+                  //    ——後者是 diffRatio 的工作。
+                  let attrib = null;
+                  if (attribution && numDiff > 0) {
+                    const gData = goldenCropped.data;
+                    const rData = renderedCropped.data;
+                    const dy = attribution.bestShift1D(
+                      attribution.rowInk(gData, w, h),
+                      attribution.rowInk(rData, w, h), 6);
+                    const dx = attribution.bestShift1D(
+                      attribution.colInk(gData, w, h),
+                      attribution.colInk(rData, w, h), 6);
+                    let shiftExplained = 0;
+                    if (dx.shift !== 0 || dy.shift !== 0) {
+                      const moved = attribution.shiftBuffer(
+                        rData, w, h, -dx.shift, -dy.shift);
+                      const diff2 = new PNG({ width: w, height: h });
+                      const n2 = pixelmatch(gData, moved, diff2.data, w, h,
+                                            { threshold: 0.1 });
+                      shiftExplained = numDiff > 0
+                        ? Math.max(0, (numDiff - n2) / numDiff) : 0;
+                    }
+                    attrib = {
+                      bestShift: { dx: dx.shift, dy: dy.shift },
+                      shiftExplained: Number(shiftExplained.toFixed(4)),
+                      byRegion: attribution.attributeByRegion(
+                        diff.data, gData, w, h).ratios,
+                      advanceDrift: attribution.advanceDrift(
+                        diff.data, gData, w, h),
+                    };
+                  }
                   fxReport.pageResults.push({
                     page: i + 1,
                     golden: goldenName,
                     diffRatio: Number(diffRatio.toFixed(5)),
                     passed,
+                    ...(attrib ? { attribution: attrib } : {}),
                   });
                   if (!passed) {
                     writeFileSync(diffPath, PNG.sync.write(diff));
