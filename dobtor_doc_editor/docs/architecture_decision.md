@@ -2120,3 +2120,87 @@ canvas-editor 的 docx plugin（**核心**資源），**沒裝新模組也完全
 | 核心 tour | 78/78 |
 | 匯入模組 vitest | **3,059 passed / 108 skipped / 0 failed** |
 | 兩邊靜態 | manifest / flake8 / XML / test-js 全過 |
+
+---
+
+## ADR-034：不可達 TS 子系統按「軸」分類，不按 phase
+
+**日期**：2026-10-09
+**狀態**：已採用
+**範圍**：`dobtor_doc_import` 的 78 支不可達 TS（2,154 → 154 支中的 78 支，50.6%）
+
+### 背景：我用錯的尺量錯了東西
+
+使用者把範圍收斂到「Microsoft Word 的 1:1 匯入重現」，問哪些設計不要。
+我拿這條線去量 78 支不可達 TS，判定三個子系統「不需要」並 `git rm`：
+
+| 子系統 | 檔/行 | 我的判定 |
+|---|---|---|
+| `components/doc_editor/Overlay*` | 14 / 2,088 | 刪 |
+| `core/ooxml/font/CanvasEditor*` ＋ `TextMeasureProxy` | 12 / 1,787 | 刪 |
+| `core/ooxml/revision/` | 13 / 2,139 | 刪 |
+| `core/ooxml/worker/` | 17 / 2,477 | 刪 |
+
+使用者當場指出：**追蹤修訂審閱是編輯功能、編輯器 UI、canvas-editor 的測量
+——那是另一條軸**，要評估的是能不能沿用來提昇 `dobtor_doc_editor` 的能力。
+
+他說得對。那三個子系統跟「docx 進得準不準」毫無關係，用匯入軸的尺量它們，
+量出來必然是 0 分。收斂後真正落在「匯入軸不需要」的只有 `worker/` 一個
+——而使用者接著指示那個也留下（「留在 `dobtor_doc_import`，先不接」）。
+
+### 決定
+
+1. **`DECLARED_UNREACHABLE` 每一條都必須標 `axis` 與 `activation`**，由
+   `tests/unit/bundle_reachability.test.ts` 強制（axis 不在列舉內 → 紅；
+   `activation` 太短 → 紅）。五個軸：
+
+   | axis | 意思 |
+   |---|---|
+   | `import` | 匯入軸——docx → IElement 的 1:1 重現。要接上線，缺的要補。 |
+   | `editor` | 編輯器軸——沿用來提昇 `dobtor_doc_editor` 的編輯能力。 |
+   | `frozen` | 已凍結——前置能力缺，條件寫清楚，不刪不接。 |
+   | `tooling` | 開發工具——**不該**進出貨 bundle，消費者是測試或量測腳本。 |
+   | `declined` | 已評估、決定不接——寫清楚是誰在什麼依據下決定的。 |
+
+2. **宣告前綴不可以互相包含**（也是紅燈守住的）。`font/` 底下刻意拆成
+   `Shaping`（匯入軸）／`CanvasEditor`（編輯器軸）／`TextMeasureProxy.ts`
+   （編輯器軸）／`index.ts` 四條；擋住「有人圖方便加一條 `font/` 把四條全蓋掉」
+   ——那會讓軸別資訊消失，於是下一個人又只能重新推論一遍。
+
+3. **空殼宣告也要紅**：前綴底下已經沒有任何 `.ts` 了（檔案刪了、宣告沒清）。
+   「宣告過期」原本只擋一種形狀（全部接上線了），這是另一種。
+
+### 量出來的軸別歸屬（不是推論）
+
+| 前綴 | 檔 | axis | 關鍵量測 |
+|---|---|---|---|
+| `core/ooxml/layout/` | 16 | `import` | 活的是 `core/layout/`（VR entry 用它的 `layoutDocument`）；兩套並存 |
+| `core/ooxml/font/Shaping*` | 2 | `import` | 字寬決定換行，對 1:1 有效果；代價 ~400KB WASM |
+| `core/ooxml/font/index.ts` | 1 | `import` | barrel，目錄沒接所以自己也不可達 |
+| `core/font_loader.ts` | 1 | `import` | **`/dobtor/fonts/*` 兩條路由唯一的客戶**，所以那兩條目前沒有活的消費者 |
+| `components/doc_editor/` | 14 | `editor` | `DocumentNode`/`IElement` 出現 **0 次**，只吃 `Rect`/`Bounds`/`AlignGuide`；核心 `doc.template.field` 已有 `pos_x`/`pos_y`/`width`/`height` |
+| `core/ooxml/font/CanvasEditor*` | 11 | `editor` | 字寬 → 換行準，對編輯器有直接效果；但 patch 第三方內部 |
+| `core/ooxml/font/TextMeasureProxy.ts` | 1 | `editor` | 只有 `CanvasEditor*` 這一組客戶 |
+| `core/ooxml/revision/` | 13 | `frozen` | `DocumentNode` 38 次、`IElement` **0** 次——長在 parser AST 上，編輯器吃 IElement |
+| `core/ooxml/export/` | 2 | `tooling` | **65 支測試的 round-trip oracle**；我原本判「可刪」是錯的 |
+| `core/ooxml/worker/` | 17 | `declined` | 它自己的檔頭就寫 Sprint 197 final audit 判定「不建議」 |
+
+### `worker/` 為什麼留著卻不接
+
+它的檔頭自己寫了不該做：Sprint 197 final audit 判定「不建議」
+（cost/benefit marginal、cache 五連發已 ~10× warm path 加速、真實文件 20–50 頁），
+是 explicit OVERRIDE 之下做出來的 SPIKE-only；第一個 sprint 就寫明
+「不啟動真實 Worker（structured clone of AST 的 `Map`/class 風險未解）」。
+三個 dispatcher 全是 `PROBE`／`spike`／`不啟動`。之後 Sprint 307/312/317/322
+又在這個地基上疊了 pool、load balancer、circuit breaker、health monitor 四輪。
+
+**決定不接**（使用者指示）。**留著**是因為它有 51 支測試，刪掉會一併失去那些
+測試記錄的設計意圖。真要接的前置條件是先解掉 structured clone：已驗證 AST
+滿是 `Map`（`FontTable`/`StyleMap`/`NumberingMap`/`headers`），
+`parse_docx_cli.ts` 就得用 replacer 處理它們。
+
+### 教訓
+
+**「不需要」永遠是相對於某一條軸說的。** 判定某段程式碼該刪之前，
+先問它是為哪一軸寫的——而不是拿手上這一軸的尺直接量下去。
+這就是 `axis` 欄位要變成機器強制的原因：下一次稽核時，沒有人記得今天這場討論。
