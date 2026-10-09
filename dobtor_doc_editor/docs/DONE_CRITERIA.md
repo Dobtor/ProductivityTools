@@ -39,6 +39,7 @@ cd dobtor_doc_editor && make done; echo "判決 = $?"
 | `tour` | 瀏覽器 tour 真的跑完（不是被 skip） | 後端容器沒瀏覽器時 Odoo 會「跳過」而不是失敗 |
 | `artifacts-present` | 三個 build 產物都存在 | `parse_docx_cli.cjs` 曾被 `.gitignore` 排除，`engine=ts` 從沒運作過 |
 | `artifacts-reproducible` | 重建產物後版控仍乾淨（byte-identical） | 產物漂移＝出貨的與版控的不是同一份 |
+| `upgrade-path` | 既有資料庫升得上來，而且 migration 真的改到資料 | 到 2026-10-09 之前**所有**驗證都是乾淨安裝或同版 `-u`，那兩種都跑不到 migration。而 security 與出貨範本的資料檔都是 `<data noupdate="1">`——改 XML 對既有資料庫無效，修正只能靠 migration 送達。少了這條判準，「新安裝拿得到修正、既有資料庫拿不到」這種最糟的半修好狀態不會有任何東西發現 |
 | `no-public-routes` | 兩模組 `auth='public'` 路由數 = 0（AST 判定，不用 grep） | 2026-10-09 收緊 fonts 兩條之後的現況；要新增就改這條判準 |
 
 ## 這份清單**不**保證什麼

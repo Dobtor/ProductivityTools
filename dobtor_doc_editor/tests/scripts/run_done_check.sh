@@ -202,6 +202,20 @@ PY
     [ -z "$PUB" ] && ok no-public-routes "0 條" || bad no-public-routes "還有：$PUB"
 fi
 
+# ── upgrade-path ──────────────────────────────────────────────────────────
+if skipped upgrade-path; then skip upgrade-path "DONE_SKIP"; else
+    if bash "$CORE_DIR/tests/scripts/run_upgrade_check.sh" >/tmp/done_upgrade.log 2>&1; then
+        ok upgrade-path "兩支 migration 都執行且改到資料"
+    else
+        RC=$?
+        if [ "$RC" = "2" ]; then
+            skip upgrade-path "環境不具備（見 /tmp/done_upgrade.log）"
+        else
+            bad upgrade-path "見 /tmp/done_upgrade.log"
+        fi
+    fi
+fi
+
 # ── 判決 ──────────────────────────────────────────────────────────────────
 echo
 echo "通過 ${#PASS[@]} / 沒過 ${#FAIL[@]} / 跳過 ${#SKIP[@]}"
