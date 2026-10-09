@@ -1,0 +1,81 @@
+Odoo Proprietary License v1.0
+
+This software and associated files (the "Software") may only be used (executed,
+modified, executed after modifications) if you have purchased a valid license
+from the authors, typically via Odoo Apps, or if you have received a written
+agreement from the authors of the Software (see the COPYRIGHT file).
+
+You may develop Odoo modules that use the Software as a library (typically
+by depending on it, importing it and using its resources), but without copying
+any source code or material from the Software. You may distribute those
+modules under the license of your choice, provided that this license is
+compatible with the terms of the Odoo Proprietary License (For example:
+LGPL, MIT, or proprietary licenses similar to this one).
+
+It is forbidden to publish, distribute, sublicense, or sell copies of the Software
+or modified copies of the Software.
+
+The above copyright notice and this permission notice must be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+================================================================================
+Copyright (C) 2026 多伯特系統整合有限公司 (Dobtor Systems Integration)
+================================================================================
+
+Module: dobtor_doc_editor
+License: OPL-1 (Odoo Proprietary License v1.0) — see the text above.
+
+授權變更紀錄
+--------------------------------------------------------------------------------
+2026-10-09：由 LGPL-3 改為 OPL-1（Dobtor 模組授權統一政策）。
+            在此之前已散布的 LGPL-3 版本，其授權不受本次變更影響。
+
+相依模組的授權（確認無 AGPL）
+--------------------------------------------------------------------------------
+本模組 depends 全為 Odoo 18.0 Community Edition 核心模組，皆為 LGPL-3：
+    base, web, mail, html_editor, bus, portal
+LGPL-3 相依不妨礙本模組以 OPL-1 散布；本模組未依賴、未衍生任何 AGPL-3 模組。
+
+內附第三方程式碼
+--------------------------------------------------------------------------------
+本模組隨附三支第三方前端檔案（static/src/lib/canvas_editor/），對應關係與查證
+方式見 LICENSES/README.md：
+
+  canvas-editor.umd.min.js          @hufe921/canvas-editor 0.9.128 — MIT
+                                    （授權全文在 LICENSES/canvas-editor.LICENSE）
+  canvas-editor-plugin-docx.umd.js  同專案的 docx plugin。它是打包檔，**內嵌**
+                                    下列相依，授權橫幅原樣保留在檔案內：
+                                        JSZip 3.10.1  MIT 或 GPLv3 雙授權
+                                                      → **本模組選用 MIT**
+                                        pako          MIT（JSZip 的授權聲明中載明）
+                                        ieee754       BSD-3-Clause
+                                        fromcodepoint MIT（@mathias）
+  canvas-editor-shim.js             本模組自有（414 bytes）
+
+以上授權皆為寬鬆式，與 OPL-1 相容；JSZip 的雙授權中本模組選用 MIT。
+
+⚠️ 該打包檔中另出現 `http://schemas.zwobble.org/mammoth/style-map` 命名空間與
+   style-map 讀寫函式。這**可能**表示內嵌了 mammoth（或其衍生）的程式碼，但從
+   打包後的檔案無法確認範圍與授權。要完整盤點內嵌相依，應回 upstream
+   @hufe921/canvas-editor 的 plugin-docx 專案查其 package.json。
+
+選用的 Python 套件（非散布、由使用者自行安裝）
+--------------------------------------------------------------------------------
+下列套件皆為函式內 lazy import 的選用相依，**不隨本模組散布**（刻意不寫進
+external_dependencies，見 __manifest__.py 的說明）。授權為 2026-10-09 自
+已安裝版本的 package metadata 讀出，非憑記憶填寫：
+
+    python-docx    MIT
+    docxtpl        LGPL-2.1-only
+    odfpy          授權欄為 UNKNOWN；classifier 同時列 Apache-2.0、GPL、LGPL
+
+odfpy 的授權需要時應回其專案頁面確認適用條款。因為這三者由使用者自行 pip
+安裝、不經本模組散布，其授權不影響本模組以 OPL-1 散布。

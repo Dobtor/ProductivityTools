@@ -17,6 +17,7 @@
 也可單獨用 ORM 層測 controller 邏輯（不啟 HTTP），見 `TestFontServeLogic`。
 """
 
+import os
 from unittest.mock import patch
 
 from odoo.addons.dobtor_doc_editor.tests.session_probe import SessionAliveMixin
@@ -305,3 +306,88 @@ class TestFontServeRequiresLogin(HttpCase):
             'SessionExpired', name,
             '未登入被擋下來了，但不是 auth 層擋的（error.data.name=%r）。'
             '那代表擋它的是別的東西，這一則就沒有驗到 auth 設定。' % name)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_import')
+class TestThirdPartyLicenseRegistry(TransactionCase):
+    r"""出貨產物內嵌的第三方，都要有授權登記——階段 5 稽核（2026-10-09）。
+
+    ☠️ 本模組原本**完全沒有** `LICENSE` 與 `LICENSES/`，卻宣告
+    `'license': 'OPL-1'` 並出貨兩個內嵌 fflate / @xmldom/xmldom 的產物。
+
+    成因是拆模組（ADR-033）：OOXML 建置鏈與它的 npm 相依整批搬到本模組，
+    而授權登記留在核心（`dobtor_doc_editor/LICENSES/`）。核心把這件事做對了，
+    本模組是那個把第三方程式碼接過來卻沒接登記的。
+
+    這一支守的是「登記不可以又漂走」。判定依據是**在產物裡實際找到那個函式庫
+    的實作符號**，不是 package.json 寫了什麼——package.json 的 dependencies
+    有四個，其中兩個並沒有被打進出貨產物（見 LICENSES/README.md）。
+    """
+
+    #: 產物 → 必須登記的第三方（判定符號取自該函式庫的內部實作）
+    BUNDLED = {
+        'static/src/lib/canvas_editor/canvas-editor-custom.umd.js': {
+            'fflate': ('strFromU8', 'inflateSync'),
+        },
+        'tools/dist/parse_docx_cli.cjs': {
+            'fflate': ('strFromU8', 'inflateSync'),
+            'xmldom': ('__DOMHandler', 'DOMImplementation', 'ParseError'),
+        },
+    }
+
+    def _root(self):
+        # 從測試檔推模組根（tests/ 的上一層）——不必 import controller。
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def test_module_has_a_license_file(self):
+        """模組根目錄要有 LICENSE（manifest 宣告 OPL-1，就要附全文）。"""
+        path = os.path.join(self._root(), 'LICENSE')
+        self.assertTrue(os.path.exists(path), '模組根目錄缺 LICENSE')
+        with open(path, encoding='utf-8') as fh:
+            head = fh.read(200)
+        self.assertIn(
+            'Odoo Proprietary License', head,
+            'LICENSE 不是 OPL-1 的全文，但 __manifest__ 宣告 OPL-1')
+
+    def test_every_bundled_third_party_has_its_licence_text(self):
+        """產物裡**實際找得到實作符號**的第三方，都要有授權全文。"""
+        root = self._root()
+        missing = []
+        for artifact, libs in self.BUNDLED.items():
+            apath = os.path.join(root, artifact)
+            if not os.path.exists(apath):
+                missing.append('%s 不存在（產物沒建？）' % artifact)
+                continue
+            with open(apath, 'rb') as fh:
+                blob = fh.read()
+            for lib, symbols in libs.items():
+                found = [s for s in symbols if s.encode() in blob]
+                if not found:
+                    # 函式庫不再被內嵌了 → 登記可以移除，但要有人決定
+                    missing.append(
+                        '%s 裡找不到 %s 的任何實作符號 %s——'
+                        '它可能已經不再被內嵌了，請更新 LICENSES/README.md 的對應表'
+                        % (artifact, lib, symbols))
+                    continue
+                lic = os.path.join(root, 'LICENSES', '%s.LICENSE' % lib)
+                if not os.path.exists(lic):
+                    missing.append(
+                        '%s 內嵌了 %s（符號 %s）但 LICENSES/%s.LICENSE 不存在'
+                        % (artifact, lib, found, lib))
+        self.assertFalse(missing, '授權登記有缺口：\n  %s' % '\n  '.join(missing))
+
+    def test_licence_registry_has_a_readme_mapping(self):
+        """`LICENSES/README.md` 要列出每個被登記的第三方。
+
+        光放授權全文不夠——沒有對應表的話，下一個人不知道哪個檔案內嵌了什麼。
+        """
+        root = self._root()
+        readme = os.path.join(root, 'LICENSES', 'README.md')
+        self.assertTrue(os.path.exists(readme), '缺 LICENSES/README.md 對應表')
+        with open(readme, encoding='utf-8') as fh:
+            text = fh.read()
+        for libs in self.BUNDLED.values():
+            for lib in libs:
+                self.assertIn(
+                    lib, text,
+                    'LICENSES/README.md 沒有提到 %s，而產物裡有它' % lib)
