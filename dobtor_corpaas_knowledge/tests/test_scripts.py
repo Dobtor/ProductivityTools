@@ -114,6 +114,18 @@ class TestScripts(TransactionCase):
         self.assertFalse(p1.active, '動作有執行')
         self.assertEqual([e['xmlid'] for e in res['errors']], ['bad'], '只允許 action_／button_')
 
+    def test_seed_script_admin_gets_all_internal_groups(self):
+        """說明庫的系統管理員拿到所有內部群組（自訂模組的權限群組也要），不含會改變畫面的群組。"""
+        custom = self.env['res.groups'].create({'name': 'KB 自訂模組管理員'})
+        src = scripts.seed_script('__doc_scenario_t5', [],
+                                  [{'code': 'admin', 'name': '管理', 'groups': ['base.group_system']}],
+                                  'pw-123456').replace('env.cr.commit()', 'pass')
+        exec(compile(src, '<seed>', 'exec'), {'env': self.env, 'print': lambda *a: None})
+        admin = self.env.ref('__doc_scenario_t5.user_admin')
+        self.assertIn(custom, admin.groups_id)
+        self.assertNotIn(self.env.ref('base.group_multi_company'), admin.groups_id)
+        self.assertNotIn(self.env.ref('base.group_portal'), admin.groups_id)
+
     def test_seed_script_role_partner_xmlid_and_publishes_products(self):
         """角色帳號的聯絡人有 xmlid（示範訂單可開給會員）；網路商店的示範商品自動上架。"""
         recs = [{'xmlid': 'p_shop', 'model': 'product.product',
