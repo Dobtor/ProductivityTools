@@ -717,6 +717,11 @@ class KnowledgeHooks(models.AbstractModel):
                 continue
             if b.state == 'pending' or (b.state == 'ok' and not b.current_assets()):
                 out |= b
+            elif b.state == 'ok' and b.shot_inputs \
+                    and b.shot_inputs != self._manual_shot_inputs(b):
+                # ★ 拍攝輸入變了（截圖程式、腳本、角色、示範資料）：增量更新也重拍
+                #   ☠️ 實機：截圖程式改成隱藏 Cookie 列，增量更新照樣沿用舊截圖
+                out |= b
             elif full and not (b.state == 'ok' and b.shot_inputs
                                and b.shot_inputs == self._manual_shot_inputs(b)):
                 # ★ R4：全量更新不等於全部重拍——輸入簽章沒變的畫面沿用現有截圖

@@ -128,6 +128,16 @@ class TestReuseShots(ManualCase):
         todo = self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {'full': True})
         self.assertIn(b, todo, '腳本改了就要重拍')
 
+    def test_incremental_refresh_reshoots_changed_inputs(self):
+        """增量更新：拍攝輸入變了（例如截圖程式改了）也重拍；沒變的沿用。"""
+        _tmpl, b = self._setup()
+        b.shot_inputs = self.hooks._manual_shot_inputs(b)
+        sb = FakeSandbox(self.scenario)
+        Event = self.env['corpaas.knowledge.event']
+        self.assertNotIn(b, self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {}))
+        b.shot_inputs = 'old-runner'
+        self.assertIn(b, self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {}))
+
     def test_seed_revision_changes_inputs(self):
         _tmpl, b = self._setup()
         before = self.hooks._manual_shot_inputs(b)
