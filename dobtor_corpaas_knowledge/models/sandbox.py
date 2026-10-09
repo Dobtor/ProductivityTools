@@ -27,6 +27,12 @@ from ..services import remote, scripts
 
 _logger = logging.getLogger(__name__)
 
+
+def seed_errors_fatal(res):
+    """示範資料重播的錯誤多到說明庫不能用？（失敗超過兩成）"""
+    errors = len(res.get('errors') or [])
+    return bool(errors) and errors * 5 > errors + (res.get('done') or 0)
+
 _NAME_OK = re.compile(r'^docsbx-[a-z0-9-]+$')
 
 
@@ -244,11 +250,22 @@ class KnowledgeSandbox(models.Model):
             if check:
                 self.write({'state': 'ready', 'ready_at': fields.Datetime.now()})
                 return res
-            if res.get('errors'):
-                scenario.sudo().seed_error = json.dumps(res['errors'], ensure_ascii=False)
-                raise UserError(_('示範資料重播失敗 %s 筆（見示範資料報告）')
-                                % len(res['errors']))
-            scenario.sudo().seed_error = False
+            errors = res.get('errors') or []
+            # ★ 少數幾筆重播不過：照常用這座說明庫（失敗的記錄本來就不在庫裡，拿掉不會少畫面），
+            #   並把情境自己出錯的記錄移出腳本；壞到兩成以上才判失敗。
+            #   ☠️ 實機：補缺口的 AI 加了 7 筆引用沒裝模組的記錄（154 筆成功），整座說明庫判失敗、
+            #     一張都沒拍——每一輪補缺口都可能再加壞的，永遠卡住。
+            if seed_errors_fatal(res):
+                scenario.sudo().seed_error = json.dumps(errors, ensure_ascii=False)
+                raise UserError(_('示範資料重播失敗 %s 筆（見示範資料報告）') % len(errors))
+            scenario.sudo().seed_error = json.dumps(errors, ensure_ascii=False) \
+                if errors else False
+            if errors:
+                try:
+                    scenario.sudo()._prune_failed_seed({'errors': errors})
+                except Exception as e:  # noqa: BLE001 — 移不掉就留給人看 seed_error
+                    _logger.warning('[knowledge] 情境 %s 移除重播失敗記錄失敗：%s',
+                                    scenario.code, e)
             self.write({'state': 'ready', 'ready_at': fields.Datetime.now(), 'dirty': False,
                         'inputs_sig': self._inputs_signature(),
                         'base_sig': self._base_signature(), 'last_prep': 'rebuilt',
