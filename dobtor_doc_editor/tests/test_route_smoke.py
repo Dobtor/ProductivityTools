@@ -80,8 +80,21 @@ def _declared_routes():
 #: 2026-10-09 量到「完全沒有驗證」的 22 條（無 Python 測試、tour 也沒走到）。
 #: 每補一條行為測試就從這裡拿掉一條——這份清單縮短的速度就是進度。
 _UNVERIFIED = {
+    # ☠️ 這份清單由 `tests/scripts/audit_route_coverage.py` **量出來**，
+    #    不是手寫的。它的判準是「路徑在 tests/ 的 .py 裡出現過（排除本清單
+    #    自己與 tests/scripts/ 的工具），或 tour 的 werkzeug 日誌打到過」。
+    #
+    #    判準為什麼只認路徑、不認方法名：`/dobtor_doc/models` 有一則「測試」
+    #    只斷言 `hasattr(DocTemplateController, 'list_models')`，而那條路由
+    #    **一直是壞的**。方法名出現 ≠ 行為被驗。
+    #
+    #    2026-10-09 校正前這份清單是 22 條，而且兩個方向都錯：
+    #      - 漏列 save_version / set_model / 兩條 portal /my/documents
+    #      - 多列 export（當時以為沒驗，其實也沒驗——是**稽核腳本自己的
+    #        docstring 提到它**讓它看起來被驗了，而腳本就放在 tests/ 底下）
+    #    後者是今天同一個形狀的第三次：宣告某物有問題的那份文字，本身成了
+    #    它沒問題的證據。
     '/dobtor_doc/aliases/save',
-    '/dobtor_doc/export',
     '/dobtor_doc/fill_template',
     '/dobtor_doc/i18n/convert',
     '/dobtor_doc/i18n/export',
@@ -91,6 +104,8 @@ _UNVERIFIED = {
     '/dobtor_doc/preview/<int:doc_id>',
     '/dobtor_doc/preview_content_json',
     '/dobtor_doc/save_settings',
+    '/dobtor_doc/save_version',
+    '/dobtor_doc/set_model',
     '/dobtor_doc/template_aliases/save',
     '/dobtor_doc/template_fields/delete_field',
     '/dobtor_doc/template_fields/options',
@@ -102,6 +117,8 @@ _UNVERIFIED = {
     '/dobtor_doc/versions/get',
     '/dobtor_doc/versions/list',
     '/dobtor_doc/versions/restore',
+    '/my/documents/<int:doc_id>',
+    '/my/documents/page/<int:page>',
 }
 
 

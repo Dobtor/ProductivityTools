@@ -32,6 +32,8 @@ ODOO_ARGS      ?= --db_host=$(PG_HOST) --db_user=odoo --db_password=odoo --addon
 help: ## 列出所有 target
 	@echo "dobtor_doc_editor — 開發指令"
 	@echo ""
+	@echo "稽核與完工："
+	@grep -E '^(audit):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo "「完成了嗎」的單一判決："
 	@grep -E '^(done):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -119,6 +121,25 @@ ci-xml: ## 全 XML well-formed（壞 XML ＝ 升級 ParseError ＝ 模組裝不�
 	@echo "✓ XML well-formed（$$(find . -name '*.xml' -not -path './node_modules/*' | wc -l | tr -d ' ') 檔）"
 
 ci-all: ci-python ci-xml test-js ## 跑全部本機靜態檢查
+
+audit: ## 跑稽核的「尺」（不是閘門——它只撈候選，判讀需要人；見 docs/AUDIT_LENSES.md）
+	# ☠️ 這些腳本**刻意不用退出碼表示「有候選」**。當成 lint 自動擋會立刻
+	#    變噪音，然後被人加例外清單繞過去。退出碼只在「工具自己壞了」時非 0。
+	#
+	#    路由覆蓋那一把要吃 tour 的日誌才準：先跑
+	#        bash tests/scripts/run_local_rig.sh tour
+	#    再跑 make audit——沒有日誌時它會**明說自己高估了覆蓋率**。
+	@echo "══════ 尺 1：全檔案清查與分類 ══════"
+	@python3 tests/scripts/audit_file_inventory.py
+	@echo ""
+	@echo "══════ 尺 2：路由覆蓋（tour 日誌在 /tmp/dobtor_doc_editor_tour.log 時會併入）══════"
+	@TOUR_LOG=/tmp/dobtor_doc_editor_tour.log python3 tests/scripts/audit_route_coverage.py
+	@echo ""
+	@echo "══════ 尺 3：ACL／record rule 逐 model 對照 ══════"
+	@python3 tests/scripts/audit_acl_rules.py
+	@echo ""
+	@echo "══════ 尺 4：docstring 裡的絕對語句 ══════"
+	@python3 tests/scripts/scan_absolute_promises.py
 
 done: ## 「完成了嗎」的單一判決（11 條判準，含匯入模組；見 docs/DONE_CRITERIA.md）
 	# 退出碼 0 全過 / 1 有判準沒過 / **2 環境不具備或有判準被跳過——不是通過**。
