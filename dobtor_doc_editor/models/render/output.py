@@ -269,6 +269,165 @@ class RenderOutput:
             _flush()
         return ''.join(out)
 
+    # ─── HTML → content_json（_content_json_to_html 的反向）──────────
+    #
+    # 為什麼需要：模組自己出貨的 6 張 data 範本只有 content_html，沒有
+    # content_json。它們列印時走 _render_template 那條舊路，於是**享受不到任何
+    # 藥丸功能**——型別格式、欄位標籤、頁面範圍、條件、重複列都不生效。
+    #
+    # ☠️ Phase 5 的註解寫著「HTML → IElement 需要 canvas-editor 的
+    # executeSetHTML，那是瀏覽器端的東西」——對**任意** HTML 是對的。
+    # 這支刻意只處理**我們自己寫的那個子集**：出貨範本實際用到的標籤只有
+    #   p / h1 / h2 / h3 / b / strong / br / table / thead / tbody / tr / th / td
+    #（數過的）。遇到子集外的標籤會留下 note，呼叫端決定要不要接受。
+    #
+    # 正確性靠**來回轉換**釘住：html → content_json → html 的結果要與原 html
+    # 等價（見 TestHtmlToContentJson 的 round-trip 測試）。那比逐個標籤寫斷言
+    # 可靠，因為反向那條路（_content_json_to_html）是已經在用的。
+
+    _HTML_BLOCK_TAGS = ('p', 'h1', 'h2', 'h3', 'div')
+    # 標題的字級（px）。canvas-editor 的 element.size 單位是 px，
+    # 與 _element_style 的 font-size:%spx 對齊。
+    _HTML_HEADING_SIZE = {'h1': 24, 'h2': 20, 'h3': 16}
+    _HTML_ALIGN_FLEX = {'center': 'center', 'right': 'right',
+                        'justify': 'alignment', 'left': 'left'}
+
+    def _html_to_content_json(self, html, notes=None):
+        """把一段（我們自己寫的）HTML 轉成 content_json 的 main 元素串列。
+
+        回傳 {'header': [], 'main': [...], 'footer': []}。
+        notes 給一個 list 的話，遇到不支援的標籤會 append 說明而不是靜默吞掉。
+        """
+        from lxml import html as lhtml
+        notes = notes if notes is not None else []
+        text = (html or '').strip()
+        if not text:
+            return {'header': [], 'main': [], 'footer': []}
+        root = lhtml.fragment_fromstring(text, create_parent='div')
+        main = []
+        self._html_walk_blocks(root, main, notes)
+        return {'header': [], 'main': main, 'footer': []}
+
+    def _html_walk_blocks(self, parent, out, notes):
+        """走訪區塊層：每個區塊產生它的行內元素，再補一個 '\n'。"""
+        for node in parent:
+            if not isinstance(node.tag, str):
+                # ☠️ 註解（與 PI）的 .tag 不是字串而是一個 callable。不擋的話會
+                # 掉到下面的「未知標籤」分支，把**註解內文當成正文輸出**——
+                # 出貨範本裡就有一段 <!-- Sprint Y12.2… --> 的註解，實測結果是
+                # 那張範本印出註解文字、而且後面的內容整段不見。
+                # 註解自己丟掉，它後面的文字（tail）要留。
+                if node.tail and node.tail.strip():
+                    out.append({'value': node.tail})
+                continue
+            tag = (node.tag or '').lower()
+            if tag == 'table':
+                out.append(self._html_table_to_element(node, notes))
+                continue
+            if tag in self._HTML_BLOCK_TAGS:
+                runs = []
+                self._html_walk_inline(node, runs, {}, notes)
+                size = self._HTML_HEADING_SIZE.get(tag)
+                if size:
+                    for r in runs:
+                        r.setdefault('size', size)
+                        r.setdefault('bold', True)
+                out.extend(runs)
+                out.append(self._html_newline(node))
+                # div 可能自己包著區塊（出貨範本沒有，但容錯）
+                if tag == 'div':
+                    self._html_walk_blocks(node, out, notes)
+                continue
+            if tag == 'br':
+                out.append({'value': '\n'})
+                continue
+            if tag:
+                notes.append('不支援的標籤 <%s>，內容以純文字保留' % tag)
+            runs = []
+            self._html_walk_inline(node, runs, {}, notes)
+            out.extend(runs)
+
+    def _html_newline(self, node):
+        """區塊結尾的 '\n' 元素；對齊寫在它身上（與 _elements_to_html 相反方向）。"""
+        nl = {'value': '\n'}
+        style = (node.get('style') or '')
+        for css, flex in self._HTML_ALIGN_FLEX.items():
+            if 'text-align:%s' % css in style.replace(' ', ''):
+                nl['rowFlex'] = flex
+                break
+        return nl
+
+    def _html_walk_inline(self, node, out, inherited, notes):
+        """走訪行內層，把 b / strong 等轉成元素身上的屬性。"""
+        if node.text:
+            out.append(dict(inherited, value=node.text))
+        for child in node:
+            if not isinstance(child.tag, str):
+                # 同上：註解不是內容
+                if child.tail:
+                    out.append(dict(inherited, value=child.tail))
+                continue
+            tag = (child.tag or '').lower()
+            attrs = dict(inherited)
+            if tag in ('b', 'strong'):
+                attrs['bold'] = True
+            elif tag in ('i', 'em'):
+                attrs['italic'] = True
+            elif tag == 'u':
+                attrs['underline'] = True
+            elif tag == 'br':
+                out.append({'value': '\n'})
+                if child.tail:
+                    out.append(dict(inherited, value=child.tail))
+                continue
+            elif tag and tag not in ('span', 'font'):
+                notes.append('不支援的行內標籤 <%s>，內容以純文字保留' % tag)
+            self._html_walk_inline(child, out, attrs, notes)
+            if child.tail:
+                out.append(dict(inherited, value=child.tail))
+
+    def _html_table_to_element(self, table, notes):
+        """<table> → {type:'table', trList, colgroup}。"""
+        rows = []
+        for tr in table.iter('tr'):
+            cells = []
+            for td in tr:
+                if not isinstance(td.tag, str):
+                    continue
+                tag = (td.tag or '').lower()
+                if tag not in ('td', 'th'):
+                    continue
+                runs = []
+                # 儲存格內可以有區塊（<p>）也可以直接是文字
+                if any(isinstance(c.tag, str)
+                       and c.tag.lower() in self._HTML_BLOCK_TAGS for c in td):
+                    self._html_walk_blocks(td, runs, notes)
+                else:
+                    self._html_walk_inline(td, runs, {}, notes)
+                    runs.append({'value': '\n'})
+                if tag == 'th':
+                    for r in runs:
+                        if r.get('value') != '\n':
+                            r['bold'] = True
+                cell = {'value': runs}
+                for attr, key in (('colspan', 'colspan'), ('rowspan', 'rowspan')):
+                    try:
+                        v = int(td.get(attr) or 1)
+                    except ValueError:
+                        v = 1
+                    if v > 1:
+                        cell[key] = v
+                cells.append(cell)
+            if cells:
+                rows.append({'tdList': cells})
+        width = max((len(r['tdList']) for r in rows), default=0)
+        el = {'type': 'table', 'value': '', 'trList': rows}
+        if width:
+            # 平均分配欄寬。canvas-editor 需要 colgroup 才畫得出表格，
+            # 而原 HTML 的 width 是百分比、不是它要的 px。
+            el['colgroup'] = [{'width': int(718 / width)} for _ in range(width)]
+        return el
+
     def _content_json_to_html(self, tree, zone='main'):
         """content_json 的指定區域 → HTML。"""
         if isinstance(tree, dict):

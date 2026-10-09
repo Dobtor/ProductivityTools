@@ -3731,3 +3731,191 @@ class TestPageScopeMarker(TransactionCase):
             _text('靠右'), _text('\n', rowFlex='right'))
         self.assertIn('doc-page-even', html)
         self.assertIn('text-align:right', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestHtmlToContentJson(TransactionCase):
+    """HTML → content_json，用「來回轉換」釘住正確性。
+
+    為什麼需要這支：模組自己出貨的 6 張 data 範本只有 content_html，所以列印
+    走舊路，**享受不到任何藥丸功能**。要讓它們享受得到就得有 content_json。
+
+    Phase 5 的註解寫著「HTML → IElement 需要 canvas-editor 的 executeSetHTML，
+    那是瀏覽器端的東西」——對**任意** HTML 是對的。這支只處理我們自己寫的
+    那個子集（出貨範本實際用到的 12 個標籤）。
+
+    正確性靠 round-trip：html → content_json → html 要與原 html 等價。
+    那比逐個標籤寫斷言可靠，因為反向那條路本來就在用。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def _round(self, html):
+        tree = self.Mixin._html_to_content_json(html)
+        return self.Mixin._content_json_to_html(tree)
+
+    def _norm(self, html):
+        """比較時忽略空白與屬性順序差異。"""
+        import re
+        t = re.sub(r'>\s+<', '><', html or '')
+        return re.sub(r'\s+', ' ', t).strip()
+
+    # ── 來回轉換 ────────────────────────────────────────────────
+    def test_paragraph_round_trip(self):
+        self.assertEqual(self._norm(self._round('<p>一段文字</p>')),
+                         '<p>一段文字</p>')
+
+    def test_bold_round_trip(self):
+        out = self._round('<p>前<b>粗</b>後</p>')
+        self.assertIn('font-weight:bold', out)
+        self.assertIn('粗', out)
+        self.assertIn('前', out)
+        self.assertIn('後', out)
+
+    def test_alignment_round_trip(self):
+        out = self._round('<p style="text-align:center">置中</p>')
+        self.assertIn('text-align:center', out)
+
+    def test_heading_becomes_sized_bold_text(self):
+        """標題沒有專屬元素型別——canvas-editor 用 size + bold 表達。"""
+        out = self._round('<h1>大標</h1>')
+        self.assertIn('font-size:24px', out)
+        self.assertIn('font-weight:bold', out)
+        self.assertIn('大標', out)
+
+    def test_br_becomes_a_paragraph_break(self):
+        out = self._round('<p>上<br/>下</p>')
+        self.assertEqual(out.count('<p>'), 2, '一個 <br> 應該切成兩段')
+
+    def test_empty_paragraph_survives(self):
+        """空段落要留著，否則版面的留白會塌掉。"""
+        self.assertIn('<br/>', self._round('<p><br></p>'))
+
+    def test_table_round_trip(self):
+        out = self._round(
+            '<table><tr><td>甲</td><td>乙</td></tr>'
+            '<tr><td>丙</td><td>丁</td></tr></table>')
+        self.assertEqual(out.count('<tr>'), 2)
+        self.assertEqual(out.count('<td>'), 4)
+        for t in ('甲', '乙', '丙', '丁'):
+            self.assertIn(t, out)
+
+    def test_th_cells_become_bold(self):
+        out = self._round('<table><tr><th>表頭</th></tr></table>')
+        self.assertIn('font-weight:bold', out)
+
+    def test_colspan_and_rowspan_survive(self):
+        out = self._round(
+            '<table><tr><td colspan="2" rowspan="3">合併</td></tr></table>')
+        self.assertIn('colspan="2"', out)
+        self.assertIn('rowspan="3"', out)
+
+    def test_table_gets_a_colgroup(self):
+        """canvas-editor 沒有 colgroup 畫不出表格。"""
+        tree = self.Mixin._html_to_content_json(
+            '<table><tr><td>甲</td><td>乙</td></tr></table>')
+        table = tree['main'][0]
+        self.assertEqual(len(table['colgroup']), 2)
+        self.assertTrue(all(c['width'] > 0 for c in table['colgroup']))
+
+    # ── 邊界 ────────────────────────────────────────────────────
+    def test_empty_input(self):
+        self.assertEqual(
+            self.Mixin._html_to_content_json(''),
+            {'header': [], 'main': [], 'footer': []})
+
+    def test_unsupported_tag_is_noted_not_swallowed(self):
+        """子集外的標籤要留下說明——靜默吞掉會讓人以為轉乾淨了。"""
+        notes = []
+        self.Mixin._html_to_content_json('<p>甲</p><blockquote>乙</blockquote>',
+                                         notes=notes)
+        self.assertTrue(any('blockquote' in n for n in notes), notes)
+
+    def test_result_survives_the_snapshot_pipeline(self):
+        """轉出來的樹要能走完整條快照管線（這是它存在的目的）。"""
+        partner = self.env['res.partner'].create({'name': '來回測試'})
+        tree = self.Mixin._html_to_content_json(
+            '<h1>標題</h1><table><tr><td><b>欄</b></td><td>值</td></tr></table>')
+        self.Mixin._snapshot_content_json(tree, partner)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree))
+        self.assertIn('標題', html)
+        self.assertIn('欄', html)
+        self.assertIn('值', html)
+
+    # ── 真正的目標：6 張出貨範本 ────────────────────────────────
+    def test_html_comments_are_not_content(self):
+        """☠️ lxml 的註解節點 .tag 不是字串而是 callable。
+
+        沒擋的話註解會掉進「未知標籤」分支，**內文被當成正文輸出**。
+        實測：估驗計價單範本裡有一段 <!-- Sprint Y12.2… --> 的註解，轉出來
+        那張範本印出註解文字、而且後面的內容整段不見。
+        """
+        out = self._round('<p>甲</p><!-- 這是註解 --><p>乙</p>')
+        self.assertNotIn('這是註解', out)
+        self.assertIn('甲', out)
+        self.assertIn('乙', out)
+
+    def test_comment_inside_a_table_is_dropped(self):
+        out = self._round(
+            '<table><!-- 註解 --><tr><td>值</td></tr></table>')
+        self.assertNotIn('註解', out)
+        self.assertIn('值', out)
+
+    def test_shipped_templates_render_the_same_text_as_the_old_path(self):
+        """**這一則才是遷移的驗收**：新路徑（藥丸管線）印出來的文字要與舊路徑
+        （content_html + Jinja）一致。
+
+        只比文字不比標籤：content_json 走的是 canvas-editor 的元素模型，
+        標題變成 size+bold 而不是 <h1>，表格的 colgroup 也是新加的。
+        要釘的是「內容沒有掉」。
+
+        上一版的測試只驗「轉得過、沒有 note」，所以沒抓到註解被當成正文那個
+        缺陷——內容掉了一整張它也是綠的。
+        """
+        import copy
+        import re as _re
+        partner = self.env['res.partner'].create({'name': '遷移驗收'})
+        xmlids = [
+            'doc_template_blank', 'template_meeting_record',
+            'template_self_inspection', 'template_defect_improvement',
+            'template_payment_estimate', 'template_review_control',
+        ]
+
+        def text_of(html):
+            return _re.sub(r'\s+', ' ', _re.sub(r'<[^>]+>', ' ', html or '')).strip()
+
+        for xmlid in xmlids:
+            tmpl = self.env.ref('dobtor_doc_editor.%s' % xmlid,
+                                raise_if_not_found=False)
+            if not tmpl:
+                continue
+            html = _re.sub(r'\{\{.*?\}\}', '', tmpl.get_content_html() or '')
+            tree = self.Mixin._html_to_content_json(html)
+            snapped = self.Mixin._snapshot_content_json(
+                copy.deepcopy(tree), partner)
+            new = self.Mixin._content_json_to_html(
+                self.Mixin._flatten_content_json(snapped))
+            self.assertEqual(
+                text_of(new), text_of(html),
+                '%s 遷移後文字不一致' % xmlid)
+
+    def test_every_shipped_template_converts_cleanly(self):
+        """6 張出貨範本都要轉得過，而且不留下「不支援的標籤」。"""
+        xmlids = [
+            'doc_template_blank', 'template_meeting_record',
+            'template_self_inspection', 'template_defect_improvement',
+            'template_payment_estimate', 'template_review_control',
+        ]
+        for xmlid in xmlids:
+            tmpl = self.env.ref('dobtor_doc_editor.%s' % xmlid,
+                                raise_if_not_found=False)
+            if not tmpl:
+                continue
+            notes = []
+            tree = self.Mixin._html_to_content_json(
+                tmpl.get_content_html(), notes=notes)
+            self.assertFalse(notes, '%s 有不支援的標籤：%s' % (xmlid, notes))
+            self.assertTrue(tree['main'], '%s 轉出空的 main' % xmlid)

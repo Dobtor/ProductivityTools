@@ -2,12 +2,32 @@
 <odoo>
     <data noupdate="1">
         <!-- 預設空白範本 -->
+        <!--
+            ═══ content_json 是權威，content_html 是備份 ═══════════════
+            2026-10-09：這 6 張範本原本**只有** content_html，於是列印走
+            _render_template 那條舊路，**享受不到任何藥丸功能**——型別格式、
+            欄位標籤、頁面範圍、條件、重複列全都不生效。
+
+            content_json 由 doc.render.mixin._html_to_content_json() 從上面的
+            content_html 轉出來（來回轉換測試在 TestHtmlToContentJson）。
+            編輯器存檔時本來就是「content_json 為主、content_html 為備份」，
+            所以兩個都留著是一致的。
+
+            ☠️ 轉換時把原本的 {{ var }} placeholder **去掉了**。那些變數靠
+            doc.linked.mixin._doc_render_context() 帶入，而那支方法**沒有任何
+            消費者**（實測：render 一張出來，那幾格是空的）。留著的話在
+            content_json 路徑會變成「印出 {{ subject }} 字樣」——比今天的空白更糟。
+
+            要讓那些欄位真的有值，正確做法是：給範本設「適用模型」，然後在
+            編輯器裡用取值藥丸綁欄位。不要再靠 _doc_render_context。
+        -->
         <record id="doc_template_blank" model="doc.template">
             <field name="name">空白文件</field>
             <field name="category">general</field>
             <field name="page_format">A4</field>
             <field name="description">空白 A4 文件範本</field>
             <field name="content_html"><![CDATA[<p><br></p>]]></field>
+            <field name="content_json"><![CDATA[{"header":[],"main":[{"value":"\n"},{"value":"\n"}],"footer":[]}]]></field>
         </record>
 
         <!--
@@ -39,6 +59,7 @@
 <h2>四、追蹤事項</h2><p><br></p>
 <p style="text-align:right;margin-top:32px">主席簽名：________________</p>
             ]]></field>
+            <field name="content_json"><![CDATA[{"header":[],"main":[{"value":"監造會議記錄","size":24,"bold":true},{"value":"\n","rowFlex":"center"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"bold":true,"value":"會議名稱"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"會議日期"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"會議地點"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"主席"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"記錄人"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"出席人員"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]}],"colgroup":[{"width":359},{"width":359}]},{"value":"一、會議議題","size":20,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"二、討論內容","size":20,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"三、決議事項","size":20,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"四、追蹤事項","size":20,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"主席簽名：________________"},{"value":"\n","rowFlex":"right"}],"footer":[]}]]></field>
         </record>
 
         <!-- 範本 2：自主檢查表 -->
@@ -86,6 +107,7 @@
   <tr><td style="text-align:left">檢查人員：________________</td><td style="text-align:right">日期：____ 年 ____ 月 ____ 日</td></tr>
 </table>
             ]]></field>
+            <field name="content_json"><![CDATA[{"header":[],"main":[{"value":"自主檢查表","size":24,"bold":true},{"value":"\n","rowFlex":"center"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"bold":true,"value":"工程名稱"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"檢查日期"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"檢查項目"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"檢查時機"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"檢查人員"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"承包商"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]}],"colgroup":[{"width":179},{"width":179},{"width":179},{"width":179}]},{"value":"檢查項目清單","size":16,"bold":true},{"value":"\n"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"value":"編號","bold":true},{"value":"\n"}]},{"value":[{"value":"檢查項目","bold":true},{"value":"\n"}]},{"value":[{"value":"合格/不合格","bold":true},{"value":"\n"}]},{"value":[{"value":"備註","bold":true},{"value":"\n"}]}]},{"tdList":[{"value":[{"value":"1"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]}]},{"tdList":[{"value":[{"value":"2"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]}]},{"tdList":[{"value":[{"value":"3"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]}]}],"colgroup":[{"width":179},{"width":179},{"width":179},{"width":179}]},{"value":"整體結果","size":16,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"說明："},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"value":"檢查人員：________________"},{"value":"\n"}]},{"value":[{"value":"日期：____ 年 ____ 月 ____ 日"},{"value":"\n"}]}]}],"colgroup":[{"width":359},{"width":359}]}],"footer":[]}]]></field>
         </record>
 
         <!-- 自主檢查表：互動式變數 control（階段 1 示範）
@@ -245,6 +267,7 @@
 </table>
 <p style="margin-top:32px;text-align:right">監造單位：________________　承包商：________________</p>
             ]]></field>
+            <field name="content_json"><![CDATA[{"header":[],"main":[{"value":"缺失改善通知書","size":24,"bold":true},{"value":"\n","rowFlex":"center"},{"value":"通知編號："},{"value":"\n","rowFlex":"right"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"bold":true,"value":"工程名稱"},{"value":"\n"}]},{"value":[{"value":"\n"}],"colspan":3}]},{"tdList":[{"value":[{"bold":true,"value":"發現日期"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"嚴重度"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"負責廠商"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"改善期限"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]}],"colgroup":[{"width":179},{"width":179},{"width":179},{"width":179}]},{"value":"缺失類別（可複選）："},{"value":"\n"},{"value":"缺失說明","size":16,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"改善要求","size":16,"bold":true},{"value":"\n"},{"value":"　　請於上述「改善期限」前完成改善作業並回報，逾期未改善者依契約規定處理。"},{"value":"\n"},{"value":"回覆欄","size":16,"bold":true},{"value":"\n"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"bold":true,"value":"改善日期"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"改善內容"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"承辦人"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]}],"colgroup":[{"width":359},{"width":359}]},{"value":"監造單位：________________　承包商：________________"},{"value":"\n","rowFlex":"right"}],"footer":[]}]]></field>
         </record>
 
         <!-- 缺失改善通知：severity → 下拉選單（嚴重程度）。
@@ -374,6 +397,7 @@
 <p><br></p>
 <p style="margin-top:32px;text-align:right">承包商簽核：________________　監造單位簽核：________________　業主簽核：________________</p>
             ]]></field>
+            <field name="content_json"><![CDATA[{"header":[],"main":[{"value":"估驗計價單","size":24,"bold":true},{"value":"\n","rowFlex":"center"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"bold":true,"value":"工程名稱"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"估驗日期"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"承包商"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"估驗期"},{"value":"\n"}]},{"value":[{"value":"第  期"},{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"本期估驗金額"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"累計金額"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]}],"colgroup":[{"width":179},{"width":179},{"width":179},{"width":179}]},{"value":"本期完成工項","size":16,"bold":true},{"value":"\n"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"value":"項次","bold":true},{"value":"\n"}]},{"value":[{"value":"工項名稱","bold":true},{"value":"\n"}]},{"value":[{"value":"單位","bold":true},{"value":"\n"}]},{"value":[{"value":"本期數量","bold":true},{"value":"\n"}]},{"value":[{"value":"單價","bold":true},{"value":"\n"}]},{"value":[{"value":"小計","bold":true},{"value":"\n"}]}]},{"tdList":[{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]},{"value":[{"value":"　"},{"value":"\n"}]}]}],"colgroup":[{"width":119},{"width":119},{"width":119},{"width":119},{"width":119},{"width":119}]},{"value":"備註","size":16,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"承包商簽核：________________　監造單位簽核：________________　業主簽核：________________"},{"value":"\n","rowFlex":"right"}],"footer":[]}]]></field>
         </record>
 
         <!-- Sprint Y12.1：估驗計價單樣板的 signer + 6 個變數 placeholder field
@@ -466,6 +490,7 @@
   </tr>
 </table>
             ]]></field>
+            <field name="content_json"><![CDATA[{"header":[],"main":[{"value":"材料／設備送審管制表","size":24,"bold":true},{"value":"\n","rowFlex":"center"},{"value":"送審編號："},{"value":"\n","rowFlex":"right"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"bold":true,"value":"工程名稱"},{"value":"\n"}]},{"value":[{"value":"\n"}],"colspan":3}]},{"tdList":[{"value":[{"bold":true,"value":"材料／設備名稱"},{"value":"\n"}]},{"value":[{"value":"\n"}],"colspan":3}]},{"tdList":[{"value":[{"bold":true,"value":"契約項次"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"契約數量"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]},{"tdList":[{"value":[{"bold":true,"value":"預定送審日"},{"value":"\n"}]},{"value":[{"value":"\n"}]},{"value":[{"bold":true,"value":"實際送審日"},{"value":"\n"}]},{"value":[{"value":"\n"}]}]}],"colgroup":[{"width":179},{"width":179},{"width":179},{"width":179}]},{"value":"送審內容（可複選）："},{"value":"\n"},{"value":"審查結果","size":16,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"審查意見","size":16,"bold":true},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"value":"\n"},{"type":"table","value":"","trList":[{"tdList":[{"value":[{"value":"承包商：________________"},{"value":"\n"}]},{"value":[{"value":"監造單位：________________"},{"value":"\n"}]},{"value":[{"value":"業主：________________"},{"value":"\n"}]}]}],"colgroup":[{"width":239},{"width":239},{"width":239}]}],"footer":[]}]]></field>
         </record>
         <record id="signer_review_default" model="doc.template.signer">
             <field name="template_id" ref="template_review_control"/>
