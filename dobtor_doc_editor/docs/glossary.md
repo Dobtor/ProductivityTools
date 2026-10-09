@@ -205,7 +205,7 @@
 | **`test_shared_pure.mjs`** | JS 純函式單測（node，無瀏覽器）。靠 `doc_editor_shared.js` 零相依 → 讀檔 → data: URL 動態 import。掛在 static CI |
 | **`run_local_rig.sh`** | host 端入口：`docker exec` 進本機兩容器 rig 跑**全部**測試（`test` / `tour` / `all`）。容器名與連線參數可用環境變數覆寫 |
 | **CI gate v1 dispatch** | workflow_dispatch 手動觸發、Sprint 114 落地 font_serve 12 test 進 CI | Sprint 114 |
-| **CI gate v2 nightly** | schedule cron 每晚自動跑、v1 跑穩 3 次後升級 | Sprint 114（規劃中）|
+| **CI gate v2 nightly** | schedule cron 每晚自動跑。⚠️ **還沒成立**：GitHub 的 schedule 只從**預設分支**讀 workflow，而本 repo 預設分支 `master` 是 2018 年的殘根（只有 Readme.md）。要改 repo 設定把預設分支指到 dev-18.0 才會開始 | 卡在 repo 設定 |
 | **CI gate v3 push / PR** | push / PR 阻擋式 gate、v2 跑穩 3 次後升級；最終 enforce 形式 | Sprint 114（規劃中）|
 
 ---
