@@ -278,3 +278,84 @@ class TestControllerSecurityBoundary(HttpCase):
             'error' in rpc_result or 'error' in body,
             f"未知 record_model 應 graceful error: {body}",
         )
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestRouteRegistration(TransactionCase):
+    """36 條路由在拆成四個 Controller 之後還是全部註冊得到。
+
+    2026-10-09 把 doc_controller.py（2593 行、36 路由）拆成四個 Controller
+    ＋一個共用守衛基底。拆錯的症狀是**那一批路由 404**，而 404 在前端只會
+    變成「按了沒反應」——OWL 把 rpc 失敗吞成 console 的一行。
+
+    這一則直接問 Odoo 自己的來源：它是靠 endpoint 身上的 original_routing
+    屬性認出路由的（http.py:759、827）。
+    """
+
+    def test_every_declared_route_is_registered(self):
+        import ast
+        import os
+        from odoo import http
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        declared = set()
+        ctrl_dir = os.path.join(here, 'controllers')
+        for name in os.listdir(ctrl_dir):
+            if not name.endswith('.py') or name == '__init__.py':
+                continue
+            with open(os.path.join(ctrl_dir, name), encoding='utf-8') as fh:
+                tree = ast.parse(fh.read())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.FunctionDef):
+                    continue
+                for dec in node.decorator_list:
+                    if (isinstance(dec, ast.Call)
+                            and getattr(dec.func, 'attr', '') == 'route'):
+                        arg = dec.args[0] if dec.args else None
+                        if isinstance(arg, ast.Constant):
+                            declared.add(arg.value)
+                        elif isinstance(arg, ast.List):
+                            declared.update(
+                                e.value for e in arg.elts
+                                if isinstance(e, ast.Constant))
+        self.assertGreaterEqual(len(declared), 36,
+                                '宣告的路由數少於預期，是不是有檔案沒被掃到')
+
+        # ☠️ 要**遞迴**走子類別樹，不能只看直接子類別：portal.py 的
+        # controller 繼承的是 portal 模組的 CustomerPortal，所以它是
+        # http.Controller 的孫類別。只看第一層會漏掉 /my/documents 那三條
+        # ——而那三條是 portal 使用者唯一的入口。
+        def walk_subclasses(cls):
+            for sub in cls.__subclasses__():
+                yield sub
+                yield from walk_subclasses(sub)
+
+        registered = set()
+        for cls in walk_subclasses(http.Controller):
+            if not cls.__module__.startswith('odoo.addons.dobtor_doc_editor'):
+                continue
+            for attr in dir(cls):
+                fn = getattr(cls, attr, None)
+                routing = getattr(fn, 'original_routing', None)
+                if routing:
+                    registered.update(routing.get('routes') or [])
+        self.assertFalse(
+            declared - registered,
+            '這幾條路由宣告了卻沒註冊：%s' % sorted(declared - registered))
+
+    def test_all_doc_controllers_share_the_guards(self):
+        """守衛放在非 Controller 的基底上；少繼承一個的症狀是那一批 500。"""
+        from odoo import http
+        from odoo.addons.dobtor_doc_editor.controllers.doc_controller_base \
+            import DocControllerBase
+        def walk_subclasses(cls):
+            for sub in cls.__subclasses__():
+                yield sub
+                yield from walk_subclasses(sub)
+
+        docs = [c for c in walk_subclasses(http.Controller)
+                if c.__module__.startswith(
+                    'odoo.addons.dobtor_doc_editor.controllers.doc_controller')]
+        self.assertGreaterEqual(len(docs), 4, '少了 Controller：%s' % docs)
+        for cls in docs:
+            self.assertTrue(issubclass(cls, DocControllerBase),
+                            '%s 沒有繼承共用守衛' % cls.__name__)

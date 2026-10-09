@@ -1191,8 +1191,13 @@ class TestOpenEditorDirectly(TransactionCase):
         self.assertFalse(tmpl.model_id, '新範本本來就還沒有模型——靠左欄就地設定')
 
     def test_model_picker_endpoints_exist(self):
-        """沒有這兩支，上面那個一致性就不成立。"""
-        from odoo.addons.dobtor_doc_editor.controllers.doc_controller import (
-            DocEditorController)
+        """沒有這兩支，上面那個一致性就不成立。
+
+        它們住在**範本** controller：選適用模型是範本設計的事。
+        （2026-10-09 路由拆成四個 Controller 時這一則紅過一次——那是它該有的
+        行為，結構變了就該被看到。）
+        """
+        from odoo.addons.dobtor_doc_editor.controllers.doc_controller_template \
+            import DocTemplateController
         for name in ('list_models', 'set_edit_target_model'):
-            self.assertTrue(hasattr(DocEditorController, name), '少了 %s' % name)
+            self.assertTrue(hasattr(DocTemplateController, name), '少了 %s' % name)

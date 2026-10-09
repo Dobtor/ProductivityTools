@@ -13,4 +13,5 @@ from . import doc_linked_mixin
 from . import doc_telemetry
 from . import report_overrides
 from . import report_entry_points  # 「轉成列印範本」的入口
+from . import qweb  # 轉換器的分層實作（doc_qweb_converter 組合它們）
 from . import doc_qweb_converter

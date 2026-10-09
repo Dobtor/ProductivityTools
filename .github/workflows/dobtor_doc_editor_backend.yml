@@ -3,11 +3,21 @@
 # 紀律 13：「test 寫好 + tag 對 + script 一鍵跑都不夠，沒人定期跑＝半 dead
 # test」。這支就是那條紀律的 closure 的第一步。
 #
-# 為什麼先夜間不擋：
-#   * 這支要 clone Odoo 18 原始碼 + 建資料庫，一次約 5-8 分鐘。擋在 PR 上
-#     會讓每個 PR 都等它，而它還沒跑穩過。
-#   * 升級路徑（詞彙表的 v1/v2/v3）：手動 dispatch → 夜間 → 連續三次全綠
-#     之後才改成 push/PR 阻擋式。要升級就把下面 on: 的 pull_request 取消註解。
+# 升級到哪一步了（詞彙表的 v1/v2/v3）：
+#   v1 手動 dispatch  ✓
+#   v2 夜間           ✓
+#   v2.5 PR 上**跑但不擋**（continue-on-error）← 現在在這裡
+#   v3 PR 上阻擋      ← 把下面 `continue-on-error` 那行刪掉就是
+#
+# 為什麼中間多一步 v2.5 而不是直接 v3：
+#   * 紀律 13 的升級條件是「連續三次全綠」，那是**時間**換來的，不能跳過。
+#   * 但「夜間綠了三次」只證明 main 是綠的，證明不了「PR 上跑得動」
+#     （PR 的 checkout 路徑與權限不同）。所以先在 PR 上跑、結果只當資訊，
+#     三次都綠再把 continue-on-error 拿掉。
+#   * ☠️ 這支測試裡有一則已知的偶發失敗（HttpCase 在 --workers=0 下的
+#     競爭，見 docs/qweb_converter_coverage.md §7.9）。阻擋式 gate 配上
+#     偶發失敗等於訓練大家無視紅燈——那比沒有 gate 更糟。
+#     所以 v3 的前提不只是「跑穩三次」，是**那一則偶發先解掉**。
 #
 # 為什麼不需要 checkout 別的 repo：這個模組的 depends 全部是核心 Odoo
 #（base / web / mail / html_editor / bus / portal），原生報表整合測試用到的
@@ -22,14 +32,15 @@ on:
   schedule:
     - cron: '0 18 * * *'   # UTC 18:00 = 台北 02:00
   workflow_dispatch:
-  # 連續三次全綠之後，把下面兩行取消註解升級為阻擋式（v3）
-  # pull_request:
-  #   paths: ['dobtor_doc_editor/**']
+  pull_request:
+    paths: ['dobtor_doc_editor/**']
 
 jobs:
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # v2.5：PR 上跑但不擋。拿掉這一行就是 v3（前提見檔頭）。
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
 
     services:
       postgres:

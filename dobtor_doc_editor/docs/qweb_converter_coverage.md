@@ -308,6 +308,31 @@ CI 若以多個 worker 跑，那一組測試就會真的執行。
 真正的解法是換 PDF 引擎（headless Chrome 之類），那是另一個量級的決定，
 不在這個模組的範圍內。要動之前先把 §7.5 的六個情境與 §7 的保真度量一次當基準。
 
+## 7.9 已知的偶發失敗（2026-10-09 量過）
+
+`TestControllerSecurityBoundary.test_upload_template_null_byte_filename_rejected`
+會偶發失敗。量出來的數字：
+
+| 情境 | 結果 |
+|---|---|
+| 單獨跑那個類別（6 則） | **6/6 綠** |
+| 整份測試（588 則） | 今天 9 次裡紅 1 次 |
+
+症狀是回應不是 JSON——測試自己的註解寫著「200 有兩種來源（上傳真的成功、
+或請求被導去登入頁）」，也就是 session 沒建立。`setUp` 裡有
+`self.authenticate('admin', 'admin')`，所以不是忘了登入。
+
+單獨跑全綠、整份跑才偶發，指向**單 worker 下的 HTTP 競爭**：`HttpCase` 的
+請求由同一個行程的另一條執行緒服務，而測試本身握著 cursor。同一個原因讓附頁
+的端到端測試在 `--workers=0` 下直接死結（§7.5）。
+
+☠️ **這一則是 CI 升級到 v3（阻擋式）的前提**。阻擋式 gate 配上偶發失敗等於
+訓練大家無視紅燈，那比沒有 gate 更糟。所以 backend workflow 現在停在 v2.5
+（PR 上跑但不擋），升 v3 的條件不只是「跑穩三次」，是**先把這一則解掉**。
+
+⚠️ 量測時踩到的坑：用 `--log-level=warn` 跑會**看不到 `tests.result` 那一行**
+（它是 INFO），於是看起來像「沒有結果」。量 flaky 率要用 `--log-level=test`。
+
 ## 8. 怎麼自己量一次
 
 ```bash
