@@ -163,12 +163,20 @@ class TestTelemetryRoutes(SessionAliveMixin, HttpCase):
         # ☠️ extra 裡帶一個唯一標記，讓 _find_my_metric() 找得到「**我剛建的
         #    那一筆**」。原本是用 `order='id desc', limit=1` 猜最新那筆——
         #    見 _find_my_metric() 的註解，那個猜測是錯的。
-        return self.make_jsonrpc_request('/dobtor_doc/telemetry/metric', {
-            'metric_type': 'load_doc_ms',
-            'value': 123.4,
-            'doc_id': doc_id,
-            'extra': {'test_probe': self._probe_token()},
-        })
+        # ☠️ 用 _jsonrpc_with_evidence 而不是 make_jsonrpc_request：後者在回應
+        #    不是 JSON 時丟的 JSONDecodeError **不帶回應內文**。這條路線的
+        #    error 形狀偏發（2026-10-09，3 次）就是這樣跑掉的：
+        #    事後連跑 30 輪全綠、無法重现，而當時什麼証據都沒留。
+        return self._jsonrpc_with_evidence(
+            '/dobtor_doc/telemetry/metric',
+            {
+                'metric_type': 'load_doc_ms',
+                'value': 123.4,
+                'doc_id': doc_id,
+                'extra': {'test_probe': self._probe_token()},
+            },
+            where='_post_metric(doc_id=%r)' % (doc_id,),
+        )
 
     def _probe_token(self):
         """本測試方法專屬的標記（self.id() 是完整的 模組.類別.方法 名）。"""
@@ -236,11 +244,15 @@ class TestTelemetryRoutes(SessionAliveMixin, HttpCase):
 
     def test_error_log_with_nonexistent_doc_id(self):
         ghost = self.env['doc.document'].sudo().search([], order='id desc', limit=1).id + 10000
-        result = self.make_jsonrpc_request('/dobtor_doc/telemetry/error', {
-            'error_type': 'js_error',
-            'message': '遙測外鍵回歸測試',
-            'doc_id': ghost,
-        })
+        result = self._jsonrpc_with_evidence(
+            '/dobtor_doc/telemetry/error',
+            {
+                'error_type': 'js_error',
+                'message': '遙測外鍵回歸測試',
+                'doc_id': ghost,
+            },
+            where='test_error_log_with_nonexistent_doc_id',
+        )
         self.assertTrue(result['success'])
         log = self.env['doc.editor.error.log'].sudo().search(
             [('message', '=', '遙測外鍵回歸測試')], limit=1)
