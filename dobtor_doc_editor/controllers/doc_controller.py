@@ -200,6 +200,7 @@ class DocEditorController(DocControllerBase, http.Controller):
 
     @http.route('/dobtor_doc/upload_template', type='http', auth='user',
                 methods=['POST'], csrf=False)
+    @DocControllerBase.json_http_route
     def upload_template(self, doc_id, docx_file, **kw):
         """
         上傳 DOCX 模板：
@@ -627,6 +628,7 @@ body {{
             return {'error': str(e)}
 
     @http.route('/dobtor_doc/import', type='http', auth='user', methods=['POST'], csrf=False)
+    @DocControllerBase.json_http_route
     def import_document(self, **kw):
         """匯入 DOCX / ODT 檔案。
 

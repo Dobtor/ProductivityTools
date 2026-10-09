@@ -145,6 +145,33 @@ class TestControllerSecurityBoundary(HttpCase):
             'session 在 %s 時不可用（回應 %s / %s）——後面的失敗都是這個造成的，'
             '不是被測路由的問題' % (where, resp.status_code, ct))
 
+    def _why_not_json(self, resp, sid):
+        """失敗訊息要能一次定位，不要只說「不是 JSON」。
+
+        這個端點掛了 json_http_route，**handler 不可能回非 JSON**
+        （任何漏出的例外都被包成 JSON）。所以回應不是 JSON 只剩一個來源：
+        auth 層把請求導去登入頁。這裡把那個判斷需要的三件事一起印出來：
+        轉址紀錄、session 在 store 裡還有沒有 uid、token 對不對得上。
+        """
+        import odoo.http
+        from odoo.service import security
+        try:
+            stored = odoo.http.root.session_store.get(sid)
+            uid = stored.get('uid')
+            expected = security.compute_session_token(stored, self.env) \
+                if uid else None
+            token_match = bool(stored.get('session_token') and expected
+                               and stored['session_token'] == expected)
+        except Exception as e:
+            uid, token_match = None, 'store 讀不到：%s' % e
+        return (
+            '回應不是 JSON。這個端點有 json_http_route，handler 不可能回非 '
+            'JSON——所以是 auth 層導去登入頁。\n'
+            '  轉址紀錄 = %s\n  session uid = %s\n  token 對得上 = %s\n'
+            '  內容 = %s'
+            % ([r.status_code for r in resp.history], uid, token_match,
+               resp.text[:300]))
+
     # ── upload_template 邊界 ───────────────────────────────────────
 
     def test_upload_template_path_traversal_filename_handled(self):
@@ -200,6 +227,7 @@ class TestControllerSecurityBoundary(HttpCase):
         # 會在它自己的斷言上說出來。
         self.authenticate('admin', 'admin')
         self._assert_session_alive('upload_template 請求前')
+        _sid = self.session.sid
         resp = self.url_open(
             '/dobtor_doc/upload_template',
             data={'doc_id': str(self.doc.id)},
@@ -211,11 +239,7 @@ class TestControllerSecurityBoundary(HttpCase):
         #（上傳真的成功、或請求被導去登入頁）。只看狀態碼分不出來。
         self.assertEqual(
             (resp.headers.get('Content-Type') or '').split(';')[0],
-            'application/json',
-            '回應不是 JSON（可能被導去登入頁，session 沒建立）：'
-            '轉址紀錄 =%s；內容 =%s'
-            % ([r.status_code for r in resp.history], resp.text[:300]),
-        )
+            'application/json', self._why_not_json(resp, _sid))
         # Sprint 116 plus 後:graceful 400(非 500、非 200 silent success)
         self.assertEqual(
             resp.status_code, 400,
@@ -392,3 +416,106 @@ class TestRouteRegistration(TransactionCase):
         for cls in docs:
             self.assertTrue(issubclass(cls, DocControllerBase),
                             '%s 沒有繼承共用守衛' % cls.__name__)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor', 'security')
+class TestHttpRoutesAlwaysReturnJson(HttpCase):
+    """`type='http'` 但回 JSON 的路由，**不可能**回 HTML。
+
+    ☠️ 這是 2026-10-09 追那一則偶發失敗時挖出來的真缺陷：
+    `type='http'` 的路由拋出未處理例外時 Odoo 回的是 HTML 錯誤頁，而前端用
+    `resp.json()` 解析 → SyntaxError → OWL 吞成 console 一行 → 使用者看到
+    「按了沒反應」。
+
+    而這兩支的 try/except 都沒包到開頭：
+        upload_template   `_require_document()` 在 try 之前（4 行）
+        import_document   取檔案、驗副檔名與 engine 都在 try 之前（11 行）
+
+    也就是「文件不存在」「沒有寫入權限」「副檔名不支援」這些**正常的錯誤
+    路徑**全部回 HTML。json_http_route 把它們一律變成 JSON。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.authenticate('admin', 'admin')
+
+    def _ct(self, resp):
+        return (resp.headers.get('Content-Type') or '').split(';')[0]
+
+    def test_upload_template_missing_doc_returns_json_not_html(self):
+        """文件 id 不存在 → 以前是 HTML 錯誤頁（MissingError 在 try 之外）。"""
+        resp = self.url_open(
+            '/dobtor_doc/upload_template',
+            data={'doc_id': '999999999'},
+            files={'docx_file': ('x.docx', b'PK\x03\x04', 'application/octet-stream')},
+        )
+        self.assertEqual(self._ct(resp), 'application/json',
+                         '回了非 JSON：%s' % resp.text[:200])
+        self.assertFalse(json.loads(resp.content).get('success'))
+
+    def test_upload_template_blank_doc_id_returns_json_not_html(self):
+        """doc_id 空 → _require_document 拋 UserError（也在 try 之外）。"""
+        resp = self.url_open(
+            '/dobtor_doc/upload_template',
+            data={'doc_id': ''},
+            files={'docx_file': ('x.docx', b'PK\x03\x04', 'application/octet-stream')},
+        )
+        self.assertEqual(self._ct(resp), 'application/json',
+                         '回了非 JSON：%s' % resp.text[:200])
+
+    def test_import_document_bad_extension_returns_json_not_html(self):
+        resp = self.opener.post(
+            '%s/dobtor_doc/import' % self.base_url(),
+            files={'file': ('x.exe', b'MZ', 'application/octet-stream')},
+        )
+        self.assertEqual(self._ct(resp), 'application/json',
+                         '回了非 JSON：%s' % resp.text[:200])
+
+    def test_every_json_http_route_has_the_decorator(self):
+        """新加的 type='http' 回 JSON 路由也要掛上——少掛是靜默的。
+
+        ☠️ 第一版這一則是查 `__wrapped__` 有沒有值，結果**移除 decorator 之後
+        它照樣綠**：`http.route` 自己就用 functools.wraps，所以 `__wrapped__`
+        本來就存在。查的是 Odoo 的包裝不是我的。
+        改成讀原始碼判斷——這一則要擋的是「有人加了新路由忘記掛」，用原始碼
+        判斷才對得上那個情境。
+        """
+        import ast
+        import os
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ctrl_dir = os.path.join(here, 'controllers')
+        missing = []
+        for name in sorted(os.listdir(ctrl_dir)):
+            if not name.endswith('.py') or name == '__init__.py':
+                continue
+            path = os.path.join(ctrl_dir, name)
+            with open(path, encoding='utf-8') as fh:
+                src = fh.read()
+            tree = ast.parse(src)
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.FunctionDef):
+                    continue
+                decs = node.decorator_list
+                is_http = any(
+                    isinstance(d, ast.Call)
+                    and getattr(d.func, 'attr', '') == 'route'
+                    and any(k.arg == 'type'
+                            and getattr(k.value, 'value', None) == 'http'
+                            for k in d.keywords)
+                    for d in decs)
+                if not is_http:
+                    continue
+                body = ast.get_source_segment(src, node) or ''
+                if 'application/json' not in body:
+                    continue       # 不回 JSON 的（檔案下載、HTML 頁）不在範圍
+                has = any(
+                    (isinstance(d, ast.Attribute) and d.attr == 'json_http_route')
+                    or (isinstance(d, ast.Name) and d.id == 'json_http_route')
+                    for d in decs)
+                if not has:
+                    missing.append('%s::%s' % (name, node.name))
+        self.assertFalse(
+            missing,
+            'type=\'http\' 且回 JSON 卻沒掛 json_http_route：%s\n'
+            '沒掛的話錯誤路徑會回 HTML 錯誤頁，前端 resp.json() 解析失敗 → '
+            '使用者看到「按了沒反應」' % missing)

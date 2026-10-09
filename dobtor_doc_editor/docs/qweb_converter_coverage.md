@@ -338,6 +338,38 @@ CI 若以多個 worker 跑，那一組測試就會真的執行。
 的那一次執行之後；檔案集合穩定下來之後 13 次連續全綠，另外 10 次專門重現
 也沒出現。
 
+### 找到的真缺陷：`type='http'` 路由會回 HTML
+
+追這個症狀（「回應不是 JSON」）時挖出一個**與偶發無關、一直存在**的缺陷：
+
+`type='http'` 的路由拋出未處理例外時，Odoo 回的是 **HTML 錯誤頁**。而前端那
+幾支都用 `resp.json()` 解析——拿到 HTML 會丟 SyntaxError，OWL 把它吞成
+console 的一行，使用者看到的是「按了沒反應」。
+
+而這兩支的 `try/except` 都**沒有包到開頭**：
+
+| 路由 | try 之前有幾行 | 那幾行會拋什麼 |
+|---|---|---|
+| `upload_template` | 4 | `_require_document()` → 文件不存在／沒有寫入權限 |
+| `import_document` | 11 | 取檔案、驗副檔名、驗 engine 白名單 |
+
+也就是**正常的錯誤路徑全部回 HTML**。實測確認（移掉 decorator 再跑）：
+`doc_id` 空或不存在時回的是 `<!doctype html>`——**與那一則偶發失敗看到的症狀
+一字不差**。
+
+修法是 `DocControllerBase.json_http_route`：包住那一類路由，任何漏出來的例外
+一律變成帶 `error` 的 JSON（UserError / MissingError / AccessError 給 400，
+其餘 500 並記 log）。四則測試，移掉 decorator 會全部變紅（驗過）。
+
+這**沒有**證明它就是那一次偶發的觸發點（那次的 `doc_id` 是有效的）。它的意義
+是：**從此「回應不是 JSON」不可能來自 handler**，只剩 auth 層一個來源。
+症狀從有歧義變成沒有歧義。
+
+⚠️ 寫那四則測試時第一版有一則是**假綠**：我查 `__wrapped__` 有沒有值，但
+`http.route` 自己就用 `functools.wraps`，所以移掉我的 decorator 之後它照樣綠
+——查的是 Odoo 的包裝不是我的。改成讀原始碼判斷「有 type='http' 且回 JSON
+卻沒掛 decorator」，這樣才對得上「有人加新路由忘記掛」那個情境。
+
 ### 做了什麼（不是遮蔽）
 
 1. **`setUp` 加 session 健康檢查**（`_assert_session_alive`）：打一次
@@ -349,7 +381,15 @@ CI 若以多個 worker 跑，那一組測試就會真的執行。
    這一則要測的是「multipart 檔名含 null byte 的處理」，不是「session 撐不撐
    得過整份測試」——後者若真的壞了，健康檢查會在它自己的斷言上說出來。
 
-改完之後連續 9 次全綠（1 + 8）。**那不證明根因消失了**，只證明沒有回歸。
+3. **失敗訊息自己帶診斷**：不是 JSON 時，訊息會印出轉址紀錄、session 在
+   store 裡還有沒有 `uid`、token 對不對得上，並明說「handler 不可能回非
+   JSON，所以是 auth 層導去登入頁」。下一次發生，一次就定位。
+
+改完之後**連續 34 次全綠**（1 + 8 + 25）。中間那 25 次是帶著證據蒐集跑的
+（每次都把回應、session uid、token 比對寫進檔案），26 筆紀錄全部 `ok=True`。
+
+**那不證明根因消失了**，只證明：在這個 rig 的條件下重現不出來。
+原始發生率是 14 次紅 1 次，34 次綠在統計上壓不下那個區間。
 
 ☠️ **CI 升 v3（阻擋式）的前提**：阻擋式 gate 配上偶發失敗等於訓練大家無視
 紅燈，比沒有 gate 更糟。backend workflow 停在 v2.5（PR 上跑但不擋）；

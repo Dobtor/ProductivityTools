@@ -46,6 +46,53 @@ _HEADING_STYLES = {
 
 class DocControllerBase:
 
+    # ─── type='http' 路由的 JSON 保證 ───────────────────────────────
+    #
+    # ☠️ `type='http'` 的路由拋出未處理例外時，Odoo 回的是**HTML 錯誤頁**，
+    # 不是 JSON。前端那幾支都用 `await resp.json()` 解析——拿到 HTML 會
+    # 丟 SyntaxError，而 OWL 把它吞成 console 的一行，使用者看到的是
+    # 「按了沒反應」。
+    #
+    # 實際存在的缺口（2026-10-09 稽核發現）：upload_template 與
+    # import_document 的 try/except 都**沒有包到開頭**——
+    #   upload_template：`_require_document()` 在 try 之前（4 行）
+    #   import_document：取檔案、驗副檔名與 engine 都在 try 之前（11 行）
+    # 也就是「文件不存在」「沒有寫入權限」「副檔名不支援」這些**正常的錯誤
+    # 路徑**全部回 HTML。
+    #
+    # 這個 decorator 讓那一類路由「不可能回非 JSON」：任何漏出來的例外都變成
+    # 一個帶 error 的 JSON。這也讓測試裡「回應不是 JSON」這個症狀只剩一個
+    # 可能的來源——auth 層把請求導去登入頁——不再有歧義。
+    @staticmethod
+    def json_http_route(func):
+        """包住 type='http' 但回 JSON 的路由，保證永遠回 JSON。"""
+        import functools
+        import json as _json
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                # UserError / MissingError / AccessError 都是「正常的錯誤路徑」，
+                # 給 400 與可讀訊息；其餘當 500 但仍然是 JSON。
+                from odoo.exceptions import AccessError, MissingError, UserError
+                expected = isinstance(e, (UserError, MissingError, AccessError))
+                if not expected:
+                    _log.exception('[doc] %s 未預期的例外', func.__name__)
+                message = str(getattr(e, 'args', None) and e.args[0] or e) \
+                    if expected else '伺服器錯誤，請稍後再試'
+                return request.make_response(
+                    _json.dumps({'success': False, 'error': message}),
+                    headers={'Content-Type': 'application/json'},
+                    status=400 if expected else 500,
+                )
+
+        return wrapper
+
     def _resolve_edit_target(self, doc_id=None, template_id=None, output_id=None,
                             access='read'):
         """回傳 (record, kind)；kind 為 'document' / 'template' / 'output'。
