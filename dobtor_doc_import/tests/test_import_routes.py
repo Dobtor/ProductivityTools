@@ -6,16 +6,24 @@
 
 共用的 session 健康檢查沿用核心的 mixin，不複製一份：
 `from odoo.addons.dobtor_doc_editor.tests.session_probe import SessionAliveMixin`
+
 ——☠️ 核心的 tests/ 是一個 Python 套件（有 __init__.py），所以跨模組 import
 得到；但這也意味著核心那支檔案是**公開介面**，改它要想到這裡。
 """
+import pathlib
 import io
 import json
+import os
+import shutil
+import tempfile
+
 from importlib.util import find_spec
 
 from odoo.tests.common import HttpCase, tagged
 
 from odoo.addons.dobtor_doc_editor.tests.session_probe import SessionAliveMixin
+
+from ..controllers import doc_import_controller
 
 # 選用套件：缺 python-docx 時匯入會走 LibreOffice，那幾則斷言的前提不成立。
 # ☠️ 原本是核心 tests/test_controllers.py 的模組層常數，搬測試時漏帶，
@@ -253,3 +261,102 @@ class TestHarnessRoutesRequireManager(SessionAliveMixin, HttpCase):
         self.assertIn('error', result)
         self.assertIn('fixture not found', result['error'],
                       '管理者被權限擋住了：%s' % result.get('error'))
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_import')
+class TestHarnessRoutesRejectTraversal(SessionAliveMixin, HttpCase):
+    r"""harness 兩條路由的 path traversal 守衛——**原本從沒被送過 payload**。
+
+    ☠️ 稽核尺 2（2026-10-09）抓到的形狀：`doc_import_controller.py` 的
+    `test_render()` 與 `test_data()` 都有正確的守衛
+    （`os.path.normpath()` ＋ `startswith(fixtures_root + os.sep)`），
+    而 `TestHarnessRoutesRequireManager` 的檔頭甚至**明寫**「路徑防護
+    （normpath + startswith）擋的是 traversal」——但整份測試裡沒有任何一則
+    真的送過 traversal payload。對照 `test_font_serve.py` 有 3 則專門測它。
+
+    ☠️☠️ 第一版 payload 是 `../../../../etc/passwd` 這種，全部**沒有 .docx
+    結尾**。實測把 traversal 守衛整個拿掉，測試**照樣全綠**——因為它們是被
+    第二道守衛（`endswith('.docx')`）擋下來的，從沒碰到 traversal 那一行。
+    那就是裝飾品。
+
+    所以這一版的 payload 必須同時滿足三件事，才真的壓到 traversal 守衛：
+      1. `.docx` 結尾 —— 否則被副檔名檢查擋掉
+      2. 逃出 fixtures root —— 否則本來就是合法路徑
+      3. 指向**真實存在**的檔案 —— 否則被 `os.path.isfile()` 擋掉
+
+    第 3 點是關鍵：測試自己在 fixtures root 之外建一份真的 .docx，再用
+    `os.path.relpath()` 算出到它的相對路徑。這樣「拿掉守衛 → 測試變紅」
+    才成立（已實測雙向）。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.authenticate('admin', 'admin')
+        module_dir = os.path.dirname(os.path.dirname(
+            os.path.abspath(doc_import_controller.__file__)))
+        self.fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
+
+        # ☠️ 探針檔必須是**合法的 .docx**。第一版寫了 b'MARKER' 幾個位元組，
+        #    結果 traversal 守衛拿掉之後 parser 解析失敗、路由照樣回
+        #    {'error': ...}，而我的斷言是「有 error 就算擋住」——測試分不出
+        #    「被擋住」與「讀到了但解析失敗」，所以拿掉守衛也全綠。
+        #    實測：換成真 fixture 的副本之後，無守衛時 test_data 回的是
+        #    {'elements': [...]}，守衛才被證明是承重的。
+        source = sorted(pathlib.Path(
+            self.fixtures_root, '01_simple').glob('*.docx'))[0]
+        fd, self.outside_docx = tempfile.mkstemp(
+            prefix='traversal_probe_', suffix='.docx')
+        os.close(fd)
+        shutil.copyfile(source, self.outside_docx)
+        self.addCleanup(os.unlink, self.outside_docx)
+        self.escape = os.path.relpath(self.outside_docx, self.fixtures_root)
+
+    def _payloads(self):
+        """每個都必須被拒絕；註解寫它想做什麼。"""
+        return [
+            (self.escape, '相對路徑爬出 fixtures/ 到一份合法的 .docx'),
+            (os.path.join('01_simple', '..', self.escape),
+             '先進合法目錄再往上爬'),
+            (self.outside_docx, '絕對路徑（os.path.join 遇絕對路徑會丟掉前綴）'),
+        ]
+
+    def test_test_data_rejects_traversal(self):
+        """`test_data`（type='json'）不可以回出 fixtures/ 之外的檔案。
+
+        斷言在 `elements` 上，不在 `error` 上——`error` 也可能來自解析失敗。
+        """
+        for payload, why in self._payloads():
+            result = self.make_jsonrpc_request(
+                '/dobtor_doc_editor/test_data', {'fixture': payload})
+            self.assertIsInstance(result, dict, '%s：回應不是 dict' % why)
+            self.assertNotIn(
+                'elements', result,
+                '%s（payload=%r）竟然回出了 elements——traversal 守衛沒擋住，'
+                '而且那份檔案在 fixtures/ 之外。' % (why, payload))
+            self.assertEqual(
+                result.get('error'), 'invalid fixture path',
+                '%s（payload=%r）被擋下來了，但不是 traversal 守衛擋的'
+                '（error=%r）。那代表這一則沒有驗到它要驗的東西。'
+                % (why, payload, result.get('error')))
+
+    def test_test_render_rejects_traversal(self):
+        """`test_render`（type='http'）不可以渲染 fixtures/ 之外的檔案。
+
+        ☠️ 斷言必須是「400 ＋ invalid fixture path」，不能只寫「不是 200」：
+        實測把守衛拿掉之後它回 **500**（樣板渲染失敗），而 500 也滿足
+        「不是 200」——那個斷言兩邊都成立，等於沒驗。
+        """
+        from urllib.parse import quote
+        for payload, why in self._payloads():
+            resp = self._url_open_live(
+                '/dobtor_doc_editor/test?fixture=%s' % quote(payload, safe=''),
+                where='traversal:%s' % payload)
+            self.assertEqual(
+                resp.status_code, 400,
+                '%s（payload=%r）的回應是 %s，不是 traversal 守衛的 400。'
+                '內容前 200 字：%r'
+                % (why, payload, resp.status_code, (resp.text or '')[:200]))
+            self.assertIn(
+                'invalid fixture path', resp.text or '',
+                '%s（payload=%r）回了 400 但不是 traversal 守衛擋的。'
+                % (why, payload))

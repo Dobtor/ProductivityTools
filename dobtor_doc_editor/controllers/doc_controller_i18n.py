@@ -19,6 +19,7 @@ from odoo.http import request
 from ..models.doc_ins_syntax import _convert_ins_to_jinja  # noqa: F401（import 區塊整份照抄，見檔頭）
 from ..models.doc_zip_guard import (
     assert_input_size,
+    assert_text_size,
     inspect_zip_safe,
     ZipBombError,
 )
@@ -91,6 +92,8 @@ class DocI18nController(DocControllerBase, http.Controller):
                 methods=['POST'])
     def i18n_import(self, doc_id=None, template_id=None, csv_content=None, **kw):
         """CSV → 回填翻譯。"""
+        # ☠️ 稽核尺 2：原本把 csv_content 原封不動丟下去，沒有任何上限。
+        assert_text_size(csv_content, 'csv_content')
         target, _kind = self._resolve_edit_target(
             doc_id, template_id, access='write',
         )

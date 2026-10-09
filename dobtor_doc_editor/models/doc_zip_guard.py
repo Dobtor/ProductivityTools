@@ -40,6 +40,44 @@ class ZipBombError(UserError):
     pass
 
 
+def assert_text_size(text, label, max_bytes=DEFAULT_INPUT_MAX_BYTES):
+    r"""檢查使用者送上來的**文字**欄位大小。
+
+    ☠️ 2026-10-09 的輸入邊界盤點（稽核尺 2）抓到的不一致：
+    `upload_template` 用 `assert_input_size()` 擋檔案、`telemetry_*` 明確截斷
+    訊息長度，但 `/dobtor_doc/save` 的四個內容欄位
+    （content_html / content_json / header_html / footer_html）與
+    `/dobtor_doc/i18n/import` 的 csv_content **完全沒有上限**
+    ——而前者是文件內容的主要寫入路徑。
+
+    上限刻意沿用 `DEFAULT_INPUT_MAX_BYTES`（50MB）而不另訂一個數字：
+    `content_html` 可能內嵌 base64 圖片，所以不能訂得緊；重點是「有界」，
+    不是「訂多少」。訂太緊會打斷合理用例，那比沒有上限更糟。
+
+    用 UTF-8 的**位元組數**而不是字元數：中文一個字 3 bytes，用字元數會讓
+    實際記憶體用量是估計值的三倍。
+
+    Args:
+        text: str | None — 使用者送上來的文字
+        label: str — 欄位名稱（會出現在錯誤訊息裡，讓使用者知道是哪一欄）
+        max_bytes: int — 允許上限
+
+    Raises:
+        UserError: 超過上限（訊息可讀；這條路由的慣例是 UserError → 400）
+    """
+    if not text:
+        return
+    size = len(text.encode('utf-8', errors='ignore'))
+    if size > max_bytes:
+        raise UserError(_(
+            "%(label)s 過大（%(size).1f MB），上限為 %(limit).1f MB。"
+        ) % {
+            'label': label,
+            'size': size / (1024 * 1024),
+            'limit': max_bytes / (1024 * 1024),
+        })
+
+
 def assert_input_size(
     raw_bytes,
     max_bytes=DEFAULT_INPUT_MAX_BYTES,

@@ -22,6 +22,7 @@ from odoo.http import request
 from ..models.doc_ins_syntax import _convert_ins_to_jinja
 from ..models.doc_zip_guard import (
     assert_input_size,
+    assert_text_size,
     inspect_zip_safe,
     ZipBombError,
 )
@@ -116,6 +117,19 @@ class DocEditorController(DocControllerBase, http.Controller):
                 2. 自動 reload 拿最新內容
                 3. 把使用者編輯的內容存到 IndexedDB 暫存（offline_manager）
         """
+        # ☠️ 2026-10-09 的輸入邊界盤點（稽核尺 2）：這四個欄位原本**完全沒有
+        #    大小上限**，而這是文件內容的主要寫入路徑。同一個模組的
+        #    upload_template 有 assert_input_size()、telemetry_* 有明確截斷
+        #    ——漏的就是最大的這一條。
+        #    上限沿用 50MB（content_html 可能內嵌 base64 圖片，不能訂緊）；
+        #    重點是「有界」，不是「訂多少」。
+        for _label, _value in (
+            ('content_html', content_html),
+            ('content_json', content_json),
+            ('header_html', header_html),
+            ('footer_html', footer_html),
+        ):
+            assert_text_size(_value, _label)
         if not doc_id and not template_id:
             return {'success': False, 'error': 'doc_id 或 template_id required'}
         doc, kind = self._resolve_edit_target(doc_id, template_id, access='write')
