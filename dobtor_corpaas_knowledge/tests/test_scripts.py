@@ -166,6 +166,16 @@ class TestScripts(TransactionCase):
         self.assertEqual([s['xmlid'] for s in res['skipped']], ['prog', 'child', 'child_archive'])
         self.assertTrue(self.env.ref('__doc_scenario_t3.ok'))
 
+    def test_seed_script_never_creates_second_company(self):
+        n = self.env['res.company'].search_count([])
+        src = scripts.seed_script('__doc_scenario_t6', [
+            {'xmlid': 'company_rename', 'model': 'res.company', 'values': {'name': '另一家'}}],
+            [], 'pw-123456').replace('env.cr.commit()', 'pass')
+        exec(compile(src, '<seed>', 'exec'), {'env': self.env, 'print': lambda *a: None})
+        self.assertEqual(self.env['res.company'].search_count([]), n, '不建第二家公司')
+        from ..models.catalog import seed_contract_errors
+        self.assertTrue(seed_contract_errors([{'xmlid': 'c2', 'model': 'res.company', 'values': {}}]))
+
     def test_seed_errors_fatal_only_when_many(self):
         from ..models.sandbox import seed_errors_fatal
         self.assertFalse(seed_errors_fatal({'done': 154, 'errors': [{}] * 7}), '少數幾筆照常用')

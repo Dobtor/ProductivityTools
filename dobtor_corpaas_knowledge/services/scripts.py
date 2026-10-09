@@ -606,7 +606,13 @@ def seed_script(module, records, roles, password):
         "    if rec.get('ref'):\n"
         "        out.add(rec['ref'])\n"
         "    return {_full(x) for x in out}\n"
+        # 不建第二家公司（記錄規則只看目前公司，單據會變成存取錯誤）：只准改 base.main_company
         "for rec in RECORDS:\n"
+        "    if rec.get('model') == 'res.company' and not rec.get('call') and \\\n"
+        "            _full(rec.get('xmlid') or '') != 'base.main_company':\n"
+        "        gone.add(_full(rec.get('xmlid') or ''))\n"
+        "        skipped.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model')})\n"
+        "        continue\n"
         "    if rec.get('model') not in env.registry or (_refs(rec) & gone):\n"
         "        gone.add(_full(rec.get('xmlid') or ''))\n"
         "        skipped.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model')})\n"

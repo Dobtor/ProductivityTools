@@ -71,6 +71,9 @@ def seed_contract_errors(records):
             errs.append('%s：缺 model' % r['xmlid'])
         if r.get('model') == 'product.template':
             errs.append('%s：產品請建 product.product，不要建 product.template' % r['xmlid'])
+        if r.get('model') == 'res.company' and r['xmlid'] != 'base.main_company':
+            # ☠️ 實機：AI 想改公司名卻用了新 xmlid，多出一家公司，記錄規則把單據擋成存取錯誤
+            errs.append('%s：不要新建公司，改名請用 xmlid base.main_company' % r['xmlid'])
         if 'state' in (r.get('values') or {}):
             errs.append('%s：不要直接寫 state，用動作步驟推進' % r['xmlid'])
     return errs
