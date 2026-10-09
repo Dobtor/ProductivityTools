@@ -120,7 +120,18 @@ class DocTemplateController(DocControllerBase, http.Controller):
         model = request.env['ir.model'].browse(int(model_id)).exists()
         if not model:
             raise UserError('找不到該模型。')
-        if model.transient or model.abstract:
+        # ☠️ **同一個缺陷的第二個實例**。`ir.model` 在 Odoo 18 有 `transient`
+        #    但沒有 `abstract` 欄位，所以 `model.abstract` 丟
+        #    `AttributeError: 'ir.model' object has no attribute 'abstract'`
+        #    ——這條路由（設定適用模型）在 production 也是壞的。
+        #
+        #    2026-10-09 稽核尺 3 修了 `list_models` 的 domain 版本，但**只修了
+        #    那一個實例、沒有去 grep 同一類**。這一處是優化 3 補路由測試時
+        #    才掉出來的。找到一個缺陷時要搜同一類，不是只修手上這個。
+        #
+        #    抽象模型只能在 Python 端用 `_abstract` 判。
+        target_model = request.env.get(model.model)
+        if model.transient or target_model is None or target_model._abstract:
             raise UserError('精靈與抽象模型沒有記錄可指，不能當適用模型。')
         request.env[model.model].check_access('read')
         record.model_id = model.id

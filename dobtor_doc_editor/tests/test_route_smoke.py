@@ -36,7 +36,7 @@ ImportError / AttributeError，而沒有任何東西會紅。
 import ast
 import os
 
-from odoo.tests.common import HttpCase, tagged
+from odoo.tests.common import HttpCase, TransactionCase, tagged
 
 from .session_probe import SessionAliveMixin
 
@@ -79,32 +79,25 @@ def _declared_routes():
 
 #: 2026-10-09 量到「完全沒有驗證」的 22 條（無 Python 測試、tour 也沒走到）。
 #: 每補一條行為測試就從這裡拿掉一條——這份清單縮短的速度就是進度。
-_UNVERIFIED = {
-    # ☠️ 這份清單由 `tests/scripts/audit_route_coverage.py` **量出來**，
-    #    不是手寫的。它的判準是「路徑在 tests/ 的 .py 裡出現過（排除本清單
-    #    自己與 tests/scripts/ 的工具），或 tour 的 werkzeug 日誌打到過」。
-    #
-    #    判準為什麼只認路徑、不認方法名：`/dobtor_doc/models` 有一則「測試」
-    #    只斷言 `hasattr(DocTemplateController, 'list_models')`，而那條路由
-    #    **一直是壞的**。方法名出現 ≠ 行為被驗。
-    #
-    #    2026-10-09 校正前這份清單是 22 條，而且兩個方向都錯：
-    #      - 漏列 save_version / set_model / 兩條 portal /my/documents
-    #      - 多列 export（當時以為沒驗，其實也沒驗——是**稽核腳本自己的
-    #        docstring 提到它**讓它看起來被驗了，而腳本就放在 tests/ 底下）
-    #    後者是今天同一個形狀的第三次：宣告某物有問題的那份文字，本身成了
-    #    它沒問題的證據。
-    '/dobtor_doc/aliases/save',
-    '/dobtor_doc/fill_template',
-    '/dobtor_doc/preview/<int:doc_id>',
-    '/dobtor_doc/preview_content_json',
-    '/dobtor_doc/save_settings',
-    '/dobtor_doc/set_model',
-    '/dobtor_doc/template_aliases/save',
-    '/dobtor_doc/template_preview',
-    '/my/documents/<int:doc_id>',
-    '/my/documents/page/<int:page>',
-}
+_UNVERIFIED = set()        # ← 2026-10-09：**清到 0 了**
+#: ☠️ 這份清單曾經是 25 條（`make audit` 的路由覆蓋尺量出來的：核心 36 條
+#:    路由裡 25 條完全沒有任何驗證，而 tour 只打到 5 條）。
+#:
+#:    優化 3 分四批補完：版本面板 5 條、範本欄位 6 條＋匯出、i18n 5 條、
+#:    剩下的 10 條（含 3 條回 HTML 頁面的）。
+#:
+#:    **清空不代表這些路由被驗得很好**——它代表「每一條都至少有一則真的呼叫
+#:    它並檢查結果的測試」。那是地板，不是天花板。
+#:
+#:    補的過程掉出一個真缺陷：`set_edit_target_model` 用了
+#:    `ir.model.abstract`（Odoo 18 沒有這個欄位）→ AttributeError，
+#:    那條路由在 production 一直是壞的。**同一個缺陷在 list_models 上兩輪前
+#:    就修過了，而我當時只修了手上那個實例、沒有 grep 同一類。**
+#:    `TestNoReferencesToMissingIrModelFields` 就是為此而加——它擋整類。
+#:
+#:    下次新增路由時這份清單會被 `test_route_inventory_is_complete` 與
+#:    `test_unverified_list_only_shrinks` 盯著：新路由沒有測試就要加進來，
+#:    加進來之後有了測試就要拿掉。
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
@@ -275,3 +268,64 @@ class TestListModelsBehaviour(SessionAliveMixin, HttpCase):
         self.assertTrue(
             any(r['model'] == 'res.partner' for r in result),
             'query=res.partner 竟然沒回出 res.partner：%r' % result[:5])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestNoReferencesToMissingIrModelFields(TransactionCase):
+    r"""不可以引用 `ir.model` 上不存在的欄位——擋**整類**缺陷。
+
+    ☠️ 這一支的由來：`ir.model` 在 Odoo 18 有 `transient` 但**沒有 `abstract`
+    欄位**，而本模組在**兩個地方**都用了它：
+
+        list_models           domain 寫 ('abstract', '=', False)
+                              → ValueError，選模型的選單一直不能用
+        set_edit_target_model `model.abstract`
+                              → AttributeError，設定適用模型一直不能用
+
+    第一個在稽核尺 3 修掉了。第二個是**兩輪之後**補路由測試時才掉出來的
+    ——因為我當時只修了手上那個實例，沒有去 grep 同一類。
+
+    所以這一支不盯特定路由，它掃**整個模組的原始碼**有沒有引用 `ir.model`
+    上不存在的欄位。判準用執行期的 registry（`self.env['ir.model']._fields`），
+    不是寫死的名單——Odoo 版本間欄位會變，寫死的名單自己就會過期。
+    """
+
+    #: 常被誤用的名字 → 正確做法
+    SUSPECT_FIELDS = {
+        'abstract': "ir.model 沒有這個欄位；抽象模型要用 env[model]._abstract 判",
+    }
+
+    def test_no_source_references_a_missing_ir_model_field(self):
+        """原始碼不可以出現 `ir.model` 上不存在的欄位名。"""
+        import os
+        import re
+        ir_model_fields = set(self.env['ir.model']._fields)
+        bad = []
+        for sub in ('models', 'controllers', 'wizards'):
+            base = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), sub)
+            if not os.path.isdir(base):
+                continue
+            for dirpath, _d, files in os.walk(base):
+                for f in sorted(files):
+                    if not f.endswith('.py'):
+                        continue
+                    path = os.path.join(dirpath, f)
+                    with open(path, encoding='utf-8') as fh:
+                        lines = fh.read().split('\n')
+                    for no, line in enumerate(lines, 1):
+                        stripped = line.strip()
+                        if stripped.startswith('#'):
+                            continue        # 註解裡提到它是在解釋這個坑
+                        for name, why in self.SUSPECT_FIELDS.items():
+                            if name in ir_model_fields:
+                                continue    # 這個 Odoo 版本真的有，不用擋
+                            if re.search(r"""(\.%s\b|['"]%s['"])""" % (name, name),
+                                         stripped):
+                                bad.append('%s/%s:%d  %s\n         → %s'
+                                           % (sub, f, no, stripped[:90], why))
+        self.assertFalse(
+            bad,
+            '下列地方引用了 `ir.model` 上不存在的欄位：\n  %s\n'
+            '——這一類缺陷的症狀是 ValueError／AttributeError，'
+            '而且只有在那條路由真的被呼叫時才會出現。' % '\n  '.join(bad))

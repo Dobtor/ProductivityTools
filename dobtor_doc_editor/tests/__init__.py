@@ -34,3 +34,4 @@ from . import test_acl_shapes  # 刻意的 ACL 形狀（可做 3）
 from . import test_route_versions  # 版本面板 5 條路由（優化 3 第一批）
 from . import test_route_template_fields  # 範本欄位 6 條＋匯出（優化 3 第二批）
 from . import test_route_i18n  # i18n 5 條路由（優化 3 第三批）
+from . import test_route_remaining  # 最後 10 條路由（優化 3 第四批）
