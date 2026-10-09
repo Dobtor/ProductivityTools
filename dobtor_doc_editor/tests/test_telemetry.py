@@ -210,8 +210,9 @@ class TestExportLog(TransactionCase):
     （`cron_health_check_no_alias` → `_cron_health_check_no_alias`）。
     這是紀律 13 的「半死測試」更糟的版本：不是測試沒人跑，是**production
     程式碼每天在無人看管的情況下跑，而沒有任何東西證明它還能跑**。
-    （2026-10-09 稽核發現；觸發點是 static CI 第一次真的執行就紅在檢查本身，
-    於是把「寫好了但從沒執行過」當成一條線索查全模組。）
+    （2026-10-09 稽核發現。觸發點是當時試做的 static CI 第一次真的執行就紅在
+    檢查本身——CI 後來撤掉了（ADR-028），但「寫好了但從沒執行過」這條線索
+    留下來，拿去查全模組就查到這裡。）
     """
 
     def setUp(self):

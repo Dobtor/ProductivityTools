@@ -247,7 +247,13 @@ docs/<descriptive>                # 例：docs/sprint-5-decision-report
 
 ## 6. CI 建議（GitHub Actions）
 
-`.github/workflows/fixture-regression.yml`（建議草案）：
+> ⚠️ **已取消（2026-10-09）**：本專案決定不做 GitHub Actions CI，見
+> **ADR-028**（ADR 本文留著撤回前量到的三個前提，下次有人想重做時該先看）。
+> 下面這段草案保留備查，**不要照它建立 workflow**。靜態檢查目前靠
+> `make ci-all`（含 `test-js`），測試與 tour 靠 `make test-local` /
+> `test-local-tour`——都靠人跑。
+
+`.github/workflows/fixture-regression.yml`（建議草案，**不執行**）：
 
 ```yaml
 name: Fixture Regression

@@ -194,7 +194,6 @@
 | **doc_editor 四層** | `doc_editor_{shared,shell,io,pills,templateui}.js` ＋ 809 行組合點（ADR-026）|
 | **render 六層** | `models/render/{tree,sandbox,fields,i18n,snapshot,output}.py` ＋ 39 行組合點（ADR-026）|
 | **選適用模型** | 編輯器左欄在沒有 `model_id` 時的就地選單（`/dobtor_doc/models` + `/dobtor_doc/set_model`）|
-| **CI 兩層** | static 擋 PR、backend 夜間不擋（ADR-028）|
 | **附頁適用範圍** | `append_record_policy`：always（預設，不問記錄）／opt_out／opt_in |
 | **`run_tour_tests.sh`** | 容器內跑瀏覽器 tour；開頭自檢 chromium 與 websocket-client，被跳過時 exit 2（skipped 不能當成過）|
 | **`record_export()` 的 savepoint** | 吞掉例外不等於擋住失敗：DB 層錯誤會讓整筆交易 aborted，呼叫端後續的 `ir.attachment.create` 跟著炸。try/except 只接得住 Python 例外 |
@@ -202,11 +201,11 @@
 | **`json_http_route`** | `type='http'` 但回 JSON 的路由的保證：任何漏出來的例外都變成 JSON（400 可讀訊息 / 500 帶可追代碼）。擋的是 Odoo 把例外渲成 HTML 錯誤頁 |
 | **可追代碼（ref）** | 500 那一路的 8 碼 id，同時進 log 與回應訊息。內容不能給使用者（洩 traceback），指標可以 |
 | **`isSessionExpiredResponse()`** | 前端辨識「session 逾時」：Odoo 對它是 303 轉址到 `/web/login`，fetch 跟過去拿到登入頁 HTML + status 200，不是 4xx |
-| **`test_shared_pure.mjs`** | JS 純函式單測（node，無瀏覽器）。靠 `doc_editor_shared.js` 零相依 → 讀檔 → data: URL 動態 import。掛在 static CI |
+| **`test_shared_pure.mjs`** | JS 純函式單測（node，無瀏覽器）。靠 `doc_editor_shared.js` 零相依 → 讀檔 → data: URL 動態 import。`make test-js` |
 | **`run_local_rig.sh`** | host 端入口：`docker exec` 進本機兩容器 rig 跑**全部**測試（`test` / `tour` / `all`）。容器名與連線參數可用環境變數覆寫 |
-| **CI gate v1 dispatch** | workflow_dispatch 手動觸發、Sprint 114 落地 font_serve 12 test 進 CI | Sprint 114 |
-| **CI gate v2 nightly** | schedule cron 每晚自動跑。⚠️ **還沒成立**：GitHub 的 schedule 只從**預設分支**讀 workflow，而本 repo 預設分支 `master` 是 2018 年的殘根（只有 Readme.md）。要改 repo 設定把預設分支指到 dev-18.0 才會開始 | 卡在 repo 設定 |
-| **CI gate v3 push / PR** | push / PR 阻擋式 gate、v2 跑穩 3 次後升級；最終 enforce 形式 | Sprint 114（規劃中）|
+| **CI gate v1 dispatch** | ~~workflow_dispatch 手動觸發~~ **已取消（2026-10-09）**：本 repo 不做 GitHub Actions，見 ADR-028 | 取消 |
+| **CI gate v2 nightly** | ~~schedule cron 每晚自動跑~~ **已取消（2026-10-09）**，同上 | 取消 |
+| **CI gate v3 push / PR** | ~~push / PR 阻擋式 gate~~ **已取消（2026-10-09）**，同上 | 取消 |
 
 ---
 

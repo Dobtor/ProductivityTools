@@ -11,8 +11,9 @@
  * 改成讀檔 → data: URL 動態 import。檔案一旦新增相對 import 這招就會失效，
  * 那時應該修的是「shared 不該有 import」而不是這支測試。
  *
- * 跑法：node dobtor_doc_editor/tests/js/test_shared_pure.mjs
- * CI：dobtor_doc_editor_static.yml（擋 PR）
+ * 跑法：`make test-js`（或 `node tests/js/test_shared_pure.mjs`）。
+ * 也含在 `make ci-all` 裡。這個 repo **沒有** GitHub Actions，所以它靠人跑
+ * ——跑法寫在這裡與 Makefile 的 help，就這樣。
  */
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";

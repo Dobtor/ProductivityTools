@@ -37,7 +37,7 @@
 | **025** | **記錄這一側的三個約定方法（自備附頁、附頁開關、範本覆寫）＋「轉成列印範本」入口** | **2026-10-08** | **對照 report_extend_bf 的 `bf.extend`：綁定管不到的事交給記錄自己說；精靈的入口搬到報表與 qweb 範本上** |
 | **026** | **前後端都分層（render 六層、doc_editor 四層）** | **2026-10-08～09** | **拆的理由不是檔案太大，是每一層的不變量沒有地方可寫；驗證靠「成員逐一比對 + 程式碼行多重集」而不是靠測試** |
 | **027** | **HTML → content_json 只處理自己的子集，`noupdate` 資料靠 migration** | **2026-10-09** | **對任意 HTML 不可靠（需要瀏覽器端的 executeSetHTML），但對我們自己寫的 12 個標籤可靠；資料檔是 noupdate，改 XML 到不了既有庫** |
-| **028** | **CI 分兩層：靜態擋 PR、後端夜間不擋** | **2026-10-09** | **紀律 13 的 closure 第一步；靜態 10 秒內跑完且擋得住「模組載不進去」那幾類，後端要 clone Odoo 不適合擋在 PR 上** |
+| **028** | ~~CI 分兩層~~ **撤回：不做 GitHub Actions CI** | **2026-10-09** | 專案決定當天撤回；撤回前量到的三個前提留在 ADR 本文（schedule 只從預設分支讀、paths 要含 workflow 自己、第一次執行就紅在檢查自己）|
 
 ---
 
@@ -1650,40 +1650,47 @@ migration 只補「還沒有 `content_json` 的那幾張」，而且是照**使�
 
 ---
 
-## ADR-028：CI 分兩層——靜態擋 PR、後端夜間不擋
+## ADR-028：不做 GitHub Actions CI（2026-10-09 當天決定、當天撤回）
 
 **日期**：2026-10-09
-**狀態**：已實作
+**狀態**：**撤回**——workflow 已刪除，repo 不再有 `.github/`
 
-### 問題
+### 原本想解什麼
 
 紀律 13 自己寫著「test 寫好 + tag 對 + script 一鍵跑都不夠，**沒人定期跑＝
-半 dead test**」。而 586 則測試到 2026-10-09 之前只在有人手動跑的時候跑，
-repo 連 `.github/workflows` 都沒有。
+半 dead test**」。586 則測試在那之前只在有人手動跑時跑，repo 連
+`.github/workflows` 都沒有。做了兩支 workflow：static（push/PR 擋）與
+backend（夜間不擋）。
 
-### 決定
+### 為什麼撤回
 
-| workflow | 觸發 | 跑什麼 | 擋不擋 |
-|---|---|---|---|
-| `dobtor_doc_editor_static` | push / PR | XML well-formed、manifest literal、flake8 E9/F63/F7/F82、每支 JS `node --check`、assets 與 tests 註冊完整性 | **擋** |
-| `dobtor_doc_editor_backend` | 夜間 + 手動 | clone Odoo 18 shallow + postgres service，跑全部測試 | 不擋 |
+撤回是專案決定（2026-10-09），不是技術失敗。但實作過程量到的三件事值得留著
+——它們是**下次有人想重做時該先知道的前提**：
 
-分兩層的理由：靜態那層 10 秒內跑完、不需要資料庫，而它擋得住會讓「整個模組
-載不進去」的那幾類（ParseError、未定義名稱）。後端那層要 clone Odoo、一次
-5-8 分鐘，擋在 PR 上會讓每個 PR 都等它，而它還沒跑穩過。
+1. **夜間根本不會跑。** GitHub 的 `schedule` 事件**只從 repo 的預設分支讀
+   workflow**。本 repo 預設分支是 `master`，而 `master` 是 2018-11-28 的單一
+   提交、內容只有 `Readme.md`（repo 走每版一支分支：10.0 / dev-10.0 /
+   dev-12.0 / dev-14.0 / dev-18.0，master 是遺棄的殘根）。
+   把 workflow cherry-pick 到 master 更糟：它會在一個沒有模組的樹上跑
+   `-i dobtor_doc_editor` → **每晚固定紅**。真正的前提是改 repo 的預設分支
+   設定，那不是程式碼能解的。
 
-後端 CI 可行的關鍵：這個模組的 `depends` 全部是核心 Odoo
-（`base`/`web`/`mail`/`html_editor`/`bus`/`portal`），原生報表整合測試用到的
-`sale`/`account`/`stock`/`purchase` 也都在核心 addons 裡——**不需要 checkout
-任何其他 repo**。
+2. **`paths` 篩選要把 workflow 檔自己列進去**，否則改了 gate 不會重跑 gate
+   ——gate 壞掉要等下次有人改模組才發現，而修好它的那個提交也推不動驗證。
 
-### 兩個刻意
+3. **第一次真的執行就紅在檢查自己。** static 寫好後隔了幾天才第一次真的跑
+   （因為沒推），紅的是「`test_*.py` 都必須在 `tests/__init__.py` 裡」這條
+   判準——純 helper 檔（零個類別）不該被 import。要用 AST 判斷有沒有
+   `ClassDef`。
+   ⚠️ 那次也暴露我自己的流程缺口：宣稱「本機跑過 CI」之前要把 workflow 的
+   steps 列出來**逐一對照**，不要憑記憶列（六步我只跑了五步，漏的正好是紅
+   掉那一步）。
 
-* **判定一定要擋「0 則測試」**：tag 打錯時 Odoo 回報
-  「0 failed, 0 error(s) of 0 tests」，不擋的話整份測試沒跑卻是綠的
-  ——本機 runner 踩過一次。
-* **不跑瀏覽器 tour**：它需要 chromium + websocket-client，而且在 arm64 與
-  單 worker 環境有一串血淚。tour 目前仍是本機 `run_local_rig.sh tour` 的責任。
+### 撤回後靜態檢查靠什麼
 
-升級路徑（詞彙表的 v1/v2/v3）：手動 → 夜間 → **連續三次全綠**之後把 backend
-的 `pull_request` 觸發取消註解。
+Makefile 的 `ci-frontend` / `ci-python` / `ci-xml` / `test-js`（`make ci-all`
+一次跑完）——這幾支 2026-06 就存在，是本機指令、沒有外部依賴。測試與 tour
+仍然是 `make test-local` / `test-local-tour` 的責任。
+
+**也就是說紀律 13 的那個缺口（沒人定期跑）在這個模組目前是敞著的，靠人跑。**
+這是已知且被接受的狀態，不是漏掉。

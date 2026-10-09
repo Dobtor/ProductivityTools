@@ -15,7 +15,7 @@ FIXTURE_DIR    ?= tests/fixtures
 # 預設執行 help
 .DEFAULT_GOAL := help
 
-.PHONY: help install build watch dev upgrade restart logs \
+.PHONY: help install build watch dev upgrade restart logs test-js \
         scan-ooxml fixtures-golden fixtures-compare visual-regression \
         test-backend test-backend-font test-backend-zip \
         test-local test-local-tour test-local-all \
@@ -110,7 +110,10 @@ test-local-tour: ## 本機 rig 跑瀏覽器 tour（另一個容器，前端唯�
 test-local-all: ## 本機 rig 跑 backend + tour（後端綠了才跑 tour）
 	bash tests/scripts/run_local_rig.sh all
 
-# ── CI 鏡像（在本地跑與 GitHub Actions 同樣的檢查） ──────────────────────────
+test-js: ## 純函式 JS 單測（node，不需要 Odoo 或瀏覽器，約 1 秒）
+	@set -e; for f in tests/js/*.mjs; do echo "── $$f"; node "$$f"; done
+
+# ── 本機靜態檢查（沒有 GitHub Actions，這幾支就是唯一的靜態關卡）─────────────
 
 ci-frontend: ## CI 前端 job: typecheck + vitest + build
 	npm run typecheck
@@ -129,7 +132,7 @@ ci-xml: ## CI XML job: 全 XML well-formed
 	@find . -name '*.xml' -not -path './node_modules/*' \
 	  -exec xmllint --noout {} \;
 
-ci-all: ci-frontend ci-python ci-xml ## 跑全部 CI job（不含 visual-regression）
+ci-all: ci-frontend ci-python ci-xml test-js ## 跑全部本機靜態檢查（不含 visual-regression）
 
 # ── 清理 ──────────────────────────────────────────────────────────────────────
 
