@@ -126,6 +126,24 @@ class TestControllerSecurityBoundary(HttpCase):
         })
         # 用 admin 模擬合法登入
         self.authenticate('admin', 'admin')
+        self._assert_session_alive('setUp')
+
+    def _assert_session_alive(self, where):
+        """確認 session 真的可用。
+
+        這一類測試打的是 auth='user' 的路由——session 沒建立時 Odoo 會把請求
+        導去 /web/login，回應變成 HTML 200。那時失敗會出現在「回應不是 JSON」
+        的斷言上，看起來像被測的路由壞了，其實是登入沒成立。
+        在這裡先判一次，失敗訊息就會直指原因。
+        """
+        resp = self.url_open(
+            '/web/session/get_session_info', data='{}',
+            headers={'Content-Type': 'application/json'})
+        ct = (resp.headers.get('Content-Type') or '').split(';')[0]
+        self.assertEqual(
+            ct, 'application/json',
+            'session 在 %s 時不可用（回應 %s / %s）——後面的失敗都是這個造成的，'
+            '不是被測路由的問題' % (where, resp.status_code, ct))
 
     # ── upload_template 邊界 ───────────────────────────────────────
 
@@ -167,6 +185,21 @@ class TestControllerSecurityBoundary(HttpCase):
         if not HAS_PYTHON_DOCX:
             self.skipTest('python-docx 未安裝（選用相依）')
         docx_bytes = _make_minimal_docx_bytes()
+        # ☠️ 這一則曾經偶發失敗（整份測試跑 14 次紅 1 次、單獨跑這個類別 6/6
+        # 綠；見 docs/qweb_converter_coverage.md §7.9）。症狀是回應不是 JSON，
+        # 也就是請求被導去登入頁。
+        #
+        # 查過但**排除**的原因：registry.clear_cache()（_compute_session_token
+        # 是 @ormcache('sid')，所以這是最像的嫌疑）——寫了一支探測測試連續清
+        # 五次再打請求，session 都還活著，所以不是它。根因沒找到。
+        #
+        # 這裡做的不是遮蔽：把「登入」縮到緊貼著「動作」之前，讓這一則只依賴
+        # 自己那一刻的狀態，而不依賴 setUp 到斷言之間整個 suite 的全域狀態。
+        # 這一則要測的是「multipart 檔名含 null byte 時的處理」，不是
+        # 「session 撐不撐得過整份測試」——後者若真的壞了，_assert_session_alive
+        # 會在它自己的斷言上說出來。
+        self.authenticate('admin', 'admin')
+        self._assert_session_alive('upload_template 請求前')
         resp = self.url_open(
             '/dobtor_doc/upload_template',
             data={'doc_id': str(self.doc.id)},
