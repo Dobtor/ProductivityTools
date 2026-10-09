@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Import',
-    'version': '18.0.1.2.0',
+    'version': '18.0.1.3.0',
     'summary': 'DOCX / ODT 匯入成 Dobtor 文件（含自寫 OOXML 管線）',
     'description': """
 Dobtor Doc Import
@@ -57,6 +57,10 @@ Dobtor Doc Import
         #    而 portal 沒有這條驗收通道。
         'web.assets_backend': [
             'dobtor_doc_import/static/src/lib/canvas_editor/canvas-editor-custom.umd.js',
+            # 把兩條匯入驗收通道 patch 進核心的 DocEditor。
+            # 必須在 bundle 之後（它用 window.DobtorCanvasEditor），不過 Odoo 的
+            # asset 走 define/require，順序其實無所謂——照相依序列著好讀。
+            'dobtor_doc_import/static/src/components/patch_doc_editor_import.js',
         ],
     },
     'installable': True,

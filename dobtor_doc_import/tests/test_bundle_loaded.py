@@ -41,6 +41,13 @@ class TestCustomBundleLoaded(HttpCase):
                             + typeof lib[name] + "）——bundle 版本不對");
                     }
                 }
+                // patch 也要真的生效——bundle 載了卻沒有消費者等於白載 425KB
+                const cmp = window._docEditorCmp;
+                if (cmp && typeof cmp.importViaBrowserParser !== "function") {
+                    throw new Error(
+                        "DocEditor 沒有 importViaBrowserParser——"
+                        + "patch_doc_editor_import.js 沒載入或 patch 失敗");
+                }
                 console.log("test successful");
             })();
             """,
