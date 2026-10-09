@@ -70,10 +70,22 @@ done
 
 # ── git-clean / git-pushed ────────────────────────────────────────────────
 if skipped git-clean; then skip git-clean "DONE_SKIP"; else
-    if [ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+    DIRTY=$(git -C "$REPO_ROOT" status --porcelain)
+    if [ -z "$DIRTY" ]; then
         ok git-clean
     else
-        bad git-clean "有 $(git -C "$REPO_ROOT" status --porcelain | wc -l | tr -d ' ') 個未提交的變更"
+        # ☠️ 要列出**是哪幾個檔案**，不是只說「有 N 個變更」。
+        #    2026-10-09 這條判準紅過一次而事後重现不出來，就是因為訊息
+        #    只印數量。闘門失敗時必須自己說出原因——這是本模組
+        #    今天在 session 探針上學到的同一件事。
+        #
+        #    也要知道：`make done` 自己會跑 `npm run build:all`
+        #    （artifacts-reproducible）。若那個建置**不是** reproducible，
+        #    這一輮的 artifacts-reproducible 會紅，而**下一輮的 git-clean
+        #    也會紅**。那不是 bug，是同一件事的兩個症狀。
+        bad git-clean "$(echo "$DIRTY" | wc -l | tr -d ' ') 個未提交的變更"
+        echo "$DIRTY" | head -10 | sed 's/^/        /'
+        [ "$(echo "$DIRTY" | wc -l)" -gt 10 ] && echo "        …（只列前 10 個）"
     fi
 fi
 
