@@ -111,6 +111,24 @@ class TestSandboxAndGate(TransactionCase):
         self.env.invalidate_all()
         self.assertFalse(order.exists(), '已確認的客戶訂單也要清掉')
 
+    def test_purge_sql_deletes_what_business_rules_block(self):
+        """業務規則不准刪的客戶記錄（unlink 一律報錯）：最後用 SQL 刪；被外鍵引用的留著。"""
+        from unittest.mock import patch
+        from odoo.exceptions import UserError
+        customer = self.env['res.partner'].create({'name': '已撥款的客戶'})
+        employee = self.env['res.users'].create({'name': '客戶員工', 'login': 'emp_x'})
+        Partner = type(self.env['res.partner'])
+
+        def blocked(self_):
+            raise UserError('不准刪')
+        src = scripts.purge_script(['res.partner']).replace('env.cr.commit()', 'pass')
+        printed = []
+        with patch.object(Partner, 'unlink', blocked):
+            exec(compile(src, '<purge>', 'exec'), {'env': self.env, 'print': printed.append})
+        self.env.invalidate_all()
+        self.assertFalse(customer.exists(), '業務規則擋住的也要清掉')
+        self.assertTrue(employee.partner_id.exists(), '被使用者引用的聯絡人留著（外鍵）')
+
     def test_purge_anonymizes_customer_users(self):
         user = self.env['res.users'].create({'name': '客戶員工王小明', 'login': 'wang_x'})
         customer = self.env['res.partner'].create({'name': '真實客戶'})
