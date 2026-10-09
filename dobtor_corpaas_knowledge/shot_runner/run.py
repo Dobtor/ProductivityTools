@@ -299,17 +299,23 @@ def _api_login(page, base, login_name, password):
 
     ☠️ 實機：社群電商方案把 /web/login 改成首頁的登入彈窗（/?popup=login），照登入頁填帳密
       從來沒登入成功，87 張全卡在「後台沒有載入」。API 登入不管登入畫面長什麼樣。"""
-    resp = page.request.post(base + '/web/session/authenticate', headers={
-        'Content-Type': 'application/json'}, data=json.dumps({
-            'jsonrpc': '2.0', 'method': 'call',
-            'params': {'db': _DB[0], 'login': login_name, 'password': password}}))
+    # ☠️ 不能用 page.request：它走 Node 端的網路，不吃瀏覽器的 --host-resolver-rules，
+    #   說明庫的 <庫名>.internal 解析不到（實機 ENOTFOUND）。先開同源的小頁，再在頁面裡 fetch。
     try:
-        data = resp.json()
-    except Exception:  # noqa: BLE001
-        data = {}
+        page.goto(base + '/robots.txt')
+        data = page.evaluate('''async (p) => {
+            const r = await fetch('/web/session/authenticate', {method: 'POST',
+                headers: {'Content-Type': 'application/json'}, credentials: 'include',
+                body: JSON.stringify({jsonrpc: '2.0', method: 'call', params: p})});
+            try { return await r.json(); } catch (e) { return {status: r.status}; }
+        }''', {'db': _DB[0], 'login': login_name, 'password': password})
+    except Exception as e:  # noqa: BLE001 — 連不上說明庫＝執行環境的錯，不是腳本的錯
+        raise RuntimeError('%s（登入時連不上說明庫：%s）：%s' % (
+            BACKEND_DOWN, str(e).splitlines()[0][:160], _backend_diag(page)))
+    data = data or {}
     if data.get('error') or not (data.get('result') or {}).get('uid'):
         raise RuntimeError('登入失敗：%s' % str((data.get('error') or {}).get('data', {})
-                                                .get('message') or resp.status)[:200])
+                                                .get('message') or data.get('status'))[:200])
 
 
 def login(page, base, login_name, password, frontend=False):
