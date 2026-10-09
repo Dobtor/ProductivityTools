@@ -14,6 +14,8 @@ from importlib.util import find_spec
 
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 
+from .session_probe import SessionAliveMixin
+
 # python-docx 是選用相依（見 __manifest__.py 的說明）：核心功能不需要它，
 # 但本檔有三則測試要用它產生合法的 DOCX bytes。沒裝就跳過那三則，
 # 不要讓整個測試類別因為一個選用套件而失敗。
@@ -107,7 +109,7 @@ def _make_minimal_docx_bytes():
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor', 'security')
-class TestControllerSecurityBoundary(HttpCase):
+class TestControllerSecurityBoundary(SessionAliveMixin, HttpCase):
     """Sprint 115 — doc_controller.py 邊界安全測試（紀律 #5 + #11 + #15 廣域應用）。
 
     補完 Sprint 68 font_serve security boundary 同等模式，覆蓋:
@@ -128,23 +130,6 @@ class TestControllerSecurityBoundary(HttpCase):
         # 用 admin 模擬合法登入
         self.authenticate('admin', 'admin')
         self._assert_session_alive('setUp')
-
-    def _assert_session_alive(self, where):
-        """確認 session 真的可用。
-
-        這一類測試打的是 auth='user' 的路由——session 沒建立時 Odoo 會把請求
-        導去 /web/login，回應變成 HTML 200。那時失敗會出現在「回應不是 JSON」
-        的斷言上，看起來像被測的路由壞了，其實是登入沒成立。
-        在這裡先判一次，失敗訊息就會直指原因。
-        """
-        resp = self.url_open(
-            '/web/session/get_session_info', data='{}',
-            headers={'Content-Type': 'application/json'})
-        ct = (resp.headers.get('Content-Type') or '').split(';')[0]
-        self.assertEqual(
-            ct, 'application/json',
-            'session 在 %s 時不可用（回應 %s / %s）——後面的失敗都是這個造成的，'
-            '不是被測路由的問題' % (where, resp.status_code, ct))
 
     def _why_not_json(self, resp, sid):
         """失敗訊息要能一次定位，不要只說「不是 JSON」。
@@ -420,7 +405,7 @@ class TestRouteRegistration(TransactionCase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor', 'security')
-class TestHttpRoutesAlwaysReturnJson(HttpCase):
+class TestHttpRoutesAlwaysReturnJson(SessionAliveMixin, HttpCase):
     """`type='http'` 但回 JSON 的路由，**不可能**回 HTML。
 
     ☠️ 這一類缺陷在這個模組發生過一次：2026-06-29（0ef991b）使用者上傳 DOCX
@@ -442,6 +427,7 @@ class TestHttpRoutesAlwaysReturnJson(HttpCase):
     def setUp(self):
         super().setUp()
         self.authenticate('admin', 'admin')
+        self._assert_session_alive('setUp')
 
     def _ct(self, resp):
         return (resp.headers.get('Content-Type') or '').split(';')[0]

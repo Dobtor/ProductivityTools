@@ -326,6 +326,38 @@ CI 若以多個 worker 跑，那一組測試就會真的執行。
 請求由同一個行程的另一條執行緒服務，而測試本身握著 cursor。同一個原因讓附頁
 的端到端測試在 `--workers=0` 下直接死結（§7.5）。
 
+### 第二次發生：換了一支測試（2026-10-09 當天稍晚）
+
+驗證 ADR-031 的變更時，整份測試出現 **1 failed + 1 error of 590**，落在
+`TestTelemetryRoutes.test_metric_with_real_doc_id_is_linked`——**不是**先前那一支
+（`TestControllerSecurityBoundary.test_upload_template_null_byte_filename_rejected`），
+但形態相同：HttpCase ＋ `--workers=0` ＋ 需要 session 的路由。隨後**連跑三次全綠**。
+
+☠️ **那一次沒有留下任何證據**，因為早上加的 session 健康檢查只寫在
+`TestControllerSecurityBoundary` 裡，而這次偶發的類別沒有。這是「把診斷寫在
+某一個類別裡」的代價。
+
+修法（儀器，不是修這個偶發）：`tests/session_probe.py` 的 `SessionAliveMixin`，
+掛在**三個真的打 HTTP 路由**的類別上：
+
+| 類別 | 狀態 |
+|---|---|
+| `TestControllerSecurityBoundary` | 原本就有，改成用共用的 |
+| `TestHttpRoutesAlwaysReturnJson` | 新增 |
+| `TestTelemetryRoutes` | 新增（這次偶發的那一個） |
+
+`TestEditTargetResolution` **刻意不加**：它雖然是 HttpCase 且會登入，但它
+**直接呼叫 controller 方法**、不經路由，session 不是那裡的失效模式。
+
+檔名刻意不叫 `test_session_probe.py`——`tests/__init__.py` 的完整性檢查要求
+「有測試類別的檔案都要 import」，取 `test_` 前綴會讓那條檢查為它開例外
+（`test_pill_helpers.py` 已經讓 CI 誤判過一次）。
+
+**對發生率的認識要更新**：原本記的是「整份測試 14 次紅 1 次、單獨跑該類別
+6/6 綠」，而那是**對單一支測試**的觀察。現在知道至少有兩支會踩，所以那個比率
+是低估的——它是「某一支 HttpCase 測試在某一次整份執行中失敗」的機率，而不是
+某一支特定測試的機率。
+
 ### 查過什麼、排除了什麼（2026-10-09）
 
 | 嫌疑 | 結果 |

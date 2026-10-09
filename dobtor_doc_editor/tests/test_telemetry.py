@@ -6,6 +6,8 @@ from odoo import fields
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from .session_probe import SessionAliveMixin
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestErrorLog(TransactionCase):
@@ -129,7 +131,7 @@ class TestPerfMetric(TransactionCase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
-class TestTelemetryRoutes(HttpCase):
+class TestTelemetryRoutes(SessionAliveMixin, HttpCase):
     """兩條遙測路由的 HTTP 層行為。
 
     這組測試的由來：瀏覽器 tour 的 log 裡出現
@@ -145,6 +147,10 @@ class TestTelemetryRoutes(HttpCase):
     def setUp(self):
         super().setUp()
         self.authenticate('admin', 'admin')
+        # ☠️ 2026-10-09：這個類別偶發過一次（1 failed + 1 error，隨後連跑三次
+        # 全綠），而當時它沒有這道檢查，所以那一次的原因沒有留下任何證據。
+        # 見 tests/session_probe.py 的檔頭與 §7.9。
+        self._assert_session_alive('setUp')
         self.doc = self.env['doc.document'].sudo().create({
             'name': '遙測測試文件',
             'content_html': '<p>x</p>',
