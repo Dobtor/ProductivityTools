@@ -475,6 +475,39 @@ class TestHttpRoutesAlwaysReturnJson(SessionAliveMixin, HttpCase):
             with self.assertRaises(type(exc)):
                 fake.boom(exc)
 
+    def test_json_http_route_docstring_states_its_exceptions(self):
+        """`json_http_route` 的 docstring 必須寫出那兩個例外。
+
+        ☠️ 稽核尺 5 量到的：它原本只有一行「保證永遠回 JSON」，而函式體裡
+        兩個刻意的例外（HTTPException / SessionExpiredException）早就寫好了。
+        **標題行才是別人會讀到的東西**——照著「永遠回 JSON」寫前端的人不會去
+        寫 session 逾時那條分支，而那條分支真的會走到。
+
+        行為有 test_decorator_does_not_swallow_http_exceptions 守著；
+        這一則守的是**文字**。承諾比行為強，跟行為比承諾弱一樣會害人。
+        """
+        from odoo.addons.dobtor_doc_editor.controllers.doc_controller_base import (
+            DocControllerBase,
+        )
+        doc = DocControllerBase.json_http_route.__doc__ or ''
+        for term in ('HTTPException', 'SessionExpiredException'):
+            self.assertIn(
+                term, doc,
+                'json_http_route 的 docstring 沒有提到 %s——'
+                'decorator 會原樣拋出它，不寫在契約裡就是個比行為強的承諾。'
+                % term)
+        # ☠️ 只看**標題行**。第一版用整段 docstring 做 assertNotIn，結果撞到
+        #    docstring 自己解釋歷史時引用的那句舊承諾——守衛分不出「承諾」
+        #    與「引用舊承諾來說明它為什麼錯」。而真正會害人的就是標題行：
+        #    IDE 的提示、程式碼導覽、快速瀏覽看到的都是它。
+        headline = doc.strip().split('\n')[0]
+        for absolute in ('保證永遠', '永遠回 JSON', '一定回 JSON'):
+            self.assertNotIn(
+                absolute, headline,
+                'json_http_route 的 docstring **標題行**又變成無條件的承諾了'
+                '（%r）。那句話是錯的：HTTPException 與 '
+                'SessionExpiredException 會原樣往上拋。' % headline)
+
     def test_every_json_http_route_has_the_decorator(self):
         """新加的 type='http' 回 JSON 路由也要掛上——少掛是靜默的。
 

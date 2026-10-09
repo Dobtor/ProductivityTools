@@ -75,7 +75,25 @@ class DocControllerBase:
     # （見 doc_editor_shared.js 的 isSessionExpiredResponse）。
     @staticmethod
     def json_http_route(func):
-        """包住 type='http' 但回 JSON 的路由，保證永遠回 JSON。"""
+        """包住 type='http' 但回 JSON 的路由。
+
+        契約（**有兩個刻意的例外，不是「永遠」**）：
+          - UserError / MissingError / AccessError → 400 ＋ 可讀訊息（JSON）
+          - 其餘非預期例外              → 500 ＋ 8 碼追蹤代碼（JSON）
+          - **HTTPException**           → 原樣往上拋（handler 要的那個狀態碼）
+          - **SessionExpiredException** → 原樣往上拋（Odoo 會 303 轉址到
+            /web/login，前端靠認得出那個轉址來提示重新登入）
+
+        ☠️ 這段 docstring 原本只有一行「保證永遠回 JSON」——而函式體裡那兩個
+        例外早就寫好了（註解很完整）。問題是**標題行才是別人會讀到的東西**：
+        照著「永遠回 JSON」寫前端的人不會去寫 session 逾時那條分支。
+        2026-10-09 稽核尺 5（掃 docstring 裡的絕對語句）量到的。
+
+        行為本身由 `tests/test_controllers.py` 的
+        `test_decorator_does_not_swallow_http_exceptions` 守著；
+        這段文字由 `test_json_http_route_docstring_states_its_exceptions` 守著
+        ——兩邊都要，因為它們壞的方式不一樣。
+        """
         import functools
         import json as _json
         import logging as _logging
