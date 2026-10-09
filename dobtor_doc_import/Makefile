@@ -68,7 +68,13 @@ logs: ## 跟看 Odoo container 日誌
 # ── 靜態檢查 ─────────────────────────────────────────────────────────────────
 
 ci-python: ## flake8（擋載不進去的那幾類）+ manifest 是合法 literal
-	@FLAKE="--max-line-length=120 --extend-ignore=E501,W503 --select=E9,F63,F7,F82 controllers models wizards tests"; \
+	# ☠️ 2026-10-09：這一行原本照抄核心的 scope，含 `models`——但拆模組
+	#    （ADR-033）時 models/ 整個留在核心，本模組沒有那個目錄。
+	#    結果 flake8 每次都回 `models:0:1: E902 FileNotFoundError` 而退出 1，
+	#    `make ci-all` 從拆完到現在**沒有一次能過**。錯誤訊息很大聲，
+	#    只是沒人跑。另外補上 tools/（三支 fixture 產生器，從來沒被掃過）。
+	#    scope 與目錄是否同步，由 tests/test_static_checks_wiring.py 守。
+	@FLAKE="--max-line-length=120 --extend-ignore=E501,W503 --select=E9,F63,F7,F82 controllers wizards tests tools"; \
 	if python3 -m flake8 --version >/dev/null 2>&1; then \
 		python3 -m flake8 $$FLAKE; \
 	elif docker ps --format '{{.Names}}' | grep -qx "$(ODOO_CONTAINER)"; then \
@@ -78,7 +84,17 @@ ci-python: ## flake8（擋載不進去的那幾類）+ manifest 是合法 litera
 	fi
 	@python3 -c "import ast; ast.literal_eval(open('__manifest__.py').read())" && echo "✓ manifest literal"
 
-ci-all: ci-frontend ci-python ## 跑全部靜態檢查（不含 visual-regression）
+ci-xml: ## 全 XML well-formed（壞 XML ＝ 升級 ParseError ＝ 模組裝不起來）
+	# ☠️ 拆模組之後本模組有 3 支 XML（views/menu.xml、views/test_layout.xml、
+	#    wizards/doc_bulk_import_wizard_views.xml），但 ci-all 裡**完全沒有
+	#    XML 檢查**——核心有、本模組沒跟著帶過來。
+	#    寫法與核心同步（走 pipeline，不用 `find -exec … \;`：那個形式
+	#    find 的退出碼恆為 0，判決會被丟棄）。
+	@find . -name '*.xml' -not -path './node_modules/*' -print0 \
+	  | xargs -0 xmllint --noout
+	@echo "✓ XML well-formed（$$(find . -name '*.xml' -not -path './node_modules/*' | wc -l | tr -d ' ') 檔）"
+
+ci-all: ci-frontend ci-python ci-xml ## 跑全部靜態檢查（不含 visual-regression）
 
 
 # ── 清理 ──────────────────────────────────────────────────────────────────────
@@ -146,5 +162,5 @@ verify: ## 確認 build 鏈通電（type check + rollup build）
 	npm run build:frontend
 	@echo "→ bundle 產出檢查"
 	@test -f static/src/lib/canvas_editor/canvas-editor-custom.umd.js && \
-		echo "✓ bundle exists ($$(stat -c%s static/src/lib/canvas_editor/canvas-editor-custom.umd.js) bytes)" || \
+		echo "✓ bundle exists ($$(wc -c < static/src/lib/canvas_editor/canvas-editor-custom.umd.js | tr -d ' ') bytes)" || \
 		(echo "✗ bundle missing" && exit 1)

@@ -89,7 +89,9 @@ ci-python: ## 靜態檢查：flake8（擋載不進去的那幾類）+ manifest �
 	# ☠️ host 不一定裝得有 flake8（實測這台就沒有），所以**優先用容器裡的**
 	#    ——那也是測試真正跑的環境。host 有就用 host，兩邊都沒有才報錯。
 	#    scope 含 tests/：那批測試漏 import 或打錯名稱一樣會讓整批不執行。
-	@FLAKE="--max-line-length=120 --extend-ignore=E501,W503 --select=E9,F63,F7,F82 controllers models wizards tests"; \
+	#    scope 含 migrations/：migration 腳本語法錯 ＝ 升級當場炸，而且
+	#    production 只跑一次、沒有第二次機會。原本漏掉（2026-10-09 補）。
+	@FLAKE="--max-line-length=120 --extend-ignore=E501,W503 --select=E9,F63,F7,F82 controllers models wizards tests migrations"; \
 	if python3 -m flake8 --version >/dev/null 2>&1; then \
 		python3 -m flake8 $$FLAKE; \
 	elif docker ps --format '{{.Names}}' | grep -qx "$(ODOO_CONTAINER)"; then \
@@ -99,9 +101,19 @@ ci-python: ## 靜態檢查：flake8（擋載不進去的那幾類）+ manifest �
 	fi
 	@python3 -c "import ast; ast.literal_eval(open('__manifest__.py').read())" && echo "✓ manifest literal"
 
-ci-xml: ## CI XML job: 全 XML well-formed
-	@find . -name '*.xml' -not -path './node_modules/*' \
-	  -exec xmllint --noout {} \;
+ci-xml: ## 全 XML well-formed（壞 XML ＝ 升級 ParseError ＝ 模組裝不起來）
+	# ☠️ 原本寫 `find … -exec xmllint --noout {} \;`——**find 的退出碼不受
+	#    -exec 的結果影響，恆為 0**。所以壞掉的 XML 會把 parser error 印到
+	#    畫面上，然後 make 說過關。2026-10-09 實測：放一支壞 XML 進 views/，
+	#    ci-xml 與 ci-all 都回 0。
+	#    這是本模組反覆出現的那個失效模式的另一種形狀：檢查**執行了**，
+	#    但它的**判決被丟棄**。
+	#    改成 pipeline——xargs 的退出碼會傳出來（已實測：壞檔回 1、全好回 0、
+	#    空輸入回 0 不會卡）。
+	@find . -name '*.xml' -not -path './node_modules/*' -print0 \
+	  | xargs -0 xmllint --noout
+	# 過關也要出聲。原本全程靜默，正是「沒人發現它不會紅」的助力。
+	@echo "✓ XML well-formed（$$(find . -name '*.xml' -not -path './node_modules/*' | wc -l | tr -d ' ') 檔）"
 
 ci-all: ci-python ci-xml test-js ## 跑全部本機靜態檢查
 
