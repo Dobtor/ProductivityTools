@@ -4,7 +4,6 @@
 # Sprint 72：把分散的 Odoo test 跑命令統一為一個腳本、方便 user 與未來 CI 觸發。
 #
 # 涵蓋 tag：
-#   - font_serve（Sprint 64b/66/68/69 — /dobtor/fonts/* endpoint）
 #   - zip_guard（Sprint 20 W9-10 + Sprint 71 補測 — DOCX zip bomb 防護）
 #
 # 執行方式：
@@ -19,7 +18,7 @@
 set -euo pipefail
 
 # 預設跑所有 backend test tag、可用 --tag=<name> 縮 scope
-TAG="${1:-font_serve,zip_guard}"
+TAG="${1:-zip_guard}"
 TAG="${TAG#--tag=}"
 
 ODOO_DB="${ODOO_DB:-odoo18_dev}"

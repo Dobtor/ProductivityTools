@@ -1,1 +1,0 @@
-export { DrawingParser } from './DrawingParser';

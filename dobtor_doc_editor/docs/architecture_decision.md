@@ -38,6 +38,7 @@
 | **026** | **前後端都分層（render 六層、doc_editor 四層）** | **2026-10-08～09** | **拆的理由不是檔案太大，是每一層的不變量沒有地方可寫；驗證靠「成員逐一比對 + 程式碼行多重集」而不是靠測試** |
 | **027** | **HTML → content_json 只處理自己的子集，`noupdate` 資料靠 migration** | **2026-10-09** | **對任意 HTML 不可靠（需要瀏覽器端的 executeSetHTML），但對我們自己寫的 12 個標籤可靠；資料檔是 noupdate，改 XML 到不了既有庫** |
 | **028** | ~~CI 分兩層~~ **撤回：不做 GitHub Actions CI** | **2026-10-09** | 專案決定當天撤回；撤回前量到的三個前提留在 ADR 本文（schedule 只從預設分支讀、paths 要含 workflow 自己、第一次執行就紅在檢查自己）|
+| **029** | **移除未出貨的 TS OOXML 子系統** | **2026-10-09** | 76k 行測試＋33k 行原始碼＋82MB fixture 不產生 production 行為；回退 tag `doc-editor-before-ts-removal` |
 
 ---
 
@@ -1694,3 +1695,82 @@ Makefile 的 `ci-frontend` / `ci-python` / `ci-xml` / `test-js`（`make ci-all`
 
 **也就是說紀律 13 的那個缺口（沒人定期跑）在這個模組目前是敞著的，靠人跑。**
 這是已知且被接受的狀態，不是漏掉。
+
+---
+
+## ADR-029：移除未出貨的 TS OOXML 子系統
+
+**日期**：2026-10-09
+**狀態**：已實作（版本 `18.0.12.0.0`）
+**回退點**：`git tag doc-editor-before-ts-removal`
+
+### 問題
+
+第三輪稽核（§7.12）量到：模組裡有一整套自寫的 TS OOXML Parser 與它的測試、
+fixture、量測 harness，**比出貨的部分還大**，而它不產生任何 production 行為。
+
+| 未出貨 | 檔數 | 規模 |
+|---|---|---|
+| TS 原始碼 `static/src/core/**`、`components/doc_editor/Overlay*.ts` | 160 | 33,076 行 |
+| vitest `tests/unit` | 134 | 29,578 行 |
+| vitest `tests/integration` | 88 | 13,290 行 |
+| fixtures（352 docx + 126 png） | 478 | **82 MB** |
+| `scripts/` 量測 harness | 13 | 3,344 行 |
+| `tools/`（CLI entry + fixture 建置） | 5 | — |
+| rollup / tsconfig / vitest / package.json | 10 | — |
+| `font_serve.py` ＋ 12 則 Python 測試 | 2 | 371 行 |
+| 視覺回歸 harness（`test_layout.xml`、`test_harness.js`、2 條路由） | 3 | — |
+
+| 出貨 | 檔數 | 規模 |
+|---|---|---|
+| Python | 44 | 15,001 行 |
+| JS（manifest 有掛） | 29 | 12,035 行 |
+| Python 測試 | 23 | 9,588 行 |
+
+兩個產出都到不了使用者：
+
+* `canvas-editor-custom.umd.js`：git 有追蹤，但**manifest 沒掛**。模組載的是
+  上游 `canvas-editor.umd.min.js`（@hufe921 0.9.128）。除了產生它的 rollup
+  config，沒有任何地方引用。
+* `tools/dist/parse_docx_cli.cjs`：被 `.gitignore` 的 `dist/` 排除，**不進
+  git**。`engine=ts` 找不到它就記 warning 回 `None`。
+
+唯一的消費者 `importViaTsEngine()` 的 docstring 寫明是**驗收用途**
+（「chichi 在 DevTools 跑」），沒有 UI 入口。`/dobtor/fonts/*` 兩條路由的唯一
+消費者也是未出貨的 `font_loader.ts` 與 `ShapingFontChain.ts`。
+
+### 決定
+
+整批移除，不留孤兒。移除前逐項驗證「出貨的部分不依賴它」：
+
+* 出貨的 `.js` **沒有任何一支** import `.ts`（grep 0 筆）
+* `components/doc_editor/` 下那 14 支 `Overlay*.ts`，出貨的 JS 與 manifest **都沒提到**
+* 出貨的三個 lib bundle 都**沒有**打到 `/dobtor/fonts`（grep 0 筆）
+
+連帶處理：
+
+* `import_document` 的 `engine` 參數**保留但只有一種行為**——舊呼叫端送
+  `engine=ts` 不會壞，一律走 LibreOffice。
+* `_ts_parse_docx_to_elements()` 刪除，原處留一行註記指向回退 tag。
+* devtools 的 `/dobtor_doc_editor/test` 與 `test_data` 兩條路由刪除（fixtures
+  與 CLI 都沒了，它們必然回 error）。
+* Makefile 砍掉 `install` / `build` / `watch` / `dev` / `scan-ooxml` /
+  `fixtures-*` / `visual-regression` / `ci-frontend` / `verify` / `clean-deps`，
+  `ci-all` 收斂成 `ci-python + ci-xml + test-js`。
+* `run_backend_tests.sh` 預設 tag 從 `font_serve,zip_guard` 改成 `zip_guard`
+  ——不改的話那支會跑出「0 則測試」而看起來是綠的。
+
+### 代價（寫清楚，因為這是可逆但不便宜的）
+
+`engine=ts` 驗收通道消失。將來若要重做高保真 DOCX 匯入，得從
+`doc-editor-before-ts-removal` 把需要的部分取回：
+
+```bash
+git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/static/src/core/ooxml
+```
+
+### 驗證
+
+後端 **590 則 0 失敗**（原 602，減掉 font_serve 的 12 則）、tour **78/78**、
+manifest / flake8 / XML / `make test-js` 全過。模組在既有 DB 上 `-u` 升級成功
+（驗證 manifest 少掉 `views/test_layout.xml` 之後仍裝得起來）。

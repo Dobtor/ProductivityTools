@@ -45,7 +45,6 @@ from .doc_convert import (
     _w_run_to_html,
     _w_table_to_html,
     _odt_to_html,
-    _ts_parse_docx_to_elements,
     _lo_convert_to_html,
     _extract_page_margins,
     _lo_postprocess,

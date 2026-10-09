@@ -1,7 +1,7 @@
-"""遙測與測試夾具的路由。
+"""遙測路由（錯誤紀錄與效能指標）。
 
-test_render / test_data 是視覺回歸用的（views/test_layout.xml 以
-網址載入 static/src/.../test_harness.js）——不是死碼。
+原本還有視覺回歸用的 test_render / test_data，2026-10-09 連同整個未出貨的
+TS 子系統一起移除（見本檔中段的註記）。
 """
 import base64
 import io
@@ -48,7 +48,6 @@ from .doc_convert import (
     _w_run_to_html,
     _w_table_to_html,
     _odt_to_html,
-    _ts_parse_docx_to_elements,
     _lo_convert_to_html,
     _extract_page_margins,
     _lo_postprocess,
@@ -134,62 +133,10 @@ class DocDevtoolsController(DocControllerBase, http.Controller):
             _logger.warning("Failed to log telemetry metric: %s", e)
             return {'success': False}
 
-    @http.route('/dobtor_doc_editor/test', type='http', auth='user', methods=['GET'])
-    def test_render(self, fixture=None, **kw):
-        """渲染 fixture .docx 為 clean canvas-editor 頁面（無 Odoo header/sidebar）。
+    # `/dobtor_doc_editor/test` 與 `/dobtor_doc_editor/test_data` 原本在這裡
+    # ——視覺回歸 harness（views/test_layout.xml 以網址載入 test_harness.js，
+    # 讀 tests/fixtures/ 的 docx 經 TS CLI 轉成 IElement[] 再截圖比對）。
+    # 2026-10-09 連同整個未出貨的 TS 子系統一起移除：fixtures 與 TS CLI 都沒了，
+    # 這兩條必然回 error。要取回：
+    #   git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/<path>
 
-        Phase F 視覺回歸 pipeline 入口。puppeteer 對此 URL 截圖，
-        對比 tests/fixtures/<category>/golden/<fixture>-<page>.png。
-        """
-        if not fixture:
-            return request.make_response('missing ?fixture=<rel_path>', status=400)
-
-        # 安全：fixture 必須是 tests/fixtures/ 下的相對路徑、無 .. traversal
-        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
-        abs_path = os.path.normpath(os.path.join(fixtures_root, fixture))
-        if not abs_path.startswith(fixtures_root + os.sep):
-            return request.make_response('invalid fixture path', status=400)
-        if not abs_path.lower().endswith('.docx'):
-            return request.make_response('only .docx supported', status=400)
-        if not os.path.isfile(abs_path):
-            return request.make_response(f'fixture not found: {fixture}', status=404)
-
-        return request.render('dobtor_doc_editor.test_layout', {
-            'fixture_name': fixture,
-        })
-
-    @http.route('/dobtor_doc_editor/test_data', type='json', auth='user', methods=['POST'])
-    def test_data(self, fixture=None, float_textbox=False, anchored_image=False, **kw):
-        """回傳指定 fixture 的 IElement[]（Phase F test_harness.js 用）。
-
-        參數：
-            fixture:        tests/fixtures/ 下的相對路徑（如 '01_simple/xxx.docx'）
-            float_textbox:  Sprint Y58 opt-in 展平 wp:anchor + w:txbxContent 文字
-            anchored_image: Sprint Y58 opt-in 透傳 wp:anchor 屬性
-
-        回傳：{'elements': [...IElement...]} 或 {'error': str}
-        """
-        if not fixture:
-            return {'error': 'missing fixture parameter'}
-
-        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
-        abs_path = os.path.normpath(os.path.join(fixtures_root, fixture))
-        if not abs_path.startswith(fixtures_root + os.sep):
-            return {'error': 'invalid fixture path'}
-        if not abs_path.lower().endswith('.docx') or not os.path.isfile(abs_path):
-            return {'error': f'fixture not found: {fixture}'}
-
-        with open(abs_path, 'rb') as fp:
-            file_bytes = fp.read()
-
-        elements = _ts_parse_docx_to_elements(
-            file_bytes,
-            float_textbox=bool(float_textbox),
-            anchored_image=bool(anchored_image),
-        )
-        if elements is None:
-            return {'error': 'TS parser failed (CLI not built or runtime error)'}
-
-        return {'elements': elements, 'fixture': fixture}

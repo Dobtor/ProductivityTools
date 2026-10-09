@@ -48,7 +48,6 @@ from .doc_convert import (
     _w_run_to_html,
     _w_table_to_html,
     _odt_to_html,
-    _ts_parse_docx_to_elements,
     _lo_convert_to_html,
     _extract_page_margins,
     _lo_postprocess,
@@ -630,23 +629,15 @@ body {{
     @http.route('/dobtor_doc/import', type='http', auth='user', methods=['POST'], csrf=False)
     @DocControllerBase.json_http_route
     def import_document(self, **kw):
-        """匯入 DOCX / ODT 檔案。
+        """匯入 DOCX / ODT 檔案（LibreOffice → HTML）。
 
-        Engine 並行通道（Phase E）：
-            engine=libreoffice（預設）：傳統 LibreOffice → HTML 路徑（穩定）
-            engine=ts                 ：本模組 TS OOXML Parser → IElement[] 路徑
-                                        前端可直接餵給 canvas-editor 初始化（content_json）
-            engine=both               ：兩條都跑，回傳 html + elements + 比對 log
-                                        debug 模式：可快速肉眼比對 LibreOffice 與 TS 路徑差異
+        原本有 `engine=ts|both` 的並行通道（自寫 TS OOXML Parser → IElement[]），
+        2026-10-09 連同整個未出貨的 TS 子系統一起移除——它唯一的消費者是
+        DevTools 驗收用的 `importViaTsEngine()`，不產生 production 行為。
+        要取回：`git checkout doc-editor-before-ts-removal -- <path>`。
 
-        前端策略（doc_editor.js）：
-            - 優先使用 elements（如有），呼叫 editor.command.executeSetValue(elements)
-            - 否則 fallback 到 html（既有路徑）
-
-        ODT / 其他格式仍只能走 LibreOffice。
-
-        Args:
-            engine: 'libreoffice' / 'ts' / 'both'（從 form 或 query string 取）
+        `engine` 參數仍然接受但**只有 libreoffice 一種行為**：舊呼叫端送
+        `engine=ts` 不會壞，只是走 LibreOffice。回應仍帶 `engine` 欄位。
         """
         def _json_resp(data):
             return request.make_response(
@@ -661,33 +652,10 @@ body {{
         filename = upload.filename or ''
         ext = os.path.splitext(filename)[1].lower()
 
-        # 解析 engine 參數（form > query > 預設）
-        engine = (
-            request.httprequest.form.get('engine')
-            or request.httprequest.args.get('engine')
-            or 'libreoffice'
-        ).lower()
-        if engine not in ('libreoffice', 'ts', 'both'):
-            engine = 'libreoffice'
+        # engine 只剩一種實作（TS 通道已移除）。仍然讀這個參數是為了讓舊呼叫端
+        # 送 engine=ts 時不會壞——一律當 libreoffice 處理。
+        engine = 'libreoffice'
 
-        # ODT 不支援 TS 路徑（無 ODT parser），自動降級
-        if ext == '.odt' and engine in ('ts', 'both'):
-            engine = 'libreoffice'
-
-        # Sprint Y58：opt-in flag（form > query > 預設 false）。
-        # 預設值維持與 Sprint 358-359 後的行為一致 — 不啟用 floatTextBox 展平、
-        # 不透傳 wp:anchor 屬性。caller 想要時送 `float_textbox=1` / `anchored_image=1`。
-        def _truthy(val):
-            return str(val or '').strip().lower() in ('1', 'true', 'yes', 'on')
-
-        float_textbox = _truthy(
-            request.httprequest.form.get('float_textbox')
-            or request.httprequest.args.get('float_textbox')
-        )
-        anchored_image = _truthy(
-            request.httprequest.form.get('anchored_image')
-            or request.httprequest.args.get('anchored_image')
-        )
 
         try:
             file_bytes = upload.read()
@@ -706,27 +674,10 @@ body {{
 
             page_margins = None
             body_html = None
-            elements = None
-            audit = {}  # debug 比對資訊
+            audit = {}
 
-            # ── TS 路徑（engine=ts 或 both）──
-            if engine in ('ts', 'both') and ext == '.docx':
-                ts_elements = _ts_parse_docx_to_elements(
-                    file_bytes,
-                    float_textbox=float_textbox,
-                    anchored_image=anchored_image,
-                )
-                if ts_elements is not None:
-                    elements = ts_elements
-                    audit['ts_element_count'] = len(ts_elements)
-                else:
-                    audit['ts_failed'] = True
-                    if engine == 'ts':
-                        # 純 ts 模式失敗時自動 fallback libreoffice（避免使用者卡住）
-                        engine = 'libreoffice'
-
-            # ── LibreOffice 路徑（engine=libreoffice 或 both）──
-            if engine in ('libreoffice', 'both'):
+            # ── LibreOffice 路徑（唯一一條）──
+            if True:
                 if ext in ('.docx', '.odt'):
                     lo_result = _lo_convert_to_html(file_bytes, ext)
                     if lo_result is not None:
@@ -751,17 +702,11 @@ body {{
             resp = {'engine': engine}
             if body_html is not None:
                 resp['html'] = body_html
-            if elements is not None:
-                resp['elements'] = elements
             if page_margins:
                 resp['margins'] = page_margins
-            if engine == 'both':
-                resp['audit'] = audit
-
-            # 至少要有一條路徑成功
-            if body_html is None and elements is None:
+            if body_html is None:
                 return _json_resp({
-                    'error': 'TS 與 LibreOffice 皆無法轉換此檔案',
+                    'error': 'LibreOffice 無法轉換此檔案',
                     'audit': audit,
                 })
 

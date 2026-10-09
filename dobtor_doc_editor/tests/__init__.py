@@ -8,7 +8,6 @@ from . import test_optimistic_lock
 from . import test_telemetry
 from . import test_bulk_import
 from . import test_template_autofill
-from . import test_font_serve  # Sprint 66 — Sprint 64b font_serve backend tests
 from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/field
 from . import test_template_edit  # Phase 1（藥丸改版）— 範本可直接編輯
 # 藥丸管線：按被測的那一層分（對齊 models/render/ 六層）

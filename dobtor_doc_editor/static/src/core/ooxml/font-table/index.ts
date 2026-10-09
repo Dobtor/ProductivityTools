@@ -1,1 +1,0 @@
-export { FontTableParser } from './FontTableParser';
