@@ -22,6 +22,18 @@
 #   MAX_ERRORS        允許的錯誤 fixture 數（預設 0）
 #   ODOO_URL / ODOO_DB / ODOO_LOGIN / ODOO_PASSWORD（傳給 compare_fixtures.cjs）
 #   PHASE_F_BASELINE  設為 1 時不做 threshold 判定（純基線蒐集）
+#
+# ☠️ **這些閥門不是驗收門檻**（2026-10-09 稽核階段 7）
+#
+#   主規畫書 §2.2 要求「pixelmatch 對 LibreOffice headless 差異率 **<2%**」。
+#   而這裡的預設是 MEAN 5% / WORST 10%，比需求鬆 2.5 倍以上；
+#   v14 pipeline 的 --max-diff 預設更是 0.5（50%），鬆 25 倍。
+#
+#   這些值的用途是「**不要退步**」——擋的是今天比昨天爛。
+#   把它們當成驗收門檻會得出「VR 綠了所以符合需求」這個錯誤結論，
+#   而實測 per-page mean 是 7.89%，距 §2.2 差約 4 倍。
+#
+#   逐條對照見 dobtor_doc_editor/docs/REQUIREMENTS_CONFORMANCE.md。
 
 set -euo pipefail
 

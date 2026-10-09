@@ -10,8 +10,19 @@
 >   兩條通道**都真的能跑**了，有測試與 tour 守著
 > * 但兩條都還是**驗收通道**，使用者按「匯入」走的仍是 LibreOffice ＋
 >   canvas-editor 的 docx plugin。要升為預設需要先有 A/B 保真度數據。
-> * ⚠️ **§5 的勾選只代表「當時量到的狀態」**：VR baseline 自 2026-10-09 起
->   沒有重跑過，取回程式碼 ≠ 回到當時的保真度。
+> * ⚠️ **§5 的勾選只代表「當時量到的狀態」**：取回程式碼 ≠ 回到當時的保真度。
+>
+> **2026-10-09 當日補量（這一行是量測紀錄，不是計畫變更）**：VR 已重跑兩次，
+> 42/42 fixtures、126 頁、0 failedPages，per-page mean **0.078924**
+> （對照 2026-05-25 的 Linux baseline 0.073191；差異是環境的，取回的 TS／
+> fixture／golden 與 tag byte-identical）。
+>
+> ☠️ **與 §2.2 的落差要講明**：§2.2 要求「pixelmatch 對 LibreOffice headless
+> 差異率 **<2%**」，實測 per-page mean 是 **7.89%**；而實際在用的閘門是
+> `MEAN_THRESHOLD=5%` / `WORST_THRESHOLD=10%` / v14 的 `maxDiff=0.5`
+> ——**閘門比需求鬆 2.5 到 25 倍**。那些閘門是「不要退步」的工作門檻，
+> 不是 §2.2 的驗收門檻，兩者不可混為一談。詳見
+> `docs/REQUIREMENTS_CONFORMANCE.md`。
 
 
 **目標等級**：對標 **OnlyOffice / Google Docs** 的 docx 匯入還原度（95%+ 真實文件無跑版）

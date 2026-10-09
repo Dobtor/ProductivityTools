@@ -33,6 +33,12 @@
  *   tests/fixtures/<cat>/golden/<basename>-N_v14_diff.png（diff PNG）
  *   tests/fixtures/.visual_regression_tmp/v14/report.json（預設；已被 .gitignore）
  *   要更新 git 裡的基準：--report-out tests/fixtures/visual_regression_v14_report.json
+ *
+ * ☠️ **--max-diff 的預設 0.5（50%）不是驗收門檻**（2026-10-09 稽核階段 7）。
+ *   主規畫書 §2.2 要求 pixelmatch 差異率 **<2%**，所以這個預設鬆了 25 倍。
+ *   它的用途是「跑得完、不要退步」，不是「達到需求」。
+ *   實測 per-page mean 7.89%。逐條對照見
+ *   dobtor_doc_editor/docs/REQUIREMENTS_CONFORMANCE.md。
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
