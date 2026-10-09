@@ -69,19 +69,31 @@ class MeetingRecord(models.Model):
         users |= self.attendee_ids.mapped('user_ids')
         return users
 
-    def _doc_render_context(self):
-        """填到 dobtor_doc_editor.template_meeting_record 的 Jinja 變數。"""
-        self.ensure_one()
-        return {
-            'subject': self.name or '',
-            'meeting_date': self.meeting_date.strftime('%Y-%m-%d') if self.meeting_date else '',
-            'location': self.location or '',
-            'chairperson': self.chairperson_id.name or '',
-            'recorder': self.recorder_id.name or '',
-            'attendees': self.attendee_ids.mapped('name'),
-            'project_name': self.project_id.name or '',
-        }
 ```
+
+> ### ⚠️ 欄位值怎麼進文件：用藥丸，不要用 context dict
+>
+> 這份文件原本在這裡示範 `_doc_render_context()` 回一個 dict、範本用
+> `{{ subject }}` 取值。**那個機制從來沒有生效**——`_render_template()` 只以
+> `object=record` 與 `user` 求值，那個 dict 根本沒被餵進渲染器。實測把出貨
+> 範本 render 一張出來，靠它填的格子就是空的。方法已於 2026-10-09 刪除。
+>
+> 正確做法：
+>
+> 1. 範本設**適用模型**（`model_id`）＝ 你的業務模型
+> 2. 在編輯器左欄把欄位拖進文件 → 取值藥丸（`source='record'`）
+> 3. 明細表用重複列（`source='repeat'` ＋ `source='line'`）
+> 4. 要組合或計算的值：加 `compute` 欄位，或在模型上實作
+>    `doc_report_values()` 回一個 dict，範本裡用 `data.<鍵>`（ADR-025）
+>
+> 藥丸會過型別格式表（date 走語言格式、monetary 帶幣別、selection 印標籤）、
+> 跟著渲染語言、可以條件化、可以逐筆重複。context dict 一個都做不到。
+>
+> ⚠️ `dobtor_doc_editor_chienyi` 目前還有 6 個模型覆寫 `_doc_render_context()`
+>（meeting_record / review_application / reservation_self_inspection /
+> general_self_inspection / payment_estimate / supervision_defect）。
+> 它們都沒有呼叫 `super()`，所以不會壞——但那 6 支已經是死碼，要在那個 repo
+> 清掉並改成上面的做法。
 
 ### 2.2 後台 form view 加開啟按鈕
 
@@ -145,16 +157,10 @@ class GeneralSelfInspection(models.Model):
         """檢查人員 + 承包商代表全部加為協作者。"""
         return (self.inspector_id | self.contractor_company_id.user_ids)
 
-    def _doc_render_context(self):
-        self.ensure_one()
-        return {
-            'project_name': self.project_id.name or '',
-            'inspection_date': self.inspection_date.strftime('%Y-%m-%d') if self.inspection_date else '',
-            'inspection_type': self.inspection_type_id.name or '',
-            'timing': dict(self._fields['timing'].selection).get(self.timing, ''),
-            'inspector': self.inspector_id.name or '',
-            'contractor': self.contractor_company_id.name or '',
-        }
+    # 欄位值不要在這裡組 dict（見 §2.1 的框）。
+    # project_name / inspection_date / inspector / contractor 都是欄位路徑，
+    # 直接在編輯器裡拖成取值藥丸就好——而且 date 會自動走語言格式、
+    # timing 這種 selection 會自動印標籤，不必自己 dict(...).get()。
 ```
 
 ### 3.2 與既有 QWeb 報表並存

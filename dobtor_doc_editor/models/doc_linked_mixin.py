@@ -14,20 +14,22 @@
         meeting_date = fields.Date()
         attendees = fields.Many2many('res.partner')
 
-        # 覆寫 mixin method 提供樣板選擇與 context
+        # 覆寫 mixin method 提供樣板選擇與協作者
         def _doc_default_template_xml_id(self):
             return 'dobtor_doc_editor.template_meeting_record'
 
         def _doc_collaborators(self):
             return self.attendees.user_ids
 
-        def _doc_render_context(self):
-            self.ensure_one()
-            return {
-                'meeting_date': self.meeting_date.strftime('%Y-%m-%d'),
-                'attendees': self.attendees.mapped('name'),
-                'subject': self.name,
-            }
+欄位值怎麼進文件：**用藥丸，不要用 context dict**。
+    1. 範本設「適用模型」= construction.meeting.record
+    2. 在編輯器左欄把 meeting_date / name 這些欄位拖進去（取值藥丸）
+    3. 要組合或計算的值，加 compute 欄位，或在模型上實作
+       doc_report_values() 回一個 dict，範本裡用 data.<鍵>
+
+藥丸會過型別格式表（date 走語言格式、monetary 帶幣別）、跟著渲染語言、
+可以條件化。這些都是 Jinja context dict 做不到的——而且舊的
+_doc_render_context() 從來沒有被餵進渲染器，靠它填的格子一直是空的。
 
 設計原則：
     - 「pull-on-demand」：使用者點「開啟線上文件」才建立，避免一堆空文件
@@ -196,17 +198,23 @@ class DocLinkedMixin(models.AbstractModel):
         self.ensure_one()
         return self.env.user
 
-    def _doc_render_context(self):
-        """回傳 Jinja 填充用的 context dict。
-
-        繼承的 model 覆寫此方法把自己的欄位塞進去。
-        """
-        self.ensure_one()
-        return {
-            'record_id': self.id,
-            'record_model': self._name,
-            'record_name': self.display_name or '',
-        }
+    # ─── 刻意**沒有** _doc_render_context() ─────────────────────────
+    #
+    # 2026-10-09 刪掉。它的 docstring 寫著「回傳 Jinja 填充用的 context dict」，
+    # 但**從來沒有任何消費者**：_render_template() 只以 object=record 與
+    # user 求值，那個 dict 根本沒有被餵進去。實測把出貨範本 render 一張出來，
+    # 靠它填的那幾格就是空的。
+    #
+    # 正確做法是藥丸：給範本設「適用模型」，再用取值藥丸綁欄位路徑
+    #（source='record' / 'line'），複雜的計算走模型自己的 compute 欄位或
+    # doc_report_values()。藥丸會過型別格式表、跟著渲染語言、可以條件化，
+    # 這些 context dict 一個都做不到。
+    #
+    # ⚠️ dobtor_doc_editor_chienyi 還有 6 個模型覆寫這支方法
+    #（meeting_record / review_application / reservation_self_inspection /
+    #  general_self_inspection / payment_estimate / supervision_defect）。
+    # 它們都**沒有呼叫 super()**，所以刪掉這裡不會讓它們壞掉——但那 6 支
+    # 現在是該模組裡的死碼，要在那個 repo 清掉並改成藥丸。
 
     def _doc_initial_name(self):
         """新建立的文件名稱。"""

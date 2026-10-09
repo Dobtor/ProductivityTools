@@ -27,16 +27,33 @@ class TestDocLinkedMixin(TransactionCase):
         self.assertIn('linked_doc_count', self.Mixin._fields)
 
     def test_mixin_provides_hook_methods(self):
-        """繼承的 model 必有以下 hook：_doc_default_template_xml_id /
-        _doc_collaborators / _doc_render_context / _doc_initial_name。"""
+        """繼承的 model 必有以下 hook。"""
         for hook in (
             '_doc_default_template_xml_id',
             '_doc_collaborators',
-            '_doc_render_context',
             '_doc_initial_name',
+            # 報表那一側的三個約定方法（ADR-025）
+            'doc_report_append_enabled',
+            'doc_report_append_pdfs',
+            'doc_report_template',
         ):
             self.assertTrue(hasattr(self.Mixin, hook),
                             f"mixin 缺少 hook method: {hook}")
+
+    def test_render_context_hook_is_gone_for_good(self):
+        """_doc_render_context() 已刪除（2026-10-09）——不要再加回來。
+
+        它的 docstring 寫著「回傳 Jinja 填充用的 context dict」，但**從來沒有
+        消費者**：_render_template() 只以 object=record 與 user 求值。實測把
+        出貨範本 render 一張出來，靠它填的那幾格就是空的。
+
+        要把欄位值帶進文件請用藥丸（範本設適用模型 → 取值藥丸），複雜的值用
+        compute 欄位或 doc_report_values()。這一則擋的是「看到 mixin 少一個
+        hook 就順手補回去」。
+        """
+        self.assertFalse(
+            hasattr(self.Mixin, '_doc_render_context'),
+            '_doc_render_context 又回來了——它沒有消費者，請改用藥丸')
 
     def test_doc_document_has_res_id_field(self):
         """W5-6 加的 res_id 欄位應存在於 doc.document。"""
