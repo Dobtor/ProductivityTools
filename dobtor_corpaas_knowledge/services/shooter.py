@@ -49,6 +49,8 @@ def run_shots(env, sandbox, shots, settings):
     port = settings.get('odoo_port') or 8069
     job = {
         'base_url': 'http://%s:%s' % (host, port),
+        # 登入走 /web/session/authenticate（方案可能把登入頁改成彈出視窗）：要庫名
+        'db': sandbox.db_name,
         # 把 <庫名>.internal 映射到母體容器名；docker 內建 DNS 會解析容器名。
         'resolver_rule': 'MAP %s %s' % (host, instance.odoo_container),
         'width': 1440, 'height': 900, 'scale': 2,

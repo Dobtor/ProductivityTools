@@ -384,6 +384,35 @@ class TestRound3(TransactionCase):
         self.assertTrue(str(err.exception).startswith(ns['BACKEND_DOWN']))
         self.assertIn('94愛分享', str(err.exception))
 
+        # 有庫名：走 /web/session/authenticate（登入頁被改成彈窗也登得進去）
+        class Resp:
+            def __init__(self, uid):
+                self.uid, self.status = uid, 200
+
+            def json(self):
+                return {'result': {'uid': self.uid}}
+
+        class Req:
+            def __init__(self, uid):
+                self.uid, self.posts = uid, []
+
+            def post(self, url, headers=None, data=None):
+                self.posts.append((url, json.loads(data)['params']))
+                return Resp(self.uid)
+
+        ns['_DB'][0] = 'docsbx-p14-s6'
+        page = Page(backend_ok=True)
+        page.request = Req(2)
+        ns['login'](page, 'http://sb', 'doc_admin', 'pw')
+        self.assertEqual(page.request.posts[0][0], 'http://sb/web/session/authenticate')
+        self.assertEqual(page.request.posts[0][1]['db'], 'docsbx-p14-s6')
+        self.assertEqual(page.visited, ['http://sb/odoo'], '不開登入頁')
+        page = Page(backend_ok=True)
+        page.request = Req(False)
+        with self.assertRaises(RuntimeError) as err:
+            ns['login'](page, 'http://sb', 'doc_admin', 'bad')
+        self.assertIn('登入失敗', str(err.exception))
+
     def test_recorder_groups_and_lines(self):
         import os
         import sys

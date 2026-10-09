@@ -269,6 +269,8 @@ BACKEND_DOWN = '後台沒有載入'
 #: 這一頁的 console 錯誤與經過的網址（診斷後台為什麼沒載入）
 _CONSOLE = []
 _NAVS = []
+#: 說明庫的庫名（有就用 API 登入）
+_DB = [None]
 
 
 def _backend_diag(page):
@@ -292,8 +294,38 @@ def _is_backend(page):
         and not urlparse(page.url).path.startswith(('/web/login', '/web/signup'))
 
 
+def _api_login(page, base, login_name, password):
+    """用 /web/session/authenticate 登入（cookie 跟著瀏覽器內容走）。
+
+    ☠️ 實機：社群電商方案把 /web/login 改成首頁的登入彈窗（/?popup=login），照登入頁填帳密
+      從來沒登入成功，87 張全卡在「後台沒有載入」。API 登入不管登入畫面長什麼樣。"""
+    resp = page.request.post(base + '/web/session/authenticate', headers={
+        'Content-Type': 'application/json'}, data=json.dumps({
+            'jsonrpc': '2.0', 'method': 'call',
+            'params': {'db': _DB[0], 'login': login_name, 'password': password}}))
+    try:
+        data = resp.json()
+    except Exception:  # noqa: BLE001
+        data = {}
+    if data.get('error') or not (data.get('result') or {}).get('uid'):
+        raise RuntimeError('登入失敗：%s' % str((data.get('error') or {}).get('data', {})
+                                                .get('message') or resp.status)[:200])
+
+
 def login(page, base, login_name, password, frontend=False):
     """登入。frontend：前台頁的會員帳號（入口網站使用者進不了後台），登入後回網站首頁。"""
+    if _DB[0]:
+        _api_login(page, base, login_name, password)
+        if frontend:
+            return   # 前台頁的步驟自己開網址
+        page.goto(base + '/odoo')
+        try:
+            page.wait_for_selector('.o_action_manager', timeout=30000)
+        except Exception as e:  # noqa: BLE001
+            raise RuntimeError('%s（%s）：%s' % (BACKEND_DOWN, str(e).splitlines()[0][:120],
+                                               _backend_diag(page)))
+        _settle(page)
+        return
     page.goto(base + '/web/login')
     page.fill('input[name="login"]', login_name)
     page.fill('input[name="password"]', password)
@@ -548,6 +580,7 @@ def main():
     except Exception as e:  # noqa: BLE001
         result['cjk_fonts_error'] = str(e)[:300]
     base = job['base_url'].rstrip('/')
+    _DB[0] = job.get('db')
     args = ['--host-resolver-rules=%s' % job['resolver_rule']] if job.get('resolver_rule') else []
     down = 0
     with sync_playwright() as p:
