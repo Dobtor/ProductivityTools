@@ -61,12 +61,12 @@ echo "${RESULT_LINE}"
 if echo "${RESULT_LINE}" | grep -qE "^.*: 0 failed, 0 error\(s\) of [0-9]+ tests"; then
   TEST_COUNT=$(echo "${RESULT_LINE}" | grep -oE "of [0-9]+ tests" | grep -oE "[0-9]+")
   if [ "${TEST_COUNT:-0}" = "0" ]; then
-    echo "::warning::0 tests matched tag '${TAG}' — 確認 @tagged() 包含此 tag"
+    echo "⚠ 0 tests matched tag '${TAG}' — 確認 @tagged() 包含此 tag"
     exit 2
   fi
   echo "✓ All ${TEST_COUNT} tests passed"
   exit 0
 else
-  echo "::error::tests failed — 詳見 /tmp/dobtor_backend_tests.log"
+  echo "✗ tests failed — 詳見 /tmp/dobtor_backend_tests.log"
   exit 1
 fi

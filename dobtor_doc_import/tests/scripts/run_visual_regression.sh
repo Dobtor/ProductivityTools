@@ -43,12 +43,12 @@ echo "PHASE_F_BASELINE= ${PHASE_F_BASELINE}"
 echo ""
 
 if ! command -v node >/dev/null 2>&1; then
-    echo "::error::node not found in PATH" >&2
+    echo "✗ node not found in PATH" >&2
     exit 2
 fi
 
 if [ ! -f tests/scripts/compare_fixtures.cjs ]; then
-    echo "::error::tests/scripts/compare_fixtures.cjs missing" >&2
+    echo "✗ tests/scripts/compare_fixtures.cjs missing" >&2
     exit 2
 fi
 
@@ -58,7 +58,7 @@ node tests/scripts/compare_fixtures.cjs \
     "$@"
 
 if [ ! -f "$JSON_OUT" ]; then
-    echo "::error::compare_fixtures.cjs did not produce JSON output" >&2
+    echo "✗ compare_fixtures.cjs did not produce JSON output" >&2
     exit 2
 fi
 
@@ -101,16 +101,16 @@ failures = []
 #      檢查存在、但它的判決空洞。）
 if not results:
     msg = "compare_fixtures.cjs 回了 0 筆結果——這道閘門沒有量到任何東西"
-    print(f"::error::{msg}")
+    print(f"✗ {msg}")
     failures.append(msg)
 elif not ok:
     msg = f"{len(results)} 筆結果裡沒有任何一筆成功算出 meanDiff"
-    print(f"::error::{msg}")
+    print(f"✗ {msg}")
     failures.append(msg)
 
 if len(errors) > max_errors:
     msg = f"errors {len(errors)} > MAX_ERRORS {max_errors}"
-    print(f"::error::{msg}")
+    print(f"✗ {msg}")
     for r in errors[:5]:
         print(f"  - {r.get('fixture')}: {r.get('error')}")
     failures.append(msg)
@@ -126,15 +126,15 @@ if ok:
 
     if avg > mean_threshold:
         msg = f"average diff {avg*100:.2f}% > MEAN_THRESHOLD {mean_threshold*100:.0f}%"
-        print(f"::error::{msg}")
+        print(f"✗ {msg}")
         failures.append(msg)
     if worst > worst_threshold:
         msg = f"worst diff {worst*100:.2f}% > WORST_THRESHOLD {worst_threshold*100:.0f}% ({worst_fixture['fixture']})"
-        print(f"::error::{msg}")
+        print(f"✗ {msg}")
         failures.append(msg)
 
 if failures:
-    print(f"\n::error::Visual regression FAILED ({len(failures)} gate(s))")
+    print(f"\n✗ Visual regression FAILED ({len(failures)} gate(s))")
     sys.exit(1)
 
 print(f"\n✓ Visual regression PASSED")
