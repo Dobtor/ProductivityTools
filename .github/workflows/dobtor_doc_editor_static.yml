@@ -53,6 +53,17 @@ jobs:
             | xargs -0 -n1 node --check
           echo "✓ 全部 JS 語法正確"
 
+      - name: JS 純函式單測（node，無需瀏覽器）
+        # 這個模組沒有 hoot 基礎設施，而 web.assets_unit_tests 要瀏覽器 runner
+        # ——CI 刻意不跑瀏覽器。doc_editor_shared.js 零相依，node 可直接載入。
+        # 守的是使用者可見的錯誤訊息（session 逾時的辨識）。
+        run: |
+          set -e
+          for f in tests/js/*.mjs; do
+            echo "── $f"
+            node "$f"
+          done
+
       - name: 資產與測試註冊的完整性
         # 這兩類是**靜默**的：assets 少一支檔案不會報錯、只是那支不執行；
         # tests/__init__.py 漏 import 則那批測試根本沒跑而結果仍然全綠。

@@ -115,3 +115,27 @@ export const FIELD_TYPES = [
     { key: "initial",    label: "繕寫簽名", icon: "fa-edit", ctrlType: "text" },
 ];
 
+
+// ─── session 逾時的 fetch 回應辨識 ────────────────────────────────────────
+//
+// 為什麼需要這個：`type='http'` 路由的 session 逾時**不走**例外映射。
+// Odoo 的 HttpDispatcher.handle_error 對 SessionExpiredException 是特例——
+// 直接 `redirect_query('/web/login', ..., code=303)`（odoo/http.py）。
+// 而 `fetch()` 預設 `redirect: "follow"`，所以呼叫端拿到的是
+// **登入頁的 HTML、status 200**，不是 4xx。
+//
+// 編輯器是會開著好幾小時的畫面（寫合約、排版報表）。午休回來按「匯入」
+// 就會踩到。沒有這道辨識的話，_readJsonResponse 會把登入頁剝成純文字當
+// 錯誤訊息，使用者看到「伺服器錯誤 (HTTP 200)：Odoo 電子郵件 密碼 登入…」。
+//
+// 純函式、只讀 Response 的兩個標準屬性，所以能用 node 單測（見
+// tests/js/test_shared_pure.mjs）。
+export function isSessionExpiredResponse(resp) {
+    if (!resp || !resp.redirected) return false;
+    try {
+        return new URL(resp.url, "http://localhost").pathname === "/web/login";
+    } catch (e) {
+        // resp.url 不是合法網址（理論上不會發生，但 mock 與舊瀏覽器都可能）
+        return false;
+    }
+}

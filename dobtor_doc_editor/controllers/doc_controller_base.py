@@ -48,27 +48,38 @@ class DocControllerBase:
 
     # ─── type='http' 路由的 JSON 保證 ───────────────────────────────
     #
-    # ☠️ `type='http'` 的路由拋出未處理例外時，Odoo 回的是**HTML 錯誤頁**，
-    # 不是 JSON。前端那幾支都用 `await resp.json()` 解析——拿到 HTML 會
-    # 丟 SyntaxError，而 OWL 把它吞成 console 的一行，使用者看到的是
-    # 「按了沒反應」。
+    # ☠️ `type='http'` 的路由拋出例外時，Odoo 回的是**HTML 錯誤頁**，不是
+    # JSON。`HttpDispatcher.handle_error` 把 UserError 映射成
+    # `BadRequest(args[0])`、AccessError 映射成 `Forbidden`，而 werkzeug 把
+    # 它們渲成 `<!doctype html>…<p>訊息</p>`。
     #
-    # 實際存在的缺口（2026-10-09 稽核發現）：upload_template 與
-    # import_document 的 try/except 都**沒有包到開頭**——
-    #   upload_template：`_require_document()` 在 try 之前（4 行）
-    #   import_document：取檔案、驗副檔名與 engine 都在 try 之前（11 行）
-    # 也就是「文件不存在」「沒有寫入權限」「副檔名不支援」這些**正常的錯誤
-    # 路徑**全部回 HTML。
+    # 這一類缺陷在這個模組**已經發生過一次**：2026-06-29（0ef991b）使用者
+    # 上傳 DOCX 模板時看到「Unexpected token '<'」——當時的觸發點是缺
+    # python-docx 或選到假的 .docx。那次修了後端（把 try 包大）與前端
+    # （`_readJsonResponse` 剝標籤當訊息）兩邊，但修法是**逐點補**，不是
+    # 結構保證。
+    #
+    # 2026-10-09 稽核的實際缺口（這次量過，不要再寫重）：
+    #   upload_template   `_require_document()` 在 try 之前（4 行）→ 真缺口。
+    #                     它會拋 AccessError（只有讀取權限的協作者）、
+    #                     MissingError（編輯期間文件被刪）、
+    #                     ValueError（doc_id 不是數字）。
+    #   import_document   取檔案、驗副檔名與 engine 確實在 try 之前，但那幾行
+    #                     都是 `return _json_resp(...)` **自己回 JSON**，不是
+    #                     拋例外。掛 decorator 是**預防性**的——那段只要有人
+    #                     往裡面加東西就會漏。
     #
     # 這個 decorator 讓那一類路由「不可能回非 JSON」：任何漏出來的例外都變成
-    # 一個帶 error 的 JSON。這也讓測試裡「回應不是 JSON」這個症狀只剩一個
-    # 可能的來源——auth 層把請求導去登入頁——不再有歧義。
+    # 一個帶 error 的 JSON。這也讓「回應不是 JSON」這個症狀只剩 auth 層一個
+    # 可能來源（session 逾時 → 303 轉址到 /web/login），前端據此辨識
+    # （見 doc_editor_shared.js 的 isSessionExpiredResponse）。
     @staticmethod
     def json_http_route(func):
         """包住 type='http' 但回 JSON 的路由，保證永遠回 JSON。"""
         import functools
         import json as _json
         import logging as _logging
+        import uuid as _uuid
 
         _log = _logging.getLogger(__name__)
 
@@ -81,13 +92,23 @@ class DocControllerBase:
                 # 給 400 與可讀訊息；其餘當 500 但仍然是 JSON。
                 from odoo.exceptions import AccessError, MissingError, UserError
                 expected = isinstance(e, (UserError, MissingError, AccessError))
-                if not expected:
-                    _log.exception('[doc] %s 未預期的例外', func.__name__)
-                message = str(getattr(e, 'args', None) and e.args[0] or e) \
-                    if expected else '伺服器錯誤，請稍後再試'
+                if expected:
+                    message = str(
+                        getattr(e, 'args', None) and e.args[0] or e
+                    )
+                else:
+                    # 非預期例外的內容不能給使用者（會洩 traceback），但**指標**
+                    # 可以：同一組代碼同時進 log 與回應，使用者來報修時能一次
+                    # grep 到那一筆 traceback。沒有它的話 log 裡可能有幾十筆
+                    # 同樣訊息，對不起來。
+                    ref = _uuid.uuid4().hex[:8]
+                    _log.exception('[doc] %s 未預期的例外 (ref=%s)',
+                                   func.__name__, ref)
+                    message = f'伺服器錯誤（代碼 {ref}），請提供此代碼給管理員。'
                 return request.make_response(
-                    _json.dumps({'success': False, 'error': message}),
-                    headers={'Content-Type': 'application/json'},
+                    _json.dumps({'success': False, 'error': message},
+                                ensure_ascii=False),
+                    headers={'Content-Type': 'application/json; charset=utf-8'},
                     status=400 if expected else 500,
                 )
 

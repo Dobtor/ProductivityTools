@@ -340,35 +340,133 @@ CI 若以多個 worker 跑，那一組測試就會真的執行。
 
 ### 找到的真缺陷：`type='http'` 路由會回 HTML
 
-追這個症狀（「回應不是 JSON」）時挖出一個**與偶發無關、一直存在**的缺陷：
+追這個症狀（「回應不是 JSON」）時挖出一個**與偶發無關、一直存在**的缺陷。
 
-`type='http'` 的路由拋出未處理例外時，Odoo 回的是 **HTML 錯誤頁**。而前端那
-幾支都用 `resp.json()` 解析——拿到 HTML 會丟 SyntaxError，OWL 把它吞成
-console 的一行，使用者看到的是「按了沒反應」。
+#### 業務情境——這一類缺陷已經發生過一次
 
-而這兩支的 `try/except` 都**沒有包到開頭**：
+2026-06-29（`0ef991b`）：「修正模板上傳『Unexpected token `<`』」。使用者在
+編輯器按「匯入」選一個 `.docx` 要當列印模板，觸發點是**伺服器沒裝
+python-docx**（manifest 刻意不宣告成 `external_dependencies`，所以模組裝得
+起來、只有這支會炸）或**選到改過副檔名的假 docx**（`BadZipFile`）。
 
-| 路由 | try 之前有幾行 | 那幾行會拋什麼 |
+機制：`type='http'` 路由的例外被 `HttpDispatcher.handle_error` 映射成
+werkzeug 的 `BadRequest(args[0])` / `Forbidden`，werkzeug 渲成
+`<!doctype html>…<p>訊息</p>`。前端 `resp.json()` 撞上 `<` 就是那個錯誤。
+
+那次修了兩邊（後端把 try 包大、前端加 `_readJsonResponse` 剝標籤當訊息），
+但修法是**逐點補，不是結構保證**。四個月後稽核發現 try 仍然沒包到最開頭。
+
+#### 2026-10-09 稽核量到的實際缺口
+
+| 路由 | try 之前 | 實際會發生什麼 |
 |---|---|---|
-| `upload_template` | 4 | `_require_document()` → 文件不存在／沒有寫入權限 |
-| `import_document` | 11 | 取檔案、驗副檔名、驗 engine 白名單 |
+| `upload_template` | 4 行 | **真缺口**。`_require_document()` 拋 `AccessError`（只有讀取權限的協作者）、`MissingError`（編輯期間文件被刪）、`ValueError`（`doc_id` 非數字） |
+| `import_document` | 11 行 | 那幾行都是 `return _json_resp(...)` **自己回 JSON**，不是拋例外。掛 decorator 是**預防性**的——那段只要有人往裡面加東西就會漏 |
 
-也就是**正常的錯誤路徑全部回 HTML**。實測確認（移掉 decorator 再跑）：
-`doc_id` 空或不存在時回的是 `<!doctype html>`——**與那一則偶發失敗看到的症狀
-一字不差**。
+⚠️ 不要把 `import_document` 寫成「正常的錯誤路徑全部回 HTML」——量過了，
+它的暴露面比第一版紀錄講的小。
 
-修法是 `DocControllerBase.json_http_route`：包住那一類路由，任何漏出來的例外
-一律變成帶 `error` 的 JSON（UserError / MissingError / AccessError 給 400，
-其餘 500 並記 log）。四則測試，移掉 decorator 會全部變紅（驗過）。
+症狀也要講精確：使用者**不是**「按了沒反應」。6 月加的 `_readJsonResponse`
+會剝標籤取前 200 字當訊息，所以訊息不是消失，是**降級**。實測 werkzeug
+3.0.1 的錯誤頁，使用者看到的是：
 
-這**沒有**證明它就是那一次偶發的觸發點（那次的 `doc_id` 是有效的）。它的意義
-是：**從此「回應不是 JSON」不可能來自 handler**，只剩 auth 層一個來源。
-症狀從有歧義變成沒有歧義。
+```
+上傳失敗：伺服器錯誤 (HTTP 400)：400 Bad Request Bad Request 此功能僅適用於文件；目前編輯的是範本，請先從文件開啟。
+```
+
+而那些 guard 的訊息都是**設計過要給使用者看的提示**（`_require_document` 的
+docstring 寫明「寧可在這裡明確擋下並告訴使用者原因」）。
+
+查證過兩個原本懷疑的情境，**都不成立**：範本模式與輸出模式下
+`state.docId` 是 null（`doc_editor.js:612`），而 `_handleImportFile` 沒有
+docId 時根本不打後端、直接走 canvas 預覽。所以「範本模式按匯入」打不到這支，
+id 也不會跨模型送錯。
+
+#### 修法與目的
+
+`DocControllerBase.json_http_route`：包住那一類路由，任何漏出來的例外一律變成
+帶 `error` 的 JSON（UserError / MissingError / AccessError 給 400，其餘 500
+並記 log）。四則測試，移掉 decorator 會全部變紅（驗過）。
+
+目的有三層，第一層才是使用者感覺得到的：
+
+1. **讓設計好的訊息原樣送達**——走回前端主路徑
+   `if (!result.success) throw new Error(result.error)`，使用者看到
+   「上傳失敗：文件不存在或已被刪除。」而不是夾著兩次 `Bad Request` 的半英文。
+2. **把保證從「正則剝標籤」移到結構上**。6 月那個 fallback 能成立，只因為
+   werkzeug 剛好把訊息放在 body、而且 `_readJsonResponse` 一直在剝標籤。
+   任何人新寫一個呼叫端、寫出最自然的 `await resp.json()`，就退回
+   `Unexpected token '<'`。所以測試裡有一則**讀原始碼**掃「有 `type='http'`
+   且回 JSON 卻沒掛 decorator」。
+3. **讓症狀沒有歧義**——「回應不是 JSON」從此不可能來自 handler。
+
+誠實的界線：**500 那一路，使用者看到的訊息兩邊都一樣籠統**（werkzeug 的
+`InternalServerError` 本來就不帶描述）。真正的體驗差異在上面那三個 400 情境。
+500 那一路能補的只有「可追」——見下一節。
 
 ⚠️ 寫那四則測試時第一版有一則是**假綠**：我查 `__wrapped__` 有沒有值，但
 `http.route` 自己就用 `functools.wraps`，所以移掉我的 decorator 之後它照樣綠
 ——查的是 Odoo 的包裝不是我的。改成讀原始碼判斷「有 type='http' 且回 JSON
 卻沒掛 decorator」，這樣才對得上「有人加新路由忘記掛」那個情境。
+
+### 收尾三件（2026-10-09 第二批）
+
+把上面那份分析剩下的三個缺口補完。
+
+#### 1. session 逾時——唯一還活著的使用者可見缺陷
+
+`SessionExpiredException` **不走**例外映射：`HttpDispatcher.handle_error` 對它
+是特例，直接 `redirect_query('/web/login', ..., code=303)`。而 `fetch()` 預設
+`redirect: "follow"`，所以呼叫端拿到的是**登入頁 HTML、status 200**，不是 4xx。
+
+業務情境：編輯器是會開著好幾小時的畫面（寫合約、排版報表）。午休回來按
+「匯入」，session 已經過期 → `_readJsonResponse` 把登入頁剝成純文字：
+
+```
+上傳失敗：伺服器錯誤 (HTTP 200)：Odoo 電子郵件 密碼 登入 管理資料庫…
+```
+
+修法：`doc_editor_shared.js` 的純函式 `isSessionExpiredResponse(resp)`
+（`resp.redirected` 且 `pathname === '/web/login'`），`_readJsonResponse` 在
+讀 body 之前先問它 → 丟「連線已逾時，請重新登入後再試。」。
+
+效果：這條線上**兩個來源都有名字了**——handler 那半回 JSON（decorator），
+auth 那半被辨識成逾時。剝標籤那段因此降為真正的最後一道（反向代理的錯誤頁、
+不經 Odoo 的 502），保留是因為不花成本，而拿掉之後同一個症狀會退回
+`Unexpected token '<'`。
+
+#### 2. 500 那一路給得出可追的指標
+
+非預期例外的**內容**不能給使用者（會洩 traceback），但**指標**可以：
+`json_http_route` 產一組 8 碼 ref，同時進 log（`ref=…`）與回應訊息
+（「伺服器錯誤（代碼 3f9a1c20），請提供此代碼給管理員。」）。
+
+效果：使用者報修時那串字能一次 grep 到那筆 traceback。沒有它的話 log 裡可能
+有幾十筆同樣訊息，對不起來。測試
+`test_unexpected_exception_returns_traceable_ref` 斷言**兩邊是同一組代碼**
+——只驗其中一邊的話，各自有代碼但對不起來也會綠。
+
+#### 3. 紀錄本身的更正
+
+第一版的 commit 訊息、`doc_controller_base.py` 的註解、
+`TestHttpRoutesAlwaysReturnJson` 的 docstring 與本節，都把 `import_document`
+的暴露面與使用者看到的症狀講重了。commit 訊息改不了，其餘三處已據實更正。
+講重了跟講輕了一樣是失準——下一個讀註解的人會以為修掉了一個比實際更大的洞，
+也會因為註解誇大而對 decorator 的必要性打折。
+
+#### JS 純函式怎麼測
+
+這個模組沒有 hoot／QUnit 基礎設施，而 `web.assets_unit_tests` 要瀏覽器 runner
+——CI 刻意不跑瀏覽器。但 `doc_editor_shared.js` **零相依**（它存在的理由就是
+切斷循環 import），所以 node 可以直接載入它。
+
+`tests/js/test_shared_pure.mjs`：讀檔 → `data:text/javascript` 動態 import →
+斷言。7 則，掛進 static CI（擋 PR）。移掉偵測會變紅（驗過）。
+
+☠️ 不能寫 `import "../../static/.../doc_editor_shared.js"`：那個目錄沒有
+`package.json`，node 會把 `.js` 當 CommonJS 解析，撞到 `export` 就掛。
+這支測試開頭另外斷言「shared 不能出現 import」——哪天它有了相依，該修的是
+那件事，不是繞過這個斷言。
 
 ### 做了什麼（不是遮蔽）
 

@@ -9,6 +9,7 @@ doc_controller.py 邊界 security 測試 — 紀律 #5 + #11 + #15 廣域應用�
 
 import io
 import json
+import re
 from importlib.util import find_spec
 
 from odoo.tests.common import HttpCase, TransactionCase, tagged
@@ -422,17 +423,20 @@ class TestRouteRegistration(TransactionCase):
 class TestHttpRoutesAlwaysReturnJson(HttpCase):
     """`type='http'` 但回 JSON 的路由，**不可能**回 HTML。
 
-    ☠️ 這是 2026-10-09 追那一則偶發失敗時挖出來的真缺陷：
-    `type='http'` 的路由拋出未處理例外時 Odoo 回的是 HTML 錯誤頁，而前端用
-    `resp.json()` 解析 → SyntaxError → OWL 吞成 console 一行 → 使用者看到
-    「按了沒反應」。
+    ☠️ 這一類缺陷在這個模組發生過一次：2026-06-29（0ef991b）使用者上傳 DOCX
+    模板看到「Unexpected token '<'」。`type='http'` 路由的例外被 Odoo 映射成
+    werkzeug 的 HTML 錯誤頁，前端 `resp.json()` 撞上 `<!doctype` 就這樣。
 
-    而這兩支的 try/except 都沒包到開頭：
-        upload_template   `_require_document()` 在 try 之前（4 行）
-        import_document   取檔案、驗副檔名與 engine 都在 try 之前（11 行）
+    那次修了兩邊，但修法是逐點補。2026-10-09 稽核量到的實際缺口：
+        upload_template   `_require_document()` 在 try 之前（4 行）→ 真缺口。
+                          拋 AccessError（只有讀取權限）、MissingError
+                          （編輯期間文件被刪）、ValueError（doc_id 非數字）。
+        import_document   try 外那幾行**自己回 JSON**，不是拋例外；掛
+                          decorator 是預防性的。
 
-    也就是「文件不存在」「沒有寫入權限」「副檔名不支援」這些**正常的錯誤
-    路徑**全部回 HTML。json_http_route 把它們一律變成 JSON。
+    症狀講精確一點：前端的 `_readJsonResponse` 會把 HTML 剝成純文字當訊息，
+    所以使用者不是「按了沒反應」，是看到一句夾著「400 Bad Request」的
+    半英文訊息——設計好的提示被降級了。json_http_route 讓它原樣送達。
     """
 
     def setUp(self):
@@ -470,6 +474,40 @@ class TestHttpRoutesAlwaysReturnJson(HttpCase):
         )
         self.assertEqual(self._ct(resp), 'application/json',
                          '回了非 JSON：%s' % resp.text[:200])
+
+    def test_unexpected_exception_returns_traceable_ref(self):
+        """非預期例外：訊息不能給（會洩 traceback），但**指標**要給。
+
+        doc_id='abc' → `_require_document` 的 `int(doc_id)` 拋 ValueError，
+        不在 UserError / MissingError / AccessError 之列 → 走 500 那一路。
+
+        這一則同時斷言兩件事，缺一個就沒有意義：
+          1. 回應的訊息帶一組 8 碼代碼（使用者看得到、可以報給管理員）
+          2. **同一組**代碼出現在 log 裡（管理員 grep 得到那筆 traceback）
+        只驗其中一個的話，兩邊各自有代碼但對不起來也會綠。
+        """
+        logger = 'odoo.addons.dobtor_doc_editor.controllers.doc_controller_base'
+        with self.assertLogs(logger, level='ERROR') as captured:
+            resp = self.url_open(
+                '/dobtor_doc/upload_template',
+                data={'doc_id': 'abc'},
+                files={'docx_file': ('x.docx', b'PK\x03\x04',
+                                     'application/octet-stream')},
+            )
+        self.assertEqual(self._ct(resp), 'application/json',
+                         '回了非 JSON：%s' % resp.text[:200])
+        self.assertEqual(resp.status_code, 500)
+        payload = json.loads(resp.content)
+        self.assertFalse(payload.get('success'))
+        refs = re.findall(r'代碼 ([0-9a-f]{8})', payload.get('error') or '')
+        self.assertEqual(len(refs), 1,
+                         '訊息裡沒有可追的代碼：%r' % payload.get('error'))
+        self.assertNotIn('Traceback', payload['error'],
+                         'traceback 不可以回給前端')
+        self.assertTrue(
+            any('ref=%s' % refs[0] in line for line in captured.output),
+            'log 裡找不到同一組代碼 %s；log=%r' % (refs[0], captured.output),
+        )
 
     def test_every_json_http_route_has_the_decorator(self):
         """新加的 type='http' 回 JSON 路由也要掛上——少掛是靜默的。

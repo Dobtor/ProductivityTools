@@ -49,6 +49,7 @@ import {
     signerColor,
     VALUE_SOURCES,
     FIELD_TYPES,
+    isSessionExpiredResponse,
 } from "./doc_editor_shared";
 
 export const DocEditorIo = (Base) => class extends Base {
@@ -64,10 +65,25 @@ export const DocEditorIo = (Base) => class extends Base {
     }
 
     /**
-     * 安全解析 fetch 回應為 JSON。type='http' 路由出錯時 Odoo 會回傳 HTML 錯誤頁，
-     * 直接 resp.json() 會丟「Unexpected token '<'」。此處改抓 HTML → 給可讀訊息。
+     * 安全解析 fetch 回應為 JSON。
+     *
+     * 「回應不是 JSON」只有兩個可能來源，這裡各給一條路：
+     *
+     *   1. **auth 層**——session 逾時。Odoo 對 SessionExpiredException 是
+     *      303 轉址到 /web/login，fetch 跟過去之後拿到登入頁 HTML、
+     *      status 200。給明確的「請重新登入」，使用者才知道要做什麼。
+     *   2. **handler**——已經不可能了。`DocControllerBase.json_http_route`
+     *      讓那些路由任何漏出來的例外都變成帶 error 的 JSON，且有一則測試
+     *      讀原始碼擋「新增 type='http' JSON 路由忘記掛 decorator」。
+     *
+     * 底下剝標籤那段因此是**真正的最後一道**（反向代理的錯誤頁、
+     * 不經 Odoo 的 502…），不再是日常路徑。保留它是因為它不花成本，
+     * 而拿掉之後同一個症狀會退回「Unexpected token '<'」。
      */
     async _readJsonResponse(resp) {
+        if (isSessionExpiredResponse(resp)) {
+            throw new Error("連線已逾時，請重新登入後再試。");
+        }
         const text = await resp.text();
         try {
             return JSON.parse(text);
