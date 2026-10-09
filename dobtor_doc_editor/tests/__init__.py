@@ -11,7 +11,12 @@ from . import test_template_autofill
 from . import test_font_serve  # Sprint 66 — Sprint 64b font_serve backend tests
 from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/field
 from . import test_template_edit  # Phase 1（藥丸改版）— 範本可直接編輯
-from . import test_pill_pipeline  # Phase 3-5（藥丸改版）— 快照/攤平/遷移
+# 藥丸管線：按被測的那一層分（對齊 models/render/ 六層）
+from . import test_pill_snapshot
+from . import test_pill_sandbox
+from . import test_pill_fields
+from . import test_pill_i18n
+from . import test_pill_output
 from . import test_report_engine  # 報表引擎 R1-R3
 from . import test_qweb_converter  # QWeb 報表 → 範本轉換器
 from . import test_qweb_converter_native  # 原生報表實際轉換＋渲染

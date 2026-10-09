@@ -111,8 +111,10 @@ class KnowledgeHooks(models.AbstractModel):
                'action_xmlid': feature.action_xmlid, 'button_name': feature.button_name,
                'delta': delta}
         if feature.kind == 'route':
-            from odoo.addons.dobtor_corpaas_knowledge.models.feature import route_audience
-            out.update(anchor=feature.anchor, audience=route_audience(feature.anchor))
+            from odoo.addons.dobtor_corpaas_knowledge.models.feature import (
+                route_audience, route_path)
+            out.update(anchor=route_path(feature.anchor), audience=route_audience(feature.anchor),
+                       front_menus=[m for m in (feature.front_menus or '').splitlines() if m])
         return out
 
     @api.model

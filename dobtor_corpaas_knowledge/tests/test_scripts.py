@@ -36,7 +36,13 @@ class TestScripts(TransactionCase):
         """網站前台頁：手動建的網站選單（沒有 xmlid）與已安裝模組的標準頁都盤得到。"""
         if 'website.menu' not in self.env:
             self.skipTest('沒有 website')
-        self.env['website.menu'].create({'name': '分享金規則', 'url': '/kbt-share-rules'})
+        Menu = self.env['website.menu']
+        site = self.env['website'].search([], limit=1)
+        Menu.create({'name': '分享金規則', 'url': '/kbt-share-rules', 'website_id': site.id,
+                     'parent_id': site.menu_id.id})
+        Menu.create({'name': '會員專區', 'url': '/kbt-members', 'website_id': site.id,
+                     'parent_id': site.menu_id.id,
+                     'group_ids': [(6, 0, [self.env.ref('base.group_portal').id])]})
         src = scripts.inventory_script(['base'], official=['website']).replace(
             'env.cr.rollback()', 'pass')
         printed = []
@@ -44,8 +50,15 @@ class TestScripts(TransactionCase):
         import json
         routes = {f['anchor']: f for f in json.loads(printed[-1][len(scripts.MARK):])['features']
                   if f['kind'] == 'route'}
-        self.assertEqual(routes['/kbt-share-rules']['module'], 'website')
-        self.assertIn('/', routes, '網站首頁（標準頁）')
+        self.assertEqual(routes['/kbt-share-rules#public']['module'], 'website')
+        self.assertIn('/kbt-share-rules#internal', routes, '公開的內容頁另寫網站管理')
+        self.assertIn('/kbt-members#portal', routes, sorted(routes))
+        self.assertFalse([k for k in routes if k.startswith('/default-main-menu')], '根選單不是頁面')
+        self.assertNotIn('/kbt-members#public', routes)
+        self.assertIn('會員專區', routes['/kbt-members#portal']['front_menus'])
+        self.assertNotIn('會員專區', routes['/kbt-share-rules#public'].get('front_menus') or '',
+                         '訪客看不到會員選單')
+        self.assertIn('/#public', routes, '網站首頁（標準頁）')
 
     def test_fingerprint_script_runs_in_process(self):
         """在測試庫直接 exec 指紋腳本：驗證它真的能跑 get_views 並回傳雜湊。"""

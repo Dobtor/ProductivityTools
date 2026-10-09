@@ -628,6 +628,7 @@ class SolutionPackage(models.Model):
                 'action_xmlid': item.get('action_xmlid') or False,
                 'button_name': item.get('button_name') or False,
                 'menu_path': item.get('menu_path') or False,
+                'front_menus': item.get('front_menus') or False,
                 'group_xmlids': ','.join(item.get('groups') or []) or False,
                 'module_origin': 'odoo' if item['module'] in installed_official
                 else 'custom',
@@ -1074,9 +1075,9 @@ class SolutionPackage(models.Model):
             'knowledge_fp_image': self.knowledge_image_digest or False})
 
     def _knowledge_route_fingerprints(self, code_manifest, now=None):
-        """前台頁（kind=route）沒有後台視圖可算：指紋＝網址＋讀者身分＋模組程式版本。
+        """前台頁（kind=route）沒有後台視圖可算：指紋＝網址＋使用者類型＋模組程式版本＋看得到的選單。
 
-        ★ 模組改版才換指紋（重拍）；讀者身分由網址決定（/my 開頭是會員，其他是訪客）。"""
+        ★ 模組改版或選單可見範圍改了才換指紋（重拍）。"""
         self.ensure_one()
         import hashlib
         from .feature import route_audience
@@ -1084,9 +1085,11 @@ class SolutionPackage(models.Model):
         routes = self.env['corpaas.knowledge.feature'].sudo().search([
             ('package_ids', 'in', self.id), ('missing', '=', False), ('kind', '=', 'route')])
         for f in routes:
-            role = route_audience(f.feature_key.split(':', 1)[-1])
+            role = route_audience(f.anchor)
             code = json.dumps((code_manifest or {}).get(f.module), sort_keys=True, default=str)
-            scope = hashlib.sha1(('route|%s|%s|%s' % (f.feature_key, role, code))
+            # 選單的可見範圍改了（某種使用者多看到／少看到一個選單）也要重拍
+            scope = hashlib.sha1(('route|%s|%s|%s|%s' % (f.feature_key, role, code,
+                                                         f.front_menus or ''))
                                  .encode('utf-8')).hexdigest()[:16]
             prev = FP.search([('feature_id', '=', f.id), ('package_id', '=', self.id),
                               ('current', '=', True)])
@@ -1096,6 +1099,19 @@ class SolutionPackage(models.Model):
             FP.create({'feature_id': f.id, 'package_id': self.id, 'role_code': role,
                        'scope_hash': scope, 'form_hash': scope,
                        'computed_at': now or fields.Datetime.now(), 'elements_json': '[]'})
+        self._knowledge_ensure_route_roles({route_audience(f.anchor) for f in routes})
+
+    def _knowledge_ensure_route_roles(self, needed):
+        """前台頁要用的角色（會員、網站管理）補進方案的情境：情境建立時還沒有前台頁也補得到。"""
+        from .feature import ROUTE_ROLE_DEFS
+        Role = self.env['corpaas.knowledge.role'].sudo()
+        for code, (name, groups) in ROUTE_ROLE_DEFS.items():
+            if code not in needed:
+                continue
+            role = Role.search([('code', '=', code)], limit=1) or Role.create({
+                'code': code, 'name': name, 'group_xmlids': '\n'.join(groups), 'sequence': 90})
+            for sc in self.knowledge_scenario_ids.filtered(lambda s: role not in s.all_roles()):
+                sc.sudo().role_ids = [(4, role.id)]
 
     # ------------------------------------------------------------------
     # 任務流程（K14）

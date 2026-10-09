@@ -1290,12 +1290,15 @@ class KnowledgeSelection(models.Model):
         items = [r for r in data.get('roles') or [] if isinstance(r, dict)]
         if not any(r.get('code') == 'admin' for r in items):
             items.append({'code': 'admin', 'name': '系統管理員', 'groups': ['base.group_system']})
-        # ★ 方案有網站前台頁：補上會員（入口網站帳號），拍「我的帳戶／訂單」這類會員畫面
-        from .feature import ROUTE_MEMBER
-        has_front = self.env['corpaas.knowledge.feature'].sudo().search_count([
+        # ★ 方案有網站前台頁：依要寫的使用者類型補角色——會員（網站入口）拍「我的帳戶／訂單」，
+        #   網站管理（內部使用者）拍前台的「編輯此內容」與網站編輯器
+        from .feature import ROUTE_ROLE_DEFS, route_audience
+        fronts = self.env['corpaas.knowledge.feature'].sudo().search([
             ('package_ids', 'in', self.package_id.id), ('kind', '=', 'route')])
-        if has_front and not any(r.get('code') == ROUTE_MEMBER for r in items):
-            items.append({'code': ROUTE_MEMBER, 'name': '會員', 'groups': ['base.group_portal']})
+        needed = {route_audience(f.anchor) for f in fronts}
+        for code, (name, groups) in ROUTE_ROLE_DEFS.items():
+            if code in needed and not any(r.get('code') == code for r in items):
+                items.append({'code': code, 'name': name, 'groups': groups})
         for r in items:
             code = re.sub(r'[^a-z0-9_]+', '_', str(r.get('code') or '').lower()).strip('_')
             groups = [g for g in r.get('groups') or []

@@ -56,9 +56,10 @@ def pick_role(feature_kind, module, role_codes, anchor=None):
     ★ 前台頁：/my 開頭用會員帳號（情境要有 member 角色），其他用訪客（不登入）。"""
     if feature_kind == 'route':
         from odoo.addons.dobtor_corpaas_knowledge.models.feature import (
-            ROUTE_MEMBER, ROUTE_VISITOR, route_audience)
-        return ROUTE_MEMBER if route_audience(anchor) == ROUTE_MEMBER \
-            and ROUTE_MEMBER in (role_codes or []) else ROUTE_VISITOR
+            ROUTE_VISITOR, route_audience)
+        role = route_audience(anchor)
+        # 情境沒有這個角色（會員、網站管理）就退回訪客：至少拍得到公開的樣子
+        return role if role == ROUTE_VISITOR or role in (role_codes or []) else ROUTE_VISITOR
     codes = list(role_codes or [])
     if feature_kind == 'setting' and 'admin' in codes:
         return 'admin'
@@ -83,12 +84,21 @@ def build_steps(feature, entry=None, record=None, has_record=False):
     key = slug(feature.get('key') or feature.get('anchor') or 'screen')
     kind = feature.get('kind')
     if kind == 'route':
-        path = feature.get('anchor')
+        from odoo.addons.dobtor_corpaas_knowledge.models.feature import (
+            ROUTE_EDITOR, route_audience, route_path)
+        path = route_path(feature.get('anchor'))
         if not is_front_path(path):
             return None, []
         # 前台頁：直接開網址拍整個可視範圍（網站沒有欄位名可以標註）
-        return ([{'goto': {'url': path}}, {'wait': {'ms': 1200}},
-                 {'shot': '%s_page' % key}], [])
+        steps = [{'goto': {'url': path}}, {'wait': {'ms': 1200}}]
+        if route_audience(feature.get('anchor')) == ROUTE_EDITOR:
+            # 內部使用者在前台看到的「回後台／編輯此內容」工具列，再拍按下編輯後的網站編輯器
+            steps += [{'highlight': {'selector': '.o_frontend_to_backend_edit_btn', 'n': 1}},
+                      {'shot': '%s_page' % key},
+                      {'goto': {'url': '/@' + path}}, {'wait': {'ms': 2500}},
+                      {'shot': '%s_editor' % key}]
+            return steps, []
+        return steps + [{'shot': '%s_page' % key}], []
     if kind == 'setting':
         anchor = feature.get('anchor')
         if not anchor:

@@ -155,14 +155,26 @@ def step_block_prompt(feature, steps, shots, elements, flow_ctx=None):
     }
 
 
+_FRONT_WHO = {
+    'visitor': ('還沒登入的網站訪客（公開）', '寫他在這一頁看得到什麼、可以做什麼、下一步會到哪一頁'),
+    'member': ('已登入的會員（網站入口使用者）', '寫登入後才有的選單與按鈕、在這一頁可以查什麼、做什麼'),
+    'web_editor': ('公司內部的網站管理人員（內部使用者）',
+                   '寫怎麼從前台左上角的「編輯此內容」進入網站編輯器、改內容、發佈或下架；'
+                   '不寫訪客的購物或瀏覽操作'),
+}
+
+
 def _front_note(feature):
-    """網站前台頁：讀者是會員或訪客，在網站上操作（不是後台人員）。"""
+    """網站前台頁：依使用者類型（公開／網站入口／內部使用者）寫他看得到的選單與按鈕。"""
     if feature.get('kind') != 'route':
         return ''
-    who = '已登入的會員' if (feature.get('audience') == 'member') else '還沒登入的網站訪客'
-    return ("\n★ 這是網站前台頁面（網址 %s），讀者是%s：用「在網站上點…」的說法，"
-            "寫他在這一頁看得到什麼、可以做什麼、下一步會到哪一頁；不要寫後台選單、"
-            "不要提系統設定。" % (feature.get('anchor') or '', who))
+    who, what = _FRONT_WHO.get(feature.get('audience'), _FRONT_WHO['visitor'])
+    menus = feature.get('front_menus') or []
+    return ("\n★ 這是網站前台頁面（網址 %s），讀者是%s：用「在網站上點…」的說法，%s；"
+            "不要寫後台選單路徑。%s" % (
+                feature.get('anchor') or '', who, what,
+                ('這種使用者在網站選單上看得到：%s（只提這些，別的選單他看不到）。'
+                 % '、'.join(menus[:20])) if menus else ''))
 
 
 def fork_prompt(feature, old_html, old_found, new_found, steps):

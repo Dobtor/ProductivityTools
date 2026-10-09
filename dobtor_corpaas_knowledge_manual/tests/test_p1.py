@@ -159,10 +159,10 @@ class TestApproveNeedsShots(ManualCase):
 class TestFrontRoutes(ManualCase):
     """網站前台頁（kind=route）：會員／訪客身分拍前台，文章排在章節最前面。"""
 
-    def _route(self, url, name='線上商城'):
+    def _route(self, anchor, name='線上商城', menus=None):
         return self.Feature.create({
-            'feature_key': 'website_sale.route:%s' % url, 'module': 'website_sale',
-            'kind': 'route', 'anchor': url, 'name': name,
+            'feature_key': 'website_sale.route:%s' % anchor, 'module': 'website_sale',
+            'kind': 'route', 'anchor': anchor, 'name': name, 'front_menus': menus,
             'package_ids': [(6, 0, self.pkg.ids)]})
 
     def test_front_path_steps_and_roles(self):
@@ -170,28 +170,38 @@ class TestFrontRoutes(ManualCase):
         self.assertTrue(rule_scripts.is_front_path('/web/signup'))
         self.assertFalse(rule_scripts.is_front_path('/odoo/contacts'))
         self.assertFalse(rule_scripts.is_front_path('/web#action=1'))
-        steps, ph = rule_scripts.build_steps({'key': 'website_sale.route:/shop',
-                                              'kind': 'route', 'anchor': '/shop'})
+        steps, ph = rule_scripts.build_steps({'key': 'website_sale.route:/shop#public',
+                                              'kind': 'route', 'anchor': '/shop#public'})
         self.assertEqual(steps[0], {'goto': {'url': '/shop'}})
         self.assertEqual(ph, [])
-        codes = ['sales', 'member', 'admin']
-        self.assertEqual(rule_scripts.pick_role('route', 'portal', codes, anchor='/my/orders'),
-                         'member')
-        self.assertEqual(rule_scripts.pick_role('route', 'website_sale', codes, anchor='/shop'),
-                         'visitor')
-        self.assertEqual(rule_scripts.pick_role('route', 'portal', ['admin'], anchor='/my'),
+        steps, _ph = rule_scripts.build_steps({'key': 'website_sale.route:/shop#internal',
+                                               'kind': 'route', 'anchor': '/shop#internal'})
+        self.assertIn({'highlight': {'selector': '.o_frontend_to_backend_edit_btn', 'n': 1}},
+                      steps, '網站管理：標出前台的「編輯此內容」')
+        self.assertIn({'goto': {'url': '/@/shop'}}, steps, '再拍網站編輯器')
+        codes = ['sales', 'member', 'web_editor', 'admin']
+        self.assertEqual(rule_scripts.pick_role('route', 'portal', codes,
+                                                anchor='/my/orders#portal'), 'member')
+        self.assertEqual(rule_scripts.pick_role('route', 'website_sale', codes,
+                                                anchor='/shop#public'), 'visitor')
+        self.assertEqual(rule_scripts.pick_role('route', 'website_sale', codes,
+                                                anchor='/shop#internal'), 'web_editor')
+        self.assertEqual(rule_scripts.pick_role('route', 'portal', ['admin'],
+                                                anchor='/my#portal'),
                          'visitor', '沒有會員角色就用訪客')
 
     def test_validate_allows_front_url_only(self):
         from ..services import manual_lib
         manual_lib.validate_steps([{'goto': {'url': '/shop'}}, {'shot': 'shop_page'}])
+        manual_lib.validate_steps([{'goto': {'url': '/@/shop'}}, {'shot': 'shop_editor'}])
         with self.assertRaises(ValueError):
             manual_lib.validate_steps([{'goto': {'url': '/odoo/contacts'}}, {'shot': 'x'}])
 
     def test_route_fingerprint_candidate_and_group(self):
         from ..models.placement import GROUP_FRONT, article_group
-        shop = self._route('/shop')
-        orders = self._route('/my/orders', '我的訂單')
+        shop = self._route('/shop#public', menus='首頁\n好康商城')
+        orders = self._route('/my/orders#portal', '我的訂單', menus='首頁\n會員中心')
+        editor = self._route('/shop#internal', '線上商城（網站管理）')
         self.pkg._knowledge_route_fingerprints({'website_sale': '1.0'})
         FP = self.env['corpaas.knowledge.fingerprint']
         fp = FP.search([('feature_id', '=', shop.id), ('current', '=', True)])
@@ -208,3 +218,13 @@ class TestFrontRoutes(ManualCase):
         self.assertEqual(article_group(shop), GROUP_FRONT)
         prompt = self.hooks._manual_feature_dict(orders, self.pkg)
         self.assertEqual(prompt['audience'], 'member')
+        self.assertEqual(prompt['anchor'], '/my/orders')
+        from ..services import prompts
+        note = prompts._front_note(prompt)
+        self.assertIn('會員中心', note)
+        self.assertIn('網站入口', note)
+        self.assertIn('編輯此內容', prompts._front_note(
+            self.hooks._manual_feature_dict(editor, self.pkg)))
+        roles = self.scenario.all_roles().mapped('code')
+        self.assertIn('member', roles, '有會員頁就補會員角色')
+        self.assertIn('web_editor', roles, '有網站管理頁就補網站管理角色')

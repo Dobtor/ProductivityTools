@@ -18,15 +18,28 @@ FEATURE_KINDS = [
 ]
 
 
-#: 前台頁的讀者：會員（登入後的入口網站帳號）／訪客（不登入）
-ROUTE_MEMBER, ROUTE_VISITOR = 'member', 'visitor'
-_MEMBER_PREFIXES = ('/my',)
+#: 前台頁依使用者類型拆開（同一個網址，三種人看到的選單、按鈕不同）：
+#:   公開＝訪客不登入、網站入口＝會員（入口網站帳號）、內部使用者＝網站編輯（在前台編輯、發佈）
+#: 錨點寫成 <路徑>#<類型>，例如 /shop#public、/shop#internal、/my/orders#portal
+ROUTE_VISITOR, ROUTE_MEMBER, ROUTE_EDITOR = 'visitor', 'member', 'web_editor'
+ROUTE_ROLE = {'public': ROUTE_VISITOR, 'portal': ROUTE_MEMBER, 'internal': ROUTE_EDITOR}
+ROUTE_ROLE_DEFS = {
+    ROUTE_MEMBER: ('會員', ['base.group_portal']),
+    ROUTE_EDITOR: ('網站管理', ['base.group_user', 'website.group_website_designer']),
+}
 
 
-def route_audience(url):
-    """前台頁要用誰的身分拍：/my 開頭（我的帳戶、訂單、發票）是會員，其他是訪客。"""
-    path = (url or '').split('?')[0]
-    return ROUTE_MEMBER if path.startswith(_MEMBER_PREFIXES) else ROUTE_VISITOR
+def route_path(anchor):
+    """前台頁錨點的網址部分。"""
+    return (anchor or '').split('#', 1)[0]
+
+
+def route_audience(anchor):
+    """前台頁要用哪個角色拍：錨點的使用者類型 → 角色代碼（訪客、會員、網站管理）。"""
+    kind = (anchor or '').split('#', 1)[1] if '#' in (anchor or '') else ''
+    if kind in ROUTE_ROLE:
+        return ROUTE_ROLE[kind]
+    return ROUTE_MEMBER if route_path(anchor).startswith('/my') else ROUTE_VISITOR
 
 
 class KnowledgeFeature(models.Model):
@@ -51,6 +64,7 @@ class KnowledgeFeature(models.Model):
     action_xmlid = fields.Char(readonly=True)
     button_name = fields.Char(readonly=True)
     menu_path = fields.Char()
+    front_menus = fields.Text(help='前台頁：這種使用者在網站選單上看得到的項目（一行一個）')
     group_xmlids = fields.Char(readonly=True, help='逗號分隔')
     entry_ids = fields.One2many('corpaas.knowledge.feature.entry', 'feature_id',
                                 string='入口', readonly=True)

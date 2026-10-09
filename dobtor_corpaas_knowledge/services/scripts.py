@@ -54,20 +54,22 @@ def inventory_script(modules, lang='zh_TW', official=()):
 
 _INVENTORY_BODY = r"""
 import xml.etree.ElementTree as ET
-# ★ 已安裝模組的標準前台頁（讀者是會員或訪客）：之後的方案只要裝到同一個模組就有前台說明
+# ★ 已安裝模組的標準前台頁與要寫的使用者類型（公開／網站入口／內部使用者）：
+#   之後的方案只要裝到同一個模組就有前台說明；網站選單上有的頁面依選單與頁面的可見範圍判斷
 FRONT_ROUTES = {
-    'website': [('/', '網站首頁')],
-    'auth_signup': [('/web/signup', '註冊會員')],
-    'portal': [('/my', '我的帳戶'), ('/my/account', '帳戶資料')],
-    'website_sale': [('/shop', '線上商城'), ('/shop/cart', '購物車')],
-    'sale': [('/my/orders', '我的訂單'), ('/my/quotes', '我的報價單')],
-    'account': [('/my/invoices', '我的發票與帳單')],
-    'website_blog': [('/blog', '部落格')],
-    'website_event': [('/event', '活動')],
-    'website_slides': [('/slides', '線上課程')],
-    'website_hr_recruitment': [('/jobs', '徵才')],
-    'website_forum': [('/forum', '論壇')],
-    'website_customer': [('/customers', '客戶')],
+    'website': [('/', '網站首頁', ['public', 'internal'])],
+    'auth_signup': [('/web/signup', '註冊會員', ['public'])],
+    'portal': [('/my', '我的帳戶', ['portal']), ('/my/account', '帳戶資料', ['portal'])],
+    'website_sale': [('/shop', '線上商城', ['public', 'internal']),
+                     ('/shop/cart', '購物車', ['public'])],
+    'sale': [('/my/orders', '我的訂單', ['portal']), ('/my/quotes', '我的報價單', ['portal'])],
+    'account': [('/my/invoices', '我的發票與帳單', ['portal'])],
+    'website_blog': [('/blog', '部落格', ['public', 'internal'])],
+    'website_event': [('/event', '活動', ['public', 'internal'])],
+    'website_slides': [('/slides', '線上課程', ['public', 'internal'])],
+    'website_hr_recruitment': [('/jobs', '徵才', ['public', 'internal'])],
+    'website_forum': [('/forum', '論壇', ['public', 'internal'])],
+    'website_customer': [('/customers', '客戶', ['public'])],
 }
 TECH = {'base.group_no_one', 'base.group_system', 'base.group_erp_manager'}
 E = env(context=dict(env.context, lang=LANG, active_test=False))
@@ -194,28 +196,95 @@ for m in E['ir.model'].sudo().search([('transient', '=', True)]):
 # 設定：不在這裡盤。只有「已開啟」的參數型開關才是功能點（toggle_script，進階）；
 #   沒勾的設定不屬於方案預設範圍。
 
-# 前台：網站選單（方案模組、官方模組、在資料庫裡手動建的）＋已安裝模組的標準前台頁
+# 前台：網站選單（方案模組、官方模組、在資料庫裡手動建的）＋已安裝模組的標準前台頁，
+#   依使用者類型拆開（公開／網站入口／內部使用者看到的選單、按鈕不同）
 # ☠️ 實機：社群電商方案的網站選單都是手動建的（沒有 xmlid）、商城 /shop 是官方模組的，
 #   只盤方案模組的選單 → 一個前台功能點都沒有，網站的說明只剩後台畫面。
 SCOPE = MODS | OFFICIAL
+ALL_AUD = ('public', 'portal', 'internal')
+FRONT_LABEL = {'public': '', 'portal': '', 'internal': '（網站管理）'}
+
+_PORTAL_G = E.ref('base.group_portal', raise_if_not_found=False)
+_PUBLIC_G = E.ref('base.group_public', raise_if_not_found=False)
+
+def _aud_of_groups(groups):
+    # ☠️ res.groups.share 在 18 不會自動設，入口網站群組不能靠它判斷：看群組本身與它繼承的群組
+    out = set()
+    for g in groups.sudo():
+        chain = g | g.trans_implied_ids
+        if _PUBLIC_G and _PUBLIC_G in chain:
+            out.add('public')
+        elif _PORTAL_G and _PORTAL_G in chain:
+            out.add('portal')
+        else:
+            out.add('internal')
+    return out
+
+def _menu_audiences(wm):
+    # 這個選單哪幾種使用者看得到：選單的可見群組 ∩ 頁面的可見範圍
+    aud = _aud_of_groups(wm.group_ids) if wm.group_ids else set(ALL_AUD)
+    view = wm.page_id.view_id if wm.page_id else None
+    vis = (view.visibility or '') if view is not None and 'visibility' in view._fields else ''
+    if vis == 'connected':
+        aud &= {'portal', 'internal'}
+    elif vis == 'restricted_group':
+        aud &= _aud_of_groups(view.groups_id)
+    return aud
+
+def _documented(url, aud):
+    # 要寫哪幾種使用者的說明：公開頁寫訪客、要登入的頁寫會員、可編輯的內容頁另寫網站管理
+    out = []
+    if 'public' in aud:
+        out.append('public')
+    elif 'portal' in aud:
+        out.append('portal')
+    editable = not url.startswith(('/my', '/web', '/shop/cart', '/shop/checkout'))
+    if 'internal' in aud and editable:
+        out.append('internal')
+    return out
+
+def _front(url, mod, name, auds, menus_by_aud):
+    for a in auds:
+        _feat('route', '%s#%s' % (url, a), mod, name=name + FRONT_LABEL[a], menu_path=name,
+              front_menus='\n'.join(menus_by_aud.get(a) or []))
+
 if 'website.menu' in E and 'website' in SCOPE:
-    owner = {}
-    for d in Imd.search([('model', '=', 'website.menu')]):
-        owner[d.res_id] = d.module
-    for wm in E['website.menu'].search([('url', 'not in', ['', '/', '#'])]):
-        url = (wm.url or '').split('#')[0].split('?')[0].rstrip('/')
+    owner = {d.res_id: d.module for d in Imd.search([('model', '=', 'website.menu')])}
+    site = E['website'].search([], limit=1)
+    # sudo：限定群組的選單有記錄規則，不 sudo 就看不到「只給會員看」的選單；根選單不是頁面
+    menus = E['website.menu'].sudo().search([('url', 'not in', ['', '#']),
+                                             ('parent_id', '!=', False),
+                                             ('website_id', 'in', [site.id, False])],
+                                            order='sequence')
+    menus_by_aud = {a: [] for a in ALL_AUD}
+    found = []
+    for wm in menus:
+        aud = _menu_audiences(wm)
+        label = ('%s › %s' % (wm.parent_id.name, wm.name)) if wm.parent_id.parent_id else wm.name
+        for a in aud:
+            if label not in menus_by_aud[a]:
+                menus_by_aud[a].append(label)
+        url = (wm.url or '').split('#')[0].split('?')[0].rstrip('/') or '/'
         if not url.startswith('/') or url.startswith(('/odoo', '/web/')) and \
                 url not in ('/web/signup', '/web/login'):
             continue
         mod = owner.get(wm.id) or 'website'
         if mod in SCOPE:
-            _feat('route', url, mod, name=wm.name, menu_path=wm.name)
-INSTALLED = set(E['ir.module.module'].sudo().search([('state', '=', 'installed')]).mapped('name'))
-for mod, routes in FRONT_ROUTES.items():
-    # 只有方案範圍內有網站才做前台說明（純後台的方案裝了 portal 也不拍 /my）
-    if mod in INSTALLED and 'website' in SCOPE:
-        for url, name in routes:
-            _feat('route', url, mod, name=name, menu_path=name)
+            found.append((url, mod, wm.name, aud))
+    seen_urls = set()
+    for url, mod, name, aud in found:
+        if url not in seen_urls:
+            seen_urls.add(url)
+            _front(url, mod, name, _documented(url, aud), menus_by_aud)
+    INSTALLED = set(E['ir.module.module'].sudo().search(
+        [('state', '=', 'installed')]).mapped('name'))
+    for mod, routes in FRONT_ROUTES.items():
+        if mod not in INSTALLED:
+            continue
+        for url, name, auds in routes:
+            if url not in seen_urls:
+                seen_urls.add(url)
+                _front(url, mod, name, auds, menus_by_aud)
 
 out = []
 for d in feats.values():
