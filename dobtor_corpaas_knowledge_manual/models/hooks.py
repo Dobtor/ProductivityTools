@@ -323,6 +323,7 @@ class KnowledgeHooks(models.AbstractModel):
         res = super()._knowledge_shoot(package, sandbox, events, ctx)
         token = ctx.get('token')
         stop = ctx.setdefault('manual_ai_stopped', {'ai': False})
+        stop['run_id'] = ctx.get('run_id')
         stats = ctx.setdefault('stats', {})
         if not self._manual_backend_preflight(sandbox, ctx):
             return res
@@ -900,6 +901,9 @@ class KnowledgeHooks(models.AbstractModel):
             package._knowledge_heartbeat('kb_shoot', _('修補截圖腳本'))
             if stop['ai']:
                 return
+            # ★ 每修一張檢查「要求停止」：修腳本一張 0.1 美元，按停止要立刻停
+            #   ☠️ 實機：停止只在拍照批次之間檢查，87 張拍完後的修腳本照跑，停不下來多花 $9
+            self._manual_check_cancel({'run_id': stop.get('run_id')})
             if b.repair_attempts >= MAX_REPAIRS:
                 b.write({'needs_repair': False})
                 b.template_id.message_post(body=_(

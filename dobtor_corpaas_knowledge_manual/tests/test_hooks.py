@@ -206,6 +206,19 @@ class TestManualHooks(ManualCase):
         self.assertTrue(ctx['manual_backend_down'])
         self.assertEqual(self.hooks._manual_failure_kind(self.binding.last_error), 'backend')
 
+    def test_repair_stops_when_cancel_requested(self):
+        """按了停止：修腳本迴圈每張都檢查，不再叫 AI。"""
+        from odoo.exceptions import UserError
+        self._only_f1()
+        self.binding.write({'state': 'failed', 'needs_repair': True, 'repair_attempts': 0})
+        run = self.env['corpaas.knowledge.run'].sudo().create(
+            {'package_id': self.pkg.id, 'token': 'tok-cancel'})
+        run.write({'state': 'running', 'cancel_requested': True})
+        with patch.object(self.Ai, 'ask') as ask, self.assertRaises(UserError):
+            self.hooks._manual_repair_bindings(self.pkg, self.binding, 'tok',
+                                               {'ai': False, 'run_id': run.id})
+        ask.assert_not_called()
+
     def test_repair_attempts_capped(self):
         self._only_f1()
         self.binding.write({'state': 'failed', 'needs_repair': True, 'repair_attempts': 3})
