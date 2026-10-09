@@ -178,3 +178,97 @@ class TestPortalCrossCompanyCollaboration(TransactionCase):
         ids = set(all_visible.ids)
         self.assertIn(self.doc_invited.id, ids)
         self.assertNotIn(self.doc_not_invited.id, ids)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor', 'security')
+class TestExportLogAccess(TransactionCase):
+    """`doc.editor.export.log` 的讀取邊界。
+
+    ☠️ 2026-10-09 稽核發現的真缺口：這個 model 原本**沒有任何 record rule**，
+    而 ACL 給 `base.group_user` 與 `group_doc_portal` 都是 `perm_read=1`。實測
+    一個只有 `base.group_user` 的使用者、以及一個 portal 使用者，都讀得到
+    **全部**匯出紀錄（含另一間公司的）：誰在何時匯出了哪份文件、什麼格式、
+    以及 `record_ref`（綁定的 model,res_id）。
+
+    選單限 `group_doc_manager` 擋不住這件事——選單可見度不是安全邊界，
+    ACL 與 rule 管的是 RPC（`search_read`）。
+
+    兄弟 model（`error.log` / `perf.metric`）兩者都有 `create_uid` rule，
+    只有這一支漏了。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Log = self.env['doc.editor.export.log']
+        self.doc = self.env['doc.document'].create({'name': '權限測試文件'})
+        self.other_company = self.env['res.company'].create({'name': '另一間公司'})
+        self.mine = self.Log.create({
+            'doc_id': self.doc.id, 'file_format': 'pdf',
+            'company_id': self.env.company.id,
+        })
+        self.theirs = self.Log.create({
+            'doc_id': self.doc.id, 'file_format': 'pdf',
+            'company_id': self.other_company.id,
+        })
+
+    def _user(self, *group_xmlids):
+        return self.env['res.users'].create({
+            'name': '測試使用者',
+            'login': 'exportlog_%s' % '_'.join(g.split('.')[-1] for g in group_xmlids),
+            'groups_id': [(6, 0, [self.env.ref(g).id for g in group_xmlids])],
+        })
+
+    def test_plain_internal_user_cannot_read_any(self):
+        """只有 base.group_user 的使用者：一筆都不該讀到。
+
+        寫入走 `record_export()` 的 `sudo().create()`，所以非 manager 本來就
+        **不需要**這個 model 的任何權限。
+        """
+        user = self._user('base.group_user')
+        with self.assertRaises(AccessError):
+            self.Log.with_user(user).search_count([])
+
+    def test_portal_user_cannot_read_any(self):
+        """portal 使用者：一筆都不該讀到。portal 端沒有任何消費者。"""
+        user = self._user('base.group_portal', 'dobtor_doc_editor.group_doc_portal')
+        with self.assertRaises(AccessError):
+            self.Log.with_user(user).search_count([])
+
+    def test_manager_sees_only_own_company(self):
+        """管理者讀得到，但**限本公司**——這是 record rule 那一層。"""
+        mgr = self._user('base.group_user', 'dobtor_doc_editor.group_doc_manager')
+        ids = self.Log.with_user(mgr).search([
+            ('id', 'in', [self.mine.id, self.theirs.id]),
+        ]).ids
+        self.assertIn(self.mine.id, ids, '管理者讀不到本公司的紀錄')
+        self.assertNotIn(self.theirs.id, ids,
+                         '管理者讀到了另一間公司的紀錄——公司隔離 rule 沒生效')
+
+    def test_document_editor_cannot_read_the_log(self):
+        """文件編輯者是**產生**這些紀錄的人，但不該讀得到整張表。"""
+        user = self._user('base.group_user', 'dobtor_doc_editor.group_doc_editor')
+        with self.assertRaises(AccessError):
+            self.Log.with_user(user).search_count([])
+
+    def test_record_export_still_works_for_document_editor(self):
+        """收緊讀取權限不可以擋住寫入——`record_export` 走 sudo。
+
+        ☠️ 這一則第一版用 `base.group_user`，結果失敗在
+        `AccessError: 不允許存取 doc.document`——那個群組連文件都讀不到，
+        根本不會是匯出的人。真實的行為者是 `group_doc_editor`。
+        測試的使用者身分選錯，會把「測試寫錯」誤讀成「程式壞了」。
+        """
+        user = self._user('base.group_user', 'dobtor_doc_editor.group_doc_editor')
+        rec = self.Log.with_user(user).record_export(
+            self.doc.with_user(user), 'pdf', with_alias=True, file_size=1)
+        self.assertTrue(rec, '文件編輯者的匯出紀錄寫不進去了')
+        self.assertEqual(rec.sudo().user_id, user)
+
+    def test_cron_health_check_still_works(self):
+        """cron 以 admin 跑（admin 是 doc manager），收緊後仍要讀得到。"""
+        self.Log.create({
+            'doc_id': self.doc.id, 'file_format': 'pdf',
+            'with_alias': False, 'company_id': self.env.company.id,
+        })
+        self.assertGreaterEqual(
+            self.Log.get_no_alias_summary(hours=24)['count'], 1)

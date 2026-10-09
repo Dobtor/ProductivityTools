@@ -714,6 +714,93 @@ GitHub Actions CI 已撤（ADR-028）。測試與靜態檢查靠人跑
 `make test-local` / `test-local-tour` / `test-js` / `ci-all`。
 **這是已知且被接受的狀態**，不是漏掉——寫在這裡，下一輪稽核不要再提。
 
+## 7.13 第四輪稽核（2026-10-09）——一個真安全缺口、一個記錄失準
+
+第三輪之後模組大幅縮小（ADR-029 移除 TS 子系統、ADR-030 授權、ADR-031 hooks），
+所以這一輪換角度查**前三輪沒查過的層**。
+
+### ☠️ 真缺口：`doc.editor.export.log` 任何人都讀得到
+
+| 層 | 原本狀態 |
+|---|---|
+| ACL `base.group_user` | `perm_read=1` |
+| ACL `group_doc_portal` | `perm_read=1` |
+| record rule | **完全沒有** |
+
+**實測**：一個只有 `base.group_user` 的使用者、以及一個 portal 使用者，都讀得到
+**全部 2/2 筆**匯出紀錄（含另一間公司的）——誰在何時匯出了哪份文件、什麼格式、
+檔案大小，以及 `record_ref`（綁定的 `model,res_id`）。
+
+選單限 `group_doc_manager` **擋不住這件事**：選單可見度不是安全邊界，ACL 與
+rule 管的是 RPC（`search_read` / `call_kw`）。
+
+為什麼只有這一支漏：兄弟 model 都有保護——`error.log` 與 `perf.metric` 的
+`base.group_user` 是 `perm_read=0`（只寫不讀的 fire-and-forget 遙測）**且**各有
+`create_uid = user.id` 的 rule。`export.log` 在**兩個維度上都是例外**：讀權限
+更寬、又沒有 rule。而模組的 manifest 描述寫著「多公司隔離」。
+
+**修法兩層**：
+
+1. ACL 把 `base.group_user` 與 `group_doc_portal` 的 `perm_read` 收成 0。
+   非 manager 本來就**不需要**任何權限——寫入走 `record_export()` 的
+   `sudo().create()`（已查證）。
+2. 新增 `rule_doc_editor_export_log_company`，照 `doc.output` 的寫法做公司隔離，
+   當第二層。
+
+**不需要 migration**：`<data noupdate="1">` 只阻擋更新既有記錄，**新增**的 id
+仍會在 `-u` 時建立；ACL 走 CSV 一律更新。實測既有庫 `-u` 後兩層都生效。
+
+**cron 不受影響**：`_cron_health_check_no_alias` 的 `user_id` 是
+`base.user_admin`，而 admin 是 `group_doc_manager`（查過 DB）。
+
+### 六則測試，而且分別驗兩層
+
+移除 ACL 修正 → 三則變紅（plain user / portal user / document editor 都讀得到）。
+rule 那一層要**單獨**驗，因為移除 XML 不等於刪掉已建立的 `ir.rule` 記錄：
+在交易中 `rule.unlink()` 再查，管理者從 **1/2 變成 2/2**——證明公司隔離是那條
+rule 在擋，不是別的東西。
+
+☠️ 第一版測試用 `base.group_user` 當「匯出的人」，失敗在
+`AccessError: 不允許存取 doc.document`——那個群組連文件都讀不到，**根本不會是
+匯出的人**。真實的行為者是 `group_doc_editor`。**測試的使用者身分選錯，會把
+「測試寫錯」誤讀成「程式壞了」**；我差一步就要去改 `record_export`。
+
+### 記錄失準：`engine` 參數的註解
+
+`import_document` 的註解寫「仍然**讀**這個參數是為了讓舊呼叫端送 `engine=ts`
+時不會壞」——程式其實是**完全忽略**它、直接指派字面值。效果對、機制描述錯。
+已改成據實，並註明回應仍帶 `engine` 欄位只是為了形狀穩定（前端沒有任何地方
+讀它）。
+
+### 其他七類：全綠
+
+| 類別 | 結果 |
+|---|---|
+| `doc_convert.py` 的 10 支函式（移除 TS 路徑後是否變死碼） | 全部真的被呼叫 |
+| view / action 的 `res_model` 與 `model` | 都存在 |
+| `<button type="object">` 指向的方法 | 都存在 |
+| ACL 引用的群組 | 3 個自有群組都存在 |
+| 有 `company_id` 的 6 個模型的 rule 覆蓋 | 修正後 6/6 |
+| `data/*.xml` 的 `noupdate` 與記錄數 | 52 ＋ 5，一致 |
+| `audit` dict 是否還在填 | 是（`lo_html_len` / `lo_fallback`），診斷用 |
+
+### 需求定義對齊：規畫書 §5 有 36 項已勾但已不成立
+
+`dobtor_doc_editor_高保真匯入開發規劃.md` §5 有 **133 項 `[x]`、38 項 `[ ]`**，
+其中 **36 項已勾的描述的是 ADR-029 移除掉的 TS 子系統能力**——`<w:p>`/`<w:r>`
+解析、`table-layout: fixed/auto`、border conflict resolution（OOXML 17.4.65）、
+CJK fallback 鏈、`fontScheme`、numbering、`<w:frame>`、tab stop leader、
+`<m:oMath>` AST、`diagram*.xml`、`chart1.xml`…
+
+**這些 `[x]` 現在是假的。** 但規畫書是**計畫 artifact**，紀律是「計畫不可被完工
+紀錄覆蓋」，而且原本有 hook 專門擋「§5 勾選欄加敘述／刪除線」。所以**我沒有動
+那 133 個勾選**——只在檔頭加了狀態 banner（ADR-029 當天）。
+
+這一項需要的是**決定**，不是我自己改：
+* 維持現狀（檔頭 banner 已說明路線已移除），或
+* 在 §5 開頭加一段「下列能力隨 ADR-029 移除」的清單，或
+* 把那 36 項改回 `[ ]`（但那會讓規畫書失去「當時做到哪」的歷史意義）
+
 ## 8. 怎麼自己量一次
 
 ```bash

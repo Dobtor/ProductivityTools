@@ -652,8 +652,10 @@ body {{
         filename = upload.filename or ''
         ext = os.path.splitext(filename)[1].lower()
 
-        # engine 只剩一種實作（TS 通道已移除）。仍然讀這個參數是為了讓舊呼叫端
-        # 送 engine=ts 時不會壞——一律當 libreoffice 處理。
+        # engine 只剩一種實作（TS 通道已移除，ADR-029）。
+        # ☠️ 註解要準：這裡是**完全忽略**傳入的 engine 參數，不是「讀了再降級」
+        #    ——舊呼叫端送 engine=ts 不會壞，因為根本沒去看它。
+        #    回應仍帶 engine 欄位是為了保持形狀穩定（目前前端沒有任何地方讀它）。
         engine = 'libreoffice'
 
 

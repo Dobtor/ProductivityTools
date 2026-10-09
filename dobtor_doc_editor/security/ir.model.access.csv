@@ -15,9 +15,9 @@ access_doc_editor_error_log_portal,doc.editor.error.log portal,model_doc_editor_
 access_doc_editor_perf_metric_user,doc.editor.perf.metric user,model_doc_editor_perf_metric,base.group_user,0,1,1,0
 access_doc_editor_perf_metric_manager,doc.editor.perf.metric manager,model_doc_editor_perf_metric,dobtor_doc_editor.group_doc_manager,1,1,1,1
 access_doc_editor_perf_metric_portal,doc.editor.perf.metric portal,model_doc_editor_perf_metric,dobtor_doc_editor.group_doc_portal,0,1,1,0
-access_doc_editor_export_log_user,doc.editor.export.log user,model_doc_editor_export_log,base.group_user,1,0,0,0
+access_doc_editor_export_log_user,doc.editor.export.log user,model_doc_editor_export_log,base.group_user,0,0,0,0
 access_doc_editor_export_log_manager,doc.editor.export.log manager,model_doc_editor_export_log,dobtor_doc_editor.group_doc_manager,1,1,1,1
-access_doc_editor_export_log_portal,doc.editor.export.log portal,model_doc_editor_export_log,dobtor_doc_editor.group_doc_portal,1,0,0,0
+access_doc_editor_export_log_portal,doc.editor.export.log portal,model_doc_editor_export_log,dobtor_doc_editor.group_doc_portal,0,0,0,0
 access_doc_bulk_import_wizard_manager,doc.bulk.import.wizard manager,model_doc_bulk_import_wizard,dobtor_doc_editor.group_doc_manager,1,1,1,1
 access_doc_template_signer_editor,doc.template.signer editor,model_doc_template_signer,dobtor_doc_editor.group_doc_editor,1,0,0,0
 access_doc_template_signer_manager,doc.template.signer manager,model_doc_template_signer,dobtor_doc_editor.group_doc_manager,1,1,1,1

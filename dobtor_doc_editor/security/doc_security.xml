@@ -170,6 +170,34 @@
             - manager group 不受此 rule 限（manager 全存取）
             - perm_read=False 對應 ACL CSV 也是 0R（write-only），rule 主要 enforce on write/create
         -->
+        <!-- doc.editor.export.log：管理者看全部，但限本公司。
+             ☠️ 2026-10-09 稽核發現：這個 model 原本**沒有任何 record rule**，
+             而 ACL 給 base.group_user 與 group_doc_portal 都是 perm_read=1
+             ——實測一個只有 base.group_user 的使用者、以及一個 portal 使用者，
+             都讀得到**全部**匯出紀錄（含另一間公司的）：誰在何時匯出了哪份
+             文件、什麼格式、以及 record_ref（綁定的 model,res_id）。
+             選單雖然限 group_doc_manager，但選單可見度不是安全邊界
+             ——ACL 與 rule 管的是 RPC（search_read）。
+             兄弟 model（error.log / perf.metric）兩者都有 create_uid rule，
+             只有這一支漏了。
+             修法兩層：ACL 把非 manager 的 perm_read 收成 0（寫入走
+             record_export 的 sudo，非 manager 本來就不需要任何權限），
+             再加這條公司隔離 rule 當第二層。 -->
+        <record id="rule_doc_editor_export_log_company" model="ir.rule">
+            <field name="name">doc.editor.export.log：管理者看全部（限本公司）</field>
+            <field name="model_id" ref="model_doc_editor_export_log"/>
+            <field name="domain_force">[
+                '|',
+                ('company_id', '=', False),
+                ('company_id', 'in', company_ids)
+            ]</field>
+            <field name="groups" eval="[(4, ref('dobtor_doc_editor.group_doc_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
         <record id="rule_doc_editor_error_log_self_create" model="ir.rule">
             <field name="name">error_log: 只能寫 create_uid = self（防偽造）</field>
             <field name="model_id" ref="model_doc_editor_error_log"/>
