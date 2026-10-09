@@ -20,6 +20,26 @@ from odoo.exceptions import UserError
 
 
 class DocOutput(models.Model):
+    r"""文件輸出紀錄（系統產生，不是使用者建的）。
+
+    ☠️ **ACL 的形狀是刻意的，別「順手補齊」**（2026-10-09 稽核：可做 3）：
+
+        group_doc_editor   R
+        group_doc_manager  R ＋ **U**（可刪，不可寫不可建）
+        group_doc_portal   R
+
+    manager 有 unlink 沒有 create/write 看起來像漏的，其實不是：這些紀錄由
+    `_record_output()` **以 sudo 建立**（原因寫在那支方法的 docstring：
+    列印者可能對 doc.output 沒有 create 權限，它是系統紀錄）。給人工 create
+    權限會讓「輸出紀錄」這件事失去意義——它要忠實反映實際印過什麼。
+    保留 unlink 是為了讓管理者能清掉錯誤或過期的紀錄（另有 cron
+    `_gc_expired_outputs` 做自動清理）。
+
+    形狀由 `tests/test_acl_shapes.py` 釘住。要改 ACL 請先改那支測試，
+    並在這裡寫下新的理由——Odoo 的 `ir.model.access.csv` **不支援註解**，
+    所以理由只能寫在這裡。
+    """
+
     _name = 'doc.output'
     _description = '文件輸出紀錄'
     # 需要 _parse_content_json / _flatten_content_json / _content_json_to_html /

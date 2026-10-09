@@ -117,22 +117,10 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.xml',
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.js',
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.css',
-            # --- 以下為 HTML/Wysiwyg 時代舊資源，已停用（保留備查）---
-            # 'dobtor_doc_editor/static/src/core/pagination_engine.js',
-            # 'dobtor_doc_editor/static/src/js/plugins/doc_page_format_plugin.js',
-            # 'dobtor_doc_editor/static/src/js/plugins/doc_export_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_multi_column_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_font_family_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_font_size_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_line_height_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_table_merge_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_list_type_plugin.js',
-            # 'dobtor_doc_editor/static/src/plugins/doc_formatting_plugins.xml',
-            # 'dobtor_doc_editor/static/src/js/plugins/doc_odoo_field_plugin.js',
-            # 'dobtor_doc_editor/static/src/components/doc_ruler/doc_ruler.xml',
-            # 'dobtor_doc_editor/static/src/components/doc_ruler/doc_ruler.js',
-            # 'dobtor_doc_editor/static/src/components/doc_page_layout/doc_page_layout.xml',
-            # 'dobtor_doc_editor/static/src/components/doc_page_layout/doc_page_layout.js',
+            # ☠️ 這裡原本有 15 行被註解掉的 HTML/Wysiwyg 時代舊資源
+            #    （標「保留備查」，無條件無期限）。2026-10-09 全檔案稽核量到
+            #    它們唯一的引用者是 tests/test_manifest_assets.py 那份宣告它們
+            #    沒用的例外清單——於是連檔案一起刪了（git 保留歷史）。
         ],
         # ── Portal / Website frontend bundle（W2-3 P0-1 最後一哩）──
         # 為什麼必須在 `web.assets_frontend` 而不是自訂 bundle：

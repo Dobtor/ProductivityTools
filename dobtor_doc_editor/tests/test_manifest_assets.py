@@ -27,23 +27,18 @@ MODULE_NAME = 'dobtor_doc_editor'
 
 # 例外：刻意不在 assets 裡，但允許留在源樹。加例外請寫清楚原因。
 ALLOW_NOT_IN_ASSETS = {
-    # HTML / Wysiwyg 時代的舊資源，manifest 裡以註解列著並註明「保留備查」
-    # （Sprint 83 選項 C）。紀律 16 要求的 explicit rationale 在 manifest 原處。
-    'static/src/core/pagination_engine.js',
-    'static/src/js/plugins/doc_page_format_plugin.js',
-    'static/src/js/plugins/doc_export_plugin.js',
-    'static/src/js/plugins/doc_odoo_field_plugin.js',
-    'static/src/plugins/doc_multi_column_plugin.js',
-    'static/src/plugins/doc_font_family_plugin.js',
-    'static/src/plugins/doc_font_size_plugin.js',
-    'static/src/plugins/doc_line_height_plugin.js',
-    'static/src/plugins/doc_table_merge_plugin.js',
-    'static/src/plugins/doc_list_type_plugin.js',
-    'static/src/plugins/doc_formatting_plugins.xml',
-    'static/src/components/doc_ruler/doc_ruler.js',
-    'static/src/components/doc_ruler/doc_ruler.xml',
-    'static/src/components/doc_page_layout/doc_page_layout.js',
-    'static/src/components/doc_page_layout/doc_page_layout.xml',
+    # ☠️ 這份清單目前是**空的**，而且那是好事。
+    #
+    #    2026-10-09 之前它有 15 條：HTML/Wysiwyg 時代的舊資源，manifest 裡以
+    #    註解列著並標「保留備查」（無條件、無期限）。全檔案稽核量到一件事:
+    #    **它們唯一的引用者就是這份宣告它們沒用的清單**——讓它們活著的東西
+    #    就是宣告它們死了的那份清單。2,788 行、每次稽核都要重新判讀一遍。
+    #
+    #    已刪除（git 歷史保留全部內容；「保留備查」在有 git 的前提下是弱理由
+    #    ——git 就是備查）。
+    #
+    #    加新例外時請寫清楚原因**與移除條件**。沒有移除條件的例外，
+    #    最後都會變成上面那 15 條。
 }
 
 
