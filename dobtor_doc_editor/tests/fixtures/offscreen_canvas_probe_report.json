@@ -1,0 +1,57 @@
+{
+  "runAt": "2026-05-15T16:05:21.574Z",
+  "probe": "sprint60_offscreen_canvas_feasibility",
+  "featureDetection": {
+    "hasOffscreenCanvas": true,
+    "hasTransferControlToOffscreen": true,
+    "hasWorker": true,
+    "hasCreateImageBitmap": true,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.0.0 Safari/537.36"
+  },
+  "workerProbe": {
+    "ok": true,
+    "pongMs": 18.600000001490116,
+    "paintMs": 6.600000001490116,
+    "workerReady": true
+  },
+  "renderBench": {
+    "mainThread": {
+      "medianMs": 166.60000000149012,
+      "samples": [
+        160.19999999925494,
+        161.59999999776483,
+        166.60000000149012,
+        192.39999999850988,
+        322.30000000074506
+      ]
+    },
+    "workerSimulated": {
+      "medianTotalMs": 8.300000000745058,
+      "workerInternalMs": 3.800000000745058,
+      "postMessageOverheadMs": 4.5,
+      "samples": [
+        {
+          "totalMs": 7.899999998509884,
+          "workerInternalMs": 3.599999997764826
+        },
+        {
+          "totalMs": 7.900000002235174,
+          "workerInternalMs": 3.5
+        },
+        {
+          "totalMs": 8.300000000745058,
+          "workerInternalMs": 3.800000000745058
+        },
+        {
+          "totalMs": 8.5,
+          "workerInternalMs": 3.5
+        },
+        {
+          "totalMs": 23.199999999254942,
+          "workerInternalMs": 8.100000001490116
+        }
+      ]
+    },
+    "note": "workerSimulated 是「轉移 canvas + 跑簡單 ~500 ops」量 worker 路徑的 overhead 上限，不是完整 pipeline 在 worker 內的真實 wall-clock（那需要 Sprint 61 工程實作）"
+  }
+}

@@ -1,0 +1,1105 @@
+{
+  "runAt": "2026-05-25T15:09:34.621Z",
+  "pipeline": "sprint14_dobtor",
+  "bundlePath": "/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor/tools/dist/visual_regression_pipeline.iife.js",
+  "maxDiffThreshold": 0.5,
+  "totalFixtures": 42,
+  "rendered": 42,
+  "bootFailed": 0,
+  "comparedPages": 126,
+  "failedPages": 0,
+  "fixtures": [
+    {
+      "path": "01_simple/03.1120210-監造會議記錄-1120801.docx",
+      "bootOk": true,
+      "renderedPages": 3,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120210-監造會議記錄-1120801-1.png",
+          "diffRatio": 0.07771,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120210-監造會議記錄-1120801-2.png",
+          "diffRatio": 0.08591,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120210-監造會議記錄-1120801-3.png",
+          "diffRatio": 0.0627,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "01_simple/03.1120815-監造會議記錄.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120815-監造會議記錄-1.png",
+          "diffRatio": 0.07822,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120815-監造會議記錄-2.png",
+          "diffRatio": 0.08493,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120815-監造會議記錄-3.png",
+          "diffRatio": 0.05558,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "01_simple/03.1120822-監造會議記錄.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120822-監造會議記錄-1.png",
+          "diffRatio": 0.0817,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120822-監造會議記錄-2.png",
+          "diffRatio": 0.08371,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120822-監造會議記錄-3.png",
+          "diffRatio": 0.03379,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "01_simple/03.1120829-監造會議記錄.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120829-監造會議記錄-1.png",
+          "diffRatio": 0.0816,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120829-監造會議記錄-2.png",
+          "diffRatio": 0.08347,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120829-監造會議記錄-3.png",
+          "diffRatio": 0.04019,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "01_simple/03.1120905-監造會議記錄.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120905-監造會議記錄-1.png",
+          "diffRatio": 0.08324,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120905-監造會議記錄-2.png",
+          "diffRatio": 0.07802,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120905-監造會議記錄-3.png",
+          "diffRatio": 0.03185,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "01_simple/03.1120912-監造會議記錄.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120912-監造會議記錄-1.png",
+          "diffRatio": 0.08331,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120912-監造會議記錄-2.png",
+          "diffRatio": 0.07773,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120912-監造會議記錄-3.png",
+          "diffRatio": 0.03774,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "01_simple/03.1120919-監造會議記錄.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "03.1120919-監造會議記錄-1.png",
+          "diffRatio": 0.08154,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "03.1120919-監造會議記錄-2.png",
+          "diffRatio": 0.0803,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "03.1120919-監造會議記錄-3.png",
+          "diffRatio": 0.04747,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-1.png",
+          "diffRatio": 0.04275,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-2.png",
+          "diffRatio": 0.21356,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-1.png",
+          "diffRatio": 0.0454,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-2.png",
+          "diffRatio": 0.19742,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-1.png",
+          "diffRatio": 0.04655,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-2.png",
+          "diffRatio": 0.1854,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-1.png",
+          "diffRatio": 0.04311,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-2.png",
+          "diffRatio": 0.19092,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-1.png",
+          "diffRatio": 0.04204,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報-2.png",
+          "diffRatio": 0.20241,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1131202-工地密度簽到表.docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1131202-工地密度簽到表-1.png",
+          "diffRatio": 0.01599,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1140206-工地密度取樣紀錄.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1140206-工地密度取樣紀錄-1.png",
+          "diffRatio": 0.04283,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "1140206-工地密度取樣紀錄-2.png",
+          "diffRatio": 0.00114,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "02_std_table/1140206-工地密度簽到表.docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1140206-工地密度簽到表-1.png",
+          "diffRatio": 0.01598,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1).docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1)-1.png",
+          "diffRatio": 0.05872,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1)-2.png",
+          "diffRatio": 0.03703,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409-1.png",
+          "diffRatio": 0.06254,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409-2.png",
+          "diffRatio": 0.03717,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/1121229-全套管基樁混凝土查驗(共1).docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1121229-全套管基樁混凝土查驗(共1)-1.png",
+          "diffRatio": 0.18528,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/1130105-全套管基樁混凝土查驗(共2).docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1130105-全套管基樁混凝土查驗(共2)-1.png",
+          "diffRatio": 0.20123,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/1130109-全套管基樁混凝土查驗共(4).docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1130109-全套管基樁混凝土查驗共(4)-1.png",
+          "diffRatio": 0.19939,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/1130112-全套管基樁混凝土查驗共(共3)(承辦).docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1130112-全套管基樁混凝土查驗共(共3)(承辦)-1.png",
+          "diffRatio": 0.22618,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/1130516-共月橋P3帽梁鋼筋查驗.docx",
+      "bootOk": true,
+      "renderedPages": 1,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "1130516-共月橋P3帽梁鋼筋查驗-1.png",
+          "diffRatio": 0.19919,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "03_complex_table/送審管制.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "送審管制-1.png",
+          "diffRatio": 0.0517,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "送審管制-2.png",
+          "diffRatio": 0.00146,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "04_with_image/05.112磺港溪監造會議照片.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "05.112磺港溪監造會議照片-1.png",
+          "diffRatio": 0.19531,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "05.112磺港溪監造會議照片-2.png",
+          "diffRatio": 0.18438,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "04_with_image/05.112磺港溪監造會議照片1120923-1121001.docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "05.112磺港溪監造會議照片1120923-1121001-1.png",
+          "diffRatio": 0.19965,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "05.112磺港溪監造會議照片1120923-1121001-2.png",
+          "diffRatio": 0.19225,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27).docx",
+      "bootOk": true,
+      "renderedPages": 6,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27)-1.png",
+          "diffRatio": 0.22946,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27)-2.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27)-3.png",
+          "diffRatio": 0.11128,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27)-4.png",
+          "diffRatio": 0.00114,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27)-5.png",
+          "diffRatio": 0.23333,
+          "passed": true
+        },
+        {
+          "page": 6,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27)-6.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13).docx",
+      "bootOk": true,
+      "renderedPages": 6,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13)-1.png",
+          "diffRatio": 0.26871,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13)-2.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13)-3.png",
+          "diffRatio": 0.13283,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13)-4.png",
+          "diffRatio": 0.00114,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13)-5.png",
+          "diffRatio": 0.23457,
+          "passed": true
+        },
+        {
+          "page": 6,
+          "golden": "06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13)-6.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "04_with_image/6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6).docx",
+      "bootOk": true,
+      "renderedPages": 6,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6)-1.png",
+          "diffRatio": 0.2694,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6)-2.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6)-3.png",
+          "diffRatio": 0.19163,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6)-4.png",
+          "diffRatio": 0.00114,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6)-5.png",
+          "diffRatio": 0.26128,
+          "passed": true
+        },
+        {
+          "page": 6,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6)-6.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "04_with_image/6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29).docx",
+      "bootOk": true,
+      "renderedPages": 6,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29)-1.png",
+          "diffRatio": 0.26231,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29)-2.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29)-3.png",
+          "diffRatio": 0.18157,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29)-4.png",
+          "diffRatio": 0.00114,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29)-5.png",
+          "diffRatio": 0.30637,
+          "passed": true
+        },
+        {
+          "page": 6,
+          "golden": "6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29)-6.png",
+          "diffRatio": 0.00115,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---人手孔調升降.docx",
+      "bootOk": true,
+      "renderedPages": 5,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---人手孔調升降-1.png",
+          "diffRatio": 0.06571,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---人手孔調升降-2.png",
+          "diffRatio": 0.0642,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---人手孔調升降-3.png",
+          "diffRatio": 0.03231,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---人手孔調升降-4.png",
+          "diffRatio": 0.01669,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "自主檢查表---人手孔調升降-5.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---土方(整地).docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---土方(整地)-1.png",
+          "diffRatio": 0.06754,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---土方(整地)-2.png",
+          "diffRatio": 0.06911,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---土方(整地)-3.png",
+          "diffRatio": 0.0165,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---土方(整地)-4.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---地坪鋪面.docx",
+      "bootOk": true,
+      "renderedPages": 5,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---地坪鋪面-1.png",
+          "diffRatio": 0.06576,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---地坪鋪面-2.png",
+          "diffRatio": 0.06126,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---地坪鋪面-3.png",
+          "diffRatio": 0.02912,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---地坪鋪面-4.png",
+          "diffRatio": 0.01653,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "自主檢查表---地坪鋪面-5.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---木構造.docx",
+      "bootOk": true,
+      "renderedPages": 5,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---木構造-1.png",
+          "diffRatio": 0.06687,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---木構造-2.png",
+          "diffRatio": 0.05701,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---木構造-3.png",
+          "diffRatio": 0.04748,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---木構造-4.png",
+          "diffRatio": 0.0164,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "自主檢查表---木構造-5.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---植栽.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---植栽-1.png",
+          "diffRatio": 0.06693,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---植栽-2.png",
+          "diffRatio": 0.04277,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---植栽-3.png",
+          "diffRatio": 0.01636,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---植栽-4.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---植筋.docx",
+      "bootOk": true,
+      "renderedPages": 5,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---植筋-1.png",
+          "diffRatio": 0.0659,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---植筋-2.png",
+          "diffRatio": 0.05332,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---植筋-3.png",
+          "diffRatio": 0.03622,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---植筋-4.png",
+          "diffRatio": 0.01635,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "自主檢查表---植筋-5.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---模板.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---模板-1.png",
+          "diffRatio": 0.06523,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---模板-2.png",
+          "diffRatio": 0.05851,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---模板-3.png",
+          "diffRatio": 0.01634,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---模板-4.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---油漆.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---油漆-1.png",
+          "diffRatio": 0.06705,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---油漆-2.png",
+          "diffRatio": 0.05199,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---油漆-3.png",
+          "diffRatio": 0.0163,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---油漆-4.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---洗(抿)石子.docx",
+      "bootOk": true,
+      "renderedPages": 4,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---洗(抿)石子-1.png",
+          "diffRatio": 0.06682,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---洗(抿)石子-2.png",
+          "diffRatio": 0.06306,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---洗(抿)石子-3.png",
+          "diffRatio": 0.01645,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---洗(抿)石子-4.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "05_header_footer/自主檢查表---混凝土.docx",
+      "bootOk": true,
+      "renderedPages": 5,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "自主檢查表---混凝土-1.png",
+          "diffRatio": 0.06308,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "自主檢查表---混凝土-2.png",
+          "diffRatio": 0.05946,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "自主檢查表---混凝土-3.png",
+          "diffRatio": 0.03561,
+          "passed": true
+        },
+        {
+          "page": 4,
+          "golden": "自主檢查表---混凝土-4.png",
+          "diffRatio": 0.01639,
+          "passed": true
+        },
+        {
+          "page": 5,
+          "golden": "自主檢查表---混凝土-5.png",
+          "diffRatio": 0.00166,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "06_template/檢(試)驗管制(預設樣板).docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "檢(試)驗管制(預設樣板)-1.png",
+          "diffRatio": 0.05115,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "檢(試)驗管制(預設樣板)-2.png",
+          "diffRatio": 0.00146,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "06_template/缺失改善(預設樣板).docx",
+      "bootOk": true,
+      "renderedPages": 2,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "缺失改善(預設樣板)-1.png",
+          "diffRatio": 0.02634,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "缺失改善(預設樣板)-2.png",
+          "diffRatio": 0.00155,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "path": "06_template/缺失改善.docx",
+      "bootOk": true,
+      "renderedPages": 3,
+      "warnings": [],
+      "pageResults": [
+        {
+          "page": 1,
+          "golden": "缺失改善-1.png",
+          "diffRatio": 0.04136,
+          "passed": true
+        },
+        {
+          "page": 2,
+          "golden": "缺失改善-2.png",
+          "diffRatio": 0.03119,
+          "passed": true
+        },
+        {
+          "page": 3,
+          "golden": "缺失改善-3.png",
+          "diffRatio": 0.00155,
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

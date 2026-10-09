@@ -471,11 +471,82 @@ def _odt_to_html(file_bytes):
     _process(doc.body.childNodes)
     return '\n'.join(parts) if parts else '<p></p>'
 
-# `_ts_parse_docx_to_elements()` 原本在這裡——走 node CLI 呼叫自寫的 TS
-# OOXML Parser（engine=ts 並行通道）。2026-10-09 連同整個未出貨的 TS
-# 子系統一起移除：它唯一的消費者是 DevTools 驗收用的 importViaTsEngine()，
-# 不產生 production 行為。要取回：
-#   git checkout doc-editor-before-ts-removal -- dobtor_doc_editor/<path>
+def _ts_parse_docx_to_elements(file_bytes, float_textbox=False, anchored_image=False):
+    """使用本模組的 TS OOXML Parser 把 .docx 解析為 canvas-editor IElement[] JSON。
+
+    流程（Phase E 並行通道）：
+        1. 把 file_bytes 寫到暫存檔
+        2. subprocess 呼叫 `node tools/dist/parse_docx_cli.cjs <input> <output>`
+        3. 讀回 IElement[] JSON 並 parse 為 Python list
+        4. 失敗時回 None（caller 應 fallback 到 LibreOffice 路徑）
+
+    依賴：
+        - container 內有 Node 18+（`docker exec odoo18 which node` 已驗）
+        - `tools/dist/parse_docx_cli.cjs` 已 build（`npm run build:cli` 產出）
+
+    參數：
+        file_bytes:       docx 檔案 bytes
+        float_textbox:    Sprint Y58 opt-in：展平 wp:anchor + w:txbxContent 文字
+        anchored_image:   Sprint Y58 opt-in：透傳 wp:anchor 屬性到 IElement.anchor
+
+    回傳：list[dict] 或 None
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # 解析 module 根目錄（doc_controller.py 在 controllers/ 下）
+    module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cli_path = os.path.join(module_dir, 'tools', 'dist', 'parse_docx_cli.cjs')
+
+    if not os.path.isfile(cli_path):
+        _logger.warning(
+            'dobtor_doc_editor: TS CLI not built at %s — '
+            'run `cd %s && npm run build:cli`',
+            cli_path, module_dir,
+        )
+        return None
+
+    if not shutil.which('node'):
+        _logger.warning('dobtor_doc_editor: `node` not in PATH; TS engine unavailable')
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            in_path = os.path.join(tmpdir, 'input.docx')
+            out_path = os.path.join(tmpdir, 'output.json')
+            with open(in_path, 'wb') as fp:
+                fp.write(file_bytes)
+
+            # Sprint 358-359：--svg-graphics 讓 SmartArt/Chart 渲成 SVG image
+            # （取代線性文字 fallback；2026-05-29 真實資料 fidelity audit 修法）。
+            # Sprint Y58：--float-textbox / --anchored-image 由 caller 決定是否啟用。
+            # 舊版 CLI 遇未知旗標會優雅忽略、不 crash，故部署落差安全。
+            argv = ['node', cli_path, in_path, out_path, '--elements', '--svg-graphics']
+            if float_textbox:
+                argv.append('--float-textbox')
+            if anchored_image:
+                argv.append('--anchored-image')
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                timeout=30,
+            )
+            if proc.returncode != 0:
+                _logger.warning(
+                    'dobtor_doc_editor: TS CLI failed (rc=%d): %s',
+                    proc.returncode,
+                    proc.stderr.decode('utf-8', errors='replace')[:500],
+                )
+                return None
+
+            with open(out_path, 'r', encoding='utf-8') as fp:
+                return json.load(fp)
+    except subprocess.TimeoutExpired:
+        _logger.warning('dobtor_doc_editor: TS CLI timeout (30s)')
+        return None
+    except Exception as e:
+        _logger.warning('dobtor_doc_editor: TS CLI error — %s', e)
+        return None
 
 def _lo_convert_to_html(file_bytes, ext):
     """使用 LibreOffice headless 將 ODT/DOCX 轉換為 HTML。

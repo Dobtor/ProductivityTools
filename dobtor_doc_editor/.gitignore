@@ -1,8 +1,30 @@
 # =========================
-# 1. 本機暫存
+# 1. 前端開發與編譯暫存 (Node.js / TS)
 # =========================
-# 2026-10-09：未出貨的 TS 子系統（node_modules / rollup / vitest / fixtures）
-# 已整批移除，所以這一段只剩本機設定。
+node_modules/
+dist/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# ☠️ 例外：engine=ts 的 node CLI 產物**必須進版控**。
+#    2026-10-09 之前它被上面的 `dist/` 排除，所以 engine=ts 在任何部署上都
+#    找不到 CLI、只會記 warning 回 None——那條通道從頭到尾沒真的運作過。
+#    部署端沒有 npm（容器只有 node），不可能在機器上 build，所以產物進 git
+#    是唯一可行的做法。見 ADR-032。
+!tools/dist/
+!tools/dist/parse_docx_cli.cjs
+
+# CI 輸出（Sprint 20 補入）
+tests/vitest-junit.xml
+tests/fixtures/sprint18_ratio_grid_report.json
+test-results/
+
+# VR run 暫存（Sprint 158 補入）
+tests/fixtures/.visual_regression_tmp/
+tests/fixtures/**/golden/*_diff.png
+
+# Autopilot Y 本機設定（Sprint 158 補入；per-machine、不進 git）
 .antigravity/
 
 # =========================

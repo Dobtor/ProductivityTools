@@ -1,0 +1,858 @@
+{
+  "runAt": "2026-05-30T13:56:32.360Z",
+  "totalFixtures": 15,
+  "cliPath": "/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor/tools/dist/parse_docx_cli.cjs",
+  "harness": "/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor/scripts/sprint_y58_harness.html",
+  "screenshotEnabled": true,
+  "summary": {
+    "parsedBoth": 15,
+    "textboxDeltaDocs": 14,
+    "anchorDeltaDocs": 14,
+    "imageDeltaDocs": 5,
+    "avgTextboxAddedChars": 31,
+    "avgTextboxAddedImages": 1,
+    "avgAnchorAdded": 3,
+    "avgVisualDiffRatio": 0.06054405120688561
+  },
+  "fixtures": [
+    {
+      "path": "01_simple/03.1120210-監造會議記錄-1120801.docx",
+      "baseline": {
+        "elementCount": 3,
+        "textLength": 1558,
+        "anchorTotal": 0,
+        "imageCount": 0
+      },
+      "optIn": {
+        "elementCount": 3,
+        "textLength": 1558,
+        "anchorTotal": 0,
+        "anchorSources": {},
+        "imageCount": 0
+      },
+      "delta": {
+        "textboxAddedChars": 0,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 0,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 5,
+        "optInPages": 5,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 5,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          }
+        ]
+      }
+    },
+    {
+      "path": "01_simple/03.1120815-監造會議記錄.docx",
+      "baseline": {
+        "elementCount": 6,
+        "textLength": 1774,
+        "anchorTotal": 0,
+        "imageCount": 0
+      },
+      "optIn": {
+        "elementCount": 6,
+        "textLength": 1807,
+        "anchorTotal": 5,
+        "anchorSources": {
+          "floatTextBox": 5
+        },
+        "imageCount": 0
+      },
+      "delta": {
+        "textboxAddedChars": 33,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 5,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 4,
+        "pageNumDiff": [
+          "第1頁，共3頁",
+          "第2頁，共3頁",
+          "第4頁，共4頁",
+          "第3頁，共3頁"
+        ]
+      },
+      "screenshots": {
+        "baselinePages": 6,
+        "optInPages": 6,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 29404,
+            "ratio": 0.03297662118605481
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 94434,
+            "ratio": 0.10590784400366955
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 763,
+            "ratio": 0.0008557054130376757
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 11176,
+            "ratio": 0.012533897373668498
+          },
+          {
+            "page": 5,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 46139,
+            "ratio": 0.05174494371185494
+          },
+          {
+            "page": 6,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 5646,
+            "ratio": 0.006331995756239472
+          }
+        ]
+      }
+    },
+    {
+      "path": "01_simple/03.1120822-監造會議記錄.docx",
+      "baseline": {
+        "elementCount": 6,
+        "textLength": 1536,
+        "anchorTotal": 0,
+        "imageCount": 0
+      },
+      "optIn": {
+        "elementCount": 6,
+        "textLength": 1561,
+        "anchorTotal": 4,
+        "anchorSources": {
+          "floatTextBox": 4
+        },
+        "imageCount": 0
+      },
+      "delta": {
+        "textboxAddedChars": 25,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 4,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 3,
+        "pageNumDiff": [
+          "第1頁，共3頁",
+          "第2頁，共3頁",
+          "第3頁，共3頁"
+        ]
+      },
+      "screenshots": {
+        "baselinePages": 5,
+        "optInPages": 5,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 29432,
+            "ratio": 0.03300802321956078
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 93820,
+            "ratio": 0.1052192422689315
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 36723,
+            "ratio": 0.04118488844427597
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 33608,
+            "ratio": 0.03769141221673684
+          },
+          {
+            "page": 5,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 42181,
+            "ratio": 0.04730604197554679
+          }
+        ]
+      }
+    },
+    {
+      "path": "01_simple/03.1120829-監造會議記錄.docx",
+      "baseline": {
+        "elementCount": 6,
+        "textLength": 1603,
+        "anchorTotal": 0,
+        "imageCount": 0
+      },
+      "optIn": {
+        "elementCount": 14,
+        "textLength": 1627,
+        "anchorTotal": 3,
+        "anchorSources": {
+          "floatTextBox": 3
+        },
+        "imageCount": 0
+      },
+      "delta": {
+        "textboxAddedChars": 24,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 3,
+        "elementAddedCount": 8,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 3,
+        "pageNumDiff": [
+          "第1頁，共3頁",
+          "第2頁，共3頁",
+          "第3頁，共3頁"
+        ]
+      },
+      "screenshots": {
+        "baselinePages": 5,
+        "optInPages": 5,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 29414,
+            "ratio": 0.032987836198021224
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 93825,
+            "ratio": 0.10522484977491471
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 36411,
+            "ratio": 0.04083498007092374
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 38846,
+            "ratio": 0.04356583548474646
+          },
+          {
+            "page": 5,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 30504,
+            "ratio": 0.03421027250236076
+          }
+        ]
+      }
+    },
+    {
+      "path": "01_simple/03.1120905-監造會議記錄.docx",
+      "baseline": {
+        "elementCount": 6,
+        "textLength": 1485,
+        "anchorTotal": 0,
+        "imageCount": 0
+      },
+      "optIn": {
+        "elementCount": 14,
+        "textLength": 1509,
+        "anchorTotal": 3,
+        "anchorSources": {
+          "floatTextBox": 3
+        },
+        "imageCount": 0
+      },
+      "delta": {
+        "textboxAddedChars": 24,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 3,
+        "elementAddedCount": 8,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 3,
+        "pageNumDiff": [
+          "第1頁，共3頁",
+          "第2頁，共3頁",
+          "第3頁，共3頁"
+        ]
+      },
+      "screenshots": {
+        "baselinePages": 5,
+        "optInPages": 3,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 28862,
+            "ratio": 0.03236876753747496
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 101884,
+            "ratio": 0.11426302791865078
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 96190,
+            "ratio": 0.10787720010497251
+          }
+        ]
+      }
+    },
+    {
+      "path": "02_std_table/1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "baseline": {
+        "elementCount": 42,
+        "textLength": 407,
+        "anchorTotal": 0,
+        "imageCount": 4
+      },
+      "optIn": {
+        "elementCount": 42,
+        "textLength": 450,
+        "anchorTotal": 4,
+        "anchorSources": {
+          "floatTextBox": 4
+        },
+        "imageCount": 5
+      },
+      "delta": {
+        "textboxAddedChars": 43,
+        "textboxAddedImages": 1,
+        "anchorAddedCount": 4,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 4,
+        "optInPages": 4,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 49407,
+            "ratio": 0.055410009622480265
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 90555,
+            "ratio": 0.1015575408618961
+          }
+        ]
+      }
+    },
+    {
+      "path": "02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "baseline": {
+        "elementCount": 42,
+        "textLength": 442,
+        "anchorTotal": 0,
+        "imageCount": 4
+      },
+      "optIn": {
+        "elementCount": 42,
+        "textLength": 486,
+        "anchorTotal": 4,
+        "anchorSources": {
+          "floatTextBox": 4
+        },
+        "imageCount": 5
+      },
+      "delta": {
+        "textboxAddedChars": 44,
+        "textboxAddedImages": 1,
+        "anchorAddedCount": 4,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 4,
+        "optInPages": 4,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 48856,
+            "ratio": 0.05479206246313065
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 87203,
+            "ratio": 0.09779826885075286
+          }
+        ]
+      }
+    },
+    {
+      "path": "02_std_table/1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "baseline": {
+        "elementCount": 40,
+        "textLength": 443,
+        "anchorTotal": 0,
+        "imageCount": 4
+      },
+      "optIn": {
+        "elementCount": 40,
+        "textLength": 487,
+        "anchorTotal": 4,
+        "anchorSources": {
+          "floatTextBox": 4
+        },
+        "imageCount": 5
+      },
+      "delta": {
+        "textboxAddedChars": 44,
+        "textboxAddedImages": 1,
+        "anchorAddedCount": 4,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 4,
+        "optInPages": 4,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 136582,
+            "ratio": 0.15317687643972716
+          },
+          {
+            "page": 4,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 85474,
+            "ratio": 0.09585919328175924
+          }
+        ]
+      }
+    },
+    {
+      "path": "02_std_table/1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "baseline": {
+        "elementCount": 40,
+        "textLength": 430,
+        "anchorTotal": 0,
+        "imageCount": 4
+      },
+      "optIn": {
+        "elementCount": 40,
+        "textLength": 474,
+        "anchorTotal": 4,
+        "anchorSources": {
+          "floatTextBox": 4
+        },
+        "imageCount": 5
+      },
+      "delta": {
+        "textboxAddedChars": 44,
+        "textboxAddedImages": 1,
+        "anchorAddedCount": 4,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 3,
+        "optInPages": 3,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 140652,
+            "ratio": 0.15774138631005918
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 89971,
+            "ratio": 0.10090258416305731
+          }
+        ]
+      }
+    },
+    {
+      "path": "02_std_table/1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx",
+      "baseline": {
+        "elementCount": 40,
+        "textLength": 411,
+        "anchorTotal": 0,
+        "imageCount": 4
+      },
+      "optIn": {
+        "elementCount": 40,
+        "textLength": 455,
+        "anchorTotal": 4,
+        "anchorSources": {
+          "floatTextBox": 4
+        },
+        "imageCount": 5
+      },
+      "delta": {
+        "textboxAddedChars": 44,
+        "textboxAddedImages": 1,
+        "anchorAddedCount": 4,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 3,
+        "optInPages": 3,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 0,
+            "ratio": 0
+          },
+          {
+            "page": 2,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 141406,
+            "ratio": 0.15858699821232708
+          },
+          {
+            "page": 3,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 90019,
+            "ratio": 0.1009564162204961
+          }
+        ]
+      }
+    },
+    {
+      "path": "03_complex_table/1121229-全套管基樁混凝土查驗(共1).docx",
+      "baseline": {
+        "elementCount": 50,
+        "textLength": 98,
+        "anchorTotal": 0,
+        "imageCount": 2
+      },
+      "optIn": {
+        "elementCount": 50,
+        "textLength": 118,
+        "anchorTotal": 2,
+        "anchorSources": {
+          "floatTextBox": 2
+        },
+        "imageCount": 2
+      },
+      "delta": {
+        "textboxAddedChars": 20,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 2,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 1,
+        "optInPages": 1,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 136236,
+            "ratio": 0.1527888370256891
+          }
+        ]
+      }
+    },
+    {
+      "path": "03_complex_table/1130105-全套管基樁混凝土查驗(共2).docx",
+      "baseline": {
+        "elementCount": 50,
+        "textLength": 105,
+        "anchorTotal": 0,
+        "imageCount": 2
+      },
+      "optIn": {
+        "elementCount": 50,
+        "textLength": 126,
+        "anchorTotal": 2,
+        "anchorSources": {
+          "floatTextBox": 2
+        },
+        "imageCount": 2
+      },
+      "delta": {
+        "textboxAddedChars": 21,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 2,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 1,
+        "optInPages": 1,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 137591,
+            "ratio": 0.15430847114713872
+          }
+        ]
+      }
+    },
+    {
+      "path": "03_complex_table/1130109-全套管基樁混凝土查驗共(4).docx",
+      "baseline": {
+        "elementCount": 50,
+        "textLength": 105,
+        "anchorTotal": 0,
+        "imageCount": 2
+      },
+      "optIn": {
+        "elementCount": 50,
+        "textLength": 126,
+        "anchorTotal": 2,
+        "anchorSources": {
+          "floatTextBox": 2
+        },
+        "imageCount": 2
+      },
+      "delta": {
+        "textboxAddedChars": 21,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 2,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 1,
+        "optInPages": 1,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 142291,
+            "ratio": 0.15957952677135506
+          }
+        ]
+      }
+    },
+    {
+      "path": "03_complex_table/1130112-全套管基樁混凝土查驗共(共3)(承辦).docx",
+      "baseline": {
+        "elementCount": 53,
+        "textLength": 121,
+        "anchorTotal": 0,
+        "imageCount": 2
+      },
+      "optIn": {
+        "elementCount": 53,
+        "textLength": 142,
+        "anchorTotal": 2,
+        "anchorSources": {
+          "floatTextBox": 2
+        },
+        "imageCount": 2
+      },
+      "delta": {
+        "textboxAddedChars": 21,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 2,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 1,
+        "optInPages": 1,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 147823,
+            "ratio": 0.16578367139117736
+          }
+        ]
+      }
+    },
+    {
+      "path": "03_complex_table/1130516-共月橋P3帽梁鋼筋查驗.docx",
+      "baseline": {
+        "elementCount": 49,
+        "textLength": 113,
+        "anchorTotal": 0,
+        "imageCount": 2
+      },
+      "optIn": {
+        "elementCount": 49,
+        "textLength": 133,
+        "anchorTotal": 2,
+        "anchorSources": {
+          "floatTextBox": 2
+        },
+        "imageCount": 2
+      },
+      "delta": {
+        "textboxAddedChars": 20,
+        "textboxAddedImages": 0,
+        "anchorAddedCount": 2,
+        "elementAddedCount": 0,
+        "pageNumBaseline": 0,
+        "pageNumOptIn": 0,
+        "pageNumDiff": []
+      },
+      "screenshots": {
+        "baselinePages": 1,
+        "optInPages": 1,
+        "pageDiffs": [
+          {
+            "page": 1,
+            "width": 794,
+            "height": 1123,
+            "pixelDiff": 133959,
+            "ratio": 0.1502351788009358
+          }
+        ]
+      }
+    }
+  ]
+}

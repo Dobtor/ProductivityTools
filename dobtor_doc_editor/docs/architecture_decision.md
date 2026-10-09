@@ -41,6 +41,7 @@
 | **029** | **移除未出貨的 TS OOXML 子系統** | **2026-10-09** | 76k 行測試＋33k 行原始碼＋82MB fixture 不產生 production 行為；回退 tag `doc-editor-before-ts-removal` |
 | **030** | **授權 LGPL-3 → OPL-1** | **2026-10-09** | Dobtor 統一政策；depends 全 LGPL-3 核心（無 AGPL）、自有檔案零授權標頭、隨附第三方皆寬鬆式（JSZip 雙授權選 MIT）|
 | **031** | **移除模組內的 Claude Code hooks** | **2026-10-09** | 573 行、4 支 hook；它要求的三層 SOP 與 sprint artifact 都已不存在，且實測已不生效。紀律本身保留在 CONTRIBUTING §5 |
+| **032** | **取回 TS OOXML 子系統＋補上從未接上的兩條線** | **2026-10-09** | CLI 產物進版控（`!tools/dist/`）、bundle 掛進 manifest 並加瀏覽器端消費者；三道守門員都驗過會紅 |
 
 ---
 
@@ -1929,3 +1930,99 @@ git checkout <那個 commit>^ -- dobtor_doc_editor/.claude
 模組的安裝與測試完全不受影響（`.claude/` 不在 `manifest` 的 `data` 或
 `assets`，也不被任何 Python / JS 引用）：後端 590 則 0 失敗、tour 78/78、
 `make ci-all` 全過。
+
+---
+
+## ADR-032：取回 TS OOXML 子系統，並補上它從未真正運作的兩個環節
+
+**日期**：2026-10-09
+**狀態**：已實作（版本 `18.0.13.0.0`）
+**取代**：ADR-029（移除）——該 ADR 的移除理由仍然成立，但**前提被這次修掉了**
+
+### 為什麼取回
+
+ADR-029 的核心論據是「這套東西不產生任何 production 行為」。查證之後發現那是
+**結果，不是原因**——真正的原因是它的兩個產出從來沒有被接上：
+
+| 環節 | 原本的狀態 | 後果 |
+|---|---|---|
+| `tools/dist/parse_docx_cli.cjs` | 被 `.gitignore` 的 `dist/` 排除、**從未進 git**。部署端容器只有 node、**沒有 npm**，不可能在機器上 build | `_ts_parse_docx_to_elements()` 永遠找不到 CLI → 記一行 warning 回 `None` → `engine=ts` 在**任何部署**上都沒運作過。而且因為優雅降級，沒有任何東西會報錯 |
+| `canvas-editor-custom.umd.js` | git 有追蹤，但**從未出現在 manifest 的任何 bundle** | 瀏覽器端的 parser 從頭到尾沒被執行過。rollup 檔頭曾寫「Odoo 的靜態資源系統直接引用這個 bundle」——**那句話是錯的** |
+
+兩個都是**接線沒接**，不是設計不可行。移除一套「只差兩條線」的 33,000 行投資，
+代價不對。
+
+### 補的兩件
+
+**① CLI 產物進版控**
+
+`.gitignore` 加例外：
+
+```
+dist/
+!tools/dist/
+!tools/dist/parse_docx_cli.cjs
+```
+
+理由寫在該處：部署端沒有 npm，產物進 git 是唯一可行的做法。
+
+實測：host（node 22）與容器（node 18）跑同一份 `.cjs`，對同一個 fixture 輸出
+**byte 數一致**（239,941），解析出 3 個 IElement。
+
+**② 瀏覽器 bundle 掛進 manifest ＋ 給它一個消費者**
+
+只掛不用等於每個後台頁面白載 425KB。所以同時加了
+`DocEditorIo.importViaBrowserParser()`——與走後端 CLI 的 `importViaTsEngine()`
+對稱的瀏覽器端通道，同一個 parser 兩條執行路徑，可以當場比對輸出。
+
+查證過的事實（不是推測）：
+* bundle 的全域是 **`DobtorCanvasEditor`**，16 個匯出
+* 它**不含** canvas-editor 的編輯器 API（實測 `executeSetValue` / `CanvasEvent`
+  / `command.execute` 皆 0 筆）→ 與上游 `canvas-editor.umd.min.js` **不衝突**、
+  不會有兩份實例。rollup 檔頭寫「把 patch 過的 canvas-editor 一起打包」是錯的
+  （`patches/` 本來就是空的，`patch-package` 跑起來說 "No patch files found"）
+* **刻意不加到 `web.assets_frontend`**：portal 已經要下載 1.5MB，而 portal 沒有
+  這條驗收通道
+
+☠️ 寫這個方法時我第一版是**猜** API 的（`await parser.parse()`、
+`ToCanvasEditor.toElements()`）——兩個都錯。正確用法在
+`tools/parse_docx_cli.ts`：`parse()` 是**同步**的、mapper 的方法叫 `convert()`，
+而且旗標要與後端送給 CLI 的一致（`renderGraphicsAsSvg: true`），否則兩條通道的
+輸出不能互相比對。**有權威範例時不要猜。**
+
+### 三道新的守門員（都驗過移掉會紅）
+
+| 守什麼 | 怎麼守 | 移掉的話 |
+|---|---|---|
+| CLI 產物在版控裡 | `TestTsEngineChannel.test_cli_bundle_is_in_the_repo` | 3 則全紅 |
+| `engine=ts` 端到端回得出 elements | `test_engine_ts_returns_elements`、`test_engine_both_...` | 同上 |
+| manifest 真的載了 bundle、而且有消費者 | tour 第 2 步（真瀏覽器） | tour `[2/79]` 紅 |
+
+最後一項特別重要：原本的失效模式正是「存在但不載入」，而那種狀態**不會報錯**。
+
+### 順手修掉的測試缺陷
+
+`sprint280_shaping_font_chain.test.ts` 與
+`sprint281_phase2_1_full_chain_node_parity.test.ts` 在 `describe.skipIf(!HAS_FONT)`
+的**主體頂層**做 `readFileSync(FONT)`。`skipIf` 只把裡面註冊的 test 標成 skip、
+**不會阻止主體執行**，所以在沒有 DejaVu 字型的機器（macOS，那是 Debian 的路徑）
+整個檔案 ENOENT 失敗而不是乾淨 skip。改成 lazy（第一次用到才讀）。
+
+### 驗證
+
+| | |
+|---|---|
+| vitest | **3059 passed / 108 skipped / 0 failed**（237 檔） |
+| Odoo 後端 | **611 則 0 失敗**（596 ＋ 12 font_serve ＋ 3 ts engine） |
+| tour | **79/79**（多一步 manifest 守門員） |
+| CLI | host node 22 與容器 node 18 輸出 byte 一致 |
+| 路由 | 37 → **41**（font_serve 2 條 ＋ 視覺回歸 2 條回來） |
+
+### 仍然沒有解決的（誠實記錄）
+
+* **規畫書 §5 那 36 項 `[x]`**：程式碼回來了，但「能力是否達成」要靠 VR 量測
+  才能說，而 VR baseline 從 2026-10-09 之後沒有重跑過。取回 ≠ 回到當時的保真度。
+* **`engine=ts` 仍然不是預設**：使用者按「匯入」走的還是 LibreOffice ＋
+  canvas-editor 的 docx plugin。兩條 TS 通道（後端 CLI、瀏覽器 parser）都是
+  驗收用，要不要升為預設是另一個決定，需要先有 A/B 保真度數據。
+* **CI 沒有**（ADR-028 撤回），所以 `npm test` 的 3059 則與 tour 都靠人跑。

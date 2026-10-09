@@ -24,11 +24,12 @@ ODOO_ARGS      ?= --db_host=$(PG_HOST) --db_user=odoo --db_password=odoo --addon
 # 預設執行 help
 .DEFAULT_GOAL := help
 
-.PHONY: help upgrade restart logs test-js \
+.PHONY: help install build watch dev upgrade restart logs test-js \
+        scan-ooxml fixtures-golden fixtures-compare visual-regression \
         test-backend test-backend-zip \
         test-local test-local-tour test-local-all \
-        ci-python ci-xml ci-all \
-        clean verify
+        ci-frontend ci-python ci-xml ci-all \
+        clean clean-build clean-deps verify
 
 help: ## 列出所有 target
 	@echo "dobtor_doc_editor — 開發指令"
@@ -104,10 +105,68 @@ ci-xml: ## CI XML job: 全 XML well-formed
 	@find . -name '*.xml' -not -path './node_modules/*' \
 	  -exec xmllint --noout {} \;
 
-ci-all: ci-python ci-xml test-js ## 跑全部本機靜態檢查
+ci-all: ci-frontend ci-python ci-xml test-js ## 跑全部本機靜態檢查（不含 visual-regression）
 
 # ── 清理 ──────────────────────────────────────────────────────────────────────
-clean: ## 刪除 Python 編譯暫存
-	find . -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
-	find . -name '*.pyc' -delete 2>/dev/null || true
-	@echo "✓ cleaned"
+
+# ── 前端打包 ─────────────────────────────────────────────────────────────────
+
+install: ## 安裝 npm 依賴（含 patch-package 套用）
+	npm install --no-audit --no-fund
+
+build: ## rollup 打包 OOXML Parser → canvas-editor-custom.umd.js
+	npm run build:frontend
+
+watch: ## rollup --watch（修改 .ts 即時重打包）
+	npm run build:watch
+
+dev: build upgrade restart ## 完整開發循環：build TS → upgrade module → restart container
+	@echo "✓ dev cycle complete: bundle rebuilt, module upgraded, container restarted"
+
+# ── Fixture 回歸與 OOXML 掃描 ────────────────────────────────────────────────
+
+scan-ooxml: ## 掃 tests/fixtures/ 全部 DOCX 統計使用到的 OOXML 元素
+	python3 tools/scan_ooxml_elements.py $(FIXTURE_DIR)
+
+fixtures-golden: ## 用 LibreOffice + pdftoppm 為每份 DOCX 產 golden PNG（在 container 內跑）
+	docker exec $(ODOO_CONTAINER) bash -c "cd /mnt/extra-addons/$(MODULE) && bash tests/scripts/generate_golden.sh"
+
+fixtures-compare: ## 用 puppeteer + pixelmatch 比對 canvas-editor 渲染與 golden PNG
+	@if [ -z "$(FIXTURE)" ]; then \
+		node tests/scripts/compare_fixtures.cjs; \
+	else \
+		node tests/scripts/compare_fixtures.cjs --fixture $(FIXTURE); \
+	fi
+
+visual-regression: ## 跑視覺回歸 + threshold 判定（PR block 用）
+	bash tests/scripts/run_visual_regression.sh
+
+ci-frontend: ## CI 前端 job: typecheck + vitest + build
+	npm run typecheck
+	npm test
+	npm run build:frontend
+	@test -f static/src/lib/canvas_editor/canvas-editor-custom.umd.js \
+		&& echo "✓ bundle ok" \
+		|| (echo "✗ bundle missing" && exit 1)
+
+clean-build: ## 刪除 rollup 輸出與 .tsbuildinfo
+	rm -f static/src/lib/canvas_editor/canvas-editor-custom.umd.js
+	rm -f static/src/lib/canvas_editor/canvas-editor-custom.umd.js.map
+	rm -rf dist *.tsbuildinfo
+
+clean-deps: ## 刪除 node_modules 與 package-lock.json
+	rm -rf node_modules package-lock.json
+
+clean: clean-build clean-deps ## 全清（build artifact + node_modules）
+
+# ── 健檢 ──────────────────────────────────────────────────────────────────────
+
+verify: ## 確認 build 鏈通電（type check + rollup build）
+	@echo "→ TypeScript type check"
+	npx tsc --noEmit
+	@echo "→ rollup build"
+	npm run build:frontend
+	@echo "→ bundle 產出檢查"
+	@test -f static/src/lib/canvas_editor/canvas-editor-custom.umd.js && \
+		echo "✓ bundle exists ($$(stat -c%s static/src/lib/canvas_editor/canvas-editor-custom.umd.js) bytes)" || \
+		(echo "✗ bundle missing" && exit 1)

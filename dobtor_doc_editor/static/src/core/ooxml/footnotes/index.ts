@@ -1,0 +1,1 @@
+export { FootnotesParser } from './FootnotesParser';

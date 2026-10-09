@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>Sprint Y58 Visual Harness</title>
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Microsoft JhengHei', 'Noto Sans CJK TC', sans-serif; }
+    #ce-test-container { width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="ce-test-container"></div>
+  <!-- Production lib 路徑：window['canvas-editor'] 由 .umd.min.js 設、shim 加 canvasEditor 別名、
+       plugin-docx 透過 canvasEditor 取核心庫；對應 __manifest__.py L59-63 與 views/test_layout.xml L39 -->
+  <script src="../static/src/lib/canvas_editor/canvas-editor.umd.min.js"></script>
+  <script src="../static/src/lib/canvas_editor/canvas-editor-shim.js"></script>
+  <script src="../static/src/lib/canvas_editor/canvas-editor-plugin-docx.umd.js"></script>
+  <script>
+    /**
+     * Sprint Y58 harness — 從 puppeteer 透過 page.evaluate(window.__y58Boot, elements) 啟動，
+     * 不走 Phase F fetch 流程（Y58 script 直接餵 IElement[] 進來）。
+     *
+     * 用 test_harness.js 同款 boot pattern：window['canvas-editor'].Editor + pageMode=PAGING。
+     * 渲染完成設 window.__y58Ready = true，puppeteer 等到 flag 再截圖。
+     */
+    window.__y58Boot = function (elements) {
+      window.__y58Ready = false;
+      var container = document.getElementById('ce-test-container');
+      if (!container) {
+        window.__y58Error = 'container missing';
+        window.__y58Ready = true;
+        return;
+      }
+      var CE = window['canvas-editor'];
+      if (!CE) {
+        window.__y58Error = "window['canvas-editor'] missing (UMD bundle 未載入)";
+        window.__y58Ready = true;
+        return;
+      }
+      var Editor = CE.Editor || CE.default;
+      var PageMode = CE.PageMode;
+      if (typeof Editor !== 'function') {
+        window.__y58Error = 'CE.Editor not a function';
+        window.__y58Ready = true;
+        return;
+      }
+      try {
+        var data = Array.isArray(elements) ? { main: elements } : elements;
+        var editor = new Editor(container, data, {
+          pageMode: PageMode ? PageMode.PAGING : undefined,
+        });
+        window._y58Editor = editor;
+      } catch (e) {
+        window.__y58Error = 'Editor init failed: ' + (e && e.message ? e.message : String(e));
+        window.__y58Ready = true;
+        return;
+      }
+      // 等 canvas 出現 + 字型 ready
+      var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+      var canvasAppeared = new Promise(function (resolve) {
+        if (container.querySelector('canvas')) { resolve(); return; }
+        var obs = new MutationObserver(function () {
+          if (container.querySelector('canvas')) { obs.disconnect(); resolve(); }
+        });
+        obs.observe(container, { childList: true, subtree: true });
+        setTimeout(function () { obs.disconnect(); resolve(); }, 5000);
+      });
+      Promise.all([fontsReady, canvasAppeared]).then(function () {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            window.__y58Ready = true;
+          });
+        });
+      });
+    };
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.12.2.0',
+    'version': '18.0.13.0.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -72,6 +72,7 @@ Dobtor Doc Editor v2.1
         'views/portal_templates.xml',
         'views/doc_telemetry_views.xml',
         'views/menu.xml',
+        'views/test_layout.xml',
         'data/doc_template_data.xml',
         'data/ir_cron_data.xml',
     ],
@@ -99,6 +100,23 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-shim.js',
             # DOCX 匯入/匯出 plugin
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-plugin-docx.umd.js',
+            # 自寫的 OOXML Parser（瀏覽器端），全域 window.DobtorCanvasEditor。
+            #
+            # ☠️ 2026-10-09 之前這支**從未掛進 manifest**：rollup 產得出來、git
+            #    也追蹤著，但沒有任何 bundle 載它，所以瀏覽器端的 parser 從頭到尾
+            #    沒有被執行過。rollup 檔頭曾寫「Odoo 的靜態資源系統直接引用這個
+            #    bundle」——那句話是錯的。
+            #
+            #    它**不含** canvas-editor 的編輯器 API（實測 executeSetValue /
+            #    CanvasEvent / command.execute 都是 0 筆），所以與上游的
+            #    canvas-editor.umd.min.js 不衝突、也不會有兩份實例。
+            #
+            # 代價：backend bundle 多 ~425KB。消費者是
+            #    DocEditorIo.importViaBrowserParser()（驗收用的瀏覽器端通道，
+            #    與走後端 CLI 的 importViaTsEngine() 對稱）。
+            #    **刻意不加到 web.assets_frontend**：portal 已經要下載 1.5MB，
+            #    而 portal 沒有這條驗收通道。
+            'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-custom.umd.js',
             # Odoo 欄位選擇器 Dialog（Phase 8 ADR-022 復活，必須在 doc_editor.js 之前）
             'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.xml',
             'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.js',

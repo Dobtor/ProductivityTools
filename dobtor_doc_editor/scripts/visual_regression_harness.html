@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>Canvas-Editor Visual Regression Harness</title>
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Microsoft JhengHei', 'Noto Sans CJK TC', sans-serif; }
+    #editor { width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="editor"></div>
+  <!-- canvas-editor UMD bundle（與 doc_editor.js 同一份） -->
+  <script src="../static/src/lib/canvas_editor/canvas-editor-custom.umd.js"></script>
+  <script src="../static/src/lib/canvas_editor/canvas-editor-plugin-docx.umd.js"></script>
+  <script>
+    /**
+     * Visual regression harness — boot canvas-editor with IElement[] from CLI。
+     *
+     * Puppeteer 透過 page.evaluate(window.__bootEditor, elements) 觸發。
+     * 渲染完成後 .ce-page DOM 會出現，puppeteer 用 querySelectorAll 列舉並截圖。
+     */
+    window.__bootEditor = function (elements) {
+      var Editor = window.Editor || (window.CanvasEditor && window.CanvasEditor.Editor);
+      if (!Editor) {
+        document.body.innerHTML = '<pre style="color:red">canvas-editor UMD bundle 未載入：window.Editor missing</pre>';
+        return;
+      }
+      var container = document.getElementById('editor');
+      var data = Array.isArray(elements) ? elements : (elements.main || []);
+      try {
+        new Editor(container, data, {
+          width: 794,    // A4 寬 96dpi（210mm）
+          height: 1123,  // A4 高 96dpi（297mm）
+          margins: [76, 76, 76, 76],
+        });
+      } catch (err) {
+        document.body.innerHTML = '<pre style="color:red">init failed: ' + err.message + '</pre>';
+      }
+    };
+  </script>
+</body>
+</html>

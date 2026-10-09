@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "tools/dist",
+    "declaration": false,
+    "sourceMap": true,
+    "lib": ["ES2020", "DOM"]
+  },
+  "include": [
+    "tools/visual_regression_pipeline.entry.ts",
+    "static/src/core/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "static/src/lib",
+    "tests"
+  ]
+}

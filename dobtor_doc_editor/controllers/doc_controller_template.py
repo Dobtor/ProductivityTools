@@ -39,6 +39,7 @@ _HEADING_STYLES = {
 }
 from .doc_controller_base import DocControllerBase
 from .doc_convert import (
+    _ts_parse_docx_to_elements,
     _docx_to_html_with_format,
     _w_paragraph_to_html,
     _w_runs_to_html,

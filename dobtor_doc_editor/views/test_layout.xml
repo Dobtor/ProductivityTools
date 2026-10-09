@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Phase F 視覺回歸測試 layout
+        ====================================
+        clean 頁面（無 Odoo header/sidebar），讓 puppeteer 截 canvas-editor 第一頁。
+        tests/scripts/compare_fixtures.js 對此頁截圖比對 LibreOffice golden PNG。
+    -->
+    <template id="test_layout" name="Phase F Visual Regression Test">
+        <t t-call="web.layout">
+            <t t-set="head">
+                <meta charset="utf-8"/>
+                <title t-esc="'Phase F Test - ' + fixture_name"/>
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        background: #ffffff;
+                        font-family: sans-serif;
+                    }
+                    /* canvas-editor 預設留白容器 */
+                    #ce-test-container {
+                        width: 100%;
+                        min-height: 100vh;
+                    }
+                    /* 隱藏所有 Odoo header / footer / sidebar 元素（保險） */
+                    body > nav,
+                    body > header,
+                    body > footer,
+                    body > .o_main_navbar { display: none !important; }
+                </style>
+            </t>
+            <t t-set="body_classname" t-value="'dobtor-doc-editor-test'"/>
+
+            <div id="ce-test-container" t-att-data-fixture="fixture_name"/>
+
+            <!-- canvas-editor 主程式（與 doc_editor.js 用同一份 UMD bundle） -->
+            <script type="text/javascript"
+                    src="/dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor.umd.min.js"/>
+            <!-- canvas-editor-shim 建立 window.canvasEditor 別名（plugin 用） -->
+            <script type="text/javascript"
+                    src="/dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-shim.js"/>
+
+            <!-- Phase F test harness（fetch test_data → 餵 elements → 設 ready flag） -->
+            <script type="text/javascript"
+                    src="/dobtor_doc_editor/static/src/components/doc_editor/test_harness.js"/>
+        </t>
+    </template>
+</odoo>

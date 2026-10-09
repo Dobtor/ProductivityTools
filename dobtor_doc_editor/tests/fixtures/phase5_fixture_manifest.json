@@ -1,0 +1,107 @@
+{
+  "chart": [
+    {
+      "fixture": "07_chart/預定進度表(通河).docx",
+      "source": "/mnt/d/work/工程資料/一般式/03.通河東街一段排水改善工程(劍潭抽水站)/16.進度表/預定進度表(通河).xlsx",
+      "chart_type": "barChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/磺港溪C-A自主檢查統計1130311.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/01-監造會議/113年-監造會議記錄/1130312磺港溪第33次監造會議(69-71)/磺港溪C-A自主檢查統計1130311.xlsx",
+      "chart_type": "bar3DChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/磺港溪C-A自主檢查統計1130401.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/01-監造會議/113年-監造會議記錄/1130402磺港溪第36次監造會議(78-80)/磺港溪C-A自主檢查統計1130401.xlsx",
+      "chart_type": "bar3DChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/磺港溪C-A自主檢查統計1130401_2.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/01-監造會議/113年-監造會議記錄/1130409磺港溪第37次監造會議(81-83)/磺港溪C-A自主檢查統計1130401.xlsx",
+      "chart_type": "bar3DChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/磺港溪C-A自主檢查統計1130527.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/01-監造會議/113年-監造會議記錄/1130529磺港溪第44次監造會議(102-104)/磺港溪C-A自主檢查統計1130527.xlsx",
+      "chart_type": "bar3DChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/土方統計(浤欣)1140829.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/03-餘土/土方統計(浤欣)1140829.xlsx",
+      "chart_type": "barChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/北投監造及工程標進度-113.06.15(任泰北投).docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/AB在建工程(半月報)/北投監造及工程標進度-113.06.15(任泰北投).xlsx",
+      "chart_type": "barChart",
+      "dropped_rels": []
+    },
+    {
+      "fixture": "07_chart/北投監造及工程標進度-113.09.30(任泰北投).docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-A標_延壽橋至三合橋/12-文書資料-A標/AB在建工程(半月報)/北投監造及工程標進度-113.09.30(任泰北投).xlsx",
+      "chart_type": "barChart",
+      "dropped_rels": []
+    }
+  ],
+  "smartart": [
+    {
+      "fixture": "08_smartart/系統操作介紹(簡略版).docx",
+      "source": "/mnt/d/work/odoo18-docker/docs/specs/系統操作介紹(簡略版).pptx",
+      "smartart_sets_in_source": 15
+    },
+    {
+      "fixture": "08_smartart/系統操作介紹(簡略版)_2.docx",
+      "source": "/mnt/d/work/工程資料/一般式/01.磺港溪再造步道整建工程(奇岩抽水站至西安橋)/7.檔案管理/簡報/系統操作介紹(簡略版).pptx",
+      "smartart_sets_in_source": 15
+    },
+    {
+      "fixture": "08_smartart/1140831磺港溪C-B中央補助款-V1.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-AB共用/12-文書資料/12-簡報/1140831磺港溪C-B中央補助款-V1.pptx",
+      "smartart_sets_in_source": 3
+    },
+    {
+      "fixture": "08_smartart/磺港溪C-B中央補助款20250904-V6.docx",
+      "source": "/mnt/d/work/工程資料/磺港溪C段-AB共用/12-文書資料/12-簡報/1140910中央補助款簡報/磺港溪C-B中央補助款20250904-V6.pptx",
+      "smartart_sets_in_source": 3
+    }
+  ],
+  "omml": [
+    {
+      "fixture": "09_omml/omml_01_inline_fraction.docx",
+      "source": "synthetic",
+      "title": "Inline 分數"
+    },
+    {
+      "fixture": "09_omml/omml_02_display_fraction.docx",
+      "source": "synthetic",
+      "title": "Display 分數"
+    },
+    {
+      "fixture": "09_omml/omml_03_radical.docx",
+      "source": "synthetic",
+      "title": "根號"
+    },
+    {
+      "fixture": "09_omml/omml_04_nary_sum.docx",
+      "source": "synthetic",
+      "title": "求和（含上下限）"
+    },
+    {
+      "fixture": "09_omml/omml_05_sub_sup.docx",
+      "source": "synthetic",
+      "title": "上下標"
+    },
+    {
+      "fixture": "09_omml/omml_06_matrix.docx",
+      "source": "synthetic",
+      "title": "矩陣"
+    }
+  ],
+  "failed": []
+}

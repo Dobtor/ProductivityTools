@@ -1,0 +1,224 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Sprint 16 — fixture page count baseline > 總計指標：鎖 mismatch 數量 1`] = `
+{
+  "mismatched": 6,
+  "total": 42,
+  "totalDelta": 6,
+}
+`;
+
+exports[`Sprint 16 — fixture page count baseline > 鎖定每 fixture 的 pages.length（與 golden 對照） 1`] = `
+{
+  "01_simple/03.1120210-監造會議記錄-1120801.docx": {
+    "delta": 0,
+    "golden": 3,
+    "ours": 3,
+  },
+  "01_simple/03.1120815-監造會議記錄.docx": {
+    "delta": 1,
+    "golden": 3,
+    "ours": 4,
+  },
+  "01_simple/03.1120822-監造會議記錄.docx": {
+    "delta": 1,
+    "golden": 3,
+    "ours": 4,
+  },
+  "01_simple/03.1120829-監造會議記錄.docx": {
+    "delta": 1,
+    "golden": 3,
+    "ours": 4,
+  },
+  "01_simple/03.1120905-監造會議記錄.docx": {
+    "delta": 1,
+    "golden": 3,
+    "ours": 4,
+  },
+  "01_simple/03.1120912-監造會議記錄.docx": {
+    "delta": 1,
+    "golden": 3,
+    "ours": 4,
+  },
+  "01_simple/03.1120919-監造會議記錄.docx": {
+    "delta": 1,
+    "golden": 3,
+    "ours": 4,
+  },
+  "02_std_table/1120928-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "02_std_table/1121013-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "02_std_table/1121020-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "02_std_table/1121027-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "02_std_table/1131202-工地密度簽到表.docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "02_std_table/1140206-工地密度取樣紀錄.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "02_std_table/1140206-工地密度簽到表.docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂） (1).docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "03_complex_table/06-8估驗計價前履約文件查對項目一覽表（112年12月27日修訂）11409.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "03_complex_table/1121229-全套管基樁混凝土查驗(共1).docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "03_complex_table/1130105-全套管基樁混凝土查驗(共2).docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "03_complex_table/1130109-全套管基樁混凝土查驗共(4).docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "03_complex_table/1130112-全套管基樁混凝土查驗共(共3)(承辦).docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "03_complex_table/1130516-共月橋P3帽梁鋼筋查驗.docx": {
+    "delta": 0,
+    "golden": 1,
+    "ours": 1,
+  },
+  "03_complex_table/送審管制.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "04_with_image/05.112磺港溪監造會議照片.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "04_with_image/05.112磺港溪監造會議照片1120923-1121001.docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.23.-10.27).docx": {
+    "delta": 0,
+    "golden": 6,
+    "ours": 6,
+  },
+  "04_with_image/06.環清表安全衛生抽查照片(再造)-(112.10.9.-10.13).docx": {
+    "delta": 0,
+    "golden": 6,
+    "ours": 6,
+  },
+  "04_with_image/6.環清表安全衛生抽查照片(再造)-(112.10.2.-10.6).docx": {
+    "delta": 0,
+    "golden": 6,
+    "ours": 6,
+  },
+  "04_with_image/6.環清表安全衛生抽查照片(再造)-(112.9.25.-9.29).docx": {
+    "delta": 0,
+    "golden": 6,
+    "ours": 6,
+  },
+  "05_header_footer/自主檢查表---人手孔調升降.docx": {
+    "delta": 0,
+    "golden": 5,
+    "ours": 5,
+  },
+  "05_header_footer/自主檢查表---土方(整地).docx": {
+    "delta": 0,
+    "golden": 4,
+    "ours": 4,
+  },
+  "05_header_footer/自主檢查表---地坪鋪面.docx": {
+    "delta": 0,
+    "golden": 5,
+    "ours": 5,
+  },
+  "05_header_footer/自主檢查表---木構造.docx": {
+    "delta": 0,
+    "golden": 5,
+    "ours": 5,
+  },
+  "05_header_footer/自主檢查表---植栽.docx": {
+    "delta": 0,
+    "golden": 4,
+    "ours": 4,
+  },
+  "05_header_footer/自主檢查表---植筋.docx": {
+    "delta": 0,
+    "golden": 5,
+    "ours": 5,
+  },
+  "05_header_footer/自主檢查表---模板.docx": {
+    "delta": 0,
+    "golden": 4,
+    "ours": 4,
+  },
+  "05_header_footer/自主檢查表---油漆.docx": {
+    "delta": 0,
+    "golden": 4,
+    "ours": 4,
+  },
+  "05_header_footer/自主檢查表---洗(抿)石子.docx": {
+    "delta": 0,
+    "golden": 4,
+    "ours": 4,
+  },
+  "05_header_footer/自主檢查表---混凝土.docx": {
+    "delta": 0,
+    "golden": 5,
+    "ours": 5,
+  },
+  "06_template/檢(試)驗管制(預設樣板).docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "06_template/缺失改善(預設樣板).docx": {
+    "delta": 0,
+    "golden": 2,
+    "ours": 2,
+  },
+  "06_template/缺失改善.docx": {
+    "delta": 0,
+    "golden": 3,
+    "ours": 3,
+  },
+}
+`;
