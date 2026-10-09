@@ -1475,6 +1475,52 @@ class DocEditorController(http.Controller):
         except Exception as e:
             return {'error': str(e)}
 
+    @http.route('/dobtor_doc/models', type='json', auth='user', methods=['POST'])
+    def list_models(self, query=None, limit=40, **kw):
+        """可當「適用模型」的模型清單（給編輯器裡的選模型用）。
+
+        過濾掉 transient 與 abstract：範本要對著一筆**存得住的**記錄取值，
+        精靈與抽象模型沒有記錄可指。
+        也過濾掉使用者讀不到的——列出來卻一碰就 AccessError 更糟。
+        """
+        domain = [('transient', '=', False), ('abstract', '=', False)]
+        if query:
+            domain += ['|', ('name', 'ilike', query), ('model', 'ilike', query)]
+        out = []
+        for rec in request.env['ir.model'].search(domain, limit=int(limit) * 3,
+                                                  order='name'):
+            try:
+                request.env[rec.model].check_access('read')
+            except Exception:
+                continue
+            out.append({'id': rec.id, 'model': rec.model, 'name': rec.name})
+            if len(out) >= int(limit):
+                break
+        return out
+
+    @http.route('/dobtor_doc/set_model', type='json', auth='user', methods=['POST'])
+    def set_edit_target_model(self, model_id, doc_id=None, template_id=None, **kw):
+        """設定範本的「適用模型」／文件的「關聯模型」。
+
+        為什麼要有這支：沒有它，一張新範本就沒有欄位可拖，而編輯器左欄只能
+        叫使用者「請先設定適用模型」——也就是進編輯器第一件事是離開編輯器。
+        那個缺口讓範本清單的「新增」沒辦法比照文件直接進編輯器。
+
+        要 write 權限（改的是範本的設定，不是內容）。
+        """
+        record, kind = self._resolve_edit_target(
+            doc_id=doc_id, template_id=template_id, access='write')
+        if kind == 'output':
+            raise UserError('輸出紀錄不可編輯。')
+        model = request.env['ir.model'].browse(int(model_id)).exists()
+        if not model:
+            raise UserError('找不到該模型。')
+        if model.transient or model.abstract:
+            raise UserError('精靈與抽象模型沒有記錄可指，不能當適用模型。')
+        request.env[model.model].check_access('read')
+        record.model_id = model.id
+        return {'success': True, 'model': model.model, 'name': model.name}
+
     @http.route('/dobtor_doc/render_preview', type='json', auth='user', methods=['POST'])
     def render_preview(self, doc_id, record_model, record_id, **kw):
         """將欄位變數渲染為實際值（預覽用）。"""
@@ -1486,13 +1532,6 @@ class DocEditorController(http.Controller):
             return {'html': rendered}
         except Exception as e:
             return {'error': str(e)}
-
-    # ─── 中文 token 別名（L2-v2 alias map）─────────────────────────────
-    @http.route('/dobtor_doc/aliases/get', type='json', auth='user', methods=['POST'])
-    def get_aliases(self, doc_id, **kw):
-        """讀取文件目前的中文 token → Jinja2 expression 對映。"""
-        doc = self._require_document(doc_id, 'read')
-        return {'aliases': doc.field_aliases or {}}
 
     @http.route('/dobtor_doc/aliases/save', type='json', auth='user', methods=['POST'])
     def save_aliases(self, doc_id, aliases, **kw):
@@ -1515,33 +1554,6 @@ class DocEditorController(http.Controller):
         doc = self._require_document(doc_id, 'write')
         doc.write({'field_aliases': cleaned})
         return {'success': True, 'aliases': cleaned}
-
-    @http.route('/dobtor_doc/aliases/auto_init', type='json', auth='user', methods=['POST'])
-    def auto_init_aliases(self, doc_id, overwrite=False, **kw):
-        """從 doc.model_id 的欄位自動生成中文 alias 對映。
-
-        overwrite=False（預設）保留既有 token；True 整批以模型欄位重建。
-        """
-        doc = self._require_document(doc_id, 'write')
-        return doc.init_aliases_from_model(overwrite=bool(overwrite))
-
-    @http.route('/dobtor_doc/aliases/scan_convert', type='json', auth='user', methods=['POST'])
-    def scan_convert_aliases(self, doc_id, **kw):
-        """掃描文件內所有 {{ expression }} 文字，根據既有 alias map 反查中文 token 後改寫成 《token》。"""
-        doc = self._require_document(doc_id, 'write')
-        return doc.scan_and_convert_to_alias()
-
-    @http.route('/dobtor_doc/template_aliases/get', type='json', auth='user', methods=['POST'])
-    def get_template_aliases(self, doc_id, **kw):
-        """讀取 doc 所屬 template 的 alias map（範本層級全域對映）。"""
-        doc = self._require_document(doc_id, 'read')
-        if not doc.template_id:
-            return {'aliases': {}, 'template_id': False, 'template_name': ''}
-        return {
-            'aliases': doc.template_id.field_aliases or {},
-            'template_id': doc.template_id.id,
-            'template_name': doc.template_id.name or '',
-        }
 
     @http.route('/dobtor_doc/template_aliases/save', type='json', auth='user', methods=['POST'])
     def save_template_aliases(self, doc_id, aliases, **kw):

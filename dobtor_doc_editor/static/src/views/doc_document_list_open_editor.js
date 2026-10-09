@@ -46,18 +46,25 @@ registry.category("views").add("doc_document_list_open_editor", {
 });
 
 /**
- * 範本：只改「點開」，**新增照舊走表單**。
+ * 範本：和文件一樣，點開與新增都進編輯器。
  *
- * 看起來不一致，但這是刻意的：一張新範本沒有「適用模型」就沒有欄位可拖，
- * 編輯器左欄只會顯示「請先設定適用模型，才會列出可拖曳的欄位」
- *（doc_editor.xml 的 !_loadedModelName 分支）——也就是進去第一件事是再出來。
- * 而編輯器本身沒有選模型的介面。
+ * 這裡原本刻意不一致，理由是「一張新範本沒有適用模型就沒有欄位可拖，編輯器
+ * 只會叫使用者去表單設」——進去第一件事是再出來。那個前提已經不成立：左欄
+ * 在沒有模型時提供就地選單（onOpenModelPicker → /dobtor_doc/set_model）。
  *
- * 範本的表單上還有角色（內容／外框）、外框、紙張格式這些**設計時才決定一次**
- * 的東西，先在表單上決定再進編輯器才是對的順序。
- * 要讓這裡也一致的前提是先在編輯器裡做一個選模型的介面。
+ * 角色（內容／外框）、外框、紙張格式這些仍然只在表單上，靠清單的「設定」鈕
+ * 進去——那是設計時決定一次的設定，不是內容。
  */
+export class DocTemplateOpenEditorListController extends DocOpenEditorListController {
+    async createRecord() {
+        const action = await this.orm.call(
+            this.props.resModel, "action_new_and_open_editor", [[]]
+        );
+        await this.actionService.doAction(action);
+    }
+}
+
 registry.category("views").add("doc_template_list_open_editor", {
     ...listView,
-    Controller: DocOpenEditorListController,
+    Controller: DocTemplateOpenEditorListController,
 });

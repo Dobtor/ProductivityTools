@@ -1180,12 +1180,19 @@ class TestOpenEditorDirectly(TransactionCase):
         self.assertEqual(action['res_model'], 'doc.template')
         self.assertEqual(action['res_id'], tmpl.id)
 
-    def test_template_new_deliberately_still_uses_the_form(self):
-        """刻意不一致：一張新範本沒有適用模型就沒有欄位可拖，進編輯器第一件事
-        是再出來，而編輯器沒有選模型的介面。
+    def test_template_new_also_opens_the_editor(self):
+        """先前刻意不一致（新範本沒有模型就沒有欄位可拖），現在前提已消除：
+        左欄有就地選模型的介面，所以兩邊一致了。"""
+        action = self.env['doc.template'].action_new_and_open_editor()
+        self.assertEqual(action['type'], 'ir.actions.client')
+        self.assertTrue(action['context']['template_id'])
+        tmpl = self.env['doc.template'].browse(action['context']['template_id'])
+        self.assertEqual(tmpl.role, 'content')
+        self.assertFalse(tmpl.model_id, '新範本本來就還沒有模型——靠左欄就地設定')
 
-        這一則是把那個決定釘住——哪天有人「順手修成一致」，要先做選模型的介面。
-        """
-        self.assertFalse(
-            hasattr(self.env['doc.template'], 'action_new_and_open_editor'),
-            '範本多了 action_new_and_open_editor：要一致的前提是編輯器先能選模型')
+    def test_model_picker_endpoints_exist(self):
+        """沒有這兩支，上面那個一致性就不成立。"""
+        from odoo.addons.dobtor_doc_editor.controllers.doc_controller import (
+            DocEditorController)
+        for name in ('list_models', 'set_edit_target_model'):
+            self.assertTrue(hasattr(DocEditorController, name), '少了 %s' % name)

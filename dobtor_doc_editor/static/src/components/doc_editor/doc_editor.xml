@@ -892,10 +892,42 @@
                                     <i class="fa fa-exclamation-triangle text-warning me-1"/>
                                     尚未設定關聯模型
                                 </p>
-                                <p class="text-muted small">
-                                    請先設定「適用模型」（範本）或「關聯模型」（文件），
-                                    才會列出可拖曳的欄位。
-                                </p>
+                                <!-- 就地設定。沒有這個介面的話，一張新範本進
+                                     編輯器第一件事是離開編輯器去表單設模型。 -->
+                                <t t-if="!state.modelPicker.open">
+                                    <p class="text-muted small">
+                                        設定之後左欄才會列出可拖曳的欄位。
+                                    </p>
+                                    <button class="btn btn-sm btn-primary"
+                                            t-on-click="onOpenModelPicker">
+                                        <i class="fa fa-crosshairs me-1" aria-hidden="true"/>
+                                        設定適用模型
+                                    </button>
+                                </t>
+                                <t t-else="">
+                                    <input type="text" class="doc-model-picker-search"
+                                           placeholder="搜尋模型（如 銷售訂單 / sale.order）"
+                                           t-att-value="state.modelPicker.query"
+                                           t-on-input="(ev) => this.onModelPickerQuery(ev.target.value)"/>
+                                    <t t-if="state.modelPicker.loading">
+                                        <p class="text-muted small mt-2">載入中…</p>
+                                    </t>
+                                    <ul class="doc-model-picker-list">
+                                        <t t-foreach="state.modelPicker.list" t-as="mp"
+                                           t-key="mp.id">
+                                            <li class="doc-model-picker-item"
+                                                t-on-click="() => this.onPickModel(mp)">
+                                                <span class="doc-model-picker-name"
+                                                      t-esc="mp.name"/>
+                                                <span class="doc-model-picker-tech"
+                                                      t-esc="mp.model"/>
+                                            </li>
+                                        </t>
+                                        <t t-if="!state.modelPicker.list.length and !state.modelPicker.loading">
+                                            <li class="doc-field-palette-empty">無符合的模型</li>
+                                        </t>
+                                    </ul>
+                                </t>
                             </div>
                         </t>
                         <t t-elif="state.modelFieldsLoading">

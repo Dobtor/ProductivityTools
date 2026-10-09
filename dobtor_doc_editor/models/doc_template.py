@@ -334,6 +334,23 @@ class DocTemplate(models.Model):
         self.ensure_one()
         return self.layout_id or self
 
+    @api.model
+    def action_new_and_open_editor(self):
+        """建一張空白範本後直接進編輯器（跳過表單）。
+
+        以前刻意**不**這樣做，理由是「沒有適用模型就沒有欄位可拖，編輯器只會
+        叫使用者去表單設」——進去第一件事是再出來。那個缺口已經補掉：左欄在
+        沒有模型時提供「設定適用模型」的就地選單
+        （/dobtor_doc/models + /dobtor_doc/set_model）。
+
+        角色預設 content：外框範本是少數，而且通常是從既有的複製出來的。
+        """
+        template = self.create({
+            'name': _('未命名範本'),
+            'role': 'content',
+        })
+        return template.action_open_editor()
+
     def action_open_settings_form(self):
         """開這張範本的表單（清單點一筆會直接進編輯器，設定要有另一條路）。
 

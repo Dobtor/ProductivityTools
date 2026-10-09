@@ -421,6 +421,9 @@ export class DocEditor extends Component {
             // 編輯區在 1366 寬的筆電上只剩 900px——左 180 + 右 280 幾乎是
             // 整個紙張寬度的三分之一。收合狀態存 localStorage：這是「每個人
             // 自己的看法偏好」，不是文件內容，不該進資料庫。
+            // 選「適用模型」（左欄在沒有模型時顯示）。沒有這個介面的話，
+            // 一張新範本進編輯器第一件事是離開編輯器去表單設模型。
+            modelPicker: { open: false, query: "", list: [], loading: false },
             leftPanelCollapsed: _lsGet('dobtor_doc_editor_left_collapsed') === '1',
             rightPanelCollapsed: _lsGet('dobtor_doc_editor_right_collapsed') === '1',
         });
@@ -2802,6 +2805,60 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         this.state.rightPanelCollapsed = !this.state.rightPanelCollapsed;
         _lsSet('dobtor_doc_editor_right_collapsed',
                this.state.rightPanelCollapsed ? '1' : '0');
+    }
+
+    // ─── 選「適用模型」 ───────────────────────────────────────────
+    //
+    // 範本沒有 model_id 就沒有欄位可拖，而原本編輯器只會叫使用者去表單設。
+    // 那個缺口讓範本清單的「新增」沒辦法比照文件直接進編輯器
+    //（見 static/src/views/doc_document_list_open_editor.js 的註解）。
+
+    async onOpenModelPicker() {
+        this.state.modelPicker.open = true;
+        if (!this.state.modelPicker.list.length) {
+            await this.loadPickableModels();
+        }
+    }
+
+    async onModelPickerQuery(value) {
+        this.state.modelPicker.query = value || "";
+        await this.loadPickableModels();
+    }
+
+    async loadPickableModels() {
+        this.state.modelPicker.loading = true;
+        try {
+            const list = await rpc("/dobtor_doc/models", {
+                query: this.state.modelPicker.query || null,
+            });
+            this.state.modelPicker.list = Array.isArray(list) ? list : [];
+        } catch (e) {
+            console.warn("[DocEditor] 載入模型清單失敗", e);
+            this.notification.add("載入模型清單失敗", { type: "warning" });
+        } finally {
+            this.state.modelPicker.loading = false;
+        }
+    }
+
+    /** 選定模型 → 寫回後端 → 重新載欄位清單。 */
+    async onPickModel(model) {
+        try {
+            const res = await rpc("/dobtor_doc/set_model", {
+                model_id: model.id,
+                doc_id: this.state.docId || null,
+                template_id: this.state.docId ? null : this.state.templateId,
+            });
+            this._loadedModelName = res.model;
+            this.state.modelPicker.open = false;
+            // 欄位清單是按模型 cache 的，換了模型要清掉重載
+            this.state.modelFields = [];
+            this.state.lineFields = [];
+            await this.loadModelFields();
+            this.notification.add(`適用模型已設為「${res.name}」`, { type: "success" });
+        } catch (e) {
+            this.notification.add(
+                (e && e.data && e.data.message) || "設定模型失敗", { type: "danger" });
+        }
     }
 
     get isI18nPill() {

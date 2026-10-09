@@ -817,67 +817,6 @@ class DocDocument(models.Model):
             return base64.b64decode(self.content_attachment_id.datas).decode('utf-8')
         return self.content_html or ''
 
-    # ─── L2-v2 工具方法：alias 自動生成 + 掃描轉換 ─────────────────────
-    def init_aliases_from_model(self, overwrite=False):
-        """根據 doc.model_id 自動生成 field_aliases 對映。
-
-        參數：
-          overwrite=False 時，既有 token 保留不動；新欄位才加入。
-          overwrite=True 時，整批以 model 欄位重建（會清掉使用者自訂的 token）。
-
-        生成規則：
-          - 一般欄位：「中文 description」→ `object.field_name`
-          - date / datetime：用 format_date(object.x)
-          - selection：用 selection_label('x')
-          - many2one：「中文 description」→ `object.field_name.display_name`
-        """
-        self.ensure_one()
-        if not self.model_id:
-            return {'success': False, 'error': '此文件未設定 model_id'}
-        model_name = self.model_id.model
-        if model_name not in self.env:
-            return {'success': False, 'error': f"模型 '{model_name}' 不存在"}
-
-        existing = dict(self.field_aliases or {})
-        added = []
-        skipped = []
-        IrModelFields = self.env['ir.model.fields']
-        ttypes = ('char', 'text', 'integer', 'float', 'monetary',
-                  'date', 'datetime', 'boolean', 'selection', 'many2one')
-        fields = IrModelFields.search([
-            ('model', '=', model_name),
-            ('store', '=', True),
-            ('ttype', 'in', list(ttypes)),
-        ], order='field_description asc')
-
-        for f in fields:
-            label = (f.field_description or '').strip()
-            if not label:
-                continue
-            # 計算 expression
-            if f.ttype == 'date' or f.ttype == 'datetime':
-                expr = f'format_date(object.{f.name})'
-            elif f.ttype == 'selection':
-                expr = f"selection_label('{f.name}')"
-            elif f.ttype == 'many2one':
-                expr = f'object.{f.name}.display_name'
-            else:
-                expr = f'object.{f.name}'
-
-            if label in existing and not overwrite:
-                skipped.append(label)
-                continue
-            existing[label] = expr
-            added.append(label)
-
-        self.write({'field_aliases': existing})
-        return {
-            'success': True,
-            'aliases': existing,
-            'added': added,
-            'skipped': skipped,
-        }
-
     def scan_and_convert_to_alias(self):
         """掃 content_html / content_json 內所有 `{{ ... }}` 文字，根據 field_aliases
         反查對應的中文 token，把找得到的整段替換成 《token》。

@@ -3348,3 +3348,30 @@
     margin: -6px -6px 2px 0;
     flex-shrink: 0;
 }
+
+/* ─── 左欄就地選「適用模型」 ───────────────────────────────── */
+.doc-model-picker-search {
+    width: 100%;
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    margin-top: 6px;
+}
+.doc-model-picker-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.doc-model-picker-item {
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+}
+.doc-model-picker-item:hover { background: #f0ebf8; }
+.doc-model-picker-name { font-size: 0.8rem; color: #202124; }
+.doc-model-picker-tech { font-size: 0.68rem; color: #9aa0a6; }

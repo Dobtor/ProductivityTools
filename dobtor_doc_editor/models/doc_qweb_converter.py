@@ -1275,6 +1275,16 @@ class DocQwebConverter(models.AbstractModel):
                 and self._option_date_only(node)):
             # 原範本明講只要日期（t-options 的 date-only）→ 不走表的預設
             return "format_date(%s, 'lang')" % base
+        # t-field 與 t-out / t-esc 的語意其實不同：t-field 會走
+        # ir.qweb.field.<型別> 的 converter（float 讀 digits、date 走語言格式），
+        # t-out / t-esc 只是把表達式字串化。所以理論上這裡應該分開處理。
+        #
+        # ☠️ 2026-10-09 實作了那個分界，然後量了一次：**36 張報表裡
+        # 「t-out / t-esc 指向數字或日期欄位」的節點是 0 個**，四張報表的
+        # 保真度數字一個字都沒變。也就是原生報表的數字與日期一律走 t-field。
+        # 所以那個分界是純粹的多餘分支，已經收回。
+        # 真的遇到「某張客製報表用 t-out 印金額而我們多格式化了」時再加，
+        # 加的時候用同一支量測腳本確認它真的改變了什麼。
         return self.env['doc.render.mixin']._type_format_expression(
             model, path, base, numeric_only=True)
 

@@ -7,8 +7,25 @@
 10/08/2026」時，會先找「欄位」而不是「沙箱」。sandbox 的
 _field_meta_expression 呼叫它。
 
-alias 機制退場中（視圖已移除「新增對映」入口），這裡保留的是讀取與清除
-路徑，給既有資料用。新範本一律用藥丸。
+alias 機制退場中，但**還沒退完**。2026-10-09 稽核時發現原本這裡寫的
+「視圖已移除新增對映入口，只保留讀取與清除」不準確——那指的是**範本表單**，
+而編輯器裡還有一條建立 alias 的路（插入《token》並寫回 alias map，
+doc_editor.js 約 4835 行、呼叫 /dobtor_doc/aliases/save）。
+
+要真的退完還差兩件，都量過了：
+
+1. **編輯器那條建立路徑要先拿掉**，否則邊退邊長。
+2. **6 張 content_html-only 的範本要先遷到 content_json**。
+   那 6 張就是模組自己出貨的 data 範本（空白文件、監造會議記錄、自主檢查表、
+   缺失改善通知、估驗計價單、材料／設備送審）。它們沒有 content_json，所以
+   列印時走的是 _apply_field_aliases 這條舊路，**而且享受不到任何藥丸功能**
+   （型別格式、欄位標籤、頁面範圍、條件、重複列都不會生效）。
+   這是目前最實質的完整性缺口，不是 alias 程式碼本身。
+
+所以這一層的 _apply_field_aliases / _collect_field_aliases 是**有在服務的**，
+不是死碼，不要清。
+（已清掉的是整條寫入路徑：action_auto_init_aliases、init_aliases_from_model_for、
+ init_aliases_from_model、以及 4 支前端完全沒叫的 alias 路由。）
 """
 import re
 
