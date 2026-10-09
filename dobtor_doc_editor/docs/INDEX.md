@@ -7,6 +7,23 @@
 
 ---
 
+## 稽核與完工（2026-10-09 全檔案深度稽核的四份產出）
+
+這四份是**現在要看的**，不是歷史。它們互相引用，各自回答一個問題：
+
+| 文件 | 回答的問題 |
+|---|---|
+| [DONE_CRITERIA.md](DONE_CRITERIA.md) | **「完成了嗎」** — 12 條可機器判定的判準，`make done` 給單一判決（0 全過／1 有判準沒過／**2 環境不具備或被跳過，不是通過**） |
+| [AUDIT_LENSES.md](AUDIT_LENSES.md) | **「還有什麼沒查」** — 14 把用過的尺（各自量到什麼、留下什麼守衛）＋ 5 把還沒用過的 |
+| [REQUIREMENTS_CONFORMANCE.md](REQUIREMENTS_CONFORMANCE.md) | **「符合需求嗎」** — 逐條對照主規畫書 §2.2；含「需求適用的路徑不是出貨路徑」與「閘門比需求鬆 2.5–25 倍」兩個關鍵落差 |
+| [OPTIMIZATION_RECOMMENDATIONS.md](OPTIMIZATION_RECOMMENDATIONS.md) | **「下一步做什麼」** — 分該做／可做／**不該做**，每條附代價、理由與依據的量測 |
+
+☠️ 提案任何優化之前先查 `OPTIMIZATION_RECOMMENDATIONS.md` 的「不該做」那張表。
+表上有的，除非帶著新的量測數字來推翻它的理由，否則不要重新提案
+——本模組的 CI 就被提案過兩次。
+
+---
+
 ## 主題分群
 
 ### Phase 1-3 主體（Sprint 1-33）

@@ -152,3 +152,33 @@ class TestDocLinks(TransactionCase):
                 '已經過期', text[:2000],
                 '%s 提到了從未存在的 %s，但檔頭沒有標明自己過期'
                 '——照抄的人會撲空。' % (name, mentioned))
+
+    #: 治理文件（回答「完成了嗎／還有什麼沒查／符合需求嗎／下一步做什麼」）
+    #: ——這四份是給人**現在**讀的，不被 INDEX 列到就等於不存在。
+    GOVERNANCE_DOCS = (
+        'DONE_CRITERIA.md',
+        'AUDIT_LENSES.md',
+        'REQUIREMENTS_CONFORMANCE.md',
+        'OPTIMIZATION_RECOMMENDATIONS.md',
+    )
+
+    def test_governance_docs_are_listed_in_the_index(self):
+        """四份治理文件都要被 `docs/INDEX.md` 列到。
+
+        ☠️ 它們寫完的當下**一份都沒有進 INDEX**——那正是本次稽核一路在修的
+        「存在但沒人找得到」。文件的價值取決於有人讀得到它，而 INDEX 是唯一
+        的入口。
+        """
+        index_path = os.path.join(MODULE_ROOT, 'docs', 'INDEX.md')
+        self.assertTrue(os.path.exists(index_path), '缺 docs/INDEX.md')
+        index = _read(index_path)
+        missing = []
+        for name in self.GOVERNANCE_DOCS:
+            path = os.path.join(MODULE_ROOT, 'docs', name)
+            if not os.path.exists(path):
+                missing.append('%s 不存在' % name)
+            elif name not in index:
+                missing.append('%s 存在但 INDEX.md 沒列它' % name)
+        self.assertFalse(
+            missing,
+            '治理文件的入口有缺口：\n  %s' % '\n  '.join(missing))
