@@ -32,6 +32,9 @@ ODOO_ARGS      ?= --db_host=$(PG_HOST) --db_user=odoo --db_password=odoo --addon
 help: ## 列出所有 target
 	@echo "dobtor_doc_editor — 開發指令"
 	@echo ""
+	@echo "「完成了嗎」的單一判決："
+	@grep -E '^(done):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@echo ""
 	@echo "Odoo container 操作："
 	@grep -E '^(upgrade|restart|logs):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -71,7 +74,7 @@ test-backend-zip: ## 只跑 zip_guard tag
 # docker exec 進去跑 /dobtor_doc_editor 的全部測試。容器名與連線參數
 # 用環境變數覆寫，見 tests/scripts/run_local_rig.sh 的檔頭。
 
-test-local: ## 本機 rig 跑全部 backend 測試（590 則）
+test-local: ## 本機 rig 跑全部 backend 測試（則數不寫死——寫死的數字會漂移且沒人守）
 	bash tests/scripts/run_local_rig.sh test
 
 test-local-tour: ## 本機 rig 跑瀏覽器 tour（另一個容器，前端唯一的驗證）
@@ -116,6 +119,11 @@ ci-xml: ## 全 XML well-formed（壞 XML ＝ 升級 ParseError ＝ 模組裝不�
 	@echo "✓ XML well-formed（$$(find . -name '*.xml' -not -path './node_modules/*' | wc -l | tr -d ' ') 檔）"
 
 ci-all: ci-python ci-xml test-js ## 跑全部本機靜態檢查
+
+done: ## 「完成了嗎」的單一判決（11 條判準，含匯入模組；見 docs/DONE_CRITERIA.md）
+	# 退出碼 0 全過 / 1 有判準沒過 / **2 環境不具備或有判準被跳過——不是通過**。
+	# 跳過某幾條：make done DONE_SKIP="tour core-standalone"
+	@bash tests/scripts/run_done_check.sh
 
 clean: ## 刪除 Python 編譯暫存
 	find . -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true

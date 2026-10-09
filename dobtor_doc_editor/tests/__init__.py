@@ -23,3 +23,4 @@ from . import test_manifest_assets
 from . import test_static_checks_wiring  # Makefile 靜態檢查的接線守門員
 from . import test_cron_wiring  # ir.cron 的 code 字串接線守門員
 from . import test_session_probe_self  # 探針自己的測試（共用基礎設施）
+from . import test_done_criteria  # 完工判準不准漂移

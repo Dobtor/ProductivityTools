@@ -27,6 +27,8 @@ FIXTURE_DIR    ?= tests/fixtures
 
 help: ## 列出所有 target
 	@echo "dobtor_doc_import — 開發指令"
+	@echo "「完成了嗎」的單一判決（涵蓋兩個模組）："
+	@grep -E '^(done):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "前端打包（三個產物）："
 	@grep -E '^(install|build|build-all|watch|verify):.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -95,6 +97,13 @@ ci-xml: ## 全 XML well-formed（壞 XML ＝ 升級 ParseError ＝ 模組裝不�
 	@echo "✓ XML well-formed（$$(find . -name '*.xml' -not -path './node_modules/*' | wc -l | tr -d ' ') 檔）"
 
 ci-all: ci-frontend ci-python ci-xml ## 跑全部靜態檢查（不含 visual-regression）
+
+done: ## 「完成了嗎」的單一判決——判準涵蓋兩個模組，腳本放在核心
+	# ☠️ 判準是**兩個模組合起來**的（只裝核心也要過、tour 在核心、產物在這裡），
+	#    所以只能有一份腳本與一份判準清單。放核心是因為 tour 與 rig 腳本都在那裡。
+	#    這裡只做轉呼叫，不要複製邏輯——判準漂移成兩份是這份設計最怕的事。
+	@bash ../dobtor_doc_editor/tests/scripts/run_done_check.sh
+
 
 
 # ── 清理 ──────────────────────────────────────────────────────────────────────
