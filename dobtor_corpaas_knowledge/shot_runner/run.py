@@ -18,6 +18,7 @@ import re
 import sys
 import time
 import traceback
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -290,6 +291,15 @@ def login(page, base, login_name, password):
     #   搜尋送出鈕，選擇器先抓到它，等它可見等到逾時。直接在密碼欄按 Enter 送出登入表單。
     page.press('input[name="password"]', 'Enter')
     try:
+        try:
+            page.wait_for_url(lambda u: '/web/login' not in u, timeout=15000)
+        except Exception:  # noqa: BLE001 - 帳密錯誤會留在登入頁，下面等 .alert-danger
+            pass
+        path = urlparse(page.url).path
+        if '/web/login' not in path and not path.startswith(('/odoo', '/web')):
+            # ☠️ 實機：社群電商方案登入後被導回網站首頁（「Home | 94愛分享」），
+            #   不是進後台——自己開 /odoo，不靠登入後的導向
+            page.goto(base + '/odoo')
         page.wait_for_selector('.o_action_manager, .alert-danger', timeout=30000)
     except Exception as e:  # noqa: BLE001
         # ☠️ 實機：社群電商方案 87 張全卡在這裡，AI 每張修一次腳本（$7.84）——

@@ -311,6 +311,70 @@ class TestRound3(TransactionCase):
         bad = json.loads(printed[-1][len(scripts.MARK):])['bad']
         self.assertIn(['res.partner', customer.id], bad)
 
+    def _runner_ns(self):
+        import os
+        import sys
+        import types
+        fake = types.ModuleType('playwright.sync_api')
+        fake.sync_playwright = None
+        sys.modules.setdefault('playwright', types.ModuleType('playwright'))
+        sys.modules['playwright.sync_api'] = fake
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shot_runner', 'run.py')
+        ns = {'__name__': 'kb_run'}
+        exec(compile(open(path, encoding='utf-8').read(), path, 'exec'), ns)
+        return ns
+
+    def test_runner_login_opens_backend_after_website_redirect(self):
+        """登入後被導回網站首頁：自己開 /odoo；後台還是沒出來就報「後台沒有載入」＋診斷。"""
+        ns = self._runner_ns()
+        ns['_settle'] = lambda page, extra_ms=400: None
+
+        class Loc:
+            def __init__(self, n):
+                self.n = n
+
+            def count(self):
+                return self.n
+
+            def inner_text(self, timeout=None):
+                return '好康商城'
+
+        class Page:
+            def __init__(self, backend_ok):
+                self.url, self.visited, self.backend_ok = '', [], backend_ok
+
+            def goto(self, url):
+                self.url = url
+                self.visited.append(url)
+
+            def fill(self, *a):
+                pass
+
+            def press(self, *a):
+                self.url = 'http://sb/'   # 登入後導回網站首頁
+
+            def wait_for_url(self, pred, timeout=None):
+                assert pred(self.url)
+
+            def wait_for_selector(self, sel, timeout=None):
+                if not (self.backend_ok and self.url.endswith('/odoo')):
+                    raise TimeoutError('Timeout %sms exceeded.' % timeout)
+
+            def locator(self, sel):
+                return Loc(0)
+
+            def title(self):
+                return 'Home | 94愛分享'
+
+        page = Page(backend_ok=True)
+        ns['login'](page, 'http://sb', 'doc_admin', 'pw')
+        self.assertEqual(page.visited[-1], 'http://sb/odoo')
+        page = Page(backend_ok=False)
+        with self.assertRaises(RuntimeError) as err:
+            ns['login'](page, 'http://sb', 'doc_admin', 'pw')
+        self.assertTrue(str(err.exception).startswith(ns['BACKEND_DOWN']))
+        self.assertIn('94愛分享', str(err.exception))
+
     def test_recorder_groups_and_lines(self):
         import os
         import sys
