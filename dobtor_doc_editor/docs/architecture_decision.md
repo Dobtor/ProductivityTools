@@ -1516,8 +1516,11 @@ pass 鏈的順序約束、`from_string()` 與 `compile_expression()` 的差別�
 |---|---|
 | `doc_render_mixin.py` 3025 行 | `models/render/` 六層（tree / sandbox / fields / i18n / snapshot / output）＋ 39 行組合點 |
 | `doc_editor.js` 7399 行 | `doc_editor_{shared,shell,io,pills,templateui}.js` ＋ 809 行組合點 |
+| `doc_qweb_converter.py` 2857 行 | `models/qweb/` 五層（entry / locate / expr / structure / blocks）＋ constants ＋ 65 行組合點 |
+| `doc_controller.py` 2593 行 | `doc_convert.py`（轉換函式）＋ `doc_controller_base.py`（守衛，**不是** Controller）＋ 四個 Controller（文件 17／範本 10／多語 5／遙測 4 條路由）|
+| `test_pill_pipeline.py` 3921 行 43 類 | 按被測層分成五支（snapshot / output / sandbox / fields / i18n）＋ 共用 helper |
 
-兩邊都用**純組合**而不是「拆成多個可獨立存在的東西」：
+四次都用**純組合**而不是「拆成多個可獨立存在的東西」：
 
 * Python 用純 Python mixin（不帶 `_name`）再 `class X(A, B, …, AbstractModel)`。
   拆成六個 `AbstractModel` 再 `_inherit` 會在 registry 多出六個「單獨存在時是
@@ -1549,9 +1552,33 @@ JS 分組依**檔案裡既有的 50 個區段註解**，不是用關鍵字猜。
   後面那個無聲覆蓋前面那個 → 在標題欄改檔名完全沒有作用。
   名稱集合出現重複才看得到。
 
+### controller 的特殊之處
+
+路由不能用 mixin 組合——Odoo 走 `http.Controller` 的**子類別樹**註冊路由。
+所以拆法是「四個獨立的 Controller，各自擁有一組不重疊的路由」＋「守衛放在一個
+**不繼承 Controller** 的純基底」。基底若繼承了 Controller，它會被當成另一組
+路由來註冊。
+
+這裡是**新增**而不是覆寫別人的路由，所以不涉及「覆寫路由要繼承擁有者 class」
+那個坑。
+
+驗證多一道：`TestRouteRegistration` 拿 Odoo 自己認路由的依據
+（endpoint 身上的 `original_routing`，`http.py:759/827`）比對「宣告了但沒註冊」
+的路由。☠️ 寫那一則時踩到：只看 `http.Controller.__subclasses__()` 會漏掉
+`portal.py`——它繼承的是 portal 模組的 `CustomerPortal`，是**孫**類別。
+漏掉的那三條是 portal 使用者唯一的入口。要遞迴走子類別樹。
+
 ### 後果
 
 - 每一層的檔頭現在寫著自己的不變量，並指向對應的另一側（pills ↔ snapshot.py）
+- ☠️ **import 區塊整段照抄，不要自己重組**：`doc_controller.py` 有一個跨 4 行的
+  `from ..models.doc_zip_guard import (...)`，用「挑出開頭是 import/from 的行」
+  重組會留下沒收尾的括號；而且模組層級常數（`_W` / `_XML` / `_HEADING_STYLES`）
+  也會一起掉。這和 JS 那邊「重複整份 import」是同一個原則的兩種形式。
+- ☠️ **相對 import 的深度**：`doc_qweb_converter.py` 在 `models/`、常數在
+  `models/qweb/`，組合點要寫 `from .qweb.constants import`。少一層的症狀是模組
+  整個載不進去。拆 `render/` 那次也踩過同一個坑——**第二次還是踩了**，
+  所以寫在這裡。
 - 代價：JS 五層各自重複整份 import 區塊。刻意的——少一個 import 的症狀是執行期
   `ReferenceError`，而 OWL 把它吞成一塊空白面板（我在組合點就犯過一次，
   tour 第 1/78 步停住）。多一個 import 沒有代價。
