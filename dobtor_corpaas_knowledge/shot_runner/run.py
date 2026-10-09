@@ -588,13 +588,14 @@ def main():
     base = job['base_url'].rstrip('/')
     _DB[0] = job.get('db')
     args = ['--host-resolver-rules=%s' % job['resolver_rule']] if job.get('resolver_rule') else []
-    down = 0
+    down = {}   # 每個帳號各自算：一個角色打不開，不該連累其他角色
     with sync_playwright() as p:
         browser = p.chromium.launch(args=args)
         for shot in job['shots']:
             sid = shot['id']
-            if down >= 3:
-                # 連續三張後台都沒載入：其餘不拍了（每張白等 30 秒，結果一樣）
+            if down.get(shot.get('login'), 0) >= 3:
+                # 同一個帳號連續三張後台都沒載入：這個帳號的其餘不拍了（每張白等 30 秒，結果一樣）
+                # ☠️ 實機：不分帳號時，三張「會員」帳號拍後台失敗，把同批其他角色 17 張也略過
                 result['shots'][sid] = {'ok': False, 'images': [], 'transitions': [],
                                         'error': '%s（前 3 張都打不開，其餘略過）' % BACKEND_DOWN}
                 continue
@@ -630,9 +631,10 @@ def main():
                 result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed,
                                         'warnings': warnings}
                 _log(sid, 'ok', len(images))
-                down = 0
+                down[shot.get('login')] = 0
             except Exception as e:  # noqa: BLE001
-                down = down + 1 if str(e).startswith(BACKEND_DOWN) else 0
+                key = shot.get('login')
+                down[key] = down.get(key, 0) + 1 if str(e).startswith(BACKEND_DOWN) else 0
                 err_png = os.path.join(out_dir, '_error.png')
                 try:
                     page.screenshot(path=err_png)

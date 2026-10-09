@@ -27,7 +27,7 @@ from PIL import Image
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from odoo.addons.dobtor_corpaas_knowledge.models.feature import ROUTE_VISITOR
+from odoo.addons.dobtor_corpaas_knowledge.models.feature import ROUTE_MEMBER, ROUTE_VISITOR
 from odoo.addons.dobtor_corpaas_knowledge.services import (hub_client, phash, remote, scripts,
                                                            shooter)
 
@@ -759,6 +759,12 @@ class KnowledgeHooks(models.AbstractModel):
                         if x in resolved_x}
             steps, missing = manual_lib.fill_placeholders(b.template_id.steps(), resolved)
             role = b.login_role()
+            front = b.template_id.feature_id.kind == 'route'
+            if not front and role in (ROUTE_VISITOR, ROUTE_MEMBER):
+                # ☠️ 後台畫面不能用網站訪客／會員（入口網站帳號進不了後台，會被導到 /my）：
+                #   實機 AI 修腳本把「產生推薦碼」改成會員登入。改用系統管理員拍。
+                role = 'admin' if 'admin' in logins else next(
+                    (c for c in logins if c not in (ROUTE_VISITOR, ROUTE_MEMBER)), role)
             login = logins.get(role or '') or (
                 next(iter(logins.values())) if len(logins) == 1 and not role else None)
             # ★ 佔位符對不到、角色沒帳號：AI 能修（改繫結／改角色），列入修補
@@ -766,7 +772,6 @@ class KnowledgeHooks(models.AbstractModel):
                 self._manual_fail(b, _('說明庫找不到示範資料：%s') % ', '.join(sorted(missing)))
                 failed |= b
                 continue
-            front = b.template_id.feature_id.kind == 'route'
             if front and role == ROUTE_VISITOR:
                 login = None   # 網站訪客：不登入
             elif not login:
@@ -924,7 +929,9 @@ class KnowledgeHooks(models.AbstractModel):
         """步驟 5：AI 依錯誤修範本／繫結／登入角色；下一次 refresh 才重拍。"""
         tmpl = binding.template_id
         last = json.loads(binding.last_result or '{}')
-        roles = [{'code': r.code, 'name': r.name} for r in binding.scenario_id.all_roles()]
+        roles = [{'code': r.code, 'name': r.name} for r in binding.scenario_id.all_roles()
+                 # 後台畫面不讓 AI 改成會員（入口網站帳號進不了後台）
+                 if tmpl.feature_id.kind == 'route' or r.code not in (ROUTE_MEMBER, ROUTE_VISITOR)]
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
             'manual_repair', prompts.repair_prompt(
                 self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),

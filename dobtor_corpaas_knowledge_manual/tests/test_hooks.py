@@ -206,6 +206,16 @@ class TestManualHooks(ManualCase):
         self.assertTrue(ctx['manual_backend_down'])
         self.assertEqual(self.hooks._manual_failure_kind(self.binding.last_error), 'backend')
 
+    def test_backend_shot_never_logs_in_as_member(self):
+        """後台畫面的腳本被設成會員（入口網站帳號）：改用系統管理員拍。"""
+        self._only_f1()
+        self.binding.roles_json = json.dumps({'login_role': 'member'})
+        sandbox = FakeSandbox(self.scenario)
+        sandbox.role_logins = json.dumps({'admin': 'doc_admin', 'member': 'doc_member'})
+        result, files = self._ok_result(png(box=(20, 20, 80, 60)))
+        run, _ctx = self._shoot(result, files, sandbox=sandbox)
+        self.assertEqual(run.call_args[0][2][0]['login'], 'doc_admin')
+
     def test_repair_stops_when_cancel_requested(self):
         """按了停止：修腳本迴圈每張都檢查，不再叫 AI。"""
         from odoo.exceptions import UserError
