@@ -167,3 +167,49 @@ B 公司——實測建出 1 份。與核心匯出紀錄那次同一類：**`sud
 `tests/test_doc_convert.py` 用 `patch.object(doc_convert.shutil, 'which')`
 把 LibreOffice 拿掉，讓降級鏈真的跑一次；另外直接驗純函式的行為（段落、表格、
 粗體、HTML 轉義、頁面邊距、壞 CSS 不炸）。
+
+## ☠️ 一半以上的 TS 沒有接上線（2026-10-09 量過）
+
+`static/src` 下 **154 支 TS，三個 rollup entry 只到得了 76 支**。另外 78 支
+（約 14,000 行）進不了任何 build 產物——它們有測試、測試會過，但**程式碼到不了
+任何部署**。
+
+| 未接的子系統 | 檔 | 行 | 是什麼 |
+|---|---|---|---|
+| `core/ooxml/worker/` | 17 | 2,382 | Web Worker 解析（Phase 7 效能，未完成） |
+| `core/ooxml/layout/` | 16 | 2,413 | 文繞圖多邊形（Sprint 277-354）。**活的 layout 是 `core/layout/`** |
+| `core/ooxml/font/` | 14/15 | ~2,500 | HarfBuzz shaping／字型鏈。只有 `FontMetrics.ts` 可達 |
+| `components/doc_editor/` | 14 | 2,088 | Overlay（Phase 8 Phase 2.2，`[ ]` 未啟動） |
+| `core/ooxml/revision/` | 13 | 2,139 | 修訂追蹤（接受／拒絕變更） |
+| `core/ooxml/export/` | 2 | 2,297 | OoxmlWriter（Phase 6「選做」） |
+| `core/font_loader.ts` | 1 | 238 | 瀏覽器端字型載入 |
+
+### 這件事的連帶影響：`/dobtor/fonts/*` 目前沒有活的消費者
+
+那兩條 `auth='public'` 路由（155 行、12 則測試）唯一的客戶是 `font_loader.ts`
+與 `core/ooxml/font/ShapingFontChain.ts`——**兩者都在上面那張表裡**。
+路由本身是對的（路徑防護、12 則測試都在），只是沒有人在呼叫它。
+
+### 守門員：`tests/unit/bundle_reachability.test.ts`
+
+這份清單不是靠人記得，是**測試在守**：
+
+- 有東西新變成不可達 → **紅**（「你剛寫的程式碼進不了任何產物」）
+- 某個宣告的子系統**全部**接上線了 → **紅**（提醒把宣告移除）
+- 每條宣告都必須寫理由
+- 不可達比例超過 60% → 紅（現在 50.6%）
+
+雙向都驗過：加一支孤兒檔會紅；把宣告的單檔接進 entry 也會紅。
+
+**為什麼需要這支**：2026-10-09 一整天反覆出現同一個失效模式——CLI 產物沒進
+git、瀏覽器 bundle 沒掛 manifest、VR bundle 沒有任何 script 會建、Overlay 沒接、
+CI 寫好從沒推。共同點是**存在但不執行，而且不會報錯**：靜態檢查抓不到（檔案
+都在）、測試抓不到（測試直接 import，不經 bundle）、人也看不出來。
+
+這支測試把「可達性」從一件沒人知道的事，變成一件會紅的事。
+
+### 順手刪掉 6 支真死碼
+
+`ooxml/{ast,doc-props,font-table,footnotes,settings,web-settings}/index.ts`
+——各 1-2 行的 barrel re-export，`ooxml/index.ts` 直接 import 具體檔案，繞過它們。
+**這一組就是上面那支測試第一次跑時抓出來的。**
