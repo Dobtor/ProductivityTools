@@ -1,0 +1,111 @@
+# dobtor_doc_editor — 後端測試（夜間 + 手動，**不擋** PR）
+#
+# 紀律 13：「test 寫好 + tag 對 + script 一鍵跑都不夠，沒人定期跑＝半 dead
+# test」。這支就是那條紀律的 closure 的第一步。
+#
+# 為什麼先夜間不擋：
+#   * 這支要 clone Odoo 18 原始碼 + 建資料庫，一次約 5-8 分鐘。擋在 PR 上
+#     會讓每個 PR 都等它，而它還沒跑穩過。
+#   * 升級路徑（詞彙表的 v1/v2/v3）：手動 dispatch → 夜間 → 連續三次全綠
+#     之後才改成 push/PR 阻擋式。要升級就把下面 on: 的 pull_request 取消註解。
+#
+# 為什麼不需要 checkout 別的 repo：這個模組的 depends 全部是核心 Odoo
+#（base / web / mail / html_editor / bus / portal），原生報表整合測試用到的
+# sale / account / stock / purchase 也都在核心 addons 裡。
+#
+# ☠️ 刻意**不**跑瀏覽器 tour：它需要 chromium + websocket-client，而且在
+# arm64 與單 worker 環境有一串血淚（見 memory/odoo18_tour_rig_apple_silicon.md）。
+# tour 目前仍然是本機 run_local_rig.sh tour 的責任。
+name: dobtor_doc_editor backend
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # UTC 18:00 = 台北 02:00
+  workflow_dispatch:
+  # 連續三次全綠之後，把下面兩行取消註解升級為阻擋式（v3）
+  # pull_request:
+  #   paths: ['dobtor_doc_editor/**']
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: 取出本 repo（放到 addons 目錄下）
+        uses: actions/checkout@v4
+        with:
+          path: extra-addons/ProductivityTools
+
+      - name: 取出 Odoo 18（shallow，只要原始碼）
+        uses: actions/checkout@v4
+        with:
+          repository: odoo/odoo
+          ref: '18.0'
+          depth: 1
+          path: odoo
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: 系統套件（lxml / Pillow / ldap 要編譯）
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev \
+            libjpeg-dev zlib1g-dev libpq-dev
+
+      - name: 安裝 Odoo 的 Python 依賴
+        run: |
+          pip install --upgrade pip wheel
+          pip install -r odoo/requirements.txt
+          # 選用套件：裝了這幾個，DOCX 匯出與 zip 防護的測試才會真的跑
+          pip install python-docx odfpy
+
+      - name: 安裝模組並跑測試
+        id: run
+        run: |
+          set -o pipefail
+          python odoo/odoo-bin \
+            --addons-path=odoo/addons,extra-addons/ProductivityTools \
+            -d ci_docedit \
+            --db_host=localhost --db_user=odoo --db_password=odoo \
+            -i dobtor_doc_editor,sale,account,stock,purchase \
+            --test-enable --test-tags '/dobtor_doc_editor' \
+            --without-demo= --workers=0 --max-cron-threads=0 \
+            --http-port=8169 --stop-after-init --log-level=test \
+            2>&1 | tee /tmp/ci.log
+
+      - name: 判定（0 則測試也要算失敗）
+        if: always()
+        run: |
+          line=$(grep -aE 'tests\.result:.*of [0-9]+ tests' /tmp/ci.log | tail -1)
+          echo "$line"
+          # ☠️ 一定要擋「0 則」：tag 打錯時 Odoo 會回報 0 failed 0 error of
+          # 0 tests，不擋的話整份測試沒跑卻是綠的（本機 runner 踩過）。
+          echo "$line" | grep -qE ': 0 failed, 0 error\(s\) of [1-9][0-9]* tests' \
+            || { echo "::error::後端測試未全過（或根本沒跑）"; \
+                 grep -aoE '(FAIL|ERROR): [A-Za-z0-9_.]+' /tmp/ci.log \
+                   | sort | uniq -c | sort -rn | head -20; exit 1; }
+          echo "✓ $line"
+
+      - name: 失敗時留下 log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: odoo-test-log
+          path: /tmp/ci.log
