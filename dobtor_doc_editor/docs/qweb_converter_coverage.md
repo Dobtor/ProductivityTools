@@ -160,8 +160,10 @@ Jinja 沒有 lambda、也沒有生成式，所以這幾種一定要改寫（不�
 **`account.move._generate_qr_code` 刻意不在名單上**：它在回傳前
 `self.qr_code_method = …`，也就是**印一張 PDF 會改資料**。轉換器改走公開的
 `res.partner.bank.build_qr_code_base64()`（參數與原生相同、`qr_method` 留空
-讓它自己挑，差別只在不回寫）。`tests/test_pill_pipeline.py` 有一則測試釘住
-這個決定。
+讓它自己挑，差別只在不回寫）。`tests/test_qweb_converter.py::test_generate_qr_code_goes_through_public_method`
+釘住這個決定（另有 `tests/test_pill_sandbox.py::test_qr_code_generator_is_not_whitelisted` 驗白名單那一側）。
+☠️ 原本寫的是 `tests/test_pill_pipeline.py`——那支檔案後來被拆成
+`test_pill_*.py` 六支，而這段敘述沒跟著改。
 
 ---
 

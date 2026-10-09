@@ -349,7 +349,7 @@ Sprint 90-109 因看到 user 圖一 esign 參考、誤判要做 UI 改造、執�
 
 > 僅 1 sprint 案例（Sprint 153 LatentStylesParser 例外判斷）、需 3+ sprint 跨類型驗證才可升正、暫列**潛在子原則候選**。對照 Sprint 151 CustomPropsParser 「property 全空跳過」（property name 是 user-defined、空 value 是 noise）。
 
-→ 紀律應用需 mental model 判斷、不是純機械式。詳見 [docs/sprint145_153_retro.md §4](docs/sprint145_153_retro.md)。
+→ 紀律應用需 mental model 判斷、不是純機械式。詳見 `sprint145_153_retro.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 
 ### 5.x Scope 紀律總結（含 #18 教訓案例 + ADR 流程合規範例）
 
@@ -364,13 +364,13 @@ User 提供 `test-risen.dobtor.com` esign UI 截圖、Claude 誤判為「規畫�
 
 最終結局:Strategy A 並存策略救命 + 全 20 sprint revert byte-identical;規畫書與 production code 都未受永久污染。Sprint 110 揭示紀律 #18:**「開工大型新 feature 前必須先對齊規畫書真實 scope」**。
 
-詳見 [docs/sprint90_to_109_revert.md](docs/sprint90_to_109_revert.md)。
+詳見 `sprint90_to_109_revert.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 
 **ADR-022 案例（流程合規 scope 擴張）**：
 
 2026-05-19 user 再次提供 esign UI 截圖、要求改造 dobtor 後台 `ir.actions.client` 視覺 + 拖曳欄位範本。**差異**:user 明確認知 Sprint 90-109 revert 教訓、明確認知衝突、仍決定推進 → 屬紀律 #18 「user 認可或修改規畫書」**合法路徑**。
 
-走 Strategy B（直接改 DocEditor、非並存）+ 增量交付 + 條件啟動。詳見 [docs/architecture_decision.md ADR-022](docs/architecture_decision.md#adr-022) + [docs/sprint90_to_109_revert.md「2026-05-19 後續」段](docs/sprint90_to_109_revert.md)。
+走 Strategy B（直接改 DocEditor、非並存）+ 增量交付 + 條件啟動。詳見 [docs/architecture_decision.md ADR-022](docs/architecture_decision.md#adr-022) + `sprint90_to_109_revert.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 
 **紀律 #18 應用原則**:
 - 紀律 #18 **不禁止** scope 擴張
@@ -382,9 +382,9 @@ User 提供 `test-risen.dobtor.com` esign UI 截圖、Claude 誤判為「規畫�
 ### 5.y 進度進展紀錄（搬出 CONTRIBUTING、見 docs/）
 
 完整紀律應用次數、Sprint 145-153 capture-only 九連對紀律的驗證、cluster retro 紀錄等 *進度* 性質內容、見:
-- [docs/progress_snapshot.md](docs/progress_snapshot.md) — 當前指標 + Phase 完成度
+- `progress_snapshot.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段） — 當前指標 + Phase 完成度
 - [docs/INDEX.md](docs/INDEX.md) — 132 個 sprint audit doc 索引
-- [docs/scope_audit_2026-05-19.md](docs/scope_audit_2026-05-19.md) — sprint 工作層 scope drift audit
+- `scope_audit_2026-05-19.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段） — sprint 工作層 scope drift audit
 
 本 CONTRIBUTING **只保留紀律定義本身**、不再追蹤紀律應用次數 / 升正 sprint 等流動性指標。
 
@@ -439,7 +439,7 @@ User 提供 `test-risen.dobtor.com` esign UI 截圖、Claude 誤判為「規畫�
 
 - **Odoo 18 chatter 用 `<chatter>` 標籤**（不是 `<div class="oe_chatter">`，會跑版）。
 - **list view 用 `<list>` 不是 `<tree>`**（Odoo 18 已更名）。
-- 詳細規範見 [/mnt/d/work/odoo18-docker/CLAUDE.md](../../CLAUDE.md) 的 Portal 模板章節。
+- **Portal 模板**：`t-call-assets` 注入自訂 bundle 會在 `odoo.define` 就緒前執行 → TypeError。Odoo 18 沒有 inter-bundle dependency 機制，所以 portal 用的 JS 一律放 `web.assets_frontend`（代價與理由寫在 `__manifest__.py` 該區段的註解裡）。
 
 ---
 
@@ -511,7 +511,7 @@ PR 必須通過：
 
 ## 9. Scope 決策（何時用 QWeb vs dobtor_doc_editor）
 
-完整決策樹見 [`docs/scope_decision.md`](docs/scope_decision.md) 與 [/mnt/d/work/odoo18-docker/CLAUDE.md](../../CLAUDE.md) 「文件產製選擇決策」段。簡表：
+完整決策樹見 [`docs/scope_decision.md`](docs/scope_decision.md)。簡表：
 
 | 文件特性 | 用 QWeb PDF | 用 dobtor_doc_editor |
 |---|---|---|
@@ -539,7 +539,7 @@ PR 必須通過：
 4. **影響等級**：low / medium / high / critical（critical = 阻斷使用者操作或資料遺失）
 5. **hypothesis vs 確認**：標明是 hypothesis 還是已確認的 bug（紀律 #4）
 
-回報用詞請遵循 [全域指示 - 防禦省電模式](/home/chichi/.claude/CLAUDE.md)：
+回報用詞的三條規矩（這就是全文，不必再去別處查）：
 - **不要 magic number**：所有數值要有命名常數或量測來源
 - **不要 hallucinate 環境 / 工具 / 版本**：不知道標 "unknown"
 - **區分事實與猜測**：hypothesis vs confirmed bug
@@ -552,4 +552,5 @@ PR 必須通過：
 - [docs/scope_decision.md](docs/scope_decision.md)（QWeb vs dobtor 決策樹）
 - [docs/onboarding_sop.md](docs/onboarding_sop.md)（客戶導入 SOP，角色別流程）
 - [NOTICE.md](NOTICE.md)（第三方授權）
-- [/mnt/d/work/odoo18-docker/CLAUDE.md](../../CLAUDE.md)（ChienYi 主專案 Odoo 規範）
+
+☠️ 這份清單**刻意不列其他 repo 的規範檔**。本模組原本有四處把規矩外包出去（Portal 模板、scope 決策樹、回報用詞、參考清單），指向的是另一台機器上的`/mnt/d/work/...` 與 `/home/chichi/...`——那些路徑現在都不存在，讀到的人只會撞上死連結。規矩要寫在用得到它的地方；需要別的專案的規範時，**把規矩寫進來**，不要寫成對方的檔名。（2026-10-09 全檔案稽核階段 6 修正。）

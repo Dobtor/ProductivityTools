@@ -8,7 +8,7 @@
 **目的**：累積真實 .docx fixture 觀察到的 Word 內部 pagination 行為，作為 Paginator
 heuristic 的依據；避免「對單一 fixture 修 paginator → 其他 fixture 退步」的隨機修法。
 
-**起點**：Sprint 16 對 04_with_image 的深度診斷（[sprint16_pagination_baseline.md §4](sprint16_pagination_baseline.md)）。
+**起點**：Sprint 16 對 04_with_image 的深度診斷（`sprint16_pagination_baseline.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段））。
 
 **Sprint 17 補入**：04_with_image 全 4 個 fixture 的 trPr / drawing extent / row 結構數據，
 做為「image-row break heuristic」的設計基礎。

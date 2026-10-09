@@ -115,4 +115,4 @@ Odoo 18 model 有 `_log_access` mixin 提供 `write_date` / `write_uid`，但沒
 
 ---
 
-**附註**：對應計畫檔 [federated-swimming-creek.md](/home/chichi/.claude/plans/federated-swimming-creek.md) 的 P2-2。
+**附註**：對應計畫檔 `federated-swimming-creek.md`（外部計畫檔，位於已不存在的開發機，僅存為史料） 的 P2-2。

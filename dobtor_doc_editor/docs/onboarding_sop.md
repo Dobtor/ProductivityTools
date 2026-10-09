@@ -232,4 +232,4 @@ A：可以，但體驗未最佳化。Phase 4.5 補強衝刺重點是 PC 桌機�
 
 ---
 
-**附註**：對應計畫檔 [federated-swimming-creek.md](/home/chichi/.claude/plans/federated-swimming-creek.md) 的 P3-1。
+**附註**：對應計畫檔 `federated-swimming-creek.md`（外部計畫檔，位於已不存在的開發機，僅存為史料） 的 P3-1。

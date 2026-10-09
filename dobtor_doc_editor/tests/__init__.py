@@ -29,3 +29,4 @@ from . import test_input_bounds  # 輸入大小上限（稽核尺 2）
 from . import test_route_smoke  # 全路由煙霧測試（稽核尺 3）
 from . import test_model_constraints  # compute／constraint 接線（稽核尺 4）
 from . import test_python_package_wiring  # 每支 .py 都接得上線
+from . import test_doc_links  # 文件連結守衛（階段 6）

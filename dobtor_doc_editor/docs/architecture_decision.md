@@ -1243,8 +1243,8 @@ Sprint 78 audit 評為 medium、需 user 確認業務流程。Sprint 117 autonom
 
 ### 參考
 
-- 完整 rationale：[docs/sprint117_portal_company_rule_closure.md](sprint117_portal_company_rule_closure.md)
-- Sprint 78 原始 audit：[docs/sprint78_acl_record_rules_audit.md](sprint78_acl_record_rules_audit.md) §2.3
+- 完整 rationale：`sprint117_portal_company_rule_closure.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）
+- Sprint 78 原始 audit：`sprint78_acl_record_rules_audit.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段） §2.3
 
 ---
 
@@ -1283,8 +1283,8 @@ User 提供 `test-risen.dobtor.com/.../esign_configure` 介面截圖，要求 `d
 
 ### 參考
 
-- 計畫檔：[/home/chichi/.claude/plans/mnt-d-work-odoo18-docker-addons-dobtor-sharded-sedgewick.md](/home/chichi/.claude/plans/mnt-d-work-odoo18-docker-addons-dobtor-sharded-sedgewick.md)
-- Sprint 90-109 revert：[docs/sprint90_to_109_revert.md](sprint90_to_109_revert.md)
+- 計畫檔：`/home/chichi/.claude/plans/mnt-d-work-odoo18-docker-addons-dobtor-sharded-sedgewick.md`（外部計畫檔，位於已不存在的開發機，僅存為史料）
+- Sprint 90-109 revert：`sprint90_to_109_revert.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）
 - 紀律 #18 出處：規劃書 [§6.5 18 條開發紀律](../dobtor_doc_editor_高保真匯入開發規劃.md#65-18-條開發紀律)
 
 

@@ -296,4 +296,8 @@ Issue 1.8: [Devops] CI 加 fixture regression workflow（需先 cache golden PNG
 
 ## 附錄：與 Plan file 的對應
 
-本文件的 sprint 編號、role 分工、決策關卡，與 `~/.claude/plans/d-work-odoo18-docker-dobtor-doc-editor-pure-duckling.md` Part 2 完全對應。如兩處衝突，以 plan file 為準（plan file 是 chichi 與團隊的合約）。
+本文件的 sprint 編號、role 分工、決策關卡，原本與一份外部 plan file 對應，並寫明「如兩處衝突，以 plan file 為準」。
+
+☠️ 那份 plan file 位於已不存在的開發機，不在本 repo 內——也就是說這份文件把權威指向一個**讀不到的東西**。本模組的規矩要寫在本模組內（見 `CONTRIBUTING.md` 的「參考」段說明）。
+
+現在的權威是：**本文件自己**，以及 `dobtor_doc_editor_高保真匯入開發規劃.md`（主規畫書）。兩處衝突時以主規畫書為準，因為它在版控裡、改動看得見。（2026-10-09 全檔案稽核階段 6 修正。）

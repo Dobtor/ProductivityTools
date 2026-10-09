@@ -23,12 +23,12 @@
 **最後更新**：2026-05-19（Sprint 155 — 規畫書還原為純規畫、進度 / 紀律 / 歷史索引抽到 `docs/` 子檔；加入 Phase 8 Template UI Builder）
 
 > **進度與紀律不在本檔追蹤**：
-> - 當前指標 / Phase 完成度 / VR mean 進展 → [docs/progress_snapshot.md](docs/progress_snapshot.md)
+> - 當前指標 / Phase 完成度 / VR mean 進展 → `progress_snapshot.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）
 > - 132 個 sprint audit doc 索引 → [docs/INDEX.md](docs/INDEX.md)
 > - 22 條開發紀律 + Sprint 90-109 教訓 + ADR-022 流程合規範例 → [CONTRIBUTING.md §5](CONTRIBUTING.md)
-> - Phase 4.5 產品化基礎建設細節 → [docs/phase4_5_completed.md](docs/phase4_5_completed.md)
-> - Sprint 工作層 scope drift audit（G1-G11 嫌疑 sprint 群組去留判定）→ [docs/scope_audit_2026-05-19.md](docs/scope_audit_2026-05-19.md)
-> - autonomous_roadmap.md 已 archive（[docs/autonomous_roadmap.md](docs/autonomous_roadmap.md)）
+> - Phase 4.5 產品化基礎建設細節 → `phase4_5_completed.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）
+> - Sprint 工作層 scope drift audit（G1-G11 嫌疑 sprint 群組去留判定）→ `scope_audit_2026-05-19.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）
+> - autonomous_roadmap.md 已 archive（`autonomous_roadmap.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段））
 
 ---
 
@@ -244,7 +244,7 @@ const glyphs = buffer.json()  // 精確的 glyph advance、kerning
 
 ## 5. Phase 規劃（12-18 個月）
 
-> **當前進度詳見 [docs/progress_snapshot.md](docs/progress_snapshot.md)**。本章只列 Phase 計畫、不追蹤完成度。
+> **當前進度詳見 `progress_snapshot.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）**。本章只列 Phase 計畫、不追蹤完成度。
 
 ### Phase 0：能力盤點與架構決策（2 週）
 
@@ -531,7 +531,7 @@ for each block in flow:
 
 ### Phase 4.5：產品化基礎建設（已落地 / Sprint 20-24 / ~10 週）
 
-進入正式業務流程前需要 ~10 週的產品化補強衝刺（CI/CD、Zip Bomb 防護、Portal ACL、OWL 升級、QWeb 共存、ChienYi mixin、版本管理 UI、AutoSave、Python tests、PDF 引擎）。完整清單見 [docs/phase4_5_completed.md](docs/phase4_5_completed.md)。
+進入正式業務流程前需要 ~10 週的產品化補強衝刺（CI/CD、Zip Bomb 防護、Portal ACL、OWL 升級、QWeb 共存、ChienYi mixin、版本管理 UI、AutoSave、Python tests、PDF 引擎）。完整清單見 `phase4_5_completed.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 
 **對時程的影響**：單人方案到 B 級 6-8 個月 → 8-10 個月；三人方案到 A- 級 10-14 個月 → 12-16 個月。
 
@@ -851,7 +851,7 @@ dobtor_doc_editor/static/src/
 
 **第 6 個月起**：第三人加入做測試體系、CI、DevOps。
 
-**+10 週產品化緩衝**：Phase 4.5 已落地（Sprint 20-24）、純技術時程外的補強衝刺、詳見 [docs/phase4_5_completed.md](docs/phase4_5_completed.md)。
+**+10 週產品化緩衝**：Phase 4.5 已落地（Sprint 20-24）、純技術時程外的補強衝刺、詳見 `phase4_5_completed.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 
 ---
 
@@ -920,7 +920,7 @@ dobtor_doc_editor/static/src/
 
 **心理建設**：這是一趟 12-36 個月的旅程。但每個 Phase 都有獨立產出與商業價值——即使中途停在 Phase 3，你也已經擁有**市場上比 mammoth.js 強 10 倍的 docx 匯入方案**。
 
-> Sprint 0 → Sprint 155 進度詳見 [docs/progress_snapshot.md](docs/progress_snapshot.md)。
+> Sprint 0 → Sprint 155 進度詳見 `progress_snapshot.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 > 132 個 sprint audit doc 索引見 [docs/INDEX.md](docs/INDEX.md)。
 
 ---

@@ -1,5 +1,22 @@
 # dobtor_doc_editor — Autopilot Onboarding Prompt
 
+> ☠️ **這份提示已經過期，照抄會撞上不存在的東西**（2026-10-09 全檔案稽核階段 6）
+>
+> 它寫於 Sprint 165，當時的開發機是 `/mnt/d/work/odoo18-docker/`，而且它叫人先讀
+> `docs/progress_snapshot.md` 與 `docs/autonomous_roadmap.md`
+> ——**那兩個檔案在 git 歷史上從來不存在**（實測 `git log --all` 各 0 個提交）。
+>
+> 現在的對應物：
+>
+> | 這份提示叫你讀 | 實際該讀 |
+> |---|---|
+> | `docs/progress_snapshot.md` | `docs/INDEX.md`（文件索引）＋ `make done`（12 條完工判準的即時判決） |
+> | `docs/autonomous_roadmap.md` | `dobtor_doc_editor_高保真匯入開發規劃.md`（主規畫書，Sprint 全索引） |
+> | `/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor/` | 本 repo 的 `dobtor_doc_editor/` |
+>
+> 保留這份檔案是因為它記錄了當時的三個決策與交接方式；**不要照著它的路徑執行**。
+
+
 > 用途：開新對話時直接複製「Ready-to-paste」區塊整段貼上，讓 Claude 接續 sprint 開發。
 > 維護：每隔幾個 sprint 由 user 要求更新「狀態快照」與「Ready-to-paste」。
 > 最後更新：2026-05-21（Sprint 164 結尾、三個 DEFER 決策已拍板）

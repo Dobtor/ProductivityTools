@@ -76,7 +76,7 @@ docker exec odoo18 odoo -c /etc/odoo/odoo.conf -d odoo18_dev \
   --i18n-export=/tmp/dobtor.pot --modules=dobtor_doc_editor \
   --stop-after-init
 docker cp odoo18:/tmp/dobtor.pot \
-  /mnt/d/work/odoo18-docker/addons/dobtor_doc_editor/i18n/dobtor_doc_editor.pot
+  dobtor_doc_editor/i18n/dobtor_doc_editor.pot
 ```
 
 ## 3. 已知未做（待 W11+）
@@ -130,4 +130,4 @@ test('doc editor passes WCAG AA', async ({ page }) => {
 
 ---
 
-**附註**：對應計畫檔 [federated-swimming-creek.md](/home/chichi/.claude/plans/federated-swimming-creek.md) 的 P3-2。
+**附註**：對應計畫檔 `federated-swimming-creek.md`（外部計畫檔，位於已不存在的開發機，僅存為史料） 的 P3-2。

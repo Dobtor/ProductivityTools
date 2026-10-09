@@ -59,7 +59,7 @@
 
 ### 2.1 22 條紀律 + 6 子原則 + 1 候選 + 1 潛在子原則（Sprint 50-154 累積；Sprint 90-109 已 revert）
 
-> **Sprint 155 catch-up**：Sprint 143 升正 #1.a / #1.b / #21 / #22 → 紀律 18 → 22 條（[sprint143_148_retro.md](sprint143_148_retro.md) §1）。Sprint 154 retro §4 揭示 1 潛在子原則 #21.a 候選（key 即 binary signal 例外）— 待 3 sprint 跨類型驗證升正。
+> **Sprint 155 catch-up**：Sprint 143 升正 #1.a / #1.b / #21 / #22 → 紀律 18 → 22 條（`sprint143_148_retro.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段） §1）。Sprint 154 retro §4 揭示 1 潛在子原則 #21.a 候選（key 即 binary signal 例外）— 待 3 sprint 跨類型驗證升正。
 
 | # | 紀律 | Sprint 來源 |
 |---|---|---|

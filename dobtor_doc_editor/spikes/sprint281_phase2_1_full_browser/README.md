@@ -1,6 +1,6 @@
 # Sprint 281 — Phase 2.1 full chain browser e2e spike
 
-詳細結果見 [`docs/sprint281_phase2_1_full_chain_e2e.md`](../../docs/sprint281_phase2_1_full_chain_e2e.md)。
+詳細結果見 `sprint281_phase2_1_full_chain_e2e.md`（前一個開發環境的文件，未隨程式碼移入本 repo；對應內容見 `docs/SPRINT_AUDIT_CONSOLIDATED.md` 的該 sprint 段）。
 
 ## Reproduction
 
