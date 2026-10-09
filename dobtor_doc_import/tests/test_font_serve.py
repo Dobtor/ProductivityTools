@@ -7,6 +7,8 @@
     - 對未知 family 回 404
     - URL-decoded CJK family 處理正確
     - file missing 時 graceful（map 有但檔案不存在）
+    - **未登入不可以拿到字型**（2026-10-09 從 auth='public' 收緊成 auth='user'，
+      見 controllers/font_serve.py 檔頭的理由）
 
 執行方式（Odoo HttpCase 需 Odoo runtime）：
     docker exec odoo18 odoo -c /etc/odoo/odoo.conf -d odoo18_dev \\
@@ -17,6 +19,7 @@
 
 from unittest.mock import patch
 
+from odoo.addons.dobtor_doc_editor.tests.session_probe import SessionAliveMixin
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 
 from ..controllers.font_serve import FONT_PATH_MAP, resolve_font_path
@@ -84,12 +87,22 @@ class TestFontServeLogic(TransactionCase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_import', 'font_serve')
-class TestFontServeHttp(HttpCase):
-    """HTTP 層測試：實際呼叫 `/dobtor/fonts/*` 路由。"""
+class TestFontServeHttp(SessionAliveMixin, HttpCase):
+    """HTTP 層測試：實際呼叫 `/dobtor/fonts/*` 路由。
+
+    ☠️ 2026-10-09 起這兩條路由是 `auth='user'`（從 public 收緊），所以這裡
+    必須先登入。掛 SessionAliveMixin 並改用 `_url_open_live()` 的理由跟其他
+    打 auth='user' 路由的測試一樣：HttpCase 的 session 會在測試中途偶發失效
+    （ormcache 不隨交易回滾），見 dobtor_doc_editor/tests/session_probe.py 檔頭。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.authenticate('admin', 'admin')
 
     def test_list_fonts_json_rpc(self):
         """`/dobtor/fonts/list` JSON-RPC 回 available fonts + 大小."""
-        resp = self.url_open(
+        resp = self._url_open_live(
             '/dobtor/fonts/list',
             data='{}',
             headers={'Content-Type': 'application/json'},
@@ -123,7 +136,7 @@ class TestFontServeHttp(HttpCase):
             self.skipTest('所有 family 的 candidate paths 都不存在 — minimal container')
 
         from urllib.parse import quote
-        resp = self.url_open(f'/dobtor/fonts/{quote(existing_family)}')
+        resp = self._url_open_live(f'/dobtor/fonts/{quote(existing_family)}')
         self.assertEqual(resp.status_code, 200)
         # Sprint 69: Content-Type 可能是 font/ttf 或 font/collection（.ttc）
         content_type = resp.headers.get('Content-Type', '')
@@ -132,14 +145,19 @@ class TestFontServeHttp(HttpCase):
         cache_control = resp.headers.get('Cache-Control', '')
         self.assertIn('max-age=', cache_control)
         self.assertIn('immutable', cache_control)
-        # ACAO: *（fonts 不機密）
-        self.assertEqual(resp.headers.get('Access-Control-Allow-Origin'), '*')
+        # ☠️ 原本斷言 ACAO == '*'。改成 auth='user' 之後那個 header 被移除了
+        #    ——CORS 規格禁止 `*` 搭配帶憑證的請求，留著只會讓人以為端點是
+        #    開放的。這裡反向斷言它不再出現，免得哪天被加回來。
+        self.assertNotEqual(
+            resp.headers.get('Access-Control-Allow-Origin'), '*',
+            "auth='user' 的端點不該回 Access-Control-Allow-Origin: *"
+            "（CORS 規格禁止 `*` 配帶憑證的請求，等於宣告了一個不能用的開放）")
         # 真有 bytes
         self.assertGreater(len(resp.content), 0)
 
     def test_serve_unknown_family_returns_404(self):
         """未知 family 回 404。"""
-        resp = self.url_open('/dobtor/fonts/NoSuchFontFamily12345')
+        resp = self._url_open_live('/dobtor/fonts/NoSuchFontFamily12345')
         self.assertEqual(resp.status_code, 404)
 
     def test_serve_known_family_missing_file_returns_404(self):
@@ -148,12 +166,12 @@ class TestFontServeHttp(HttpCase):
         bogus_map = dict(FONT_PATH_MAP)
         bogus_map['BOGUS_FAMILY'] = ('/nonexistent/path.ttf', '/also/missing.ttf')
         with patch.dict('odoo.addons.dobtor_doc_import.controllers.font_serve.FONT_PATH_MAP', bogus_map, clear=True):
-            resp = self.url_open('/dobtor/fonts/BOGUS_FAMILY')
+            resp = self._url_open_live('/dobtor/fonts/BOGUS_FAMILY')
             self.assertEqual(resp.status_code, 404)
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_import', 'font_serve')
-class TestFontServeSecurity(HttpCase):
+class TestFontServeSecurity(SessionAliveMixin, HttpCase):
     """Sprint 68 — 邊界與安全測試：FONT_PATH_MAP dict.get() 已防 path traversal、
     但仍應 explicit 驗證（紀律 #5 應用：production path 與 test path 可能不同）。
 
@@ -161,26 +179,33 @@ class TestFontServeSecurity(HttpCase):
         - Path traversal（`../../etc/passwd` 與 percent-encoded 變體）
         - URL-encoded CJK 自動 decode（標楷體 → %E6%A8%99%E6%A5%B7%E9%AB%94）
         - Null byte injection（CVE-2023-style）
+
+    ☠️ 這些邊界要在**已登入**的前提下驗——auth 層擋掉的 404 與 dict 鍵不命中
+    的 404 長得一樣，未登入跑這批測試會變成「驗到 auth 層、沒驗到 dict 鍵」。
     """
+
+    def setUp(self):
+        super().setUp()
+        self.authenticate('admin', 'admin')
 
     def test_path_traversal_literal_returns_404(self):
         """字面 path traversal `../../etc/passwd` 不應命中 dict、回 404。"""
         # Odoo router 對 string converter 是否吃 `/` 取決於 werkzeug；
         # 若 router 把 `..` 視為非法路徑、可能 400 / 404 由 Odoo 處理
-        resp = self.url_open('/dobtor/fonts/..%2F..%2Fetc%2Fpasswd')
+        resp = self._url_open_live('/dobtor/fonts/..%2F..%2Fetc%2Fpasswd')
         self.assertEqual(resp.status_code, 404)
 
     def test_path_traversal_double_encoded_returns_404(self):
         """雙層 percent-encode 也不應繞過（dict 鍵嚴格相等）。"""
         # %252E%252E → `..` 解兩次；但 Werkzeug 只 decode 一次 → 字面 `%2E%2E`
         # 任何方式都不會匹配 FONT_PATH_MAP，故必 404
-        resp = self.url_open('/dobtor/fonts/%252E%252E%252Fpasswd')
+        resp = self._url_open_live('/dobtor/fonts/%252E%252E%252Fpasswd')
         self.assertEqual(resp.status_code, 404)
 
     def test_null_byte_in_family_returns_404(self):
         """family 含 null byte（CVE 風格、企圖截斷檔名）不應命中 → 404。"""
         # %00 是 null byte
-        resp = self.url_open('/dobtor/fonts/%E6%A8%99%E6%A5%B7%E9%AB%94%00.ttf')
+        resp = self._url_open_live('/dobtor/fonts/%E6%A8%99%E6%A5%B7%E9%AB%94%00.ttf')
         self.assertEqual(resp.status_code, 404)
 
     def test_url_encoded_cjk_decodes_correctly(self):
@@ -189,7 +214,7 @@ class TestFontServeSecurity(HttpCase):
         if not resolve_font_path('標楷體'):
             self.skipTest('「標楷體」candidate chain 全 missing（CJK font 未安裝）')
 
-        resp = self.url_open('/dobtor/fonts/%E6%A8%99%E6%A5%B7%E9%AB%94')
+        resp = self._url_open_live('/dobtor/fonts/%E6%A8%99%E6%A5%B7%E9%AB%94')
         self.assertEqual(resp.status_code, 200)
         # Sprint 69: 可能是 ttc 或 ttf 端看 container 環境
         content_type = resp.headers.get('Content-Type', '')
@@ -204,7 +229,7 @@ class TestFontServeSecurity(HttpCase):
         }
         patch_target = 'odoo.addons.dobtor_doc_import.controllers.font_serve.FONT_PATH_MAP'
         with patch.dict(patch_target, empty_map, clear=True):
-            resp = self.url_open(
+            resp = self._url_open_live(
                 '/dobtor/fonts/list',
                 data='{}',
                 headers={'Content-Type': 'application/json'},
@@ -214,3 +239,69 @@ class TestFontServeSecurity(HttpCase):
             self.assertEqual(result.get('fonts'), [])
             # note 仍要在（caller 須能識別 endpoint 沒掛掉、只是無 font）
             self.assertIn('note', result)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_import', 'font_serve')
+class TestFontServeRequiresLogin(HttpCase):
+    r"""未登入不可以拿到字型——2026-10-09 從 `auth='public'` 收緊的守衛。
+
+    ☠️ 為什麼一定要有這一支：收緊 auth 是一行字的改動，而「改回去」也是一行。
+    沒有會紅的測試盯著，這次收緊的壽命就取決於下一個人有沒有讀過
+    controllers/font_serve.py 的檔頭。本模組一整天抓到的失效模式就是
+    「寫好了但沒有東西證明它還成立」。
+
+    ☠️ 這個類別**刻意不登入、也不掛 SessionAliveMixin**：它要驗的就是未登入
+    的行為，自救機制會把它要驗的東西救掉。
+
+    未登入時 Odoo 的回應形狀**依路由型別而不同**（2026-10-09 實測）：
+      - `type='http'` → 303 轉址到 /web/login，跟著轉完拿到登入頁 HTML
+      - `type='json'` → **不轉址**，回 HTTP 200 ＋ JSON-RPC error，
+        `error.data.name` 是 `odoo.http.SessionExpiredException`
+    只驗其中一種會讓另一條路由的回歸溜過去。
+    """
+
+    def test_serve_font_requires_login(self):
+        """`GET /dobtor/fonts/<family>`（type='http'）未登入 → 導去登入頁，不給 bytes。"""
+        existing_family = None
+        for family in FONT_PATH_MAP:
+            if resolve_font_path(family):
+                existing_family = family
+                break
+        if not existing_family:
+            self.skipTest('所有 family 的 candidate paths 都不存在 — minimal container')
+
+        from urllib.parse import quote
+        resp = self.url_open(f'/dobtor/fonts/{quote(existing_family)}')
+        # 關鍵斷言：不可以是字型
+        content_type = (resp.headers.get('Content-Type') or '').split(';')[0]
+        self.assertNotIn(
+            content_type, ('font/ttf', 'font/collection', 'font/otf'),
+            '未登入竟然拿到了字型（Content-Type=%s, %d bytes）——'
+            'auth 被改回 public 了嗎？見 controllers/font_serve.py 檔頭。'
+            % (content_type, len(resp.content)))
+        # 而且要看得出是 auth 層擋的（不是別的 404）
+        self.assertIn(
+            '/web/login', resp.url,
+            '未登入的回應沒有落在登入頁（最終 URL=%s、狀態碼=%s）——'
+            '那就不是 auth 層擋下來的，請確認路由的 auth 設定。'
+            % (resp.url, resp.status_code))
+
+    def test_list_fonts_requires_login(self):
+        """`/dobtor/fonts/list`（type='json'）未登入 → JSON-RPC 的 session 過期錯誤。"""
+        resp = self.url_open(
+            '/dobtor/fonts/list',
+            data='{}',
+            headers={'Content-Type': 'application/json'},
+        )
+        body = resp.json()
+        self.assertIsInstance(
+            body, dict, 'JSON-RPC 的回應一定是物件，實際 %r' % (body,))
+        self.assertIn(
+            'error', body,
+            '未登入竟然拿到了字型清單：%r——auth 被改回 public 了嗎？'
+            % (body.get('result'),))
+        name = ((body.get('error') or {}).get('data') or {}).get('name') or ''
+        self.assertIn(
+            'SessionExpired', name,
+            '未登入被擋下來了，但不是 auth 層擋的（error.data.name=%r）。'
+            '那代表擋它的是別的東西，這一則就沒有驗到 auth 設定。' % name)

@@ -12,11 +12,33 @@
       canvas-editor 端或自家 pipeline 端要用 FontMetricsAdapter 時 fetch + IDB cache
 
 設計（Strategy B from Sprint 64 audit）：
-    - 路由：`GET /dobtor/fonts/<family>`（auth='public' — fonts 非機密）
+    - 路由：`GET /dobtor/fonts/<family>`（auth='user' — 見下方「為什麼從 public 收緊」）
     - URL-decode family name（支援 CJK 全形字 e.g. /dobtor/fonts/%E6%A8%99%E6%A5%B7%E9%AB%94）
     - server-side 從 fixed mapping 找對應 TTF（與 visual_regression_v14.mjs 一致）
     - 回傳 `font/ttf` + 長 Cache-Control（fonts 不變 = immutable）
     - 配 `font_loader.ts` 的 IDB cache → 第一次 fetch 後跨 session 共用
+
+為什麼從 `auth='public'` 收緊成 `auth='user'`（2026-10-09）：
+    這兩條路由**沒有活的消費者**——唯一的客戶是 `static/src/core/font_loader.ts`
+    與 `ShapingFontChain.ts`，而它們目前不可達（ADR-034 的 `import` 軸宣告，
+    附啟動條件）。在那個前提下，`auth='public'` 讓**任何未登入的人**都能
+    讓伺服器讀磁碟並回傳一份字型（CJK 的 .ttc 可達數十 MB），沒有速率限制，
+    而當下沒有任何對應的好處。
+
+    字型本身不是機密，所以這不是資料外洩；收緊的理由是**去掉一個沒有用途的
+    未驗證入口**。`auth='user'` 涵蓋 portal 使用者，所以檔頭原本寫的
+    「portal / canvas-editor 端 lazy load」情境完全不受影響
+    ——portal 使用者是登入狀態。
+
+    ☠️ 連帶移除 `Access-Control-Allow-Origin: *`：CORS 規格**禁止**用 `*`
+    搭配帶憑證（cookie）的請求，而 `auth='user'` 之後跨 origin 取字型必須
+    帶 session cookie。也就是說那個 header 已經不可能發揮它原本宣稱的作用
+    （「跨 origin 安全」），留著只會讓人以為這個端點是開放的。
+    真正的消費者 `font_loader.ts` 是同源 fetch，不需要 CORS header。
+
+    守衛：`tests/test_font_serve.py::TestFontServeRequiresLogin`
+    ——未登入時兩條路由都不可以給出字型。沒有那道測試，這次收緊哪天被改回去
+    不會有任何人知道。
 """
 
 import logging
@@ -98,7 +120,7 @@ _CACHE_CONTROL = "public, max-age=31536000, immutable"
 class DobtorFontController(http.Controller):
     """Sprint 64b font serve endpoint（Strategy B: portal lazy load + IDB cache）。"""
 
-    @http.route("/dobtor/fonts/list", type="json", auth="public", csrf=False)
+    @http.route("/dobtor/fonts/list", type="json", auth="user", csrf=False)
     def list_fonts(self):
         """回傳可載入的 font family 清單 + 對應 endpoint URL。
 
@@ -115,14 +137,14 @@ class DobtorFontController(http.Controller):
                 })
         return {
             "fonts": available,
-            "note": "Sprint 64b infra — 目前 production 走 canvas-editor、未直接使用此 endpoint；"
+            "note": "Sprint 64b infra（auth=user）— 目前 production 走 canvas-editor、未直接使用此 endpoint；"
                     "未來 migrate 自家 pipeline 時配 FontLoader (static/src/core/font_loader.ts) 使用",
         }
 
     @http.route(
         "/dobtor/fonts/<string:family>",
         type="http",
-        auth="public",
+        auth="user",
         csrf=False,
         readonly=True,
     )
@@ -150,6 +172,9 @@ class DobtorFontController(http.Controller):
             ("Content-Type", _content_type_for(font_path)),
             ("Content-Length", str(len(content))),
             ("Cache-Control", _CACHE_CONTROL),
-            ("Access-Control-Allow-Origin", "*"),  # 跨 origin 安全（fonts 非機密）
+            # ☠️ 原本有 ("Access-Control-Allow-Origin", "*")。改成 auth='user'
+            #    之後它不可能發揮作用：CORS 規格禁止 `*` 搭配帶憑證的請求，
+            #    而跨 origin 取字型現在必須帶 session cookie。真正的消費者
+            #    （font_loader.ts）是同源 fetch，不需要這個 header。
         ]
         return request.make_response(content, headers=headers)
