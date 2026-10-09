@@ -1,1 +1,1 @@
-# doc.bulk.import.wizard 在步驟 3 搬進來。
+from . import doc_bulk_import_wizard

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- 批次匯入的選單。
+         ☠️ 跨模組引用 parent 必須補模組前綴：檔案搬到本模組之後，
+         `parent="menu_dobtor_doc_root"` 會被 Odoo 在**本模組**裡找而失敗
+         （記憶裡那份「跨模組搬遷六陷阱」的第 5 條）。
+         action 定義在 wizards/doc_bulk_import_wizard_views.xml，manifest 先載它。 -->
+    <!-- ─── 批次匯入（action 定義於 wizards/doc_bulk_import_wizard_views.xml，
+         manifest 中先載入；此處只放 menuitem 避免根選單前向引用） ─── -->
+    <menuitem id="menu_doc_bulk_import"
+              name="批次匯入"
+              parent="dobtor_doc_editor.menu_dobtor_doc_root"
+              action="action_doc_bulk_import_wizard"
+              sequence="30"
+              groups="dobtor_doc_editor.group_doc_manager"/>
+
+</odoo>

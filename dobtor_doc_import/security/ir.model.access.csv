@@ -1,1 +1,2 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_doc_bulk_import_wizard_manager,doc.bulk.import.wizard manager,model_doc_bulk_import_wizard,dobtor_doc_editor.group_doc_manager,1,1,1,1

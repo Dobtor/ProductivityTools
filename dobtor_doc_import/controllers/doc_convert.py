@@ -1,8 +1,11 @@
-"""DOCX / ODT → HTML 的轉換函式。
+"""DOCX / ODT → HTML / IElement[] 的轉換函式（純函式，不碰 ORM、不碰 HTTP）。
 
-原本擠在 doc_controller.py 的前 914 行，與 36 條路由同一個檔案。
-它們是純函式、與 HTTP 無關，被匯入路由（upload_template / import_document）
-呼叫。分出來之後那個 controller 才看得出來「它只是入口」。
+被匯入路由（`/dobtor_doc/import`）與批次匯入精靈呼叫。分出來之後那個
+controller 才看得出來「它只是入口」。
+
+2026-10-09 從 `dobtor_doc_editor` 搬過來（拆模組步驟 3）。原本十支函式裡的
+`_convert_ins_to_jinja()` **留在核心**（`models/doc_ins_syntax.py`）——只有核心的
+範本上傳（`/dobtor_doc/upload_template`）在用它。這裡剩下的九支都只服務檔案匯入。
 """
 import base64
 import io
@@ -20,7 +23,9 @@ from odoo import http
 from odoo.exceptions import MissingError, UserError
 from odoo.http import request
 
-from ..models.doc_zip_guard import (
+# ☠️ 跨模組 import：zip bomb 防護留在核心（dobtor_doc_editor），因為核心的
+#    範本上傳（/dobtor_doc/upload_template）也在用。這裡用絕對路徑。
+from odoo.addons.dobtor_doc_editor.models.doc_zip_guard import (
     assert_input_size,
     inspect_zip_safe,
     ZipBombError,

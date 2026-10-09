@@ -63,14 +63,6 @@
               sequence="28"
               groups="dobtor_doc_editor.group_doc_manager"/>
 
-    <!-- ─── 批次匯入（action 定義於 wizards/doc_bulk_import_wizard_views.xml，
-         manifest 中先載入；此處只放 menuitem 避免根選單前向引用） ─── -->
-    <menuitem id="menu_doc_bulk_import"
-              name="批次匯入"
-              parent="menu_dobtor_doc_root"
-              action="action_doc_bulk_import_wizard"
-              sequence="30"
-              groups="dobtor_doc_editor.group_doc_manager"/>
 
     <!-- ─── 監控與遙測（P2-4，僅管理者可見） ─── -->
     <menuitem id="menu_doc_telemetry"

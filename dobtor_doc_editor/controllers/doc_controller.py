@@ -42,18 +42,8 @@ _HEADING_STYLES = {
     'heading6': 'h6', 'heading 6': 'h6',
 }
 from .doc_controller_base import DocControllerBase
-from .doc_convert import (
-    _ts_parse_docx_to_elements,
-    _docx_to_html_with_format,
-    _w_paragraph_to_html,
-    _w_runs_to_html,
-    _w_run_to_html,
-    _w_table_to_html,
-    _odt_to_html,
-    _lo_convert_to_html,
-    _extract_page_margins,
-    _lo_postprocess,
-)
+# doc_convert 已隨檔案匯入搬到 dobtor_doc_import 模組（拆模組步驟 3）。
+# 核心只留 models/doc_ins_syntax.py 的 _convert_ins_to_jinja（範本上傳用）。
 
 
 class DocEditorController(DocControllerBase, http.Controller):
@@ -627,156 +617,9 @@ body {{
         except Exception as e:
             return {'error': str(e)}
 
-    @http.route('/dobtor_doc/import', type='http', auth='user', methods=['POST'], csrf=False)
-    @DocControllerBase.json_http_route
-    def import_document(self, **kw):
-        """匯入 DOCX / ODT 檔案。
-
-        Engine 並行通道（Phase E）：
-            engine=libreoffice（預設）：傳統 LibreOffice → HTML 路徑（穩定）
-            engine=ts                 ：本模組 TS OOXML Parser → IElement[] 路徑
-                                        前端可直接餵給 canvas-editor 初始化（content_json）
-            engine=both               ：兩條都跑，回傳 html + elements + 比對 log
-                                        debug 模式：可快速肉眼比對 LibreOffice 與 TS 路徑差異
-
-        前端策略（doc_editor.js）：
-            - 優先使用 elements（如有），呼叫 editor.command.executeSetValue(elements)
-            - 否則 fallback 到 html（既有路徑）
-
-        ODT / 其他格式仍只能走 LibreOffice。
-
-        ☠️ engine=ts 需要 `tools/dist/parse_docx_cli.cjs`（`npm run build:cli` 產出）
-        與容器內的 node。2026-10-09 之前那個產物**沒有進 git**（被 .gitignore 的
-        `dist/` 排除），所以這條通道在任何部署上都沒真的運作過；取回時已補上
-        `!tools/dist/parse_docx_cli.cjs` 的例外並把產物進版控（ADR-032）。
-
-        Args:
-            engine: 'libreoffice' / 'ts' / 'both'（從 form 或 query string 取）
-        """
-        def _json_resp(data):
-            return request.make_response(
-                json.dumps(data, ensure_ascii=False),
-                headers={'Content-Type': 'application/json; charset=utf-8'},
-            )
-
-        upload = request.httprequest.files.get('file')
-        if not upload:
-            return _json_resp({'error': '未收到檔案'})
-
-        filename = upload.filename or ''
-        ext = os.path.splitext(filename)[1].lower()
-
-        # 解析 engine 參數（form > query > 預設）
-        engine = (
-            request.httprequest.form.get('engine')
-            or request.httprequest.args.get('engine')
-            or 'libreoffice'
-        ).lower()
-        if engine not in ('libreoffice', 'ts', 'both'):
-            engine = 'libreoffice'
-
-        # ODT 不支援 TS 路徑（無 ODT parser），自動降級
-        if ext == '.odt' and engine in ('ts', 'both'):
-            engine = 'libreoffice'
-
-
-
-        # Sprint Y58：opt-in flag（form > query > 預設 false）。
-        # 預設值維持與 Sprint 358-359 後的行為一致 — 不啟用 floatTextBox 展平、
-        # 不透傳 wp:anchor 屬性。caller 想要時送 `float_textbox=1` / `anchored_image=1`。
-        def _truthy(val):
-            return str(val or '').strip().lower() in ('1', 'true', 'yes', 'on')
-
-        float_textbox = _truthy(
-            request.httprequest.form.get('float_textbox')
-            or request.httprequest.args.get('float_textbox')
-        )
-        anchored_image = _truthy(
-            request.httprequest.form.get('anchored_image')
-            or request.httprequest.args.get('anchored_image')
-        )
-
-        try:
-            file_bytes = upload.read()
-
-            # ── Zip Bomb 防護（W1 P0-2）：DOCX 才檢查；ODT 也是 zip 但結構不同 ──
-            if ext in ('.docx', '.odt'):
-                try:
-                    assert_input_size(file_bytes)
-                    inspect_zip_safe(file_bytes)
-                except ZipBombError as e:
-                    _logger.warning(
-                        "import_document rejected by zip_guard: %s (file=%s, uid=%s)",
-                        e, filename, request.env.user.id,
-                    )
-                    return _json_resp({'error': str(e)})
-
-            page_margins = None
-            body_html = None
-            elements = None
-            audit = {}  # debug 比對資訊
-
-            # ── TS 路徑（engine=ts 或 both）──
-            if engine in ('ts', 'both') and ext == '.docx':
-                ts_elements = _ts_parse_docx_to_elements(
-                    file_bytes,
-                    float_textbox=float_textbox,
-                    anchored_image=anchored_image,
-                )
-                if ts_elements is not None:
-                    elements = ts_elements
-                    audit['ts_element_count'] = len(ts_elements)
-                else:
-                    audit['ts_failed'] = True
-                    if engine == 'ts':
-                        # 純 ts 模式失敗時自動 fallback libreoffice（避免使用者卡住）
-                        engine = 'libreoffice'
-
-
-            # ── LibreOffice 路徑（engine=libreoffice 或 both）──
-            if engine in ('libreoffice', 'both'):
-                if ext in ('.docx', '.odt'):
-                    lo_result = _lo_convert_to_html(file_bytes, ext)
-                    if lo_result is not None:
-                        body_html, page_margins = lo_result
-                        audit['lo_html_len'] = len(body_html)
-                    elif ext == '.docx':
-                        body_html = _docx_to_html_with_format(file_bytes)
-                        audit['lo_fallback'] = 'docx_python'
-                    else:
-                        body_html = _odt_to_html(file_bytes)
-                        audit['lo_fallback'] = 'odt_python'
-                else:
-                    if not shutil.which('soffice'):
-                        return _json_resp({
-                            'error': f'不支援的格式（{ext}）。支援格式：.docx、.odt'
-                        })
-                    lo_result = _lo_convert_to_html(file_bytes, ext)
-                    if lo_result is None:
-                        return _json_resp({'error': f'LibreOffice 無法轉換格式：{ext}'})
-                    body_html, page_margins = lo_result
-
-            resp = {'engine': engine}
-            if body_html is not None:
-                resp['html'] = body_html
-            if elements is not None:
-                resp['elements'] = elements
-            if page_margins:
-                resp['margins'] = page_margins
-            if engine == 'both':
-                resp['audit'] = audit
-
-            # 至少要有一條路徑成功
-            if body_html is None and elements is None:
-                return _json_resp({
-                    'error': 'TS 與 LibreOffice 皆無法轉換此檔案',
-                    'audit': audit,
-                })
-
-            return _json_resp(resp)
-
-        except Exception as e:
-            return _json_resp({'error': str(e)})
+    # `/dobtor_doc/import` 已搬到 dobtor_doc_import 模組（拆模組步驟 3）。
+    # 匯入是原本這個模組裡最大的一塊（TS 約 31,000 行、208 支 vitest、
+    # 82MB fixture），而它與核心的介面只有 content_json。
 
     @http.route('/dobtor_doc/save_version', type='json', auth='user', methods=['POST'])
     def save_version(self, doc_id, label=None, **kw):

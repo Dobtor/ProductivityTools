@@ -6,7 +6,6 @@ from . import test_jinja_sandbox
 from . import test_controllers
 from . import test_optimistic_lock
 from . import test_telemetry
-from . import test_bulk_import
 from . import test_template_autofill
 from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/field
 from . import test_template_edit  # Phase 1（藥丸改版）— 範本可直接編輯
@@ -20,4 +19,3 @@ from . import test_report_engine  # 報表引擎 R1-R3
 from . import test_qweb_converter  # QWeb 報表 → 範本轉換器
 from . import test_qweb_converter_native  # 原生報表實際轉換＋渲染
 from . import test_editor_tour
-from . import test_font_serve  # Sprint 66 — Sprint 64b font_serve backend tests

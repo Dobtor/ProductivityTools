@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.13.2.0',
+    'version': '18.0.14.0.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -62,7 +62,6 @@ Dobtor Doc Editor v2.1
         'security/ir.model.access.csv',
         'security/doc_security.xml',
         'wizards/doc_field_picker_views.xml',
-        'wizards/doc_bulk_import_wizard_views.xml',
         'wizards/doc_qweb_import_wizard_views.xml',
         'views/doc_document_views.xml',
         'views/doc_template_views.xml',
@@ -72,7 +71,6 @@ Dobtor Doc Editor v2.1
         'views/portal_templates.xml',
         'views/doc_telemetry_views.xml',
         'views/menu.xml',
-        'views/test_layout.xml',
         'data/doc_template_data.xml',
         'data/ir_cron_data.xml',
     ],

@@ -10,7 +10,7 @@
 
 執行方式（Odoo HttpCase 需 Odoo runtime）：
     docker exec odoo18 odoo -c /etc/odoo/odoo.conf -d odoo18_dev \\
-        --test-tags dobtor_doc_editor.font_serve --stop-after-init
+        --test-tags dobtor_doc_import.font_serve --stop-after-init
 
 也可單獨用 ORM 層測 controller 邏輯（不啟 HTTP），見 `TestFontServeLogic`。
 """
@@ -22,7 +22,7 @@ from odoo.tests.common import HttpCase, TransactionCase, tagged
 from ..controllers.font_serve import FONT_PATH_MAP, resolve_font_path
 
 
-@tagged('post_install', '-at_install', 'dobtor_doc_editor', 'font_serve')
+@tagged('post_install', '-at_install', 'dobtor_doc_import', 'font_serve')
 class TestFontServeLogic(TransactionCase):
     """純邏輯測試：FONT_PATH_MAP 結構 + 已知 family 對應的檔案邏輯。
 
@@ -83,7 +83,7 @@ class TestFontServeLogic(TransactionCase):
         self.assertIsNone(resolve_font_path(''))
 
 
-@tagged('post_install', '-at_install', 'dobtor_doc_editor', 'font_serve')
+@tagged('post_install', '-at_install', 'dobtor_doc_import', 'font_serve')
 class TestFontServeHttp(HttpCase):
     """HTTP 層測試：實際呼叫 `/dobtor/fonts/*` 路由。"""
 
@@ -147,12 +147,12 @@ class TestFontServeHttp(HttpCase):
         # patch FONT_PATH_MAP，加一個 family 指向 candidate tuple 全 missing
         bogus_map = dict(FONT_PATH_MAP)
         bogus_map['BOGUS_FAMILY'] = ('/nonexistent/path.ttf', '/also/missing.ttf')
-        with patch.dict('odoo.addons.dobtor_doc_editor.controllers.font_serve.FONT_PATH_MAP', bogus_map, clear=True):
+        with patch.dict('odoo.addons.dobtor_doc_import.controllers.font_serve.FONT_PATH_MAP', bogus_map, clear=True):
             resp = self.url_open('/dobtor/fonts/BOGUS_FAMILY')
             self.assertEqual(resp.status_code, 404)
 
 
-@tagged('post_install', '-at_install', 'dobtor_doc_editor', 'font_serve')
+@tagged('post_install', '-at_install', 'dobtor_doc_import', 'font_serve')
 class TestFontServeSecurity(HttpCase):
     """Sprint 68 — 邊界與安全測試：FONT_PATH_MAP dict.get() 已防 path traversal、
     但仍應 explicit 驗證（紀律 #5 應用：production path 與 test path 可能不同）。
@@ -202,7 +202,7 @@ class TestFontServeSecurity(HttpCase):
             k: ('/nonexistent/' + k.replace(' ', '_') + '.ttf', '/also/missing/' + k.replace(' ', '_') + '.ttc')
             for k in FONT_PATH_MAP
         }
-        patch_target = 'odoo.addons.dobtor_doc_editor.controllers.font_serve.FONT_PATH_MAP'
+        patch_target = 'odoo.addons.dobtor_doc_import.controllers.font_serve.FONT_PATH_MAP'
         with patch.dict(patch_target, empty_map, clear=True):
             resp = self.url_open(
                 '/dobtor/fonts/list',

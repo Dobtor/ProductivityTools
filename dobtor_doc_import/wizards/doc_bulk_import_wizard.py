@@ -20,7 +20,15 @@ import base64
 from odoo import fields, models, _
 from odoo.exceptions import UserError
 
-from ..models.doc_zip_guard import ZipBombError, inspect_zip_safe
+from odoo.addons.dobtor_doc_editor.models.doc_zip_guard import ZipBombError, inspect_zip_safe
+
+# ☠️ 這支原本寫在迴圈裡 `from ..controllers.doc_controller import
+#    _docx_to_html_with_format`——那是 2026-05 controller 拆層**之前**的位置，
+#    函式早就搬到 doc_convert.py 了。因為它在 try 裡面，ImportError 被下面的
+#    `except Exception` 吞掉，於是每個檔案都走「跳過」分支：精靈回報成功、
+#    建出 0 份文件、log 只說某個例外。拆模組時四則測試一起變紅才抓到。
+#    改成檔頭 import：載不到就是模組載入失敗，不會變成靜默跳過。
+from ..controllers.doc_convert import _docx_to_html_with_format
 
 _logger = logging.getLogger(__name__)
 
@@ -107,9 +115,6 @@ class DocBulkImportWizard(models.TransientModel):
                     docx_bytes = zf.read(info)
                     # 對單一 docx 也做 zip_guard 檢查
                     inspect_zip_safe(docx_bytes)
-                    # 沿用既有 _docx_to_html_with_format（在 doc_controller 內）
-                    # 但 wizard 屬於 model 層，引用時用 import 形式
-                    from ..controllers.doc_controller import _docx_to_html_with_format
                     body_html = _docx_to_html_with_format(docx_bytes)
                     name = info.filename.rsplit('.docx', 1)[0]
                     if '/' in name:

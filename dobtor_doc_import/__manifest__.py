@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Import',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'summary': 'DOCX / ODT 匯入成 Dobtor 文件（含自寫 OOXML 管線）',
     'description': """
 Dobtor Doc Import
@@ -33,9 +33,11 @@ Dobtor Doc Import
     'depends': [
         'dobtor_doc_editor',
     ],
-    # 步驟 2（骨架）只列已存在的檔；路由／精靈／視圖在步驟 3-4 搬進來時再加。
     'data': [
         'security/ir.model.access.csv',
+        'wizards/doc_bulk_import_wizard_views.xml',
+        'views/menu.xml',
+        'views/test_layout.xml',
     ],
     'assets': {},
     'installable': True,

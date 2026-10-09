@@ -39,18 +39,8 @@ _HEADING_STYLES = {
     'heading6': 'h6', 'heading 6': 'h6',
 }
 from .doc_controller_base import DocControllerBase
-from .doc_convert import (
-    _ts_parse_docx_to_elements,
-    _docx_to_html_with_format,
-    _w_paragraph_to_html,
-    _w_runs_to_html,
-    _w_run_to_html,
-    _w_table_to_html,
-    _odt_to_html,
-    _lo_convert_to_html,
-    _extract_page_margins,
-    _lo_postprocess,
-)
+# doc_convert 已隨檔案匯入搬到 dobtor_doc_import 模組（拆模組步驟 3）。
+# 核心只留 models/doc_ins_syntax.py 的 _convert_ins_to_jinja（範本上傳用）。
 
 
 class DocI18nController(DocControllerBase, http.Controller):

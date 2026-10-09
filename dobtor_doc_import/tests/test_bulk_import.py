@@ -39,7 +39,7 @@ def _make_archive(entries):
     return buf.getvalue()
 
 
-@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+@tagged('post_install', '-at_install', 'dobtor_doc_import')
 class TestBulkImport(TransactionCase):
 
     def setUp(self):

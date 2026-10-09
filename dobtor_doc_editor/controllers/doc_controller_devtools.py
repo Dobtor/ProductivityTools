@@ -42,18 +42,8 @@ _HEADING_STYLES = {
     'heading6': 'h6', 'heading 6': 'h6',
 }
 from .doc_controller_base import DocControllerBase
-from .doc_convert import (
-    _ts_parse_docx_to_elements,
-    _docx_to_html_with_format,
-    _w_paragraph_to_html,
-    _w_runs_to_html,
-    _w_run_to_html,
-    _w_table_to_html,
-    _odt_to_html,
-    _lo_convert_to_html,
-    _extract_page_margins,
-    _lo_postprocess,
-)
+# doc_convert 已隨檔案匯入搬到 dobtor_doc_import 模組（拆模組步驟 3）。
+# 核心只留 models/doc_ins_syntax.py 的 _convert_ins_to_jinja（範本上傳用）。
 
 
 class DocDevtoolsController(DocControllerBase, http.Controller):
@@ -134,63 +124,7 @@ class DocDevtoolsController(DocControllerBase, http.Controller):
             _logger.warning("Failed to log telemetry metric: %s", e)
             return {'success': False}
 
-    @http.route('/dobtor_doc_editor/test', type='http', auth='user', methods=['GET'])
-    def test_render(self, fixture=None, **kw):
-        """渲染 fixture .docx 為 clean canvas-editor 頁面（無 Odoo header/sidebar）。
-
-        Phase F 視覺回歸 pipeline 入口。puppeteer 對此 URL 截圖，
-        對比 tests/fixtures/<category>/golden/<fixture>-<page>.png。
-        """
-        if not fixture:
-            return request.make_response('missing ?fixture=<rel_path>', status=400)
-
-        # 安全：fixture 必須是 tests/fixtures/ 下的相對路徑、無 .. traversal
-        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
-        abs_path = os.path.normpath(os.path.join(fixtures_root, fixture))
-        if not abs_path.startswith(fixtures_root + os.sep):
-            return request.make_response('invalid fixture path', status=400)
-        if not abs_path.lower().endswith('.docx'):
-            return request.make_response('only .docx supported', status=400)
-        if not os.path.isfile(abs_path):
-            return request.make_response(f'fixture not found: {fixture}', status=404)
-
-        return request.render('dobtor_doc_editor.test_layout', {
-            'fixture_name': fixture,
-        })
-
-    @http.route('/dobtor_doc_editor/test_data', type='json', auth='user', methods=['POST'])
-    def test_data(self, fixture=None, float_textbox=False, anchored_image=False, **kw):
-        """回傳指定 fixture 的 IElement[]（Phase F test_harness.js 用）。
-
-        參數：
-            fixture:        tests/fixtures/ 下的相對路徑（如 '01_simple/xxx.docx'）
-            float_textbox:  Sprint Y58 opt-in 展平 wp:anchor + w:txbxContent 文字
-            anchored_image: Sprint Y58 opt-in 透傳 wp:anchor 屬性
-
-        回傳：{'elements': [...IElement...]} 或 {'error': str}
-        """
-        if not fixture:
-            return {'error': 'missing fixture parameter'}
-
-        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
-        abs_path = os.path.normpath(os.path.join(fixtures_root, fixture))
-        if not abs_path.startswith(fixtures_root + os.sep):
-            return {'error': 'invalid fixture path'}
-        if not abs_path.lower().endswith('.docx') or not os.path.isfile(abs_path):
-            return {'error': f'fixture not found: {fixture}'}
-
-        with open(abs_path, 'rb') as fp:
-            file_bytes = fp.read()
-
-        elements = _ts_parse_docx_to_elements(
-            file_bytes,
-            float_textbox=bool(float_textbox),
-            anchored_image=bool(anchored_image),
-        )
-        if elements is None:
-            return {'error': 'TS parser failed (CLI not built or runtime error)'}
-
-        return {'elements': elements, 'fixture': fixture}
+    # `/dobtor_doc_editor/test` 與 `/dobtor_doc_editor/test_data` 已搬到
+    # dobtor_doc_import（拆模組步驟 3）——視覺回歸 harness，讀 fixture 的 docx
+    # 經 OOXML 管線轉成 IElement[] 再截圖比對。
 
