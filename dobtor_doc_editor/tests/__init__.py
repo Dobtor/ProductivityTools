@@ -31,3 +31,6 @@ from . import test_model_constraints  # compute／constraint 接線（稽核尺 
 from . import test_python_package_wiring  # 每支 .py 都接得上線
 from . import test_doc_links  # 文件連結守衛（階段 6）
 from . import test_acl_shapes  # 刻意的 ACL 形狀（可做 3）
+from . import test_route_versions  # 版本面板 5 條路由（優化 3 第一批）
+from . import test_route_template_fields  # 範本欄位 6 條＋匯出（優化 3 第二批）
+from . import test_route_i18n  # i18n 5 條路由（優化 3 第三批）
