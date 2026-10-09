@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = '/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor';
+// ☠️ 原本寫死 '/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor'——那是 2026-05
+//    那台 WSL 開發機的路徑，在任何其他機器上都不存在（拆模組時才發現）。
+//    改成從腳本自己的位置推：scripts/ → 模組根。
+const ROOT = new URL('..', import.meta.url).pathname;
 const HARNESS = `${ROOT}/scripts/visual_regression_v14_harness.html`;
 const fixture = `${ROOT}/tests/fixtures/02_std_table/1121006-磺港溪再造C段護岸及步道整建工程(延壽橋至三合橋)週報.docx`;
 

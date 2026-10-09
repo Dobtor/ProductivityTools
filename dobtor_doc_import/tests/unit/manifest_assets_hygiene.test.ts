@@ -19,23 +19,24 @@ import { resolve } from "node:path";
 
 // 模組根 = 本檔的兩層上層（tests/unit/ → 模組根）
 const MODULE_ROOT = resolve(__dirname, "../..");
-const MODULE_NAME = "dobtor_doc_editor";
+// ☠️ 拆模組（2026-10-09）之後這支守的是 **dobtor_doc_import** 的 manifest。
+// 它原本的價值是擋「忘記把 JS 加進核心的 assets」，但核心拆分後沒有 vitest 了
+// ——那個守門員改用核心自己的 Python 測試
+// （dobtor_doc_editor/tests/test_manifest_assets.py），因為它不需要 node。
+// 這裡留著是為了守本模組的 assets（目前只有 canvas-editor-custom.umd.js）。
+const MODULE_NAME = "dobtor_doc_import";
 
 /**
  * 例外清單：這些檔案**故意不在** manifest assets 內，但仍允許留在源樹。
  * 增加例外時請在註解寫清楚原因，避免後人懷疑。
  */
+// ☠️ 拆模組（2026-10-09）之後這份清單只該列**本模組**的檔案。原本那 5 條
+// legacy 路徑（pagination_engine.js、doc_ruler、doc_page_layout…）隨核心留下，
+// 它們的例外改記在核心的 tests/test_manifest_assets.py。
+// 本檔另有一則測試「例外清單裡的路徑都要實際存在」——就是它抓到這件事的。
 const ALLOW_NOT_IN_MANIFEST = new Set<string>([
     // 開發/測試 harness，從 node 直接跑、不進 Odoo bundle
     "static/src/components/doc_editor/test_harness.js",
-
-    // HTML/Wysiwyg 時代殘留，已被 canvas-editor 版本取代；
-    // manifest 內以註解形式保留 reference，方便日後追溯
-    "static/src/components/doc_page_layout/doc_page_layout.js",
-    "static/src/components/doc_page_layout/doc_page_layout.xml",
-    "static/src/components/doc_ruler/doc_ruler.js",
-    "static/src/components/doc_ruler/doc_ruler.xml",
-    "static/src/core/pagination_engine.js",
 ]);
 
 /** Glob 出所有可能要 bundle 的源檔（components / core / css） */

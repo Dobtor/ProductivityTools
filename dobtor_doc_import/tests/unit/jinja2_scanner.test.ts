@@ -1,4 +1,16 @@
 /**
+ * ☠️ 這支測的是**核心模組**的檔案：
+ *   dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js
+ *
+ * 拆模組（2026-10-09）之後，vitest 工具鏈整套在 dobtor_doc_import，而
+ * jinja2_scanner.js 是核心出貨的 JS（在核心的 manifest assets 裡）。核心沒有
+ * vitest，所以這支留在這裡，用跨模組的相對路徑指回去（兩個模組是同一個 repo
+ * 的 sibling 目錄）。
+ *
+ * 這樣做的代價：核心搬動那支檔案時，這裡會跟著壞。可接受——它會在 npm test
+ * 時立刻以「Failed Suite」的形式報出來，不是靜默的。
+ */
+/**
  * jinja2_scanner.test.ts — Phase 8 Sprint G
  *
  * 對 scanJinja2Variables / flattenElementsToText 的純函式單測。
@@ -15,7 +27,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables, findMarkerPositionsInMain, rewriteTdValueWithControls } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables, findMarkerPositionsInMain, rewriteTdValueWithControls } from "../../../dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {

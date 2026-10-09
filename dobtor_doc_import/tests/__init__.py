@@ -2,3 +2,4 @@
 from . import test_font_serve
 from . import test_bulk_import
 from . import test_import_routes
+from . import test_bundle_loaded

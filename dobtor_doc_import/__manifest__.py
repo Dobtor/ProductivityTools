@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Import',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'summary': 'DOCX / ODT 匯入成 Dobtor 文件（含自寫 OOXML 管線）',
     'description': """
 Dobtor Doc Import
@@ -39,7 +39,26 @@ Dobtor Doc Import
         'views/menu.xml',
         'views/test_layout.xml',
     ],
-    'assets': {},
+    'assets': {
+        # 自寫的 OOXML Parser（瀏覽器端），全域 window.DobtorCanvasEditor。
+        #
+        # ☠️ 2026-10-09 之前這支**從未掛進任何 manifest**（ADR-032 修的）：
+        #    rollup 產得出來、git 也追蹤著，但沒有 bundle 載它，所以瀏覽器端的
+        #    parser 從頭到尾沒被執行過。那種「存在但不載入」不會報錯。
+        #
+        #    它**不含** canvas-editor 的編輯器 API（實測 executeSetValue /
+        #    CanvasEvent / command.execute 皆 0 筆），所以與核心載的上游
+        #    canvas-editor.umd.min.js 不衝突、不會有兩份實例。
+        #
+        # 代價：backend bundle 多 ~425KB。消費者是
+        #    DocEditorIo.importViaBrowserParser()（在核心的 doc_editor_io.js，
+        #    拆模組步驟 5 會改成由本模組 patch 進去）。
+        #    刻意不加到 web.assets_frontend：portal 已要下載 1.5MB，
+        #    而 portal 沒有這條驗收通道。
+        'web.assets_backend': [
+            'dobtor_doc_import/static/src/lib/canvas_editor/canvas-editor-custom.umd.js',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

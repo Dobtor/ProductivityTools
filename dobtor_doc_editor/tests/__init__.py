@@ -19,3 +19,4 @@ from . import test_report_engine  # 報表引擎 R1-R3
 from . import test_qweb_converter  # QWeb 報表 → 範本轉換器
 from . import test_qweb_converter_native  # 原生報表實際轉換＋渲染
 from . import test_editor_tour
+from . import test_manifest_assets

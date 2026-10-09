@@ -50,39 +50,6 @@ registry.category("web_tour.tours").add("doc_editor_panels_tour", {
     steps: () => [
         waitEditor,
 
-        // ─── manifest 真的把自寫的 OOXML Parser bundle 載進來了 ───
-        //
-        // ☠️ `canvas-editor-custom.umd.js` 在 2026-10-09 之前**從未掛進
-        // manifest**：rollup 產得出來、git 也追蹤著，但沒有任何 bundle 載它。
-        // 那種「存在但不載入」的狀態沒有任何東西會報錯，所以撐了很久沒人發現。
-        // 這一步就是它的守門員——assets 清單少了那一行，這裡會紅。
-        {
-            content: "確認 window.DobtorCanvasEditor 已載入（manifest assets 生效）",
-            trigger: ".o_dobtor_doc_editor",
-            run: () => {
-                const lib = window.DobtorCanvasEditor;
-                if (!lib) {
-                    throw new Error(
-                        "window.DobtorCanvasEditor 不存在——"
-                        + "canvas-editor-custom.umd.js 沒被 manifest 的 "
-                        + "web.assets_backend 載入");
-                }
-                for (const name of ["OoxmlParser", "ToCanvasEditor"]) {
-                    if (typeof lib[name] !== "function") {
-                        throw new Error(
-                            `DobtorCanvasEditor.${name} 不是 function（是 `
-                            + typeof lib[name] + "）——bundle 版本不對");
-                    }
-                }
-                const cmp = window._docEditorCmp;
-                if (cmp && typeof cmp.importViaBrowserParser !== "function") {
-                    throw new Error(
-                        "editor 沒有 importViaBrowserParser——"
-                        + "bundle 載了卻沒有消費者，等於白載 425KB");
-                }
-            },
-        },
-
         // ─── 左欄：欄位分頁的各個群組 ───
         {
             content: "切到「欄位」分頁",
