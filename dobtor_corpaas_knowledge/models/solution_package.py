@@ -475,6 +475,9 @@ class SolutionPackage(models.Model):
         self.ensure_one()
         if feature.module_origin != 'odoo' or feature.attr_for(self, 'customized'):
             return True
+        if feature.kind == 'route':
+            # ★ 前台頁一律寫：讀者是方案自己的會員／訪客，官方文件不講這個網站怎麼用
+            return True
         return bool(self.knowledge_document_native)
 
     _HEARTBEAT_AT = {}
@@ -1064,10 +1067,35 @@ class SolutionPackage(models.Model):
                     if prev:
                         prev.current = False
                     FP.create(vals)
+        self._knowledge_route_fingerprints(code_manifest, now)
         # 全部算完才記基準：中途失敗下次就全算，不會漏。
         self._knowledge_bookkeep({
             'knowledge_fp_manifest': json.dumps(state, sort_keys=True),
             'knowledge_fp_image': self.knowledge_image_digest or False})
+
+    def _knowledge_route_fingerprints(self, code_manifest, now=None):
+        """前台頁（kind=route）沒有後台視圖可算：指紋＝網址＋讀者身分＋模組程式版本。
+
+        ★ 模組改版才換指紋（重拍）；讀者身分由網址決定（/my 開頭是會員，其他是訪客）。"""
+        self.ensure_one()
+        import hashlib
+        from .feature import route_audience
+        FP = self.env['corpaas.knowledge.fingerprint'].sudo()
+        routes = self.env['corpaas.knowledge.feature'].sudo().search([
+            ('package_ids', 'in', self.id), ('missing', '=', False), ('kind', '=', 'route')])
+        for f in routes:
+            role = route_audience(f.feature_key.split(':', 1)[-1])
+            code = json.dumps((code_manifest or {}).get(f.module), sort_keys=True, default=str)
+            scope = hashlib.sha1(('route|%s|%s|%s' % (f.feature_key, role, code))
+                                 .encode('utf-8')).hexdigest()[:16]
+            prev = FP.search([('feature_id', '=', f.id), ('package_id', '=', self.id),
+                              ('current', '=', True)])
+            if len(prev) == 1 and prev.scope_hash == scope and prev.role_code == role:
+                continue
+            prev.write({'current': False})
+            FP.create({'feature_id': f.id, 'package_id': self.id, 'role_code': role,
+                       'scope_hash': scope, 'form_hash': scope,
+                       'computed_at': now or fields.Datetime.now(), 'elements_json': '[]'})
 
     # ------------------------------------------------------------------
     # 任務流程（K14）

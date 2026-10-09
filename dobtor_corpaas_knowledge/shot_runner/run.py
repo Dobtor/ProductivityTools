@@ -134,10 +134,12 @@ def _settle(page, extra_ms=400):
         page.wait_for_load_state('networkidle', timeout=5000)
     except Exception:  # noqa: BLE001
         pass
-    try:
-        page.wait_for_selector('.o_action_manager', timeout=15000)
-    except Exception:  # noqa: BLE001 - 登入頁等非後台頁面沒有它
-        pass
+    if _is_backend(page):
+        # 網站前台沒有 .o_action_manager：不等（否則前台每一步白等 15 秒）
+        try:
+            page.wait_for_selector('.o_action_manager', timeout=15000)
+        except Exception:  # noqa: BLE001
+            pass
     try:
         page.wait_for_selector('.o_loading_indicator, .o_blockUI', state='detached',
                                timeout=15000)
@@ -283,13 +285,28 @@ def _backend_diag(page):
     return json.dumps(info, ensure_ascii=False)
 
 
-def login(page, base, login_name, password):
+def _is_backend(page):
+    return urlparse(page.url).path.startswith(('/odoo', '/web')) \
+        and not urlparse(page.url).path.startswith(('/web/login', '/web/signup'))
+
+
+def login(page, base, login_name, password, frontend=False):
+    """登入。frontend：前台頁的會員帳號（入口網站使用者進不了後台），登入後回網站首頁。"""
     page.goto(base + '/web/login')
     page.fill('input[name="login"]', login_name)
     page.fill('input[name="password"]', password)
     # ☠️ 不能點 `button[type="submit"]`：裝了 website 的庫，登入頁 header 還有一顆隱藏的
     #   搜尋送出鈕，選擇器先抓到它，等它可見等到逾時。直接在密碼欄按 Enter 送出登入表單。
     page.press('input[name="password"]', 'Enter')
+    if frontend:
+        try:
+            page.wait_for_url(lambda u: '/web/login' not in u, timeout=30000)
+        except Exception as e:  # noqa: BLE001
+            if page.locator('.alert-danger').count():
+                raise RuntimeError('登入失敗：%s' % page.locator('.alert-danger').first.inner_text())
+            raise RuntimeError('會員登入後沒有離開登入頁：%s' % str(e).splitlines()[0][:120])
+        _settle(page)
+        return
     try:
         try:
             page.wait_for_url(lambda u: '/web/login' not in u, timeout=15000)
@@ -536,7 +553,8 @@ def main():
             recorder = Recorder()
             _SAVED.clear()
             _ROLE_PAGES.clear()
-            _ROLE_PAGES[shot['login']] = page
+            if shot.get('login'):
+                _ROLE_PAGES[shot['login']] = page
             page.on('response', recorder.on_response)
             _CONSOLE.clear()
             page.on('console', lambda m: m.type in ('error', 'warning') and _CONSOLE.append(
@@ -544,7 +562,10 @@ def main():
             page.on('pageerror', lambda e: _CONSOLE.append('pageerror: %s' % str(e)[:300]))
             try:
                 images, observed = [], []
-                login(page, base, shot['login'], shot['password'])
+                if shot.get('login'):
+                    login(page, base, shot['login'], shot['password'],
+                          frontend=bool(shot.get('frontend')))
+                # 沒有帳號＝網站訪客：不登入，直接照步驟開前台頁
                 recorder.reset()
                 observed = []
                 warnings = []

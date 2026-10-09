@@ -27,6 +27,7 @@ from PIL import Image
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.dobtor_corpaas_knowledge.models.feature import ROUTE_VISITOR
 from odoo.addons.dobtor_corpaas_knowledge.services import (hub_client, phash, remote, scripts,
                                                            shooter)
 
@@ -105,10 +106,14 @@ class KnowledgeHooks(models.AbstractModel):
                 delta = json.loads(elements)
             except ValueError:
                 delta = []
-        return {'key': feature.feature_key, 'name': feature.name, 'kind': feature.kind,
-                'model': feature.model, 'menu_path': feature.menu_path,
-                'action_xmlid': feature.action_xmlid, 'button_name': feature.button_name,
-                'delta': delta}
+        out = {'key': feature.feature_key, 'name': feature.name, 'kind': feature.kind,
+               'model': feature.model, 'menu_path': feature.menu_path,
+               'action_xmlid': feature.action_xmlid, 'button_name': feature.button_name,
+               'delta': delta}
+        if feature.kind == 'route':
+            from odoo.addons.dobtor_corpaas_knowledge.models.feature import route_audience
+            out.update(anchor=feature.anchor, audience=route_audience(feature.anchor))
+        return out
 
     @api.model
     def _manual_package_hashes(self, package, feature):
@@ -158,7 +163,8 @@ class KnowledgeHooks(models.AbstractModel):
         # ★ 沒被改過的官方畫面不寫文章（K21）：說明連到 Odoo 官方文件，不重寫一份——
         #   除非方案勾了「原生畫面也製作操作說明」（帶客戶認識原生功能的方案）。
         return {f: c for f, c in out.items()
-                if f.model and f not in renamed_to and f.is_present_in(package)
+                if (f.model or f.kind == 'route') and f not in renamed_to
+                and f.is_present_in(package)
                 and package._knowledge_documents_feature(f)}
 
     @api.model
@@ -533,7 +539,8 @@ class KnowledgeHooks(models.AbstractModel):
         Template = self.env['corpaas.knowledge.shot_template'].sudo()
         Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
         codes = [r.code for r in scenario.all_roles()]
-        roled = [(f, rule_scripts.pick_role(f.kind, f.module, codes)) for f, _h, _o in items]
+        roled = [(f, rule_scripts.pick_role(f.kind, f.module, codes, anchor=f.anchor))
+                 for f, _h, _o in items]
         probes = self._manual_probe_many(sandbox, roled)
         made = 0
         for (feature, hashes, old), (_f, role) in zip(items, roled):
@@ -756,12 +763,16 @@ class KnowledgeHooks(models.AbstractModel):
                 self._manual_fail(b, _('說明庫找不到示範資料：%s') % ', '.join(sorted(missing)))
                 failed |= b
                 continue
-            if not login:
+            front = b.template_id.feature_id.kind == 'route'
+            if front and role == ROUTE_VISITOR:
+                login = None   # 網站訪客：不登入
+            elif not login:
                 self._manual_fail(b, _('說明庫沒有角色「%s」的帳號') % (role or '?'))
                 failed |= b
                 continue
             sid = 'b%s' % b.id
-            shots.append({'id': sid, 'login': login, 'password': password, 'steps': steps})
+            shots.append({'id': sid, 'login': login, 'password': password, 'steps': steps,
+                          'frontend': front})
             by_id[sid] = b
         if not shots:
             return failed

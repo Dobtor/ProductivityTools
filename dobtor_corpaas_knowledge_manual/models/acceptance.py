@@ -157,6 +157,17 @@ class KnowledgeHooks(models.AbstractModel):
             '%s／%s（%.0f%%）' % (live_n, expected, ratio * 100),
             '≥ %.0f%%' % (targets['article_ratio'] * 100))
 
+        # ★ 有網站的方案：前台頁（會員／訪客看到的）也要有說明，不能只有後台
+        fronts = [f for f in cands if f.kind == 'route']
+        if fronts:
+            live_front = {p.article_id.feature_id for p in pls
+                          if p._manual_is_live() and p.article_id.feature_id.kind == 'route'}
+            missing = [f.name for f in fronts if f not in live_front]
+            add('front', _('網站前台頁都有說明（會員與訪客的畫面）'), not missing,
+                '%s／%s%s' % (len(fronts) - len(missing), len(fronts),
+                             ('；缺：%s' % '、'.join(missing[:8])) if missing else ''),
+                _('全部有'))
+
         bad = [p.article_id.name for p in pls if p._manual_is_live()
                and p.article_id._manual_text_problems()]
         add('text_lint', _('上線文章的文字檢查'), not bad,

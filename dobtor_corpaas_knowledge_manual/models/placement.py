@@ -39,11 +39,15 @@ KIND_ORDER = {'menu': 0, 'action': 0, 'client': 0, 'button': 1, 'wizard': 2, 're
 #: 章內分組：日常操作 → 報表與分析 → 設定（參考說明書：設定是導入時做一次，不跟日常操作混排）
 CONFIG_WORDS = {'配置', '設定', 'Configuration', 'Settings'}
 REPORT_WORDS = {'報告', '報表', '分析', 'Reporting', 'Reports'}
-GROUP_DAILY, GROUP_REPORT, GROUP_CONFIG = 0, 1, 2
+GROUP_FRONT, GROUP_DAILY, GROUP_REPORT, GROUP_CONFIG = -1, 0, 1, 2
 
 
 def article_group(feature):
-    """0 日常操作、1 報表與分析、2 設定：看功能種類與選單路徑。"""
+    """-1 網站前台、0 日常操作、1 報表與分析、2 設定：看功能種類與選單路徑。
+
+    ★ 前台頁（會員／訪客在網站上看到的）排最前面：客人先在網站上做，後台人員才接著處理。"""
+    if feature.kind == 'route':
+        return GROUP_FRONT
     segs = {s.strip() for s in re.split(r'[/›]', feature.menu_path or '') if s.strip()}
     if feature.kind == 'setting' or segs & CONFIG_WORDS:
         return GROUP_CONFIG
@@ -257,12 +261,16 @@ class KnowledgeChannelSection(models.Model):
             if len(steps) >= 2:
                 rows.append({'name': flow.name or '', 'states': steps})
         parts.append(L.flow_position(rows))
-        links = {GROUP_DAILY: [], GROUP_REPORT: [], GROUP_CONFIG: []}
+        links = {GROUP_FRONT: [], GROUP_DAILY: [], GROUP_REPORT: [], GROUP_CONFIG: []}
         for pl in ordered:
             live = pl.article_id._manual_live_text()
             links[article_group(pl.article_id.feature_id)].append(
                 '<a class="list-group-item list-group-item-action" href="%s">%s</a>' % (
                     esc(pl.slide_id.website_url or '#'), esc(live.get('name') or '')))
+        if links[GROUP_FRONT]:
+            parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3><div class="list-group '
+                         'mb-3">%s</div>' % (
+                             esc(_('網站前台（會員與訪客看到的畫面）')), ''.join(links[GROUP_FRONT])))
         if links[GROUP_DAILY]:
             parts.append('<h3 class="h5 fw-semibold mt-4">%s</h3><div class="list-group '
                          'list-group-numbered mb-3">%s</div>' % (

@@ -54,6 +54,21 @@ def inventory_script(modules, lang='zh_TW', official=()):
 
 _INVENTORY_BODY = r"""
 import xml.etree.ElementTree as ET
+# ★ 已安裝模組的標準前台頁（讀者是會員或訪客）：之後的方案只要裝到同一個模組就有前台說明
+FRONT_ROUTES = {
+    'website': [('/', '網站首頁')],
+    'auth_signup': [('/web/signup', '註冊會員')],
+    'portal': [('/my', '我的帳戶'), ('/my/account', '帳戶資料')],
+    'website_sale': [('/shop', '線上商城'), ('/shop/cart', '購物車')],
+    'sale': [('/my/orders', '我的訂單'), ('/my/quotes', '我的報價單')],
+    'account': [('/my/invoices', '我的發票與帳單')],
+    'website_blog': [('/blog', '部落格')],
+    'website_event': [('/event', '活動')],
+    'website_slides': [('/slides', '線上課程')],
+    'website_hr_recruitment': [('/jobs', '徵才')],
+    'website_forum': [('/forum', '論壇')],
+    'website_customer': [('/customers', '客戶')],
+}
 TECH = {'base.group_no_one', 'base.group_system', 'base.group_erp_manager'}
 E = env(context=dict(env.context, lang=LANG, active_test=False))
 Imd = E['ir.model.data'].sudo()
@@ -179,12 +194,28 @@ for m in E['ir.model'].sudo().search([('transient', '=', True)]):
 # 設定：不在這裡盤。只有「已開啟」的參數型開關才是功能點（toggle_script，進階）；
 #   沒勾的設定不屬於方案預設範圍。
 
-# 前台：方案模組的網站選單
-if 'website.menu' in E:
-    for d in _ids('website.menu', MODS):
-        wm = E['website.menu'].browse(d.res_id).exists()
-        if wm and wm.url and wm.url not in ('/', '#'):
-            _feat('route', wm.url, d.module, name=wm.name, menu_path=wm.name)
+# 前台：網站選單（方案模組、官方模組、在資料庫裡手動建的）＋已安裝模組的標準前台頁
+# ☠️ 實機：社群電商方案的網站選單都是手動建的（沒有 xmlid）、商城 /shop 是官方模組的，
+#   只盤方案模組的選單 → 一個前台功能點都沒有，網站的說明只剩後台畫面。
+SCOPE = MODS | OFFICIAL
+if 'website.menu' in E and 'website' in SCOPE:
+    owner = {}
+    for d in Imd.search([('model', '=', 'website.menu')]):
+        owner[d.res_id] = d.module
+    for wm in E['website.menu'].search([('url', 'not in', ['', '/', '#'])]):
+        url = (wm.url or '').split('#')[0].split('?')[0].rstrip('/')
+        if not url.startswith('/') or url.startswith(('/odoo', '/web/')) and \
+                url not in ('/web/signup', '/web/login'):
+            continue
+        mod = owner.get(wm.id) or 'website'
+        if mod in SCOPE:
+            _feat('route', url, mod, name=wm.name, menu_path=wm.name)
+INSTALLED = set(E['ir.module.module'].sudo().search([('state', '=', 'installed')]).mapped('name'))
+for mod, routes in FRONT_ROUTES.items():
+    # 只有方案範圍內有網站才做前台說明（純後台的方案裝了 portal 也不拍 /my）
+    if mod in INSTALLED and 'website' in SCOPE:
+        for url, name in routes:
+            _feat('route', url, mod, name=name, menu_path=name)
 
 out = []
 for d in feats.values():

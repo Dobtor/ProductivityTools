@@ -153,3 +153,58 @@ class TestApproveNeedsShots(ManualCase):
             art.with_user(self.approver).action_approve()
         art.with_user(self.approver).with_context(knowledge_force_approve=True).action_approve()
         self.assertEqual(art.state, 'published')
+
+
+@tagged('post_install', '-at_install')
+class TestFrontRoutes(ManualCase):
+    """網站前台頁（kind=route）：會員／訪客身分拍前台，文章排在章節最前面。"""
+
+    def _route(self, url, name='線上商城'):
+        return self.Feature.create({
+            'feature_key': 'website_sale.route:%s' % url, 'module': 'website_sale',
+            'kind': 'route', 'anchor': url, 'name': name,
+            'package_ids': [(6, 0, self.pkg.ids)]})
+
+    def test_front_path_steps_and_roles(self):
+        self.assertTrue(rule_scripts.is_front_path('/shop'))
+        self.assertTrue(rule_scripts.is_front_path('/web/signup'))
+        self.assertFalse(rule_scripts.is_front_path('/odoo/contacts'))
+        self.assertFalse(rule_scripts.is_front_path('/web#action=1'))
+        steps, ph = rule_scripts.build_steps({'key': 'website_sale.route:/shop',
+                                              'kind': 'route', 'anchor': '/shop'})
+        self.assertEqual(steps[0], {'goto': {'url': '/shop'}})
+        self.assertEqual(ph, [])
+        codes = ['sales', 'member', 'admin']
+        self.assertEqual(rule_scripts.pick_role('route', 'portal', codes, anchor='/my/orders'),
+                         'member')
+        self.assertEqual(rule_scripts.pick_role('route', 'website_sale', codes, anchor='/shop'),
+                         'visitor')
+        self.assertEqual(rule_scripts.pick_role('route', 'portal', ['admin'], anchor='/my'),
+                         'visitor', '沒有會員角色就用訪客')
+
+    def test_validate_allows_front_url_only(self):
+        from ..services import manual_lib
+        manual_lib.validate_steps([{'goto': {'url': '/shop'}}, {'shot': 'shop_page'}])
+        with self.assertRaises(ValueError):
+            manual_lib.validate_steps([{'goto': {'url': '/odoo/contacts'}}, {'shot': 'x'}])
+
+    def test_route_fingerprint_candidate_and_group(self):
+        from ..models.placement import GROUP_FRONT, article_group
+        shop = self._route('/shop')
+        orders = self._route('/my/orders', '我的訂單')
+        self.pkg._knowledge_route_fingerprints({'website_sale': '1.0'})
+        FP = self.env['corpaas.knowledge.fingerprint']
+        fp = FP.search([('feature_id', '=', shop.id), ('current', '=', True)])
+        self.assertEqual((len(fp), fp.role_code), (1, 'visitor'))
+        self.assertEqual(FP.search([('feature_id', '=', orders.id),
+                                    ('current', '=', True)]).role_code, 'member')
+        self.pkg._knowledge_route_fingerprints({'website_sale': '1.0'})
+        self.assertEqual(FP.search_count([('feature_id', '=', shop.id)]), 1, '沒改版不換指紋')
+        self.pkg._knowledge_route_fingerprints({'website_sale': '2.0'})
+        self.assertEqual(FP.search_count([('feature_id', '=', shop.id)]), 2, '模組改版換指紋')
+        self.assertEqual(set(self.hooks._manual_package_hashes(self.pkg, shop)), {'visitor'})
+        self.cap_a.feature_ids = [(4, shop.id)]
+        self.assertIn(shop, self.hooks._manual_candidates(self.pkg), '前台頁是文章候選')
+        self.assertEqual(article_group(shop), GROUP_FRONT)
+        prompt = self.hooks._manual_feature_dict(orders, self.pkg)
+        self.assertEqual(prompt['audience'], 'member')

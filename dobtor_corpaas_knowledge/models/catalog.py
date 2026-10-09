@@ -1290,6 +1290,12 @@ class KnowledgeSelection(models.Model):
         items = [r for r in data.get('roles') or [] if isinstance(r, dict)]
         if not any(r.get('code') == 'admin' for r in items):
             items.append({'code': 'admin', 'name': '系統管理員', 'groups': ['base.group_system']})
+        # ★ 方案有網站前台頁：補上會員（入口網站帳號），拍「我的帳戶／訂單」這類會員畫面
+        from .feature import ROUTE_MEMBER
+        has_front = self.env['corpaas.knowledge.feature'].sudo().search_count([
+            ('package_ids', 'in', self.package_id.id), ('kind', '=', 'route')])
+        if has_front and not any(r.get('code') == ROUTE_MEMBER for r in items):
+            items.append({'code': ROUTE_MEMBER, 'name': '會員', 'groups': ['base.group_portal']})
         for r in items:
             code = re.sub(r'[^a-z0-9_]+', '_', str(r.get('code') or '').lower()).strip('_')
             groups = [g for g in r.get('groups') or []

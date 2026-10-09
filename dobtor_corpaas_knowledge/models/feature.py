@@ -18,6 +18,17 @@ FEATURE_KINDS = [
 ]
 
 
+#: 前台頁的讀者：會員（登入後的入口網站帳號）／訪客（不登入）
+ROUTE_MEMBER, ROUTE_VISITOR = 'member', 'visitor'
+_MEMBER_PREFIXES = ('/my',)
+
+
+def route_audience(url):
+    """前台頁要用誰的身分拍：/my 開頭（我的帳戶、訂單、發票）是會員，其他是訪客。"""
+    path = (url or '').split('?')[0]
+    return ROUTE_MEMBER if path.startswith(_MEMBER_PREFIXES) else ROUTE_VISITOR
+
+
 class KnowledgeFeature(models.Model):
     _name = 'corpaas.knowledge.feature'
     _description = '功能點'

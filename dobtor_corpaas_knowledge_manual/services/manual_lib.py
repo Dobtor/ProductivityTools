@@ -10,6 +10,8 @@ import re
 from lxml import etree
 from lxml import html as lhtml
 
+from . import rule_scripts
+
 STEP_KINDS = ('goto', 'open', 'click', 'fill', 'wait', 'highlight', 'shot')
 ELEMENT_KEYS = ('field', 'button', 'page')
 #: 會碰到畫面元素、因此進入腳本範圍指紋的步驟
@@ -55,11 +57,12 @@ def validate_steps(steps):
         if kind not in STEP_KINDS:
             raise ValueError('步驟 %s 使用未知動作 %s' % (idx, kind))
         arg = step[kind]
-        if kind == 'goto' and not (isinstance(arg, dict) and arg.get('action')
-                                   and 'url' not in arg):
+        if kind == 'goto' and not (isinstance(arg, dict) and (
+                (arg.get('action') and 'url' not in arg)
+                or (set(arg) == {'url'} and rule_scripts.is_front_path(arg['url'])))):
             # ☠️ 網址會被品牌過濾改寫（'odoo' 字樣被換掉）→ 腳本在說明庫裡開錯頁；
-            #   goto 一律用動作 xmlid。
-            raise ValueError('步驟 %s：goto 只能用 action（不可用 url）' % idx)
+            #   後台 goto 一律用動作 xmlid，只有網站前台的路徑（/shop、/my…）可以用 url。
+            raise ValueError('步驟 %s：goto 只能用 action，或網站前台路徑的 url' % idx)
         if kind == 'shot':
             name = arg if isinstance(arg, str) else (arg or {}).get('name')
             if not name or not re.match(r'^[\w.-]+$', str(name)):

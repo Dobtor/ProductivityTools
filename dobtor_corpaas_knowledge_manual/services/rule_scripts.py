@@ -37,12 +37,28 @@ ROLE_BY_MODULE = (
 )
 
 
+def is_front_path(path):
+    """網站前台的路徑（可以用 goto url）：/ 開頭、不是後台（/odoo、/web/…，註冊與登入頁除外）。
+
+    ☠️ 後台網址會被品牌過濾改寫（odoo 字樣被換掉），所以後台一律用動作 xmlid。"""
+    if not isinstance(path, str) or not path.startswith('/') or 'odoo' in path:
+        return False
+    return not path.startswith('/web') or path.split('?')[0] in ('/web/signup', '/web/login')
+
+
 def slug(text):
     return re.sub(r'[^a-z0-9]+', '_', (text or '').lower()).strip('_')[:40] or 'screen'
 
 
-def pick_role(feature_kind, module, role_codes):
-    """這個功能用哪個角色登入拍。設定頁要系統管理員（一般角色進不去設定）。"""
+def pick_role(feature_kind, module, role_codes, anchor=None):
+    """這個功能用哪個角色登入拍。設定頁要系統管理員（一般角色進不去設定）。
+
+    ★ 前台頁：/my 開頭用會員帳號（情境要有 member 角色），其他用訪客（不登入）。"""
+    if feature_kind == 'route':
+        from odoo.addons.dobtor_corpaas_knowledge.models.feature import (
+            ROUTE_MEMBER, ROUTE_VISITOR, route_audience)
+        return ROUTE_MEMBER if route_audience(anchor) == ROUTE_MEMBER \
+            and ROUTE_MEMBER in (role_codes or []) else ROUTE_VISITOR
     codes = list(role_codes or [])
     if feature_kind == 'setting' and 'admin' in codes:
         return 'admin'
@@ -66,6 +82,13 @@ def build_steps(feature, entry=None, record=None, has_record=False):
     """
     key = slug(feature.get('key') or feature.get('anchor') or 'screen')
     kind = feature.get('kind')
+    if kind == 'route':
+        path = feature.get('anchor')
+        if not is_front_path(path):
+            return None, []
+        # 前台頁：直接開網址拍整個可視範圍（網站沒有欄位名可以標註）
+        return ([{'goto': {'url': path}}, {'wait': {'ms': 1200}},
+                 {'shot': '%s_page' % key}], [])
     if kind == 'setting':
         anchor = feature.get('anchor')
         if not anchor:

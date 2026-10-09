@@ -370,6 +370,9 @@ class TestRound3(TransactionCase):
         ns['login'](page, 'http://sb', 'doc_admin', 'pw')
         self.assertEqual(page.visited[-1], 'http://sb/odoo')
         page = Page(backend_ok=False)
+        ns['login'](page, 'http://sb', 'doc_member', 'pw', frontend=True)
+        self.assertEqual(page.visited, ['http://sb/web/login'], '會員登入後不開後台')
+        page = Page(backend_ok=False)
         with self.assertRaises(RuntimeError) as err:
             ns['login'](page, 'http://sb', 'doc_admin', 'pw')
         self.assertTrue(str(err.exception).startswith(ns['BACKEND_DOWN']))

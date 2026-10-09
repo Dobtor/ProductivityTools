@@ -141,7 +141,7 @@ def step_block_prompt(feature, steps, shots, elements, flow_ctx=None):
         "不需要先有同一種資料。不需要就省略，不要編造。\n"
         "7. 最後加一個標題為「完成後會看到」的步驟：說明畫面或狀態怎麼變、會產生哪張後續單據、"
         "去哪裡確認結果（依下面的流程位置；沒有流程資訊就寫畫面上會出現的變化）。這一步不放截圖。\n"
-        + WRITING_RULES + "%(delta)s\n"
+        + WRITING_RULES + "%(delta)s%(front)s\n"
         "回覆格式：{\"title\":\"<區塊標題>\",\"steps\":[{\"title\":\"…\",\"html\":\"…\"}]}\n\n"
         "%(flow)s"
         "功能鍵：%(key)s；選單路徑：%(menu)s\n\n截圖名稱：%(shots)s\n\n"
@@ -151,7 +151,18 @@ def step_block_prompt(feature, steps, shots, elements, flow_ctx=None):
         'menu': feature.get('menu_path') or '', 'allowed': ALLOWED_HTML,
         'delta': _delta_note(feature), 'flow': _flow_note(flow_ctx),
         'shots': _j(shots), 'elements': _j(elements), 'steps': _j(steps),
+        'front': _front_note(feature),
     }
+
+
+def _front_note(feature):
+    """網站前台頁：讀者是會員或訪客，在網站上操作（不是後台人員）。"""
+    if feature.get('kind') != 'route':
+        return ''
+    who = '已登入的會員' if (feature.get('audience') == 'member') else '還沒登入的網站訪客'
+    return ("\n★ 這是網站前台頁面（網址 %s），讀者是%s：用「在網站上點…」的說法，"
+            "寫他在這一頁看得到什麼、可以做什麼、下一步會到哪一頁；不要寫後台選單、"
+            "不要提系統設定。" % (feature.get('anchor') or '', who))
 
 
 def fork_prompt(feature, old_html, old_found, new_found, steps):

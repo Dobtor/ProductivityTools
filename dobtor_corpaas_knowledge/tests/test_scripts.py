@@ -32,6 +32,21 @@ class TestScripts(TransactionCase):
             self.assertIn('env.cr.rollback()', src)
             self.assertNotIn('env.cr.commit()', src)
 
+    def test_inventory_finds_front_routes(self):
+        """網站前台頁：手動建的網站選單（沒有 xmlid）與已安裝模組的標準頁都盤得到。"""
+        if 'website.menu' not in self.env:
+            self.skipTest('沒有 website')
+        self.env['website.menu'].create({'name': '分享金規則', 'url': '/kbt-share-rules'})
+        src = scripts.inventory_script(['base'], official=['website']).replace(
+            'env.cr.rollback()', 'pass')
+        printed = []
+        exec(compile(src, '<inv>', 'exec'), {'env': self.env, 'print': printed.append})
+        import json
+        routes = {f['anchor']: f for f in json.loads(printed[-1][len(scripts.MARK):])['features']
+                  if f['kind'] == 'route'}
+        self.assertEqual(routes['/kbt-share-rules']['module'], 'website')
+        self.assertIn('/', routes, '網站首頁（標準頁）')
+
     def test_fingerprint_script_runs_in_process(self):
         """在測試庫直接 exec 指紋腳本：驗證它真的能跑 get_views 並回傳雜湊。"""
         src = scripts.fingerprint_script(
