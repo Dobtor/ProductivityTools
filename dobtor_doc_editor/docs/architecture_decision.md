@@ -35,6 +35,9 @@
 | **023** | **報表管線（藥丸／快照）與 QWeb 轉換器** | **2026-09～10** | **範本＋綁定取代「每張報表一支程式」；轉換器只轉不搬；標記與取值分離；失敗策略逐層明寫** |
 | **024** | **型別→格式只有一份表、欄位標籤走欄位定義、模型自備值、附頁** | **2026-10-08** | **對照 report_extend_bf 的 `bf_` 引用設計；格式規則收斂到渲染層，標籤取 `fields_get` 的 string，整合者用 `doc_report_values()` 而不是擴白名單** |
 | **025** | **記錄這一側的三個約定方法（自備附頁、附頁開關、範本覆寫）＋「轉成列印範本」入口** | **2026-10-08** | **對照 report_extend_bf 的 `bf.extend`：綁定管不到的事交給記錄自己說；精靈的入口搬到報表與 qweb 範本上** |
+| **026** | **前後端都分層（render 六層、doc_editor 四層）** | **2026-10-08～09** | **拆的理由不是檔案太大，是每一層的不變量沒有地方可寫；驗證靠「成員逐一比對 + 程式碼行多重集」而不是靠測試** |
+| **027** | **HTML → content_json 只處理自己的子集，`noupdate` 資料靠 migration** | **2026-10-09** | **對任意 HTML 不可靠（需要瀏覽器端的 executeSetHTML），但對我們自己寫的 12 個標籤可靠；資料檔是 noupdate，改 XML 到不了既有庫** |
+| **028** | **CI 分兩層：靜態擋 PR、後端夜間不擋** | **2026-10-09** | **紀律 13 的 closure 第一步；靜態 10 秒內跑完且擋得住「模組載不進去」那幾類，後端要 clone Odoo 不適合擋在 PR 上** |
 
 ---
 
@@ -1490,3 +1493,170 @@ ChienYi 以外的客戶要的是「單據」：同一份版面套不同記錄印
 - 代價：`_build_report_html` 現在每一筆都問一次記錄要不要覆寫範本。
   沒有任何記錄覆寫時只是多一個 `hasattr`，但它讓「印出來長什麼樣」多依賴
   一個地方：業務模型的程式碼。查問題時要記得看那三支方法。
+
+---
+
+## ADR-026：前後端都分層
+
+**日期**：2026-10-08（Python）／2026-10-09（JS）
+**狀態**：已實作
+
+### 問題
+
+兩個檔案長到沒有人會讀完：`models/doc_render_mixin.py` 3025 行 121 個成員、
+`static/src/components/doc_editor/doc_editor.js` 7399 行 284 個成員。
+
+但「太長」不是真正的問題。真正的問題是**每一層的不變量沒有地方可寫**：
+pass 鏈的順序約束、`from_string()` 與 `compile_expression()` 的差別、
+「canvas-editor 不能被 t-if unmount」——這些寫在三千行的中段，沒有人會讀到。
+
+### 決定
+
+| 原本 | 拆成 |
+|---|---|
+| `doc_render_mixin.py` 3025 行 | `models/render/` 六層（tree / sandbox / fields / i18n / snapshot / output）＋ 39 行組合點 |
+| `doc_editor.js` 7399 行 | `doc_editor_{shared,shell,io,pills,templateui}.js` ＋ 809 行組合點 |
+
+兩邊都用**純組合**而不是「拆成多個可獨立存在的東西」：
+
+* Python 用純 Python mixin（不帶 `_name`）再 `class X(A, B, …, AbstractModel)`。
+  拆成六個 `AbstractModel` 再 `_inherit` 會在 registry 多出六個「單獨存在時是
+  壞的」模型（snapshot 會呼叫 sandbox 的方法）。
+  `_build_model` 以 `type(name, (cls,), …)` 建類別，宣告類別自己的 Python 基底
+  會留在 MRO 裡——這是支援的做法。
+* JS 用 mixin 工廠 `(Base) => class extends Base`。這是**一個** OWL 元件，
+  四層共用同一個 `this.state` 與同一個 canvas 實例；拆成四個元件就要在它們
+  之間同步狀態。
+* JS 的常數另外一支（`doc_editor_shared.js`）是為了避免循環 import。
+
+JS 分組依**檔案裡既有的 50 個區段註解**，不是用關鍵字猜。關鍵字分組試過：
+96 個成員落到「其他」，而 `onPageFormatChange` 會因為帶 Format 被分到藥丸層。
+
+### 怎麼驗證（這是這個 ADR 最該被重複使用的部分）
+
+純搬移的重構不能只靠測試——測試覆蓋不到的成員搬丟了也是綠的。兩邊都用：
+
+1. **成員逐一比對**：名稱集合相同、每個成員的原始碼文字相同
+2. **程式碼行多重集比對**（JS 那次加的）：忽略空行與註解，比對所有程式碼行的
+   `Counter`。這一招不依賴「我對成員邊界的判斷」，所以不會被我自己的切片邏輯
+   誤差騙——JS 那次就是靠它才確定「只少兩行，而且兩行都是故意的」
+
+兩次都靠這個抓到真缺陷：
+
+* Python：`from .doc_document` 的相對 import 深了一層（測試抓到）；
+  三個模組層級常數沒跟著搬（**測試沒抓到，pyflakes 抓到**）
+* JS：同一個 class 裡有**兩支** `onTitleChange`（一支存檔名、一支套標題樣式），
+  後面那個無聲覆蓋前面那個 → 在標題欄改檔名完全沒有作用。
+  名稱集合出現重複才看得到。
+
+### 後果
+
+- 每一層的檔頭現在寫著自己的不變量，並指向對應的另一側（pills ↔ snapshot.py）
+- 代價：JS 五層各自重複整份 import 區塊。刻意的——少一個 import 的症狀是執行期
+  `ReferenceError`，而 OWL 把它吞成一塊空白面板（我在組合點就犯過一次，
+  tour 第 1/78 步停住）。多一個 import 沒有代價。
+- ☠️ **不要在 `import {}` 裡面加註解**：Odoo 的 asset compiler 不會 strip 它，
+  會輸出 `require({)` 讓整個 bundle parse fail。
+
+---
+
+## ADR-027：HTML → content_json 只處理自己的子集；`noupdate` 資料靠 migration
+
+**日期**：2026-10-09
+**狀態**：已實作
+
+### 問題
+
+模組自己出貨的 6 張 data 範本只有 `content_html`，沒有 `content_json`。
+於是它們列印走 `_render_template` 那條舊路，**享受不到任何藥丸功能**——型別
+格式、欄位標籤、頁面範圍、條件、重複列全都不生效。那是這個模組最實質的
+完整性缺口：我們做的所有藥丸功能，在自己出貨的範本上都沒生效。
+
+### 決定一：轉換器只處理「我們自己寫的那個子集」
+
+Phase 5 的註解寫著「HTML → IElement 需要 canvas-editor 的 `executeSetHTML`，
+那是瀏覽器端的東西」——**對任意 HTML 是對的**，所以那句話不是錯的，是範圍
+的問題。出貨範本實際用到的標籤數過只有 12 個
+（`p`/`h1`-`h3`/`b`/`strong`/`br`/`table`/`thead`/`tbody`/`tr`/`th`/`td`），
+那個子集在伺服器端完全可靠。子集外的標籤留 note，不靜默吞。
+
+正確性靠**來回轉換**：`html → content_json → html` 要與原 html 等價。
+比逐個標籤寫斷言可靠，因為反向那條路（`_content_json_to_html`）本來就在用。
+
+### 決定二：`noupdate` 的資料必須靠 migration
+
+`data/doc_template_data.xml` 是 `<data noupdate="1">`，所以**改 XML 對既有
+資料庫完全沒有作用**（只有新安裝會拿到）。`noupdate` 在這裡是對的——使用者會
+編輯出貨範本，升級不該蓋掉他們的修改。
+
+所以兩條路都要寫、而且不一樣：
+
+| | 怎麼拿到 content_json |
+|---|---|
+| 新安裝 | 資料檔帶 |
+| 既有資料庫 | `migrations/18.0.10.1.0/post-migrate.py` |
+
+migration 只補「還沒有 `content_json` 的那幾張」，而且是照**使用者現有的**
+`content_html` 轉，不是照我們出貨的。兩條都實測過。
+
+### 決定三：去掉 `{{ var }}` placeholder
+
+那些變數靠 `doc.linked.mixin._doc_render_context()` 帶入，而那支方法
+**從來沒有任何消費者**——`_render_template()` 只以 `object=record` 與 `user`
+求值。實測 render 一張出來，靠它填的格子就是空的。
+
+留著的話在 content_json 路徑會變成印出「{{ subject }}」字樣，比今天的空白
+更糟。所以遷移時一併去掉，並把那支方法刪了（ADR 之外另一個提交）。
+正確做法：範本設適用模型 → 取值藥丸 → 要計算的值用 compute 欄位或
+`doc_report_values()`。
+
+### 踩到的坑
+
+☠️ lxml 的**註解節點** `.tag` 不是字串而是 callable。`isinstance(tag, str)`
+的寫法讓它掉進「未知標籤」分支，於是**註解內文被當成正文輸出**——估驗計價單
+範本裡有一段 `<!-- Sprint Y12.2… -->`，轉出來那張印的是註解文字、
+**而且後面的內容整段不見**。
+
+抓到它的不是「轉得過、沒有 note」那一則測試（內容掉一整張它也會綠），
+是後來補的 `test_shipped_templates_render_the_same_text_as_the_old_path`
+——新路徑印出來的**文字**要與舊路徑一致。驗收測試要驗「輸出」，不是驗「沒報錯」。
+
+---
+
+## ADR-028：CI 分兩層——靜態擋 PR、後端夜間不擋
+
+**日期**：2026-10-09
+**狀態**：已實作
+
+### 問題
+
+紀律 13 自己寫著「test 寫好 + tag 對 + script 一鍵跑都不夠，**沒人定期跑＝
+半 dead test**」。而 586 則測試到 2026-10-09 之前只在有人手動跑的時候跑，
+repo 連 `.github/workflows` 都沒有。
+
+### 決定
+
+| workflow | 觸發 | 跑什麼 | 擋不擋 |
+|---|---|---|---|
+| `dobtor_doc_editor_static` | push / PR | XML well-formed、manifest literal、flake8 E9/F63/F7/F82、每支 JS `node --check`、assets 與 tests 註冊完整性 | **擋** |
+| `dobtor_doc_editor_backend` | 夜間 + 手動 | clone Odoo 18 shallow + postgres service，跑全部測試 | 不擋 |
+
+分兩層的理由：靜態那層 10 秒內跑完、不需要資料庫，而它擋得住會讓「整個模組
+載不進去」的那幾類（ParseError、未定義名稱）。後端那層要 clone Odoo、一次
+5-8 分鐘，擋在 PR 上會讓每個 PR 都等它，而它還沒跑穩過。
+
+後端 CI 可行的關鍵：這個模組的 `depends` 全部是核心 Odoo
+（`base`/`web`/`mail`/`html_editor`/`bus`/`portal`），原生報表整合測試用到的
+`sale`/`account`/`stock`/`purchase` 也都在核心 addons 裡——**不需要 checkout
+任何其他 repo**。
+
+### 兩個刻意
+
+* **判定一定要擋「0 則測試」**：tag 打錯時 Odoo 回報
+  「0 failed, 0 error(s) of 0 tests」，不擋的話整份測試沒跑卻是綠的
+  ——本機 runner 踩過一次。
+* **不跑瀏覽器 tour**：它需要 chromium + websocket-client，而且在 arm64 與
+  單 worker 環境有一串血淚。tour 目前仍是本機 `run_local_rig.sh tour` 的責任。
+
+升級路徑（詞彙表的 v1/v2/v3）：手動 → 夜間 → **連續三次全綠**之後把 backend
+的 `pull_request` 觸發取消註解。
