@@ -326,6 +326,30 @@ CI 若以多個 worker 跑，那一組測試就會真的執行。
 請求由同一個行程的另一條執行緒服務，而測試本身握著 cursor。同一個原因讓附頁
 的端到端測試在 `--workers=0` 下直接死結（§7.5）。
 
+### 第三次發生（2026-10-09，同日）——而且儀器沒告訴我原因
+
+跑完 VR 之後的例行驗證，整份測試出現 **1 error of 611**，落在
+`TestTelemetryRoutes.test_metric_with_nonexistent_doc_id`——**又是
+`TestTelemetryRoutes`，但換了另一支測試**。隨後連跑三次全綠。
+
+⚠️ **我沒有抓到那次的 traceback**（當下只 grep 了結果行，log 隨後被下一次執行
+覆蓋）。所以儀器雖然已經裝上去了，這一次仍然沒有留下原因。教訓：偶發出現的
+當下要**先把 log 存下來**再做任何其他事。
+
+目前能說的：
+* 同一個類別（`TestTelemetryRoutes`）兩次、不同測試方法
+* 都是 `error` 或 `failed` 各一，隨後重跑即綠
+* 這個類別的 `setUp` 已有 `_assert_session_alive('setUp')`，但**無法確定**那次
+  是不是它失敗的——setUp 的斷言失敗也會被報成該測試的 error
+
+**發生率的認識再更新**：同一天的五次整份執行裡出現兩次（`TestTelemetryRoutes`
+各一），比原本記的「14 次紅 1 次」高得多。但樣本太小，而且中間模組變動很大
+（移除、取回、ACL 收緊），不宜當成趨勢。
+
+☠️ 量測時又踩到一個舊坑：rig 的 log 含二進位位元組，`grep` 會當 binary 而
+**靜默不輸出**——要 `grep -a`。同一個坑在 CI 判定步驟（ADR-028，已撤回）就寫過
+`grep -aE`，我這次用 `grep -E` 又中了一次。
+
 ### 第二次發生：換了一支測試（2026-10-09 當天稍晚）
 
 驗證 ADR-031 的變更時，整份測試出現 **1 failed + 1 error of 590**，落在
@@ -800,6 +824,84 @@ CJK fallback 鏈、`fontScheme`、numbering、`<w:frame>`、tab stop leader、
 * 維持現狀（檔頭 banner 已說明路線已移除），或
 * 在 §5 開頭加一段「下列能力隨 ADR-029 移除」的清單，或
 * 把那 36 項改回 `[ ]`（但那會讓規畫書失去「當時做到哪」的歷史意義）
+
+## 7.14 跑了一次 VR baseline（2026-10-09）——數字、以及 harness 的兩個缺陷
+
+ADR-032 取回 TS 子系統時誠實記了「取回 ≠ 回到當時的保真度，因為 VR 沒有重跑」。
+這一節是那次重跑。
+
+### 跑之前還缺第三條未接的線
+
+`scripts/visual_regression_v14.mjs` 一開頭就 exit 2——它要
+`tools/dist/visual_regression_pipeline.iife.js`，而
+`rollup.visual_regression.config.js` 存在卻**沒有任何 script 會叫它**
+（`package.json` 只有 `build:frontend` 與 `build:cli`）。
+這與 ADR-032 修的那兩條是**同一類**：產物建得出來，但沒有人建。
+已補 `npm run build:vr`，`build:all` 擴成三個產物，Makefile 加 `build-all`。
+
+### 結果
+
+| | 本次（2026-10-09, macOS） | 基準（2026-05-25, Linux） |
+|---|---|---|
+| 模式 | `--no-font-metrics` | `--font-metrics`（Sprint 65 promote 的預設）|
+| fixtures | 42 / 42 rendered，bootFailed 0 | 42 / 42 |
+| 比對頁數 | 126 | 126 |
+| **failedPages** | **0** | 0 |
+| per-page mean | **0.078923** | 0.073191 |
+| worst page | 0.307860 | 0.306370 |
+
+⚠️ **這兩欄不能直接相減**：模式不同。可比的是腳本檔頭記的
+`--no-font-metrics` baseline **0.074899** → 本次 **+0.004024（+5.4%）**。
+
+### 為什麼不能跑 `--font-metrics`（也就是真正的 0.073191 那一條）
+
+它要兩個 Debian 字型包，**host 與容器都沒有**：
+
+```
+/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf
+/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf
+```
+
+腳本對缺字型是優雅降級（warn 後 skip），所以跑得完——但那是「`--font-metrics`
+模式載到 0 個字型」，與 `--no-font-metrics` **也不是同一回事**，三個數字互不可比。
+要重現 0.073191，得在有那兩個字型的 Linux 上跑（容器要裝 `fonts-liberation`
+與 `fonts-droid-fallback`，而且容器裡還沒有 puppeteer 的 Chromium）。
+
+### +0.004 是環境還是回歸？——環境
+
+查證：取回的 TS 原始碼、fixture、golden、`tools/`、`scripts/` 與
+`doc-editor-before-ts-removal` **byte-identical**（`git diff --stat` 無差異）。
+唯一被我改過的是那兩支字型相依的 vitest（lazy 讀檔），不在 VR 管線上。
+所以程式面沒有變數，差異來自平台（macOS vs Debian 的 canvas 字型光柵化）與
+Chromium 版本（puppeteer 這次裝的是當前版，基準用的是 2026-05 的）。
+
+### ☠️ harness 缺陷：跑一次量測會把被比較的基準蓋掉
+
+`REPORT_JSON` 是寫死的
+`tests/fixtures/visual_regression_v14_report.json`——那份正是 git 追蹤的
+**基準紀錄**（2026-05-25 的量測）。所以：
+
+* 任何人跑一次 VR，就把基準覆蓋成自己這次的結果
+* 而且它**不在** `.gitignore` 裡（`.visual_regression_tmp/` 才是），所以跑完
+  就是一個待 commit 的變更——很容易順手提交掉
+
+我第一次跑就踩到，`git checkout` 還原了基準（`mean=0.073191` 完好）。
+
+修法：加 `--report-out <path>`，**預設寫到已被 ignore 的**
+`tests/fixtures/.visual_regression_tmp/v14/report.json`；要更新基準必須明確
+`--report-out tests/fixtures/visual_regression_v14_report.json`，而且那時會
+印一行警告。驗過：預設模式跑完 `git status` 對基準**無變更**。
+
+### 對規畫書 §5 那 36 項 `[x]` 的意義
+
+仍然不能說「回到當時的保真度」，但可以說得更精確了：
+
+* **0 failedPages / 126** 與基準一致——沒有任何 fixture 掉出閾值
+* worst page 0.3079 vs 0.3064，差 0.0015
+* mean 在同模式下 +0.004
+
+也就是**結構上沒有退步**，差異集中在次像素層級的字型光柵化。要把話講到「達成
+§2.2 的量化指標」，需要在有那兩個字型的 Linux 上重跑 `--font-metrics`。
 
 ## 8. 怎麼自己量一次
 

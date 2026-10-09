@@ -24,7 +24,7 @@ ODOO_ARGS      ?= --db_host=$(PG_HOST) --db_user=odoo --db_password=odoo --addon
 # 預設執行 help
 .DEFAULT_GOAL := help
 
-.PHONY: help install build watch dev upgrade restart logs test-js \
+.PHONY: help install build build-all watch dev upgrade restart logs test-js \
         scan-ooxml fixtures-golden fixtures-compare visual-regression \
         test-backend test-backend-zip \
         test-local test-local-tour test-local-all \
@@ -116,6 +116,12 @@ install: ## 安裝 npm 依賴（含 patch-package 套用）
 
 build: ## rollup 打包 OOXML Parser → canvas-editor-custom.umd.js
 	npm run build:frontend
+
+build-all: ## 打包三個產物：瀏覽器 bundle + node CLI + VR pipeline
+	# ☠️ 2026-10-09：VR pipeline 的 bundle 原本**沒有任何 script 會建它**
+	#    （rollup.visual_regression.config.js 存在但沒人叫），所以
+	#    visual_regression_v14.mjs 一跑就 exit 2。已補 npm run build:vr。
+	npm run build:all
 
 watch: ## rollup --watch（修改 .ts 即時重打包）
 	npm run build:watch

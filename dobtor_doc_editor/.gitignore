@@ -12,7 +12,11 @@ yarn-error.log*
 #    找不到 CLI、只會記 warning 回 None——那條通道從頭到尾沒真的運作過。
 #    部署端沒有 npm（容器只有 node），不可能在機器上 build，所以產物進 git
 #    是唯一可行的做法。見 ADR-032。
+# 放行目錄本身 → 再忽略裡面所有東西 → 只放行那一支。
+# 少了中間那行 `tools/dist/*`，整個目錄都會被放行，VR 的 1.2MB 產物就會變成
+# untracked 跑出來（2026-10-09 第一版就是這樣）。
 !tools/dist/
+tools/dist/*
 !tools/dist/parse_docx_cli.cjs
 
 # CI 輸出（Sprint 20 補入）

@@ -21,6 +21,7 @@
  *   node scripts/visual_regression_v14.mjs --max-fixtures 3      # 只跑前 N 份
  *   node scripts/visual_regression_v14.mjs --no-diff             # 只渲染、不 pixelmatch
  *   node scripts/visual_regression_v14.mjs --max-diff 0.5        # diff 閾值（baseline 階段寬鬆）
+ *   node scripts/visual_regression_v14.mjs --report-out <path>   # 寫到哪（預設 tmp，不碰基準）
  *
  * 退出碼：
  *   0   全部通過閾值（或 --no-diff 模式只渲染成功）
@@ -30,7 +31,8 @@
  * 輸出：
  *   tests/fixtures/.visual_regression_tmp/v14/<basename>-N.rendered.png
  *   tests/fixtures/<cat>/golden/<basename>-N_v14_diff.png（diff PNG）
- *   tests/fixtures/visual_regression_v14_report.json
+ *   tests/fixtures/.visual_regression_tmp/v14/report.json（預設；已被 .gitignore）
+ *   要更新 git 裡的基準：--report-out tests/fixtures/visual_regression_v14_report.json
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
@@ -44,11 +46,25 @@ const FIXTURE_ROOT = resolve(ROOT, 'tests/fixtures');
 const BUNDLE = resolve(ROOT, 'tools/dist/visual_regression_pipeline.iife.js');
 const HARNESS_HTML = resolve(ROOT, 'scripts/visual_regression_v14_harness.html');
 const TMP_DIR = resolve(ROOT, 'tests/fixtures/.visual_regression_tmp/v14');
-const REPORT_JSON = resolve(ROOT, 'tests/fixtures/visual_regression_v14_report.json');
+/**
+ * ☠️ 這份是**基準紀錄**（git 追蹤，2026-05-25 的 Linux `--font-metrics` 量測，
+ * per-page mean = 0.073191）。腳本原本把每次量測的結果**直接寫回這個路徑**
+ * ——也就是「跑一次量測就把被比較的基準蓋掉」，而且它在 git 裡（不像
+ * `.visual_regression_tmp/` 有被 ignore），所以一跑就是一個待 commit 的變更。
+ * 2026-10-09 跑 VR 時踩到。
+ *
+ * 現在：預設寫到 tmp（已 ignore），要更新基準必須**明確**
+ * `--report-out tests/fixtures/visual_regression_v14_report.json`。
+ */
+const BASELINE_JSON = resolve(ROOT, 'tests/fixtures/visual_regression_v14_report.json');
+const DEFAULT_REPORT_JSON = resolve(
+  ROOT, 'tests/fixtures/.visual_regression_tmp/v14/report.json');
 
 function parseArgs(argv) {
   const args = {
     filter: null,
+    /** null = 寫預設的 tmp 路徑（不覆蓋 git 裡的基準） */
+    reportOut: null,
     maxFixtures: Number.POSITIVE_INFINITY,
     maxDiff: 0.5, // baseline 階段先寬鬆
     noDiff: false,
@@ -83,6 +99,8 @@ function parseArgs(argv) {
     else if (a === '--no-font-metrics') args.fontMetrics = false;
     // Sprint 162：tab stop 解析 opt-in（Strategy C 量測用）
     else if (a === '--tab-stops') args.tabStops = true;
+    // 寫到哪。預設是 tmp（不碰基準）；要更新基準得明確指到那個路徑。
+    else if (a === '--report-out') args.reportOut = argv[++i] ?? null;
   }
   return args;
 }
@@ -147,7 +165,12 @@ async function main() {
 
   if (!existsSync(BUNDLE)) {
     console.error(`[fatal] Sprint 14 IIFE bundle 未編譯：${BUNDLE}`);
-    console.error('       先跑 `npx rollup -c rollup.visual_regression.config.js`');
+    console.error('       先跑 `npm run build:vr`（或 `make build-all` 一次建三個產物）');
+    // ☠️ 這個產物**刻意不進 git**，與 tools/dist/parse_docx_cli.cjs 不同：
+    //    parse_docx_cli.cjs 是 production 的 engine=ts 在用，而部署端容器沒有
+    //    npm、不可能現場 build，所以必須進版控（.gitignore 有 ! 例外）。
+    //    這支只有開發端的量測腳本在用，那台機器本來就有 npm——進 git 只是讓
+    //    1.2MB 的產物跟著每次 build 變動。
     process.exit(2);
   }
   if (!existsSync(HARNESS_HTML)) {
@@ -371,12 +394,19 @@ async function main() {
     await browser.close();
   }
 
-  writeFileSync(REPORT_JSON, JSON.stringify(report, null, 2));
+  const reportPath = args.reportOut
+    ? resolve(ROOT, args.reportOut)
+    : DEFAULT_REPORT_JSON;
+  mkdirSync(dirname(reportPath), { recursive: true });
+  writeFileSync(reportPath, JSON.stringify(report, null, 2));
+  if (reportPath === BASELINE_JSON) {
+    console.log('[v14] ⚠️  已覆蓋 git 追蹤的基準紀錄（--report-out 指到它）');
+  }
   console.log(
     `[v14] rendered=${report.rendered}/${report.totalFixtures}` +
       `  bootFailed=${report.bootFailed}` +
       `  comparedPages=${report.comparedPages}  failedPages=${report.failedPages}` +
-      `\n     report=${REPORT_JSON}`,
+      `\n     report=${reportPath}`,
   );
 
   if (!args.noDiff && report.failedPages > 0) process.exit(1);
