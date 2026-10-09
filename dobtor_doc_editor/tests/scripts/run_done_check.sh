@@ -34,6 +34,17 @@ DONE_SKIP="${DONE_SKIP:-}"
 
 PASS=(); FAIL=(); SKIP=()
 
+# ☠️ 失敗的 log 要保留得住。第一版每條判準都寫固定檔名（/tmp/done_core_tests.log），
+#    所以下一次跑成功就把前一次失敗的現場覆寫掉。2026-10-09 稽核階段 8 就碰上了：
+#    core-tests 紅了一次，而我查 log 時已經被第二次執行覆寫——證據沒了。
+#    「偶發失敗出現的當下要先把 log 存下來」是本模組自己的教訓，而這支腳本違反了它。
+TS="$(date +%Y%m%d-%H%M%S)"
+keep_log() {
+    # $1 = 判準 id、$2 = 從哪份 log 保留
+    local dest="/tmp/done_FAILED_$1_$TS.log"
+    [ -f "$2" ] && cp "$2" "$dest" && echo "        證據已保留：$dest"
+}
+
 ok()   { PASS+=("$1"); printf '  \033[32m✓\033[0m %-24s %s\n' "$1" "${2:-}"; }
 bad()  { FAIL+=("$1"); printf '  \033[31m✗\033[0m %-24s %s\n' "$1" "${2:-}"; }
 skip() { SKIP+=("$1"); printf '  \033[33m–\033[0m %-24s %s\n' "$1" "${2:-}"; }
@@ -54,6 +65,9 @@ assert_odoo_result() {
         ok "$id" "$(echo "$line" | grep -aoE 'of [0-9]+ tests')"
     else
         bad "$id" "$(echo "$line" | sed 's/^.*tests\.result: //')"
+        # 紅的那一刻就把 log 存起來——Odoo 測試最會偶發，而下一次執行會覆寫它
+        keep_log "$id" "$log"
+        grep -a 'FAIL:\|ERROR: Test\|ERROR: test' "$log" | head -5 | sed 's/^/        /'
     fi
 }
 
@@ -105,6 +119,7 @@ if skipped core-static; then skip core-static "DONE_SKIP"; else
         ok core-static
     else
         bad core-static "見 /tmp/done_core_static.log"
+        keep_log core-static /tmp/done_core_static.log
     fi
 fi
 
@@ -113,6 +128,7 @@ if skipped import-static; then skip import-static "DONE_SKIP"; else
         ok import-static "typecheck + vitest + 三產物"
     else
         bad import-static "見 /tmp/done_import_static.log"
+        keep_log import-static /tmp/done_import_static.log
     fi
 fi
 
@@ -160,6 +176,7 @@ if skipped tour; then skip tour "DONE_SKIP"; else
         ok tour "$(grep -ao '\[[0-9]*/[0-9]*\] Tour [a-z_]*' /tmp/done_tour.log | tail -1)"
     else
         bad tour "見 /tmp/done_tour.log"
+        keep_log tour /tmp/done_tour.log
     fi
 fi
 
@@ -224,6 +241,7 @@ if skipped upgrade-path; then skip upgrade-path "DONE_SKIP"; else
             skip upgrade-path "環境不具備（見 /tmp/done_upgrade.log）"
         else
             bad upgrade-path "見 /tmp/done_upgrade.log"
+            keep_log upgrade-path /tmp/done_upgrade.log
         fi
     fi
 fi
@@ -231,8 +249,11 @@ fi
 # ── 判決 ──────────────────────────────────────────────────────────────────
 echo
 echo "通過 ${#PASS[@]} / 沒過 ${#FAIL[@]} / 跳過 ${#SKIP[@]}"
-if [ ${#PASS[@]} -eq 0 ]; then
-    echo "✗ 一條判準都沒跑成——這不是通過。"
+# ☠️ 判準是「PASS 與 FAIL **都**空」才叫沒跑成。第一版只看 PASS，於是
+#    「只跑了一條而且它失敗」會印出「一條判準都沒跑成」——那句話不對，
+#    而且會蓋掉真正的失敗原因。2026-10-09 階段 8 的負向驗證抓到的。
+if [ ${#PASS[@]} -eq 0 ] && [ ${#FAIL[@]} -eq 0 ]; then
+    echo "✗ 一條判準都沒跑成（全部被跳過或環境不具備）——這不是通過。"
     exit 2
 fi
 if [ ${#FAIL[@]} -gt 0 ]; then

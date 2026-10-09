@@ -110,7 +110,18 @@ class SessionAliveMixin:
             '_assert_session_alive(%r) 在還沒 authenticate() 之前被呼叫——'
             '那時它什麼都驗不到。' % where)
         uid = self._session_info_uid()
-        if uid != want and self._recover_session('%s（探針）' % where):
+        # ☠️ 有界重試 2 次，不是 1 次。2026-10-09 稽核階段 8 保留下來的失敗證據
+        #    顯示：自救呼叫的 `authenticate()` **本身**偶發產出空 session
+        #    （store 裡 uid=None、連 token 都沒有），所以「重登一次」會失敗在
+        #    同一個不可靠的原語上。探針的工作是「建立一個能用的 session」，
+        #    而不是測 session 壽命，所以多試一次是對的；但要有界，
+        #    否則真的壞掉時會變成無限迴圈而不是紅燈。
+        for _attempt in range(2):
+            if uid == want:
+                break
+            if not self._recover_session('%s（探針第 %d 次）'
+                                         % (where, _attempt + 1)):
+                break
             want = getattr(self.session, 'uid', want)
             uid = self._session_info_uid()
         self.assertEqual(
