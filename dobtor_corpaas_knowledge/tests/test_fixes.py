@@ -356,6 +356,12 @@ class TestRound3(TransactionCase):
             def wait_for_url(self, pred, timeout=None):
                 assert pred(self.url)
 
+            def wait_for_load_state(self, *a, **kw):
+                pass
+
+            def wait_for_timeout(self, ms):
+                pass
+
             def wait_for_selector(self, sel, timeout=None):
                 if not (self.backend_ok and self.url.endswith('/odoo')):
                     raise TimeoutError('Timeout %sms exceeded.' % timeout)

@@ -266,8 +266,9 @@ class Recorder:
 
 #: 後台沒有載入的錯誤開頭（呼叫端據此判斷：不是腳本的錯、不叫 AI 修）
 BACKEND_DOWN = '後台沒有載入'
-#: 這一頁的 console 錯誤（診斷後台為什麼沒載入）
+#: 這一頁的 console 錯誤與經過的網址（診斷後台為什麼沒載入）
 _CONSOLE = []
+_NAVS = []
 
 
 def _backend_diag(page):
@@ -282,6 +283,7 @@ def _backend_diag(page):
         except Exception as e:  # noqa: BLE001
             info[key] = 'ERR %s' % str(e)[:80]
     info['console'] = _CONSOLE[-8:]
+    info['navigations'] = _NAVS[-12:]
     return json.dumps(info, ensure_ascii=False)
 
 
@@ -312,11 +314,23 @@ def login(page, base, login_name, password, frontend=False):
             page.wait_for_url(lambda u: '/web/login' not in u, timeout=15000)
         except Exception:  # noqa: BLE001 - 帳密錯誤會留在登入頁，下面等 .alert-danger
             pass
+        try:
+            page.wait_for_load_state('load', timeout=15000)
+        except Exception:  # noqa: BLE001
+            pass
         path = urlparse(page.url).path
         if '/web/login' not in path and not path.startswith(('/odoo', '/web')):
             # ☠️ 實機：社群電商方案登入後被導回網站首頁（「Home | 94愛分享」），
             #   不是進後台——自己開 /odoo，不靠登入後的導向
-            page.goto(base + '/odoo')
+            # ☠️ 實機：登入後的導向還沒走完就開 /odoo，被「另一個導向」打斷：等載入完、重試一次
+            for attempt in range(2):
+                try:
+                    page.goto(base + '/odoo')
+                    break
+                except Exception:  # noqa: BLE001
+                    if attempt:
+                        raise
+                    page.wait_for_timeout(1500)
         page.wait_for_selector('.o_action_manager, .alert-danger', timeout=30000)
     except Exception as e:  # noqa: BLE001
         # ☠️ 實機：社群電商方案 87 張全卡在這裡，AI 每張修一次腳本（$7.84）——
@@ -557,6 +571,9 @@ def main():
                 _ROLE_PAGES[shot['login']] = page
             page.on('response', recorder.on_response)
             _CONSOLE.clear()
+            _NAVS.clear()
+            page.on('framenavigated', lambda f: f == f.page.main_frame and _NAVS.append(
+                urlparse(f.url).path + ('?' + urlparse(f.url).query if urlparse(f.url).query else '')))
             page.on('console', lambda m: m.type in ('error', 'warning') and _CONSOLE.append(
                 '%s: %s' % (m.type, m.text[:200])))
             page.on('pageerror', lambda e: _CONSOLE.append('pageerror: %s' % str(e)[:300]))
