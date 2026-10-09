@@ -27,3 +27,4 @@ from . import test_done_criteria  # 完工判準不准漂移
 from . import test_acl_company_isolation  # 多公司隔離逐 model 量測
 from . import test_input_bounds  # 輸入大小上限（稽核尺 2）
 from . import test_route_smoke  # 全路由煙霧測試（稽核尺 3）
+from . import test_model_constraints  # compute／constraint 接線（稽核尺 4）
