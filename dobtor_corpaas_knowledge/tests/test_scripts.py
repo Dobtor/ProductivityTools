@@ -402,6 +402,9 @@ class TestCodeStructure(TransactionCase):
         state = {'digest': 'sha256:aaa', 'build': '18.0.20260901', 'core_calls': 0}
 
         def run(server, cmd, dont_raise=False):
+            if 'docker create' in cmd:
+                state['extract'] = state.get('extract', 0) + 1
+                return SimpleNamespace(stdout='/srv/ai-src/odoo/' + state['digest'][7:19])
             return SimpleNamespace(stdout=state['digest'] if 'inspect' in cmd else state['build'])
 
         def shell_json(env, instance, db, src):
@@ -417,6 +420,9 @@ class TestCodeStructure(TransactionCase):
             first = pkg._knowledge_code_identity(inst, 'db')
             self.assertEqual((first['match'], state['core_calls']), ('hashed', 1), '沒見過：算一次官方原碼')
             self.assertEqual(pkg._knowledge_code_identity(inst, 'db')['match'], 'image', '同映像：不再算')
+            self.assertEqual(state['extract'], 1, '同一個映像只抽一次原碼')
+            self.assertEqual(self.env['corpaas.knowledge.code_tree'].search(
+                [('image_digest', '=', 'sha256:aaa')]).core_path, '/srv/ai-src/odoo/aaa')
             state['digest'] = 'sha256:bbb'
             self.assertEqual(pkg._knowledge_code_identity(inst, 'db')['match'], 'version', '新映像但同一建置版號：沿用')
             self.assertEqual(state['core_calls'], 1)

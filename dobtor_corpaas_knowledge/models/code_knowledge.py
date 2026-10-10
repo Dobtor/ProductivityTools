@@ -20,6 +20,8 @@ from odoo import api, fields, models
 from ..services import remote, scripts
 
 _logger = logging.getLogger(__name__)
+#: 主機上存放抽出原碼的目錄（AI Runner 唯讀掛到 /odoo-core）
+CORE_ROOT = '/srv/ai-src/odoo'
 
 
 class KnowledgeCodeTree(models.Model):
@@ -34,6 +36,8 @@ class KnowledgeCodeTree(models.Model):
                              string='怎麼確認的', readonly=True)
     core_hashes = fields.Text(string='官方模組雜湊', readonly=True, help='{模組: 目錄雜湊}')
     tree_hash = fields.Char(string='整棵雜湊', readonly=True)
+    core_path = fields.Char(string='原碼抽取位置', readonly=True,
+                            help='主機上抽出的 Odoo 原碼目錄（唯讀掛進 AI Runner 給 AI 讀，計畫第 49 項）')
     first_seen = fields.Datetime(default=fields.Datetime.now, readonly=True)
     last_seen = fields.Datetime(default=fields.Datetime.now, readonly=True)
 
@@ -112,6 +116,8 @@ class SolutionPackageCode(models.Model):
                                     'tree_hash': _hash(hashes)})
                 how = 'hashed'
         tree.last_seen = now
+        if not tree.core_path:
+            tree.core_path = self._knowledge_extract_core(instance, digest)
         addons = remote.shell_json(self.env, instance, db_name, scripts.module_hash_script(core=False))
         prev = (self.knowledge_profile().get('code') or {}).get('addons') or {}
         cur = {m: {'version': d.get('version'), 'hash': d.get('hash')} for m, d in addons.items()}
@@ -119,6 +125,30 @@ class SolutionPackageCode(models.Model):
         return {'digest': digest, 'odoo_version': tree.odoo_version, 'match': how,
                 'addons': cur, 'changed_addons': changed if prev else [],
                 'checked': fields.Datetime.to_string(now)}
+
+    def _knowledge_extract_core(self, instance, digest):
+        """把映像裡的 Odoo 原碼抽到主機 CORE_ROOT/<摘要前 12 碼>（每個映像一份，已有就不再抽）。
+
+        給 AI Runner 唯讀掛載（一次掛 CORE_ROOT，所有版本都看得到）。失敗回空字串，不擋流程。"""
+        server = instance.server_id
+        try:
+            if hasattr(server, '_assert_disk_room'):
+                server._assert_disk_room('抽出 Odoo 原碼', need_gb=2)
+            ctr = shlex.quote(instance.odoo_container)
+            dest = '%s/%s' % (CORE_ROOT, digest.split(':', 1)[-1][:12])
+            cmd = (
+                "set -e; D=%(d)s; if [ ! -d \"$D\" ]; then "
+                "P=$(docker exec %(c)s python3 -c 'import odoo,os; print(os.path.dirname(odoo.__file__))'); "
+                "T=$(docker create %(img)s); mkdir -p \"$D.tmp\"; "
+                "docker cp \"$T:$P\" \"$D.tmp/odoo\"; docker rm \"$T\" >/dev/null; "
+                "mv \"$D.tmp\" \"$D\"; chmod -R a+rX \"$D\"; fi; echo \"$D\""
+            ) % {'d': shlex.quote(dest), 'c': ctr, 'img': shlex.quote(digest)}
+            res = remote.run(server, cmd, dont_raise=True)
+            out = (getattr(res, 'stdout', '') or '').strip().splitlines()
+            return out[-1] if out and out[-1] == dest else ''
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] 抽出 Odoo 原碼失敗：%s', e)
+            return ''
 
     def _knowledge_odoo_build(self, instance):
         """容器裡 Odoo 的建置版號（官方映像是 deb 套件版號，含建置日期）；讀不到退回 release.version。"""
