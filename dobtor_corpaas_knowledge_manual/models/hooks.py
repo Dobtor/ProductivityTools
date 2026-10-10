@@ -436,14 +436,34 @@ class KnowledgeHooks(models.AbstractModel):
             # 方案檔案：訪客實際開一次登入頁，看登入方式（標準頁／首頁彈窗／被導走）
             shots.append({'id': 'login_probe', 'login': None, 'frontend': True, 'password': '',
                           'steps': [{'goto': {'url': '/web/login'}}, {'wait': {'ms': 800}}]})
+        # ★ 健檢（計畫第 27 項）：每個角色先登入一次；登不進去的角色這輪不拍、不送修
+        for code, user in logins.items():
+            if user != login:
+                shots.append({'id': 'role_%s' % code, 'login': user, 'password': sb.password,
+                              'frontend': code == ROUTE_MEMBER, 'steps': []})
         try:
             result, _files = shooter.run_shots(self.env, sandbox, shots, settings)
         except (shooter.ShotError, remote.RemoteError):
             return True   # 執行環境的錯照舊由批次處理
-        probe = ((result or {}).get('shots') or {}).get('login_probe') or {}
-        if pkg and probe.get('ok'):
-            pkg._knowledge_update_profile({'login_mode': login_mode(probe.get('url'))})
-        error = ((result or {}).get('shots') or {}).get('preflight', {}).get('error') or ''
+        got = (result or {}).get('shots') or {}
+        probe = got.get('login_probe') or {}
+        down = {code: (got.get('role_%s' % code) or {}).get('error') or '' for code in logins
+                if logins[code] != login and not (got.get('role_%s' % code) or {}).get('ok')
+                and 'role_%s' % code in got}
+        if down:
+            ctx['manual_role_down'] = down
+            ctx.setdefault('stats', {})['roles_down'] = len(down)
+            _logger.warning('[knowledge.manual] 健檢：角色登不進去 %s', down)
+        if pkg:
+            health = {'roles_down': {k: v[:200] for k, v in down.items()},
+                      'residual': (json.loads(sb.purge_report or '{}') or {}).get('residual') or {}
+                      if hasattr(sb, 'purge_report') else {},
+                      'checked': fields.Datetime.to_string(fields.Datetime.now())}
+            vals = {'health': health}
+            if probe.get('ok'):
+                vals['login_mode'] = login_mode(probe.get('url'))
+            pkg._knowledge_update_profile(vals)
+        error = (got.get('preflight') or {}).get('error') or ''
         if not error.startswith(BACKEND_DOWN):
             return True
         ctx['manual_backend_down'] = True
@@ -825,6 +845,12 @@ class KnowledgeHooks(models.AbstractModel):
                 #   實機 AI 修腳本把「產生推薦碼」改成會員登入。改用系統管理員拍。
                 role = 'admin' if 'admin' in logins else next(
                     (c for c in logins if c not in (ROUTE_VISITOR, ROUTE_MEMBER)), role)
+            down = (ctx or {}).get('manual_role_down') or {}
+            if role in down:
+                # 健檢時這個角色就登不進去：這輪不拍、不送修（留待下次）
+                b.write({'state': 'pending', 'needs_repair': False,
+                         'last_error': _('健檢：角色「%(r)s」登不進去：%(e)s', r=role, e=down[role][:300])})
+                continue
             login = logins.get(role or '') or (
                 next(iter(logins.values())) if len(logins) == 1 and not role else None)
             # ★ 佔位符對不到、角色沒帳號：AI 能修（改繫結／改角色），列入修補

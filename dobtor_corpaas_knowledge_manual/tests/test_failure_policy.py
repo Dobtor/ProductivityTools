@@ -102,3 +102,33 @@ class TestPackageProfile(ManualCase):
             self.env['corpaas.knowledge.ai'].ask('manual_step_block', 'PROMPT2', package=self.pkg)
         self.assertIn('公司 2 家', seen[0][1])
         self.assertNotIn('方案檔案', seen[1][1], '跨方案共用的步驟說明不帶方案環境')
+
+
+@tagged('post_install', '-at_install')
+class TestPreflightHealth(ManualCase):
+    """拍攝前健檢（計畫第 27 項）：每個角色先登入一次，登不進去的角色這輪跳過。"""
+
+    def test_down_role_skipped_and_recorded(self):
+        import json
+        from .test_hooks import _RUN_SHOTS
+        tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
+            'feature_id': self.f1.id, 'login_role': 'sales', 'fingerprint': 'hz',
+            'steps_json': json.dumps([{'goto': {'action': 'a.b'}}, {'shot': 'main'}])})
+        b = self.env['corpaas.knowledge.shot_binding'].sudo().create(
+            {'template_id': tmpl.id, 'scenario_id': self.scenario.id})
+        sb = FakeSandbox(self.scenario)
+        sb.role_logins = json.dumps({'admin': 'doc_admin', 'sales': 'doc_sales'})
+        sb.package_id = self.pkg
+        result = {'shots': {'preflight': {'ok': True}, 'role_sales': {'ok': False, 'error': '登入失敗：x'}}}
+        ctx = {}
+        with patch(_RUN_SHOTS, return_value=(result, {})) as run:
+            ok = self.hooks.with_context(kb_test_preflight=True)._manual_backend_preflight(sb, ctx)
+        self.assertTrue(ok, '只有一個角色登不進去不擋整輪')
+        self.assertIn('role_sales', [s['id'] for s in run.call_args[0][2]])
+        self.assertIn('sales', ctx['manual_role_down'])
+        self.assertIn('sales', self.pkg.knowledge_profile()['health']['roles_down'])
+        with patch(_RUN_SHOTS) as run:
+            self.hooks._manual_run_batch(self.pkg, sb, b, 'tok', ctx)
+        run.assert_not_called()
+        self.assertEqual(b.state, 'pending')
+        self.assertIn('健檢', b.last_error)
