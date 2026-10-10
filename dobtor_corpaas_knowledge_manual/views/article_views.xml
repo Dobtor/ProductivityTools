@@ -44,6 +44,7 @@
                     <filter name="by_scenario" string="情境" context="{'group_by': 'scenario_id'}"/>
                     <filter name="by_capability" string="能力" context="{'group_by': 'capability_id'}"/>
                     <filter name="by_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="by_review_reason" string="自審不過的原因" context="{'group_by': 'manual_review_reason'}"/>
                 </group>
             </search>
         </field>

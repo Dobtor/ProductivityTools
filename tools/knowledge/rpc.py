@@ -1,4 +1,4 @@
-"""方案知識營運工具共用的 JSON-RPC 連線（admin.corpaas.com）。
+"""方案知識營運工具共用的 JSON-RPC 連線（主控台網址見 settings.env）。
 
 ★ 密碼不寫在檔案裡：從 macOS 鑰匙圈讀（服務名 corpaas-knowledge-rpc），或環境變數 CORPAAS_RPC_PASSWORD。
   第一次使用請自己存入鑰匙圈（會提示輸入密碼，不會出現在指令列記錄）：
@@ -10,11 +10,32 @@ import os
 import subprocess
 import urllib.request
 
-URL = os.environ.get('CORPAAS_RPC_URL', 'https://admin.corpaas.com/jsonrpc')
-DB = os.environ.get('CORPAAS_RPC_DB', 'CorPAAS_admin')
-LOGIN = os.environ.get('CORPAAS_RPC_LOGIN', 'admin')
+SETTINGS = os.environ.get('CORPAAS_KB_SETTINGS',
+                          os.path.expanduser('~/.config/corpaas-kb/settings.env'))
+
+
+def _setting(key):
+    """正式機設定：環境變數優先，其次 ~/.config/corpaas-kb/settings.env（不進 repo）。"""
+    if os.environ.get(key):
+        return os.environ[key]
+    try:
+        for line in open(SETTINGS, encoding='utf-8'):
+            k, _sep, v = line.strip().partition('=')
+            if k == key and not line.lstrip().startswith('#'):
+                return os.path.expandvars(v)
+    except OSError:
+        pass
+    raise SystemExit('缺少設定 %s：請照 tools/knowledge/settings.example.env 建立 %s' % (key, SETTINGS))
+
+
+URL = _setting('CORPAAS_RPC_URL')
+DB = _setting('CORPAAS_RPC_DB')
+LOGIN = _setting('CORPAAS_RPC_LOGIN')
 KEYCHAIN_SERVICE = 'corpaas-knowledge-rpc'
 READ_METHODS = {'search_read', 'search_count', 'read_group', 'fields_get', 'read', 'search'}
+#: rw() 允許的寫入方法（營運工具實際用到的）；其他方法要明確 unsafe=True
+WRITE_METHODS = {'action_approve', 'action_knowledge_ai_select', 'action_knowledge_refresh',
+                 'knowledge_enqueue_refresh', 'live_seed'}
 
 
 class RpcError(Exception):
@@ -71,6 +92,8 @@ def ro(model, method, *args, **kw):
     return _call('object', 'execute_kw', DB, _uid(), _SESSION['pw'], model, method, list(args), kw)
 
 
-def rw(model, method, *args, **kw):
-    """會寫入正式機的呼叫：只在明確要改資料時用。"""
+def rw(model, method, *args, unsafe=False, **kw):
+    """會寫入正式機的呼叫：只允許 WRITE_METHODS；其他方法（write、unlink…）要明確 unsafe=True。"""
+    if method not in WRITE_METHODS and not unsafe:
+        raise ValueError('rw() 不允許 %s.%s（要改資料請明確傳 unsafe=True）' % (model, method))
     return _call('object', 'execute_kw', DB, _uid(), _SESSION['pw'], model, method, list(args), kw)

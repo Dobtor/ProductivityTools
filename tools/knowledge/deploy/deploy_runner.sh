@@ -4,8 +4,8 @@
 # 用法：tools/knowledge/deploy/deploy_runner.sh
 set -e
 HERE=$(cd "$(dirname "$0")" && pwd); REPO=$(cd "$HERE/../../.." && pwd)
-KEY=${DEPLOY_KEY:-$HOME/dobtor-odoo18-cloudsql18}; HOST=${DEPLOY_HOST:-root@dobtor-cloudsql18.dobtor.com}
-DST=/opt/odoo/env00000036/Prod_admin/sources/Dobtor/ProductivityTools/dobtor_corpaas_knowledge/shot_runner/run.py
+. "$HERE/env.sh"
+DST=$DEPLOY_ENV_DIR/sources/Dobtor/ProductivityTools/dobtor_corpaas_knowledge/shot_runner/run.py
 TMP=$(mktemp)
 (cd "$REPO" && git show HEAD:dobtor_corpaas_knowledge/shot_runner/run.py) > "$TMP"
 python3 -c "import ast,sys; ast.parse(open('$TMP').read())"

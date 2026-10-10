@@ -28,6 +28,15 @@ REVIEW_BATCH = 60
 _TAG = re.compile(r'<[^>]+>')
 
 
+def review_reason(problems, reviewed):
+    """自審問題 → 一個類別：事實檢查取第一個問題去掉細節（「截圖沒有拍成功（按鈕找不到）」保留括號，
+    「截圖標記沒有對應的圖：xxx」去掉冒號後）；AI 審查的意見歸「AI 審查意見」。"""
+    if reviewed:
+        return _('AI 審查意見')
+    first = (problems or [''])[0]
+    return re.split(r'[：:]', first, 1)[0][:60] or _('其他')
+
+
 class SolutionPackageAutomation(models.Model):
     _inherit = 'infrastructure.solution.package'
 
@@ -45,6 +54,8 @@ class KnowledgeArticleReview(models.Model):
     manual_review_state = fields.Selection([('pass', '自審通過'), ('fail', '自審不過')],
                                            string='自審', readonly=True, copy=False, index=True)
     manual_review_note = fields.Text(string='自審意見', readonly=True, copy=False)
+    manual_review_reason = fields.Char(string='自審不過的原因', readonly=True, copy=False, index=True,
+                                       help='第一個問題的類別（例外清單依此分組，同一類一次處理）')
     manual_review_sampled = fields.Boolean(string='待抽查', readonly=True, copy=False,
                                            help='自動上線的文章抽樣，給人事後檢查')
     manual_sample_result = fields.Selection([('ok', '抽查正確'), ('bad', '抽查退回')],
@@ -167,6 +178,7 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
                 ok = forced = True   # 全自動：AI 有審到、只是有意見且事實都過 → 上線，但一定抽查
             art.write({'manual_review_state': 'pass' if ok else 'fail',
                        'manual_review_note': '；'.join(problems) or False,
+                       'manual_review_reason': False if ok else review_reason(problems, reviewed),
                        'manual_review_input': art._manual_review_input(),
                        'manual_review_sampled': forced})
             if not ok:

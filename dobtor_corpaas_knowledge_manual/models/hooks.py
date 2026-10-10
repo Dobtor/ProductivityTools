@@ -917,6 +917,8 @@ class KnowledgeHooks(models.AbstractModel):
     def _manual_run_batch(self, package, sandbox, bindings, token, ctx):
         """步驟 2 後半～4：解析 → 一批拍完 → 採用圖片。回傳失敗、要 AI 修的繫結。"""
         package._knowledge_heartbeat('kb_shoot', _('拍攝 %s 個畫面') % len(bindings))
+        # AI 修過的這次重拍結果：算「修補成功率」（儀表板）
+        repaired = {b.id for b in bindings if b.repair_attempts}
         Binding = self.env['corpaas.knowledge.shot_binding']
         xmlids = sorted({x for b in bindings for x in b.bindings().values()
                          if isinstance(x, str)})
@@ -1037,6 +1039,11 @@ class KnowledgeHooks(models.AbstractModel):
                         shot_scope_hash=b.template_id.fingerprint,
                         shot_inputs=self._manual_shot_inputs(b))
             b.write(vals)
+        if repaired:
+            st = ctx.setdefault('stats', {})
+            done = Binding.browse(list(repaired)).exists()
+            st['repairs_ok'] = st.get('repairs_ok', 0) + len(done.filtered(lambda b: b.state == 'ok'))
+            st['repairs_bad'] = st.get('repairs_bad', 0) + len(done.filtered(lambda b: b.state == 'failed'))
         if down and down == len(by_id):
             # 整批都打不開後台：後面的批次也一樣，停止這一輪拍攝（不再寫腳本、不叫 AI）
             ctx['manual_backend_down'] = True

@@ -5,6 +5,8 @@
 ## 第一次設定
 
 ```bash
+# 0. 正式機設定（主機、資料庫、容器）放在 repo 外：照範本建立，再填值
+mkdir -p ~/.config/corpaas-kb && cp tools/knowledge/settings.example.env ~/.config/corpaas-kb/settings.env
 # 1. 正式機連線密碼存入鑰匙圈（請在「終端機」App 執行；在 Claude Code 用 ! 執行收不到輸入，會存成空白）
 security add-generic-password -s corpaas-knowledge-rpc -a admin -w
 # 2. 本機測試環境（~/Library/Caches/corpaas-kb：虛擬環境、內嵌 PostgreSQL、檔案庫）
@@ -26,7 +28,7 @@ PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/corpaas-kb/ms-playwright ~/Library/Cac
 | `deploy/deploy_runner.sh` | 只換截圖程式（不升級模組、不重啟、不必等佇列） |
 | `hard_env/run_hard.py [--fresh]` | 本機刁難測試：真的截圖程式＋瀏覽器跑 11 項（彈窗登入、會員前台、自訂群組、缺群組的診斷、不准刪單據、不多建公司、平行拍攝、按鈕文字定位、點不到時列出畫面按鈕、匿名使用者封存）（用 venv 的 python；部署前先跑） |
 
-`rpc.py` 提供 `ro()`（只允許讀取方法）與 `rw()`（寫入），錯誤會帶完整訊息。
+`rpc.py` 提供 `ro()`（只允許讀取方法）與 `rw()`（只允許工具用到的寫入方法，其他要明確 `unsafe=True`），錯誤會帶完整訊息。正式機設定讀 `~/.config/corpaas-kb/settings.env`（環境變數同名者優先），repo 裡沒有主機與資料庫名。
 
 ## 文章核准與抽查（人要做的事）
 

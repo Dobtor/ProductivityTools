@@ -102,6 +102,9 @@ class TestRunRecord(TransactionCase):
         self.assertIn('整批提前終止', html)
         self.assertIn('權限不足', html)
         self.assertNotIn('拍成功', html, '成功數在摘要，不在失敗區')
+        run.add_stats(repairs_ok=3, repairs_bad=1)
+        run.invalidate_recordset(['dashboard_html'])
+        self.assertIn('75%', run.dashboard_html, 'AI 修腳本的成功率')
 
     def test_failed_run_resumes_failed_stage(self):
         pkg = self.env['infrastructure.solution.package'].sudo().create({

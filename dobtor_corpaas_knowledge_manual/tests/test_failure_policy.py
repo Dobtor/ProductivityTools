@@ -190,6 +190,10 @@ class TestSelfReview(ManualCase):
                              '內容沒變就不重審')
         self.assertEqual(ask.call_count, 1, '不重複花 AI')
         self.assertEqual(bad_art.manual_review_state, 'fail')
+        self.assertEqual(bad_art.manual_review_reason, 'AI 審查意見', '例外清單依原因分組')
+        from ..models.self_review import review_reason
+        self.assertEqual(review_reason(['截圖標記沒有對應的圖：a_entry、b'], False), '截圖標記沒有對應的圖')
+        self.assertEqual(review_reason(['截圖沒有拍成功（按鈕找不到）'], False), '截圖沒有拍成功（按鈕找不到）')
 
     def test_full_level_does_not_pass_when_ai_failed(self):
         from odoo.addons.dobtor_corpaas_knowledge.services import hub_client

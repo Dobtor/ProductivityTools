@@ -80,6 +80,7 @@ class KnowledgeRun(models.Model):
                   'shots_failed_backend': _('失敗：後台打不開'),
                   'shots_failed_environment': _('失敗：環境（登入、系統錯誤、非示範資料）'),
                   'shots_failed_transient': _('失敗：暫時性'),
+                  'repairs_ok': _('AI 修過、重拍成功'), 'repairs_bad': _('AI 修過、重拍仍失敗'),
                   'shots_backend_down': _('說明庫後台打不開'),
                   'shots_halted': _('整批提前終止（未拍）'),
                   'roles_down': _('健檢：登不進去的角色'),
@@ -119,6 +120,10 @@ class KnowledgeRun(models.Model):
             fails = [(labels.get(k, k), stats[k]) for k in self.DASH_FAILURE_KEYS if stats.get(k)]
             parts.append(_dash_table(_('失敗與斷路'), [_('項目'), _('數量')], fails,
                                      empty=_('這一輪沒有失敗或斷路')))
+            ok, bad = stats.get('repairs_ok', 0), stats.get('repairs_bad', 0)
+            if ok or bad:
+                parts.append(_dash_table(_('AI 修腳本的效果'), [_('重拍成功'), _('仍失敗'), _('成功率')],
+                                         [(ok, bad, '%d%%' % round(100.0 * ok / (ok + bad)))]))
             parts.append(rec._dashboard_gaps())
             funnel = rec._knowledge_dashboard_funnel()
             if funnel:

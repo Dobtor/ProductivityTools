@@ -1,6 +1,6 @@
 set -e
-B=/opt/odoo/env00000036/Prod_admin; S=$B/sources/Dobtor; BK=__BACKUP__
-C=odoo-corpaas-prod_admin
+B=__ENV_DIR__; S=$B/sources/Dobtor; BK=__BACKUP__
+C=__CONTAINER__
 # ★ 先等佇列（所有通道：知識、上架、開通…）沒有「處理中」的工作再動手——部署重啟會中斷它們。
 #   最多等 WAIT_MIN 分鐘（預設 60）；還在忙就放棄部署，除非 FORCE=1。
 WAIT_MIN=${WAIT_MIN:-60}
@@ -8,7 +8,7 @@ busy() {
   docker exec $C python3 -c "
 import configparser,psycopg2
 c=configparser.ConfigParser();c.read('/etc/odoo/odoo.conf');o=c['options']
-cn=psycopg2.connect(host=o.get('db_host'),port=o.get('db_port') or 5432,user=o.get('db_user'),password=o.get('db_password'),dbname='CorPAAS_admin')
+cn=psycopg2.connect(host=o.get('db_host'),port=o.get('db_port') or 5432,user=o.get('db_user'),password=o.get('db_password'),dbname='__DB__')
 cur=cn.cursor();cur.execute(\"select count(*), string_agg(channel || ':' || operate, ',') from corpaas_queue where state='processing'\")
 n,ops=cur.fetchone();print(n, ops or '')"
 }
@@ -32,7 +32,7 @@ set +e
 OK=
 for i in 1 2 3 4 5 6; do
   L=upgrade-__TAG__-$i.log
-  docker exec $C odoo -c /etc/odoo/odoo.conf -d CorPAAS_admin -u dobtor_corpaas_knowledge,dobtor_corpaas_knowledge_manual,dobtor_corpaas_knowledge_proposal --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
+  docker exec $C odoo -c /etc/odoo/odoo.conf -d __DB__ -u dobtor_corpaas_knowledge,dobtor_corpaas_knowledge_manual,dobtor_corpaas_knowledge_proposal --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
   H=$B/data_dir/$L
   if grep -q "Failed to load registry\|ParseError" $H; then
     echo "try $i failed: $(grep -o '此計劃任務目前正在執行\|ParseError: while parsing [^,]*\|Error: .*' $H | head -3 | tr '\n' ' ')"

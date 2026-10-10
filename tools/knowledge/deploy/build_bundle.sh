@@ -6,12 +6,14 @@ TAG=$1; PREV=$2
 HERE=$(cd "$(dirname "$0")" && pwd); REPO=$(cd "$HERE/../../.." && pwd)
 OUT=${BUNDLE_ROOT:-$HOME/Library/Caches/corpaas-kb/bundles}/$TAG
 MODS="dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal"
-KEY=${DEPLOY_KEY:-$HOME/dobtor-odoo18-cloudsql18}; HOST=${DEPLOY_HOST:-root@dobtor-cloudsql18.dobtor.com}
-SRC=/opt/odoo/env00000036/Prod_admin/sources/Dobtor/ProductivityTools
+. "$HERE/env.sh"
+SRC=$DEPLOY_ENV_DIR/sources/Dobtor/ProductivityTools
 rm -rf "$OUT"; mkdir -p "$OUT/new"
 (cd "$REPO" && git archive HEAD $MODS | tar -x -C "$OUT/new")
 (cd "$OUT/new" && tar czf ../pt.tgz $MODS)
-sed -e "s#__BACKUP__#/root/deploy-backup-$(date +%Y%m%d)-$TAG#" -e "s#__TAG__#$TAG#" "$HERE/deploy_template.sh" > "$OUT/deploy.sh"
+sed -e "s#__BACKUP__#/root/deploy-backup-$(date +%Y%m%d)-$TAG#" -e "s#__TAG__#$TAG#" \
+    -e "s#__ENV_DIR__#$DEPLOY_ENV_DIR#" -e "s#__CONTAINER__#$DEPLOY_CONTAINER#" -e "s#__DB__#$DEPLOY_DB#g" \
+    "$HERE/deploy_template.sh" > "$OUT/deploy.sh"
 if [ -n "$PREV" ]; then
   P=$(dirname "$OUT")/$PREV/new
   (cd "$P" && find $MODS -type f | LC_ALL=C sort | xargs md5 -r) | awk '{print $1" "$2}' > "$OUT/prev.md5"
