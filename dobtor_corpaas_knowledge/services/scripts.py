@@ -860,6 +860,78 @@ def demo_state_script(xmlids, state_fields):
     ) % (json.dumps(sorted(set(xmlids))), json.dumps(state_fields or {}))
 
 
+def module_hash_script(core=False):
+    """已安裝模組的版號與目錄雜湊（只算 .py/.xml/.js/.csv；core=False 只算官方原碼以外的）。
+
+    ★ 計畫第 51 項：映像摘要與 Odoo 版號都對不上時才算官方原碼；擴充模組每次都比
+      （版號不一定有升，所以也比目錄雜湊）。系統算，不花 AI。"""
+    return _HEAD + (
+        "import hashlib, os\n"
+        "import odoo\n"
+        "from odoo.modules.module import get_module_path\n"
+        "CORE = os.path.dirname(odoo.__file__)\n"
+        "WANT_CORE = %r\n"
+        "out = {}\n"
+        "for m in env['ir.module.module'].sudo().search([('state', '=', 'installed')]):\n"
+        "    path = get_module_path(m.name, display_warning=False)\n"
+        "    if not path:\n"
+        "        continue\n"
+        "    core = os.path.realpath(path).startswith(os.path.realpath(CORE))\n"
+        "    if core and not WANT_CORE:\n"
+        "        continue\n"
+        "    h = hashlib.sha1()\n"
+        "    for root, dirs, files in os.walk(path):\n"
+        "        dirs[:] = sorted(d for d in dirs if d not in ('__pycache__', 'tests', 'i18n'))\n"
+        "        for f in sorted(files):\n"
+        "            if f.endswith(('.py', '.xml', '.js', '.csv')):\n"
+        "                fp = os.path.join(root, f)\n"
+        "                h.update(os.path.relpath(fp, path).encode())\n"
+        "                h.update(hashlib.sha1(open(fp, 'rb').read()).digest())\n"
+        "    out[m.name] = {'version': m.latest_version or '', 'hash': h.hexdigest()[:16], 'core': core}\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n"
+    ) % (bool(core),)
+
+
+def code_def_script(targets):
+    """方法的繼承鏈（唯讀）：targets=[[model, method]] → {"model.method": [每段定義]}。
+
+    每段：模組、檔案、行數、正規化雜湊（語法樹，忽略註解、空白、說明文字）。
+    ★ 計畫第 51 項：AI 讀程式的結論掛在這些雜湊上；內容沒變就不重讀。"""
+    return _HEAD + (
+        "import ast, hashlib, inspect, textwrap\n"
+        "TARGETS = json.loads(%r)\n"
+        "def _norm(src):\n"
+        "    tree = ast.parse(textwrap.dedent(src))\n"
+        "    for node in ast.walk(tree):\n"
+        "        body = getattr(node, 'body', None)\n"
+        "        if isinstance(body, list) and body and isinstance(body[0], ast.Expr) \\\n"
+        "                and isinstance(getattr(body[0], 'value', None), ast.Constant) \\\n"
+        "                and isinstance(body[0].value.value, str):\n"
+        "            node.body = body[1:] or [ast.Pass()]\n"
+        "    return hashlib.sha1(ast.dump(tree, annotate_fields=False).encode()).hexdigest()[:16]\n"
+        "out = {}\n"
+        "for model, method in TARGETS:\n"
+        "    if model not in env:\n"
+        "        continue\n"
+        "    chain = []\n"
+        "    for cls in reversed(type(env[model]).__mro__):\n"
+        "        fn = cls.__dict__.get(method)\n"
+        "        if fn is None or not callable(fn):\n"
+        "            continue\n"
+        "        try:\n"
+        "            src, line = inspect.getsourcelines(fn)\n"
+        "            chain.append({'module': getattr(cls, '_module', '') or '', 'file': inspect.getsourcefile(fn),\n"
+        "                          'line': line, 'end': line + len(src) - 1, 'hash': _norm(''.join(src))})\n"
+        "        except (OSError, TypeError, SyntaxError):\n"
+        "            continue\n"
+        "    if chain:\n"
+        "        out['%%s.%%s' %% (model, method)] = chain\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n"
+    ) % (json.dumps(targets),)
+
+
 def fields_script(models):
     """示範資料起草用：各模型的欄位定義（唯讀）。只回必填、關聯、選項等 AI 需要的部分。"""
     return _HEAD + (

@@ -58,3 +58,9 @@ access_kb_library_editor,kb.library.editor,model_corpaas_knowledge_library,group
 access_kb_library_manager,kb.library.manager,model_corpaas_knowledge_library,group_knowledge_manager,1,1,1,1
 access_kb_rule_editor,kb.rule.editor,model_corpaas_knowledge_rule,group_knowledge_editor,1,0,0,0
 access_kb_rule_manager,kb.rule.manager,model_corpaas_knowledge_rule,group_knowledge_manager,1,1,1,1
+access_kb_code_tree_editor,kb.code_tree.editor,model_corpaas_knowledge_code_tree,group_knowledge_editor,1,0,0,0
+access_kb_code_tree_manager,kb.code_tree.manager,model_corpaas_knowledge_code_tree,group_knowledge_manager,1,1,1,1
+access_kb_code_def_editor,kb.code_def.editor,model_corpaas_knowledge_code_def,group_knowledge_editor,1,0,0,0
+access_kb_code_def_manager,kb.code_def.manager,model_corpaas_knowledge_code_def,group_knowledge_manager,1,1,1,1
+access_kb_code_fact_editor,kb.code_fact.editor,model_corpaas_knowledge_code_fact,group_knowledge_editor,1,0,0,0
+access_kb_code_fact_manager,kb.code_fact.manager,model_corpaas_knowledge_code_fact,group_knowledge_manager,1,1,1,1

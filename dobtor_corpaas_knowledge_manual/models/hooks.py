@@ -20,6 +20,7 @@
 import io
 import json
 import logging
+import re
 from urllib.parse import urlparse
 
 from PIL import Image
@@ -349,6 +350,7 @@ class KnowledgeHooks(models.AbstractModel):
             self._manual_commit()
         except Exception as e:  # noqa: BLE001 — 讀不到就照舊只給 xmlid
             _logger.warning('[knowledge.manual] 讀取示範資料現況失敗：%s', e)
+        self._manual_code_structure(package, sandbox, ctx)
         stats['templates_rule'] = stats.get('templates_rule', 0) + (
             self._manual_prepare_templates(package, sandbox, token, stop) or 0)
         self._manual_commit()
@@ -723,6 +725,37 @@ class KnowledgeHooks(models.AbstractModel):
                     d[k] = info[k]
             out.append(d)
         return out[:300]
+
+    @api.model
+    def _manual_code_structure(self, package, sandbox, ctx):
+        """程式知識結構層（計畫第 51 項）：程式碼身分（每輪一次）＋腳本會按的物件按鈕的繼承鏈。
+
+        系統算、不花 AI；失敗只記警告，不擋拍攝。"""
+        from odoo.addons.dobtor_corpaas_knowledge.services import txn
+        if txn.in_tests(self.env) and not self.env.context.get('kb_test_code'):
+            return
+        instance = getattr(sandbox, 'master_instance_id', None)
+        if not instance or not hasattr(package, '_knowledge_code_identity'):
+            return
+        try:
+            if not ctx.get('code_identity_done'):
+                ident = package._knowledge_code_identity(instance, sandbox.db_name)
+                package._knowledge_update_profile({'code': ident})
+                ctx['code_identity_done'] = True
+            targets = set()
+            Template = self.env['corpaas.knowledge.shot_template'].sudo()
+            for tmpl in Template.search([('binding_ids.scenario_id', '=', sandbox.scenario_id.id)]):
+                model = tmpl.feature_id.model
+                for step in tmpl.steps():
+                    arg = step.get('click') if isinstance(step, dict) else None
+                    name = arg.get('button') if isinstance(arg, dict) else None
+                    if model and isinstance(name, str) and re.fullmatch(r'[a-z_][a-z0-9_]*', name):
+                        targets.add((model, name))
+            if targets:
+                package._knowledge_code_chains(instance, sandbox.db_name, sorted(targets))
+            self._manual_commit()
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge.manual] 程式知識結構層失敗：%s', e)
 
     @api.model
     def _manual_demo_state(self, scenario):

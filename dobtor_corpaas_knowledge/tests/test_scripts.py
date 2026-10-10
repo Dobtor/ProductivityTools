@@ -368,3 +368,69 @@ class TestReviewFixes(TransactionCase):
         with self.assertRaises(ValidationError):
             self.env['corpaas.knowledge.rule'].create(
                 {'name': 'x', 'kind': 'gate_allow_model', 'value': 'res.partner'})
+
+
+@tagged('post_install', '-at_install')
+class TestCodeStructure(TransactionCase):
+
+    def _run(self, src):
+        import json
+        printed = []
+        exec(compile(src.replace('env.cr.rollback()', 'pass'), '<code>', 'exec'),
+             {'env': self.env, 'print': printed.append})
+        return json.loads(printed[-1][len(scripts.MARK):])
+
+    def test_method_chain_and_module_hash(self):
+        out = self._run(scripts.code_def_script([['res.partner', 'write'], ['no.model', 'x']]))
+        chain = out['res.partner.write']
+        self.assertGreaterEqual(len(chain), 2, 'BaseModel 加上各模組的覆寫')
+        self.assertEqual(chain[0]['module'], '', '第一段是 Odoo 核心 BaseModel')
+        self.assertTrue(all(len(d['hash']) == 16 and d['line'] > 0 for d in chain))
+        again = self._run(scripts.code_def_script([['res.partner', 'write']]))
+        self.assertEqual(again, {'res.partner.write': chain}, '同樣的程式算出同樣的雜湊')
+        mods = self._run(scripts.module_hash_script(core=False))
+        self.assertIn('dobtor_corpaas_knowledge', mods)
+        self.assertFalse(any(d['core'] for d in mods.values()), '只算官方原碼以外的')
+
+    def test_identity_order_and_chains(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        from ..services import remote
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'CODE', 'type': 'service'}).id})
+        inst = SimpleNamespace(server_id=None, odoo_container='c1')
+        state = {'digest': 'sha256:aaa', 'build': '18.0.20260901', 'core_calls': 0}
+
+        def run(server, cmd, dont_raise=False):
+            return SimpleNamespace(stdout=state['digest'] if 'inspect' in cmd else state['build'])
+
+        def shell_json(env, instance, db, src):
+            if 'WANT_CORE = True' in src:
+                state['core_calls'] += 1
+                return {'sale': {'version': '1', 'hash': 'h1', 'core': True}}
+            if 'WANT_CORE = False' in src:
+                return {'x_mod': {'version': '1.0', 'hash': 'x1', 'core': False}}
+            return {'res.partner.write': [{'module': '', 'file': 'f', 'line': 1, 'end': 2, 'hash': 'd1'},
+                                          {'module': 'x_mod', 'file': 'g', 'line': 3, 'end': 4, 'hash': state.get('d2', 'd2')}]}
+
+        with patch.object(remote, 'run', run), patch.object(remote, 'shell_json', shell_json):
+            first = pkg._knowledge_code_identity(inst, 'db')
+            self.assertEqual((first['match'], state['core_calls']), ('hashed', 1), '沒見過：算一次官方原碼')
+            self.assertEqual(pkg._knowledge_code_identity(inst, 'db')['match'], 'image', '同映像：不再算')
+            state['digest'] = 'sha256:bbb'
+            self.assertEqual(pkg._knowledge_code_identity(inst, 'db')['match'], 'version', '新映像但同一建置版號：沿用')
+            self.assertEqual(state['core_calls'], 1)
+            state.update(digest='sha256:ccc', build='18.0')
+            self.assertEqual(pkg._knowledge_code_identity(inst, 'db')['match'], 'hashed', '版號沒有建置日期：不當同一份')
+            facts = pkg._knowledge_code_chains(inst, 'db', [('res.partner', 'write')])
+            fact = facts['res.partner.write']
+            self.assertEqual(len(fact.def_ids), 2)
+            fact.write({'state': 'current', 'fact_json': '{}'})
+            again = pkg._knowledge_code_chains(inst, 'db', [('res.partner', 'write')])['res.partner.write']
+            self.assertEqual(again, fact, '鏈沒變：同一筆')
+            state['d2'] = 'd2b'
+            new = pkg._knowledge_code_chains(inst, 'db', [('res.partner', 'write')])['res.partner.write']
+            self.assertNotEqual(new, fact)
+            self.assertEqual(fact.state, 'stale', '覆寫改了：舊結論過期')
+            self.assertEqual(len(self.env['corpaas.knowledge.code_def'].search([('def_hash', '=', 'd1')])), 1,
+                             '沒變的那段共用')

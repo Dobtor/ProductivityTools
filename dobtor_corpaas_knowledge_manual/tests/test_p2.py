@@ -227,6 +227,36 @@ class TestIterativeManual(ManualCase):
         self.assertEqual((b1.state, b2.state), ('pending', 'pending'))
         self.assertEqual((b1.repair_attempts, b2.repair_attempts), (1, 1))
 
+    def test_code_structure_collects_clicked_buttons(self):
+        import json
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        self.f1.model = 'res.partner'
+        b = self._binding(self.f1)
+        b.template_id.steps_json = json.dumps([{'click': {'button': 'action_archive'}},
+                                               {'click': {'button': '測試連線'}}, {'shot': 'main'}])
+        sb = SimpleNamespace(master_instance_id=SimpleNamespace(id=1), db_name='db', scenario_id=self.scenario)
+        Pkg = type(self.pkg)
+        calls = {'ident': 0, 'targets': None}
+
+        def ident(s, inst, db):
+            calls['ident'] += 1
+            return {'match': 'image'}
+
+        def chains(s, inst, db, targets):
+            calls['targets'] = targets
+            return {}
+
+        ctx = {}
+        with patch.object(Pkg, '_knowledge_code_identity', ident), \
+                patch.object(Pkg, '_knowledge_code_chains', chains):
+            hooks = self.hooks.with_context(kb_test_code=True)
+            hooks._manual_code_structure(self.pkg, sb, ctx)
+            hooks._manual_code_structure(self.pkg, sb, ctx)
+        self.assertEqual(calls['ident'], 1, '程式碼身分每輪只查一次')
+        self.assertEqual(calls['targets'], [('res.partner', 'action_archive')], '只收技術名的物件按鈕')
+        self.assertEqual(self.pkg.knowledge_profile()['code'], {'match': 'image'})
+
     def test_human_access_gap_gets_one_admin_try(self):
         import json
         from unittest.mock import patch
