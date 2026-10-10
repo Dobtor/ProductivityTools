@@ -141,6 +141,8 @@ class KnowledgeShotBinding(models.Model):
     needs_repair = fields.Boolean(readonly=True, index=True,
                                   help='失敗、等 AI 修（下一次 refresh 的分派階段修，不必重建說明庫）')
     repair_attempts = fields.Integer(readonly=True, help='連續 AI 修補次數；成功拍攝後歸零')
+    repair_fp = fields.Char(readonly=True,
+                            help='上次送 AI 修時的錯誤指紋：修完再拍又是同一個指紋＝這招沒用，不再修')
     asset_ids = fields.Many2many('corpaas.knowledge.asset', compute='_compute_asset_ids',
                                 string='素材')
     asset_count = fields.Integer(compute='_compute_asset_ids')
@@ -188,6 +190,6 @@ class KnowledgeShotBinding(models.Model):
         }
 
     def action_reset(self):
-        self.write({'state': 'pending', 'last_error': False, 'needs_repair': False,
+        self.write({'state': 'pending', 'last_error': False, 'needs_repair': False, 'repair_fp': False,
                     'repair_attempts': 0})
         return True

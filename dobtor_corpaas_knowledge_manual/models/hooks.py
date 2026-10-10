@@ -31,7 +31,7 @@ from odoo.addons.dobtor_corpaas_knowledge.models.feature import ROUTE_MEMBER, RO
 from odoo.addons.dobtor_corpaas_knowledge.services import (hub_client, phash, remote, scripts,
                                                            shooter)
 
-from ..services import manual_lib, prompts, rule_scripts
+from ..services import failure_policy, manual_lib, prompts, rule_scripts
 from .placement import sync_batch
 
 _logger = logging.getLogger(__name__)
@@ -345,14 +345,32 @@ class KnowledgeHooks(models.AbstractModel):
         size = max(1, int(self.env['ir.config_parameter'].sudo().get_param(
             'corpaas_knowledge.shot_batch_size', 20) or 20))
         failed = self.env['corpaas.knowledge.shot_binding']
-        batch_list = list(todo)
-        for i in range(0, len(batch_list), size):
-            chunk = self.env['corpaas.knowledge.shot_binding'].browse(
-                [b.id for b in batch_list[i:i + size]])
+        canary = max(1, int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.shot_canary_size', 5) or 5))
+        batch_list = self._manual_canary_first(list(todo), canary)
+        # ★ 先拍前哨批（不同角色各一張起跳），之後每批拍完就看：同一個非腳本錯誤累積到門檻就整批停
+        chunks = [batch_list[:canary]] + [batch_list[i:i + size]
+                                          for i in range(canary, len(batch_list), size)]
+        shot = self.env['corpaas.knowledge.shot_binding']
+        for ids in chunks:
+            if not ids:
+                continue
+            chunk = self.env['corpaas.knowledge.shot_binding'].browse([b.id for b in ids])
             failed |= self._manual_run_batch(package, sandbox, chunk, token, ctx)
+            shot |= chunk
             self._manual_commit()
             self._manual_check_cancel(ctx)
             if ctx.get('manual_backend_down'):
+                break
+            errors = [b.last_error for b in shot if b.state != 'ok' and b.last_error]
+            halt = failure_policy.halt_reason(errors, len(shot), canary)
+            if halt:
+                left = len(batch_list) - len(shot)
+                ctx['manual_batch_halt'] = {'fingerprint': halt[0], 'count': halt[1],
+                                            'shot': len(shot), 'left': left}
+                stats['shots_halted'] = left
+                _logger.warning('[knowledge.manual] %s 整批提前終止：%s 出現 %s 次（已拍 %s，未拍 %s）',
+                                package.display_name, halt[0], halt[1], len(shot), left)
                 break
         stats['shots_ok'] = stats.get('shots_ok', 0) + len(todo.filtered(
             lambda b: b.state == 'ok'))
@@ -360,12 +378,32 @@ class KnowledgeHooks(models.AbstractModel):
             lambda b: b.state != 'ok'))
         self._manual_record_failures(sandbox.scenario_id, relevant, stats)
         self._manual_repair_bindings(package, failed, token, stop)
+        for key in ('skipped_env', 'skipped_same'):
+            n = stop.pop(key, 0)
+            if n:
+                stats['repair_' + key] = stats.get('repair_' + key, 0) + n
         try:
             stats['gaps_path'] = self._manual_sync_path_gaps(package, sandbox)
         except Exception as e:  # noqa: BLE001
             _logger.warning('[knowledge.manual] 流程路徑缺口失敗：%s', e)
         self._manual_commit()
         return res
+
+    @api.model
+    def _manual_canary_first(self, bindings, canary):
+        """前哨批放最前面：每個登入角色先挑一張，再補到 canary 張（各角色的問題第一批就看得到）。"""
+        first, seen = [], set()
+        for b in bindings:
+            role = b.login_role()
+            if role not in seen and len(first) < canary:
+                first.append(b)
+                seen.add(role)
+        for b in bindings:
+            if len(first) >= canary:
+                break
+            if b not in first:
+                first.append(b)
+        return first + [b for b in bindings if b not in first]
 
     @api.model
     def _manual_backend_preflight(self, sandbox, ctx):
@@ -844,6 +882,7 @@ class KnowledgeHooks(models.AbstractModel):
             # 標註找不到的步驟不算失敗（圖照用），但留在 last_error 讓審稿的人看得到
             warn = '\n'.join(r.get('warnings') or [])[:4000] or False
             vals.update(state='ok', last_error=warn, needs_repair=False, repair_attempts=0,
+                        repair_fp=False,
                         shot_scope_hash=b.template_id.fingerprint,
                         shot_inputs=self._manual_shot_inputs(b))
             b.write(vals)
@@ -914,6 +953,25 @@ class KnowledgeHooks(models.AbstractModel):
             # ★ 每修一張檢查「要求停止」：修腳本一張 0.1 美元，按停止要立刻停
             #   ☠️ 實機：停止只在拍照批次之間檢查，87 張拍完後的修腳本照跑，停不下來多花 $9
             self._manual_check_cancel({'run_id': stop.get('run_id')})
+            kind = failure_policy.classify(b.last_error)
+            fp = failure_policy.fingerprint(b.last_error)
+            if kind not in failure_policy.REPAIRABLE:
+                # ★ 環境／資料／暫時性的錯改腳本修不好：不叫 AI（環境→缺口修補換角色或規則，
+                #   資料→補示範資料，暫時性→下次原樣重拍）
+                vals = {'needs_repair': False}
+                if kind == failure_policy.TRANSIENT and not b.repair_fp == fp:
+                    vals.update(state='pending', repair_fp=fp)
+                b.write(vals)
+                stop['skipped_env'] = stop.get('skipped_env', 0) + 1
+                continue
+            if b.repair_fp and b.repair_fp == fp:
+                # ★ 修過一次、再拍還是同一個錯：同一招不用第二次（交給人或規則）
+                b.write({'needs_repair': False})
+                b.template_id.message_post(body=_(
+                    '情境「%(s)s」的截圖修過仍是同一個錯誤，不再請 AI 修：%(e)s',
+                    s=b.scenario_id.name, e=(b.last_error or '').splitlines()[0][:200]))
+                stop['skipped_same'] = stop.get('skipped_same', 0) + 1
+                continue
             if b.repair_attempts >= MAX_REPAIRS:
                 b.write({'needs_repair': False})
                 b.template_id.message_post(body=_(
@@ -922,6 +980,7 @@ class KnowledgeHooks(models.AbstractModel):
                 continue
             try:
                 self._manual_repair(package, b, token)
+                b.write({'repair_fp': fp})   # 真的修過才記（預算用完中斷不算修過）
             except hub_client.BudgetExceeded as e:
                 _logger.info('[knowledge.manual] 修腳本停止：%s', e)
                 stop['ai'] = True
