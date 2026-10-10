@@ -1479,6 +1479,17 @@ class SolutionPackage(models.Model):
             ) % profile
         else:
             group_rule = ''
+        modules = []
+        if cluster:
+            # ★ 計畫第 53 項：從零分群（提出能力）前先讀方案自訂模組，能力依商業邏輯劃分
+            try:
+                self._knowledge_module_summaries(token=token)
+            except Exception as e:  # noqa: BLE001
+                _logger.warning('[knowledge] 模組摘要失敗：%s', e)
+            modules = self._knowledge_module_brief()
+        if modules:
+            group_rule += ("方案自訂模組摘要（讀過程式：做什麼、核心規則、模組間怎麼串接；能力依這些商業邏輯劃分，"
+                           "不要只看選單名稱）：%s\n" % json.dumps(modules, ensure_ascii=False)[:20000])
         prompt = (
             "以下是方案「%s」改版後新增的功能點，以及既有的能力（in_package 表示已在本方案）。\n"
             "%s"

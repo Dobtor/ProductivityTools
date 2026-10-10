@@ -555,6 +555,14 @@ class TestModuleSummary(TransactionCase):
         self.assertIn('先設佣金規則', text, '示範資料提示帶上模組規則')
         pkg._knowledge_update_profile({'code': {'addons': {'x_ref': {'version': '2', 'hash': 'h2'}}}})
         self.assertFalse(pkg._knowledge_module_brief(), '模組改了：舊摘要不再用（等重讀）')
+        # 長摘要逐欄截短，JSON 一定讀得回來（☠️ 原本截 JSON 字串，讀回來壞掉讓提案整個失敗）
+        from ..models.code_knowledge import _trim_summary
+        long = _trim_summary({'purpose': '長' * 2000, 'rules': ['規則' * 300] * 20})
+        self.assertEqual(len(long['rules']), 8)
+        self.assertTrue(json.loads(json.dumps(long, ensure_ascii=False)))
+        bad = self.env['corpaas.knowledge.module_summary'].sudo().create(
+            {'module': 'x_bad', 'dir_hash': 'b1', 'summary_json': '{"purpose": "未結束', 'facts_json': '{}'})
+        self.assertEqual(bad.brief()['module'], 'x_bad', '壞掉的舊資料不讓提案失敗')
 
     def test_flow_naming_waits_for_capabilities(self):
         from unittest.mock import patch

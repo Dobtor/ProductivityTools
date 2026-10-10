@@ -134,10 +134,14 @@ class KnowledgeModuleSummary(models.Model):
     def brief(self):
         """給提示用的精簡版。"""
         self.ensure_one()
-        facts = json.loads(self.facts_json or '{}')
+        try:
+            facts = json.loads(self.facts_json or '{}')
+            summary = json.loads(self.summary_json) if self.summary_json else None
+        except ValueError:   # 舊資料壞掉：當作沒有摘要，不讓提案整個失敗
+            facts, summary = {}, None
         out = {'module': self.module, 'name': facts.get('name')}
-        if self.summary_json:
-            out.update(json.loads(self.summary_json))
+        if isinstance(summary, dict):
+            out.update(summary)
         else:
             out.update(purpose=facts.get('summary') or facts.get('description', '')[:200],
                        key_models=facts.get('new_models', [])[:8])
@@ -400,9 +404,13 @@ class SolutionPackageCode(models.Model):
                 _logger.info('[knowledge] 模組 %s 摘要沒有完成：%s', m, e)
                 continue
             if isinstance(data, dict) and data.get('purpose'):
-                keep = {k: data[k] for k in ('purpose', 'rules', 'links', 'key_models', 'setup') if k in data}
-                rec.write({'summary_json': json.dumps(keep, ensure_ascii=False)[:4000], 'source': 'ai'})
+                rec.write({'summary_json': json.dumps(_trim_summary(data), ensure_ascii=False), 'source': 'ai'})
                 done += 1
+                # ★ 寫一份就提交：之後的步驟失敗回滾也不會把付過錢的摘要丟掉
+                #   ☠️ 實機：20 份摘要寫完、提案時失敗，整個工作回滾，摘要全沒了
+                from ..services import txn
+                if not txn.in_tests(self.env):
+                    self.env.cr.commit()
         return done
 
     def _knowledge_module_brief(self, limit=40):
@@ -432,6 +440,15 @@ class SolutionPackageCode(models.Model):
             except ValueError:
                 continue
         return out
+
+
+def _trim_summary(data):
+    """摘要逐欄截短（不能截 JSON 字串：截斷的 JSON 讀回來就壞了）。"""
+    def lst(v, n, w):
+        return [str(x)[:w] for x in (v if isinstance(v, list) else [v] if v else [])][:n]
+    return {'purpose': str(data.get('purpose') or '')[:500], 'rules': lst(data.get('rules'), 8, 300),
+            'links': lst(data.get('links'), 6, 200), 'key_models': lst(data.get('key_models'), 10, 80),
+            'setup': lst(data.get('setup'), 6, 200)}
 
 
 def _hash(data):
