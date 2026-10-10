@@ -13,13 +13,28 @@
 從此「完成了嗎」的答案是：
 
 ```bash
-cd dobtor_doc_editor && make done; echo "判決 = $?"
+cd dobtor_doc_editor && make done        # 讀最後那一行文字
+# 要機器可讀的退出碼就直接跑腳本：
+bash tests/scripts/run_done_check.sh; echo "判決 = $?"
 ```
 
 退出碼：`0` 全部通過／`1` 有判準沒過／`2` 環境不具備（容器沒跑、缺工具）。
 **`2` 不是通過**——「環境不具備」與「通過」必須分得出來，這是本模組反覆抓到的
 失效模式（見 [static_check_silent_pass_patterns 的五種形狀](architecture_decision.md#adr-034不可達-ts-子系統按軸分類不按-phase)
 與 `tests/unit/measurement_gates.test.ts`）。
+
+☠️ **退出碼要從腳本讀，不要從 `make` 讀。** GNU make 對任何 recipe 失敗
+一律回自己的 `2`，所以 `make done; echo $?` 會把「有判準沒過」(1) 顯示成
+跟「環境不具備」(2) 一樣——正是這份文件要分開的那兩件事。
+2026-10-10 實測：同一輪 `run_done_check.sh` 回 1，而 `make done` 回 2。
+透過 `make` 跑時請讀**最後那一行文字**，四種結局各有不同措辭：
+
+| 最後一行 | 意思 |
+|---|---|
+| `✓ 完成：N 條判準全部通過。` | 0 |
+| `✗ 沒完成。沒過的判準：…` | 1 |
+| `– 其餘通過，但有判準被跳過：…` | 2（跳過不算通過） |
+| `✗ 一條判準都沒跑成…` | 2 |
 
 ## 判準清單
 

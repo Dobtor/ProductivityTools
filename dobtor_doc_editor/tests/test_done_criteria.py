@@ -23,6 +23,7 @@ from odoo.tests.common import TransactionCase, tagged
 MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOC = os.path.join(MODULE_ROOT, 'docs', 'DONE_CRITERIA.md')
 SCRIPT = os.path.join(MODULE_ROOT, 'tests', 'scripts', 'run_done_check.sh')
+MAKEFILE = os.path.join(MODULE_ROOT, 'Makefile')
 
 
 def _read(path):
@@ -103,6 +104,40 @@ class TestDoneCriteria(TransactionCase):
             if m and len(m.group(3).strip()) < 8:
                 thin.append(m.group(1))
         self.assertFalse(thin, '這些判準沒寫「為什麼它在清單裡」：%s' % thin)
+
+    def test_makefile_help_states_the_right_number_of_criteria(self):
+        """`make help` 印出的判準條數要跟實際的一樣。
+
+        ☠️ 2026-10-10 加第 13 條時發現它還寫著「11 條判準」——而判準表當時
+        已經有 12 條。那行字是**唯一**從 `make help` 看得到的分母，寫錯就是
+        「進度分母跟計畫不符」。沒有這一則，它只會繼續漂。
+        """
+        line = [l for l in _read(MAKEFILE).split('\n')
+                if l.startswith('done:')]
+        self.assertTrue(line, 'Makefile 裡找不到 `done:` target')
+        m = re.search(r'(\d+)\s*條判準', line[0])
+        self.assertTrue(
+            m, '`done:` 的說明沒寫判準條數：%s' % line[0])
+        self.assertEqual(
+            int(m.group(1)), len(_doc_ids()),
+            '`make help` 說 %s 條判準，但判準表有 %d 條。'
+            % (m.group(1), len(_doc_ids())))
+
+    def test_doc_warns_that_make_collapses_the_exit_code(self):
+        """文件要說「退出碼別從 make 讀」。
+
+        ☠️ 實測：同一輪 `run_done_check.sh` 回 1（有判準沒過），而
+        `make done` 回 2（GNU make 對任何 recipe 失敗都回自己的 2）。
+        而這份文件的整個設計就是要把 1 和 2 分開——分開了卻在最常用的入口
+        被 make 合回去，那就是本模組一整天在抓的「判決到不了人眼前」。
+        """
+        body = _read(DOC)
+        self.assertIn(
+            'make', body)
+        self.assertTrue(
+            '不要從 `make` 讀' in body or '不要從 make 讀' in body,
+            'docs/DONE_CRITERIA.md 沒有警告「退出碼不要從 make 讀」——'
+            '那會讓「有判準沒過」(1) 跟「環境不具備」(2) 分不出來。')
 
     def test_script_distinguishes_env_failure_from_pass(self):
         """腳本必須把「環境不具備」與「通過」分開（退出碼 2 vs 0）。

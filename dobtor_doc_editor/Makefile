@@ -141,8 +141,12 @@ audit: ## 跑稽核的「尺」（不是閘門——它只撈候選，判讀需�
 	@echo "══════ 尺 4：docstring 裡的絕對語句 ══════"
 	@python3 tests/scripts/scan_absolute_promises.py
 
-done: ## 「完成了嗎」的單一判決（11 條判準，含匯入模組；見 docs/DONE_CRITERIA.md）
-	# 退出碼 0 全過 / 1 有判準沒過 / **2 環境不具備或有判準被跳過——不是通過**。
+done: ## 「完成了嗎」的單一判決（13 條判準，含匯入模組；見 docs/DONE_CRITERIA.md）
+	# 腳本的退出碼 0 全過 / 1 有判準沒過 / **2 環境不具備或有判準被跳過**。
+	# ☠️ 但 **make 會把任何失敗都變成自己的 2**（GNU make 的慣例），所以
+	#    透過 make 讀 $$? 時 1 與 2 分不出來。要讀真正的判決碼請直接跑：
+	#        bash tests/scripts/run_done_check.sh; echo $$?
+	#    透過 make 時請讀**最後那一行文字**，它四種結局各有不同措辭。
 	# 跳過某幾條：make done DONE_SKIP="tour core-standalone"
 	@bash tests/scripts/run_done_check.sh
 
