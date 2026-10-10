@@ -24,15 +24,15 @@ while :; do
   i=$((i+1)); sleep 30
 done
 mkdir -p $BK/pt
-cd $S/ProductivityTools && tar czf $BK/before-pt.tgz dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal
+cd $S/ProductivityTools && tar czf $BK/before-pt.tgz __MODS__
 tar -xzf $BK/pt.tgz -C $BK/pt
-for m in dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal; do rm -rf $S/ProductivityTools/$m; cp -a $BK/pt/$m $S/ProductivityTools/; chmod -R a+rX $S/ProductivityTools/$m; done
+for m in __MODS__; do rm -rf $S/ProductivityTools/$m; cp -a $BK/pt/$m $S/ProductivityTools/; chmod -R a+rX $S/ProductivityTools/$m; done
 grep -h "'version'" $S/ProductivityTools/dobtor_corpaas_knowledge/__manifest__.py $S/ProductivityTools/dobtor_corpaas_knowledge_manual/__manifest__.py
 set +e
 OK=
 for i in 1 2 3 4 5 6; do
   L=upgrade-__TAG__-$i.log
-  docker exec $C odoo -c /etc/odoo/odoo.conf -d __DB__ -u dobtor_corpaas_knowledge,dobtor_corpaas_knowledge_manual,dobtor_corpaas_knowledge_proposal --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
+  docker exec $C odoo -c /etc/odoo/odoo.conf -d __DB__ -u __MODS_CSV__ --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
   RC=$?
   H=$B/data_dir/$L
   # 容器掛了、指令沒跑起來、沒有 log：都算失敗（不能因為 log 裡找不到錯誤字樣就當成功）
@@ -48,7 +48,7 @@ done
 if [ -z "$OK" ]; then
   # 升級沒成功：把舊程式碼放回去，免得下次容器重啟載入跟資料庫不相容的新程式
   echo "upgrade failed: restoring previous code from $BK/before-pt.tgz"
-  for m in dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal; do rm -rf $S/ProductivityTools/$m; done
+  for m in __MODS__; do rm -rf $S/ProductivityTools/$m; done
   tar -xzf $BK/before-pt.tgz -C $S/ProductivityTools
   exit 1
 fi

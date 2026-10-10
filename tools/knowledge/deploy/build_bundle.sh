@@ -5,7 +5,9 @@ set -e
 TAG=$1; PREV=$2
 HERE=$(cd "$(dirname "$0")" && pwd); REPO=$(cd "$HERE/../../.." && pwd)
 OUT=${BUNDLE_ROOT:-$HOME/Library/Caches/corpaas-kb/bundles}/$TAG
-MODS="dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal"
+# ★ 預設只打包核心＋說明書：建議書模組由它自己的工作階段部署（相依不同，曾讓整包升級失敗）
+#   要一起打包：KB_MODS="dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal"
+MODS=${KB_MODS:-"dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual"}
 . "$HERE/env.sh"
 SRC=$DEPLOY_ENV_DIR/sources/Dobtor/ProductivityTools
 rm -rf "$OUT"; mkdir -p "$OUT/new"
@@ -13,6 +15,7 @@ rm -rf "$OUT"; mkdir -p "$OUT/new"
 (cd "$OUT/new" && tar czf ../pt.tgz $MODS)
 sed -e "s#__BACKUP__#/root/deploy-backup-$(date +%Y%m%d)-$TAG#" -e "s#__TAG__#$TAG#" \
     -e "s#__ENV_DIR__#$DEPLOY_ENV_DIR#" -e "s#__CONTAINER__#$DEPLOY_CONTAINER#" -e "s#__DB__#$DEPLOY_DB#g" \
+    -e "s#__MODS__#$MODS#g" -e "s#__MODS_CSV__#$(echo $MODS | tr ' ' ',')#g" \
     "$HERE/deploy_template.sh" > "$OUT/deploy.sh"
 if [ -n "$PREV" ]; then
   P=$(dirname "$OUT")/$PREV/new
