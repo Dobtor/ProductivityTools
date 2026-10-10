@@ -182,7 +182,9 @@ class SolutionPackageCode(models.Model):
                 "P=$(docker exec %(c)s python3 -c 'import odoo,os; print(os.path.dirname(odoo.__file__))'); "
                 "rm -rf \"$D.tmp\"; mkdir -p \"$D.tmp\"; T=$(docker create %(img)s); "
                 "trap 'docker rm -f \"$T\" >/dev/null 2>&1' EXIT; "
-                "docker cp \"$T:$P\" \"$D.tmp/odoo\"; "
+                # ☠️ 不能 docker cp 到目錄：point_of_sale 的字型捷徑指到原碼目錄外，docker 判成
+                #    「invalid symlink」整個中止。改成串流 tar 再用系統 tar 解開（捷徑照原樣保留）
+                "docker cp \"$T:$P\" - | tar -xf - -C \"$D.tmp\"; "
                 "mv \"$D.tmp\" \"$D\"; chmod -R a+rX \"$D\"; fi; echo \"$D\""
             ) % {'d': shlex.quote(dest), 'c': ctr, 'img': shlex.quote(digest)}
             res = remote.run(server, cmd, dont_raise=True)

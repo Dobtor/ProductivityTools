@@ -407,6 +407,7 @@ class TestCodeStructure(TransactionCase):
                                               '[{"Source": "/opt/x/sources", "Destination": "/mnt/src"}]')
             if 'docker create' in cmd:
                 state['extract'] = state.get('extract', 0) + 1
+                assert 'docker cp "$T:$P" - | tar -xf -' in cmd, '串流 tar（不直接 cp 到目錄）'
                 return SimpleNamespace(stdout='/srv/ai-src/odoo/' + state['digest'][7:19])
             return SimpleNamespace(stdout=state['digest'] if 'inspect' in cmd else state['build'])
 
