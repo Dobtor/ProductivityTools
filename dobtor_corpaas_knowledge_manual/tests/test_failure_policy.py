@@ -192,12 +192,37 @@ class TestSelfReview(ManualCase):
             self.assertEqual(self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False}), (0, 1))
             self.assertEqual(self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False}), (0, 0),
                              '內容沒變就不重審')
-        self.assertEqual(ask.call_count, 1, '不重複花 AI')
+        self.assertEqual(ask.call_count, 2, '審一次＋依意見重寫一次（回覆不合格式，重寫失敗），之後不重複花 AI')
         self.assertEqual(bad_art.manual_review_state, 'fail')
         self.assertEqual(bad_art.manual_review_reason, 'AI 審查意見', '例外清單依原因分組')
         from ..models.self_review import review_reason
         self.assertEqual(review_reason(['截圖標記沒有對應的圖：a_entry、b'], False), '截圖標記沒有對應的圖')
         self.assertEqual(review_reason(['截圖沒有拍成功（按鈕找不到）'], False), '截圖沒有拍成功（按鈕找不到）')
+
+    def test_review_failure_redrafts_once_then_rereviews(self):
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        art = self._review_article()
+        replies = iter([{'ok': False, 'problems': ['步驟寫了腳本沒有的儲存']},
+                        {'title': '改好的標題', 'html': '<p>只寫腳本做的事</p>'},
+                        {'ok': True, 'problems': []}])
+        with patch.object(Ai, 'ask', side_effect=lambda purpose, prompt, **kw: next(replies)) as ask:
+            pub, bad = self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        self.assertEqual((pub, bad), (1, 0), '依審稿意見重寫後再審通過 → 上線')
+        self.assertEqual(art.state, 'published')
+        self.assertEqual(art.manual_redrafts, 1)
+        self.assertIn('只寫腳本做的事', art.scenario_html)
+        purposes = [c[0][0] for c in ask.call_args_list]
+        self.assertEqual(purposes, ['manual_review', 'manual_scenario', 'manual_review'])
+        self.assertIn('步驟寫了腳本沒有的儲存', ask.call_args_list[1][0][1], '重寫提示詞帶審稿意見')
+        art2 = self._review_article()
+        with patch.object(Ai, 'ask', return_value={'ok': False, 'problems': ['x']}):
+            self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+            art2.manual_review_input = False
+            with patch.object(type(self.hooks), '_manual_redraft_article') as redraft:
+                self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        redraft.assert_not_called()
+        self.assertEqual(art2.manual_review_state, 'fail', '只重寫一次，還不過才進例外清單')
 
     def test_full_level_does_not_pass_when_ai_failed(self):
         from odoo.addons.dobtor_corpaas_knowledge.services import hub_client

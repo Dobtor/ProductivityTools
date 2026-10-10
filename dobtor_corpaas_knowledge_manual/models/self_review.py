@@ -19,12 +19,17 @@ from odoo import _, api, fields, models
 
 from odoo.addons.dobtor_corpaas_knowledge.services import hub_client
 
+from ..services import manual_lib
+from .hooks import ai_dict, ai_html_steps, ai_text
+
 _logger = logging.getLogger(__name__)
 
 #: 自動上線後抽查比例（5%；每輪有上線的話至少抽 1 篇）
 SAMPLE_RATE = 0.05
 #: 一次更新最多自審幾篇（控制 AI 花費）
 REVIEW_BATCH = 60
+#: AI 審查不過時依審稿意見自動重寫幾次（之後才進例外清單）
+MAX_REDRAFTS = 1
 _TAG = re.compile(r'<[^>]+>')
 
 
@@ -63,6 +68,7 @@ class KnowledgeArticleReview(models.Model):
                                             help='用來算自審的退回率（計畫第 23 項：< 10%）')
     manual_review_input = fields.Char(readonly=True, copy=False,
                                       help='自審時的內容＋截圖狀態雜湊：沒變就不重審（不重複花 AI）')
+    manual_redrafts = fields.Integer(string='依審稿意見重寫次數', readonly=True, copy=False)
 
     def _manual_review_input(self):
         self.ensure_one()
@@ -115,7 +121,8 @@ class KnowledgeArticleReview(models.Model):
             feature.get('audience'), '後台使用者')
         return (
             "任務：你是說明書審稿人，只審這一篇是否可以上線。依據下面的事實判斷，不要猜。\n"
-            "檢查：(1) 步驟說明與截圖腳本對得上（說明提到的按鈕、欄位、頁面，腳本裡要有對應的操作或截圖）；"
+            "檢查：(1) 步驟說明與截圖腳本對得上（說明提到的按鈕、欄位、頁面，腳本裡要有對應的操作或截圖；"
+            "功能資料裡的選單路徑當補充說明提到不算對不上）；"
             "(2) 讀者身分正確：這篇的讀者是「%(who)s」，用語與入口要符合（前台文章不寫後台選單路徑，"
             "後台文章不叫讀者去網站前台操作）；(3) 沒有編造系統沒有的功能、沒有內部代碼或英文欄位名。\n"
             "只回 JSON：{\"ok\": true|false, \"problems\": [\"…\"]}；有問題才列，最多 3 點、每點一句。\n\n"
@@ -173,6 +180,18 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
             except hub_client.BudgetExceeded:
                 stop['ai'] = True
                 break
+            if not ok and reviewed and art.manual_redrafts < MAX_REDRAFTS and not stop.get('ai'):
+                # ★ AI 審查不過：先依審稿意見自動重寫一次再審，還不過才進例外清單
+                # ☠️ 實機（2026-10-11 社群電商從零）：89 篇 56 篇自審不過（步驟寫了腳本沒做的操作、
+                #   情境敘事硬套到無關功能），全部等人逐篇處理
+                try:
+                    if self._manual_redraft_article(package, art, problems, token):
+                        ok, problems, reviewed, ai_failed = art._manual_self_review(package, token)
+                except hub_client.BudgetExceeded:
+                    stop['ai'] = True
+                    break
+                except Exception as e:  # noqa: BLE001 — 重寫失敗照原結果進例外清單
+                    _logger.warning('[knowledge.manual] 依審稿意見重寫失敗 %s：%s', art.display_name, e)
             forced = False
             if not ok and level == 'full' and reviewed:
                 ok = forced = True   # 全自動：AI 有審到（事實檢查已過）、只是有意見 → 上線，但一定抽查
@@ -205,6 +224,39 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
             art.message_post(body=_('自審通過，系統自動核准上線%s') % (
                 _('（列入抽查）') if art in sample else ''))
         return published, failed
+
+
+    @api.model
+    def _manual_redraft_article(self, package, art, problems, token):
+        """依審稿意見重寫：還沒上線過的步驟區塊重寫（已上線的跨文章共用，不動）＋情境說明重寫。
+        回傳有沒有重寫。"""
+        art.manual_redrafts += 1
+        tmpl = art.shot_binding_id.template_id
+        feedback = ("\n\n★ 上一版被審稿人退回，這次一定要改掉這些問題：%s"
+                    % json.dumps(problems, ensure_ascii=False)[:1500])
+        Ai = self.env['corpaas.knowledge.ai']
+        blocks = art.step_block_ids.filtered(lambda b: b.feature_id == art.feature_id)
+        for block in blocks.filtered(lambda b: b.state in ('draft', 'review') and not b.published_rev_no):
+            if not tmpl:
+                break
+            data = Ai.ask('manual_step_block', self._manual_step_prompt(package, art.feature_id, tmpl) + feedback,
+                          package=package, refresh_token=token, record=tmpl)
+            data = ai_dict(data, 'manual_step_block')
+            steps = ai_html_steps(data.get('steps'), 'manual_step_block')
+            block.write({'name': ai_text(data.get('title')) or block.name,
+                         'html': manual_lib.steps_to_html(steps, block.anchor)})
+        data = Ai.ask('manual_scenario',
+                      self._manual_scenario_prompt(package, art.scenario_id, art.feature_id,
+                                                   art.capability_id, art.step_block_ids) + feedback,
+                      package=package, refresh_token=token, record=art.scenario_id)
+        data = ai_dict(data, 'manual_scenario')
+        if not isinstance(data.get('html'), str):
+            raise ValueError('AI（manual_scenario）沒有給 html 字串')
+        art.with_context(knowledge_system_write=True).write({
+            'name': manual_lib.clean_title(ai_text(data.get('title')) or art.name, art.scenario_id.name),
+            'scenario_html': manual_lib.clean_html(data['html'])})
+        art.message_post(body=_('依審稿意見自動重寫：%s') % '；'.join(problems)[:500])
+        return True
 
 
 class KnowledgeRunFunnel(models.Model):
