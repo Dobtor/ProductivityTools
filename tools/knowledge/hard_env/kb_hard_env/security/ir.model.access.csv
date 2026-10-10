@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_kb_hard_doc_manager,kb.hard.doc manager,model_kb_hard_doc,group_doc_manager,1,1,1,1

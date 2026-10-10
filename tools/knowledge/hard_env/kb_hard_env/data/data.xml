@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="company_other" model="res.company">
+        <field name="name">KB 第二家公司</field>
+    </record>
+    <record id="action_doc" model="ir.actions.act_window">
+        <field name="name">KB 單據</field>
+        <field name="res_model">kb.hard.doc</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_doc" name="KB 單據" action="action_doc" groups="group_doc_manager"/>
+    <record id="doc_paid" model="kb.hard.doc">
+        <field name="name">已撥款單據（客戶資料）</field>
+        <field name="state">paid</field>
+    </record>
+    <record id="menu_members" model="website.menu">
+        <field name="name">會員專區</field>
+        <field name="url">/my</field>
+        <field name="parent_id" ref="website.main_menu"/>
+        <field name="group_ids" eval="[(4, ref('base.group_portal'))]"/>
+    </record>
+</odoo>

@@ -9,6 +9,9 @@
 security add-generic-password -s corpaas-knowledge-rpc -a admin -w
 # 2. 本機測試環境（~/Library/Caches/corpaas-kb：虛擬環境、內嵌 PostgreSQL、檔案庫）
 tools/knowledge/setup_local.sh
+# 3. 別難測試要的瀏覽器（約 150MB）
+uv pip install --python ~/Library/Caches/corpaas-kb/venv/bin/python playwright==1.48.0
+PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/corpaas-kb/ms-playwright ~/Library/Caches/corpaas-kb/venv/bin/python -m playwright install chromium
 ```
 
 ## 日常
@@ -21,5 +24,6 @@ tools/knowledge/setup_local.sh
 | `approve.py <情境>` | 逐篇核准截圖已就緒的待審文章 |
 | `deploy/build_bundle.sh <標籤> [上一包]` | 打包 git HEAD、檢查正式機有沒有被改過、印出部署指令 |
 | `deploy/deploy_runner.sh` | 只換截圖程式（不升級模組、不重啟、不必等佇列） |
+| `hard_env/run_hard.py [--fresh]` | 本機別難測試：真的截圖程式＋瀏覽器跑彈窗登入、自訂群組、多公司、不准刪單據等 7 項（用 venv 的 python；部署前先跑） |
 
 `rpc.py` 提供 `ro()`（只允許讀取方法）與 `rw()`（寫入），錯誤會帶完整訊息。
