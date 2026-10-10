@@ -31,7 +31,8 @@ grep -h "'version'" $S/ProductivityTools/dobtor_corpaas_knowledge/__manifest__.p
 set +e
 OK=
 for i in 1 2 3 4 5 6; do
-  L=upgrade-__TAG__-$i.log
+  # ☠️ 檔名要每次不同：同標籤重跑時沿用同一個 log 會把上次的錯誤字樣讀成這次失敗（實機 n84 第二次）
+  L=upgrade-__TAG__-$i-$(date +%Y%m%d%H%M%S).log
   docker exec $C odoo -c /etc/odoo/odoo.conf -d __DB__ -u __MODS_CSV__ --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
   RC=$?
   H=$B/data_dir/$L
