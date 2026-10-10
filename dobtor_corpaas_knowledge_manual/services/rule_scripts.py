@@ -60,12 +60,18 @@ def pick_role(feature_kind, module, role_codes, anchor=None):
         role = route_audience(anchor)
         # 情境沒有這個角色（會員、網站管理）就退回訪客：至少拍得到公開的樣子
         return role if role == ROUTE_VISITOR or role in (role_codes or []) else ROUTE_VISITOR
-    codes = list(role_codes or [])
+    from odoo.addons.dobtor_corpaas_knowledge.models.feature import ROUTE_MEMBER, ROUTE_VISITOR
+    # ★ 後台畫面不用前台角色（會員是入口網站帳號，打不開後台）
+    # ☠️ 實機（2026-10-11 社群電商從零）：情境第一個角色是 member，自訂模組 25 個畫面都退回它 → 後台沒有載入
+    codes = [c for c in role_codes or [] if c not in (ROUTE_MEMBER, ROUTE_VISITOR)]
     if feature_kind == 'setting' and 'admin' in codes:
         return 'admin'
     for modules, code in ROLE_BY_MODULE:
         if module in modules and code in codes:
             return code
+    # 對照表沒有的模組（多半是方案自訂模組）：系統管理員一定看得到；沒有才用第一個後台角色
+    if 'admin' in codes:
+        return 'admin'
     return codes[0] if codes else False
 
 

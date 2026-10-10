@@ -54,6 +54,10 @@ class TestRuleScripts(ManualCase):
         self.assertEqual(rule_scripts.pick_role('setting', 'sale', codes), 'admin')
         self.assertEqual(rule_scripts.pick_role('action', 'stock_landed_costs', codes), 'stock')
         self.assertEqual(rule_scripts.pick_role('action', 'unknown', ['x']), 'x')
+        self.assertEqual(rule_scripts.pick_role('action', 'dobtor_x', ['member', 'sales', 'admin']), 'admin',
+                         '對照表沒有的模組用系統管理員')
+        self.assertEqual(rule_scripts.pick_role('action', 'dobtor_x', ['member', 'sales']), 'sales',
+                         '後台畫面不用會員（入口網站帳號）')
 
     def test_mutates(self):
         self.assertTrue(rule_scripts.mutates([{'click': {'button': 'action_confirm'}}]))

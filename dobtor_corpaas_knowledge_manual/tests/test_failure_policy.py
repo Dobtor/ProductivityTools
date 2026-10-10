@@ -45,6 +45,10 @@ class TestFailurePolicy(ManualCase):
         scripts = ['Locator.click: Timeout 10000ms exceeded.'] * 5
         self.assertIsNone(fp.halt_reason(scripts, 5, 5), '腳本錯誤各自修，不整批停')
         self.assertIsNone(fp.halt_reason(down[:3], 20, 5), '失敗率不到一半不停')
+        blank = ['畫面是空白引導頁（示範資料不足或被篩選濾掉）：dobtor_uniform_invoice_action_entry'] * 4
+        self.assertIsNone(fp.halt_reason(blank + ['x'], 5, 5), '資料不足只影響那幾個畫面，不整批停')
+        denied = ["畫面出現錯誤對話框：存取錯誤 您並無權限存取 '付款服務商' (payment.provider) 記錄."] * 4
+        self.assertIsNone(fp.halt_reason(denied + ['x'], 5, 5), '權限換角色修，不整批停')
 
     def test_canary_first_covers_roles(self):
         class B:

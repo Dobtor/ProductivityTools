@@ -66,15 +66,19 @@ def fingerprint(error):
 
 
 def halt_reason(errors, shot, canary, threshold=3, rate=0.5):
-    """整批要不要停：已拍 ≥ 前哨數、失敗率 ≥ rate、且同一個「非腳本」指紋出現 ≥ threshold 次。
+    """整批要不要停：已拍 ≥ 前哨數、失敗率 ≥ rate、且同一個「全面性」指紋出現 ≥ threshold 次。
 
+    ★ 只有全面性的錯（後台打不開、登入失敗、系統錯誤、網路）才停：腳本錯各自修；資料（空白引導頁）
+      與權限（換角色修得好）只影響那幾個畫面，停了反而讓其他畫面都沒拍。
+    ☠️ 實機（2026-10-11 社群電商從零）：統一發票 4 個畫面示範資料不足都是空白引導頁，畫面名稱截斷後同一指紋
+      → 整批停、29 張沒拍。
     errors：這一輪已拍的失敗訊息清單；shot：這一輪已拍張數。回傳 (指紋, 次數) 或 None。"""
     if shot < canary or not errors or len(errors) < shot * rate:
         return None
     counts = {}
     for e in errors:
         fp = fingerprint(e)
-        if not fp.startswith(SCRIPT):
+        if not fp.startswith((SCRIPT, DATA)) and not is_access(e):
             counts[fp] = counts.get(fp, 0) + 1
     if not counts:
         return None

@@ -308,11 +308,19 @@ class KnowledgeSandbox(models.Model):
                 package, sb, items) or {}
             report['labels'] = {k: v for k, v in labels.items() if k in report['counts']}
             empty = [k for k, v in report['counts'].items() if v == 0]
+            unopened = [k for k, v in report['counts'].items() if v is None or v < 0]
             limit = package._knowledge_profile()['empty_max_pct']
             report['empty_pct'] = round(100.0 * len(empty) / len(report['counts']), 1) \
                 if report['counts'] else 0
             report['empty_max_pct'] = limit
+            report['unopened'] = unopened
             state = 'issues' if report['errors'] or report['empty_pct'] > limit else 'ok'
+            # ★ 打不開的畫面不能當「有資料」：多數打不開＝檢查本身沒做成（不是示範資料的問題，不送 AI 修）
+            # ☠️ 實機（2026-10-11 社群電商從零）：26 個畫面 25 個打不開（用了會員帳號），空白率算 0% → 通過
+            if report['counts'] and len(unopened) * 2 > len(report['counts']):
+                report['error'] = '檢查打不開 %s／%s 個畫面（角色帳號或後台問題），結果不可信' % (
+                    len(unopened), len(report['counts']))
+                state = 'failed'
         except Exception as e:  # noqa: BLE001 — 檢查失敗也要留下結果
             report['error'] = str(e)[:2000]
             state = 'failed'

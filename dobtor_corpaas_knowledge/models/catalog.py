@@ -482,6 +482,11 @@ class KnowledgeScenario(models.Model):
             if empty:
                 parts.append('<ul>%s</ul>' % ''.join(
                     '<li>%s</li>' % esc(labels.get(k) or k) for k in empty))
+            unopened = data.get('unopened') or []
+            if unopened:
+                parts.append('<p>%s</p><ul>%s</ul>' % (
+                    esc(_('打不開 %s 個畫面：') % len(unopened)),
+                    ''.join('<li>%s</li>' % esc(labels.get(k) or k) for k in unopened)))
             parts.append('<p class="text-muted small">%s</p>' % esc(_(
                 '以管理者身分、套用選單動作本身的篩選條件計數；畫面預設的「我的」篩選'
                 '沒有套用，實際截圖仍可能是空的。')))
