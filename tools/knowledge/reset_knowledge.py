@@ -4,6 +4,8 @@
     python3 tools/knowledge/reset_knowledge.py 13 14 --yes    # 真的清（含刪說明庫資料庫）
     python3 tools/knowledge/reset_knowledge.py 13 14 --outputs-only [--yes]
         # 只清產出（截圖腳本、截圖、文章、步驟、教學、缺口、已發佈手冊），保留已核准的盤點、情境、能力、流程
+    python3 tools/knowledge/reset_knowledge.py 13 14 --code [--yes]
+        # 連程式知識（模組摘要、段落、結論）一起清，只留程式碼版本（已抽出的官方原碼）：程式知識格式改版後重測用
 
 保留：AI 呼叫／更新／驗收紀錄（比較用）、環境規則、角色範本、示範資料包、程式知識（跟映像版本綁定）。
 方案上的設定（自動化等級、門檻）保留；方案上算出來的狀態（方案檔案、範圍快照、指紋）清掉。
@@ -29,6 +31,8 @@ CATALOG = ['corpaas.knowledge.feature', 'corpaas.knowledge.feature.class', 'corp
            'corpaas.knowledge.toggle', 'corpaas.knowledge.toggle.state', 'corpaas.knowledge.coverage',
            'corpaas.knowledge.official_doc', 'corpaas.knowledge.fingerprint', 'corpaas.knowledge.event',
            'corpaas.knowledge.sandbox']
+#: --code 另外清掉的程式知識；程式碼版本（code_tree：已抽出的官方原碼，跟映像版本綁定、內容不會變）照樣保留
+CODE = ['corpaas.knowledge.code_def', 'corpaas.knowledge.code_fact', 'corpaas.knowledge.module_summary']
 #: 方案上要清掉的「算出來的狀態」
 PKG_RESET = ['knowledge_cost_plan_at', 'knowledge_cost_plan_html', 'knowledge_fp_image', 'knowledge_fp_manifest',
              'knowledge_image_digest', 'knowledge_last_refresh', 'knowledge_last_token', 'knowledge_pending_full',
@@ -129,10 +133,11 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     dry = '--yes' not in sys.argv
     outputs_only = '--outputs-only' in sys.argv
+    keep = [m for m in KEEP if '--code' not in sys.argv or m not in CODE]
     pkgs = [int(a) for a in args if a.isdigit()]
     if not pkgs:
         sys.exit(__doc__)
-    script = SCRIPT % {'dry': dry, 'keep': KEEP + (CATALOG if outputs_only else []), 'pkgs': pkgs,
+    script = SCRIPT % {'dry': dry, 'keep': keep + (CATALOG if outputs_only else []), 'pkgs': pkgs,
                        'reset': [] if outputs_only else PKG_RESET, 'mark': MARK}
     host, key = setting('DEPLOY_HOST'), os.path.expandvars(setting('DEPLOY_KEY'))
     ctr, db = setting('DEPLOY_CONTAINER'), setting('DEPLOY_DB')
@@ -143,7 +148,8 @@ def main():
     if not line:
         sys.exit('沒有結果：\n%s\n%s' % (res.stdout[-2000:], res.stderr[-2000:]))
     out = json.loads(line[len(MARK):])
-    print(('試跑（已回滾）' if dry else '已清除') + ('（只清產出）' if outputs_only else ''))
+    print(('試跑（已回滾）' if dry else '已清除') + ('（只清產出）' if outputs_only else '')
+          + ('（含程式知識）' if '--code' in sys.argv else ''))
     for m, n in sorted(out['deleted'].items(), key=lambda kv: -kv[1]):
         print('  %6s  %s' % (n, m))
     print('保留：', out['kept'])
