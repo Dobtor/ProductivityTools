@@ -110,6 +110,27 @@ class KnowledgeCodeFact(models.Model):
     verified = fields.Boolean(string='實拍證實', readonly=True)
     state = fields.Selection([('structural', '只有結構'), ('current', '有效'), ('stale', '過期'),
                               ('suspect', '可疑')], default='structural', required=True, readonly=True)
+    fact_text = fields.Text(string='結論（展開）', compute='_compute_fact_text')
+
+    _LABELS = {'preconditions': '前提', 'transitions': '狀態轉換', 'creates': '建立的記錄',
+               'opens': '會開的精靈或畫面', 'requires_config': '需要的設定', 'errors': '可能出現的錯誤'}
+
+    @api.depends('fact_json')
+    def _compute_fact_text(self):
+        for rec in self:
+            try:
+                data = json.loads(rec.fact_json or '{}')
+            except ValueError:
+                data = {}
+            out = []
+            for key, label in self._LABELS.items():
+                v = data.get(key)
+                if not v:
+                    continue
+                if key == 'transitions':
+                    v = ['%s → %s' % (t.get('from') or '?', t.get('to') or '?') for t in v if isinstance(t, dict)]
+                out.append('%s：%s' % (label, '；'.join(map(str, v)) if isinstance(v, list) else v))
+            rec.fact_text = '\n'.join(out) or False
 
     _sql_constraints = [('chain_uniq', 'unique(subject, chain_hash)', '同一條繼承鏈只記一筆')]
 
@@ -128,8 +149,34 @@ class KnowledgeModuleSummary(models.Model):
     summary_json = fields.Text(string='AI 摘要', readonly=True,
                                help='AI 讀過程式：做什麼、核心規則、跟哪些模組串接、主要模型')
     source = fields.Selection([('ai', 'AI 讀過程式'), ('facts', '只有結構事實')], readonly=True)
+    # 畫面用（從 JSON 展開，唯讀）
+    title = fields.Char(string='模組名稱', compute='_compute_display_parts')
+    purpose = fields.Char(string='用途', compute='_compute_display_parts')
+    rules_text = fields.Text(string='核心規則', compute='_compute_display_parts')
+    links_text = fields.Text(string='串接', compute='_compute_display_parts')
+    setup_text = fields.Text(string='前置設定', compute='_compute_display_parts')
+    models_text = fields.Text(string='主要模型', compute='_compute_display_parts')
+    depends_text = fields.Char(string='相依模組', compute='_compute_display_parts')
 
     _sql_constraints = [('module_hash_uniq', 'unique(module, dir_hash)', '同一版模組只記一筆')]
+
+    @api.depends('summary_json', 'facts_json')
+    def _compute_display_parts(self):
+        def lines(v):
+            return '\n'.join('・%s' % x for x in (v or [])) or False
+        for rec in self:
+            b = rec.brief()
+            try:
+                facts = json.loads(rec.facts_json or '{}')
+            except ValueError:
+                facts = {}
+            rec.title = facts.get('name') or rec.module
+            rec.purpose = b.get('purpose') or False
+            rec.rules_text = lines(b.get('rules'))
+            rec.links_text = lines(b.get('links'))
+            rec.setup_text = lines(b.get('setup'))
+            rec.models_text = lines(b.get('key_models') or facts.get('new_models'))
+            rec.depends_text = '、'.join(facts.get('depends') or []) or False
 
     def brief(self):
         """給提示用的精簡版。"""
@@ -412,6 +459,21 @@ class SolutionPackageCode(models.Model):
                 if not txn.in_tests(self.env):
                     self.env.cr.commit()
         return done
+
+    def action_knowledge_module_summaries(self):
+        """方案表單的「模組摘要」：這個方案目前用到的自訂模組（依目前的目錄雜湊）。"""
+        self.ensure_one()
+        addons = (self.knowledge_profile().get('code') or {}).get('addons') or {}
+        scope = self._knowledge_scope_names()
+        Summary = self.env['corpaas.knowledge.module_summary'].sudo()
+        ids = []
+        for m, d in addons.items():
+            if scope and m not in scope:
+                continue
+            ids += Summary.search([('module', '=', m), ('dir_hash', '=', d.get('hash'))]).ids
+        return {'type': 'ir.actions.act_window', 'name': '模組摘要：%s' % self.display_name,
+                'res_model': 'corpaas.knowledge.module_summary', 'view_mode': 'list,form',
+                'domain': [('id', 'in', ids)]}
 
     def _knowledge_module_brief(self, limit=40):
         """方案自訂模組摘要的精簡清單（給提案、示範資料的提示用）；沒有就空清單。"""
