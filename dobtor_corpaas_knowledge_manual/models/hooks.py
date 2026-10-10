@@ -918,8 +918,9 @@ class KnowledgeHooks(models.AbstractModel):
         down = 0
         shots_by_id = {s['id']: s for s in shots}
         diag_cache = {}
+        gate = self._manual_gate_prefetch(sandbox, result, by_id)
         for sid, b in by_id.items():
-            # 逐張採用（D1 檢查要開 shell，每張約 5 秒）：送心跳，否則看門狗只看得到拍攝前的時間
+            # 逐張採用：送心跳，否則看門狗只看得到拍攝前的時間
             package._knowledge_heartbeat('kb_shoot', b.template_id.feature_id.name)
             r = (result.get('shots') or {}).get(sid) or {'ok': False, 'error': _('沒有結果')}
             if not r.get('ok') and (r.get('error') or '').startswith(BACKEND_DOWN):
@@ -954,7 +955,7 @@ class KnowledgeHooks(models.AbstractModel):
                 self.env['corpaas.knowledge.flow'].sudo()._knowledge_record_observations(
                     b.template_id.feature_id.model, r['transitions'])
             errors = self._manual_adopt_images(sandbox, b, r.get('images') or [], files,
-                                               threshold)
+                                               threshold, gate=gate)
             vals = {'last_result': json.dumps(r, ensure_ascii=False)[:100000],
                     'last_token': token, 'last_shot_at': fields.Datetime.now()}
             if errors:
@@ -984,7 +985,25 @@ class KnowledgeHooks(models.AbstractModel):
             assets.sudo().write({'state': 'superseded', 'superseded_at': fields.Datetime.now()})
 
     @api.model
-    def _manual_adopt_images(self, sandbox, binding, images, files, threshold):
+    def _manual_gate_prefetch(self, sandbox, result, by_id):
+        """整批成功的圖一次做 D1 檢查（原本每張圖各開一次 shell）。失敗就回 None，逐張查。"""
+        items = {}
+        for sid, r in (result.get('shots') or {}).items():
+            if sid not in by_id or not r.get('ok'):
+                continue
+            for img in r.get('images') or []:
+                if img.get('records') or img.get('refs'):
+                    items['%s|%s' % (sid, img.get('name'))] = (img.get('records') or {}, img.get('refs'))
+        if not items:
+            return {}
+        try:
+            return sandbox.gate_bad_records_batch(items)
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge.manual] 整批 D1 檢查失敗，改逐張：%s', e)
+            return None
+
+    @api.model
+    def _manual_adopt_images(self, sandbox, binding, images, files, threshold, gate=None):
         """步驟 4：D1 檢查 → dHash 比對 → 換圖。回傳錯誤 list。
 
         ★ 素材的 scope_hash＝範本指紋（不看是哪個方案拍的）：同指紋共用一份，不同指紋各自一份，
@@ -999,7 +1018,10 @@ class KnowledgeHooks(models.AbstractModel):
         now = fields.Datetime.now()
         for img in images:
             name = img.get('name')
-            bad = sandbox.gate_bad_records(img.get('records') or {}, img.get('refs'))
+            if gate is not None:
+                bad = gate.get('b%s|%s' % (binding.id, name)) or []
+            else:
+                bad = sandbox.gate_bad_records(img.get('records') or {}, img.get('refs'))
             if bad:
                 errors.append(_('%(n)s：畫面出現非示範資料 %(b)s（D1，不採用）',
                                 n=name, b=json.dumps(list(bad)[:10])))

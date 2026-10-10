@@ -804,6 +804,46 @@ def gate_script(pairs, since, refs=None, allow=CONFIG_MODELS):
     ) % (json.dumps(pairs), json.dumps(refs or {}), since, json.dumps(list(allow or ())))
 
 
+def gate_batch_script(items, since, allow=CONFIG_MODELS):
+    """D1 截圖前檢查，一次查一整批圖：items=[{'k': 鍵, 'pairs': {...}, 'refs': {...}}]。
+
+    回傳 {'bad': {鍵: [[model, id], ...]}}；規則與 gate_script 相同。
+    ★ 每張圖各開一次 odoo shell 要 ~10 秒：一批 20 張光檢查就 3 分多鐘（比拍照還久）。"""
+    return _HEAD + (
+        "ITEMS = json.loads(%r)\n"
+        "SINCE = %r\n"
+        "ALLOW = set(json.loads(%r))\n"
+        "mods = list(set(env['ir.module.module'].sudo().search([('state', '=', 'installed')]).mapped('name')))\n"
+        "Imd = env['ir.model.data'].sudo()\n"
+        "def _check(pairs, refs):\n"
+        "    pairs = {m: list(ids) for m, ids in pairs.items()}\n"
+        "    for key, ids in refs.items():\n"
+        "        model, _, path = key.partition('|')\n"
+        "        comodel = model if model in env else None\n"
+        "        for part in path.split('>'):\n"
+        "            f = env[comodel]._fields.get(part) if comodel else None\n"
+        "            comodel = f.comodel_name if f is not None and f.relational else None\n"
+        "        if comodel:\n"
+        "            pairs[comodel] = sorted(set(pairs.get(comodel, [])) | set(ids))\n"
+        "    bad = []\n"
+        "    for model, ids in pairs.items():\n"
+        "        if model not in env or not ids or model in ALLOW:\n"
+        "            continue\n"
+        "        ok = set(Imd.search([('model', '=', model), ('res_id', 'in', ids),\n"
+        "            '|', ('module', 'in', mods), ('module', '=like', '__doc_scenario_%%')]).mapped('res_id'))\n"
+        "        rest = [i for i in ids if i not in ok]\n"
+        "        if rest and 'create_date' in env[model]._fields:\n"
+        "            recent = env[model].sudo().with_context(active_test=False).search(\n"
+        "                [('id', 'in', rest), ('create_date', '>=', SINCE)]).ids\n"
+        "            rest = [i for i in rest if i not in recent]\n"
+        "        bad.extend([model, i] for i in rest)\n"
+        "    return bad\n"
+        "out = {it['k']: _check(it.get('pairs') or {}, it.get('refs') or {}) for it in ITEMS}\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps({'bad': out}))\n"
+    ) % (json.dumps(items), since, json.dumps(list(allow or ())))
+
+
 def fields_script(models):
     """示範資料起草用：各模型的欄位定義（唯讀）。只回必填、關聯、選項等 AI 需要的部分。"""
     return _HEAD + (

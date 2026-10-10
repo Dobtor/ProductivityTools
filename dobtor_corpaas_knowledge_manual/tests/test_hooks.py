@@ -33,6 +33,9 @@ class FakeSandbox:
     def gate_bad_records(self, pairs, refs=None):
         return self.bad
 
+    def gate_bad_records_batch(self, items):
+        return {k: self.bad for k in items}
+
 
 @tagged('post_install', '-at_install')
 class TestManualHooks(ManualCase):

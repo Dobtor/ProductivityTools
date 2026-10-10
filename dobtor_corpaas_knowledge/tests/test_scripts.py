@@ -309,3 +309,22 @@ class TestScreenFilterScript(TransactionCase):
         self.assertTrue(any("share" in f.get('domain', '') for f in d['default_filters']),
                         '預設篩選「內部使用者」的 domain 要讀得出來')
         self.assertIsInstance(d['rules'], list)
+
+
+@tagged('post_install', '-at_install')
+class TestGateBatchScript(TransactionCase):
+
+    def test_batch_matches_single(self):
+        import json
+        admin = self.env.ref('base.partner_admin').id
+        mine = self.env['res.partner'].create({'name': 'old customer'})
+        self.env.cr.execute("UPDATE res_partner SET create_date = '2000-01-01' WHERE id = %s", [mine.id])
+        items = [{'k': 'a', 'pairs': {'res.partner': [admin]}, 'refs': {}},
+                 {'k': 'b', 'pairs': {}, 'refs': {'res.users|partner_id': [mine.id]}}]
+        printed = []
+        src = scripts.gate_batch_script(items, '2020-01-01 00:00:00', allow=())
+        exec(compile(src.replace('env.cr.rollback()', 'pass'), '<gate>', 'exec'),
+             {'env': self.env, 'print': printed.append})
+        bad = json.loads(printed[-1][len(scripts.MARK):])['bad']
+        self.assertEqual(bad['a'], [], '模組 xmlid 的記錄允許')
+        self.assertEqual(bad['b'], [['res.partner', mine.id]], '關聯欄位指到的舊記錄要擋')

@@ -398,6 +398,18 @@ class KnowledgeSandbox(models.Model):
         res = self._shell(scripts.gate_script(pairs or {}, since, refs or {}, allow=allow))
         return res.get('bad') or []
 
+    def gate_bad_records_batch(self, items):
+        """一次檢查多張圖：items={鍵: (pairs, refs)} → {鍵: 不允許的 [model, id]}（一次 shell）。"""
+        self.ensure_one()
+        todo = [{'k': k, 'pairs': p or {}, 'refs': r or {}} for k, (p, r) in items.items() if p or r]
+        if self.purge_skipped or not todo:
+            return {}
+        since = fields.Datetime.to_string(self.purged_at or self.ready_at
+                                          or fields.Datetime.now())
+        allow = tuple(scripts.CONFIG_MODELS) + tuple(self._rule_values('gate_allow_model'))
+        res = self._shell(scripts.gate_batch_script(todo, since, allow=allow))
+        return res.get('bad') or {}
+
     def action_rebuild(self):
         return self._enqueue_op('rebuild')
 
