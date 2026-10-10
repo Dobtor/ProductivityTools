@@ -18,6 +18,7 @@
 | [REQUIREMENTS_CONFORMANCE.md](REQUIREMENTS_CONFORMANCE.md) | **「符合需求嗎」** — 逐條對照主規畫書 §2.2；含「需求適用的路徑不是出貨路徑」與「閘門比需求鬆 2.5–25 倍」兩個關鍵落差 |
 | [OPTIMIZATION_RECOMMENDATIONS.md](OPTIMIZATION_RECOMMENDATIONS.md) | **「下一步做什麼」** — 分該做／可做／**不該做**，每條附代價、理由與依據的量測 |
 | [DEPLOYMENT_FOOTPRINT.md](DEPLOYMENT_FOOTPRINT.md) | **「`git pull` 會送多少東西到正式機」** — 實測 94.4 MB，排掉兩個模組的 `tests/` 後剩 9.0 MB；含兩個陷阱（`tests/` 這個樣式會把 `static/tests/` 一起排掉；`git sparse-checkout` 要 2.25+）與部署端的兩種寫法 |
+| [FILE_ARCHITECTURE.md](FILE_ARCHITECTURE.md) | **「每個目錄是幹什麼的／新檔案該放哪」** — 兩個模組逐目錄的用途與規模；含兩條管線的差別、78 支不可達 TS 的分軸表、哪些目錄不會跟著部署下去 |
 
 ☠️ 提案任何優化之前先查 `OPTIMIZATION_RECOMMENDATIONS.md` 的「不該做」那張表。
 表上有的，除非帶著新的量測數字來推翻它的理由，否則不要重新提案

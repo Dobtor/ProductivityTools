@@ -154,7 +154,7 @@ class TestDocLinks(TransactionCase):
                 '——照抄的人會撲空。' % (name, mentioned))
 
     #: 治理文件（回答「完成了嗎／還有什麼沒查／符合需求嗎／下一步做什麼／
-    #: 部署會送多少東西下去」）——這幾份是給人**現在**讀的，
+    #: 部署會送多少東西下去／每個目錄是幹什麼的」）——這幾份是給人**現在**讀的，
     #: 不被 INDEX 列到就等於不存在。
     GOVERNANCE_DOCS = (
         'DONE_CRITERIA.md',
@@ -162,6 +162,7 @@ class TestDocLinks(TransactionCase):
         'REQUIREMENTS_CONFORMANCE.md',
         'OPTIMIZATION_RECOMMENDATIONS.md',
         'DEPLOYMENT_FOOTPRINT.md',
+        'FILE_ARCHITECTURE.md',
     )
 
     def test_governance_docs_are_listed_in_the_index(self):
