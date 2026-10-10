@@ -121,7 +121,9 @@ def main():
             except Exception:  # noqa: BLE001
                 time.sleep(2)
         act = '/odoo/action-kb_hard_env.action_doc'
-        draft = shell(scripts._HEAD + "print(MARK + json.dumps({'id': env.ref('kb_hard_env.doc_draft').id}))\n")['id']
+        # 資料庫會沿用：上一次點過「標記撥款」，先退回草稿
+        draft = shell(scripts._HEAD + "d = env.ref('kb_hard_env.doc_draft')\nd.state = 'draft'\nenv.cr.commit()\n"
+                      "print(MARK + json.dumps({'id': d.id}))\n")['id']
         btn = run_runner([{'id': 'button', 'login': 'doc_admin', 'password': PW, 'steps': [
             {'goto': {'action': 'kb_hard_env.action_doc', 'res_id': draft}},
             {'click': {'button': '標記撥款'}}, {'shot': 'after_click'}]}])['button']
