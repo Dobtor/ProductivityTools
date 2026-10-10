@@ -656,6 +656,75 @@ def seed_script(module, records, roles, password):
     ) % (module, json.dumps(records), json.dumps(roles), password)
 
 
+def access_diag_script(login, model, res_id=None):
+    """診斷「某帳號為什麼看不到某模型／某筆記錄」（唯讀，計畫第 26 項）。
+
+    回傳：帳號、模型讀取權限、這筆記錄（sudo 看）的公司、帳號能看的公司、套用到這個模型的
+    記錄規則（名稱、群組、domain、對這筆是否成立）、以帳號身分搜不搜得到這筆。
+    ☠️ 實機：佣金結算單連系統管理員都打不開，沒有工具只能推論是公司規則還是群組。
+    """
+    return _HEAD + (
+        "LOGIN = %r\nMODEL = %r\nRID = %r\n"
+        "out = {'login': LOGIN, 'model': MODEL, 'res_id': RID}\n"
+        "u = env['res.users'].sudo().with_context(active_test=False).search([('login', '=', LOGIN)], limit=1)\n"
+        "if not u or MODEL not in env:\n"
+        "    out['error'] = 'no user or model'\n"
+        "else:\n"
+        "    M = env[MODEL].with_user(u)\n"
+        "    out['groups'] = len(u.groups_id)\n"
+        "    out['companies'] = u.company_ids.mapped('name')\n"
+        "    out['company'] = u.company_id.name\n"
+        "    try:\n"
+        "        out['acl_read'] = bool(M.check_access_rights('read', raise_exception=False))\n"
+        "    except Exception as e:\n"
+        "        out['acl_read'] = 'ERR %%s' %% str(e)[:120]\n"
+        "    rec = env[MODEL].sudo().browse(RID).exists() if RID else env[MODEL]\n"
+        "    if rec and 'company_id' in rec._fields:\n"
+        "        out['record_company'] = rec.company_id.name or ''\n"
+        "    if RID:\n"
+        "        try:\n"
+        "            out['visible_as_user'] = bool(M.search_count([('id', '=', RID)]))\n"
+        "        except Exception as e:\n"
+        "            out['visible_as_user'] = 'ERR %%s' %% str(e)[:120]\n"
+        "    rules = []\n"
+        "    ugroups = set(u.groups_id.ids)\n"
+        "    for r in env['ir.rule'].sudo().search([('model_id.model', '=', MODEL), ('perm_read', '=', True)]):\n"
+        "        if r.groups and not (set(r.groups.ids) & ugroups):\n"
+        "            continue\n"
+        "        item = {'name': r.name, 'global': not r.groups, 'domain': (r.domain_force or '')[:200]}\n"
+        "        if RID and rec:\n"
+        "            try:\n"
+
+        "                from odoo.tools.safe_eval import safe_eval\n"
+        "                d = safe_eval(r.domain_force or '[]', r.with_user(u)._eval_context())\n"
+        "                item['matches'] = bool(env[MODEL].sudo().search_count([('id', '=', RID)] + list(d)))\n"
+        "            except Exception as e:\n"
+        "                item['matches'] = 'ERR %%s' %% str(e)[:80]\n"
+        "        rules.append(item)\n"
+        "    out['rules'] = rules[:20]\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out, default=str))\n"
+    ) % (login, model, res_id)
+
+
+def access_diag_text(d):
+    """診斷結果 → 一句看得懂的原因。"""
+    if not d or d.get('error'):
+        return ''
+    parts = []
+    if d.get('acl_read') is False:
+        parts.append('帳號 %s 沒有 %s 的讀取權限（存取控制清單）' % (d['login'], d['model']))
+    blocking = [r['name'] for r in d.get('rules') or [] if r.get('matches') is False]
+    if blocking:
+        parts.append('記錄規則擋住：%s' % '、'.join(blocking[:3]))
+    if d.get('record_company') and d['record_company'] not in (d.get('companies') or []):
+        parts.append('這筆屬於公司「%s」，帳號只能看 %s' % (
+            d['record_company'], '、'.join(d.get('companies') or [])))
+    if not parts and d.get('visible_as_user') is False:
+        parts.append('帳號搜不到這筆（原因未明，請看規則清單）')
+    return '；'.join(parts)
+
+
 def gate_script(pairs, since, refs=None, allow=CONFIG_MODELS):
     """D1 截圖前檢查。
 

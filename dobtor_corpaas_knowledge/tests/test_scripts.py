@@ -182,6 +182,26 @@ class TestScripts(TransactionCase):
         self.assertTrue(seed_errors_fatal({'done': 10, 'errors': [{}] * 5}))
         self.assertFalse(seed_errors_fatal({'done': 3, 'errors': []}))
 
+    def _diag(self, login, model, rid=None):
+        src = scripts.access_diag_script(login, model, rid).replace('env.cr.rollback()', 'pass')
+        printed = []
+        exec(compile(src, '<diag>', 'exec'), {'env': self.env, 'print': printed.append})
+        import json
+        return json.loads(printed[-1][len(scripts.MARK):])
+
+    def test_access_diag_acl_and_company(self):
+        """唯讀診斷（計畫第 26 項）：沒有讀取權限、記錄屬於別家公司，都講得出原因。"""
+        user = self.env['res.users'].create({'name': '診斷員工', 'login': 'kb_diag_user',
+                                             'groups_id': [(6, 0, [self.env.ref('base.group_user').id])]})
+        d = self._diag('kb_diag_user', 'ir.config_parameter')
+        self.assertFalse(d['acl_read'])
+        self.assertIn('讀取權限', scripts.access_diag_text(d))
+        other = self.env['res.company'].create({'name': 'KB 另一家公司'})
+        p = self.env['res.partner'].create({'name': '別家客戶', 'company_id': other.id})
+        d = self._diag(user.login, 'res.partner', p.id)
+        self.assertFalse(d['visible_as_user'])
+        self.assertIn('KB 另一家公司', scripts.access_diag_text(d))
+
     def test_runner_signature_follows_file_changes(self):
         """截圖程式單獨換檔（不重啟）時簽章跟著變，舊截圖才會重拍。"""
         import os

@@ -371,6 +371,12 @@ class KnowledgeSandbox(models.Model):
             "print(MARK + json.dumps(out))\n") % json.dumps(sorted(set(xmlids)))
         return self._shell(script)
 
+    def diagnose_access(self, login, model, res_id=None):
+        """唯讀診斷某帳號看不到某模型／某筆記錄的原因（計畫第 26 項）。回傳 (詳細, 一句話)。"""
+        self.ensure_one()
+        d = self._shell(scripts.access_diag_script(login, model, res_id)) or {}
+        return d, scripts.access_diag_text(d)
+
     def gate_bad_records(self, pairs, refs=None):
         """D1 截圖前檢查：回傳不在允許集合內的 [model, id]。
 

@@ -399,6 +399,29 @@ class KnowledgeHooks(models.AbstractModel):
         return res
 
     @api.model
+    def _manual_access_diagnosis(self, sandbox, login, error, url, cache):
+        """存取錯誤：到說明庫唯讀查原因（權限清單、記錄規則、公司），回一句話（計畫第 26 項）。"""
+        import re
+        if not login or '存取錯誤' not in (error or '') or not hasattr(sandbox, 'diagnose_access'):
+            return ''
+        m = re.search(r'\(([a-z_][a-z0-9_]*(?:\.[a-z0-9_]+)+)\)', error)
+        if not m:
+            return ''
+        model = m.group(1)
+        rid = None
+        u = re.search(r'/odoo/%s/(\d+)' % re.escape(model), url or '')
+        if u:
+            rid = int(u.group(1))
+        key = (login, model, rid)
+        if key not in cache:
+            try:
+                cache[key] = sandbox.diagnose_access(login, model, rid)[1]
+            except Exception as e:  # noqa: BLE001 — 診斷失敗不影響拍攝
+                _logger.info('[knowledge.manual] 存取診斷失敗 %s：%s', key, e)
+                cache[key] = ''
+        return cache[key]
+
+    @api.model
     def _manual_canary_first(self, bindings, canary):
         """前哨批放最前面：每個登入角色先挑一張，再補到 canary 張（各角色的問題第一批就看得到）。"""
         first, seen = [], set()
@@ -883,6 +906,8 @@ class KnowledgeHooks(models.AbstractModel):
             return failed
         threshold = int(settings.get('phash_threshold') or 10)
         down = 0
+        shots_by_id = {s['id']: s for s in shots}
+        diag_cache = {}
         for sid, b in by_id.items():
             # 逐張採用（D1 檢查要開 shell，每張約 5 秒）：送心跳，否則看門狗只看得到拍攝前的時間
             package._knowledge_heartbeat('kb_shoot', b.template_id.feature_id.name)
@@ -897,7 +922,12 @@ class KnowledgeHooks(models.AbstractModel):
             if not r.get('ok'):
                 if (r.get('error') or '').startswith('畫面出現錯誤對話框'):
                     self._manual_retire_assets(b)
-                self._manual_fail(b, r.get('error') or '', result=r)
+                err = r.get('error') or ''
+                diag = self._manual_access_diagnosis(sandbox, shots_by_id.get(sid, {}).get('login'),
+                                                     err, r.get('url'), diag_cache)
+                if diag:
+                    err = '%s\n診斷：%s' % (err, diag)
+                self._manual_fail(b, err, result=r)
                 failed |= b
                 continue
             empty = [i.get('name') for i in r.get('images') or []
