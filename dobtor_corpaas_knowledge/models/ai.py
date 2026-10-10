@@ -35,7 +35,7 @@ DEFAULT_UNIT_COST = {
     'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
     'manual_explore': 0.12, 'manual_repair': 0.11, 'manual_bind': 0.05,
     'manual_step_block': 0.05, 'manual_scenario': 0.06, 'manual_fork': 0.05,
-    'scenario_seed': 0.40, 'seed_repair': 0.40, 'seed_gap_fill': 0.30,
+    'scenario_seed': 0.40, 'seed_repair': 0.40, 'seed_gap_fill': 0.30, 'manual_review': 0.03,
 }
 
 

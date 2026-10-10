@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識：操作說明',
-    'version': '18.0.1.15.3',
+    'version': '18.0.1.16.1',
     'category': 'Productivity/Knowledge',
     'summary': '方案知識出口一：功能 × 情境的操作說明，自動截圖標註、推到方案的文件型 slide 課程',
     'description': '''
@@ -30,6 +30,7 @@ CorPaaS 方案知識：操作說明（出口一）
         'views/sandbox_overview_views.xml',
         'views/website_slides_templates.xml',
         'views/guide_views.xml',
+        'views/self_review_views.xml',
     ],
     'installable': True,
     'application': False,

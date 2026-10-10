@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_package_form_automation" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.package.form.automation</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_kb_package_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='knowledge_document_native']" position="after">
+                <field name="knowledge_automation"/>
+            </xpath>
+        </field>
+    </record>
+    <record id="view_kb_article_form_review" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.article.form.review</field>
+        <field name="model">corpaas.knowledge.article</field>
+        <field name="inherit_id" ref="view_kb_article_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="自審" invisible="not manual_review_state">
+                    <field name="manual_review_state"/>
+                    <field name="manual_review_note"/>
+                    <field name="manual_review_sampled"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

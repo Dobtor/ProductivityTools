@@ -1111,6 +1111,15 @@ class KnowledgeHooks(models.AbstractModel):
             me._manual_repair_bindings(package, me._manual_relevant_bindings(package),
                                        token, stop)
             me._manual_reconcile(package, token, stop)
+            # 單一核准關卡（計畫第 22、23 項）：剛寫好、待審的文章先自審，通過就系統核准上線
+            from odoo.addons.dobtor_corpaas_knowledge.services import txn
+            pub = bad = 0
+            if not txn.in_tests(self.env) or self.env.context.get('kb_test_autopublish'):
+                pub, bad = me._manual_auto_publish(package, token, stop)
+            if pub or bad:
+                stats = ctx.setdefault('stats', {})
+                stats['auto_published'] = stats.get('auto_published', 0) + pub
+                stats['review_failed'] = stats.get('review_failed', 0) + bad
         self._manual_propose_merges(self.env['corpaas.knowledge.feature'].union(
             *self._manual_candidates(package).keys()))
         try:

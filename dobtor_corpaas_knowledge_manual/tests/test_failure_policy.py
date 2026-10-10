@@ -134,3 +134,51 @@ class TestPreflightHealth(ManualCase):
         run.assert_not_called()
         self.assertEqual(b.state, 'pending')
         self.assertIn('健檢', b.last_error)
+
+
+@tagged('post_install', '-at_install')
+class TestSelfReview(ManualCase):
+    """產出自審與單一核准關卡（計畫第 22、23 項）。"""
+
+    def _review_article(self):
+        art = self._article(self.f1, self.cap_a)
+        art.knowledge_propose('new')
+        self.assertEqual(art.state, 'review')
+        return art
+
+    def test_pass_auto_publishes_fail_goes_to_exceptions(self):
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        good = self._review_article()
+        with patch.object(Ai, 'ask', return_value={'ok': True, 'problems': []}) as ask:
+            pub, bad = self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        self.assertEqual((pub, bad), (1, 0))
+        self.assertEqual(good.state, 'published', '自審通過就由系統核准上線')
+        self.assertEqual(good.manual_review_state, 'pass')
+        self.assertEqual(ask.call_args[0][0], 'manual_review')
+        bad_art = self._review_article()
+        with patch.object(Ai, 'ask', return_value={'ok': False, 'problems': ['步驟提到的按鈕截圖裡沒有']}):
+            pub, bad = self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        self.assertEqual(bad_art.state, 'review', '不過就留在待審（例外清單）')
+        self.assertEqual(bad_art.manual_review_state, 'fail')
+        self.assertIn('按鈕', bad_art.manual_review_note)
+
+    def test_conservative_level_never_auto_approves(self):
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        self.pkg.knowledge_automation = 'conservative'
+        art = self._review_article()
+        with patch.object(Ai, 'ask') as ask:
+            self.assertEqual(self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False}), (0, 0))
+        ask.assert_not_called()
+        self.assertEqual(art.state, 'review')
+
+    def test_rpc_cannot_use_system_approve(self):
+        """外部呼叫帶 context 也不能略過核准者檢查（沒有 su）。"""
+        from odoo.exceptions import AccessError
+        from odoo.tests.common import new_test_user
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        art = self._review_article()
+        plain = new_test_user(self.env, 'kb_plain_review', groups='base.group_user')
+        with self.assertRaises(AccessError):
+            art.with_user(plain).with_context(knowledge_system_approve=True).action_approve()

@@ -79,6 +79,8 @@ class KnowledgeRun(models.Model):
                   'shots_backend_down': _('說明庫後台打不開'),
                   'shots_halted': _('整批提前終止（未拍）'),
                   'roles_down': _('健檢：登不進去的角色'),
+                  'auto_published': _('自審通過自動上線'),
+                  'review_failed': _('自審不過（例外清單）'),
                   'repair_skipped_env': _('不修腳本（環境／資料問題）'),
                   'repair_skipped_same': _('同一錯誤不再修'),
                   'public_ok': _('前台抽查通過'), 'public_failed': _('前台抽查失敗'),

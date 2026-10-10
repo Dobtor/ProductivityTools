@@ -13,3 +13,4 @@ from . import guide
 from . import tutorial
 from . import concept
 from . import acceptance
+from . import self_review

@@ -176,6 +176,10 @@ class KnowledgeContentMixin(models.AbstractModel):
         })
 
     def _check_approver(self):
+        # ★ 系統自動核准（自審通過，計畫第 22 項）：只有程式內部 sudo＋專用 context 能走這條；
+        #   RPC 呼叫拿不到 su，無法借道略過核准者檢查
+        if self.env.su and self.env.context.get('knowledge_system_approve'):
+            return
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_approver'):
             raise AccessError(_('只有知識內容核准者可以核准或退回。'))
 

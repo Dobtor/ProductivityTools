@@ -36,6 +36,10 @@
                 <filter name="to_review" string="待核" domain="[('state', '=', 'review')]"/>
                 <filter name="stale" string="失效" domain="[('state', '=', 'stale')]"/>
                 <filter name="live" string="上線中" domain="[('state', 'in', ('published', 'stale'))]"/>
+                <separator/>
+                <filter name="exceptions" string="例外清單（自審不過）"
+                        domain="[('state', '=', 'review'), ('manual_review_state', '=', 'fail')]"/>
+                <filter name="sampled" string="待抽查（自動上線）" domain="[('manual_review_sampled', '=', True)]"/>
                 <group expand="0" string="分組">
                     <filter name="by_scenario" string="情境" context="{'group_by': 'scenario_id'}"/>
                     <filter name="by_capability" string="能力" context="{'group_by': 'capability_id'}"/>
