@@ -76,7 +76,8 @@ def _call(service, method, *args):
     if 'error' in res:
         data = res['error'].get('data') or {}
         raise RpcError('%s: %s' % (data.get('name'), data.get('message') or res['error']))
-    return res['result']
+    # ★ Odoo 18 的 JSON-RPC：方法回 None 時回應裡**沒有** result 鍵（不是 result: null）
+    return res.get('result')
 
 
 _SESSION = {}
