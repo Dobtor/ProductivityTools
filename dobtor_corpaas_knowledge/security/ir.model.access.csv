@@ -52,8 +52,8 @@ access_kb_run_editor,kb.run.editor,model_corpaas_knowledge_run,group_knowledge_e
 access_kb_run_manager,kb.run.manager,model_corpaas_knowledge_run,group_knowledge_manager,1,1,1,1
 access_kb_seed_pack_editor,kb.seed_pack.editor,model_corpaas_knowledge_seed_pack,group_knowledge_editor,1,1,1,0
 access_kb_seed_pack_manager,kb.seed_pack.manager,model_corpaas_knowledge_seed_pack,group_knowledge_manager,1,1,1,1
-access_kb_gap_editor,kb.gap.editor,model_corpaas_knowledge_gap_item,group_knowledge_editor,1,1,1,0
-access_kb_gap_manager,kb.gap.manager,model_corpaas_knowledge_gap_item,group_knowledge_manager,1,1,1,1
+access_kb_gap_item_editor,kb.gap.item.editor,model_corpaas_knowledge_gap_item,group_knowledge_editor,1,1,1,0
+access_kb_gap_item_manager,kb.gap.item.manager,model_corpaas_knowledge_gap_item,group_knowledge_manager,1,1,1,1
 access_kb_library_editor,kb.library.editor,model_corpaas_knowledge_library,group_knowledge_editor,1,0,0,0
 access_kb_library_manager,kb.library.manager,model_corpaas_knowledge_library,group_knowledge_manager,1,1,1,1
 access_kb_rule_editor,kb.rule.editor,model_corpaas_knowledge_rule,group_knowledge_editor,1,0,0,0
