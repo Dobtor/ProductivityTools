@@ -76,6 +76,8 @@ class TestPackageProfile(ManualCase):
         self.assertEqual(login_mode('http://sb:8069/?popup=login&redirect=%2F'), 'popup')
         self.assertEqual(login_mode('http://sb:8069/web/login'), 'standard')
         self.assertEqual(login_mode('http://sb:8069/my'), 'redirect')
+        self.assertEqual(login_mode('http://sb:8069/', ['/web/login', '/?popup=login&redirect=%2F', '/']),
+                         'popup', '中途經過彈窗網址也算')
         self.pkg._knowledge_update_profile({'companies': 1, 'website': True, 'websites': 1,
                                             'custom_groups': [{'xmlid': 'x.g', 'name': '佣金管理員'}]})
         self.pkg._knowledge_update_profile({'login_mode': 'popup'})

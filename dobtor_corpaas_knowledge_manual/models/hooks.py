@@ -43,10 +43,12 @@ MAX_REPAIRS = 3
 BACKEND_DOWN = '後台沒有載入'
 
 
-def login_mode(url):
-    """訪客開 /web/login 最後停在哪：standard 標準登入頁／popup 首頁彈窗／redirect 被導到別頁。"""
+def login_mode(url, navigations=()):
+    """訪客開 /web/login 最後停在哪：standard 標準登入頁／popup 首頁彈窗／redirect 被導到別頁。
+
+    ☠️ 實機：彈窗網址 /?popup=login 只是中途經過，最後停在 /——要連經過的網址一起看。"""
     url = url or ''
-    if 'popup=login' in url:
+    if 'popup=login' in url or any('popup=login' in (n or '') for n in navigations or ()):
         return 'popup'
     path = url.split('://', 1)[-1].split('/', 1)[-1].split('?')[0]
     return 'standard' if path.rstrip('/').endswith('web/login') else 'redirect'
@@ -484,7 +486,7 @@ class KnowledgeHooks(models.AbstractModel):
                       'checked': fields.Datetime.to_string(fields.Datetime.now())}
             vals = {'health': health}
             if probe.get('ok'):
-                vals['login_mode'] = login_mode(probe.get('url'))
+                vals['login_mode'] = login_mode(probe.get('url'), probe.get('navigations'))
             pkg._knowledge_update_profile(vals)
         error = (got.get('preflight') or {}).get('error') or ''
         if not error.startswith(BACKEND_DOWN):
