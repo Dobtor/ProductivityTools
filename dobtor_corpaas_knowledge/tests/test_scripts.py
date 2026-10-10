@@ -578,3 +578,25 @@ class TestModuleSummary(TransactionCase):
             self.assertFalse(pkg._knowledge_flow_names(None))
         ask.assert_not_called()
         self.assertTrue(flow)
+
+
+@tagged('post_install', '-at_install')
+class TestPackRoles(TransactionCase):
+
+    def test_scenario_gets_roles_used_by_packs(self):
+        import json
+        Role = self.env['corpaas.knowledge.role'].sudo()
+        purchase = Role.search([('code', '=', 'purchase')], limit=1) or Role.create(
+            {'code': 'purchase', 'name': '採購', 'group_xmlids': 'purchase.group_purchase_user'})
+        member = Role.search([('code', '=', 'member')], limit=1) or Role.create({'code': 'member', 'name': '會員', 'group_xmlids': 'base.group_portal'})
+        pack = self.env['corpaas.knowledge.seed_pack'].sudo().create({
+            'name': '採購包', 'code': 'kbt_po',
+            'seed_json': json.dumps([{'xmlid': 'po_1', 'model': 'purchase.order',
+                                      'values': {'user_id': '__ref__:user_purchase'}}])})
+        sc = self.env['corpaas.knowledge.scenario'].sudo().create(
+            {'name': 'S', 'code': 'kbt_pr', 'narrative': 'n', 'role_ids': [(6, 0, member.ids)],
+             'pack_ids': [(6, 0, pack.ids)]})
+        added = sc._ensure_pack_roles()
+        self.assertEqual(added, purchase, '資料包用到採購帳號：補上採購角色')
+        self.assertIn(purchase, sc.role_ids)
+        self.assertFalse(sc._ensure_pack_roles(), '補過就不再補')

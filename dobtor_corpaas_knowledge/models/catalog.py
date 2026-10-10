@@ -437,6 +437,7 @@ class KnowledgeScenario(models.Model):
             if raise_if_no_package:
                 raise UserError(_('情境「%s」還沒有被任何方案引用，沒有黃金庫可以重播。') % self.name)
             return False
+        self._ensure_pack_roles()
         self.sudo().write({'seed_check_state': 'queued', 'seed_check_report': False})
         # ★ params 帶修訂號：檢查有錯 → AI 修正 → 再送審，是在「同一張還在跑的檢查單」裡排下一張；
         #   params 相同會被佇列去重吃掉（實機：修正後的第二次檢查從沒跑，狀態一直停在排隊中）
@@ -588,6 +589,7 @@ class KnowledgeScenario(models.Model):
             #   文章的情境說明照敘事寫，就會出現截圖裡看不到的東西
             vals['narrative'] = data['narrative'].strip()
         self.write(vals)
+        self._ensure_pack_roles()
         self.knowledge_propose('new' if not self.published_rev_no else 'text',
                                note=_('AI 組裝示範資料（資料包 %s 個＋補 %s 筆）')
                                % (len(chosen), len(extra)))
@@ -825,6 +827,26 @@ class KnowledgeScenario(models.Model):
         """含資料包與祖先的示範資料（目前欄位，未核准的也算）：AI 起草與欄位盤點用。"""
         self.ensure_one()
         return self.live_seed(draft=True)
+
+    def _ensure_pack_roles(self):
+        """資料包用到的角色帳號（user_<code>）情境一定要有：沒有就從角色範本補上。
+
+        ★ 資料包的採購單掛在 user_purchase 名下；情境沒有採購角色時，參照會落到資料包自己的命名空間、
+          找不到帳號，整組採購資料重播失敗。這種錯在資料包裡，AI 修情境腳本修不到。
+        ☠️ 實機（2026-10-11 從零）：方案 14 的情境角色是會員、業務、會計、網站管理、系統管理員，
+          採購資料包 6 筆全部「External ID not found: __doc_pack_purchase_flow.user_purchase」。
+        回傳補上的角色。"""
+        self.ensure_one()
+        Role = self.env['corpaas.knowledge.role'].sudo()
+        have = set(self.all_roles().mapped('code'))
+        codes = set()
+        for pack in self.pack_ids:
+            codes |= set(re.findall(r'(?<![A-Za-z0-9_])user_([a-z0-9]+)\b', pack.seed_json or ''))
+        missing = Role.search([('code', 'in', sorted(codes - have))])
+        if missing:
+            self.sudo().write({'role_ids': [(4, r.id) for r in missing]})
+            self.message_post(body=_('資料包用到的角色已自動補上：%s') % '、'.join(missing.mapped('name')))
+        return missing
 
     def all_roles(self):
         self.ensure_one()
