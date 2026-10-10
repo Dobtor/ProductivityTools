@@ -114,6 +114,36 @@ class KnowledgeCodeFact(models.Model):
     _sql_constraints = [('chain_uniq', 'unique(subject, chain_hash)', '同一條繼承鏈只記一筆')]
 
 
+class KnowledgeModuleSummary(models.Model):
+    _name = 'corpaas.knowledge.module_summary'
+    _description = '擴充模組摘要（讀過程式）'
+    _rec_name = 'module'
+    _order = 'module, id desc'
+
+    module = fields.Char(required=True, index=True, readonly=True)
+    dir_hash = fields.Char(string='目錄雜湊', required=True, index=True, readonly=True,
+                           help='模組內容沒變（雜湊相同）就沿用，換方案也共用')
+    facts_json = fields.Text(string='結構事實', readonly=True,
+                             help='系統抽的：說明檔、相依、新增／繼承的模型、狀態值')
+    summary_json = fields.Text(string='AI 摘要', readonly=True,
+                               help='AI 讀過程式：做什麼、核心規則、跟哪些模組串接、主要模型')
+    source = fields.Selection([('ai', 'AI 讀過程式'), ('facts', '只有結構事實')], readonly=True)
+
+    _sql_constraints = [('module_hash_uniq', 'unique(module, dir_hash)', '同一版模組只記一筆')]
+
+    def brief(self):
+        """給提示用的精簡版。"""
+        self.ensure_one()
+        facts = json.loads(self.facts_json or '{}')
+        out = {'module': self.module, 'name': facts.get('name')}
+        if self.summary_json:
+            out.update(json.loads(self.summary_json))
+        else:
+            out.update(purpose=facts.get('summary') or facts.get('description', '')[:200],
+                       key_models=facts.get('new_models', [])[:8])
+        return out
+
+
 class SolutionPackageCode(models.Model):
     _inherit = 'infrastructure.solution.package'
 
@@ -313,6 +343,84 @@ class SolutionPackageCode(models.Model):
             fact.write({'fact_json': json.dumps(data['fact'], ensure_ascii=False)[:4000], 'state': 'current'})
             done += 1
         return done
+
+    def _knowledge_module_summaries(self, token=None, limit=20):
+        """方案自訂模組的摘要（計畫第 53 項）：先抽結構事實，再請 AI 讀程式寫摘要。
+
+        ★ 依模組目錄雜湊沿用：模組沒改就不重讀，換方案也共用。AI 讀不到程式（沒掛載、Hub 沒授權）
+          就先只存結構事實，下次再補。回傳寫了幾份 AI 摘要。"""
+        self.ensure_one()
+        golden = self._knowledge_master()._corpaas_golden_db()
+        instance, db = golden.instance_id, golden.name
+        code = self.knowledge_profile().get('code') or {}
+        if not code.get('addons'):
+            ident = self._knowledge_code_identity(instance, db)
+            if ident.get('error'):
+                _logger.warning('[knowledge] 模組摘要：%s', ident['error'])
+                return 0
+            self._knowledge_update_profile({'code': ident})
+            code = ident
+        addons = code.get('addons') or {}
+        scope = self._knowledge_scope_names()
+        mods = sorted(m for m in addons if not scope or m in scope)
+        if not mods:
+            return 0
+        Summary = self.env['corpaas.knowledge.module_summary'].sudo()
+        todo = [m for m in mods if not Summary.search_count(
+            [('module', '=', m), ('dir_hash', '=', addons[m]['hash']), ('source', '=', 'ai')])]
+        if not todo:
+            return 0
+        facts = remote.shell_json(self.env, instance, db, scripts.module_facts_script(todo)) or {}
+        Ai = self.env['corpaas.knowledge.ai']
+        done = 0
+        for m in todo:
+            f = facts.get(m)
+            if not f:
+                continue
+            rec = Summary.search([('module', '=', m), ('dir_hash', '=', addons[m]['hash'])], limit=1) or \
+                Summary.create({'module': m, 'dir_hash': addons[m]['hash'], 'source': 'facts',
+                                'facts_json': json.dumps(f, ensure_ascii=False)})
+            where = self._knowledge_runner_path((f.get('path') or '') + '/__manifest__.py', instance)
+            if not where or done >= limit:
+                continue
+            prompt = (
+                "任務：讀 Odoo 擴充模組 %s 的程式（目錄 %s，唯讀；先看 __manifest__.py 與 models/ 下的 .py），"
+                "寫給「寫操作說明書的人」看的摘要。不要猜，只寫程式裡看得到的。\n"
+                "只回 JSON：{\"purpose\": \"這個模組解決什麼問題（一兩句）\", "
+                "\"rules\": [\"核心規則：什麼條件下做什麼、什麼情況會擋下（最多 8 條）\"], "
+                "\"links\": [\"跟哪些模組或模型串接、資料怎麼流\"], "
+                "\"key_models\": [\"主要模型\"], \"setup\": [\"使用前要先設定的\"]}\n\n系統抽的結構事實：%s"
+            ) % (m, where.rsplit('/', 1)[0], json.dumps(f, ensure_ascii=False)[:3000])
+            try:
+                data = Ai.ask('module_summary', prompt, package=self, refresh_token=token,
+                              instance_ref=instance.id)
+            except hub_client.BudgetExceeded:
+                break
+            except Exception as e:  # noqa: BLE001 — 讀不到就先只有結構事實
+                _logger.info('[knowledge] 模組 %s 摘要沒有完成：%s', m, e)
+                continue
+            if isinstance(data, dict) and data.get('purpose'):
+                keep = {k: data[k] for k in ('purpose', 'rules', 'links', 'key_models', 'setup') if k in data}
+                rec.write({'summary_json': json.dumps(keep, ensure_ascii=False)[:4000], 'source': 'ai'})
+                done += 1
+        return done
+
+    def _knowledge_module_brief(self, limit=40):
+        """方案自訂模組摘要的精簡清單（給提案、示範資料的提示用）；沒有就空清單。"""
+        self.ensure_one()
+        code = self.knowledge_profile().get('code') or {}
+        addons = code.get('addons') or {}
+        scope = self._knowledge_scope_names()
+        Summary = self.env['corpaas.knowledge.module_summary'].sudo()
+        out = []
+        for m in sorted(addons):
+            if scope and m not in scope:
+                continue
+            rec = Summary.search([('module', '=', m), ('dir_hash', '=', addons[m].get('hash'))],
+                                 order='source, id desc', limit=1)
+            if rec:
+                out.append(rec.brief())
+        return out[:limit]
 
     def _knowledge_code_facts_for(self, subjects):
         """有效的程式結論 {model.method: dict}（給寫／修腳本的提示用）。"""

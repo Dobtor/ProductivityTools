@@ -32,7 +32,7 @@ CACHEABLE = {'classify_features', 'select', 'help_misses', 'flow_name', 'officia
 
 #: 單次呼叫的預設成本（USD）：沒有歷史紀錄時成本規劃器用這些（2026-10 實機平均）
 DEFAULT_UNIT_COST = {
-    'code_fact': 0.15, 'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
+    'code_fact': 0.15, 'module_summary': 0.15, 'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
     'manual_explore': 0.12, 'manual_repair': 0.11, 'manual_bind': 0.05,
     'manual_step_block': 0.05, 'manual_scenario': 0.06, 'manual_fork': 0.05,
     'scenario_seed': 0.40, 'seed_repair': 0.40, 'seed_gap_fill': 0.30, 'manual_review': 0.03,

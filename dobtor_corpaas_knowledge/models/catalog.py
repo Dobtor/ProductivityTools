@@ -847,7 +847,15 @@ class KnowledgeScenario(models.Model):
         package = self.package_ids[:1] if 'package_ids' in self._fields else None
         extra = self.env['corpaas.knowledge.rule'].values('seed_prompt', package or None,
                                                           track='prompt')
-        return text + ''.join('★ %s\n' % t for t in extra)
+        text += ''.join('★ %s\n' % t for t in extra)
+        # ★ 計畫第 53 項：方案自訂模組的規則（讀過程式）——必填、狀態條件、要先設定的，寫示範資料前先知道
+        brief = package._knowledge_module_brief() if package and hasattr(package, '_knowledge_module_brief') else []
+        rules = [{'module': b['module'], 'rules': b.get('rules'), 'setup': b.get('setup')}
+                 for b in brief if b.get('rules') or b.get('setup')]
+        if rules:
+            text += '★ 方案自訂模組的規則與前置設定（讀過程式；示範資料要符合）：%s\n' % json.dumps(
+                rules, ensure_ascii=False)[:8000]
+        return text
 
     def glossary_map(self):
         self.ensure_one()

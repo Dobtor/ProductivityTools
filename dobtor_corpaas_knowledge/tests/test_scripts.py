@@ -500,3 +500,69 @@ class TestCodeSemantic(TransactionCase):
             self.assertEqual(ran, ['rm -rf /srv/ai-src/odoo/abcdef123456'])
             self.assertFalse(tree.core_path)
         self.assertEqual(recent.core_path, '/srv/ai-src/odoo/other')
+
+
+@tagged('post_install', '-at_install')
+class TestModuleSummary(TransactionCase):
+
+    def test_facts_script(self):
+        import json
+        printed = []
+        src = scripts.module_facts_script(['dobtor_corpaas_knowledge', 'no_such_mod'])
+        exec(compile(src.replace('env.cr.rollback()', 'pass'), '<mf>', 'exec'), {'env': self.env, 'print': printed.append})
+        out = json.loads(printed[-1][len(scripts.MARK):])
+        self.assertNotIn('no_such_mod', out)
+        f = out['dobtor_corpaas_knowledge']
+        self.assertIn('corpaas.knowledge.feature', f['new_models'])
+        self.assertIn('infrastructure.solution.package', f['inherits'])
+        self.assertTrue(f['path'])
+
+    def test_summaries_reuse_by_hash_and_feed_prompts(self):
+        import json
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from ..services import remote
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'MS', 'type': 'service'}).id})
+        Pkg = type(pkg)
+        golden = SimpleNamespace(instance_id=SimpleNamespace(id=228, name='tpl 14'), name='gold')
+        pkg._knowledge_update_profile({'code': {'digest': 'sha256:x', 'container_sources': '/mnt/src',
+                                                'addons': {'x_ref': {'version': '1', 'hash': 'h1'},
+                                                           'x_wallet': {'version': '1', 'hash': 'w1'}}}})
+        facts = {'x_ref': {'name': '推薦', 'summary': '推薦碼', 'path': '/mnt/src/x_ref', 'new_models': ['x.ref']},
+                 'x_wallet': {'name': '錢包', 'summary': '儲值', 'path': '/elsewhere/x_wallet', 'new_models': []}}
+        asked = []
+
+        def ask(s, purpose, prompt, **kw):
+            asked.append((purpose, kw.get('instance_ref')))
+            return {'purpose': '推薦碼與分享金', 'rules': ['推薦人要是會員'], 'setup': ['先設佣金規則']}
+
+        master = SimpleNamespace(_corpaas_golden_db=lambda: golden)
+        with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: master), \
+                patch.object(Pkg, '_knowledge_runner_path',
+                             lambda s, path, inst: path.replace('/mnt/src', '/instances/tpl-14') if path.startswith('/mnt/src') else ''), \
+                patch.object(remote, 'shell_json', lambda env, inst, db, src: facts), \
+                patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', ask):
+            self.assertEqual(pkg._knowledge_module_summaries(), 1, '讀得到程式的寫 AI 摘要')
+            self.assertEqual(pkg._knowledge_module_summaries(), 0, '模組沒改就不重讀')
+        self.assertEqual(asked, [('module_summary', 228)], '指定讀方案主實例；讀不到的只存結構事實')
+        brief = {b['module']: b for b in pkg._knowledge_module_brief()}
+        self.assertEqual(brief['x_ref']['purpose'], '推薦碼與分享金')
+        self.assertEqual(brief['x_wallet']['purpose'], '儲值', '沒有 AI 摘要時用說明檔')
+        sc = self.env['corpaas.knowledge.scenario'].sudo().create(
+            {'name': 'S', 'code': 'kbt_ms', 'narrative': 'n', 'package_ids': [(6, 0, pkg.ids)]})
+        text = sc._seed_rules_text([])
+        self.assertIn('先設佣金規則', text, '示範資料提示帶上模組規則')
+        pkg._knowledge_update_profile({'code': {'addons': {'x_ref': {'version': '2', 'hash': 'h2'}}}})
+        self.assertFalse(pkg._knowledge_module_brief(), '模組改了：舊摘要不再用（等重讀）')
+
+    def test_flow_naming_waits_for_capabilities(self):
+        from unittest.mock import patch
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'FW', 'type': 'service'}).id})
+        flow = self.env['corpaas.knowledge.flow'].sudo().create(
+            {'model': 'res.partner', 'state_field': 'kbx', 'structure_hash': 'a', 'package_ids': [(6, 0, pkg.ids)]})
+        with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask') as ask:
+            self.assertFalse(pkg._knowledge_flow_names(None))
+        ask.assert_not_called()
+        self.assertTrue(flow)

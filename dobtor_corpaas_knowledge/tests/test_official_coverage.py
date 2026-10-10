@@ -176,11 +176,12 @@ class TestFlowNaming(TransactionCase):
     def test_flow_joins_capability_owning_most_features_in_batch(self):
         """實機：能力提案與流程提案一起核准，流程另建了「銷售管理」等 6 個重複能力。"""
         Sel = self.env['corpaas.knowledge.selection']
-        flow_sel = self._name({'model': 'x.order', 'name': '訂單處理',
-                               'new_capability': '銷售管理'})
+        # 從零的順序：圈選先提能力，流程命名才跑（能力清單是空的時候流程命名會先等）
         cap_sel = Sel.create({'package_id': self.pkg.id, 'kind': 'capability',
                               'proposal_json': json.dumps({'new_capability': '銷售',
                                                            'features': [self.f.feature_key]})})
+        flow_sel = self._name({'model': 'x.order', 'name': '訂單處理',
+                               'new_capability': '銷售管理'})
         before = self.env['corpaas.knowledge.capability'].search_count([])
         (flow_sel | cap_sel)._knowledge_approve()   # 流程排在前面也一樣：能力先核准
         self.assertEqual(self.env['corpaas.knowledge.capability'].search_count([]), before + 1,

@@ -64,3 +64,5 @@ access_kb_code_def_editor,kb.code_def.editor,model_corpaas_knowledge_code_def,gr
 access_kb_code_def_manager,kb.code_def.manager,model_corpaas_knowledge_code_def,group_knowledge_manager,1,1,1,1
 access_kb_code_fact_editor,kb.code_fact.editor,model_corpaas_knowledge_code_fact,group_knowledge_editor,1,0,0,0
 access_kb_code_fact_manager,kb.code_fact.manager,model_corpaas_knowledge_code_fact,group_knowledge_manager,1,1,1,1
+access_kb_module_summary_editor,kb.module_summary.editor,model_corpaas_knowledge_module_summary,group_knowledge_editor,1,0,0,0
+access_kb_module_summary_manager,kb.module_summary.manager,model_corpaas_knowledge_module_summary,group_knowledge_manager,1,1,1,1

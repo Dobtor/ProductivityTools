@@ -893,6 +893,46 @@ def module_hash_script(core=False):
     ) % (bool(core),)
 
 
+def module_facts_script(modules):
+    """擴充模組的結構事實（唯讀，不花 AI）：說明檔、相依、新增／繼承的模型、狀態值、目錄位置。
+
+    ★ 計畫第 53 項：提案前先知道每個自訂模組做什麼；AI 讀程式寫摘要時從這裡出發。"""
+    return _HEAD + (
+        "from odoo.modules.module import get_manifest, get_module_path\n"
+        "MODS = json.loads(%r)\n"
+        "out = {}\n"
+        "for m in MODS:\n"
+        "    man = get_manifest(m) or {}\n"
+        "    if not man:\n"
+        "        continue\n"
+        "    new, inherited = [], []\n"
+        # ir.model.modules 是計算欄位、不能搜；ir.model.data 每個擴充它的模組都有一筆，也分不出誰定義。
+        # 直接看類別：這個模組的類別自己設 _name 而且沒有 _inherit 同一個名字＝新增，否則＝擴充
+        "    for name in env.registry:\n"
+        "        mine = [c for c in type(env[name]).__mro__ if c.__dict__.get('_module') == m]\n"
+        "        if not mine:\n"
+        "            continue\n"
+        "        def _defines(c):\n"
+        "            inh = c.__dict__.get('_inherit') or []\n"
+        "            inh = [inh] if isinstance(inh, str) else list(inh)\n"
+        "            return c.__dict__.get('_name') == name and name not in inh\n"
+        "        (new if any(_defines(c) for c in mine) else inherited).append(name)\n"
+        "    states = {}\n"
+        "    for name in new[:20]:\n"
+        "        if name in env:\n"
+        "            f = env[name]._fields.get('state')\n"
+        "            if f is not None and f.type == 'selection' and isinstance(f.selection, list):\n"
+        "                states[name] = [v for _k, v in f.selection][:12]\n"
+        "    out[m] = {'name': man.get('name'), 'summary': man.get('summary') or '',\n"
+        "              'description': (man.get('description') or '')[:600], 'depends': man.get('depends') or [],\n"
+        "              'category': man.get('category') or '', 'new_models': sorted(new)[:30],\n"
+        "              'inherits': sorted(inherited)[:30], 'states': states,\n"
+        "              'path': get_module_path(m, display_warning=False) or ''}\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out, default=str))\n"
+    ) % (json.dumps(sorted(set(modules))),)
+
+
 def code_def_script(targets):
     """方法的繼承鏈（唯讀）：targets=[[model, method]] → {"model.method": [每段定義]}。
 

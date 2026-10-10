@@ -18,7 +18,8 @@ MARK = '__RESET__:'
 #: 不清的模型（比較用的歷史、機制本身、跟映像綁定的程式知識）
 KEEP = ['corpaas.knowledge.ai.call', 'corpaas.knowledge.run', 'corpaas.knowledge.acceptance_log',
         'corpaas.knowledge.rule', 'corpaas.knowledge.role', 'corpaas.knowledge.seed_pack',
-        'corpaas.knowledge.code_tree', 'corpaas.knowledge.code_def', 'corpaas.knowledge.code_fact']
+        'corpaas.knowledge.code_tree', 'corpaas.knowledge.code_def', 'corpaas.knowledge.code_fact',
+        'corpaas.knowledge.module_summary']
 #: 方案上要清掉的「算出來的狀態」
 PKG_RESET = ['knowledge_cost_plan_at', 'knowledge_cost_plan_html', 'knowledge_fp_image', 'knowledge_fp_manifest',
              'knowledge_image_digest', 'knowledge_last_refresh', 'knowledge_last_token', 'knowledge_pending_full',
@@ -87,6 +88,9 @@ if left:
 att = env['ir.attachment'].sudo().search([('res_model', 'in', models)])
 out['deleted']['ir.attachment'] = len(att)
 att.unlink()
+# 程式碼版本：抽原碼失敗的那幾筆清掉「上次嘗試」，重跑時馬上再抽（不等一天）
+if 'corpaas.knowledge.code_tree' in env:
+    env['corpaas.knowledge.code_tree'].sudo().search([('core_path', 'in', [False, ''])]).write({'core_tried': False})
 # 4. 方案上算出來的狀態
 pk = env['infrastructure.solution.package'].sudo().browse(PKGS).exists()
 pk.write({f: False for f in PKG_RESET if f in pk._fields})

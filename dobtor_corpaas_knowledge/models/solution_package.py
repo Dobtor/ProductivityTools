@@ -1663,6 +1663,10 @@ class SolutionPackage(models.Model):
         # ★ 同一次更新剛分群出來、還在待審的能力：流程沿用這些名稱，不另取（否則核准後重複）
         waiting = [n for n in Sel.search([('package_id', '=', self.id), ('kind', '=', 'capability'),
                                           ('state', '=', 'proposed')]).mapped('proposal_name') if n]
+        if not caps and not waiting:
+            # ★ 系統裡還沒有任何能力（從零、圈選還沒跑）：先不命名流程，等圈選提出能力後再做
+            #   ☠️ 實機（2026-10-10 從零）：20 個流程提案理由都寫「能力清單為空」，各自另取能力名
+            return Sel
         waiting_rule = ("待審的能力提案：%s——適合的話 new_capability 填完全相同的名稱，"
                         "不要另取近似的名稱。\n" % '、'.join(waiting)) if waiting else ''
         prompt = (
@@ -1893,6 +1897,12 @@ class SolutionPackage(models.Model):
         quota = min(30, len(off))
         own = own[:150 - quota]
         features = own | off[:150 - len(own)]
+        # ★ 計畫第 53 項：提案前先讀方案自訂模組的程式（模組摘要，沒改過就沿用），能力邊界與差異點才準
+        try:
+            self._knowledge_module_summaries()
+        except Exception as e:  # noqa: BLE001 — 讀不到程式照舊提案
+            _logger.warning('[knowledge] 模組摘要失敗：%s', e)
+        modules = self._knowledge_module_brief()
         scenarios = self.env['corpaas.knowledge.scenario'].search([])
         caps = self.env['corpaas.knowledge.capability'].search([])
         tmpl = self.product_tmpl_id
@@ -1936,6 +1946,8 @@ class SolutionPackage(models.Model):
             "(2) 此方案的能力清單（沿用既有能力用 code，新能力給名稱、痛點、成果、包含的功能點 key）。\n")
         prompt = (
             "方案：%s\n定位描述：%s\n\n既有情境：%s\n\n既有能力：%s\n\n功能點（依使用量排序）：%s\n\n"
+            "方案自訂模組摘要（讀過程式：做什麼、核心規則、模組間怎麼串接；能力依這些商業邏輯劃分，"
+            "不要只看選單名稱）：%s\n\n"
             "請提議：(1) 此方案該引用哪些既有情境，或需要新增什麼專屬情境（說明要延伸哪個基底）；"
             + scen_rule.replace('%', '%%') + cap_ask.replace('%', '%%') +
             "新情境要附上拍操作畫面用的角色 roles：每個角色一個英數 code（業務 sales、採購 purchase、"
@@ -1956,6 +1968,7 @@ class SolutionPackage(models.Model):
              json.dumps([{'code': c.code, 'name': c.name} for c in caps], ensure_ascii=False),
              json.dumps([{'key': f.feature_key, 'name': f.name, 'menu': f.menu_path}
                          for f in features], ensure_ascii=False),
+             json.dumps(modules, ensure_ascii=False)[:20000] if modules else '（無）',
              json.dumps(groups, ensure_ascii=False))
         allowed_groups = {g.split('｜')[0] for g in groups}
 
@@ -2007,6 +2020,13 @@ class SolutionPackage(models.Model):
                 'proposal_json': json.dumps(item.get('new'), ensure_ascii=False)
                 if item.get('new') else False,
                 'reason': item.get('reason'), 'score': item.get('score') or 0})
+        # ★ 能力提案出來了：這時才命名流程、歸入能力（一起送審，流程沿用這些能力名稱）
+        try:
+            for _i in range(5):   # 一次 10 個流程，最多 50 個
+                if not self._knowledge_flow_names(None):
+                    break
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] 圈選後命名流程失敗：%s', e)
         return {
             'type': 'ir.actions.act_window', 'name': _('AI 圈選提案'),
             'res_model': 'corpaas.knowledge.selection', 'view_mode': 'list,form',
