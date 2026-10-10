@@ -65,3 +65,40 @@ class TestFailurePolicy(ManualCase):
             self.hooks._manual_repair_bindings(self.pkg, b, 'tok', {'ai': False})
         ask.assert_not_called()
         self.assertFalse(b.needs_repair, '修過仍是同一錯誤，不再修')
+
+
+@tagged('post_install', '-at_install')
+class TestPackageProfile(ManualCase):
+    """方案檔案（計畫第 32 項）：探測結果合併、轉成給 AI 的一段話、登入方式判斷。"""
+
+    def test_profile_merge_text_and_login_mode(self):
+        from ..models.hooks import login_mode
+        self.assertEqual(login_mode('http://sb:8069/?popup=login&redirect=%2F'), 'popup')
+        self.assertEqual(login_mode('http://sb:8069/web/login'), 'standard')
+        self.assertEqual(login_mode('http://sb:8069/my'), 'redirect')
+        self.pkg._knowledge_update_profile({'companies': 1, 'website': True, 'websites': 1,
+                                            'custom_groups': [{'xmlid': 'x.g', 'name': '佣金管理員'}]})
+        self.pkg._knowledge_update_profile({'login_mode': 'popup'})
+        prof = self.pkg.knowledge_profile()
+        self.assertEqual((prof['companies'], prof['login_mode']), (1, 'popup'), '兩次探測合併')
+        text = self.pkg._knowledge_profile_text()
+        self.assertIn('彈出視窗', text)
+        self.assertIn('佣金管理員', text)
+
+    def test_profile_prefixed_to_environment_prompts(self):
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg._knowledge_update_profile({'companies': 2})
+        seen = []
+
+        def fake_call(url, key, purpose, prompt, *a, **kw):
+            seen.append((purpose, prompt))
+            return '{}', 0.0, 1
+        from odoo.addons.dobtor_corpaas_knowledge.services import hub_client
+        with patch.object(hub_client, 'call', fake_call), \
+                patch.object(Ai, '_conf', lambda s: {'hub_url': 'x', 'hub_key': 'k', 'budget': 99,
+                                                     'timeout': 5}), \
+                patch.object(Ai, 'hub_cost_left', lambda s: None):
+            self.env['corpaas.knowledge.ai'].ask('seed_repair', 'PROMPT', package=self.pkg)
+            self.env['corpaas.knowledge.ai'].ask('manual_step_block', 'PROMPT2', package=self.pkg)
+        self.assertIn('公司 2 家', seen[0][1])
+        self.assertNotIn('方案檔案', seen[1][1], '跨方案共用的步驟說明不帶方案環境')

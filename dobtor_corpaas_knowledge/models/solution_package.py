@@ -45,6 +45,10 @@ class SolutionPackage(models.Model):
     _inherit = 'infrastructure.solution.package'
 
     knowledge_enabled = fields.Boolean(string='啟用知識自動更新', copy=False)
+    knowledge_profile_json = fields.Text(
+        string='方案檔案', copy=False, readonly=True,
+        help='每次更新自動探測：公司數、網站、自訂權限群組、登入方式…；AI 起草與修正時都會帶上')
+    knowledge_profile_text = fields.Char(string='方案環境', compute='_compute_knowledge_profile_text')
     knowledge_scenario_ids = fields.Many2many(
         'corpaas.knowledge.scenario', 'corpaas_knowledge_scenario_package_rel',
         'package_id', 'scenario_id', string='情境')
@@ -325,6 +329,7 @@ class SolutionPackage(models.Model):
         with self._op_step('kb_inventory'):
             # 盤點＋設定開關＋流程合成一次 odoo shell（只載入一次 registry）
             analysis = self._knowledge_analyze(golden)
+            self._knowledge_update_profile(analysis.get('profile') or {})
             added, removed = self._knowledge_inventory(golden, token, analysis)
         with self._op_step('kb_fingerprint'):
             self._knowledge_fingerprint(golden, token, full=full)
@@ -587,6 +592,50 @@ class SolutionPackage(models.Model):
     # ------------------------------------------------------------------
     # 盤點
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 方案檔案（計畫第 32 項）
+    # ------------------------------------------------------------------
+    def _compute_knowledge_profile_text(self):
+        for rec in self:
+            rec.knowledge_profile_text = rec._knowledge_profile_text() or False
+
+    def knowledge_profile(self):
+        self.ensure_one()
+        try:
+            return json.loads(self.knowledge_profile_json or '{}') or {}
+        except ValueError:
+            return {}
+
+    def _knowledge_update_profile(self, values):
+        """合併寫入方案檔案（盤點時的靜態探測＋拍攝前健檢實際開登入頁的結果）。"""
+        self.ensure_one()
+        prof = self.knowledge_profile()
+        prof.update({k: v for k, v in (values or {}).items() if v is not None})
+        prof['updated'] = fields.Datetime.to_string(fields.Datetime.now())
+        self._knowledge_bookkeep({'knowledge_profile_json': json.dumps(prof, ensure_ascii=False)})
+        return prof
+
+    def _knowledge_profile_text(self):
+        """給 AI 的一段話：這個方案的環境（避免它照「純後台、標準登入、單一公司」去猜）。"""
+        self.ensure_one()
+        p = self.knowledge_profile()
+        if not p:
+            return ''
+        login = {'standard': '標準登入頁', 'popup': '登入頁改成首頁彈出視窗',
+                 'redirect': '開登入頁會被導到別頁'}.get(p.get('login_mode'), '未確認')
+        parts = ['公司 %s 家' % p.get('companies', '?'),
+                 ('有網站（%s 個）' % p.get('websites')) if p.get('website') else '沒有網站',
+                 '登入方式：%s' % login,
+                 '入口網站使用者 %s 人' % p.get('portal_users', 0),
+                 '啟用貨幣 %s 種' % p.get('currencies', 1)]
+        groups = p.get('custom_groups') or []
+        if groups:
+            parts.append('自訂權限群組 %s 個（例：%s）' % (
+                len(groups), '、'.join(g.get('name') or g.get('xmlid') for g in groups[:5])))
+        if p.get('login_modules'):
+            parts.append('登入相關模組：%s' % '、'.join(p['login_modules'][:6]))
+        return '方案檔案（這個方案的實際環境，請依此判斷）：' + '；'.join(parts) + '。'
+
     def _knowledge_analyze(self, golden):
         """在黃金庫一次跑完盤點＋設定開關＋流程（scripts.analysis_script）。"""
         self.ensure_one()

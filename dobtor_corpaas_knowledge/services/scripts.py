@@ -1258,6 +1258,32 @@ def analysis_script(modules, official=(), lang='zh_TW'):
          lang) + _INVENTORY_BODY + (
         "\nMODELS = sorted({d.get('model') for d in __OUT.get('features') or []\n"
         "                  if d.get('kind') == 'action' and d.get('model')})\n"
-    ) + _TOGGLE_BODY + _FLOW_BODY + (
+    ) + _TOGGLE_BODY + _FLOW_BODY + _PROFILE_BODY + (
         "\n__print(MARK + json.dumps(__OUT))\n"
     )
+
+
+#: 方案檔案（計畫第 32 項）：一開始就知道方案長怎樣——公司數、網站、自訂權限群組、登入相關模組…
+#: ☠️ 實機：社群電商方案「純後台／標準登入／單一公司／只有官方群組」的假設錯了一半，
+#:   每踩一個就改一次程式、部署一次。登入方式（彈窗／導回首頁）要實際開登入頁才知道，由拍攝前健檢補上。
+_PROFILE_BODY = r'''
+__prof = {}
+try:
+    __prof['companies'] = E['res.company'].sudo().search_count([])
+    __prof['website'] = 'website' in E and 'website' in SCOPE
+    __prof['websites'] = E['website'].sudo().search_count([]) if 'website' in E else 0
+    __prof['portal_users'] = E['res.users'].sudo().search_count([('share', '=', True)])
+    __prof['currencies'] = E['res.currency'].sudo().search_count([('active', '=', True)])
+    __prof['languages'] = sorted(E['res.lang'].sudo().search([('active', '=', True)]).mapped('code'))
+    __grp = []
+    for d in Imd.search([('model', '=', 'res.groups'), ('module', 'in', list(MODS))]):
+        g = E['res.groups'].sudo().browse(d.res_id).exists()
+        if g:
+            __grp.append({'xmlid': '%s.%s' % (d.module, d.name), 'name': g.full_name or g.name})
+    __prof['custom_groups'] = __grp[:60]
+    __prof['login_modules'] = sorted(m for m in SCOPE if any(
+        w in m for w in ('signup', 'login', 'sso', 'oauth', 'auth_', 'otp', 'totp')))
+except Exception as __e:
+    __prof['error'] = str(__e)[:300]
+__OUT['profile'] = __prof
+'''

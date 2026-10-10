@@ -41,6 +41,7 @@
                         <group>
                             <field name="knowledge_enabled" readonly="1"/>
                             <field name="knowledge_last_refresh"/>
+                            <field name="knowledge_profile_text" invisible="not knowledge_profile_text"/>
                         </group>
                         <group>
                             <field name="knowledge_feature_count" string="功能點"/>

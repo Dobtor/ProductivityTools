@@ -47,6 +47,11 @@ def _prefetch_key(dbname, purpose, prompt):
     return dbname, hashlib.sha256(('%s\n%s' % (purpose, prompt)).encode('utf-8')).hexdigest()
 
 
+
+#: 要先看「方案檔案」的 AI 工作：圈選情境與角色、起草／補／修示範資料、修截圖腳本、探索畫面
+PROFILE_PURPOSES = {'select', 'scenario_seed', 'seed_gap_fill', 'seed_repair', 'manual_repair',
+                    'manual_explore'}
+
 class KnowledgeAi(models.AbstractModel):
     _name = 'corpaas.knowledge.ai'
     _description = '知識 AI 呼叫'
@@ -85,6 +90,11 @@ class KnowledgeAi(models.AbstractModel):
         而不是當成失敗。
         """
         conf = self._conf()
+        if package and purpose in PROFILE_PURPOSES and hasattr(package, '_knowledge_profile_text'):
+            # ★ 方案檔案（計畫第 32 項）：判斷環境的工作都先告訴 AI 方案實際長怎樣
+            prof = package._knowledge_profile_text()
+            if prof:
+                prompt = prof + '\n\n' + prompt
         cacheable = purpose in CACHEABLE
         phash = hashlib.sha256(('%s\n%s' % (purpose, prompt)).encode('utf-8')).hexdigest()[:40] \
             if cacheable else False

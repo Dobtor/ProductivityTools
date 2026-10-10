@@ -43,6 +43,15 @@ MAX_REPAIRS = 3
 BACKEND_DOWN = '後台沒有載入'
 
 
+def login_mode(url):
+    """訪客開 /web/login 最後停在哪：standard 標準登入頁／popup 首頁彈窗／redirect 被導到別頁。"""
+    url = url or ''
+    if 'popup=login' in url:
+        return 'popup'
+    path = url.split('://', 1)[-1].split('/', 1)[-1].split('?')[0]
+    return 'standard' if path.rstrip('/').endswith('web/login') else 'redirect'
+
+
 def ai_dict(data, purpose):
     """AI 回覆必須是物件；沒回（None）當空物件。
 
@@ -420,12 +429,20 @@ class KnowledgeHooks(models.AbstractModel):
         if not login:
             return True
         settings = self.env['res.config.settings'].knowledge_shot_settings()
+        shots = [{'id': 'preflight', 'login': login, 'password': sb.password, 'steps': []}]
+        pkg = getattr(sandbox, 'package_id', None)
+        pkg = pkg if pkg is not None and hasattr(pkg, 'knowledge_profile') else None
+        if pkg and pkg.knowledge_profile().get('website'):
+            # 方案檔案：訪客實際開一次登入頁，看登入方式（標準頁／首頁彈窗／被導走）
+            shots.append({'id': 'login_probe', 'login': None, 'frontend': True, 'password': '',
+                          'steps': [{'goto': {'url': '/web/login'}}, {'wait': {'ms': 800}}]})
         try:
-            result, _files = shooter.run_shots(self.env, sandbox, [
-                {'id': 'preflight', 'login': login, 'password': sb.password, 'steps': []}],
-                settings)
+            result, _files = shooter.run_shots(self.env, sandbox, shots, settings)
         except (shooter.ShotError, remote.RemoteError):
             return True   # 執行環境的錯照舊由批次處理
+        probe = ((result or {}).get('shots') or {}).get('login_probe') or {}
+        if pkg and probe.get('ok'):
+            pkg._knowledge_update_profile({'login_mode': login_mode(probe.get('url'))})
         error = ((result or {}).get('shots') or {}).get('preflight', {}).get('error') or ''
         if not error.startswith(BACKEND_DOWN):
             return True

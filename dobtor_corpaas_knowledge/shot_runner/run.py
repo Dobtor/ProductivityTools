@@ -660,7 +660,8 @@ def main():
                 images = []
                 run_steps(page, base, shot, out_dir, recorder, observed, warnings, images)
                 result['shots'][sid] = {'ok': True, 'images': images, 'transitions': observed,
-                                        'warnings': warnings}
+                                        'warnings': warnings, 'url': page.url,
+                                        'navigations': _NAVS[-12:]}
                 _log(sid, 'ok', len(images))
                 down[shot.get('login')] = 0
             except Exception as e:  # noqa: BLE001
