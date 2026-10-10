@@ -1361,6 +1361,9 @@ class KnowledgeHooks(models.AbstractModel):
                 stats['review_failed'] = stats.get('review_failed', 0) + bad
         self._manual_propose_merges(self.env['corpaas.knowledge.feature'].union(
             *self._manual_candidates(package).keys()))
+        # ★ 前台抽查是另一個連線（未登入的 HTTP 請求）：剛核准上線的 slide 要先提交才看得到
+        # ☠️ 實機（2026-10-11 從零）：兩個方案的前台抽查全部 HTTP 404，事後同網址是 200
+        self._manual_commit()
         try:
             self._manual_public_check(package, ctx.setdefault('stats', {}))
         except Exception as e:  # noqa: BLE001 — 抽查失敗只記錄，不讓更新失敗
