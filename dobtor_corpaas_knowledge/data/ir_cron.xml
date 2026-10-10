@@ -70,4 +70,13 @@ env['corpaas.knowledge.gap']._gc(180)</field>
         <field name="interval_type">minutes</field>
         <field name="active">True</field>
     </record>
+    <record id="ir_cron_knowledge_gc_core" model="ir.cron">
+        <field name="name">方案知識：清除沒人用的 Odoo 原碼目錄</field>
+        <field name="model_id" ref="model_corpaas_knowledge_code_tree"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_gc_core()</field>
+        <field name="interval_number">7</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+    </record>
 </odoo>

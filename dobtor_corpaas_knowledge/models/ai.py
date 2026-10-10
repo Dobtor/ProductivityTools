@@ -32,7 +32,7 @@ CACHEABLE = {'classify_features', 'select', 'help_misses', 'flow_name', 'officia
 
 #: 單次呼叫的預設成本（USD）：沒有歷史紀錄時成本規劃器用這些（2026-10 實機平均）
 DEFAULT_UNIT_COST = {
-    'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
+    'code_fact': 0.15, 'classify_features': 0.25, 'flow_name': 0.07, 'official_doc': 0.19, 'select': 0.23,
     'manual_explore': 0.12, 'manual_repair': 0.11, 'manual_bind': 0.05,
     'manual_step_block': 0.05, 'manual_scenario': 0.06, 'manual_fork': 0.05,
     'scenario_seed': 0.40, 'seed_repair': 0.40, 'seed_gap_fill': 0.30, 'manual_review': 0.03,
@@ -93,7 +93,7 @@ class KnowledgeAi(models.AbstractModel):
         return None, BASE_INSTRUCTIONS + '\n' + (static + '\n\n' if static else '')
 
     def ask(self, purpose, prompt, package=None, refresh_token=None, record=None,
-            expect_json=True, context=None, static=None):
+            expect_json=True, context=None, static=None, instance_ref=None):
         """送出並等待；回傳解析後的 JSON（或純文字）。
 
         超出本次 refresh 預算時拋 BudgetExceeded——呼叫端應把工作留到下一次，
@@ -129,16 +129,19 @@ class KnowledgeAi(models.AbstractModel):
         system, head = self._split_static(static)
         try:
             try:
+                extra = {'system': system} if system else {}
+                if instance_ref:
+                    extra['instance_ref'] = instance_ref
                 text, cost, run_id = hub_client.call(
-                    conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context,
-                    **({'system': system} if system else {}))
+                    conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context, **extra)
             except hub_client.HubNoSystem as e:
                 # 舊版 Hub：關掉開關（只浪費這一次），固定內容併回 prompt 重送
                 _logger.warning('[knowledge] %s；已關閉 corpaas_knowledge.hub_system_prompt', e)
                 self.env['ir.config_parameter'].sudo().set_param('corpaas_knowledge.hub_system_prompt', '0')
                 system, head = self._split_static(static)
                 text, cost, run_id = hub_client.call(
-                    conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context)
+                    conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context,
+                    **({'instance_ref': instance_ref} if instance_ref else {}))
         except hub_client.HubError as e:
             self._log_call(dict(vals, **self._quota_vals(), ok=False, error=str(e)[:2000]))
             raise

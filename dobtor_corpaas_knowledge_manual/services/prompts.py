@@ -115,7 +115,7 @@ def bind_prompt(feature, steps, placeholders, demo, static_demo=False):
 
 
 def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, demo=None, flows=None,
-                  static_demo=False):
+                  static_demo=False, code=None):
     """截圖失敗（含佔位符對不到示範資料、角色沒有帳號）：依錯誤修腳本或繫結。
 
     下一次 refresh 才重試。
@@ -130,8 +130,10 @@ def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, de
         "\"login_role\":\"<code>\"（沒改可省略）,\"reason\":\"<修了什麼>\"}\n\n"
         "錯誤：%(error)s\n\n失敗時網址：%(url)s\n\n失敗時畫面文字：%(dom)s\n\n"
         "目前腳本：%(steps)s\n\n目前繫結：%(bindings)s\n\n角色：%(roles)s\n\n"
-        "%(demo_part)s%(flows)s"
+        "%(demo_part)s%(flows)s%(code)s"
     ) % {
+        'code': ("\n\n腳本按的按鈕在程式裡做什麼（讀過程式的結論：前提、狀態轉換、會開的精靈、需要的設定）：%s"
+                 % _j(code)[:4000]) if code else '',
         'demo_part': _IN_SYSTEM if static_demo else '%s\n示範資料：%s' % (DEMO_NOTE, _j(demo or [])[:30000]),
         'flows': _flows_note(flows),
         'name': feature.get('name'), 'key': feature.get('key'), 'vocab': '' if static_demo else STEP_VOCAB,

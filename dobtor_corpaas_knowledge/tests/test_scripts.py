@@ -398,10 +398,13 @@ class TestCodeStructure(TransactionCase):
         from ..services import remote
         pkg = self.env['infrastructure.solution.package'].sudo().create({
             'product_tmpl_id': self.env['product.template'].create({'name': 'CODE', 'type': 'service'}).id})
-        inst = SimpleNamespace(server_id=None, odoo_container='c1')
+        inst = SimpleNamespace(server_id=None, odoo_container='c1', sources_path='/opt/x/sources', name='tpl 14', id=228)
         state = {'digest': 'sha256:aaa', 'build': '18.0.20260901', 'core_calls': 0}
 
         def run(server, cmd, dont_raise=False):
+            if 'Mounts' in cmd:
+                return SimpleNamespace(stdout='/usr/lib/python3/dist-packages/odoo\n'
+                                              '[{"Source": "/opt/x/sources", "Destination": "/mnt/src"}]')
             if 'docker create' in cmd:
                 state['extract'] = state.get('extract', 0) + 1
                 return SimpleNamespace(stdout='/srv/ai-src/odoo/' + state['digest'][7:19])
@@ -440,3 +443,59 @@ class TestCodeStructure(TransactionCase):
             self.assertEqual(fact.state, 'stale', '覆寫改了：舊結論過期')
             self.assertEqual(len(self.env['corpaas.knowledge.code_def'].search([('def_hash', '=', 'd1')])), 1,
                              '沒變的那段共用')
+
+
+@tagged('post_install', '-at_install')
+class TestCodeSemantic(TransactionCase):
+
+    def test_runner_paths_semantic_and_gc(self):
+        import json
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from ..services import remote
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'SEM', 'type': 'service'}).id})
+        Tree = self.env['corpaas.knowledge.code_tree'].sudo()
+        tree = Tree.create({'image_digest': 'sha256:abcdef1234567890', 'odoo_version': '18.0.20260901',
+                            'core_path': '/srv/ai-src/odoo/abcdef123456',
+                            'core_container_path': '/usr/lib/python3/dist-packages/odoo'})
+        pkg._knowledge_update_profile({'code': {'digest': tree.image_digest, 'container_sources': '/mnt/src'}})
+        inst = SimpleNamespace(name='tpl 14', id=228)
+        self.assertEqual(pkg._knowledge_runner_path('/usr/lib/python3/dist-packages/odoo/addons/sale/models/s.py', inst),
+                         '/odoo-core/abcdef123456/odoo/addons/sale/models/s.py')
+        if 'infrastructure.ai_runner' in self.env:
+            self.assertEqual(pkg._knowledge_runner_path('/mnt/src/Dobtor/x/m.py', inst), '/instances/tpl-14/Dobtor/x/m.py')
+        Def = self.env['corpaas.knowledge.code_def'].sudo()
+        d1 = Def.create({'def_hash': 'h1', 'method': 'action_ok', 'module': '(core)', 'line_start': 1, 'line_end': 9,
+                         'path': '/usr/lib/python3/dist-packages/odoo/addons/sale/models/s.py'})
+        d2 = Def.create({'def_hash': 'h2', 'method': 'action_ok', 'module': 'x', 'summary_json': json.dumps('檢查服務商'),
+                         'path': '/mnt/src/x.py', 'line_start': 3, 'line_end': 5})
+        fact = self.env['corpaas.knowledge.code_fact'].sudo().create(
+            {'subject': 'sale.order.action_ok', 'chain_hash': 'c1', 'def_ids': [(6, 0, (d1 | d2).ids)]})
+        prompts = []
+
+        def ask(s, purpose, prompt, **kw):
+            prompts.append((prompt, kw.get('instance_ref')))
+            return {'defs': {'h1': '確認訂單'}, 'fact': {'preconditions': ['要有明細'], 'opens': ''}}
+
+        with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', ask):
+            self.assertEqual(pkg._knowledge_code_semantic(inst, fact), 1)
+        prompt, ref = prompts[0]
+        self.assertEqual(ref, 228, '指定讀這個實例')
+        self.assertIn('/odoo-core/abcdef123456/odoo/addons/sale/models/s.py 第 1–9 行', prompt)
+        self.assertIn('檢查服務商', prompt, '已有摘要的那段不再讀，摘要直接給')
+        self.assertEqual(json.loads(d1.summary_json), '確認訂單')
+        self.assertEqual(fact.state, 'current')
+        self.assertEqual(pkg._knowledge_code_facts_for({'sale.order.action_ok'})['sale.order.action_ok']['preconditions'],
+                         ['要有明細'])
+        # 清理：舊映像沒人用就刪目錄，最近還有人用的不刪
+        server = self.env['infrastructure.server'].search([], limit=1)
+        tree.write({'server_id': server.id, 'last_seen': '2020-01-01 00:00:00'})
+        recent = Tree.create({'image_digest': 'sha256:zzz', 'core_path': '/srv/ai-src/odoo/other', 'server_id': server.id})
+        ran = []
+        with patch.object(remote, 'run', lambda srv, cmd, dont_raise=False: ran.append(cmd)):
+            self.assertEqual(Tree._cron_gc_core(), 1 if server else 0)
+        if server:
+            self.assertEqual(ran, ['rm -rf /srv/ai-src/odoo/abcdef123456'])
+            self.assertFalse(tree.core_path)
+        self.assertEqual(recent.core_path, '/srv/ai-src/odoo/other')

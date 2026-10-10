@@ -765,7 +765,14 @@ class KnowledgeHooks(models.AbstractModel):
                 if model and isinstance(name, str) and re.fullmatch(r'[a-z_][a-z0-9_]*', name):
                     targets.add((model, name))
         if targets:
-            package._knowledge_code_chains(instance, sandbox.db_name, sorted(targets))
+            facts = package._knowledge_code_chains(instance, sandbox.db_name, sorted(targets))
+            icp = self.env['ir.config_parameter'].sudo()
+            if icp.get_param('corpaas_knowledge.code_semantic') in ('1', 'True', 'true'):
+                # 語意層（要 AI Runner 掛好原始碼、AI Hub 授權讀這個實例）：每輪最多 N 條，只讀還沒有結論的
+                limit = int(icp.get_param('corpaas_knowledge.code_semantic_limit') or 5)
+                todo = [f for f in facts.values() if f.state != 'current'][:limit]
+                if todo:
+                    package._knowledge_code_semantic(instance, todo, token=ctx.get('token'))
 
     @api.model
     def _manual_demo_state(self, scenario):
@@ -1272,11 +1279,17 @@ class KnowledgeHooks(models.AbstractModel):
         tmpl = binding.template_id
         last = json.loads(binding.last_result or '{}')
         demo = self._manual_demo(binding.scenario_id)
+        model = tmpl.feature_id.model
+        buttons = {'%s.%s' % (model, st['click']['button']) for st in tmpl.steps()
+                   if model and isinstance(st, dict) and isinstance(st.get('click'), dict)
+                   and isinstance(st['click'].get('button'), str)}
+        code = package._knowledge_code_facts_for(buttons) \
+            if buttons and hasattr(package, '_knowledge_code_facts_for') else {}
         return prompts.repair_prompt(
             self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
             binding.last_error, last.get('dom_text'), last.get('url'), self._manual_repair_roles(binding),
             demo, flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None,
-            static_demo=True), prompts.demo_static(demo)
+            static_demo=True, code=code), prompts.demo_static(demo)
 
     @api.model
     def _manual_repair(self, package, binding, token):

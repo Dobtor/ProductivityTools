@@ -77,7 +77,8 @@ def extract_json(text):
     raise HubError('AI 回覆不是合法 JSON：%s' % text[:500])
 
 
-def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900, system=None):
+def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900, system=None,
+         instance_ref=None):
     """送出並等待完成。回傳 (text, cost_usd, run_id)。
 
     system：固定內容（規則、詞彙、示範資料清單），Hub 放進系統提示，連續呼叫內容相同時吃提示詞快取。
@@ -88,7 +89,11 @@ def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900,
     params = {'purpose': purpose, 'prompt': prompt, 'context': context or {}}
     if system:
         params['system'] = system
+    if instance_ref:
+        params['instance_ref'] = instance_ref   # 讀這個實例的原始碼（Hub 端只准授權過的）
     res = _rpc(base + '/ai_hub/api/v1/content_run', key, params)
+    if res.get('ok') and instance_ref and not res.get('target_ok'):
+        raise HubError('AI Hub 不支援指定實例（請先升級 dobtor_ai_hub_content）')
     if res.get('ok') and system and not res.get('system_ok'):
         # 舊版 Hub 不認得 system：這次的固定內容沒送到，不能用這個結果
         raise HubNoSystem('AI Hub 不支援 system（請先升級 dobtor_ai_hub_content）')
