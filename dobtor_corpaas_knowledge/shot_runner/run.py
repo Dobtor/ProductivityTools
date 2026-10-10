@@ -289,6 +289,18 @@ _CONSOLE = []
 _NAVS = []
 #: 說明庫的庫名（有就用 API 登入）
 _DB = [None]
+#: 這次工作的環境規則（job.json 的 rules）
+_RULES = [{}]
+MASK_RULES_JS = r'''(rules) => {
+    const regs = rules.map(r => [new RegExp(r.pattern, 'g'), r.replace]);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+        let v = n.nodeValue;
+        for (const [re, rep] of regs) v = v.replace(re, rep);
+        if (v !== n.nodeValue) n.nodeValue = v;
+    }
+}'''
 
 
 def _backend_diag(page):
@@ -482,7 +494,9 @@ def _new_page(browser, job):
     page.add_init_script(
         "document.addEventListener('DOMContentLoaded',()=>{const s=document."
         "createElement('style');s.textContent=%s;document.head.appendChild(s);});"
-        % json.dumps(HIDE_CSS + (job.get('extra_css') or '')))
+        % json.dumps(HIDE_CSS + (job.get('extra_css') or '') + ''.join(
+            '%s { display: none !important; }\n' % sel
+            for sel in (job.get('rules') or {}).get('hide') or [])))
     return page
 
 
@@ -579,6 +593,9 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
             try:
                 page.evaluate(MASK_JS, [urlparse(page.url).scheme + '://' + urlparse(page.url).netloc,
                                         DISPLAY_ORIGIN])
+                rules_mask = (_RULES[0] or {}).get('mask') or []
+                if rules_mask:
+                    page.evaluate(MASK_RULES_JS, rules_mask)
             except Exception:  # noqa: BLE001 - 遮不到就照拍
                 pass
             page.screenshot(path=path, full_page=False)
@@ -593,6 +610,15 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
                 # 網路商店：商品區在、卻一個商品都沒有（「未指定產品」）
                 empty = empty or (bool(page.locator('#products_grid').count())
                                   and not page.locator('#products_grid .oe_product').count())
+            for rule in (_RULES[0] or {}).get('empty') or []:
+                # 環境規則的空白頁判斷：present 在、absent 不在＝空白
+                if empty:
+                    break
+                try:
+                    empty = bool(page.locator(rule['present']).count()) and not (
+                        rule.get('absent') and page.locator(rule['absent']).count())
+                except Exception:  # noqa: BLE001
+                    pass
             images.append({'name': name, 'file': os.path.relpath(path, OUT_DIR),
                            'regions': list(regions), 'records': pairs, 'refs': refs,
                            'empty': empty})
@@ -618,6 +644,7 @@ def main():
         result['cjk_fonts_error'] = str(e)[:300]
     base = job['base_url'].rstrip('/')
     _DB[0] = job.get('db')
+    _RULES[0] = job.get('rules') or {}
     args = ['--host-resolver-rules=%s' % job['resolver_rule']] if job.get('resolver_rule') else []
     down = {}   # 每個帳號各自算：一個角色打不開，不該連累其他角色
     with sync_playwright() as p:

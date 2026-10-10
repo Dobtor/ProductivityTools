@@ -542,7 +542,7 @@ class KnowledgeScenario(models.Model):
             "\"narrative\":\"…\",\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
             "資料包目錄：%s\n\n方案畫面：%s"
         ) % (self.name, self.narrative or '',
-             SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
+             self._seed_rules_text(roles),
              ('上次拍照時沒有資料的畫面（優先補）：%s\n' % '、'.join(gaps)) if gaps else '',
              json.dumps(catalog, ensure_ascii=False)[:60000],
              json.dumps(screens, ensure_ascii=False)[:20000])
@@ -614,7 +614,7 @@ class KnowledgeScenario(models.Model):
             "格式：{\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
             "繼承情境已有記錄（xmlid）：%s\n\n欄位定義：%s"
         ) % (self.name, self.narrative or '', json.dumps(self.glossary_map(), ensure_ascii=False),
-             SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
+             self._seed_rules_text(roles),
              json.dumps([r['xmlid'] for r in parent_seed], ensure_ascii=False),
              json.dumps(fields_info, ensure_ascii=False)[:150000])
         data = self.env['corpaas.knowledge.ai'].ask('scenario_seed', prompt, package=package,
@@ -650,7 +650,7 @@ class KnowledgeScenario(models.Model):
             "列在 skipped 並說明原因。\n%s"
             "格式：{\"seed\":[…],\"skipped\":[{\"screen\":…,\"reason\":…}]}\n\n"
             "空白畫面：%s%s"
-        ) % (self.name, SEED_RULES % {'roles': '、'.join(roles) or '（無）'},
+        ) % (self.name, self._seed_rules_text(roles),
              json.dumps(screens, ensure_ascii=False),
              ('\n\n流程路徑沒有資料（要有單據走到這些狀態）：%s' % '；'.join(notes)) if notes else '')
 
@@ -718,8 +718,7 @@ class KnowledgeScenario(models.Model):
         ) % (self.name,
              ('資料包（%s）會先重播、內容不能改；可用完整 xmlid 參照它們的記錄。' % '、'.join(packs))
              if packs else '',
-             SEED_RULES % {'roles': '、'.join(
-                 'user_%s' % r.code for r in self.all_roles()) or '（無）'},
+             self._seed_rules_text(['user_%s' % r.code for r in self.all_roles()]),
              json.dumps(errors[:60], ensure_ascii=False),
              json.dumps(broken, ensure_ascii=False),
              json.dumps(empty[:80], ensure_ascii=False),
@@ -807,6 +806,15 @@ class KnowledgeScenario(models.Model):
         for sc in self.lineage():
             roles |= sc.role_ids
         return roles
+
+    def _seed_rules_text(self, roles):
+        """示範資料規則＝內建 SEED_RULES＋環境規則表的「示範資料提示」（提示用，計畫第 24、33 項）。
+
+        ★ 對應的驗證版（例如「不建第二家公司」）在重播時由系統執行，不靠 AI 照做。"""
+        text = SEED_RULES % {'roles': '、'.join(roles) or '（無）'}
+        package = self.package_ids[:1] if 'package_ids' in self._fields else None
+        extra = self.env['corpaas.knowledge.rule'].values('seed_prompt', package or None)
+        return text + ''.join('★ %s\n' % t for t in extra)
 
     def glossary_map(self):
         self.ensure_one()

@@ -61,6 +61,9 @@ def run_shots(env, sandbox, shots, settings):
         'locale': 'zh-TW', 'tz': 'Asia/Taipei',
         'frozen_time': FROZEN_TIME,
         'extra_css': settings.get('extra_css') or '',
+        # 環境規則（計畫第 24 項）：要藏的元素、要遮的文字、空白頁判斷——改規則不必部署
+        'rules': env['corpaas.knowledge.rule'].payload(getattr(sandbox, 'package_id', None))
+        if 'corpaas.knowledge.rule' in env else {},
         'shots': shots,
     }
     with open(_RUNNER, 'rb') as fh:

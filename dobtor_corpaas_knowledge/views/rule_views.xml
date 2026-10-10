@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_knowledge_rule_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.rule.list</field>
+        <field name="model">corpaas.knowledge.rule</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="kind"/>
+                <field name="name"/>
+                <field name="track"/>
+                <field name="value"/>
+                <field name="scope_module" optional="show"/>
+                <field name="package_id" optional="show"/>
+                <field name="source"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_knowledge_rule_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.rule.form</field>
+        <field name="model">corpaas.knowledge.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="track"/>
+                            <field name="source"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="scope_module"/>
+                            <field name="package_id"/>
+                            <field name="sequence"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="value"/>
+                        <field name="evidence"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="view_knowledge_rule_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.rule.search</field>
+        <field name="model">corpaas.knowledge.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="value"/>
+                <filter name="check" string="驗證用" domain="[('track', '=', 'check')]"/>
+                <filter name="prompt" string="提示用" domain="[('track', '=', 'prompt')]"/>
+                <filter name="inactive" string="已停用" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_kind" string="種類" context="{'group_by': 'kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_knowledge_rule" model="ir.actions.act_window">
+        <field name="name">環境規則</field>
+        <field name="res_model">corpaas.knowledge.rule</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_by_kind': 1}</field>
+    </record>
+    <menuitem id="menu_knowledge_rule" name="環境規則" sequence="90"
+              parent="menu_knowledge_ops" action="action_knowledge_rule"/>
+</odoo>

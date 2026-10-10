@@ -641,7 +641,10 @@ class SolutionPackage(models.Model):
         self.ensure_one()
         modules, official, installed_official = self._knowledge_scope_modules(golden)
         res = remote.shell_json(self.env, golden.instance_id, golden.name,
-                                scripts.analysis_script(modules, official=official),
+                                scripts.analysis_script(
+                                    modules, official=official,
+                                    extra_routes=self.env['corpaas.knowledge.rule'].values(
+                                        'front_route', self)),
                                 isolated=True) or {}
         res['_scope'] = (modules, official, installed_official)
         return res

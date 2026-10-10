@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 方案 14（社群推薦電商）踩過的環境條件，存成內建規則；程式裡的同樣值保留為預設。 -->
+<odoo noupdate="1">
+    <record id="rule_hide_neutralize_ribbon" model="corpaas.knowledge.rule">
+        <field name="name">前台「已作失效處理」斜條</field>
+        <field name="kind">hide_selector</field>
+        <field name="value">#oe_neutralize_ribbon</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 每張前台截圖左上角都被蓋住</field>
+    </record>
+    <record id="rule_hide_cookie_bar" model="corpaas.knowledge.rule">
+        <field name="name">網站 Cookie 同意列</field>
+        <field name="kind">hide_selector</field>
+        <field name="value">#website_cookies_bar, #cookies_bar</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 每張前台截圖底部都被蓋住</field>
+    </record>
+    <record id="rule_empty_shop" model="corpaas.knowledge.rule">
+        <field name="name">商城一個商品都沒有</field>
+        <field name="kind">empty_selector</field>
+        <field name="value">{"present": "#products_grid", "absent": "#products_grid .oe_product"}</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 商城只剩「未指定產品」照樣採用</field>
+    </record>
+    <record id="rule_empty_portal" model="corpaas.knowledge.rule">
+        <field name="name">入口網站「目前沒有…」</field>
+        <field name="kind">empty_selector</field>
+        <field name="value">{"present": "main .alert-warning:visible", "absent": "main table tbody tr"}</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 會員「我的訂單」空白照樣採用</field>
+    </record>
+    <record id="rule_gate_alias_domain" model="corpaas.knowledge.rule">
+        <field name="name">郵件網域是系統設定</field>
+        <field name="kind">gate_allow_model</field>
+        <field name="value">mail.alias.domain</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 有 10 張設定頁被誤擋</field>
+    </record>
+    <record id="rule_purge_unlock" model="corpaas.knowledge.rule">
+        <field name="name">已鎖定的銷售訂單先解鎖</field>
+        <field name="kind">purge_reset_method</field>
+        <field name="value">action_unlock</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 留下 8 張已確認的客戶銷售訂單</field>
+    </record>
+    <record id="rule_seed_one_company" model="corpaas.knowledge.rule">
+        <field name="name">示範資料不建第二家公司</field>
+        <field name="kind">seed_forbid_model</field>
+        <field name="value">{"model": "res.company", "allow_xmlids": ["base.main_company"]}</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14：AI 想改名卻用了新 xmlid company_rename，多出一家公司</field>
+    </record>
+    <record id="rule_seed_prompt_company" model="corpaas.knowledge.rule">
+        <field name="name">公司改名用 base.main_company</field>
+        <field name="kind">seed_prompt</field>
+        <field name="track">prompt</field>
+        <field name="value">公司只能有一家：要改名請用 xmlid base.main_company，不要新建 res.company。</field>
+        <field name="source">builtin</field>
+        <field name="evidence">搭配「示範資料不建第二家公司」的驗證規則</field>
+    </record>
+    <record id="rule_rank_commission" model="corpaas.knowledge.rule">
+        <field name="name">推薦佣金排在銷售後面</field>
+        <field name="kind">rank_keyword</field>
+        <field name="value">{"keyword": "commission", "like_module": "sale", "after": true}</field>
+        <field name="source">builtin</field>
+        <field name="evidence">方案 14 推薦佣金章排到最前面</field>
+    </record>
+</odoo>

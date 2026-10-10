@@ -36,11 +36,17 @@ _RANK = {m: i for i, (group, _kw) in enumerate(MODULE_ORDER) for m in group}
 LAST_RANK = len(MODULE_ORDER) + 1
 
 
-def module_rank(module):
-    """模組的上下游名次：官方模組查表；自訂模組看名稱關鍵字；都不中排最後。"""
+def module_rank(module, extra=()):
+    """模組的上下游名次：官方模組查表；環境規則的排序關鍵字；自訂模組看名稱關鍵字；都不中排最後。
+
+    extra：環境規則 rank_keyword 的值 [{keyword, like_module, after?}]——名稱含 keyword 的模組
+    排在 like_module 那一組（after＝排在那組後面一點）。"""
     if module in _RANK:
         return _RANK[module]
     name = (module or '').lower()
+    for r in extra or ():
+        if r.get('keyword') and r['keyword'].lower() in name:
+            return module_rank(r.get('like_module')) + (0.5 if r.get('after') else 0)
     for i, (_group, words) in enumerate(MODULE_ORDER):
         if any(w in name for w in words):
             return i
@@ -62,7 +68,8 @@ class KnowledgeCapability(models.Model):
 
     def _knowledge_rank(self):
         self.ensure_one()
-        return module_rank(self._knowledge_main_module())
+        extra = self.env['corpaas.knowledge.rule'].values('rank_keyword')
+        return module_rank(self._knowledge_main_module(), extra)
 
 
 class SolutionPackage(models.Model):

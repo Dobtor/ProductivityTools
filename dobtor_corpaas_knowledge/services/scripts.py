@@ -31,7 +31,7 @@ _HEAD = (
 ) % MARK
 
 
-def inventory_script(modules, lang='zh_TW', official=()):
+def inventory_script(modules, lang='zh_TW', official=(), extra_routes=()):
     """盤點功能點（唯讀）。
 
     ★ 以「畫面」為單位：一個視窗動作＝一個功能點；選單、按鈕（type=action）、智慧按鈕
@@ -49,7 +49,9 @@ def inventory_script(modules, lang='zh_TW', official=()):
         "MODS = set(json.loads(%r))\n"
         "OFFICIAL = set(json.loads(%r)) - MODS\n"
         "LANG = _lang(%r)\n"
-    ) % (json.dumps(sorted(modules)), json.dumps(sorted(official or ())), lang) + _INVENTORY_BODY
+        "EXTRA_ROUTES = json.loads(%r)\n"
+    ) % (json.dumps(sorted(modules)), json.dumps(sorted(official or ())), lang,
+         json.dumps(list(extra_routes or ()))) + _INVENTORY_BODY
 
 
 _INVENTORY_BODY = r"""
@@ -71,6 +73,9 @@ FRONT_ROUTES = {
     'website_forum': [('/forum', '論壇', ['public', 'internal'])],
     'website_customer': [('/customers', '客戶', ['public'])],
 }
+# 環境規則 front_route：方案特有的前台標準頁
+for __r in globals().get('EXTRA_ROUTES') or []:
+    FRONT_ROUTES.setdefault(__r['module'], []).append((__r['url'], __r['name'], __r['audiences']))
 TECH = {'base.group_no_one', 'base.group_system', 'base.group_erp_manager'}
 E = env(context=dict(env.context, lang=LANG, active_test=False))
 Imd = E['ir.model.data'].sudo()
@@ -406,7 +411,7 @@ CONFIG_MODELS = (
 )
 
 
-def purge_script(models):
+def purge_script(models, resets=()):
     """D1：刪除客戶的業務記錄（會 commit）。回報刪除數、殘留、匿名化的使用者數。
 
     ★ 只清「要拍的畫面會用到的業務模型」（models：方案功能點的模型＋情境示範資料的
@@ -441,7 +446,7 @@ def purge_script(models):
         # ★ 已確認／已過帳的單據 Odoo 不准直接刪：先退回草稿或取消再刪
         #   ☠️ 實機：社群電商方案的說明庫留下 8 張客戶銷售訂單、14 張佣金結算單，截圖拍到客戶資料
         "RESETS = ('action_unlock', 'button_draft', '_action_cancel', 'action_cancel',\n"
-        "          'button_cancel', 'action_draft')\n"
+        "          'button_cancel', 'action_draft') + tuple(json.loads(%r))\n"
         "def _reset_and_unlink(Model, rid):\n"
         "    rec = Model.browse(rid).with_context(disable_cancel_warning=True,\n"
         "        tracking_disable=True, mail_notrack=True)\n"
@@ -527,10 +532,14 @@ def purge_script(models):
         "        pass\n"
         "env.cr.commit()\n"
         "print(MARK + json.dumps({'deleted': deleted, 'residual': residual, 'anonymized_users': anon}))\n"
-    ) % (PURGE_SKIP_PREFIXES + ('mail.',), json.dumps(sorted(set(models or []))))
+    ) % (PURGE_SKIP_PREFIXES + ('mail.',), json.dumps(sorted(set(models or []))),
+         json.dumps([m for m in resets or () if m]))
 
 
-def seed_script(module, records, roles, password):
+DEFAULT_SEED_FORBID = ({'model': 'res.company', 'allow_xmlids': ['base.main_company']},)
+
+
+def seed_script(module, records, roles, password, forbid=()):
     """重播情境示範資料（會 commit）。
 
     records: [{'xmlid': 'name', 'model', 'values': {...}}]，values 裡
@@ -550,6 +559,8 @@ def seed_script(module, records, roles, password):
         "RECORDS = json.loads(%r)\n"
         "ROLES = json.loads(%r)\n"
         "PASSWORD = %r\n"
+        # 示範資料禁止建立（環境規則 seed_forbid_model，驗證用）：只准 allow_xmlids 裡的
+        "FORBID = json.loads(%r)\n"
         "def _full(x):\n"
         "    return x if '.' in x else MODULE + '.' + x\n"
         "def _resolve(v):\n"
@@ -611,10 +622,10 @@ def seed_script(module, records, roles, password):
         "    return {_full(x) for x in out}\n"
         # 不建第二家公司（記錄規則只看目前公司，單據會變成存取錯誤）：只准改 base.main_company
         "for rec in RECORDS:\n"
-        "    if rec.get('model') == 'res.company' and not rec.get('call') and \\\n"
-        "            _full(rec.get('xmlid') or '') != 'base.main_company':\n"
+        "    if not rec.get('call') and any(rec.get('model') == f.get('model') and\n"
+        "            _full(rec.get('xmlid') or '') not in (f.get('allow_xmlids') or []) for f in FORBID):\n"
         "        gone.add(_full(rec.get('xmlid') or ''))\n"
-        "        skipped.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model')})\n"
+        "        skipped.append({'xmlid': rec.get('xmlid'), 'model': rec.get('model'), 'why': 'forbid'})\n"
         "        continue\n"
         "    if rec.get('model') not in env.registry or (_refs(rec) & gone):\n"
         "        gone.add(_full(rec.get('xmlid') or ''))\n"
@@ -656,7 +667,8 @@ def seed_script(module, records, roles, password):
         "print(MARK + json.dumps({'done': done, 'errors': errors, 'users': users,\n"
         "                         'published': published,\n"
         "                         'skipped': skipped}))\n"
-    ) % (module, json.dumps(records), json.dumps(roles), password)
+    ) % (module, json.dumps(records), json.dumps(roles), password,
+         json.dumps(list(DEFAULT_SEED_FORBID) + list(forbid or ())))
 
 
 def access_diag_script(login, model, res_id=None):
@@ -1314,7 +1326,7 @@ print(MARK + json.dumps({'toggles': out, 'off_groups': off_groups, 'graph': grap
 """
 
 
-def analysis_script(modules, official=(), lang='zh_TW'):
+def analysis_script(modules, official=(), lang='zh_TW', extra_routes=()):
     """一次 odoo shell 跑完「盤點＋設定開關＋流程」（唯讀）。
 
     ★ 每一次 odoo shell 都要重新載入整個 registry（幾百個模組，15–40 秒），而且是在母體
@@ -1329,6 +1341,7 @@ def analysis_script(modules, official=(), lang='zh_TW'):
         "OFFICIAL = set(json.loads(%r)) - MODS\n"
         "SCOPE = set(json.loads(%r))\n"
         "LANG = _lang(%r)\n"
+        "EXTRA_ROUTES = json.loads(%r)\n"
         "__OUT = {}\n"
         "__print = print\n"
         "def print(s):\n"
@@ -1337,7 +1350,7 @@ def analysis_script(modules, official=(), lang='zh_TW'):
         "    else:\n"
         "        __print(s)\n"
     ) % (json.dumps(sorted(modules)), json.dumps(sorted(official or ())), json.dumps(scope),
-         lang) + _INVENTORY_BODY + (
+         lang, json.dumps(list(extra_routes or ()))) + _INVENTORY_BODY + (
         "\nMODELS = sorted({d.get('model') for d in __OUT.get('features') or []\n"
         "                  if d.get('kind') == 'action' and d.get('model')})\n"
     ) + _TOGGLE_BODY + _FLOW_BODY + _PROFILE_BODY + (

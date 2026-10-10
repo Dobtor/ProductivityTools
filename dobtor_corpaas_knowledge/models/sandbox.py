@@ -175,7 +175,7 @@ class KnowledgeSandbox(models.Model):
         self.write({'state': 'seeding', 'error': False})
         res = self._shell(scripts.seed_script(
             scenario.xml_module, delta, scenario.all_roles().as_payload(),
-            self.sudo().password))
+            self.sudo().password, forbid=self._rule_values('seed_forbid_model')))
         if res.get('errors'):
             raise UserError(_('疊加示範資料失敗 %s 筆') % len(res['errors']))
         applied = json.loads(self.seed_applied or '{}')
@@ -237,13 +237,15 @@ class KnowledgeSandbox(models.Model):
             if skip:
                 purge = {'skipped': golden.template_version_id.knowledge_data_source}
             else:
-                purge = self._shell(scripts.purge_script(self._purge_models(seed)))
+                purge = self._shell(scripts.purge_script(
+                    self._purge_models(seed), resets=self._rule_values('purge_reset_method')))
             self.write({'purge_report': json.dumps(purge, ensure_ascii=False),
                         'purge_skipped': skip,
                         'purged_at': fields.Datetime.now(), 'state': 'seeding'})
             password = secrets.token_urlsafe(18)
             res = self._shell(scripts.seed_script(
-                scenario.xml_module, seed, scenario.all_roles().as_payload(), password))
+                scenario.xml_module, seed, scenario.all_roles().as_payload(), password,
+                forbid=self._rule_values('seed_forbid_model')))
             self.write({'seed_report': json.dumps(res, ensure_ascii=False),
                         'password': password,
                         'role_logins': json.dumps(res.get('users') or {})})
@@ -371,6 +373,11 @@ class KnowledgeSandbox(models.Model):
             "print(MARK + json.dumps(out))\n") % json.dumps(sorted(set(xmlids)))
         return self._shell(script)
 
+    def _rule_values(self, kind):
+        """這座說明庫所屬方案生效的環境規則值（計畫第 24 項）。"""
+        self.ensure_one()
+        return self.env['corpaas.knowledge.rule'].values(kind, self.package_id)
+
     def diagnose_access(self, login, model, res_id=None):
         """唯讀診斷某帳號看不到某模型／某筆記錄的原因（計畫第 26 項）。回傳 (詳細, 一句話)。"""
         self.ensure_one()
@@ -387,7 +394,8 @@ class KnowledgeSandbox(models.Model):
             return []
         since = fields.Datetime.to_string(self.purged_at or self.ready_at
                                           or fields.Datetime.now())
-        res = self._shell(scripts.gate_script(pairs or {}, since, refs or {}))
+        allow = tuple(scripts.CONFIG_MODELS) + tuple(self._rule_values('gate_allow_model'))
+        res = self._shell(scripts.gate_script(pairs or {}, since, refs or {}, allow=allow))
         return res.get('bad') or []
 
     def action_rebuild(self):

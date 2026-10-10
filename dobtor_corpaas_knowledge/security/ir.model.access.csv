@@ -56,3 +56,5 @@ access_kb_gap_editor,kb.gap.editor,model_corpaas_knowledge_gap_item,group_knowle
 access_kb_gap_manager,kb.gap.manager,model_corpaas_knowledge_gap_item,group_knowledge_manager,1,1,1,1
 access_kb_library_editor,kb.library.editor,model_corpaas_knowledge_library,group_knowledge_editor,1,0,0,0
 access_kb_library_manager,kb.library.manager,model_corpaas_knowledge_library,group_knowledge_manager,1,1,1,1
+access_kb_rule_editor,kb.rule.editor,model_corpaas_knowledge_rule,group_knowledge_editor,1,0,0,0
+access_kb_rule_manager,kb.rule.manager,model_corpaas_knowledge_rule,group_knowledge_manager,1,1,1,1
