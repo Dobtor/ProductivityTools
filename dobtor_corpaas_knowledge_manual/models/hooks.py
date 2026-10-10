@@ -1117,7 +1117,42 @@ class KnowledgeHooks(models.AbstractModel):
         return errors
 
     @api.model
+    def _manual_repair_eligible(self, b):
+        """這張會不會被送去 AI 修（與下面迴圈的判斷一致，不寫任何東西）。"""
+        if b.state != 'failed' or not b.needs_repair:
+            return False
+        if failure_policy.classify(b.last_error) not in failure_policy.REPAIRABLE:
+            return False
+        if b.repair_fp and b.repair_fp == failure_policy.fingerprint(b.last_error):
+            return False
+        bonus = 1 if SCREEN_HINT in (b.last_error or '') and not b.repair_bonus_used else 0
+        return b.repair_attempts < MAX_REPAIRS + bonus
+
+    @api.model
+    def _manual_prefetch_repairs(self, package, bindings, token):
+        """要修的腳本先平行問 AI（一個範本只問一次），迴圈裡的 ask 直接拿結果。
+
+        ★ 修一張約 30–60 秒；一輪 20 張一個接一個要 10–20 分鐘，是拍攝階段變慢的主因。"""
+        todo, seen = [], set()
+        for b in bindings.filtered(self._manual_repair_eligible):
+            if b.template_id.id in seen:
+                continue   # 同一個範本先修的會改到腳本，後面的提示就不一樣了
+            seen.add(b.template_id.id)
+            try:
+                todo.append(('manual_repair', self._manual_repair_prompt(package, b)))
+            except Exception as e:  # noqa: BLE001 — 組不出提示就留給迴圈照常處理
+                _logger.info('[knowledge.manual] 預先修補略過 %s：%s', b.id, e)
+        if len(todo) < 2:
+            return 0
+        workers = int(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.repair_workers', 3) or 3)
+        return self.env['corpaas.knowledge.ai'].prefetch(
+            todo, package=package, refresh_token=token, workers=max(1, min(workers, 6)))
+
+    @api.model
     def _manual_repair_bindings(self, package, bindings, token, stop):
+        if not stop['ai']:
+            self._manual_prefetch_repairs(package, bindings, token)
         for b in bindings.filtered(lambda x: x.state == 'failed' and x.needs_repair):
             package._knowledge_heartbeat('kb_shoot', _('修補截圖腳本'))
             if stop['ai']:
@@ -1169,19 +1204,29 @@ class KnowledgeHooks(models.AbstractModel):
                                 b.template_id.display_name, e)
 
     @api.model
+    def _manual_repair_roles(self, binding):
+        tmpl = binding.template_id
+        return [{'code': r.code, 'name': r.name} for r in binding.scenario_id.all_roles()
+                # 後台畫面不讓 AI 改成會員（入口網站帳號進不了後台）
+                if tmpl.feature_id.kind == 'route' or r.code not in (ROUTE_MEMBER, ROUTE_VISITOR)]
+
+    @api.model
+    def _manual_repair_prompt(self, package, binding):
+        tmpl = binding.template_id
+        last = json.loads(binding.last_result or '{}')
+        return prompts.repair_prompt(
+            self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
+            binding.last_error, last.get('dom_text'), last.get('url'), self._manual_repair_roles(binding),
+            self._manual_demo(binding.scenario_id),
+            flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None)
+
+    @api.model
     def _manual_repair(self, package, binding, token):
         """步驟 5：AI 依錯誤修範本／繫結／登入角色；下一次 refresh 才重拍。"""
         tmpl = binding.template_id
-        last = json.loads(binding.last_result or '{}')
-        roles = [{'code': r.code, 'name': r.name} for r in binding.scenario_id.all_roles()
-                 # 後台畫面不讓 AI 改成會員（入口網站帳號進不了後台）
-                 if tmpl.feature_id.kind == 'route' or r.code not in (ROUTE_MEMBER, ROUTE_VISITOR)]
+        roles = self._manual_repair_roles(binding)
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
-            'manual_repair', prompts.repair_prompt(
-                self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
-                binding.last_error, last.get('dom_text'), last.get('url'), roles,
-                self._manual_demo(binding.scenario_id),
-                flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None),
+            'manual_repair', self._manual_repair_prompt(package, binding),
             package=package, refresh_token=token, record=tmpl), 'manual_repair')
         steps = data.get('steps') or tmpl.steps()
         manual_lib.validate_steps(steps)

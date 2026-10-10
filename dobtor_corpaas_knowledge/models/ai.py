@@ -90,11 +90,7 @@ class KnowledgeAi(models.AbstractModel):
         而不是當成失敗。
         """
         conf = self._conf()
-        if package and purpose in PROFILE_PURPOSES and hasattr(package, '_knowledge_profile_text'):
-            # ★ 方案檔案（計畫第 32 項）：判斷環境的工作都先告訴 AI 方案實際長怎樣
-            prof = package._knowledge_profile_text()
-            if prof:
-                prompt = prof + '\n\n' + prompt
+        prompt = self._with_profile(purpose, prompt, package)
         cacheable = purpose in CACHEABLE
         phash = hashlib.sha256(('%s\n%s' % (purpose, prompt)).encode('utf-8')).hexdigest()[:40] \
             if cacheable else False
@@ -143,6 +139,17 @@ class KnowledgeAi(models.AbstractModel):
         return (fields.Datetime.now() + timedelta(hours=8)).date().isoformat()
 
     @api.model
+    def _with_profile(self, purpose, prompt, package):
+        """方案檔案（計畫第 32 項）：判斷環境的工作都先告訴 AI 方案實際長怎樣。
+
+        ★ ask 與 prefetch 都要經過這裡：否則預先問的鍵（沒加前綴）對不上 ask 的鍵，同一題付兩次錢。"""
+        if package and purpose in PROFILE_PURPOSES and hasattr(package, '_knowledge_profile_text'):
+            prof = package._knowledge_profile_text()
+            if prof:
+                return prof + '\n\n' + prompt
+        return prompt
+
+    @api.model
     def prefetch(self, items, package=None, refresh_token=None, workers=3):
         """平行送出多個 AI 呼叫（只有 HTTP 在執行緒裡；記帳回主執行緒做）。
 
@@ -153,6 +160,7 @@ class KnowledgeAi(models.AbstractModel):
         if txn.in_tests(self.env) and not self.env.context.get('kb_prefetch_in_tests'):
             return 0
         conf = self._conf()
+        items = [(p, self._with_profile(p, q, package)) for p, q in items]
         todo = [(p, q) for p, q in items
                 if _prefetch_key(self.env.cr.dbname, p, q) not in _PREFETCH]
         if not todo:

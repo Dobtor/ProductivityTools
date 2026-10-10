@@ -209,6 +209,24 @@ class TestIterativeManual(ManualCase):
         self.hooks._manual_sync_shot_gaps(self.pkg, b)
         self.assertEqual(gap.state, 'resolved')
 
+    def test_repairs_are_prefetched_in_parallel(self):
+        from unittest.mock import patch
+        from odoo.addons.dobtor_corpaas_knowledge.services import hub_client
+        b1 = self._binding(self.f1, repair=True)
+        b2 = self._binding(self.f2, repair=True)
+        sent = []
+
+        def call(url, key, purpose, prompt, context=None, **kw):
+            sent.append(purpose)
+            return '{"steps": [{"shot": "main"}], "reason": "改用正確的按鈕"}', 0.05, 1
+
+        hooks = self.hooks.with_context(kb_prefetch_in_tests=True)
+        with patch.object(hub_client, 'call', call):
+            hooks._manual_repair_bindings(self.pkg, b1 | b2, 'tok', {'ai': False})
+        self.assertEqual(sent, ['manual_repair', 'manual_repair'], '每張只問一次（預先平行問、迴圈直接用）')
+        self.assertEqual((b1.state, b2.state), ('pending', 'pending'))
+        self.assertEqual((b1.repair_attempts, b2.repair_attempts), (1, 1))
+
     def test_human_access_gap_gets_one_admin_try(self):
         import json
         from unittest.mock import patch

@@ -639,6 +639,24 @@ class TestIterativeCore(_RefreshBase):
             self.assertEqual(Ai.ask('p1', 'A', package=self.pkg), {'ok': 'p1'})
         self.assertEqual(sorted(sent), ['p1', 'p2'], 'ask 用預取結果，不再呼叫')
 
+    def test_prefetch_key_matches_ask_with_profile(self):
+        """方案檔案前綴的用途：預先問的鍵要跟 ask 一致，不能同一題付兩次。"""
+        from ..services import hub_client
+        Ai = self.env['corpaas.knowledge.ai'].with_context(kb_prefetch_in_tests=True)
+        Pkg = type(self.pkg)
+        sent = []
+
+        def call(url, key, purpose, prompt, context=None, **kw):
+            sent.append(prompt)
+            return '{"ok": 1}', 0.01, 1
+
+        with patch.object(hub_client, 'call', call), \
+                patch.object(Pkg, '_knowledge_profile_text', lambda s: '方案檔案：有網站'):
+            Ai.prefetch([('manual_repair', 'A')], package=self.pkg)
+            self.assertEqual(Ai.ask('manual_repair', 'A', package=self.pkg), {'ok': 1})
+        self.assertEqual(len(sent), 1, 'ask 拿到預先問的結果')
+        self.assertIn('方案檔案：有網站', sent[0])
+
     def test_fill_gaps_only_adds(self):
         sc = self.env['corpaas.knowledge.scenario'].sudo().create({
             'name': '補缺口', 'code': 'kbt_fill', 'narrative': 'n',
