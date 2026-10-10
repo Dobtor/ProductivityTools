@@ -102,6 +102,16 @@ class TestContentRun(HttpCase):
         self.assertTrue(status.get('ok'), status)
         self.assertFalse(status.get('done'))
 
+    def test_system_part_kept_for_prompt_cache(self):
+        """固定內容（system）存在 Run 上、派工時進系統提示；回報 system_ok 讓呼叫端知道收到了。"""
+        res = self._post(PATH, {'purpose': 'manual_repair', 'prompt': '變動', 'system': '固定清單'})
+        self.assertTrue(res.get('system_ok'), res)
+        run = self.env['ai.hub.run'].browse(res['run_id'])
+        self.assertEqual(run.extra_system_prompt, '固定清單')
+        self.assertEqual(run.prompt, '變動')
+        bad = self._post(PATH, {'purpose': 'x', 'prompt': 'y', 'system': ['not', 'str']})
+        self.assertEqual(bad.get('error'), 'invalid_prompt')
+
     def test_other_source_cannot_read_status(self):
         res = self._post(PATH, {'purpose': 'x', 'prompt': 'hi'})
         other = self.env['ai.hub.source'].create({

@@ -813,10 +813,11 @@ class KnowledgeHooks(models.AbstractModel):
         if tmpl.placeholder_list():
             if stop['ai']:
                 return Binding
+            demo = self._manual_demo(scenario)
             data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
                 'manual_bind', prompts.bind_prompt(
                     self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(),
-                    tmpl.placeholder_list(), self._manual_demo(scenario)),
+                    tmpl.placeholder_list(), demo, static_demo=True), static=prompts.demo_static(demo),
                 package=package, refresh_token=token, record=tmpl), 'manual_bind')
             bindings = ai_str_map(data.get('bindings'))
         return Binding.create({'template_id': tmpl.id, 'scenario_id': scenario.id,
@@ -833,10 +834,12 @@ class KnowledgeHooks(models.AbstractModel):
                                   archs_script(feature.model, views))
         roles = [{'code': r.code, 'name': r.name} for r in scenario.all_roles()]
         screen = self._manual_probe(sandbox, feature)
+        demo = self._manual_demo(scenario)
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
             'manual_explore', prompts.explore_prompt(
-                self._manual_feature_dict(feature, package), archs, self._manual_demo(scenario), roles,
-                screen=screen, flows=self._manual_flow_brief(feature.model) if feature.model else None),
+                self._manual_feature_dict(feature, package), archs, demo, roles,
+                screen=screen, flows=self._manual_flow_brief(feature.model) if feature.model else None,
+                static_demo=True), static=prompts.demo_static(demo),
             package=package, refresh_token=token, record=feature), 'manual_explore')
         steps = data.get('steps')
         manual_lib.validate_steps(steps)
@@ -1179,7 +1182,8 @@ class KnowledgeHooks(models.AbstractModel):
                 continue   # 同一個範本先修的會改到腳本，後面的提示就不一樣了
             seen.add(b.template_id.id)
             try:
-                todo.append(('manual_repair', self._manual_repair_prompt(package, b)))
+                prompt, static = self._manual_repair_prompt(package, b)
+                todo.append(('manual_repair', prompt, static))
             except Exception as e:  # noqa: BLE001 — 組不出提示就留給迴圈照常處理
                 _logger.info('[knowledge.manual] 預先修補略過 %s：%s', b.id, e)
         if len(todo) < 2:
@@ -1252,21 +1256,24 @@ class KnowledgeHooks(models.AbstractModel):
 
     @api.model
     def _manual_repair_prompt(self, package, binding):
+        """回傳 (變動內容, 固定內容)：固定內容（詞彙＋示範資料）同一情境都一樣，另外送吃快取。"""
         tmpl = binding.template_id
         last = json.loads(binding.last_result or '{}')
+        demo = self._manual_demo(binding.scenario_id)
         return prompts.repair_prompt(
             self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
             binding.last_error, last.get('dom_text'), last.get('url'), self._manual_repair_roles(binding),
-            self._manual_demo(binding.scenario_id),
-            flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None)
+            demo, flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None,
+            static_demo=True), prompts.demo_static(demo)
 
     @api.model
     def _manual_repair(self, package, binding, token):
         """步驟 5：AI 依錯誤修範本／繫結／登入角色；下一次 refresh 才重拍。"""
         tmpl = binding.template_id
         roles = self._manual_repair_roles(binding)
+        prompt, static = self._manual_repair_prompt(package, binding)
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
-            'manual_repair', self._manual_repair_prompt(package, binding),
+            'manual_repair', prompt, static=static,
             package=package, refresh_token=token, record=tmpl), 'manual_repair')
         steps = data.get('steps') or tmpl.steps()
         manual_lib.validate_steps(steps)

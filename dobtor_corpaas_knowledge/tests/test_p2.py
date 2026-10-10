@@ -657,6 +657,32 @@ class TestIterativeCore(_RefreshBase):
         self.assertEqual(len(sent), 1, 'ask 拿到預先問的結果')
         self.assertIn('方案檔案：有網站', sent[0])
 
+    def test_static_part_sent_as_system_when_enabled(self):
+        from ..services import hub_client
+        Ai = self.env['corpaas.knowledge.ai']
+        seen = []
+
+        def call(url, key, purpose, prompt, context=None, system=None, **kw):
+            seen.append((prompt, system))
+            return '{"ok": 1}', 0.01, 1
+
+        icp = self.env['ir.config_parameter'].sudo()
+        with patch.object(hub_client, 'call', call):
+            Ai.ask('manual_bind', '變動', static='固定清單')
+            icp.set_param('corpaas_knowledge.hub_system_prompt', '1')
+            Ai.ask('manual_bind', '變動', static='固定清單')
+        (p0, s0), (p1, s1) = seen
+        self.assertIsNone(s0)
+        self.assertTrue(p0.endswith('固定清單\n\n變動'), '沒開：固定內容併在前面，內容一樣')
+        self.assertEqual(p1, '變動', '開了：只送變動的部分')
+        self.assertIn('固定清單', s1)
+
+    def test_hub_without_system_support_is_refused(self):
+        from ..services import hub_client
+        with patch.object(hub_client, '_rpc', return_value={'ok': True, 'run_id': 1}):
+            with self.assertRaises(hub_client.HubError):
+                hub_client.call('http://hub', 'k', 'p', 'x', system='固定')
+
     def test_fill_gaps_only_adds(self):
         sc = self.env['corpaas.knowledge.scenario'].sudo().create({
             'name': '補缺口', 'code': 'kbt_fill', 'narrative': 'n',

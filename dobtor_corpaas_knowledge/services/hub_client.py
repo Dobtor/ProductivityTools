@@ -72,13 +72,21 @@ def extract_json(text):
     raise HubError('AI 回覆不是合法 JSON：%s' % text[:500])
 
 
-def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900):
-    """送出並等待完成。回傳 (text, cost_usd, run_id)。"""
+def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900, system=None):
+    """送出並等待完成。回傳 (text, cost_usd, run_id)。
+
+    system：固定內容（規則、詞彙、示範資料清單），Hub 放進系統提示，連續呼叫內容相同時吃提示詞快取。
+    ★ 只有 Hub 支援（content_run 回 system_ok）時才可以送；呼叫端由系統參數開關決定。"""
     if not hub_url or not key:
         raise HubError('尚未設定 AI Hub 網址或金鑰')
     base = hub_url.rstrip('/')
-    res = _rpc(base + '/ai_hub/api/v1/content_run', key,
-               {'purpose': purpose, 'prompt': prompt, 'context': context or {}})
+    params = {'purpose': purpose, 'prompt': prompt, 'context': context or {}}
+    if system:
+        params['system'] = system
+    res = _rpc(base + '/ai_hub/api/v1/content_run', key, params)
+    if res.get('ok') and system and not res.get('system_ok'):
+        # 舊版 Hub 不認得 system：這次的固定內容沒送到，不能用這個結果
+        raise HubError('AI Hub 不支援 system（請先升級 dobtor_ai_hub_content，或關掉 corpaas_knowledge.hub_system_prompt）')
     if not res.get('ok'):
         err = BudgetExceeded if res.get('error') in QUOTA_ERRORS else HubError
         if err is BudgetExceeded:

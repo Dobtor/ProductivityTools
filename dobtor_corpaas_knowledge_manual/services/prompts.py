@@ -53,7 +53,17 @@ DEMO_NOTE = ("示範資料附了說明庫裡的名稱（name）與目前狀態�
              "綁記錄前先對狀態。精靈（暫存模型）不能用網址或 open 打開，要按開啟它的按鈕。")
 
 
-def explore_prompt(feature, archs, demo, roles, screen=None, flows=None):
+_IN_SYSTEM = '（步驟詞彙、示範資料說明與清單在系統提示裡）'
+
+
+def demo_static(demo, limit=30000):
+    """寫／修／挑腳本共用的固定內容：步驟詞彙＋示範資料說明＋清單。
+
+    ★ 同一個情境的每次呼叫都一樣：另外送（AI Hub 放進系統提示）才吃得到提示詞快取。"""
+    return '%s\n\n%s\n示範資料：%s' % (STEP_VOCAB, DEMO_NOTE, _j(demo or [])[:limit])
+
+
+def explore_prompt(feature, archs, demo, roles, screen=None, flows=None, static_demo=False):
     """沒有截圖腳本範本的功能：看畫面結構與示範資料，寫出範本與繫結。"""
     return (
         "任務：為功能「%(name)s」寫一份無頭瀏覽器截圖腳本（操作說明用）。\n"
@@ -68,35 +78,38 @@ def explore_prompt(feature, archs, demo, roles, screen=None, flows=None):
         "4. login_role 從角色清單挑最適合操作這個功能的一個 code。\n%(delta)s\n"
         "回覆格式：{\"login_role\":\"<code>\",\"steps\":[…],"
         "\"bindings\":{\"<佔位符名>\":\"<xmlid>\"},\"note\":\"<一句話說明>\"}\n\n"
-        "角色：%(roles)s\n\n%(demo_note)s\n示範資料：%(demo)s%(flows)s\n\n"
+        "角色：%(roles)s\n\n%(demo_part)s%(flows)s\n\n"
         "實際畫面（entry＝打開功能後、record＝打開一筆示範記錄）：%(screen)s\n\n"
         "畫面結構（arch）：%(archs)s"
     ) % {
-        'demo_note': DEMO_NOTE, 'flows': _flows_note(flows),
+        'demo_part': _IN_SYSTEM if static_demo else '%s\n示範資料：%s' % (DEMO_NOTE, _j(demo)),
+        'flows': _flows_note(flows),
         'screen': _j(screen or {})[:20000], 'delta': _delta_note(feature),
         'name': feature.get('name'), 'key': feature.get('key'), 'kind': feature.get('kind'),
         'model': feature.get('model') or '', 'menu': feature.get('menu_path') or '',
         'action': feature.get('action_xmlid') or '', 'button': feature.get('button_name') or '',
-        'vocab': STEP_VOCAB, 'roles': _j(roles), 'demo': _j(demo),
+        'vocab': '' if static_demo else STEP_VOCAB, 'roles': _j(roles),
         'archs': _j(archs)[:60000],
     }
 
 
-def bind_prompt(feature, steps, placeholders, demo):
+def bind_prompt(feature, steps, placeholders, demo, static_demo=False):
     """範本已存在、這個情境還沒有繫結：只挑示範資料，不改腳本。"""
+    demo_part = _IN_SYSTEM if static_demo else DEMO_NOTE + "\n示範資料：" + _j(demo)
     return (
         "任務：功能「%(name)s」（%(key)s）已有截圖腳本。請為這個情境挑選示範資料，"
         "把腳本裡的每個佔位符對應到一筆示範資料的 xmlid（挑最能說明功能的那筆）。"
         "不要修改腳本。\n\n"
         "回覆格式：{\"bindings\":{\"<佔位符名>\":\"<xmlid>\"}}\n\n"
-        "佔位符：%(ph)s\n\n" + DEMO_NOTE + "\n示範資料：%(demo)s\n\n腳本：%(steps)s"
+        "佔位符：%(ph)s\n\n%(demo)s\n\n腳本：%(steps)s"
     ) % {
         'name': feature.get('name'), 'key': feature.get('key'), 'ph': _j(placeholders),
-        'demo': _j(demo), 'steps': _j(steps),
+        'demo': demo_part, 'steps': _j(steps),
     }
 
 
-def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, demo=None, flows=None):
+def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, demo=None, flows=None,
+                  static_demo=False):
     """截圖失敗（含佔位符對不到示範資料、角色沒有帳號）：依錯誤修腳本或繫結。
 
     下一次 refresh 才重試。
@@ -111,13 +124,13 @@ def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, de
         "\"login_role\":\"<code>\"（沒改可省略）,\"reason\":\"<修了什麼>\"}\n\n"
         "錯誤：%(error)s\n\n失敗時網址：%(url)s\n\n失敗時畫面文字：%(dom)s\n\n"
         "目前腳本：%(steps)s\n\n目前繫結：%(bindings)s\n\n角色：%(roles)s\n\n"
-        "%(demo_note)s\n示範資料：%(demo)s%(flows)s"
+        "%(demo_part)s%(flows)s"
     ) % {
-        'demo_note': DEMO_NOTE, 'flows': _flows_note(flows),
-        'name': feature.get('name'), 'key': feature.get('key'), 'vocab': STEP_VOCAB,
+        'demo_part': _IN_SYSTEM if static_demo else '%s\n示範資料：%s' % (DEMO_NOTE, _j(demo or [])[:30000]),
+        'flows': _flows_note(flows),
+        'name': feature.get('name'), 'key': feature.get('key'), 'vocab': '' if static_demo else STEP_VOCAB,
         'error': (error or '')[:3000], 'url': url or '', 'dom': (dom_text or '')[:6000],
         'steps': _j(steps), 'bindings': _j(bindings or {}), 'roles': _j(roles or []),
-        'demo': _j(demo or [])[:30000],
     }
 
 

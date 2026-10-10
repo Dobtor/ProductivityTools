@@ -82,8 +82,18 @@ class KnowledgeAi(models.AbstractModel):
             return float(cr.fetchone()[0] or 0.0)
 
     @api.model
+    def _split_static(self, static):
+        """固定內容要不要另外送（吃提示詞快取）。回傳 (system, 併進 prompt 的前綴)。
+
+        ★ 系統參數 corpaas_knowledge.hub_system_prompt 開了才分開送（AI Hub 要先升級）；
+          沒開就照舊全部併在 prompt 前面，內容一樣、只是吃不到快取。"""
+        on = self.env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.hub_system_prompt')
+        if on in ('1', 'True', 'true'):
+            return BASE_INSTRUCTIONS + ('\n' + static if static else ''), ''
+        return None, BASE_INSTRUCTIONS + '\n' + (static + '\n\n' if static else '')
+
     def ask(self, purpose, prompt, package=None, refresh_token=None, record=None,
-            expect_json=True, context=None):
+            expect_json=True, context=None, static=None):
         """送出並等待；回傳解析後的 JSON（或純文字）。
 
         超出本次 refresh 預算時拋 BudgetExceeded——呼叫端應把工作留到下一次，
@@ -92,8 +102,8 @@ class KnowledgeAi(models.AbstractModel):
         conf = self._conf()
         prompt = self._with_profile(purpose, prompt, package)
         cacheable = purpose in CACHEABLE
-        phash = hashlib.sha256(('%s\n%s' % (purpose, prompt)).encode('utf-8')).hexdigest()[:40] \
-            if cacheable else False
+        phash = hashlib.sha256(('%s\n%s\n%s' % (purpose, static or '', prompt)).encode('utf-8')
+                               ).hexdigest()[:40] if cacheable else False
         if cacheable:
             hit = self._cache_get(purpose, phash)
             if hit is not None:
@@ -102,7 +112,7 @@ class KnowledgeAi(models.AbstractModel):
                                 'ok': True, 'cost_usd': 0.0, 'cached': True,
                                 'prompt_hash': phash})
                 return hub_client.extract_json(hit) if expect_json else hit
-        pre = _PREFETCH.pop(_prefetch_key(self.env.cr.dbname, purpose, prompt), None)
+        pre = _PREFETCH.pop(_prefetch_key(self.env.cr.dbname, purpose, (static or '') + prompt), None)
         if pre is not None:
             # 已由 prefetch 平行問過（帳也記過了）：直接用
             return hub_client.extract_json(pre) if expect_json else pre
@@ -116,10 +126,11 @@ class KnowledgeAi(models.AbstractModel):
                 'package_id': package.id if package else False,
                 'res_model': record._name if record else False,
                 'res_id': record.id if record else 0}
+        system, head = self._split_static(static)
         try:
             text, cost, run_id = hub_client.call(
-                conf['hub_url'], conf['hub_key'], purpose,
-                BASE_INSTRUCTIONS + '\n' + prompt, context=context)
+                conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context,
+                **({'system': system} if system else {}))
         except hub_client.HubError as e:
             self._log_call(dict(vals, **self._quota_vals(), ok=False, error=str(e)[:2000]))
             raise
@@ -160,26 +171,30 @@ class KnowledgeAi(models.AbstractModel):
         if txn.in_tests(self.env) and not self.env.context.get('kb_prefetch_in_tests'):
             return 0
         conf = self._conf()
-        items = [(p, self._with_profile(p, q, package)) for p, q in items]
-        todo = [(p, q) for p, q in items
-                if _prefetch_key(self.env.cr.dbname, p, q) not in _PREFETCH]
+        items = [(it[0], self._with_profile(it[0], it[1], package), it[2] if len(it) > 2 else None)
+                 for it in items]
+        todo = [(p, q, st) for p, q, st in items
+                if _prefetch_key(self.env.cr.dbname, p, (st or '') + q) not in _PREFETCH]
         if not todo:
             return 0
         if refresh_token and self.spent(refresh_token) >= conf['budget']:
             return 0
 
+        splits = {st: self._split_static(st) for _p, _q, st in todo}   # 讀系統參數要在主執行緒
+
         def one(item):
-            purpose, prompt = item
+            purpose, prompt, static = item
+            system, head = splits[static]
             try:
-                return item, hub_client.call(conf['hub_url'], conf['hub_key'], purpose,
-                                             BASE_INSTRUCTIONS + '\n' + prompt), None
+                return item, hub_client.call(conf['hub_url'], conf['hub_key'], purpose, head + prompt,
+                                             **({'system': system} if system else {})), None
             except hub_client.HubError as e:
                 return item, None, e
 
         done = 0
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
             results = list(pool.map(one, todo))
-        for (purpose, prompt), res, err in results:
+        for (purpose, prompt, static), res, err in results:
             vals = {'purpose': purpose, 'refresh_token': refresh_token,
                     'package_id': package.id if package else False}
             if err:
@@ -188,7 +203,7 @@ class KnowledgeAi(models.AbstractModel):
             text, cost, run_id = res
             self._log_call(dict(vals, **self._quota_vals(), ok=True, cost_usd=cost,
                                 run_id=run_id))
-            _PREFETCH[_prefetch_key(self.env.cr.dbname, purpose, prompt)] = text
+            _PREFETCH[_prefetch_key(self.env.cr.dbname, purpose, (static or '') + prompt)] = text
             done += 1
         return done
 

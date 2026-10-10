@@ -29,7 +29,7 @@ class AiHubContentUplink(AiHubUplink):
 
     @http.route('/ai_hub/api/v1/content_run', type='json', auth='none',
                 csrf=False, methods=['POST'], readonly=False)
-    def content_run(self, purpose=None, prompt=None, context=None, **kw):
+    def content_run(self, purpose=None, prompt=None, context=None, system=None, **kw):
         source, err = self._auth()
         if err:
             return err
@@ -38,8 +38,10 @@ class AiHubContentUplink(AiHubUplink):
                     'detail': _('此來源未開放知識內容')}
         if not prompt or not isinstance(prompt, str) or not prompt.strip():
             return {'ok': False, 'error': 'invalid_prompt'}
+        if system is not None and not isinstance(system, str):
+            return {'ok': False, 'error': 'invalid_prompt', 'detail': 'system 要是字串'}
         limit = source.content_limit()
-        if len(prompt) > limit:
+        if len(prompt) + len(system or '') > limit:
             return {'ok': False, 'error': 'prompt_too_long',
                     'detail': _('prompt 超過上限（%s 字元）') % limit}
         blocked = source.uplink_blocked_reason()
@@ -61,14 +63,16 @@ class AiHubContentUplink(AiHubUplink):
             return {'ok': False, 'error': 'refused',
                     'detail': _('未能建立執行（可能已達成本上限）')}
         # ★ origin 一定要標：配額與今日成本只算 uplink 的 Run，漏標就是免費額度。
-        run.sudo().write({'origin': 'uplink', 'origin_message': name})
+        # ★ system：呼叫端的固定內容放進系統提示（吃提示詞快取）；派工在交易提交後才讀，寫在這裡來得及
+        run.sudo().write({'origin': 'uplink', 'origin_message': name,
+                          'extra_system_prompt': (system or '').strip() or False})
         source.sudo().uplink_last_used = fields.Datetime.now()
         # ★ uplink_used_today 是非儲存 compute，uplink_blocked_reason() 時已被快取，
         #   不清掉的話回報的剩餘額度會少算這一次。
         source.invalidate_recordset(['uplink_used_today', 'uplink_cost_today'])
         _logger.info('AI Hub content: source=%s run=%s purpose=%s（%s 字元）',
                      source.id, run.id, name, len(prompt))
-        return {'ok': True, 'run_id': run.id, 'conversation': session.id,
+        return {'ok': True, 'run_id': run.id, 'conversation': session.id, 'system_ok': True,
                 'quota_left': source.uplink_quota_left(),
                 'cost_left': source.uplink_cost_left()}
 
