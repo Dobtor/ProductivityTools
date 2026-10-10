@@ -628,9 +628,60 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
     return None
 
 
+def _split_by_login(shots, parts):
+    """同一個帳號的截圖放同一組（換角色的分頁可沿用），各組張數盡量平均。"""
+    groups = {}
+    for s in shots:
+        groups.setdefault(s.get('login') or '', []).append(s)
+    buckets = [[] for _ in range(parts)]
+    for g in sorted(groups.values(), key=len, reverse=True):
+        min(buckets, key=len).extend(g)
+    return [b for b in buckets if b]
+
+
+def _run_parallel(job, parts):
+    """平行拍攝（計畫第 41 項）：分成幾組各開一個瀏覽器程序，拍完合併結果與檔案。"""
+    import shutil
+    import subprocess
+    procs = []
+    for i, bucket in enumerate(_split_by_login(job['shots'], parts)):
+        sub = os.path.join(JOB_DIR, 'part%s' % i)
+        os.makedirs(sub, exist_ok=True)
+        with open(os.path.join(sub, 'job.json'), 'w', encoding='utf-8') as fh:
+            json.dump(dict(job, shots=bucket, parallel=1, _child=True), fh, ensure_ascii=False)
+        procs.append((sub, subprocess.Popen([sys.executable, os.path.abspath(__file__)],
+                                            env=dict(os.environ, KB_JOB_DIR=sub))))
+    result = {'shots': {}, 'started': time.time(), 'parallel': len(procs)}
+    os.makedirs(OUT_DIR, exist_ok=True)
+    for sub, p in procs:
+        p.wait()
+        out = os.path.join(sub, 'out')
+        try:
+            with open(os.path.join(out, 'result.json'), encoding='utf-8') as fh:
+                part = json.load(fh)
+        except (OSError, ValueError) as e:
+            part = {'shots': {}, 'error': str(e)}
+        result['shots'].update(part.get('shots') or {})
+        for k in ('cjk_fonts', 'cjk_fonts_error'):
+            if k in part and k not in result:
+                result[k] = part[k]
+        for name in os.listdir(out) if os.path.isdir(out) else []:
+            if name != 'result.json':
+                shutil.move(os.path.join(out, name), os.path.join(OUT_DIR, name))
+    for s in job['shots']:   # 子程序整個掛掉：沒有結果的標成失敗，不要整批不見
+        result['shots'].setdefault(s['id'], {'ok': False, 'images': [], 'error': '平行拍攝的子程序沒有回結果'})
+    result['finished'] = time.time()
+    with open(os.path.join(OUT_DIR, 'result.json'), 'w', encoding='utf-8') as fh:
+        json.dump(result, fh, ensure_ascii=False)
+    return 0
+
+
 def main():
     with open(os.path.join(JOB_DIR, 'job.json'), encoding='utf-8') as fh:
         job = json.load(fh)
+    parts = int(job.get('parallel') or 1)
+    if parts > 1 and not job.get('_child') and len(job.get('shots') or []) >= 2 * parts:
+        return _run_parallel(job, parts)
     os.makedirs(OUT_DIR, exist_ok=True)
     result = {'shots': {}, 'started': time.time()}
     # 自我檢查：容器裡有沒有中文字型（沒掛字型時中文會變方框，截圖看得出來但流程不會失敗）
@@ -645,7 +696,10 @@ def main():
     base = job['base_url'].rstrip('/')
     _DB[0] = job.get('db')
     _RULES[0] = job.get('rules') or {}
-    args = ['--host-resolver-rules=%s' % job['resolver_rule']] if job.get('resolver_rule') else []
+    # ★ 容器預設 /dev/shm 只有 64MB，平行開多個瀏覽器時會當掉：改用 /tmp
+    args = ['--disable-dev-shm-usage']
+    if job.get('resolver_rule'):
+        args.append('--host-resolver-rules=%s' % job['resolver_rule'])
     down = {}   # 每個帳號各自算：一個角色打不開，不該連累其他角色
     with sync_playwright() as p:
         browser = p.chromium.launch(args=args)

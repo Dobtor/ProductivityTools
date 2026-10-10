@@ -11,6 +11,7 @@
   5 沒有群組的業務拍那個畫面 → 存取錯誤；唯讀診斷講得出缺哪個群組
   6 已撥款、模組不准刪的客戶單據，清除程式刪得掉
   7 示範資料不會多建第二家公司（重播時略過）
+  8 平行拍攝：同一批分 2 組各開瀏覽器，結果與圖檔合併回來
 """
 import importlib.util
 import json
@@ -30,6 +31,7 @@ DB, PW = 'kbhard', 'kb-hard-pw-123'
 #: ☠️ 8099 被使用者的 Docker 佔用，截圖程式連到的是 Docker 裡的服務；預設用 8197，啟動前先確認沒人用
 PORT = int(os.environ.get('KB_HARD_PORT', 8197))
 PY = os.path.join(KB, 'venv', 'bin', 'python')
+LAST_JOB = [None]
 
 _spec = importlib.util.spec_from_file_location(
     'kb_scripts', os.path.join(REPO, 'dobtor_corpaas_knowledge', 'services', 'scripts.py'))
@@ -83,12 +85,13 @@ def setup(fresh):
     return res
 
 
-def run_runner(shots):
+def run_runner(shots, parallel=1):
     job = tempfile.mkdtemp(prefix='kbhard-job-')
     with open(os.path.join(job, 'job.json'), 'w') as fh:
         json.dump({'base_url': 'http://127.0.0.1:%s' % PORT, 'db': DB, 'width': 1440, 'height': 900,
                    'scale': 1, 'locale': 'zh-TW', 'tz': 'Asia/Taipei', 'frozen_time': '2026-01-15T10:00:00+08:00',
-                   'extra_css': '', 'shots': shots}, fh)
+                   'extra_css': '', 'shots': shots, 'parallel': parallel}, fh)
+    LAST_JOB[0] = job
     env = dict(os.environ, KB_JOB_DIR=job, PLAYWRIGHT_BROWSERS_PATH=os.path.join(KB, 'ms-playwright'))
     subprocess.run([PY, os.path.join(REPO, 'dobtor_corpaas_knowledge', 'shot_runner', 'run.py')],
                    env=env, capture_output=True, text=True, timeout=900)
@@ -126,7 +129,12 @@ def main():
                 {'goto': {'url': '/my'}}, {'wait': {'ms': 800}}, {'shot': 'member_my'}]},
             {'id': 'sales', 'login': 'doc_sales', 'password': PW, 'steps': [
                 {'goto': {'action': 'kb_hard_env.action_doc'}}, {'wait': {'ms': 800}}, {'shot': 'sales_doc'}]},
-        ])
+        ], parallel=2)
+        checks.append(('8 平行拍攝（2 組）每張都有結果、檔案合併回來',
+                       len(shots) == 4 and all('平行拍攝的子程序' not in (v.get('error') or '') for v in shots.values())
+                       and all(os.path.exists(os.path.join(LAST_JOB[0], 'out', i['file']))
+                               for v in shots.values() for i in v.get('images') or []),
+                       {k: (v.get('ok'), (v.get('error') or '')[:80]) for k, v in shots.items()}))
         checks.append(('1 管理員 API 登入進得了後台（登入頁是彈窗）', shots['admin'].get('ok'), shots['admin'].get('error')))
         navs = shots['probe'].get('navigations') or []
         checks.append(('2 訪客開登入頁看得出是首頁彈窗', any('popup=login' in n for n in navs), navs))

@@ -65,6 +65,7 @@ def run_shots(env, sandbox, shots, settings):
         'rules': env['corpaas.knowledge.rule'].payload(getattr(sandbox, 'package_id', None))
         if 'corpaas.knowledge.rule' in env else {},
         'shots': shots,
+        'parallel': int(settings.get('parallel') or 1),
     }
     with open(_RUNNER, 'rb') as fh:
         runner_src = fh.read()

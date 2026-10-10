@@ -62,9 +62,15 @@ class ResConfigSettings(models.TransientModel):
     @api.model
     def knowledge_shot_settings(self):
         icp = self.env['ir.config_parameter'].sudo()
+        try:
+            parallel = max(1, min(4, int(icp.get_param('corpaas_knowledge.shot_parallel') or 2)))
+        except ValueError:
+            parallel = 1
         return {
             'image': icp.get_param('corpaas_knowledge.playwright_image'),
             'fonts_dir': icp.get_param('corpaas_knowledge.fonts_dir'),
             'phash_threshold': int(icp.get_param('corpaas_knowledge.phash_threshold') or 10),
-            'memory': '1.5g', 'cpus': 1,
+            # ★ 平行拍攝（計畫第 41 項）：同時開幾個瀏覽器；容器資源跟著放大（每個 1.5g／1 CPU）
+            'parallel': parallel,
+            'memory': '%.1fg' % (1.5 * parallel), 'cpus': parallel,
         }
