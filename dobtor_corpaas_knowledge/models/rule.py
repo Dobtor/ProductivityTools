@@ -25,6 +25,11 @@ KINDS = [
     ('rank_keyword', '章節排序關鍵字'),
     ('front_route', '前台標準頁'),
 ]
+#: 截圖安全檢查（D1）白名單一律不准放的模型：放了就等於讓客戶資料進截圖
+GATE_NEVER_ALLOW = frozenset({
+    'res.partner', 'res.users', 'res.company', 'sale.order', 'sale.order.line', 'purchase.order',
+    'account.move', 'account.move.line', 'account.payment', 'stock.picking', 'crm.lead',
+    'hr.employee', 'payment.transaction', 'mail.message'})
 #: 種類 → 預設軌道（驗證用＝系統執行；提示用＝寫進 AI 指示）
 DEFAULT_TRACK = {'seed_prompt': 'prompt'}
 #: 值要是 JSON 物件的種類與必填鍵
@@ -74,9 +79,12 @@ class KnowledgeRule(models.Model):
             elif rec.kind == 'purge_reset_method' and not re.fullmatch(
                     r'_?(action|button)_[a-z0-9_]+', (rec.value or '').strip()):
                 raise ValidationError(_('清除前的退回方法只能是 action_／button_ 開頭：%s') % rec.value)
-            elif rec.kind == 'gate_allow_model' and not re.fullmatch(
-                    r'[a-z0-9_]+(\.[a-z0-9_]+)+', (rec.value or '').strip()):
-                raise ValidationError(_('白名單要填模型技術名：%s') % rec.value)
+            elif rec.kind == 'gate_allow_model':
+                model = (rec.value or '').strip()
+                if not re.fullmatch(r'[a-z0-9_]+(\.[a-z0-9_]+)+', model):
+                    raise ValidationError(_('白名單要填模型技術名：%s') % rec.value)
+                if model in GATE_NEVER_ALLOW:
+                    raise ValidationError(_('%s 是客戶資料，不能列入截圖安全檢查白名單') % model)
 
     @api.onchange('kind')
     def _onchange_kind(self):
@@ -99,10 +107,10 @@ class KnowledgeRule(models.Model):
 
     @api.model
     def payload(self, package=None):
-        """截圖程式要的規則（放進 job.json）。"""
-        return {'hide': self.values('hide_selector', package),
-                'mask': self.values('mask_text', package),
-                'empty': self.values('empty_selector', package)}
+        """截圖程式要的規則（放進 job.json）：都是驗證用（系統執行）。"""
+        return {'hide': self.values('hide_selector', package, track='check'),
+                'mask': self.values('mask_text', package, track='check'),
+                'empty': self.values('empty_selector', package, track='check')}
 
 
 class SolutionPackageRules(models.Model):

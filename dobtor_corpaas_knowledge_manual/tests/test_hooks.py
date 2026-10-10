@@ -254,7 +254,7 @@ class TestManualHooks(ManualCase):
         with patch.object(self.Ai, 'ask', side_effect=hub_client.BudgetExceeded('x')) as ask:
             self._dispatch()
         self.assertIn('manual_repair', [c[0][0] for c in ask.call_args_list], '有畫面資訊：多修一次')
-        self.binding.write({'needs_repair': True, 'repair_attempts': 4})
+        self.binding.write({'needs_repair': True, 'repair_attempts': 4, 'repair_bonus_used': True})
         with patch.object(self.Ai, 'ask', side_effect=hub_client.BudgetExceeded('x')) as ask:
             self._dispatch()
         self.assertNotIn('manual_repair', [c[0][0] for c in ask.call_args_list], '只多給一次')
@@ -650,7 +650,8 @@ class TestManualHooks(ManualCase):
         self.assertEqual(art.step_block_ids, old)
         self.assertEqual(art.state, 'published')
         self.assertEqual(self.binding.state, 'failed')
-        self.assertEqual(self.binding.repair_attempts, 0)
+        # 壞回覆也算修過一次：同一個錯誤之後不再付費問（計畫第 29 項），五次更新只問一次
+        self.assertEqual(self.binding.repair_attempts, 1)
 
     def test_malformed_ai_explore_and_bind(self):
         tmpl = self.Template.create({

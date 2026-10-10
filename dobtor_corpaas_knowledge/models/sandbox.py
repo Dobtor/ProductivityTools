@@ -115,7 +115,10 @@ class KnowledgeSandbox(models.Model):
         return [golden.id, golden.name, master._corpaas_code_manifest(),
                 scenario.all_roles().as_payload(),
                 self._purge_models(scenario.live_seed()) if purge else 'no-purge',
-                list(scripts.CONFIG_MODELS) if purge else []]
+                list(scripts.CONFIG_MODELS) if purge else [],
+                # 規則表改了（清除前退回、禁止建立、白名單）也要重建，不能沿用舊說明庫
+                [self._rule_values(k) for k in ('purge_reset_method', 'seed_forbid_model',
+                                                'gate_allow_model')]]
 
     @staticmethod
     def _sig(data):
@@ -343,7 +346,9 @@ class KnowledgeSandbox(models.Model):
         for cap in self.package_id.knowledge_capability_ids:
             models |= {m.strip() for m in (cap.master_data_models or '').splitlines() if m.strip()}
         # ★ 設定類模型不清（程式建立、沒有 xmlid 的補貨規則／作業類型被清掉，訂單都確認不了）
-        return sorted(models - {'res.config.settings'} - set(scripts.CONFIG_MODELS))
+        # 規則表的白名單（設定類模型）也不清：D1 放行它，清掉反而把設定刪了
+        allow = set(self._gate_allow())
+        return sorted(models - {'res.config.settings'} - set(scripts.CONFIG_MODELS) - allow)
 
     def drop(self):
         for rec in self.filtered(lambda r: r.state != 'dropped'):
@@ -376,9 +381,9 @@ class KnowledgeSandbox(models.Model):
         return self._shell(script)
 
     def _rule_values(self, kind):
-        """這座說明庫所屬方案生效的環境規則值（計畫第 24 項）。"""
+        """這座說明庫所屬方案生效的「驗證用」環境規則值（計畫第 24、33 項：系統一定執行的）。"""
         self.ensure_one()
-        return self.env['corpaas.knowledge.rule'].values(kind, self.package_id)
+        return self.env['corpaas.knowledge.rule'].values(kind, self.package_id, track='check')
 
     def diagnose_access(self, login, model, res_id=None):
         """唯讀診斷某帳號看不到某模型／某筆記錄的原因（計畫第 26 項）。回傳 (詳細, 一句話)。"""
@@ -391,14 +396,12 @@ class KnowledgeSandbox(models.Model):
 
         pairs = {model: [ids]}；refs = {"model|field": [ids]}（畫面上的關聯值）。
         """
-        self.ensure_one()
-        if self.purge_skipped or (not pairs and not refs):
-            return []
-        since = fields.Datetime.to_string(self.purged_at or self.ready_at
-                                          or fields.Datetime.now())
-        allow = tuple(scripts.CONFIG_MODELS) + tuple(self._rule_values('gate_allow_model'))
-        res = self._shell(scripts.gate_script(pairs or {}, since, refs or {}, allow=allow))
-        return res.get('bad') or []
+        return self.gate_bad_records_batch({'one': (pairs, refs)}).get('one') or []
+
+    def _gate_allow(self):
+        """規則表的白名單，再濾掉一律不准放的客戶資料模型（不只靠規則的檢查）。"""
+        from .rule import GATE_NEVER_ALLOW
+        return [m for m in self._rule_values('gate_allow_model') if m not in GATE_NEVER_ALLOW]
 
     def refresh_demo_state(self, seed):
         """讀示範資料目前的名稱與狀態、精靈模型清單（一次 shell），存在 demo_state_json。"""
@@ -425,7 +428,7 @@ class KnowledgeSandbox(models.Model):
             return {}
         since = fields.Datetime.to_string(self.purged_at or self.ready_at
                                           or fields.Datetime.now())
-        allow = tuple(scripts.CONFIG_MODELS) + tuple(self._rule_values('gate_allow_model'))
+        allow = tuple(scripts.CONFIG_MODELS) + tuple(self._gate_allow())
         res = self._shell(scripts.gate_batch_script(todo, since, allow=allow))
         return res.get('bad') or {}
 

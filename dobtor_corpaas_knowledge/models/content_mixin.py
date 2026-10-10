@@ -63,6 +63,9 @@ CHANGE_KINDS = [
 ]
 
 
+#: 系統自動核准的通行證（見 _knowledge_system_approve）
+SYSTEM_APPROVE = object()
+
 class KnowledgeRevision(models.Model):
     _name = 'corpaas.knowledge.revision'
     _description = '知識內容修訂'
@@ -175,10 +178,14 @@ class KnowledgeContentMixin(models.AbstractModel):
             'note': note, 'was_published': published,
         })
 
+    def _knowledge_system_approve(self):
+        """系統自動核准（自審通過，計畫第 22 項）。私有方法：RPC 叫不到。"""
+        return self.sudo().with_context(knowledge_system_approve=SYSTEM_APPROVE).action_approve()
+
     def _check_approver(self):
-        # ★ 系統自動核准（自審通過，計畫第 22 項）：只有程式內部 sudo＋專用 context 能走這條；
-        #   RPC 呼叫拿不到 su，無法借道略過核准者檢查
-        if self.env.su and self.env.context.get('knowledge_system_approve'):
+        # ★ 系統核准的通行證是程式裡的物件（RPC 傳來的 context 只能是 JSON，偽造不了），
+        #   而且要 sudo：只有 _knowledge_system_approve 走得到
+        if self.env.su and self.env.context.get('knowledge_system_approve') is SYSTEM_APPROVE:
             return
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_approver'):
             raise AccessError(_('只有知識內容核准者可以核准或退回。'))

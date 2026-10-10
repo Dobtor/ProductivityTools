@@ -54,7 +54,7 @@ SEED_RULES = (
 #: 會改變畫面（多出公司切換、幣別欄位）的設定群組：拍照角色一律不給，免得截圖跟一般租戶看到的不同
 SCREEN_CHANGING_GROUPS = ('base.group_multi_company', 'base.group_multi_currency')
 
-def seed_contract_errors(records):
+def seed_contract_errors(records, forbid=()):
     """示範資料腳本的結構契約（AI 回覆先過這關，不符就帶著錯誤重問）。"""
     errs = []
     if not isinstance(records, list):
@@ -74,6 +74,12 @@ def seed_contract_errors(records):
         if r.get('model') == 'res.company' and r['xmlid'] != 'base.main_company':
             # ☠️ 實機：AI 想改公司名卻用了新 xmlid，多出一家公司，記錄規則把單據擋成存取錯誤
             errs.append('%s：不要新建公司，改名請用 xmlid base.main_company' % r['xmlid'])
+        for f in forbid or ():
+            # 環境規則「示範資料禁止建立」：送審前就退回給 AI（重播時系統也會再擋一次）
+            if r.get('model') == f.get('model') and r['xmlid'] not in (f.get('allow_xmlids') or []):
+                errs.append('%s：這個方案不准建立 %s%s' % (
+                    r['xmlid'], f['model'], '（只能用 %s）' % '、'.join(f['allow_xmlids'])
+                    if f.get('allow_xmlids') else ''))
         if 'state' in (r.get('values') or {}):
             errs.append('%s：不要直接寫 state，用動作步驟推進' % r['xmlid'])
     return errs
@@ -557,7 +563,7 @@ class KnowledgeScenario(models.Model):
             for k in ('company', 'warehouse'):
                 if not isinstance((data or {}).get(k), str) or not data[k].strip():
                     errs.append('%s 要給名稱' % k)
-            errs += seed_contract_errors((data or {}).get('seed') or [])
+            errs += seed_contract_errors((data or {}).get('seed') or [], forbid=self._seed_forbid())
             return errs
 
         data, problems = self.env['corpaas.knowledge.ai'].ask_checked(
@@ -571,8 +577,9 @@ class KnowledgeScenario(models.Model):
             {'xmlid': 'stock.warehouse0', 'model': 'stock.warehouse',
              'values': {'name': (data.get('warehouse') or _('總倉')).strip()}},
         ]
+        forbid = self._seed_forbid()
         extra = [r for r in (data.get('seed') or [])
-                 if isinstance(r, dict) and r.get('xmlid') and not seed_contract_errors([r])]
+                 if isinstance(r, dict) and r.get('xmlid') and not seed_contract_errors([r], forbid=forbid)]
         vals = {'pack_ids': [(6, 0, chosen.ids)],
                 'seed_json': json.dumps(identity + extra, ensure_ascii=False, indent=1),
                 'seed_auto_repairs': 0}
@@ -661,7 +668,7 @@ class KnowledgeScenario(models.Model):
             seed = (data or {}).get('seed')
             if not isinstance(seed, list):
                 return ['seed 要是清單']
-            errs = seed_contract_errors(seed)
+            errs = seed_contract_errors(seed, forbid=self._seed_forbid())
             dup = [r.get('xmlid') for r in seed if isinstance(r, dict)
                    and qualify_seed_record(r, self.xml_module, self.xml_module)['xmlid'] in existing]
             if dup:
@@ -670,8 +677,9 @@ class KnowledgeScenario(models.Model):
 
         data, _problems = self.env['corpaas.knowledge.ai'].ask_checked(
             'seed_gap_fill', prompt, check, package=package, record=self, refresh_token=token)
+        forbid = self._seed_forbid()
         new = [r for r in (data or {}).get('seed') or []
-               if isinstance(r, dict) and not seed_contract_errors([r])
+               if isinstance(r, dict) and not seed_contract_errors([r], forbid=forbid)
                and qualify_seed_record(r, self.xml_module, self.xml_module)['xmlid'] not in existing]
         if not new:
             return 0
@@ -747,12 +755,13 @@ class KnowledgeScenario(models.Model):
             seed = (data or {}).get('seed')
             if not isinstance(seed, list) or not seed:
                 return ['seed 要是非空清單']
-            return seed_contract_errors(seed)
+            return seed_contract_errors(seed, forbid=self._seed_forbid())
 
         data, _problems = self.env['corpaas.knowledge.ai'].ask_checked(
             'seed_repair', prompt, check, package=package, record=self)
+        forbid = self._seed_forbid()
         patch = [r for r in (data or {}).get('seed') or []
-                 if isinstance(r, dict) and not seed_contract_errors([r])]
+                 if isinstance(r, dict) and not seed_contract_errors([r], forbid=forbid)]
         if not patch:
             return False
         by_key = {full(r['xmlid']): r for r in patch}
@@ -824,13 +833,20 @@ class KnowledgeScenario(models.Model):
             roles |= sc.role_ids
         return roles
 
+    def _seed_forbid(self):
+        """環境規則「示範資料禁止建立」（驗證用）。"""
+        package = self.package_ids[:1] if 'package_ids' in self._fields else None
+        return self.env['corpaas.knowledge.rule'].values('seed_forbid_model', package or None,
+                                                         track='check')
+
     def _seed_rules_text(self, roles):
         """示範資料規則＝內建 SEED_RULES＋環境規則表的「示範資料提示」（提示用，計畫第 24、33 項）。
 
         ★ 對應的驗證版（例如「不建第二家公司」）在重播時由系統執行，不靠 AI 照做。"""
         text = SEED_RULES % {'roles': '、'.join(roles) or '（無）'}
         package = self.package_ids[:1] if 'package_ids' in self._fields else None
-        extra = self.env['corpaas.knowledge.rule'].values('seed_prompt', package or None)
+        extra = self.env['corpaas.knowledge.rule'].values('seed_prompt', package or None,
+                                                          track='prompt')
         return text + ''.join('★ %s\n' % t for t in extra)
 
     def glossary_map(self):

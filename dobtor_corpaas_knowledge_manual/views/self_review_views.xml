@@ -20,6 +20,13 @@
                     <field name="manual_review_state"/>
                     <field name="manual_review_note"/>
                     <field name="manual_review_sampled"/>
+                    <field name="manual_sample_result" invisible="not manual_sample_result"/>
+                    <div colspan="2" invisible="not manual_review_sampled">
+                        <button name="action_sample_ok" type="object" string="抽查正確" class="btn-primary"
+                                groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                        <button name="action_sample_bad" type="object" string="抽查退回" class="btn-secondary"
+                                groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    </div>
                 </group>
             </xpath>
         </field>

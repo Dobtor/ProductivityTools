@@ -338,6 +338,9 @@ class KnowledgeHooks(models.AbstractModel):
         stop = ctx.setdefault('manual_ai_stopped', {'ai': False})
         stop['run_id'] = ctx.get('run_id')
         stats = ctx.setdefault('stats', {})
+        # ★ 所有說明庫共用同一個 ctx：上一個情境的健檢結果不能帶到這一個
+        ctx.pop('manual_role_down', None)
+        ctx.pop('manual_backend_down', None)
         if not self._manual_backend_preflight(sandbox, ctx):
             return res
         try:
@@ -381,20 +384,20 @@ class KnowledgeHooks(models.AbstractModel):
             self._manual_check_cancel(ctx)
             if ctx.get('manual_backend_down'):
                 break
-            errors = [b.last_error for b in shot if b.state != 'ok' and b.last_error]
-            halt = failure_policy.halt_reason(errors, len(shot), canary)
+            # 健檢跳過（還是待拍）的不算：只看真的拍了的
+            taken = shot.filtered(lambda b: b.state in ('ok', 'failed'))
+            errors = [b.last_error for b in taken if b.state == 'failed' and b.last_error]
+            halt = failure_policy.halt_reason(errors, len(taken), canary)
             if halt:
                 left = len(batch_list) - len(shot)
-                ctx['manual_batch_halt'] = {'fingerprint': halt[0], 'count': halt[1],
-                                            'shot': len(shot), 'left': left}
-                stats['shots_halted'] = left
+                stats['shots_halted'] = stats.get('shots_halted', 0) + left
                 _logger.warning('[knowledge.manual] %s 整批提前終止：%s 出現 %s 次（已拍 %s，未拍 %s）',
                                 package.display_name, halt[0], halt[1], len(shot), left)
                 break
         stats['shots_ok'] = stats.get('shots_ok', 0) + len(todo.filtered(
             lambda b: b.state == 'ok'))
         stats['shots_failed'] = stats.get('shots_failed', 0) + len(todo.filtered(
-            lambda b: b.state != 'ok'))
+            lambda b: b.state == 'failed'))
         self._manual_record_failures(sandbox.scenario_id, relevant, stats)
         self._manual_repair_bindings(package, failed, token, stop)
         for key in ('skipped_env', 'skipped_same'):
@@ -485,7 +488,8 @@ class KnowledgeHooks(models.AbstractModel):
                 and 'role_%s' % code in got}
         if down:
             ctx['manual_role_down'] = down
-            ctx.setdefault('stats', {})['roles_down'] = len(down)
+            st = ctx.setdefault('stats', {})
+            st['roles_down'] = st.get('roles_down', 0) + len(down)
             _logger.warning('[knowledge.manual] 健檢：角色登不進去 %s', down)
         if pkg:
             health = {'roles_down': {k: v[:200] for k, v in down.items()},
@@ -507,21 +511,27 @@ class KnowledgeHooks(models.AbstractModel):
 
     @staticmethod
     def _manual_failure_kind(error):
-        """截圖失敗分類（通用化第三階段）：空白＝示範資料缺口、權限＝角色群組、其他＝腳本定位。"""
+        """截圖失敗 → 缺口種類，由 failure_policy.classify 對應（只有一套分類）：
+        空白＝示範資料缺口、存取錯誤＝權限缺口、腳本／未知＝定位缺口；
+        其他環境錯（登入失敗、非示範資料、系統錯誤）與暫時性錯誤不開缺口。"""
         error = error or ''
         if error.startswith(BACKEND_DOWN):
             return 'backend'
-        if '空白引導頁' in error or '找不到示範資料' in error:
+        kind = failure_policy.classify(error)
+        if kind == failure_policy.DATA:
             return 'empty'
-        if '存取錯誤' in error or '權限' in error or 'Access' in error:
-            return 'access'
+        if kind == failure_policy.ENVIRONMENT:
+            return 'access' if failure_policy.is_access(error) else 'environment'
+        if kind == failure_policy.TRANSIENT:
+            return 'transient'
         return 'locator'
 
     @api.model
     def _manual_record_failures(self, scenario, bindings, stats):
         """失敗分類寫進執行紀錄；空白畫面寫回情境，下次 AI 組裝／修正示範資料時優先補。"""
         failed = bindings.filtered(lambda b: b.state == 'failed')
-        kinds = {'empty': [], 'access': [], 'locator': [], 'backend': []}
+        kinds = {'empty': [], 'access': [], 'locator': [], 'backend': [], 'environment': [],
+                 'transient': []}
         for b in failed:
             kinds[self._manual_failure_kind(b.last_error)].append(b.template_id.feature_id.name)
         for k, names in kinds.items():
@@ -1121,8 +1131,9 @@ class KnowledgeHooks(models.AbstractModel):
                 # ★ 環境／資料／暫時性的錯改腳本修不好：不叫 AI（環境→缺口修補換角色或規則，
                 #   資料→補示範資料，暫時性→下次原樣重拍）
                 vals = {'needs_repair': False}
-                if kind == failure_policy.TRANSIENT and not b.repair_fp == fp:
-                    vals.update(state='pending', repair_fp=fp)
+                if kind == failure_policy.TRANSIENT and b.transient_fp != fp:
+                    # 暫時性錯誤原樣重拍一次（另記，不蓋掉「修過」的指紋）
+                    vals.update(state='pending', transient_fp=fp)
                 b.write(vals)
                 stop['skipped_env'] = stop.get('skipped_env', 0) + 1
                 continue
@@ -1131,12 +1142,12 @@ class KnowledgeHooks(models.AbstractModel):
                 b.write({'needs_repair': False})
                 b.template_id.message_post(body=_(
                     '情境「%(s)s」的截圖修過仍是同一個錯誤，不再請 AI 修：%(e)s',
-                    s=b.scenario_id.name, e=(b.last_error or '').splitlines()[0][:200]))
+                    s=b.scenario_id.name, e=(b.last_error or '').split('\n')[0][:200]))
                 stop['skipped_same'] = stop.get('skipped_same', 0) + 1
                 continue
             # ★ 錯誤附了「畫面看得到的按鈕」（之前的修補都沒有這個資訊）：額外再給一次，只此一次
             #   ☠️ 實機（社群電商方案）：6 張點不到按鈕都已修滿 3 次，畫面上其實是別的按鈕名
-            bonus = 1 if SCREEN_HINT in (b.last_error or '') else 0
+            bonus = 1 if SCREEN_HINT in (b.last_error or '') and not b.repair_bonus_used else 0
             if b.repair_attempts >= MAX_REPAIRS + bonus:
                 b.write({'needs_repair': False})
                 b.template_id.message_post(body=_(
@@ -1145,11 +1156,15 @@ class KnowledgeHooks(models.AbstractModel):
                 continue
             try:
                 self._manual_repair(package, b, token)
-                b.write({'repair_fp': fp})   # 真的修過才記（預算用完中斷不算修過）
+                # 真的修過才記（預算用完中斷不算修過）
+                b.write({'repair_fp': fp, 'repair_bonus_used': b.repair_bonus_used
+                         or b.repair_attempts > MAX_REPAIRS})
             except hub_client.BudgetExceeded as e:
                 _logger.info('[knowledge.manual] 修腳本停止：%s', e)
                 stop['ai'] = True
             except AI_ERRORS as e:
+                # ★ AI 回覆壞掉也算修過一次：否則每次更新都再付費問同一個錯
+                b.write({'repair_attempts': b.repair_attempts + 1, 'repair_fp': fp})
                 _logger.warning('[knowledge.manual] 修腳本失敗 %s：%s',
                                 b.template_id.display_name, e)
 

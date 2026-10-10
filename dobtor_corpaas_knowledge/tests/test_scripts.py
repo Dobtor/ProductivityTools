@@ -343,3 +343,28 @@ class TestDemoStateScript(TransactionCase):
         self.assertTrue(res['records']['base.user_admin']['name'])
         self.assertTrue(res['records']['base.nope_x']['missing'])
         self.assertIn('base.language.install', res['transient'])
+
+
+@tagged('post_install', '-at_install')
+class TestReviewFixes(TransactionCase):
+
+    def test_access_diag_text_or_semantics(self):
+        base = {'login': 'u', 'model': 'x.y', 'acl_read': True}
+        own = {'name': '只看自己', 'global': False, 'matches': False}
+        all_ = {'name': '看全部', 'global': False, 'matches': True}
+        glob = {'name': '公司規則', 'global': True, 'matches': False}
+        self.assertEqual(scripts.access_diag_text(dict(base, rules=[own, all_])), '', '群組規則有一條成立就看得到')
+        self.assertIn('只看自己', scripts.access_diag_text(dict(base, rules=[own])))
+        self.assertIn('公司規則', scripts.access_diag_text(dict(base, rules=[glob, all_])), '全域規則不成立就擋')
+
+    def test_seed_contract_forbid_rule(self):
+        from ..models.catalog import seed_contract_errors
+        forbid = [{'model': 'loyalty.program'}]
+        errs = seed_contract_errors([{'xmlid': 'p1', 'model': 'loyalty.program', 'values': {}}], forbid=forbid)
+        self.assertTrue(errs and 'loyalty.program' in errs[0])
+
+    def test_gate_whitelist_refuses_customer_models(self):
+        from odoo.exceptions import ValidationError
+        with self.assertRaises(ValidationError):
+            self.env['corpaas.knowledge.rule'].create(
+                {'name': 'x', 'kind': 'gate_allow_model', 'value': 'res.partner'})

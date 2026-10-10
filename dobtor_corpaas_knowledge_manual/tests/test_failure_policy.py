@@ -29,6 +29,11 @@ class TestFailurePolicy(ManualCase):
         y = fp.fingerprint('Locator.click: Timeout 10000ms exceeded.\nCall log:\n'
                            '  - waiting for locator("button[name=\\"確認\\"]:visible").first')
         self.assertNotEqual(x, y, '不同按鈕點不到是不同的錯')
+        self.assertEqual(fp.classify('Locator.click: Timeout 10000ms exceeded.\nCall log:\n'
+                                     '  - waiting for locator("button:visible").filter(has_text="Access Rights")'),
+                         fp.SCRIPT, 'Call log 裡的按鈕文字不影響分類')
+        self.assertEqual(fp.classify('平行拍攝的子程序沒有回結果'), fp.TRANSIENT)
+        self.assertTrue(fp.is_access("畫面出現錯誤對話框：存取錯誤 您並無權限"))
         hinted = ('Locator.click: Timeout 10000ms exceeded.\n'
                   '畫面（form /odoo/account.move/3）看得到的按鈕：權限設定(action_x)；分頁：（無）\nCall log:')
         self.assertEqual(fp.classify(hinted), fp.SCRIPT, '畫面提示那一行不影響分類')
@@ -171,6 +176,51 @@ class TestSelfReview(ManualCase):
         self.assertEqual(bad_art.manual_review_state, 'fail')
         self.assertIn('按鈕', bad_art.manual_review_note)
 
+    def test_sampling_and_no_rereview(self):
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        good = self._review_article()
+        with patch.object(Ai, 'ask', return_value={'ok': True, 'problems': []}):
+            self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        self.assertTrue(good.manual_review_sampled, '有上線就至少抽 1 篇')
+        bad_art = self._review_article()
+        with patch.object(Ai, 'ask', return_value={'ok': False, 'problems': ['x']}) as ask:
+            self.assertEqual(self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False}), (0, 1))
+            self.assertEqual(self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False}), (0, 0),
+                             '內容沒變就不重審')
+        self.assertEqual(ask.call_count, 1, '不重複花 AI')
+        self.assertEqual(bad_art.manual_review_state, 'fail')
+
+    def test_full_level_does_not_pass_when_ai_failed(self):
+        from odoo.addons.dobtor_corpaas_knowledge.services import hub_client
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        self.pkg.knowledge_automation = 'full'
+        art = self._review_article()
+        with patch.object(Ai, 'ask', side_effect=hub_client.HubError('down')):
+            self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        self.assertEqual(art.state, 'review', 'AI 沒審到＝不過，全自動也一樣')
+        art2 = self._review_article()
+        with patch.object(Ai, 'ask', return_value={'ok': False, 'problems': ['小意見']}):
+            self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
+        self.assertEqual(art2.state, 'published', '全自動：AI 有審到、只是有意見 → 上線')
+        self.assertTrue(art2.manual_review_sampled, '這種一定抽查')
+
+    def test_pending_shots_not_reviewed(self):
+        import json
+        Ai = type(self.env['corpaas.knowledge.ai'])
+        self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
+        art = self._review_article()
+        tmpl = self.env['corpaas.knowledge.shot_template'].sudo().create({
+            'feature_id': self.f1.id, 'login_role': 'admin', 'fingerprint': 'hx',
+            'steps_json': json.dumps([{'shot': 'main'}])})
+        art.shot_binding_id = self.env['corpaas.knowledge.shot_binding'].sudo().create(
+            {'template_id': tmpl.id, 'scenario_id': self.scenario.id, 'state': 'pending'})
+        with patch.object(Ai, 'ask') as ask:
+            self.assertEqual(self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False}), (0, 0))
+        ask.assert_not_called()
+        self.assertFalse(art.manual_review_state, '還沒拍完不是例外')
+
     def test_conservative_level_never_auto_approves(self):
         Ai = type(self.env['corpaas.knowledge.ai'])
         self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
@@ -187,9 +237,16 @@ class TestSelfReview(ManualCase):
         from odoo.tests.common import new_test_user
         self.pkg.knowledge_scenario_ids = [(4, self.scenario.id)]
         art = self._review_article()
-        plain = new_test_user(self.env, 'kb_plain_review', groups='base.group_user')
+        # 能編輯、不能核准的人：帶 context、甚至在 sudo 下帶 context（JSON 值）都不行
+        editor = new_test_user(self.env, 'kb_editor_review',
+                               groups='base.group_user,dobtor_corpaas_knowledge.group_knowledge_editor')
         with self.assertRaises(AccessError):
-            art.with_user(plain).with_context(knowledge_system_approve=True).action_approve()
+            art.with_user(editor).with_context(knowledge_system_approve=True).action_approve()
+        with self.assertRaises(AccessError):
+            art.with_user(editor).sudo().with_context(knowledge_system_approve=True).action_approve()
+        self.assertEqual(art.state, 'review')
+        art.with_user(editor)._knowledge_system_approve()
+        self.assertEqual(art.state, 'published', '只有程式內的系統核准走得通')
 
 
 @tagged('post_install', '-at_install')

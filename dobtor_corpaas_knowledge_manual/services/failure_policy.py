@@ -13,7 +13,7 @@ TRANSIENT, ENVIRONMENT, DATA, SCRIPT, UNKNOWN = (
 
 _RULES = (
     (TRANSIENT, ('net::ERR', 'ENOTFOUND', 'Target closed', 'Connection refused',
-                 'interrupted by another navigation', '沒有結果')),
+                 'interrupted by another navigation', '沒有結果', '平行拍攝的子程序')),
     (ENVIRONMENT, ('後台沒有載入', '存取錯誤', '權限', 'Access', '登入失敗',
                    '非示範資料', '有東西出錯了', 'Odoo Server Error')),
     (DATA, ('空白引導頁',)),
@@ -22,14 +22,25 @@ _RULES = (
               '找不到示範資料', '說明庫沒有角色', '用網址打開精靈')),
 )
 _HINT = re.compile(r'^畫面（.*$', re.M)
+_LOCATOR_TIMEOUT = re.compile(r'^(Locator|Page)\.\w+: Timeout')
+_ACCESS = ('存取錯誤', '權限', 'Access')
+
+
+def is_access(error):
+    """環境錯誤裡屬於「權限」的（換角色修得好）；只看錯誤本身，不看 Call log。"""
+    text = _HINT.sub('', error or '').split('Call log:')[0]
+    return any(n in text for n in _ACCESS)
 #: 可以叫 AI 修腳本的分類
 REPAIRABLE = (SCRIPT, UNKNOWN)
 
 
 def classify(error):
     """錯誤訊息 → 分類（依序比對，先中先贏）。"""
-    # 截圖程式附的「畫面看得到的按鈕」那一行不算（按鈕文字可能剛好含「權限」等字）
-    text = _HINT.sub('', error or '')
+    # 截圖程式附的「畫面看得到的按鈕」那一行與 Playwright 的 Call log 不算：
+    # 裡面是按鈕文字與選擇器（可能剛好含 Access、權限），不是錯誤本身
+    text = _HINT.sub('', error or '').split('Call log:')[0]
+    if _LOCATOR_TIMEOUT.match(text.strip()):
+        return SCRIPT
     for kind, needles in _RULES:
         if any(n in text for n in needles):
             return kind

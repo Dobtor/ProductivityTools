@@ -17,8 +17,10 @@ while True:
         if snap != last:
             print(time.strftime('%H:%M'), snap, flush=True)
             last = snap
-        q = ro('corpaas.queue', 'read', [qid], fields=['state'])[0]['state']
-        if q not in ('pending', 'processing') and not qs:
+        # 結束＝這張佇列做完、而且這個方案最新一筆更新紀錄不在進行中（別的方案排隊不影響）
+        got = ro('corpaas.queue', 'search_read', [('id', '=', qid)], fields=['state'])
+        q = got[0]['state'] if got else 'gone'
+        if q not in ('pending', 'processing') and not (runs and runs[0]['state'] == 'running'):
             r = ro('corpaas.knowledge.run', 'search_read', [('package_id', '=', pkg)],
                    fields=['summary', 'ai_cost'], order='id desc', limit=1)
             print('FINAL', r, flush=True)

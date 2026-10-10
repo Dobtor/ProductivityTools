@@ -78,6 +78,8 @@ class KnowledgeRun(models.Model):
                   'shots_failed_access': _('失敗：權限'),
                   'shots_failed_locator': _('失敗：定位'),
                   'shots_failed_backend': _('失敗：後台打不開'),
+                  'shots_failed_environment': _('失敗：環境（登入、系統錯誤、非示範資料）'),
+                  'shots_failed_transient': _('失敗：暫時性'),
                   'shots_backend_down': _('說明庫後台打不開'),
                   'shots_halted': _('整批提前終止（未拍）'),
                   'roles_down': _('健檢：登不進去的角色'),
@@ -100,7 +102,8 @@ class KnowledgeRun(models.Model):
 
     #: 儀表板「失敗與斷路」區塊要顯示的成果鍵（其餘在摘要裡）
     DASH_FAILURE_KEYS = ('shots_failed_access', 'shots_failed_locator', 'shots_failed_empty',
-                         'shots_failed_backend', 'shots_backend_down', 'shots_halted', 'roles_down',
+                         'shots_failed_backend', 'shots_failed_environment', 'shots_failed_transient',
+                         'shots_backend_down', 'shots_halted', 'roles_down',
                          'repair_skipped_env', 'repair_skipped_same', 'review_failed',
                          'public_failed', 'iterate_stopped', 'carried_over')
 
@@ -133,8 +136,11 @@ class KnowledgeRun(models.Model):
         for i, item in enumerate(log):
             start = fields.Datetime.from_string(item.get('start')) if item.get('start') else None
             end = fields.Datetime.from_string(item.get('end')) if item.get('end') else None
+            # 中斷後續跑的階段沒有結束時間：以下一個階段的開始為界，免得把後面的 AI 花費也算進來
+            nxt = log[i + 1].get('start') if i + 1 < len(log) else None
+            bound = end or (fields.Datetime.from_string(nxt) if nxt else None)
             inside = calls.filtered(lambda c: start and c.create_date >= start
-                                    and (not end or c.create_date <= end))
+                                    and (not bound or c.create_date <= bound))
             minutes = round((end - start).total_seconds() / 60.0, 1) if start and end else _('進行中')
             rows.append((names.get(item.get('stage'), item.get('stage')), minutes, len(inside),
                          '%.2f' % sum(inside.mapped('cost_usd'))))

@@ -47,7 +47,11 @@ class KnowledgeHooksGaps(models.AbstractModel):
                 continue
             if b.state != 'failed':
                 continue
-            kind = FAILURE_TO_GAP[self._manual_failure_kind(b.last_error)]
+            kind = FAILURE_TO_GAP.get(self._manual_failure_kind(b.last_error))
+            if not kind:
+                # 環境／暫時性錯誤不是缺口（換角色、補資料、改腳本都修不好）
+                mine.resolve(_('改判為非缺口錯誤'))
+                continue
             (mine.filtered(lambda g: g.kind != kind)).resolve(_('改判為其他缺口類型'))
             Gap.note(package, kind, b.last_error, scenario=b.scenario_id, feature=feature,
                      record=b)
@@ -178,6 +182,9 @@ class KnowledgeHooksGaps(models.AbstractModel):
                 g.resolve(_('截圖繫結已不存在'))
                 continue
             if g.kind == 'locator':
+                # ★ 只在腳本真的改過（AI 修過、拍攝輸入變了）才重拍；沒改就重拍只會同樣失敗
+                if b.needs_repair or b.shot_inputs == self._manual_shot_inputs(b):
+                    continue
                 b.write({'state': 'pending'})
                 g.attempted('reshoot', _('以目前（AI 修過）的腳本重拍'))
                 fixed += 1

@@ -9,8 +9,10 @@
   另外 AI 審查失敗時只要事實檢查過也上線）。
 ☠️ 依據（社群電商方案）：從零到可驗收經過 5 個人工核准關卡；98 篇文章要人逐篇按。
 """
+import hashlib
 import json
 import logging
+import random
 import re
 
 from odoo import _, api, fields, models
@@ -19,8 +21,8 @@ from odoo.addons.dobtor_corpaas_knowledge.services import hub_client
 
 _logger = logging.getLogger(__name__)
 
-#: 自動上線後抽查比例
-SAMPLE_EVERY = 20
+#: 自動上線後抽查比例（5%；每輪有上線的話至少抽 1 篇）
+SAMPLE_RATE = 0.05
 #: 一次更新最多自審幾篇（控制 AI 花費）
 REVIEW_BATCH = 60
 _TAG = re.compile(r'<[^>]+>')
@@ -45,6 +47,32 @@ class KnowledgeArticleReview(models.Model):
     manual_review_note = fields.Text(string='自審意見', readonly=True, copy=False)
     manual_review_sampled = fields.Boolean(string='待抽查', readonly=True, copy=False,
                                            help='自動上線的文章抽樣，給人事後檢查')
+    manual_sample_result = fields.Selection([('ok', '抽查正確'), ('bad', '抽查退回')],
+                                            string='抽查結果', readonly=True, copy=False,
+                                            help='用來算自審的退回率（計畫第 23 項：< 10%）')
+    manual_review_input = fields.Char(readonly=True, copy=False,
+                                      help='自審時的內容＋截圖狀態雜湊：沒變就不重審（不重複花 AI）')
+
+    def _manual_review_input(self):
+        self.ensure_one()
+        b = self.shot_binding_id
+        shot = '%s:%s' % (b.state, b.last_shot_at) if b else ''
+        return hashlib.sha1(('%s|%s' % (self._manual_text_sig(), shot)).encode()).hexdigest()[:16]
+
+    def action_sample_ok(self):
+        return self._manual_close_sample('ok')
+
+    def action_sample_bad(self):
+        """抽查不合格：記下結果、退回待審（下架由核准者另外處理）。"""
+        return self._manual_close_sample('bad')
+
+    def _manual_close_sample(self, result):
+        self._check_approver()
+        for art in self.filtered('manual_review_sampled'):
+            art.write({'manual_review_sampled': False, 'manual_sample_result': result})
+            art.message_post(body=_('抽查結果：%s') % dict(
+                self._fields['manual_sample_result'].selection)[result])
+        return True
 
     def _manual_fact_problems(self):
         """不靠 AI 的檢查：截圖就緒、文字檢查、至少一個步驟區塊。"""
@@ -53,9 +81,7 @@ class KnowledgeArticleReview(models.Model):
         shot = self._manual_shots_problem()
         if shot:
             problems.append(shot)
-        problems += list(self._manual_text_problems() or [])
-        if not self.step_block_ids:
-            problems.append(_('沒有操作步驟'))
+        problems += list(self._manual_text_problems() or [])   # 含「沒有操作步驟」
         return problems
 
     def _manual_review_prompt(self, package):
@@ -89,11 +115,11 @@ class KnowledgeArticleReview(models.Model):
              'steps': json.dumps(steps, ensure_ascii=False)[:3000], 'text': text}
 
     def _manual_self_review(self, package, token=None, use_ai=True):
-        """回傳 (通過, 問題清單)。AI 呼叫失敗＝沒審到，算不過（留給人）。"""
+        """回傳 (通過, 問題清單, AI 有審到)。事實不過就不問 AI；AI 呼叫失敗＝沒審到，算不過。"""
         self.ensure_one()
         problems = self._manual_fact_problems()
         if problems or not use_ai:
-            return not problems, problems
+            return not problems, problems, False
         try:
             data = self.env['corpaas.knowledge.ai'].ask(
                 'manual_review', self._manual_review_prompt(package), package=package,
@@ -101,10 +127,13 @@ class KnowledgeArticleReview(models.Model):
         except hub_client.BudgetExceeded:
             raise
         except (hub_client.HubError, ValueError) as e:
-            return False, [_('AI 審查沒有完成：%s') % str(e)[:200]]
-        ok = bool(isinstance(data, dict) and data.get('ok'))
-        found = [str(p)[:200] for p in (data.get('problems') or [])] if isinstance(data, dict) else []
-        return ok and not found, found or ([] if ok else [_('AI 審查判定不通過')])
+            return False, [_('AI 審查沒有完成：%s') % str(e)[:200]], False
+        if not isinstance(data, dict):
+            return False, [_('AI 審查回覆格式不對')], False
+        raw = data.get('problems') or []
+        found = [str(p)[:200] for p in (raw if isinstance(raw, list) else [raw])]
+        ok = bool(data.get('ok'))
+        return ok and not found, found or ([] if ok else [_('AI 審查判定不通過')]), True
 
 
 class KnowledgeHooksSelfReview(models.AbstractModel):
@@ -117,37 +146,49 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
         if level == 'conservative':
             return 0, 0
         Article = self.env['corpaas.knowledge.article'].sudo()
-        todo = Article.search([('state', '=', 'review'),
-                               ('scenario_id', 'in', package.knowledge_scenario_ids.ids)],
-                              limit=REVIEW_BATCH, order='id')
+        cands = Article.search([('state', '=', 'review'),
+                                ('scenario_id', 'in', package.knowledge_scenario_ids.ids)], order='id')
+        # ★ 內容與截圖都沒變的不重審（不然自審不過的舊文章每輪都再花一次 AI，還把新文章擠出批次）；
+        #   截圖還在待拍的先不審（那不是例外，是還沒拍完）
+        todo = cands.filtered(lambda a: not (a.shot_binding_id and a.shot_binding_id.state == 'pending')
+                              and a.manual_review_input != a._manual_review_input())[:REVIEW_BATCH]
         published = failed = 0
+        passed = Article.browse()
         for art in todo:
             if stop.get('ai'):
                 break
             try:
-                ok, problems = art._manual_self_review(package, token)
+                ok, problems, reviewed = art._manual_self_review(package, token)
             except hub_client.BudgetExceeded:
                 stop['ai'] = True
                 break
-            if not ok and level == 'full' and not art._manual_fact_problems():
-                ok = True   # 全自動：AI 審查有意見但事實都過，照樣上線（問題記在自審意見）
-            vals = {'manual_review_state': 'pass' if ok else 'fail',
-                    'manual_review_note': '；'.join(problems) or False}
-            if ok:
-                vals['manual_review_sampled'] = art.id % SAMPLE_EVERY == 0
-            art.write(vals)
+            forced = False
+            if not ok and level == 'full' and reviewed and not art._manual_fact_problems():
+                ok = forced = True   # 全自動：AI 有審到、只是有意見且事實都過 → 上線，但一定抽查
+            art.write({'manual_review_state': 'pass' if ok else 'fail',
+                       'manual_review_note': '；'.join(problems) or False,
+                       'manual_review_input': art._manual_review_input(),
+                       'manual_review_sampled': forced})
             if not ok:
                 failed += 1
                 continue
             try:
-                art.with_context(knowledge_system_approve=True).action_approve()
+                with self.env.cr.savepoint():
+                    art._knowledge_system_approve()
                 published += 1
-                art.message_post(body=_('自審通過，系統自動核准上線%s') % (
-                    _('（列入抽查）') if vals.get('manual_review_sampled') else ''))
-            except Exception as e:  # noqa: BLE001 — 核准失敗留在待審
-                art.write({'manual_review_state': 'fail',
+                passed |= art
+            except Exception as e:  # noqa: BLE001 — 核准失敗留在待審（savepoint 已回滾一半的寫入）
+                art.write({'manual_review_state': 'fail', 'manual_review_sampled': False,
                            'manual_review_note': _('自動核准失敗：%s') % str(e)[:300]})
                 failed += 1
+        # 抽查：隨機 5%，有上線就至少 1 篇
+        sample = passed.filtered(lambda a: a.manual_review_sampled or random.random() < SAMPLE_RATE)
+        if passed and not sample:
+            sample = passed[random.randrange(len(passed))]
+        sample.write({'manual_review_sampled': True, 'manual_sample_result': False})
+        for art in passed:
+            art.message_post(body=_('自審通過，系統自動核准上線%s') % (
+                _('（列入抽查）') if art in sample else ''))
         return published, failed
 
 

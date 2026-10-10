@@ -29,6 +29,7 @@ tar -xzf $BK/pt.tgz -C $BK/pt
 for m in dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal; do rm -rf $S/ProductivityTools/$m; cp -a $BK/pt/$m $S/ProductivityTools/; chmod -R a+rX $S/ProductivityTools/$m; done
 grep -h "'version'" $S/ProductivityTools/dobtor_corpaas_knowledge/__manifest__.py $S/ProductivityTools/dobtor_corpaas_knowledge_manual/__manifest__.py
 set +e
+OK=
 for i in 1 2 3 4 5 6; do
   L=upgrade-__TAG__-$i.log
   docker exec $C odoo -c /etc/odoo/odoo.conf -d CorPAAS_admin -u dobtor_corpaas_knowledge,dobtor_corpaas_knowledge_manual,dobtor_corpaas_knowledge_proposal --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
@@ -39,6 +40,13 @@ for i in 1 2 3 4 5 6; do
     sleep 20
   else
     echo "try $i OK"; grep -E " ERROR |CRITICAL" $H | head -8; docker restart $C >/dev/null; sleep 25
-    docker ps --filter name=$C --format "{{.Status}}"; break
+    docker ps --filter name=$C --format "{{.Status}}"; OK=1; break
   fi
 done
+if [ -z "$OK" ]; then
+  # 升級沒成功：把舊程式碼放回去，免得下次容器重啟載入跟資料庫不相容的新程式
+  echo "upgrade failed: restoring previous code from $BK/before-pt.tgz"
+  for m in dobtor_corpaas_knowledge dobtor_corpaas_knowledge_manual dobtor_corpaas_knowledge_proposal; do rm -rf $S/ProductivityTools/$m; done
+  tar -xzf $BK/before-pt.tgz -C $S/ProductivityTools
+  exit 1
+fi

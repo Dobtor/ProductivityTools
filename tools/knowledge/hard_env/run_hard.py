@@ -1,4 +1,4 @@
-"""本機「別難測試方案」（計畫第 30 項）：部署前先用真的截圖程式＋瀏覽器重現社群電商方案踩過的坑。
+"""本機「刁難測試方案」（計畫第 30 項）：部署前先用真的截圖程式＋瀏覽器重現社群電商方案踩過的坑。
 
 用法：venv 的 python 執行  ~/Library/Caches/corpaas-kb/venv/bin/python tools/knowledge/hard_env/run_hard.py
   （第一次會建資料庫 kbhard，之後沿用；加 --fresh 重建）
@@ -104,8 +104,12 @@ def run_runner(shots, parallel=1):
     env = dict(os.environ, KB_JOB_DIR=job, PLAYWRIGHT_BROWSERS_PATH=os.path.join(KB, 'ms-playwright'))
     subprocess.run([PY, os.path.join(REPO, 'dobtor_corpaas_knowledge', 'shot_runner', 'run.py')],
                    env=env, capture_output=True, text=True, timeout=900)
-    with open(os.path.join(job, 'out', 'result.json')) as fh:
-        return json.load(fh)['shots']
+    try:
+        with open(os.path.join(job, 'out', 'result.json')) as fh:
+            return json.load(fh)['shots']
+    except (OSError, ValueError, KeyError):
+        # 截圖程式整個掛掉：每張都判失敗（不要丟例外讓整個測試中斷）
+        return {s['id']: {'ok': False, 'error': '截圖程式沒有結果'} for s in shots}
 
 
 def main():
@@ -161,7 +165,10 @@ def main():
         navs = shots['probe'].get('navigations') or []
         checks.append(('2 訪客開登入頁看得出是首頁彈窗', any('popup=login' in n for n in navs), navs))
         checks.append(('3 會員拍得到 /my', shots['member'].get('ok'), shots['member'].get('error')))
-        checks.append(('4 管理員拍得到自訂群組的畫面', shots['admin'].get('ok'), act))
+        adm = shots['admin']
+        checks.append(('4 管理員拍得到自訂群組的畫面（有圖、停在那個動作）',
+                       adm.get('ok') and any(i.get('name') == 'admin_doc' for i in adm.get('images') or [])
+                       and '/odoo/action-' in (adm.get('url') or ''), adm.get('url') or act))
         err = shots['sales'].get('error') or ''
         diag = shell(scripts.access_diag_script('doc_sales', 'kb.hard.doc'))
         text = scripts.access_diag_text(diag)
@@ -170,7 +177,10 @@ def main():
         purge = shell(scripts.purge_script(['kb.hard.doc']))
         left = shell(scripts._HEAD + "print(MARK + json.dumps({'n': env['kb.hard.doc'].sudo().search_count("
                      "[('name', '=', '客戶已撥款')])}))\n")
-        checks.append(('6 已撥款客戶單據清除得掉', left['n'] == 0, purge.get('deleted')))
+        kept = shell(scripts._HEAD + "print(MARK + json.dumps({'n': bool(env.ref('kb_hard_env.doc_paid', "
+                     "raise_if_not_found=False))}))\n")
+        checks.append(('6 已撥款客戶單據清除得掉、模組自帶的單據保留', left['n'] == 0 and kept['n'],
+                       {'deleted': purge.get('deleted'), 'module_doc_kept': kept['n']}))
         cust = shell(scripts._HEAD + "u = env['res.users'].sudo().with_context(active_test=False).search("
                      "['|', ('login', '=', 'kb_customer_user'), ('login', '=like', 'removed_%')], limit=1, order='id desc')\n"
                      "print(MARK + json.dumps({'name': u.partner_id.name, 'active': u.partner_id.active}))\n")

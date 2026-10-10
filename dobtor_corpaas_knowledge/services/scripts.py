@@ -419,7 +419,7 @@ def purge_script(models, resets=()):
       以程式建立的設定明細（稅的分配行、付款條件明細、工作時間、產品變體、PDF 欄位）
       都沒有自己的 xmlid，全被刪掉，說明庫的設定當場壞掉。
     ★ 保留：模組 xmlid、__doc_scenario_*、以及「必填且串聯刪除的上層」是保留記錄的明細。
-    ★ 其他畫面上的漏網之魚由截圖前檢查（gate_script）擋下。
+    ★ 其他畫面上的漏網之魚由截圖前檢查（gate_batch_script）擋下。
     """
     return _HEAD + (
         "SKIP = %r\n"
@@ -445,8 +445,8 @@ def purge_script(models, resets=()):
         "    return keep\n"
         # ★ 已確認／已過帳的單據 Odoo 不准直接刪：先退回草稿或取消再刪
         #   ☠️ 實機：社群電商方案的說明庫留下 8 張客戶銷售訂單、14 張佣金結算單，截圖拍到客戶資料
-        "RESETS = ('action_unlock', 'button_draft', '_action_cancel', 'action_cancel',\n"
-        "          'button_cancel', 'action_draft') + tuple(json.loads(%r))\n"
+        "RESETS = tuple(dict.fromkeys(('action_unlock', 'button_draft', '_action_cancel', 'action_cancel',\n"
+        "          'button_cancel', 'action_draft') + tuple(json.loads(%r))))\n"
         "def _reset_and_unlink(Model, rid):\n"
         "    rec = Model.browse(rid).with_context(disable_cancel_warning=True,\n"
         "        tracking_disable=True, mail_notrack=True)\n"
@@ -492,7 +492,8 @@ def purge_script(models, resets=()):
         "        if Model._abstract or not Model._auto:\n"
         "            continue\n"
         "        ids = Model.search([]).ids\n"
-        "        for rid in [i for i in ids if i not in _kept_ids(name, ids)] if ids else []:\n"
+        "        keep = _kept_ids(name, ids) if ids else set()\n"
+        "        for rid in [i for i in ids if i not in keep]:\n"
         "            try:\n"
         "                with env.cr.savepoint():\n"
         "                    env.cr.execute('DELETE FROM \"%%s\" WHERE id = %%%%s' %% Model._table, [rid])\n"
@@ -508,7 +509,8 @@ def purge_script(models, resets=()):
         "    if Model._abstract or not Model._auto:\n"
         "        continue\n"
         "    ids = Model.search([]).ids\n"
-        "    left = [i for i in ids if i not in _kept_ids(name, ids)] if ids else []\n"
+        "    keep = _kept_ids(name, ids) if ids else set()\n"
+        "    left = [i for i in ids if i not in keep]\n"
         "    if left:\n"
         "        residual[name] = len(left)\n"
         # ★ 使用者刪不掉（外鍵），但客戶員工的姓名會出現在「業務員」「負責人」欄位上：
@@ -594,9 +596,19 @@ def seed_script(module, records, roles, password, forbid=()):
         "    share = env['res.groups'].union(*[g for g in map(ref, ('base.group_portal', 'base.group_public')) if g])\n"
         "    itself = env['res.groups'].union(*[g for g in map(ref, ('base.group_multi_company',\n"
         "        'base.group_multi_currency', 'base.group_no_one')) if g])\n"
+        # ★ 設定頁開關的功能群組（變體、多倉位、單位…）只給客戶已開的（內部使用者已有的）：
+        #   全給的話管理員截圖出現客戶沒開的欄位
+        "    feat = set()\n"
+        "    for f in env['res.config.settings']._fields.values():\n"
+        "        for x in (getattr(f, 'implied_group', None) or '').split(','):\n"
+        "            g = ref(x.strip()) if x.strip() else None\n"
+        "            if g:\n"
+        "                feat.add(g.id)\n"
+        "    user = ref('base.group_user')\n"
+        "    off = feat - set((user | user.trans_implied_ids).ids if user else [])\n"
         "    out = []\n"
         "    for g in env['res.groups'].sudo().search([]):\n"
-        "        if g in itself or ((g | g.trans_implied_ids) & share):\n"
+        "        if g in itself or g.id in off or ((g | g.trans_implied_ids) & share):\n"
         "            continue\n"
         "        out.append(g.id)\n"
         "    return out\n"
@@ -729,7 +741,6 @@ def access_diag_script(login, model, res_id=None):
         "        item = {'name': r.name, 'global': not r.groups, 'domain': (r.domain_force or '')[:200]}\n"
         "        if RID and rec:\n"
         "            try:\n"
-
         "                from odoo.tools.safe_eval import safe_eval\n"
         "                d = safe_eval(r.domain_force or '[]', r.with_user(u)._eval_context())\n"
         "                item['matches'] = bool(env[MODEL].sudo().search_count([('id', '=', RID)] + list(d)))\n"
@@ -751,7 +762,12 @@ def access_diag_text(d):
         need = [a['group'] for a in d.get('acl_groups') or [] if not a.get('has')]
         parts.append('帳號 %s 沒有 %s 的讀取權限（存取控制清單；開放給：%s）' % (
             d['login'], d['model'], '、'.join(need[:4]) or '無'))
-    blocking = [r['name'] for r in d.get('rules') or [] if r.get('matches') is False]
+    # Odoo：全域規則之間是「且」，任何一條不成立就擋；群組規則之間是「或」，全部不成立才擋
+    rules = d.get('rules') or []
+    blocking = [r['name'] for r in rules if r.get('global') and r.get('matches') is False]
+    group_rules = [r for r in rules if not r.get('global')]
+    if group_rules and all(r.get('matches') is False for r in group_rules):
+        blocking += [r['name'] for r in group_rules]
     if blocking:
         parts.append('記錄規則擋住：%s' % '、'.join(blocking[:3]))
     if d.get('record_company') and d['record_company'] not in (d.get('companies') or []):
@@ -763,51 +779,17 @@ def access_diag_text(d):
 
 
 def gate_script(pairs, since, refs=None, allow=CONFIG_MODELS):
-    """D1 截圖前檢查。
+    """D1 截圖前檢查（單張）：同 gate_batch_script，回傳 {'bad': [[model, id], ...]}。
 
-    pairs: {model: [ids]}；refs: {"model|field": [ids]}（many2one／x2many 的值，
-    comodel 在這裡查）；since: 清除完成時間（字串）——之後才建立的都是我們放的
-    （示範資料與拍攝過程產生），允許。
-    允許：模組 xmlid、__doc_scenario_* xmlid、清除之後才建立，或設定類模型（allow）。
-    """
-    return _HEAD + (
-        "PAIRS = json.loads(%r)\n"
-        "REFS = json.loads(%r)\n"
-        "SINCE = %r\n"
-        "ALLOW = set(json.loads(%r))\n"
-        # 鍵的格式：model|field，或明細的 model|x2many欄位>明細欄位（可多層）
-        "for key, ids in REFS.items():\n"
-        "    model, _, path = key.partition('|')\n"
-        "    comodel = model if model in env else None\n"
-        "    for part in path.split('>'):\n"
-        "        f = env[comodel]._fields.get(part) if comodel else None\n"
-        "        comodel = f.comodel_name if f is not None and f.relational else None\n"
-        "    if comodel:\n"
-        "        PAIRS.setdefault(comodel, [])\n"
-        "        PAIRS[comodel] = sorted(set(PAIRS[comodel]) | set(ids))\n"
-        "mods = set(env['ir.module.module'].sudo().search([('state', '=', 'installed')]).mapped('name'))\n"
-        "Imd = env['ir.model.data'].sudo()\n"
-        "bad = []\n"
-        "for model, ids in PAIRS.items():\n"
-        "    if model not in env or not ids or model in ALLOW:\n"
-        "        continue\n"
-        "    ok = set(Imd.search([('model', '=', model), ('res_id', 'in', ids),\n"
-        "        '|', ('module', 'in', list(mods)), ('module', '=like', '__doc_scenario_%%')]).mapped('res_id'))\n"
-        "    rest = [i for i in ids if i not in ok]\n"
-        "    if rest and 'create_date' in env[model]._fields:\n"
-        "        recent = env[model].sudo().with_context(active_test=False).search(\n"
-        "            [('id', 'in', rest), ('create_date', '>=', SINCE)]).ids\n"
-        "        rest = [i for i in rest if i not in recent]\n"
-        "    bad.extend([model, i] for i in rest)\n"
-        "env.cr.rollback()\n"
-        "print(MARK + json.dumps({'bad': bad}))\n"
-    ) % (json.dumps(pairs), json.dumps(refs or {}), since, json.dumps(list(allow or ())))
+    允許：模組 xmlid、__doc_scenario_* xmlid、清除之後才建立，或設定類模型（allow）。"""
+    return gate_batch_script([{'k': 'one', 'pairs': pairs or {}, 'refs': refs or {}}], since,
+                             allow=allow, single='one')
 
 
-def gate_batch_script(items, since, allow=CONFIG_MODELS):
+def gate_batch_script(items, since, allow=CONFIG_MODELS, single=None):
     """D1 截圖前檢查，一次查一整批圖：items=[{'k': 鍵, 'pairs': {...}, 'refs': {...}}]。
 
-    回傳 {'bad': {鍵: [[model, id], ...]}}；規則與 gate_script 相同。
+    回傳 {'bad': {鍵: [[model, id], ...]}}。
     ★ 每張圖各開一次 odoo shell 要 ~10 秒：一批 20 張光檢查就 3 分多鐘（比拍照還久）。"""
     return _HEAD + (
         "ITEMS = json.loads(%r)\n"
@@ -840,8 +822,8 @@ def gate_batch_script(items, since, allow=CONFIG_MODELS):
         "    return bad\n"
         "out = {it['k']: _check(it.get('pairs') or {}, it.get('refs') or {}) for it in ITEMS}\n"
         "env.cr.rollback()\n"
-        "print(MARK + json.dumps({'bad': out}))\n"
-    ) % (json.dumps(items), since, json.dumps(list(allow or ())))
+        "print(MARK + json.dumps({'bad': out[%r] if %r else out}))\n"
+    ) % (json.dumps(items), since, json.dumps(list(allow or ())), single, single)
 
 
 def demo_state_script(xmlids, state_fields):

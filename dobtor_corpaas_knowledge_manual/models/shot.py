@@ -135,6 +135,10 @@ class KnowledgeShotBinding(models.Model):
     last_token = fields.Char(readonly=True, help='最近一次拍攝的 refresh token')
     last_shot_at = fields.Datetime(readonly=True)
     shot_scope_hash = fields.Char(readonly=True, help='最近一次成功拍攝時的指紋')
+    transient_fp = fields.Char(readonly=True, copy=False,
+                               help='暫時性錯誤原樣重拍過的指紋（同一個只重拍一次）')
+    repair_bonus_used = fields.Boolean(readonly=True, copy=False,
+                                       help='已用過「錯誤附畫面資訊」的額外一次修補')
     shot_inputs = fields.Char(readonly=True,
                               help='最近一次成功拍攝的輸入簽章（腳本、繫結、指紋、示範資料版號、截圖程式）；'
                                    '全量更新時簽章沒變就沿用現有截圖，不重拍（R4）')

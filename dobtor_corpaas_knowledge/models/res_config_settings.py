@@ -65,7 +65,7 @@ class ResConfigSettings(models.TransientModel):
         try:
             parallel = max(1, min(4, int(icp.get_param('corpaas_knowledge.shot_parallel') or 2)))
         except ValueError:
-            parallel = 1
+            parallel = 2   # 填錯就用預設值
         return {
             'image': icp.get_param('corpaas_knowledge.playwright_image'),
             'fonts_dir': icp.get_param('corpaas_knowledge.fonts_dir'),
