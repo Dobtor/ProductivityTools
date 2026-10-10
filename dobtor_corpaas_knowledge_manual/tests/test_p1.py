@@ -138,6 +138,17 @@ class TestReuseShots(ManualCase):
         b.shot_inputs = 'old-runner'
         self.assertIn(b, self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {}))
 
+    def test_failed_reshot_once_when_inputs_change(self):
+        """失敗的：輸入沒變不重拍（避免一直重試），截圖程式或腳本改了才再拍一次。"""
+        _tmpl, b = self._setup()
+        sb = FakeSandbox(self.scenario)
+        Event = self.env['corpaas.knowledge.event']
+        self.hooks._manual_fail(b, 'Locator.click: Timeout', repair=False)
+        self.assertEqual(b.shot_inputs, self.hooks._manual_shot_inputs(b), '失敗也記下用了哪些輸入')
+        self.assertNotIn(b, self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {}))
+        b.shot_inputs = 'old-runner'
+        self.assertIn(b, self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {}))
+
     def test_seed_revision_changes_inputs(self):
         _tmpl, b = self._setup()
         before = self.hooks._manual_shot_inputs(b)

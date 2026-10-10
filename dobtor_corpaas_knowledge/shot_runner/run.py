@@ -121,7 +121,16 @@ def _field_locator(page, name):
 
 def _button_locator(page, name):
     # ★ 只找看得到的：精靈對話框開著時，背後表單也有同名按鈕（隱藏），取第一個會點不到
-    return page.locator('button[name="%s"]:visible' % name).first
+    name = str(name)
+    if re.fullmatch(r'[A-Za-z_][\w.]*', name):
+        return page.locator('button[name="%s"]:visible' % name).first
+    # ★ 不是技術名（AI 給的是按鈕上的字）：用看得到的按鈕文字找，完全相同優先
+    #   ☠️ 實機（社群電商方案）：button[name="測試連線"] 這類 12 張永遠點不到
+    exact = page.locator('button:visible').filter(
+        has_text=re.compile(r'^\s*%s\s*$' % re.escape(name)))
+    if exact.count():
+        return exact.first
+    return page.locator('button:visible', has_text=name).first
 
 
 def _page_locator(page, name):

@@ -822,6 +822,10 @@ class KnowledgeHooks(models.AbstractModel):
                 # ★ 拍攝輸入變了（截圖程式、腳本、角色、示範資料）：增量更新也重拍
                 #   ☠️ 實機：截圖程式改成隱藏 Cookie 列，增量更新照樣沿用舊截圖
                 out |= b
+            elif b.state == 'failed' and b.shot_inputs != self._manual_shot_inputs(b):
+                # ★ 失敗的也一樣：截圖程式、腳本、角色、示範資料有變就再拍一次（輸入沒變就不重拍）
+                #   ☠️ 實機（社群電商方案）：截圖程式修好按鈕定位，失敗的 12 張要等全量更新才會重拍
+                out |= b
             elif full and not (b.state == 'ok' and b.shot_inputs
                                and b.shot_inputs == self._manual_shot_inputs(b)):
                 # ★ R4：全量更新不等於全部重拍——輸入簽章沒變的畫面沿用現有截圖
@@ -842,7 +846,8 @@ class KnowledgeHooks(models.AbstractModel):
     @api.model
     def _manual_fail(self, binding, error, result=None, repair=True):
         vals = {'state': 'failed', 'last_error': (error or '')[:4000],
-                'last_shot_at': fields.Datetime.now(), 'needs_repair': repair}
+                'last_shot_at': fields.Datetime.now(), 'needs_repair': repair,
+                'shot_inputs': self._manual_shot_inputs(binding)}
         if result is not None:
             vals['last_result'] = json.dumps(result, ensure_ascii=False)[:100000]
         binding.write(vals)

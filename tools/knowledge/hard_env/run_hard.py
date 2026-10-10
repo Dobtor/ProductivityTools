@@ -12,6 +12,7 @@
   6 已撥款、模組不准刪的客戶單據，清除程式刪得掉
   7 示範資料不會多建第二家公司（重播時略過）
   8 平行拍攝：同一批分 2 組各開瀏覽器，結果與圖檔合併回來
+  9 按鈕給的是畫面上的字（AI 常犯），截圖程式改用文字找得到
 """
 import importlib.util
 import json
@@ -120,6 +121,11 @@ def main():
             except Exception:  # noqa: BLE001
                 time.sleep(2)
         act = '/odoo/action-kb_hard_env.action_doc'
+        draft = shell(scripts._HEAD + "print(MARK + json.dumps({'id': env.ref('kb_hard_env.doc_draft').id}))\n")['id']
+        btn = run_runner([{'id': 'button', 'login': 'doc_admin', 'password': PW, 'steps': [
+            {'goto': {'action': 'kb_hard_env.action_doc', 'res_id': draft}},
+            {'click': {'button': '標記撥款'}}, {'shot': 'after_click'}]}])['button']
+        checks.append(('9 按鈕給的是畫面文字（不是技術名）也點得到', btn.get('ok'), btn.get('error')))
         shots = run_runner([
             {'id': 'admin', 'login': 'doc_admin', 'password': PW, 'steps': [
                 {'goto': {'action': 'kb_hard_env.action_doc'}}, {'wait': {'ms': 800}}, {'shot': 'admin_doc'}]},

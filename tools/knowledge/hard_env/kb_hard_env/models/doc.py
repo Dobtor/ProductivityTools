@@ -16,3 +16,6 @@ class KbHardDoc(models.Model):
         if any(r.state == 'paid' for r in self):
             raise UserError('已撥款的單據不能刪除')
         return super().unlink()
+
+    def action_mark_paid(self):
+        self.write({'state': 'paid'})

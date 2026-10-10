@@ -8,6 +8,23 @@
         <field name="res_model">kb.hard.doc</field>
         <field name="view_mode">list,form</field>
     </record>
+    <record id="view_doc_form" model="ir.ui.view">
+        <field name="name">kb.hard.doc.form</field>
+        <field name="model">kb.hard.doc</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_mark_paid" string="標記撥款" type="object" class="btn-primary"
+                            invisible="state == 'paid'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet><group><field name="name"/><field name="company_id"/></group></sheet>
+            </form>
+        </field>
+    </record>
+    <record id="doc_draft" model="kb.hard.doc">
+        <field name="name">草稿單據（按鈕用）</field>
+    </record>
     <menuitem id="menu_doc" name="KB 單據" action="action_doc" groups="group_doc_manager"/>
     <record id="doc_paid" model="kb.hard.doc">
         <field name="name">已撥款單據（客戶資料）</field>
