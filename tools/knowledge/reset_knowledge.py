@@ -74,7 +74,12 @@ for _pass in range(10):
     for m in left:
         try:
             with env.cr.savepoint():
-                env.cr.execute('DELETE FROM "%%s"' %% env[m]._table)
+                if m == 'corpaas.knowledge.revision':
+                    # ★ 保留模型（示範資料包等）的修訂要留著：上線版內容存在修訂裡，刪了資料包就沒有核准版
+                    #   ☠️ 實機（2026-10-11）：資料包留著、修訂全刪，說明庫建不起來「還沒有核准過的版本」
+                    env.cr.execute('DELETE FROM "%%s" WHERE res_model NOT IN %%%%s' %% env[m]._table, [tuple(KEEP)])
+                else:
+                    env.cr.execute('DELETE FROM "%%s"' %% env[m]._table)
         except Exception as e:
             stuck.append(m)
             last = str(e)[:200]
