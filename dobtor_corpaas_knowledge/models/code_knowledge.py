@@ -489,6 +489,67 @@ class SolutionPackageCode(models.Model):
                 out.append(rec.brief())
         return out[:limit]
 
+    def _knowledge_apply_code_facts(self):
+        """程式結論補進流程（第四種證據「程式」）：轉換的前提、開的精靈、程式裡才看得到的轉換。
+
+        ★ 流程結構原本只從畫面定義、租戶紀錄、截圖推；按鈕的前提（例如「要先有啟用的電子發票服務商」）
+          只寫在程式裡，流程與流程圖都看不到。回傳 {'marked','created','renamed'}。"""
+        self.ensure_one()
+        Flow = self.env['corpaas.knowledge.flow'].sudo()
+        Trans = self.env['corpaas.knowledge.flow.transition'].sudo()
+        flows = Flow.search([('package_ids', 'in', self.id)])
+        by_model = {}
+        for f in flows:
+            by_model.setdefault(f.model, Flow)
+            by_model[f.model] |= f
+        stats = {'marked': 0, 'created': 0, 'renamed': 0}
+        touched = Flow.browse()
+        facts = self.env['corpaas.knowledge.code_fact'].sudo().search([('state', '=', 'current')])
+        for fact in facts:
+            model, _sep, method = fact.subject.rpartition('.')
+            if model not in by_model:
+                continue
+            try:
+                data = json.loads(fact.fact_json or '{}')
+            except ValueError:
+                continue
+            cond = '；'.join(str(p) for p in (data.get('preconditions') or [])[:2])[:120] or False
+            opens = data.get('opens') if isinstance(data.get('opens'), str) and '.' in data.get('opens', '') else False
+            for flow in by_model[model]:
+                mine = flow.transition_ids.filtered(lambda t: t.button_name == method)
+                for t in mine:
+                    vals = {'ev_code': True}
+                    if cond and t.code_condition != cond:
+                        vals['code_condition'] = cond
+                    if opens and not t.opens_model:
+                        vals['opens_model'] = opens
+                    if any(t[k] != v for k, v in vals.items()):
+                        t.write(vals)
+                        stats['marked'] += 1
+                        touched |= flow
+                steps = {s.value: s.value for s in flow.step_ids}
+                steps.update({(s.label or '').strip(): s.value for s in flow.step_ids if s.label})
+                for tr in data.get('transitions') or []:
+                    if not isinstance(tr, dict):
+                        continue
+                    a = steps.get(str(tr.get('from') or '').strip()) if tr.get('from') else False
+                    b = steps.get(str(tr.get('to') or '').strip())
+                    if not b or (tr.get('from') and not a):
+                        continue   # 對不上流程的狀態：不猜
+                    if flow.transition_ids.filtered(lambda t: t.to_value == b and (t.from_value or False) == a
+                                                    and t.button_name == method):
+                        continue
+                    Trans.create({'flow_id': flow.id, 'from_value': a, 'to_value': b, 'button_name': method,
+                                  'button_label': (mine[:1].button_label if mine else False) or method,
+                                  'ev_code': True, 'code_condition': cond, 'opens_model': opens})
+                    stats['created'] += 1
+                    touched |= flow
+        if touched:
+            # 程式證據改了流程：下次更新依模組摘要與程式結論重新命名、寫摘要（照核准制度送審）
+            touched.write({'named_hash': False})
+            stats['renamed'] = len(touched)
+        return stats
+
     def _knowledge_code_facts_for(self, subjects):
         """有效的程式結論 {model.method: dict}（給寫／修腳本的提示用）。"""
         out = {}

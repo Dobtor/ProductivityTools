@@ -114,7 +114,8 @@ class KnowledgeFlowDiagram(models.Model):
         self.ensure_one()
         return [self.name, [(s.value, s.label, s.on_statusbar) for s in self.step_ids.sorted('sequence')],
                 sorted((t.from_value or '', t.to_value or '', t.button_name or '',
-                        t.button_label or '', t.opens_model or '') for t in self.transition_ids)]
+                        t.button_label or '', t.opens_model or '', t.code_condition or '')
+                       for t in self.transition_ids)]
 
     def _kb_opens(self):
         """[(轉換, 打開的模型)]：這個流程的按鈕會開出哪些下游單據。"""
@@ -145,7 +146,7 @@ class KnowledgeFlowDiagram(models.Model):
             if i > 1:
                 t = self.transition_ids.filtered(
                     lambda t, a=main[i - 2].value, b=s.value: t.from_value == a and t.to_value == b)[:1]
-                label = t.display_label() if t else ''
+                label = t.diagram_label() if t else ''
             edges.append({'src': prev, 'dst': nid, 'name': label})
             prev = nid
         end_col = len(main) + 1
@@ -210,7 +211,7 @@ class KnowledgeCapabilityDiagram(models.Model):
             nid = 'Sub_%s' % k
             nodes.append({'id': nid, 'kind': 'subprocess', 'lane': role, 'col': col,
                           'name': target.name or self.env['ir.model']._get(model).name or model})
-            edges.append({'src': last, 'dst': nid, 'name': t.display_label() if t else ''})
+            edges.append({'src': last, 'dst': nid, 'name': t.diagram_label() if t else ''})
             last = nid
         col += 1
         end_lane = next(n['lane'] for n in nodes if n['id'] == last)

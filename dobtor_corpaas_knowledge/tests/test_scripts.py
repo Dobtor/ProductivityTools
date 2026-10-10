@@ -615,3 +615,35 @@ class TestPackRoles(TransactionCase):
         self.assertEqual(added, purchase, '資料包用到採購帳號：補上採購角色')
         self.assertIn(purchase, sc.role_ids)
         self.assertFalse(sc._ensure_pack_roles(), '補過就不再補')
+
+
+@tagged('post_install', '-at_install')
+class TestCodeFactsIntoFlows(TransactionCase):
+
+    def test_apply_code_facts(self):
+        import json
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'CF', 'type': 'service'}).id})
+        flow = self.env['corpaas.knowledge.flow'].sudo().create(
+            {'model': 'tw.invoice', 'state_field': 'state', 'package_ids': [(6, 0, pkg.ids)], 'named_hash': 'x'})
+        Step = self.env['corpaas.knowledge.flow.step'].sudo()
+        Step.create([{'flow_id': flow.id, 'sequence': 1, 'value': 'draft', 'label': '草稿'},
+                     {'flow_id': flow.id, 'sequence': 2, 'value': 'issued', 'label': '已開立'},
+                     {'flow_id': flow.id, 'sequence': 3, 'value': 'void', 'label': '作廢'}])
+        t = self.env['corpaas.knowledge.flow.transition'].sudo().create(
+            {'flow_id': flow.id, 'from_value': 'draft', 'to_value': 'issued', 'button_name': 'action_issue',
+             'button_label': '開立', 'ev_static': True})
+        self.env['corpaas.knowledge.code_fact'].sudo().create({
+            'subject': 'tw.invoice.action_issue', 'chain_hash': 'c', 'state': 'current',
+            'fact_json': json.dumps({'preconditions': ['要有啟用的電子發票服務商'], 'opens': '',
+                                     'transitions': [{'from': '草稿', 'to': '已開立'}, {'from': '已開立', 'to': '作廢'},
+                                                     {'from': '不存在', 'to': '已開立'}]})})
+        stats = pkg._knowledge_apply_code_facts()
+        self.assertTrue(t.ev_code)
+        self.assertEqual(t.code_condition, '要有啟用的電子發票服務商')
+        self.assertIn('［要有啟用的電子發票服務商］', t.diagram_label(), '流程圖連線標出前提')
+        self.assertEqual(stats['created'], 1, '程式裡才看得到的轉換補上；對不上狀態的不猜')
+        self.assertTrue(flow.transition_ids.filtered(lambda x: x.from_value == 'issued' and x.to_value == 'void'
+                                                     and x.ev_code))
+        self.assertFalse(flow.named_hash, '改過的流程下次重新命名')
+        self.assertEqual(pkg._knowledge_apply_code_facts()['marked'], 0, '沒變就不再動')

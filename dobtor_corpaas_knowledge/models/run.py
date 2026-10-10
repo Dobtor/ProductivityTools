@@ -81,6 +81,8 @@ class KnowledgeRun(models.Model):
                   'shots_failed_environment': _('失敗：環境（登入、系統錯誤、非示範資料）'),
                   'shots_failed_transient': _('失敗：暫時性'),
                   'repairs_ok': _('AI 修過、重拍成功'), 'repairs_bad': _('AI 修過、重拍仍失敗'),
+                  'flows_code_marked': _('流程轉換加上程式證據'), 'flows_code_created': _('程式補出的轉換'),
+                  'flows_code_renamed': _('流程依程式重新命名'),
                   'shots_backend_down': _('說明庫後台打不開'),
                   'shots_halted': _('整批提前終止（未拍）'),
                   'roles_down': _('健檢：登不進去的角色'),

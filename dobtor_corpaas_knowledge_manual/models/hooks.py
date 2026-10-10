@@ -773,6 +773,8 @@ class KnowledgeHooks(models.AbstractModel):
                 todo = [f for f in facts.values() if f.state != 'current'][:limit]
                 if todo:
                     package._knowledge_code_semantic(instance, todo, token=ctx.get('token'))
+            if hasattr(package, '_knowledge_apply_code_facts'):
+                package._knowledge_apply_code_facts()
 
     @api.model
     def _manual_button_targets(self, package):

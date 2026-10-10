@@ -76,6 +76,8 @@
                                     <field name="ev_static"/>
                                     <field name="ev_tenant"/>
                                     <field name="ev_shot"/>
+                                    <field name="ev_code"/>
+                                    <field name="code_condition" optional="show"/>
                                     <field name="usage_count"/>
                                 </list>
                             </field>

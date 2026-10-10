@@ -346,6 +346,13 @@ class SolutionPackage(models.Model):
             run.add_stats(**{k: v for k, v in lstats.items() if v})
         except Exception as e:  # noqa: BLE001
             _logger.warning('[knowledge] %s 範本庫套用失敗：%s', self.display_name, e)
+        try:
+            with self.env.cr.savepoint():
+                # 程式結論補進流程（轉換的前提、程式裡才看得到的轉換）；改到的流程這次重新命名
+                cstats = self._knowledge_apply_code_facts()
+            run.add_stats(**{'flows_code_%s' % k: v for k, v in cstats.items() if v})
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] %s 程式結論補進流程失敗：%s', self.display_name, e)
         with self._op_step('kb_ai_catalog'):
             self._knowledge_ai_catalog(added, token)
             self._knowledge_official_docs(token)

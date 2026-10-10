@@ -11,7 +11,8 @@ import re
 
 from odoo import api, fields, models
 
-EVIDENCE_HELP = '靜態：原始碼分析；租戶：租戶庫實際發生的狀態變更；截圖：說明庫操作時觀察到'
+EVIDENCE_HELP = ('靜態：原始碼分析；租戶：租戶庫實際發生的狀態變更；截圖：說明庫操作時觀察到；'
+                 '程式：AI 讀過按鈕程式的結論')
 #: 單據的上下游先後：按鈕打開「比自己上游」的單據是查看關聯（採購單上的「銷售訂單」智慧按鈕），
 #: 不是交接。不在清單裡的模型不判斷（照舊算交接）。
 HANDOFF_ORDER = ['crm.lead', 'sale.order', 'purchase.requisition', 'purchase.order',
@@ -126,12 +127,12 @@ class KnowledgeFlow(models.Model):
             'name': self.name, 'model': self.model,
             'steps': [{'value': s.value, 'label': s.label, 'on_statusbar': s.on_statusbar}
                       for s in self.step_ids.sorted('sequence')],
-            'transitions': [{
+            'transitions': [dict({
                 'from': self.step_label(t.from_value) if t.from_value else '（任何狀態）',
                 'to': self.step_label(t.to_value) if t.to_value else '',
                 'button': t.button_label or t.button_name,
                 'opens': t.opens_model or '', 'count': t.usage_count,
-            } for t in self.transition_ids],
+            }, **({'condition': t.code_condition} if t.code_condition else {})) for t in self.transition_ids],
         }
 
 
@@ -169,6 +170,9 @@ class KnowledgeFlowTransition(models.Model):
     ev_static = fields.Boolean(string='靜態', help=EVIDENCE_HELP)
     ev_tenant = fields.Boolean(string='租戶', help=EVIDENCE_HELP)
     ev_shot = fields.Boolean(string='截圖', help=EVIDENCE_HELP)
+    ev_code = fields.Boolean(string='程式', help=EVIDENCE_HELP)
+    code_condition = fields.Char(string='前提（讀過程式）',
+                                 help='按這顆按鈕前要滿足的條件（程式結論），流程圖標在這條轉換上')
     usage_count = fields.Integer(string='租戶次數', readonly=True, help='各方案相加')
     usage_json = fields.Text(readonly=True, help='{方案 id: 次數}（方案屬性層）')
     package_ids = fields.Many2many(
@@ -190,6 +194,14 @@ class KnowledgeFlowTransition(models.Model):
         if src in HANDOFF_ORDER and dst in HANDOFF_ORDER:
             return HANDOFF_ORDER.index(dst) > HANDOFF_ORDER.index(src)
         return True
+
+    def diagram_label(self):
+        """流程圖連線上的字：按鈕名稱＋程式結論的前提（有的話）。"""
+        self.ensure_one()
+        label = self.display_label()
+        if self.code_condition:
+            label = '%s［%s］' % (label, self.code_condition[:30]) if label else '［%s］' % self.code_condition[:30]
+        return label
 
     def display_label(self):
         """給讀者看的按鈕名稱：沒有字面名稱（只剩動作編號）時用按鈕功能點的名稱。"""
