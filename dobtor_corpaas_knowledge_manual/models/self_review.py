@@ -67,6 +67,13 @@ class KnowledgeArticleReview(models.Model):
         # 待審的文章還沒有上線快照：審它現在的內容（預覽＝標題＋情境＋步驟）
         text = _TAG.sub(' ', self.preview_html or '')
         text = re.sub(r'\s+', ' ', text)[:6000]
+        # ★ 系統實際的狀態值也給審稿人：沒給時它把文章寫的真實狀態判成「編造」
+        #   ☠️ 實機（社群電商方案）：結算單的「準備中／已結算／已撥款／已取消」被判編造
+        states = {}
+        if feature.get('model'):
+            for flow in self.env['corpaas.knowledge.flow'].sudo().search(
+                    [('model', '=', feature['model'])]):
+                states[flow.state_field] = [st.label or st.value for st in flow.step_ids]
         who = {'visitor': '網站訪客', 'member': '已登入的會員', 'web_editor': '網站管理人員'}.get(
             feature.get('audience'), '後台使用者')
         return (
@@ -75,8 +82,10 @@ class KnowledgeArticleReview(models.Model):
             "(2) 讀者身分正確：這篇的讀者是「%(who)s」，用語與入口要符合（前台文章不寫後台選單路徑，"
             "後台文章不叫讀者去網站前台操作）；(3) 沒有編造系統沒有的功能、沒有內部代碼或英文欄位名。\n"
             "只回 JSON：{\"ok\": true|false, \"problems\": [\"…\"]}；有問題才列，最多 3 點、每點一句。\n\n"
+            "系統裡這個模型的狀態值（文章提到這些狀態不算編造）：%(states)s\n\n"
             "功能：%(feature)s\n\n截圖腳本：%(steps)s\n\n文章全文：%(text)s"
         ) % {'who': who, 'feature': json.dumps(feature, ensure_ascii=False)[:1500],
+             'states': json.dumps(states, ensure_ascii=False)[:800] if states else '（無）',
              'steps': json.dumps(steps, ensure_ascii=False)[:3000], 'text': text}
 
     def _manual_self_review(self, package, token=None, use_ai=True):

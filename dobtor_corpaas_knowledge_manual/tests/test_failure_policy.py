@@ -203,3 +203,19 @@ class TestRunFunnel(ManualCase):
         self.assertEqual(rows['例外清單'], 1)
         self.assertGreaterEqual(rows['文章'], 1)
         self.assertIn('漏斗', run.dashboard_html)
+
+
+@tagged('post_install', '-at_install')
+class TestReviewPromptStates(ManualCase):
+
+    def test_prompt_lists_real_states(self):
+        self.f1.model = self.f1.model or 'sale.order'
+        flow = self.env['corpaas.knowledge.flow'].sudo().create(
+            {'model': self.f1.model, 'state_field': 'kb_state'})
+        self.env['corpaas.knowledge.flow.step'].sudo().create(
+            [{'flow_id': flow.id, 'sequence': 1, 'value': 'prep', 'label': '準備中'},
+             {'flow_id': flow.id, 'sequence': 2, 'value': 'paid', 'label': '已撥款'}])
+        art = self._article(self.f1, self.cap_a, name='建立報名')
+        prompt = art._manual_review_prompt(self.pkg)
+        self.assertIn('準備中', prompt)
+        self.assertIn('已撥款', prompt)
