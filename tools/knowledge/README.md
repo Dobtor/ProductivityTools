@@ -26,6 +26,7 @@ PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/corpaas-kb/ms-playwright ~/Library/Cac
 | `approve.py <情境>` | 核准沒被自審擋下的待審文章（例外清單不批次核准） |
 | `deploy/build_bundle.sh <標籤> [上一包]` | 打包 git HEAD、檢查正式機有沒有被改過、印出部署指令 |
 | `deploy/deploy_runner.sh` | 只換截圖程式（不升級模組、不重啟、不必等佇列） |
+| `deploy/ai_access.py hub｜mount <實例>｜enable` | 讓 AI 讀得到方案程式：AI Hub 模組更新、Runner 唯讀掛載實例與 Odoo 原碼、打開提示詞快取與程式知識語意層（會動正式機） |
 | `hard_env/run_hard.py [--fresh]` | 本機刁難測試：真的截圖程式＋瀏覽器跑 11 項（彈窗登入、會員前台、自訂群組、缺群組的診斷、不准刪單據、不多建公司、平行拍攝、按鈕文字定位、點不到時列出畫面按鈕、匿名使用者封存）（用 venv 的 python；部署前先跑） |
 
 `rpc.py` 提供 `ro()`（只允許讀取方法）與 `rw()`（只允許工具用到的寫入方法，其他要明確 `unsafe=True`），錯誤會帶完整訊息。正式機設定讀 `~/.config/corpaas-kb/settings.env`（環境變數同名者優先），repo 裡沒有主機與資料庫名。
