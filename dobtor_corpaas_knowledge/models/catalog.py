@@ -639,15 +639,18 @@ class KnowledgeScenario(models.Model):
         for r in live:
             if not r.get('call'):
                 by_model.setdefault(r.get('model'), []).append(r['xmlid'])
+        conditions = self._screen_conditions(package, features)
         screens = [{'name': f.name, 'model': f.model, 'action': f.action_xmlid,
-                    'existing': by_model.get(f.model, [])[:8]} for f in features]
+                    'existing': by_model.get(f.model, [])[:8],
+                    'conditions': conditions.get(f.action_xmlid) or {}} for f in features]
         roles = ['user_%s' % r.code for r in self.all_roles()]
         prompt = (
             "情境「%s」的 Odoo 18 說明庫裡，下列畫面拍出來是空白的（沒有資料，或預設篩選濾掉了）。"
             "請只「新增」記錄讓這些畫面在預設篩選下有內容；可用 \"__ref__:<完整 xmlid>\" 參照"
             "既有記錄，不要改既有記錄。需要的話加動作步驟把單據推到對的狀態（例如追加銷售訂單要"
             "已確認、且交貨數量大於訂購數量的訂單）。做不到的畫面（例如要上傳檔案）就略過，"
-            "列在 skipped 並說明原因。\n%s"
+            "列在 skipped 並說明原因。每個畫面附了 conditions（動作 domain、預設篩選、記錄規則）："
+            "新增的記錄一定要符合這些條件，日期篩選要落在今天附近，記錄規則限本人的要用該角色建立。\n%s"
             "格式：{\"seed\":[…],\"skipped\":[{\"screen\":…,\"reason\":…}]}\n\n"
             "空白畫面：%s%s"
         ) % (self.name, self._seed_rules_text(roles),
@@ -676,6 +679,20 @@ class KnowledgeScenario(models.Model):
         self.write({'seed_json': json.dumps(own + new, ensure_ascii=False, indent=1)})
         self.knowledge_propose('text', note=_('AI 補示範資料缺口 %s 筆') % len(new))
         return len(new)
+
+    def _screen_conditions(self, package, features):
+        """空白畫面的顯示條件（在黃金庫讀，唯讀）；讀不到就空的，照舊補資料。"""
+        actions = [f.action_xmlid for f in features if f.action_xmlid]
+        if not actions or not package:
+            return {}
+        try:
+            from ..services import remote, scripts
+            golden = package._knowledge_master()._corpaas_golden_db()
+            return remote.shell_json(self.env, golden.instance_id, golden.name,
+                                     scripts.screen_filter_script(actions)) or {}
+        except Exception as e:  # noqa: BLE001
+            _logger.warning('[knowledge] 情境 %s 讀取畫面條件失敗：%s', self.code, e)
+            return {}
 
     def _ai_repair_seed_from_check(self, report):
         """重播檢查有錯：請 AI 依錯誤與空畫面修一次腳本，再送審（會自動再檢查一次）。

@@ -291,3 +291,21 @@ class TestConfigModels(TransactionCase):
         self.assertIn(['res.partner', partner.id], bad)
         self.assertFalse([b for b in bad if b[0] == 'account.tax'])
         self.assertIn('stock.rule', scripts.CONFIG_MODELS)
+
+
+@tagged('post_install', '-at_install')
+class TestScreenFilterScript(TransactionCase):
+
+    def test_default_filter_and_rules(self):
+        import json
+        printed = []
+        src = scripts.screen_filter_script(['base.action_res_users', 'base.nope'])
+        exec(compile(src.replace('env.cr.rollback()', 'pass'), '<screen>', 'exec'),
+             {'env': self.env, 'print': printed.append})
+        out = json.loads(printed[-1][len(scripts.MARK):])
+        self.assertNotIn('base.nope', out)
+        d = out['base.action_res_users']
+        self.assertEqual(d['model'], 'res.users')
+        self.assertTrue(any("share" in f.get('domain', '') for f in d['default_filters']),
+                        '預設篩選「內部使用者」的 domain 要讀得出來')
+        self.assertIsInstance(d['rules'], list)

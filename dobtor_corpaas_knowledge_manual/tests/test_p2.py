@@ -227,6 +227,20 @@ class TestIterativeManual(ManualCase):
             self.assertEqual(b.login_role(), 'admin', '轉人工前沒試過管理員：再給一次')
             self.assertEqual(self.hooks._manual_fix_shot_gaps(self.pkg, sb, {}), 0, '試過管理員就不再動')
 
+    def test_human_data_gap_retried_once_with_conditions(self):
+        from unittest.mock import patch
+        b = self._binding(self.f1, error='畫面是空白引導頁（示範資料不足）')
+        self.hooks._manual_sync_shot_gaps(self.pkg, b)
+        gap = self.env['corpaas.knowledge.gap_item'].search([('res_id', '=', b.id)])
+        gap.write({'state': 'human', 'attempts': 3, 'fix_note': 'ai_seed：補了 3 筆示範資料'})
+        Scenario = type(self.scenario)
+        with patch.object(Scenario, '_ai_fill_gaps', return_value=2) as fill:
+            self.hooks._knowledge_fix_gaps_before_sandbox(self.pkg, {})
+            self.assertEqual(fill.call_count, 1, '還沒看過畫面條件：再補一次')
+            self.assertEqual(b.state, 'pending')
+            self.hooks._knowledge_fix_gaps_before_sandbox(self.pkg, {})
+            self.assertEqual(fill.call_count, 1, '帶條件補過就不再補')
+
     def test_fix_gaps_button_collects_existing_failures(self):
         from unittest.mock import patch
         self.cap_a.feature_ids = [(6, 0, self.f1.ids)]

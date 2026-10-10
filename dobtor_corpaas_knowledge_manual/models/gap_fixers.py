@@ -21,6 +21,8 @@ from ..services import manual_lib, rule_scripts
 _logger = logging.getLogger(__name__)
 
 SHOT_GAP_KINDS = ('data', 'access', 'locator')
+#: 資料缺口的補資料已帶畫面條件（動作 domain、預設篩選、記錄規則）
+COND_TAG = '（含畫面條件）'
 #: 截圖失敗分類 → 缺口類型
 FAILURE_TO_GAP = {'empty': 'data', 'access': 'access', 'locator': 'locator'}
 
@@ -122,8 +124,11 @@ class KnowledgeHooksGaps(models.AbstractModel):
         """示範資料缺口：每個情境請 AI 一次補齊空白畫面要的資料（只新增，說明庫疊加即可）。"""
         res = super()._knowledge_fix_gaps_before_sandbox(package, ctx)
         Gap = self.env['corpaas.knowledge.gap_item'].sudo()
-        gaps = Gap.search([('package_id', '=', package.id), ('state', '=', 'open'),
-                           ('kind', '=', 'data')])
+        gaps = Gap.search([('package_id', '=', package.id), ('kind', '=', 'data'),
+                           ('state', 'in', ('open', 'human'))])
+        # ★ 轉人工的資料缺口：補資料時還沒看過畫面條件的，帶條件再補一次（只此一次）
+        #   ☠️ 實機（社群電商方案）：沒有條件時補了 3 次都被預設篩選濾掉
+        gaps = gaps.filtered(lambda g: g.state == 'open' or COND_TAG not in (g.fix_note or ''))
         for scenario in gaps.mapped('scenario_id'):
             mine = gaps.filtered(lambda g: g.scenario_id == scenario)
             notes = [g.evidence for g in mine if g.res_model == 'corpaas.knowledge.flow']
@@ -133,7 +138,7 @@ class KnowledgeHooksGaps(models.AbstractModel):
             except Exception as e:  # noqa: BLE001 — 補不了記一次嘗試，下一輪再試
                 mine.attempted('ai_seed', str(e)[:300])
                 continue
-            mine.attempted('ai_seed', _('補了 %s 筆示範資料') % added)
+            mine.attempted('ai_seed', _('補了 %s 筆示範資料') % added + COND_TAG)
             for g in mine:
                 b = g.record()
                 if b and b._name == 'corpaas.knowledge.shot_binding' and b.state == 'failed':

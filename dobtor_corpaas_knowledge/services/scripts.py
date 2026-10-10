@@ -819,6 +819,54 @@ def fields_script(models):
     ) % (json.dumps(sorted(set(models))),)
 
 
+def screen_filter_script(actions):
+    """空白畫面的「顯示條件」（唯讀）：動作的 domain、預設篩選（search_default_*）、記錄規則。
+
+    ★ 給示範資料補缺口的 AI：只說「畫面空白」它只會再多建幾筆，建了照樣被預設篩選濾掉。
+    ☠️ 實機（社群電商方案）：追加銷售訂單、棄置購物車、預設回應各補了 3 次資料，畫面仍空白。"""
+    return _HEAD + (
+        "from lxml import etree\n"
+        "from odoo.tools.safe_eval import safe_eval\n"
+        "ACTIONS = json.loads(%r)\n"
+        "out = {}\n"
+        "for x in ACTIONS:\n"
+        "    a = env.ref(x, raise_if_not_found=False)\n"
+        "    if not a or a._name != 'ir.actions.act_window' or a.res_model not in env:\n"
+        "        continue\n"
+        "    d = {'model': a.res_model, 'domain': a.domain or '[]'}\n"
+        "    try:\n"
+        "        ctx = safe_eval(a.context or '{}', {'uid': env.uid, 'active_id': False,\n"
+        "                                            'active_ids': [], 'context': {}})\n"
+        "    except Exception:\n"
+        "        ctx = {}\n"
+        "    defaults = {k[len('search_default_'):]: v for k, v in ctx.items()\n"
+        "                if k.startswith('search_default_') and v}\n"
+        "    filters = []\n"
+        "    if defaults:\n"
+        "        try:\n"
+        "            arch = env[a.res_model].get_views([(a.search_view_id.id or False, 'search')])\n"
+        "            root = etree.fromstring(arch['views']['search']['arch'])\n"
+        "            for name, val in defaults.items():\n"
+        "                node = root.find(\".//filter[@name='%%s']\" %% name)\n"
+        "                if node is not None:\n"
+        "                    filters.append({'name': node.get('string') or name,\n"
+        "                                    'domain': node.get('domain') or '',\n"
+        "                                    'date': node.get('date') or ''})\n"
+        "                elif name in env[a.res_model]._fields:\n"
+        "                    filters.append({'field': name, 'value': val})\n"
+        "        except Exception as e:\n"
+        "            filters.append({'error': str(e)[:200]})\n"
+        "    d['default_filters'] = filters\n"
+        "    rules = env['ir.rule'].sudo().search([('model_id.model', '=', a.res_model),\n"
+        "                                          ('perm_read', '=', True)])\n"
+        "    d['rules'] = [{'name': r.name, 'domain': r.domain_force or '',\n"
+        "                   'groups': [_xid(g) for g in r.groups]} for r in rules][:8]\n"
+        "    out[x] = d\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps(out))\n"
+    ) % (json.dumps(sorted(set(a for a in actions if a))),)
+
+
 def groups_script():
     """AI 圈選提議角色用：黃金庫裡使用者看得到的應用權限群組（唯讀）。
 
