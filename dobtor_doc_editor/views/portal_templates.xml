@@ -134,7 +134,7 @@
                                    style="min-height: 600px;">
                         <!-- public_component_service mount 完成前的 fallback 內容 -->
                         <div class="text-center text-muted py-5">
-                            <i class="fa fa-spinner fa-spin fa-3x"/>
+                            <i class="fa fa-spinner fa-spin fa-3x" aria-hidden="true"/>
                             <p class="mt-3">載入文件編輯器…</p>
                             <p class="small">
                                 如未顯示，請確認瀏覽器支援 Canvas

@@ -246,6 +246,26 @@ if skipped upgrade-path; then skip upgrade-path "DONE_SKIP"; else
     fi
 fi
 
+# ── ships-without-tests ───────────────────────────────────────────────────
+# ☠️ 部署是 docker + github pull，所以 `git pull` 會把 81 MB 的
+#    tests/fixtures 一起送到每一台正式機。要在部署端排掉 tests/，前提是
+#    「出貨程式不依賴 tests/」——而本模組的 tests/session_probe.py 已經是
+#    跨模組公開介面，那條線真的存在。細節見 docs/DEPLOYMENT_FOOTPRINT.md。
+if skipped ships-without-tests; then skip ships-without-tests "DONE_SKIP"; else
+    if bash "$CORE_DIR/tests/scripts/run_ships_without_tests_check.sh" \
+            >/tmp/done_ships.log 2>&1; then
+        ok ships-without-tests "$(grep -ao '[0-9]* KB → [0-9]* KB' /tmp/done_ships.log | tail -1)"
+    else
+        RC=$?
+        if [ "$RC" = "2" ]; then
+            skip ships-without-tests "環境不具備（見 /tmp/done_ships.log）"
+        else
+            bad ships-without-tests "見 /tmp/done_ships.log"
+            keep_log ships-without-tests /tmp/done_ships.log
+        fi
+    fi
+fi
+
 # ── 判決 ──────────────────────────────────────────────────────────────────
 echo
 echo "通過 ${#PASS[@]} / 沒過 ${#FAIL[@]} / 跳過 ${#SKIP[@]}"

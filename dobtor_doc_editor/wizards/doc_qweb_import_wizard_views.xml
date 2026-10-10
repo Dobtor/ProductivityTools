@@ -40,8 +40,7 @@
 
                 <div invisible="state != 'done'">
                     <div class="alert alert-warning" role="alert">
-                        <i class="fa fa-exclamation-triangle me-1"/>
-                        <b>請先印一張比對原生輸出再上線。</b>
+                        <b><i class="fa fa-exclamation-triangle me-1" aria-hidden="true"/>請先印一張比對原生輸出再上線。</b>
                         轉換器會把沒把握的地方標成橘色藥丸（待確認），
                         但版面細節仍可能有差異。
                     </div>

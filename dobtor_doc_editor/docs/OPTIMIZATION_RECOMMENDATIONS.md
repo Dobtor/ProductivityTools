@@ -118,6 +118,44 @@ ACL/rule 對照）收進 `tests/scripts/` 並加 `make audit` 一次跑完。
 
 </details>
 
+### 5. ~~讓正式機不必拉 `tests/`（每台省 85.4 MB）~~ ✅ 已完成（2026-10-10）
+
+**量測**：兩模組的追蹤檔案 94.4 MB，其中 85.4 MB 是 `tests/`
+（`dobtor_doc_import/tests/fixtures` 一個就 82.2 MB）。而部署是
+**docker + github pull**，所以這 85.4 MB 會送到每一台正式機。
+
+**做法**：排除規則放在**部署端**（容器的 clone／pull 腳本），不放在這個 repo
+——`.gitattributes` 的 `export-ignore` 只對 `git archive` 有效，對 `clone`／
+`pull` 無效。實測數字、兩個陷阱（`tests/` 這個樣式會把 `static/tests/`
+一起排掉；`git sparse-checkout` 要 2.25+ 而這台 host 是 2.19）與兩種
+sparse-checkout 寫法都在
+[`DEPLOYMENT_FOOTPRINT.md`](DEPLOYMENT_FOOTPRINT.md)。
+
+**留下的守衛**：完工判準 `ships-without-tests`
+（`tests/scripts/run_ships_without_tests_check.sh`）。它驗的是這件事的**前提**
+——出貨程式不依賴 `tests/`。那個前提真的可能破：`tests/session_probe.py`
+已經是跨模組公開介面，哪天有人從 `models/` 去 import 它，正式機排掉 `tests/`
+之後就開不起來，而**本機永遠不會重現**。
+
+### 6. ~~安裝時的 6 處無障礙警告~~ ✅ 已完成（2026-10-10）
+
+**量測**：Odoo 安裝時一直在報
+`A <i> with fa class … must have title in its tag, parents, descendants or have text`
+——6 處，全是坐在警示框開頭的裝飾性圖示。它報了很久，沒有人在看。
+
+**做法**：把 `<i>` 搬進緊接的 `<strong>`／`<b>` 裡（它的 tail 就成了那段可見
+文字，這是 Odoo 驗證器的第一道檢查），再加 `aria-hidden="true"`。
+☠️ Odoo 的 `valid_aria_attrs` **不收 `aria-hidden`**，所以只加它消不掉警告；
+而替裝飾性圖示編一個 `title` 會冒出沒意義的提示、編 `aria-label` 會讓
+螢幕閱讀器把同一句話唸兩次。
+
+**留下的守衛**：`tests/test_view_a11y.py`——它**叫 Odoo 自己的驗證器**
+（`_check_xml()` ＋接住 `ir_ui_view` 的 logger），不自己重寫判準。
+☠️ 理由很具體：我第一次重寫判準時漏了第一段檢查，算出 21 處；補回去算出
+7 處；Odoo 報 6 處。**我的尺跟 Odoo 的尺不一樣，而出警告的是 Odoo 那把。**
+那第 7 處是 QWeb 模板——`_check_xml()` 對 `type == 'qweb'` 直接 `continue`，
+Odoo 根本不驗 QWeb，所以那一塊由同一支測試裡一條**比 Odoo 寬**的規則顧。
+
 ---
 
 ## 可做（有價值，但代價或風險需要權衡）

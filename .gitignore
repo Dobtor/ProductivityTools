@@ -25,3 +25,7 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# 部署足跡探針（tests/scripts/run_ships_without_tests_check.sh）用完就刪，
+# 但它中途掛掉時不可以把工作樹弄髒。
+_deploy_probe/

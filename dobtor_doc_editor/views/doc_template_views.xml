@@ -138,15 +138,13 @@
                     </div>
                     <div class="alert alert-secondary mb-2" role="alert"
                          invisible="role != 'layout'">
-                        <i class="fa fa-info-circle me-1"/>
-                        <strong>這是外框範本</strong>：只提供頁首／頁尾與紙張設定，供多張內容範本共用。
+                        <strong><i class="fa fa-info-circle me-1" aria-hidden="true"/>這是外框範本</strong>：只提供頁首／頁尾與紙張設定，供多張內容範本共用。
                         它不會被綁定到報表，本文（main 區）的內容不會被輸出。
                     </div>
                     <notebook>
                         <page string="範本內容">
                             <div class="alert alert-warning mb-2" role="alert">
-                                <i class="fa fa-edit me-1"/>
-                                <strong>建議用上方「開啟編輯器」編輯版面。</strong>
+                                <strong><i class="fa fa-edit me-1" aria-hidden="true"/>建議用上方「開啟編輯器」編輯版面。</strong>
                                 編輯器以 Canvas JSON（<code>content_json</code>）為權威格式，
                                 下方的 HTML 欄位是攤平備份；直接改 HTML 不會同步回 Canvas 版面。
                             </div>
@@ -198,8 +196,7 @@
                         </page>
                         <page string="欄位別名對映（退場中）" name="aliases">
                             <div class="alert alert-warning mb-2" role="alert">
-                                <i class="fa fa-exclamation-triangle me-1"/>
-                                <strong>此機制已由「模型變數藥丸」取代。</strong>
+                                <strong><i class="fa fa-exclamation-triangle me-1" aria-hidden="true"/>此機制已由「模型變數藥丸」取代。</strong>
                                 請改從編輯器左欄的「欄位」分頁拖曳模型欄位，
                                 會直接建立藥丸元素。下方資料僅供對照，請勿再新增。
                             </div>

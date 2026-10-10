@@ -37,6 +37,8 @@
 | 12 | 升級路徑（既有資料經 `-u` 還正確嗎） | 原本**完全沒有驗證**——而 `noupdate` 的資料檔改 XML 對既有 DB 無效 | `run_upgrade_check.sh` ＋ 判準 `upgrade-path` |
 | 13 | 全檔案清查（1,140 檔逐一歸類） | 1 個：匯入模組出貨內嵌 fflate／xmldom 卻**沒有 `LICENSE` 也沒有 `LICENSES/`** | `TestThirdPartyLicenseRegistry`（3 則）＋ `TestPythonPackageWiring`（4 則） |
 | 14 | 文件裡的連結與路徑還成立嗎 | 4 處會害人的：`CONTRIBUTING.md` 把規矩外包給另一個 repo 的檔案、`onboarding_prompt.md` 叫人讀兩個從未存在的檔案並 `cd` 到已不存在的機器 | `test_doc_links.py` |
+| 15 | 視圖的無障礙警告（**用 Odoo 自己的驗證器**，不自己重寫判準） | 6 處裝飾性 fa 圖示沒有說明文字——安裝時 Odoo 一直在報，沒有人在看。☠️ 我第一次自己重寫判準漏了第一段檢查，算出 21 處；補回去算出 7 處；Odoo 報 6 處（差的那 1 處是 QWeb 模板，`_check_xml()` 對 qweb 直接 `continue`） | `test_view_a11y.py`（4 則，含負向控制與一則掃 Odoo 根本不看的 qweb） |
+| 16 | 部署足跡（`git pull` 會送多少東西到正式機） | 94.4 MB 裡有 85.4 MB 是 `tests/`，而正式機不跑測試。前提「出貨程式不依賴 `tests/`」成立但**真的可能破**——`tests/session_probe.py` 已經是跨模組公開介面 | `run_ships_without_tests_check.sh` ＋ 判準 `ships-without-tests`；數字與部署端寫法見 [`DEPLOYMENT_FOOTPRINT.md`](DEPLOYMENT_FOOTPRINT.md) |
 
 ## 還沒用過的尺
 

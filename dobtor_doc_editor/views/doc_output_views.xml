@@ -77,8 +77,7 @@
                 </header>
                 <sheet>
                     <div class="alert alert-secondary mb-3" role="alert">
-                        <i class="fa fa-lock me-1"/>
-                        <strong>這是輸出紀錄，不可編輯。</strong>
+                        <strong><i class="fa fa-lock me-1" aria-hidden="true"/>這是輸出紀錄，不可編輯。</strong>
                         它記錄「某人在某時用某版範本印了某張單據」。
                         需要修改內容請用上方「建立可編輯副本」，原紀錄會保持原狀。
                     </div>

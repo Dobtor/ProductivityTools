@@ -23,7 +23,7 @@ FIXTURE_DIR    ?= tests/fixtures
 .PHONY: help install build build-all watch dev upgrade restart logs \
         scan-ooxml fixtures-golden fixtures-compare visual-regression \
         test test-odoo ci-frontend ci-python ci-all \
-        clean clean-build clean-deps verify
+        clean clean-build clean-deps clean-vr verify
 
 help: ## 列出所有 target
 	@echo "dobtor_doc_import — 開發指令"
@@ -161,6 +161,15 @@ clean-build: ## 刪除 rollup 輸出與 .tsbuildinfo
 
 clean-deps: ## 刪除 node_modules 與 package-lock.json
 	rm -rf node_modules package-lock.json
+
+clean: clean-build clean-vr ## clean-build ＋ clean-vr（不碰 node_modules）
+
+# ☠️ .visual_regression_tmp 是 VR 管線的中間影像，已 ignore 所以不會跟著
+#    git pull 旅行——但它在開發機上只會長不會縮（實測 ~52 MB），而在這個
+#    target 補上之前**沒有任何 clean target 清它**（.PHONY 甚至宣告了一個
+#    不存在的 `clean`）。見 docs/DEPLOYMENT_FOOTPRINT.md 的「不會旅行但會長」。
+clean-vr: ## 刪除 VR 中間影像（tests/fixtures/.visual_regression_tmp，實測會長到 ~52 MB）
+	rm -rf $(FIXTURE_DIR)/.visual_regression_tmp
 
 # ── 健檢 ──────────────────────────────────────────────────────────────────────
 

@@ -35,3 +35,4 @@ from . import test_route_versions  # 版本面板 5 條路由（優化 3 第一�
 from . import test_route_template_fields  # 範本欄位 6 條＋匯出（優化 3 第二批）
 from . import test_route_i18n  # i18n 5 條路由（優化 3 第三批）
 from . import test_route_remaining  # 最後 10 條路由（優化 3 第四批）
+from . import test_view_a11y  # 視圖無障礙警告 = 0（由 Odoo 自己的驗證器判定）
