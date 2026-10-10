@@ -1865,9 +1865,9 @@ class KnowledgeHooks(models.AbstractModel):
             if not Block.search_count([('feature_id', '=', feature.id),
                                        ('state', '!=', 'retired')]):
                 fresh[feature.id] = (feature, tmpl)
-        count = Ai.prefetch([('manual_step_block', self._manual_step_prompt(package, f, t))
-                             for f, t in fresh.values()], package=package,
-                            refresh_token=token, workers=workers)
+        count = self._manual_prefetch_chunked(
+            [('manual_step_block', self._manual_step_prompt(package, f, t)) for f, t in fresh.values()],
+            package, token, workers, stop)
         cache = {}
         items = []
         for feature, cap, scenario, tmpl in need:
@@ -1880,7 +1880,21 @@ class KnowledgeHooks(models.AbstractModel):
                 items.append(('manual_scenario',
                               self._manual_scenario_prompt(package, scenario, feature, cap, block)))
         self._manual_commit()
-        count += Ai.prefetch(items, package=package, refresh_token=token, workers=workers)
+        count += self._manual_prefetch_chunked(items, package, token, workers, stop)
+        return count
+
+    @api.model
+    def _manual_prefetch_chunked(self, items, package, token, workers, stop):
+        """分批平行預取：每批之間檢查「要求停止」。
+
+        ☠️ 原本整串一次送出，按停止要等全部起草完（實機：停止後照樣寫了十幾篇、多花幾美元）。"""
+        Ai = self.env['corpaas.knowledge.ai']
+        size = max(1, workers * 3)
+        count = 0
+        for i in range(0, len(items), size):
+            if stop.get('run_id'):
+                self._manual_check_cancel({'run_id': stop['run_id']})
+            count += Ai.prefetch(items[i:i + size], package=package, refresh_token=token, workers=workers)
         return count
 
     @api.model
