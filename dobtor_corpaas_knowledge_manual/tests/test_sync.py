@@ -22,7 +22,7 @@ class TestSlideSync(ManualCase):
         slide.invalidate_recordset()
         return slide.sequence
 
-    def test_channel_created_as_documentation(self):
+    def test_channel_created_as_training(self):
         Tag = self.env['product.tag'].sudo()
         tag = Tag.create({'name': 'KB 教育訓練'})
         if 'tag_ids' in self.env['product.product']._fields:
@@ -33,11 +33,14 @@ class TestSlideSync(ManualCase):
         self._publish(art)
         channel = self._channel()
         self.assertEqual(len(channel), 1)
-        self.assertEqual(channel.channel_type, 'documentation')
+        self.assertEqual(channel.channel_type, 'training', '課程類型用培訓（不是文件）')
         self.assertEqual(channel.visibility, 'public')
         self.assertEqual(channel.enroll, 'public')
         self.assertEqual(channel.promote_strategy, 'none')
         self.assertTrue(channel.is_published)
+        channel.channel_type = 'documentation'
+        self.env['slide.channel']._knowledge_channel_for(self.tmpl)
+        self.assertEqual(channel.channel_type, 'training', '已建好的舊課程也改成培訓')
         self.assertTrue(channel.knowledge_managed)
         # 層級對應：產業／方案類型 → slide.channel.tag（群組）＋方案產品的 CorPaaS 標籤
         industry = channel.tag_ids.filtered(lambda t: t.group_id.name == INDUSTRY_GROUP)

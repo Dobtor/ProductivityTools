@@ -472,12 +472,16 @@ class SlideChannel(models.Model):
         channel = self.sudo().with_context(active_test=False).search(
             [('knowledge_product_tmpl_id', '=', product_tmpl.id)], limit=1)
         if channel:
+            if channel.channel_type != 'training':
+                # 已建好的課程也改成「培訓」（使用者定案 2026-10-10）
+                channel.channel_type = 'training'
             channel._knowledge_sync_industry_tags()
             return channel
         # ★ 以 OdooBot 建立：負責人＝OdooBot，之後 slide 發佈權限不看觸發者是誰。
         channel = self.with_user(SUPERUSER_ID).create({
             'name': _('%s 操作說明') % product_tmpl.name,
-            'channel_type': 'documentation',
+            # ★ 課程類型用「培訓」（training），不是預設的「文件」（使用者定案 2026-10-10）
+            'channel_type': 'training',
             'visibility': 'public',
             'enroll': 'public',
             'promote_strategy': 'none',
