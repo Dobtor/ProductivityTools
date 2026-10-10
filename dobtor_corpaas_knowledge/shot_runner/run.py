@@ -638,12 +638,19 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
 
 
 def _split_by_login(shots, parts):
-    """同一個帳號的截圖放同一組（換角色的分頁可沿用），各組張數盡量平均。"""
+    """同一個帳號的截圖盡量放同一組（少登入幾次），各組張數盡量平均。
+
+    ★ 一個帳號的張數超過平均就切開：大部分畫面都用管理員拍，不切的話一組拍全部、另一組閒著。
+    ☠️ 實機（社群電商方案）：2 組只快了 1.3 倍。"""
     groups = {}
     for s in shots:
         groups.setdefault(s.get('login') or '', []).append(s)
+    target = -(-len(shots) // parts)
+    pieces = []
+    for g in groups.values():
+        pieces += [g[i:i + target] for i in range(0, len(g), target)]
     buckets = [[] for _ in range(parts)]
-    for g in sorted(groups.values(), key=len, reverse=True):
+    for g in sorted(pieces, key=len, reverse=True):
         min(buckets, key=len).extend(g)
     return [b for b in buckets if b]
 
