@@ -209,6 +209,24 @@ class TestIterativeManual(ManualCase):
         self.hooks._manual_sync_shot_gaps(self.pkg, b)
         self.assertEqual(gap.state, 'resolved')
 
+    def test_human_access_gap_gets_one_admin_try(self):
+        import json
+        from unittest.mock import patch
+        from .test_hooks import FakeSandbox
+        self.f1.action_xmlid = 'base.action_partner_form'
+        b = self._binding(self.f1, error='畫面出現錯誤對話框：存取錯誤 您並無權限')
+        b.roles_json = json.dumps({'login_role': 'stock'})
+        self.hooks._manual_sync_shot_gaps(self.pkg, b)
+        gap = self.env['corpaas.knowledge.gap_item'].search([('res_id', '=', b.id)])
+        gap.write({'state': 'human', 'attempts': 3})
+        self.scenario.role_ids = [(6, 0, (self.env.ref('dobtor_corpaas_knowledge.role_stock') | self.env.ref(
+            'dobtor_corpaas_knowledge.role_admin')).ids)]
+        sb = FakeSandbox(self.scenario)
+        with patch.object(type(sb), '_shell', lambda s, script: {}, create=True):
+            self.assertEqual(self.hooks._manual_fix_shot_gaps(self.pkg, sb, {}), 1)
+            self.assertEqual(b.login_role(), 'admin', '轉人工前沒試過管理員：再給一次')
+            self.assertEqual(self.hooks._manual_fix_shot_gaps(self.pkg, sb, {}), 0, '試過管理員就不再動')
+
     def test_fix_gaps_button_collects_existing_failures(self):
         from unittest.mock import patch
         self.cap_a.feature_ids = [(6, 0, self.f1.ids)]

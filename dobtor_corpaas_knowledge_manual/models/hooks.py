@@ -1088,7 +1088,10 @@ class KnowledgeHooks(models.AbstractModel):
         if isinstance(data.get('bindings'), dict):
             vals['bindings_json'] = json.dumps(ai_str_map(data['bindings']))
         role = ai_text(data.get('login_role'))
-        if role and role in [r['code'] for r in roles] and role != binding.login_role():
+        # ★ 已改用系統管理員的（權限缺口換來的）不讓 AI 換回一般角色
+        #   ☠️ 實機（社群電商方案）：系統換成 admin 後，AI 修腳本又改回 sales／account，存取錯誤再現
+        forced = (json.loads(binding.roles_json or '{}') or {}).get('login_role') == 'admin'
+        if role and role in [r['code'] for r in roles] and role != binding.login_role() and not forced:
             vals['roles_json'] = json.dumps({'login_role': role})
         binding.write(vals)
         return tmpl

@@ -145,9 +145,11 @@ class KnowledgeHooksGaps(models.AbstractModel):
         """拍攝前：權限缺口改用進得去的角色；定位缺口重拍（AI 修過的腳本）。"""
         Gap = self.env['corpaas.knowledge.gap_item'].sudo()
         scenario = sandbox.scenario_id
-        gaps = Gap.search([('package_id', '=', package.id), ('state', '=', 'open'),
-                           ('scenario_id', '=', scenario.id),
-                           ('kind', 'in', ('access', 'locator'))])
+        # ★ 已轉人工的權限缺口：還沒用系統管理員拍過的，再給一次管理員（只此一次，換過就不再挑）
+        #   ☠️ 實機（社群電商方案）：舊邏輯在一般角色間輪流換，3 次用完轉人工，管理員從沒試過
+        gaps = Gap.search([('package_id', '=', package.id), ('scenario_id', '=', scenario.id),
+                           '|', '&', ('state', '=', 'open'), ('kind', 'in', ('access', 'locator')),
+                           '&', ('state', '=', 'human'), ('kind', '=', 'access')])
         if not gaps:
             return 0
         roles = {r.code: [g.strip() for g in (r.group_xmlids or '').splitlines() if g.strip()]
@@ -177,6 +179,13 @@ class KnowledgeHooksGaps(models.AbstractModel):
                 continue
             ok = can.get(g.feature_id.action_xmlid) or []
             current = b.login_role()
+            if g.state == 'human':
+                if 'admin' not in roles or current == 'admin':
+                    continue
+                b.write({'roles_json': json.dumps({'login_role': 'admin'}), 'state': 'pending'})
+                g.attempted('rule_role', _('轉人工前最後一次：改用角色 admin 拍'))
+                fixed += 1
+                continue
             # ★ 已經換過角色仍是存取錯誤（錯在畫面裡的關聯資料，例如聯絡人表單讀付款交易）：
             #   再換一般角色只會一直失敗，直接用系統管理員
             #   ☠️ 實機：業務、採購、會計輪流換，3 張聯絡人截圖一直失敗
