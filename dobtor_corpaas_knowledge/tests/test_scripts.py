@@ -182,6 +182,25 @@ class TestScripts(TransactionCase):
         self.assertTrue(seed_errors_fatal({'done': 10, 'errors': [{}] * 5}))
         self.assertFalse(seed_errors_fatal({'done': 3, 'errors': []}))
 
+    def test_runner_signature_follows_file_changes(self):
+        """截圖程式單獨換檔（不重啟）時簽章跟著變，舊截圖才會重拍。"""
+        import os
+        import tempfile
+        import time
+        from unittest.mock import patch
+        from ..services import shooter
+        with tempfile.NamedTemporaryFile('w', suffix='.py', delete=False) as fh:
+            fh.write('a = 1\n')
+        try:
+            with patch.object(shooter, '_RUNNER', fh.name), patch.dict(shooter._RUNNER_SIG, clear=True):
+                first = shooter.runner_signature()
+                with open(fh.name, 'w') as w:
+                    w.write('a = 2\n')
+                os.utime(fh.name, (time.time() + 5, time.time() + 5))
+                self.assertNotEqual(shooter.runner_signature(), first)
+        finally:
+            os.unlink(fh.name)
+
     def test_glossary_text_only_accepts_mappings(self):
         from ..models.catalog import glossary_text
         self.assertEqual(glossary_text({'客戶': '會員'}), '客戶=會員')

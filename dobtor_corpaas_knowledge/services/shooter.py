@@ -26,11 +26,15 @@ _RUNNER_SIG = {}
 
 
 def runner_signature():
-    """截圖程式本身的簽章：run.py 改了（例如隱藏橫幅、定位規則）＝舊截圖都要重拍。"""
-    if 'v' not in _RUNNER_SIG:
-        import hashlib
+    """截圖程式本身的簽章：run.py 改了（例如隱藏橫幅、定位規則）＝舊截圖都要重拍。
+
+    ★ 依檔案修改時間重算：截圖程式可以單獨換檔（tools/knowledge/deploy/deploy_runner.sh），
+      不升級模組、不重啟容器就生效——每次拍照本來就重讀 run.py，只有簽章原本只算一次。"""
+    import hashlib
+    mtime = os.path.getmtime(_RUNNER)
+    if _RUNNER_SIG.get('mtime') != mtime:
         with open(_RUNNER, 'rb') as fh:
-            _RUNNER_SIG['v'] = hashlib.sha1(fh.read()).hexdigest()[:12]
+            _RUNNER_SIG.update(v=hashlib.sha1(fh.read()).hexdigest()[:12], mtime=mtime)
     return _RUNNER_SIG['v']
 
 
