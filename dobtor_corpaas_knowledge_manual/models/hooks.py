@@ -39,6 +39,8 @@ _logger = logging.getLogger(__name__)
 AI_ERRORS = (hub_client.HubError, remote.RemoteError, ValueError, KeyError, TypeError)
 #: 同一個繫結連續 AI 修補的上限；超過就停在 failed 等人處理（action_reset）
 MAX_REPAIRS = 3
+#: 截圖程式在定位失敗時附上的畫面資訊（有這行就多給一次修補）
+SCREEN_HINT = '看得到的按鈕'
 #: 截圖程式回報「說明庫後台沒有載入」的錯誤開頭（與 shot_runner/run.py 的 BACKEND_DOWN 相同）
 BACKEND_DOWN = '後台沒有載入'
 
@@ -1053,7 +1055,10 @@ class KnowledgeHooks(models.AbstractModel):
                     s=b.scenario_id.name, e=(b.last_error or '').splitlines()[0][:200]))
                 stop['skipped_same'] = stop.get('skipped_same', 0) + 1
                 continue
-            if b.repair_attempts >= MAX_REPAIRS:
+            # ★ 錯誤附了「畫面看得到的按鈕」（之前的修補都沒有這個資訊）：額外再給一次，只此一次
+            #   ☠️ 實機（社群電商方案）：6 張點不到按鈕都已修滿 3 次，畫面上其實是別的按鈕名
+            bonus = 1 if SCREEN_HINT in (b.last_error or '') else 0
+            if b.repair_attempts >= MAX_REPAIRS + bonus:
                 b.write({'needs_repair': False})
                 b.template_id.message_post(body=_(
                     '情境「%(s)s」的截圖 AI 已連續修 %(n)s 次仍失敗，請人工處理後按「下次重拍」。',

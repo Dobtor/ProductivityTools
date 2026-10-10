@@ -238,6 +238,21 @@ class TestManualHooks(ManualCase):
         self.assertFalse(self.binding.needs_repair)
         self.assertEqual(self.binding.state, 'failed')
 
+    def test_screen_hint_gets_one_bonus_repair(self):
+        self._only_f1()
+        err = ('Locator.click: Timeout 10000ms exceeded.\n'
+               '畫面（form /odoo/x/1）看得到的按鈕：確認(action_confirm)；分頁：（無）\n'
+               '  - waiting for locator("button:visible").filter(has_text="確認開立").first')
+        self.binding.write({'state': 'failed', 'needs_repair': True, 'repair_attempts': 3,
+                            'last_error': err})
+        with patch.object(self.Ai, 'ask', side_effect=hub_client.BudgetExceeded('x')) as ask:
+            self._dispatch()
+        self.assertIn('manual_repair', [c[0][0] for c in ask.call_args_list], '有畫面資訊：多修一次')
+        self.binding.write({'needs_repair': True, 'repair_attempts': 4})
+        with patch.object(self.Ai, 'ask', side_effect=hub_client.BudgetExceeded('x')) as ask:
+            self._dispatch()
+        self.assertNotIn('manual_repair', [c[0][0] for c in ask.call_args_list], '只多給一次')
+
     def test_shoot_budget_exceeded_is_not_failure(self):
         self._only_f1()
         result = {'shots': {'b%s' % self.binding.id: {'ok': False, 'error': 'boom'}}}
