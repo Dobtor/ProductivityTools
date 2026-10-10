@@ -198,6 +198,13 @@ class TestIterativeManual(ManualCase):
         self.assertEqual(json.loads(b.roles_json), {'login_role': 'stock'}, '優先用進得去的一般角色')
         self.assertEqual(b.state, 'pending')
         self.assertEqual(gap.attempts, 1)
+        # 換成一般角色後仍是存取錯誤 → 第二次直接用系統管理員
+        b.write({'state': 'failed', 'last_error': '畫面出現錯誤對話框：存取錯誤 您並無權限'})
+        self.hooks._manual_sync_shot_gaps(self.pkg, b)
+        with patch.object(type(sb), '_shell', lambda s, script: {
+                'base.action_partner_form': ['stock', 'admin']}, create=True):
+            self.hooks._manual_fix_shot_gaps(self.pkg, sb, {})
+        self.assertEqual(json.loads(b.roles_json), {'login_role': 'admin'}, '換過還是不行就用管理員')
         b.state = 'ok'
         self.hooks._manual_sync_shot_gaps(self.pkg, b)
         self.assertEqual(gap.state, 'resolved')

@@ -123,6 +123,9 @@ class TestScripts(TransactionCase):
         exec(compile(src, '<seed>', 'exec'), {'env': self.env, 'print': lambda *a: None})
         admin = self.env.ref('__doc_scenario_t5.user_admin')
         self.assertIn(custom, admin.groups_id)
+        mgr = self.env.ref('sales_team.group_sale_manager', raise_if_not_found=False)
+        if mgr:
+            self.assertIn(mgr, admin.groups_id, '官方 app 的管理員群組也要有（佣金結算單的權限掛在這）')
         self.assertNotIn(self.env.ref('base.group_multi_company'), admin.groups_id)
         self.assertNotIn(self.env.ref('base.group_portal'), admin.groups_id)
 
@@ -196,6 +199,7 @@ class TestScripts(TransactionCase):
         d = self._diag('kb_diag_user', 'ir.config_parameter')
         self.assertFalse(d['acl_read'])
         self.assertIn('讀取權限', scripts.access_diag_text(d))
+        self.assertIn('base.group_system', scripts.access_diag_text(d), '列出開放給哪些群組')
         other = self.env['res.company'].create({'name': 'KB 另一家公司'})
         p = self.env['res.partner'].create({'name': '別家客戶', 'company_id': other.id})
         d = self._diag(user.login, 'res.partner', p.id)

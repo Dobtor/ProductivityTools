@@ -160,7 +160,10 @@ class KnowledgeHooksGaps(models.AbstractModel):
                 can = sandbox._shell(scripts.screen_access_script(actions, roles))
             except remote.RemoteError as e:
                 _logger.warning('[knowledge.manual] 權限判斷失敗：%s', e)
-        order = [r.code for r in scenario.all_roles().sorted('sequence') if r.code != 'admin']
+        from odoo.addons.dobtor_corpaas_knowledge.models.feature import ROUTE_ROLE
+        front = set(ROUTE_ROLE.values())
+        order = [r.code for r in scenario.all_roles().sorted('sequence')
+                 if r.code != 'admin' and r.code not in front]
         fixed = 0
         for g in gaps:
             b = g.record()
@@ -174,8 +177,12 @@ class KnowledgeHooksGaps(models.AbstractModel):
                 continue
             ok = can.get(g.feature_id.action_xmlid) or []
             current = b.login_role()
-            pick = next((c for c in order if c in ok and c != current), None) or (
-                'admin' if 'admin' in roles and current != 'admin' else None)
+            # ★ 已經換過角色仍是存取錯誤（錯在畫面裡的關聯資料，例如聯絡人表單讀付款交易）：
+            #   再換一般角色只會一直失敗，直接用系統管理員
+            #   ☠️ 實機：業務、採購、會計輪流換，3 張聯絡人截圖一直失敗
+            switched = bool(b.roles_json and json.loads(b.roles_json or '{}').get('login_role'))
+            pick = None if switched else next((c for c in order if c in ok and c != current), None)
+            pick = pick or ('admin' if 'admin' in roles and current != 'admin' else None)
             if not pick:
                 g.attempted('rule_role', _('沒有其他角色可用'))
                 continue

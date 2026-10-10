@@ -563,16 +563,19 @@ def seed_script(module, records, roles, password):
         # ★ 系統管理員＝所有內部群組（自訂模組的權限掛在自己的群組，base.group_system 不含）；
         #   排除會改變畫面的（多公司、多幣別、技術模式）與入口網站／公開群組
         #   ☠️ 實機：連管理員都打不開佣金結算單、電子發票服務商，42 張截圖 AI 修三次都修不好
+        # ☠️ 實機：base.group_user 本身繼承 base.group_no_one，「鏈上有技術功能就排除」把幾乎所有
+        #   內部群組都排掉，管理員連銷售管理員都沒有（佣金結算單打不開）。會員／公開看整條鏈；
+        #   多公司、多幣別、技術功能只排除群組本身。
         "def _admin_groups():\n"
-        "    skip = {env.ref(x, raise_if_not_found=False) for x in ('base.group_portal',\n"
-        "        'base.group_public', 'base.group_multi_company', 'base.group_multi_currency',\n"
-        "        'base.group_no_one')}\n"
-        "    skip.discard(None)\n"
+        "    ref = lambda x: env.ref(x, raise_if_not_found=False)\n"
+        "    share = env['res.groups'].union(*[g for g in map(ref, ('base.group_portal', 'base.group_public')) if g])\n"
+        "    itself = env['res.groups'].union(*[g for g in map(ref, ('base.group_multi_company',\n"
+        "        'base.group_multi_currency', 'base.group_no_one')) if g])\n"
         "    out = []\n"
         "    for g in env['res.groups'].sudo().search([]):\n"
-        "        chain = g | g.trans_implied_ids\n"
-        "        if not (chain & env['res.groups'].union(*skip)):\n"
-        "            out.append(g.id)\n"
+        "        if g in itself or ((g | g.trans_implied_ids) & share):\n"
+        "            continue\n"
+        "        out.append(g.id)\n"
         "    return out\n"
         "for r in ROLES:\n"
         "    try:\n"
@@ -678,6 +681,14 @@ def access_diag_script(login, model, res_id=None):
         "        out['acl_read'] = bool(M.check_access_rights('read', raise_exception=False))\n"
         "    except Exception as e:\n"
         "        out['acl_read'] = 'ERR %%s' %% str(e)[:120]\n"
+        # 這個模型開放讀取給哪些群組、帳號有沒有其中任何一個（找出到底缺哪個群組）
+        "    acl = env['ir.model.access'].sudo().search([('model_id.model', '=', MODEL), ('perm_read', '=', True)])\n"
+        "    names = []\n"
+        "    for a in acl:\n"
+        "        g = a.group_id\n"
+        "        x = g.get_external_id().get(g.id) if g else 'everyone'\n"
+        "        names.append({'group': x or g.name, 'has': (not g) or (g in u.groups_id)})\n"
+        "    out['acl_groups'] = names[:12]\n"
         "    rec = env[MODEL].sudo().browse(RID).exists() if RID else env[MODEL]\n"
         "    if rec and 'company_id' in rec._fields:\n"
         "        out['record_company'] = rec.company_id.name or ''\n"
@@ -713,7 +724,9 @@ def access_diag_text(d):
         return ''
     parts = []
     if d.get('acl_read') is False:
-        parts.append('帳號 %s 沒有 %s 的讀取權限（存取控制清單）' % (d['login'], d['model']))
+        need = [a['group'] for a in d.get('acl_groups') or [] if not a.get('has')]
+        parts.append('帳號 %s 沒有 %s 的讀取權限（存取控制清單；開放給：%s）' % (
+            d['login'], d['model'], '、'.join(need[:4]) or '無'))
     blocking = [r['name'] for r in d.get('rules') or [] if r.get('matches') is False]
     if blocking:
         parts.append('記錄規則擋住：%s' % '、'.join(blocking[:3]))
