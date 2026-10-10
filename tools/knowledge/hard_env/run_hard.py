@@ -14,6 +14,7 @@
   8 平行拍攝：同一批分 2 組各開瀏覽器，結果與圖檔合併回來
   9 按鈕給的是畫面上的字（AI 常犯），截圖程式改用文字找得到
   10 點不到按鈕時，錯誤訊息附上畫面看得到的按鈕與分頁
+  11 客戶的使用者匿名化後，partner 也封存（客戶清單不會出現「已移除使用者」）
 """
 import importlib.util
 import json
@@ -84,6 +85,12 @@ def setup(fresh):
     # 客戶的已撥款單據（沒有模組 xmlid＝清除對象）
     shell(scripts._HEAD + "d = env['kb.hard.doc'].sudo().create({'name': '客戶已撥款', 'state': 'paid'})\n"
           "env.cr.commit()\nprint(MARK + json.dumps({'id': d.id}))\n")
+    # 客戶的入口網站使用者（沒有模組 xmlid＝要匿名化；使用者刪不掉）
+    shell(scripts._HEAD + "U = env['res.users'].sudo().with_context(active_test=False)\n"
+          "if not U.search([('login', '=', 'kb_customer_user')]):\n"
+          "    U.create({'name': '客戶本人', 'login': 'kb_customer_user',\n"
+          "              'groups_id': [(6, 0, [env.ref('base.group_portal').id])]})\n"
+          "env.cr.commit()\nprint(MARK + json.dumps({}))\n")
     return res
 
 
@@ -164,6 +171,11 @@ def main():
         left = shell(scripts._HEAD + "print(MARK + json.dumps({'n': env['kb.hard.doc'].sudo().search_count("
                      "[('name', '=', '客戶已撥款')])}))\n")
         checks.append(('6 已撥款客戶單據清除得掉', left['n'] == 0, purge.get('deleted')))
+        cust = shell(scripts._HEAD + "u = env['res.users'].sudo().with_context(active_test=False).search("
+                     "['|', ('login', '=', 'kb_customer_user'), ('login', '=like', 'removed_%')], limit=1, order='id desc')\n"
+                     "print(MARK + json.dumps({'name': u.partner_id.name, 'active': u.partner_id.active}))\n")
+        checks.append(('11 客戶的使用者匿名化，連 partner 一起封存（清單不會出現）',
+                       cust['name'] != '客戶本人' and cust['active'] is False, cust))
         companies = shell(scripts._HEAD + "print(MARK + json.dumps({'n': env['res.company'].sudo().search_count("
                           "[('name', '=', 'AI 多建的公司')])}))\n")
         checks.append(('7 示範資料不多建公司', companies['n'] == 0, seed.get('skipped')))

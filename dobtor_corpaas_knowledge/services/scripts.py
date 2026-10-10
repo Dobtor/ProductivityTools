@@ -515,6 +515,7 @@ def purge_script(models, resets=()):
         #   沒有模組 xmlid 的使用者一律匿名化＋封存；其 partner 只匿名化——
         #   ☠️ Odoo 不准在同一步把「仍連著啟用中使用者」的 partner 封存（RedirectWarning）。
         "anon = 0\n"
+        "anon_partners = []\n"
         "Users = env['res.users'].sudo().with_context(active_test=False)\n"
         "keep_u = set(Imd.search([('model', '=', 'res.users'), '|', ('module', 'in', list(mods)),\n"
         "    ('module', '=like', '__doc_scenario_%%')]).mapped('res_id'))\n"
@@ -528,6 +529,17 @@ def purge_script(models, resets=()):
         "                                'mobile': False, 'street': False, 'street2': False})\n"
         "            u.write({'login': 'removed_%%s' %% u.id, 'active': False})\n"
         "        anon += 1\n"
+        "        anon_partners.append(u.partner_id.id)\n"
+        "    except Exception:\n"
+        "        pass\n"
+        # ★ 使用者封存之後再封存它的 partner（分兩步 Odoo 才准）：否則客戶清單、業務員清單
+        #   滿滿「已移除使用者 N」，截圖前檢查也把它們當客戶資料擋掉
+        #   ☠️ 實機（社群電商方案）：16 個入口網站使用者的 partner 讓 2 張清單截圖不採用
+        "env.flush_all()\n"
+        "for pid in anon_partners:\n"
+        "    try:\n"
+        "        with env.cr.savepoint():\n"
+        "            env['res.partner'].sudo().browse(pid).write({'active': False})\n"
         "    except Exception:\n"
         "        pass\n"
         "env.cr.commit()\n"
