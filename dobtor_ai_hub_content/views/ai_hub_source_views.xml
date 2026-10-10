@@ -14,6 +14,8 @@
                 <group string="知識內容（CorPaaS 主控台）">
                     <field name="content_enabled"/>
                     <field name="content_max_chars" invisible="not content_enabled"/>
+                    <field name="content_max_turns" invisible="not content_enabled"/>
+                    <field name="content_target_ids" widget="many2many_tags" invisible="not content_enabled"/>
                     <div class="text-muted small" colspan="2" invisible="not content_enabled">
                         主控台以上面的<b>上行金鑰</b>呼叫，每日次數與成本上限照算。
                         這個模式不寫對方系統，所以不需要 L2；與網站編輯各自授權。

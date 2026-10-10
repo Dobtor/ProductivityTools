@@ -112,6 +112,20 @@ class TestContentRun(HttpCase):
         bad = self._post(PATH, {'purpose': 'x', 'prompt': 'y', 'system': ['not', 'str']})
         self.assertEqual(bad.get('error'), 'invalid_prompt')
 
+    def test_target_instance_must_be_allowed_and_tools_read_only(self):
+        target = self.env['ai.hub.source'].create({'name': '方案主實例', 'source_path': '/instances/tpl14',
+                                                   'instance_ref': 228})
+        denied = self._post(PATH, {'purpose': 'code_fact', 'prompt': '讀程式', 'instance_ref': 228})
+        self.assertEqual(denied.get('error'), 'target_not_allowed', '沒列在可讀清單就拒絕')
+        self.source.content_target_ids = [(4, target.id)]
+        res = self._post(PATH, {'purpose': 'code_fact', 'prompt': '讀程式', 'instance_ref': 228})
+        self.assertTrue(res.get('target_ok'), res)
+        run = self.env['ai.hub.run'].browse(res['run_id'])
+        self.assertEqual(run.source_path_override, '/instances/tpl14')
+        params = run._mode_run_params()
+        self.assertEqual(params['allowed_tools'], 'Read,Grep,Glob', '知識內容只給唯讀工具')
+        self.assertEqual(params['max_turns'], 20)
+
     def test_other_source_cannot_read_status(self):
         res = self._post(PATH, {'purpose': 'x', 'prompt': 'hi'})
         other = self.env['ai.hub.source'].create({

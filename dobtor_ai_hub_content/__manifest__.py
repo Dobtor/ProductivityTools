@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor AI Hub · 知識內容模式',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'category': 'Productivity/AI',
     'summary': '讓 CorPaaS 主控台以上行金鑰請 AI Hub 產生知識內容（content 模式）',
     'description': '''

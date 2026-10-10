@@ -68,6 +68,31 @@ class AiHubSource(models.Model):
         string='知識內容 prompt 上限（字元）', default=DEFAULT_MAX_CHARS,
         help='0 = 使用預設值 %s。' % DEFAULT_MAX_CHARS)
 
+    content_target_ids = fields.Many2many(
+        'ai.hub.source', 'ai_hub_source_content_target_rel', 'source_id', 'target_id',
+        string='知識內容可讀的實例',
+        help='主控台送知識內容時可指定讀這些來源的原始碼（例如方案主實例 /instances/<名稱>）。'
+             '沒列在這裡的實例一律拒絕：持有金鑰不等於可以讀任何客戶的程式。')
+
+    content_max_turns = fields.Integer(
+        string='知識內容回合上限', default=20,
+        help='一次知識內容最多幾個回合（讀檔也算）；控制時間與費用。')
+
     def content_limit(self):
         self.ensure_one()
         return self.content_max_chars if self.content_max_chars > 0 else DEFAULT_MAX_CHARS
+
+
+class AiHubRunContent(models.Model):
+    _inherit = 'ai.hub.run'
+
+    def _mode_run_params(self):
+        """知識內容只需要讀：唯讀工具、不問權限、限制回合數（控制時間與費用）。
+
+        ★ 全域預設是 Read,Grep,Glob,Write,Edit＋acceptEdits（給文件模式用）；知識內容讀得到
+          實例的原始碼，給寫入工具沒有必要。"""
+        res = super()._mode_run_params()
+        if self.mode == 'content':
+            res.update(allowed_tools='Read,Grep,Glob', permission_mode='dontAsk',
+                       max_turns=max(1, self.session_id.source_id.content_max_turns or 20))
+        return res

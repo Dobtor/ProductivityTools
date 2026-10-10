@@ -29,7 +29,8 @@ class AiHubContentUplink(AiHubUplink):
 
     @http.route('/ai_hub/api/v1/content_run', type='json', auth='none',
                 csrf=False, methods=['POST'], readonly=False)
-    def content_run(self, purpose=None, prompt=None, context=None, system=None, **kw):
+    def content_run(self, purpose=None, prompt=None, context=None, system=None, instance_ref=None,
+                    **kw):
         source, err = self._auth()
         if err:
             return err
@@ -40,6 +41,14 @@ class AiHubContentUplink(AiHubUplink):
             return {'ok': False, 'error': 'invalid_prompt'}
         if system is not None and not isinstance(system, str):
             return {'ok': False, 'error': 'invalid_prompt', 'detail': 'system 要是字串'}
+        target = None
+        if instance_ref:
+            # 只准讀這個來源明確列出的實例（content_target_ids）
+            target = source.content_target_ids.filtered(lambda t: t.instance_ref == int(instance_ref))[:1] \
+                if str(instance_ref).isdigit() else None
+            if not target:
+                return {'ok': False, 'error': 'target_not_allowed',
+                        'detail': _('實例 %s 不在這個來源的知識內容可讀清單') % instance_ref}
         limit = source.content_limit()
         if len(prompt) + len(system or '') > limit:
             return {'ok': False, 'error': 'prompt_too_long',
@@ -65,7 +74,8 @@ class AiHubContentUplink(AiHubUplink):
         # ★ origin 一定要標：配額與今日成本只算 uplink 的 Run，漏標就是免費額度。
         # ★ system：呼叫端的固定內容放進系統提示（吃提示詞快取）；派工在交易提交後才讀，寫在這裡來得及
         run.sudo().write({'origin': 'uplink', 'origin_message': name,
-                          'extra_system_prompt': (system or '').strip() or False})
+                          'extra_system_prompt': (system or '').strip() or False,
+                          'source_path_override': target.source_path if target else False})
         source.sudo().uplink_last_used = fields.Datetime.now()
         # ★ uplink_used_today 是非儲存 compute，uplink_blocked_reason() 時已被快取，
         #   不清掉的話回報的剩餘額度會少算這一次。
@@ -73,6 +83,7 @@ class AiHubContentUplink(AiHubUplink):
         _logger.info('AI Hub content: source=%s run=%s purpose=%s（prompt %s 字元、system %s 字元）',
                      source.id, run.id, name, len(prompt), len(system or ''))
         return {'ok': True, 'run_id': run.id, 'conversation': session.id, 'system_ok': True,
+                'target_ok': bool(target),
                 'quota_left': source.uplink_quota_left(),
                 'cost_left': source.uplink_cost_left()}
 
