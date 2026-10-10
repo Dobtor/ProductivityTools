@@ -13,6 +13,7 @@
   7 示範資料不會多建第二家公司（重播時略過）
   8 平行拍攝：同一批分 2 組各開瀏覽器，結果與圖檔合併回來
   9 按鈕給的是畫面上的字（AI 常犯），截圖程式改用文字找得到
+  10 點不到按鈕時，錯誤訊息附上畫面看得到的按鈕與分頁
 """
 import importlib.util
 import json
@@ -124,6 +125,12 @@ def main():
         # 資料庫會沿用：上一次點過「標記撥款」，先退回草稿
         draft = shell(scripts._HEAD + "d = env.ref('kb_hard_env.doc_draft')\nd.state = 'draft'\nenv.cr.commit()\n"
                       "print(MARK + json.dumps({'id': d.id}))\n")['id']
+        miss = run_runner([{'id': 'miss', 'login': 'doc_admin', 'password': PW, 'steps': [
+            {'goto': {'action': 'kb_hard_env.action_doc', 'res_id': draft}},
+            {'click': {'button': '不存在的按鈕'}}, {'shot': 'never'}]}])['miss']
+        merr = miss.get('error') or ''
+        checks.append(('10 點不到按鈕時，錯誤列出畫面看得到的按鈕', '看得到的按鈕' in merr and 'action_mark_paid' in merr,
+                       merr[:300]))
         btn = run_runner([{'id': 'button', 'login': 'doc_admin', 'password': PW, 'steps': [
             {'goto': {'action': 'kb_hard_env.action_doc', 'res_id': draft}},
             {'click': {'button': '標記撥款'}}, {'shot': 'after_click'}]}])['button']

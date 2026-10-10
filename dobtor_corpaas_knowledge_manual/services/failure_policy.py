@@ -21,26 +21,37 @@ _RULES = (
     (SCRIPT, ('Locator.', '找不到要標註', 'wait_for_selector', 'Timeout', '未知步驟', '無法定位',
               '找不到示範資料', '說明庫沒有角色')),
 )
+_HINT = re.compile(r'^畫面（.*$', re.M)
 #: 可以叫 AI 修腳本的分類
 REPAIRABLE = (SCRIPT, UNKNOWN)
 
 
 def classify(error):
     """錯誤訊息 → 分類（依序比對，先中先贏）。"""
-    text = error or ''
+    # 截圖程式附的「畫面看得到的按鈕」那一行不算（按鈕文字可能剛好含「權限」等字）
+    text = _HINT.sub('', error or '')
     for kind, needles in _RULES:
         if any(n in text for n in needles):
             return kind
     return UNKNOWN
 
 
+_WAITING = re.compile(r'waiting for (.{1,160})')
+
+
 def fingerprint(error):
-    """同一種錯誤的指紋：分類＋第一行去掉數字、引號內容、網址、編號。"""
+    """同一種錯誤的指紋：分類＋第一行去掉數字、引號內容、網址、編號。
+
+    ★ 定位逾時另外帶上「等的是哪個元素」：不同按鈕點不到是不同的錯，不能算「同一錯誤不再修」。
+    ☠️ 實機（社群電商方案）：23 張不同按鈕的逾時指紋都是「Locator.click: Timeout」。"""
     first = (error or '').strip().splitlines()[0] if (error or '').strip() else ''
     first = re.sub(r'https?://\S+', 'URL', first)
     first = re.sub(r"'[^']*'|\"[^\"]*\"|「[^」]*」|\{[^}]*\}|\[[^\]]*\]", 'Q', first)
     first = re.sub(r'\d+', 'N', first)
-    return '%s:%s' % (classify(error), first[:120])
+    target = _WAITING.search(error or '') if 'Timeout' in first else None
+    if target:
+        first += ' @' + re.sub(r'\d+', 'N', target.group(1).strip())[:100]
+    return '%s:%s' % (classify(error), first[:220])
 
 
 def halt_reason(errors, shot, canary, threshold=3, rate=0.5):

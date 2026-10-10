@@ -637,6 +637,24 @@ def _run_step(page, base, kind, arg, idx, out_dir, recorder, observed, warnings,
     return None
 
 
+def _with_screen_hint(page, error):
+    """點不到、等不到元素時，把當下畫面看得到的按鈕與分頁接在錯誤第一行後面。
+
+    ★ AI 修腳本與人看例外清單都靠這一行判斷是「按鈕名寫錯」還是「開錯單據／狀態不對」。
+    ☠️ 實機（社群電商方案）：18 張點不到按鈕，按鈕其實在另一個模型的表單上，只看錯誤猜不出來。"""
+    try:
+        probe = page.evaluate(PROBE_JS)
+    except Exception:  # noqa: BLE001
+        return error
+    btns = ['%s(%s)' % (b.get('text') or '', b.get('name') or '') for b in probe.get('buttons') or []][:15]
+    tabs = [t.get('text') or t.get('name') for t in probe.get('tabs') or []][:10]
+    path = re.sub(r'^https?://[^/]+', '', page.url or '')
+    hint = '畫面（%s %s）看得到的按鈕：%s；分頁：%s' % (
+        probe.get('view_type') or '?', path, '、'.join(btns) or '（無）', '、'.join(tabs) or '（無）')
+    first, _sep, rest = error.partition('\n')
+    return '%s\n%s\n%s' % (first, hint, rest)
+
+
 def _split_by_login(shots, parts):
     """同一個帳號的截圖盡量放同一組（少登入幾次），各組張數盡量平均。
 
@@ -773,8 +791,11 @@ def main():
                     dom = page.locator('.o_content').first.inner_text(timeout=3000)[:6000]
                 except Exception:  # noqa: BLE001
                     dom = ''
+                error = str(e)
+                if 'Timeout' in error and ('Locator' in error or 'wait_for_selector' in error):
+                    error = _with_screen_hint(page, error)
                 result['shots'][sid] = {
-                    'ok': False, 'error': str(e)[:2000],
+                    'ok': False, 'error': error[:2000],
                     # 中途失敗前已經拍好的圖（情境教學：做到哪一步就教到哪一步）
                     'images': [i for i in images if not i.get('is_probe')],
                     'transitions': observed,

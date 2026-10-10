@@ -24,6 +24,14 @@ class TestFailurePolicy(ManualCase):
         self.assertEqual(a, b, '只差記錄編號＝同一種錯')
         c = fp.fingerprint("存取錯誤 您並無權限存取 '付款交易' (payment.transaction) 記錄 9")
         self.assertNotEqual(a, c, '不同模型是不同的錯')
+        x = fp.fingerprint('Locator.click: Timeout 10000ms exceeded.\nCall log:\n'
+                           '  - waiting for locator("button[name=\\"作廢\\"]:visible").first')
+        y = fp.fingerprint('Locator.click: Timeout 10000ms exceeded.\nCall log:\n'
+                           '  - waiting for locator("button[name=\\"確認\\"]:visible").first')
+        self.assertNotEqual(x, y, '不同按鈕點不到是不同的錯')
+        hinted = ('Locator.click: Timeout 10000ms exceeded.\n'
+                  '畫面（form /odoo/account.move/3）看得到的按鈕：權限設定(action_x)；分頁：（無）\nCall log:')
+        self.assertEqual(fp.classify(hinted), fp.SCRIPT, '畫面提示那一行不影響分類')
 
     def test_halt_reason(self):
         down = ['後台沒有載入（Timeout）：{"url": "/"}'] * 4
