@@ -43,7 +43,7 @@ class AiHubContentUplink(AiHubUplink):
         limit = source.content_limit()
         if len(prompt) + len(system or '') > limit:
             return {'ok': False, 'error': 'prompt_too_long',
-                    'detail': _('prompt 超過上限（%s 字元）') % limit}
+                    'detail': _('prompt＋system 超過上限（%s 字元）') % limit}
         blocked = source.uplink_blocked_reason()
         if blocked:
             return {'ok': False, 'error': blocked[0], 'detail': blocked[1]}
@@ -70,8 +70,8 @@ class AiHubContentUplink(AiHubUplink):
         # ★ uplink_used_today 是非儲存 compute，uplink_blocked_reason() 時已被快取，
         #   不清掉的話回報的剩餘額度會少算這一次。
         source.invalidate_recordset(['uplink_used_today', 'uplink_cost_today'])
-        _logger.info('AI Hub content: source=%s run=%s purpose=%s（%s 字元）',
-                     source.id, run.id, name, len(prompt))
+        _logger.info('AI Hub content: source=%s run=%s purpose=%s（prompt %s 字元、system %s 字元）',
+                     source.id, run.id, name, len(prompt), len(system or ''))
         return {'ok': True, 'run_id': run.id, 'conversation': session.id, 'system_ok': True,
                 'quota_left': source.uplink_quota_left(),
                 'cost_left': source.uplink_cost_left()}

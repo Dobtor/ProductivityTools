@@ -20,9 +20,15 @@ def _setting(key):
         return os.environ[key]
     try:
         for line in open(SETTINGS, encoding='utf-8'):
-            k, _sep, v = line.strip().partition('=')
-            if k == key and not line.lstrip().startswith('#'):
-                return os.path.expandvars(v)
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            k, _sep, v = line.partition('=')
+            if k.replace('export ', '').strip() == key:
+                v = v.strip().strip('"').strip("'").replace('$HOME', os.path.expanduser('~'))
+                if v:
+                    return v
+                break   # 空值＝缺值
     except OSError:
         pass
     raise SystemExit('缺少設定 %s：請照 tools/knowledge/settings.example.env 建立 %s' % (key, SETTINGS))
@@ -35,7 +41,7 @@ KEYCHAIN_SERVICE = 'corpaas-knowledge-rpc'
 READ_METHODS = {'search_read', 'search_count', 'read_group', 'fields_get', 'read', 'search'}
 #: rw() 允許的寫入方法（營運工具實際用到的）；其他方法要明確 unsafe=True
 WRITE_METHODS = {'action_approve', 'action_knowledge_ai_select', 'action_knowledge_refresh',
-                 'knowledge_enqueue_refresh', 'live_seed'}
+                 'knowledge_enqueue_refresh'}
 
 
 class RpcError(Exception):

@@ -6,7 +6,8 @@ from rpc import ro
 
 qid, pkg = int(sys.argv[1]), int(sys.argv[2])
 last = None
-while True:
+deadline = time.time() + 6 * 3600   # 更新紀錄卡在進行中（worker 被殺）時不要永遠盯下去
+while time.time() < deadline:
     try:
         runs = ro('corpaas.knowledge.run', 'search_read', [('package_id', '=', pkg)],
                   fields=['state', 'stage', 'ai_cost', 'error'], order='id desc', limit=1)
@@ -28,3 +29,5 @@ while True:
     except Exception as e:  # noqa: BLE001 — 網路斷一下就下次再看
         print('poll error', str(e)[:200], flush=True)
     time.sleep(120)
+else:
+    print('盯了 6 小時還沒結束：請看更新紀錄是不是卡住', flush=True)
