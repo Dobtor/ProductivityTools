@@ -128,9 +128,17 @@ class KnowledgeAi(models.AbstractModel):
                 'res_id': record.id if record else 0}
         system, head = self._split_static(static)
         try:
-            text, cost, run_id = hub_client.call(
-                conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context,
-                **({'system': system} if system else {}))
+            try:
+                text, cost, run_id = hub_client.call(
+                    conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context,
+                    **({'system': system} if system else {}))
+            except hub_client.HubNoSystem as e:
+                # 舊版 Hub：關掉開關（只浪費這一次），固定內容併回 prompt 重送
+                _logger.warning('[knowledge] %s；已關閉 corpaas_knowledge.hub_system_prompt', e)
+                self.env['ir.config_parameter'].sudo().set_param('corpaas_knowledge.hub_system_prompt', '0')
+                system, head = self._split_static(static)
+                text, cost, run_id = hub_client.call(
+                    conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context)
         except hub_client.HubError as e:
             self._log_call(dict(vals, **self._quota_vals(), ok=False, error=str(e)[:2000]))
             raise
@@ -198,6 +206,8 @@ class KnowledgeAi(models.AbstractModel):
             vals = {'purpose': purpose, 'refresh_token': refresh_token,
                     'package_id': package.id if package else False}
             if err:
+                if isinstance(err, hub_client.HubNoSystem):
+                    self.env['ir.config_parameter'].sudo().set_param('corpaas_knowledge.hub_system_prompt', '0')
                 self._log_call(dict(vals, **self._quota_vals(), ok=False, error=str(err)[:2000]))
                 continue
             text, cost, run_id = res

@@ -30,6 +30,11 @@ class BudgetExceeded(HubError):
     pass
 
 
+class HubNoSystem(HubError):
+    """Hub 不認得 system（舊版）：固定內容沒送到。呼叫端關掉開關、併回 prompt 重送一次。"""
+
+
+
 #: Hub 每次受理 content_run 都回報來源的今日剩餘（成本／次數）；最近一次的值放這裡，
 #: 由 corpaas.knowledge.ai 存進系統參數給成本規劃器（D3）用。
 LAST_QUOTA = {}
@@ -86,7 +91,7 @@ def call(hub_url, key, purpose, prompt, context=None, poll_every=5, timeout=900,
     res = _rpc(base + '/ai_hub/api/v1/content_run', key, params)
     if res.get('ok') and system and not res.get('system_ok'):
         # 舊版 Hub 不認得 system：這次的固定內容沒送到，不能用這個結果
-        raise HubError('AI Hub 不支援 system（請先升級 dobtor_ai_hub_content，或關掉 corpaas_knowledge.hub_system_prompt）')
+        raise HubNoSystem('AI Hub 不支援 system（請先升級 dobtor_ai_hub_content）')
     if not res.get('ok'):
         err = BudgetExceeded if res.get('error') in QUOTA_ERRORS else HubError
         if err is BudgetExceeded:

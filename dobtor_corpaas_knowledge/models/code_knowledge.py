@@ -22,6 +22,8 @@ from ..services import remote, scripts
 _logger = logging.getLogger(__name__)
 #: 主機上存放抽出原碼的目錄（AI Runner 唯讀掛到 /odoo-core）
 CORE_ROOT = '/srv/ai-src/odoo'
+#: 方法定義在 Odoo 核心（BaseModel 等，沒有模組）時記的模組名
+CORE_MODULE = '(core)'
 
 
 class KnowledgeCodeTree(models.Model):
@@ -38,6 +40,10 @@ class KnowledgeCodeTree(models.Model):
     tree_hash = fields.Char(string='整棵雜湊', readonly=True)
     core_path = fields.Char(string='原碼抽取位置', readonly=True,
                             help='主機上抽出的 Odoo 原碼目錄（唯讀掛進 AI Runner 給 AI 讀，計畫第 49 項）')
+    core_tried = fields.Datetime(string='上次嘗試抽取', readonly=True,
+                                 help='抽取失敗後一天內不再試（不要每輪都重來）')
+    changed_core = fields.Text(string='與上一版不同的官方模組', readonly=True,
+                               help='算過雜湊時和最近一棵比：只有這些模組裡的方法需要重讀')
     first_seen = fields.Datetime(default=fields.Datetime.now, readonly=True)
     last_seen = fields.Datetime(default=fields.Datetime.now, readonly=True)
 
@@ -55,14 +61,14 @@ class KnowledgeCodeDef(models.Model):
 
     def_hash = fields.Char(string='正規化雜湊', required=True, index=True, readonly=True)
     method = fields.Char(required=True, readonly=True)
-    module = fields.Char(readonly=True, help='定義所在模組（空白＝Odoo 核心 BaseModel）')
+    module = fields.Char(readonly=True, required=True, help='定義所在模組（(core)＝Odoo 核心 BaseModel）')
     path = fields.Char(readonly=True)
     line_start = fields.Integer(readonly=True)
     line_end = fields.Integer(readonly=True)
     summary_json = fields.Text(string='AI 摘要', readonly=True,
                                help='語意層：這段程式做什麼（AI 讀過才有；雜湊沒變就沿用）')
 
-    _sql_constraints = [('def_uniq', 'unique(def_hash, method)', '同一段程式只記一筆')]
+    _sql_constraints = [('def_uniq', 'unique(def_hash, method, module)', '同一段程式只記一筆')]
 
 
 class KnowledgeCodeFact(models.Model):
@@ -104,20 +110,25 @@ class SolutionPackageCode(models.Model):
             same = Tree.search([('odoo_version', '=', version)], limit=1) \
                 if re.search(r'20\d{6}', version or '') else Tree
             if same:
+                # 同一份原碼：連抽出來的目錄都沿用（不再抽一份）
                 tree = Tree.create({'image_digest': digest, 'odoo_version': same.odoo_version,
                                     'match': 'version', 'core_hashes': same.core_hashes,
-                                    'tree_hash': same.tree_hash})
+                                    'tree_hash': same.tree_hash, 'core_path': same.core_path})
                 how = 'version'
             else:
                 core = remote.shell_json(self.env, instance, db_name, scripts.module_hash_script(core=True))
                 hashes = {m: d['hash'] for m, d in core.items() if d.get('core')}
+                prev_tree = Tree.search([('core_hashes', '!=', False)], order='last_seen desc', limit=1)
+                old = json.loads(prev_tree.core_hashes or '{}') if prev_tree else {}
                 tree = Tree.create({'image_digest': digest, 'odoo_version': version,
                                     'match': 'hashed', 'core_hashes': json.dumps(hashes, sort_keys=True),
-                                    'tree_hash': _hash(hashes)})
+                                    'tree_hash': _hash(hashes),
+                                    'changed_core': json.dumps(sorted(m for m in hashes if old.get(m) != hashes[m]))
+                                    if old else False})
                 how = 'hashed'
         tree.last_seen = now
-        if not tree.core_path:
-            tree.core_path = self._knowledge_extract_core(instance, digest)
+        if not tree.core_path and not (tree.core_tried and tree.core_tried > fields.Datetime.subtract(now, days=1)):
+            tree.write({'core_path': self._knowledge_extract_core(instance, digest), 'core_tried': now})
         addons = remote.shell_json(self.env, instance, db_name, scripts.module_hash_script(core=False))
         prev = (self.knowledge_profile().get('code') or {}).get('addons') or {}
         cur = {m: {'version': d.get('version'), 'hash': d.get('hash')} for m, d in addons.items()}
@@ -136,11 +147,13 @@ class SolutionPackageCode(models.Model):
                 server._assert_disk_room('抽出 Odoo 原碼', need_gb=2)
             ctr = shlex.quote(instance.odoo_container)
             dest = '%s/%s' % (CORE_ROOT, digest.split(':', 1)[-1][:12])
+            # ★ 先清掉上次中斷留下的 $D.tmp（不然 docker cp 會變成 odoo/odoo 巢狀）；暫存容器一定刪
             cmd = (
                 "set -e; D=%(d)s; if [ ! -d \"$D\" ]; then "
                 "P=$(docker exec %(c)s python3 -c 'import odoo,os; print(os.path.dirname(odoo.__file__))'); "
-                "T=$(docker create %(img)s); mkdir -p \"$D.tmp\"; "
-                "docker cp \"$T:$P\" \"$D.tmp/odoo\"; docker rm \"$T\" >/dev/null; "
+                "rm -rf \"$D.tmp\"; mkdir -p \"$D.tmp\"; T=$(docker create %(img)s); "
+                "trap 'docker rm -f \"$T\" >/dev/null 2>&1' EXIT; "
+                "docker cp \"$T:$P\" \"$D.tmp/odoo\"; "
                 "mv \"$D.tmp\" \"$D\"; chmod -R a+rX \"$D\"; fi; echo \"$D\""
             ) % {'d': shlex.quote(dest), 'c': ctr, 'img': shlex.quote(digest)}
             res = remote.run(server, cmd, dont_raise=True)
@@ -171,16 +184,18 @@ class SolutionPackageCode(models.Model):
             method = subject.rsplit('.', 1)[1]
             defs = Def.browse()
             for d in chain:
-                rec = Def.search([('def_hash', '=', d['hash']), ('method', '=', method)], limit=1)
+                module = d.get('module') or CORE_MODULE   # 不存空值：UNIQUE 不管 NULL
+                rec = Def.search([('def_hash', '=', d['hash']), ('method', '=', method),
+                                  ('module', '=', module)], limit=1)
                 if not rec:
-                    rec = Def.create({'def_hash': d['hash'], 'method': method, 'module': d.get('module'),
+                    rec = Def.create({'def_hash': d['hash'], 'method': method, 'module': module,
                                       'path': d.get('file'), 'line_start': d.get('line'),
                                       'line_end': d.get('end')})
                 defs |= rec
             chain_hash = _hash([d['hash'] for d in chain])
             fact = Fact.search([('subject', '=', subject), ('chain_hash', '=', chain_hash)], limit=1)
             if not fact:
-                # 同一主體的舊鏈：有結論的標過期（語意層重讀時只讀變動的那段）
+                # 同一主體的舊鏈：有結論的標過期（語意層重讀時只讀變動的那段；語意層寫入結論時設 current）
                 Fact.search([('subject', '=', subject), ('state', '=', 'current')]).write({'state': 'stale'})
                 fact = Fact.create({'subject': subject, 'chain_hash': chain_hash,
                                     'def_ids': [(6, 0, defs.ids)]})

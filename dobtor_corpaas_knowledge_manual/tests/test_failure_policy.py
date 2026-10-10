@@ -204,6 +204,7 @@ class TestSelfReview(ManualCase):
         with patch.object(Ai, 'ask', side_effect=hub_client.HubError('down')):
             self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})
         self.assertEqual(art.state, 'review', 'AI 沒審到＝不過，全自動也一樣')
+        self.assertFalse(art.manual_review_input, 'AI 沒審到不記：下一輪再審，不會因為一次抖動永久卡住')
         art2 = self._review_article()
         with patch.object(Ai, 'ask', return_value={'ok': False, 'problems': ['小意見']}):
             self.hooks._manual_auto_publish(self.pkg, 'tok', {'ai': False})

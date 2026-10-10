@@ -74,7 +74,7 @@ class KnowledgeArticleReview(models.Model):
         return self._manual_close_sample('ok')
 
     def action_sample_bad(self):
-        """抽查不合格：記下結果、退回待審（下架由核准者另外處理）。"""
+        """抽查不合格：記下結果（算自審退回率）。文章仍在線上，要下架或修改由核准者另外處理。"""
         return self._manual_close_sample('bad')
 
     def _manual_close_sample(self, result):
@@ -126,11 +126,11 @@ class KnowledgeArticleReview(models.Model):
              'steps': json.dumps(steps, ensure_ascii=False)[:3000], 'text': text}
 
     def _manual_self_review(self, package, token=None, use_ai=True):
-        """回傳 (通過, 問題清單, AI 有審到)。事實不過就不問 AI；AI 呼叫失敗＝沒審到，算不過。"""
+        """回傳 (通過, 問題清單, AI 有審到, AI 出錯)。事實不過就不問 AI；AI 呼叫失敗＝沒審到，算不過。"""
         self.ensure_one()
         problems = self._manual_fact_problems()
         if problems or not use_ai:
-            return not problems, problems, False
+            return not problems, problems, False, False
         try:
             data = self.env['corpaas.knowledge.ai'].ask(
                 'manual_review', self._manual_review_prompt(package), package=package,
@@ -138,13 +138,13 @@ class KnowledgeArticleReview(models.Model):
         except hub_client.BudgetExceeded:
             raise
         except (hub_client.HubError, ValueError) as e:
-            return False, [_('AI 審查沒有完成：%s') % str(e)[:200]], False
+            return False, [_('AI 審查沒有完成：%s') % str(e)[:200]], False, True
         if not isinstance(data, dict):
-            return False, [_('AI 審查回覆格式不對')], False
+            return False, [_('AI 審查回覆格式不對')], False, True
         raw = data.get('problems') or []
         found = [str(p)[:200] for p in (raw if isinstance(raw, list) else [raw])]
         ok = bool(data.get('ok'))
-        return ok and not found, found or ([] if ok else [_('AI 審查判定不通過')]), True
+        return ok and not found, found or ([] if ok else [_('AI 審查判定不通過')]), True, False
 
 
 class KnowledgeHooksSelfReview(models.AbstractModel):
@@ -169,17 +169,18 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
             if stop.get('ai'):
                 break
             try:
-                ok, problems, reviewed = art._manual_self_review(package, token)
+                ok, problems, reviewed, ai_failed = art._manual_self_review(package, token)
             except hub_client.BudgetExceeded:
                 stop['ai'] = True
                 break
             forced = False
-            if not ok and level == 'full' and reviewed and not art._manual_fact_problems():
-                ok = forced = True   # 全自動：AI 有審到、只是有意見且事實都過 → 上線，但一定抽查
+            if not ok and level == 'full' and reviewed:
+                ok = forced = True   # 全自動：AI 有審到（事實檢查已過）、只是有意見 → 上線，但一定抽查
             art.write({'manual_review_state': 'pass' if ok else 'fail',
                        'manual_review_note': '；'.join(problems) or False,
                        'manual_review_reason': False if ok else review_reason(problems, reviewed),
-                       'manual_review_input': art._manual_review_input(),
+                       # AI 沒審到（Hub 出錯）不記：下一輪要再審，不能因為一次抖動就永久卡在不過
+                       'manual_review_input': False if ai_failed else art._manual_review_input(),
                        'manual_review_sampled': forced})
             if not ok:
                 failed += 1
@@ -191,6 +192,8 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
                 passed |= art
             except Exception as e:  # noqa: BLE001 — 核准失敗留在待審（savepoint 已回滾一半的寫入）
                 art.write({'manual_review_state': 'fail', 'manual_review_sampled': False,
+                           'manual_review_input': False,
+                           'manual_review_reason': _('自動核准失敗'),
                            'manual_review_note': _('自動核准失敗：%s') % str(e)[:300]})
                 failed += 1
         # 抽查：隨機 5%，有上線就至少 1 篇

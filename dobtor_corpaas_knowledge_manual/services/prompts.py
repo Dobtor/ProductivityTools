@@ -53,14 +53,20 @@ DEMO_NOTE = ("示範資料附了說明庫裡的名稱（name）與目前狀態�
              "綁記錄前先對狀態。精靈（暫存模型）不能用網址或 open 打開，要按開啟它的按鈕。")
 
 
-_IN_SYSTEM = '（步驟詞彙、示範資料說明與清單在系統提示裡）'
+_IN_SYSTEM = '（步驟詞彙、示範資料說明與清單在前面的固定內容裡）'
 
 
 def demo_static(demo, limit=30000):
     """寫／修／挑腳本共用的固定內容：步驟詞彙＋示範資料說明＋清單。
 
-    ★ 同一個情境的每次呼叫都一樣：另外送（AI Hub 放進系統提示）才吃得到提示詞快取。"""
-    return '%s\n\n%s\n示範資料：%s' % (STEP_VOCAB, DEMO_NOTE, _j(demo or [])[:limit])
+    ★ 同一個情境的每次呼叫都一樣：另外送（AI Hub 放進系統提示）才吃得到提示詞快取。
+    ★ 太長時整筆整筆刪尾巴（JSON 保持完整），不從中間截斷。"""
+    rows = list(demo or [])
+    text = _j(rows)
+    while len(text) > limit and rows:
+        rows = rows[:max(1, int(len(rows) * limit / len(text)) - 1)] if len(rows) > 1 else []
+        text = _j(rows)
+    return '%s\n\n%s\n示範資料：%s' % (STEP_VOCAB, DEMO_NOTE, text)
 
 
 def explore_prompt(feature, archs, demo, roles, screen=None, flows=None, static_demo=False):

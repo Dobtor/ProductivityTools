@@ -680,8 +680,23 @@ class TestIterativeCore(_RefreshBase):
     def test_hub_without_system_support_is_refused(self):
         from ..services import hub_client
         with patch.object(hub_client, '_rpc', return_value={'ok': True, 'run_id': 1}):
-            with self.assertRaises(hub_client.HubError):
+            with self.assertRaises(hub_client.HubNoSystem):
                 hub_client.call('http://hub', 'k', 'p', 'x', system='固定')
+        # ask 遇到舊版 Hub：自動關掉開關、併回 prompt 重送一次
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('corpaas_knowledge.hub_system_prompt', '1')
+        seen = []
+
+        def call(url, key, purpose, prompt, context=None, system=None, **kw):
+            seen.append(system)
+            if system:
+                raise hub_client.HubNoSystem('old hub')
+            return '{"ok": 1}', 0.01, 1
+
+        with patch.object(hub_client, 'call', call):
+            self.assertEqual(self.env['corpaas.knowledge.ai'].ask('manual_bind', '變動', static='固定'), {'ok': 1})
+        self.assertEqual(len(seen), 2)
+        self.assertEqual(icp.get_param('corpaas_knowledge.hub_system_prompt'), '0')
 
     def test_fill_gaps_only_adds(self):
         sc = self.env['corpaas.knowledge.scenario'].sudo().create({

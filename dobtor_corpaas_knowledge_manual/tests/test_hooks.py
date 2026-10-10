@@ -650,8 +650,9 @@ class TestManualHooks(ManualCase):
         self.assertEqual(art.step_block_ids, old)
         self.assertEqual(art.state, 'published')
         self.assertEqual(self.binding.state, 'failed')
-        # 壞回覆也算修過一次：同一個錯誤之後不再付費問（計畫第 29 項），五次更新只問一次
-        self.assertEqual(self.binding.repair_attempts, 1)
+        # 壞回覆也用掉一次機會，到上限（3 次）就停；不記 repair_fp（不然變成永久停修）
+        self.assertEqual(self.binding.repair_attempts, 3)
+        self.assertFalse(self.binding.repair_fp)
 
     def test_malformed_ai_explore_and_bind(self):
         tmpl = self.Template.create({

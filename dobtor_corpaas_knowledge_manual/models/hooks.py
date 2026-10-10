@@ -738,24 +738,34 @@ class KnowledgeHooks(models.AbstractModel):
         if not instance or not hasattr(package, '_knowledge_code_identity'):
             return
         try:
-            if not ctx.get('code_identity_done'):
-                ident = package._knowledge_code_identity(instance, sandbox.db_name)
-                package._knowledge_update_profile({'code': ident})
-                ctx['code_identity_done'] = True
-            targets = set()
-            Template = self.env['corpaas.knowledge.shot_template'].sudo()
-            for tmpl in Template.search([('binding_ids.scenario_id', '=', sandbox.scenario_id.id)]):
-                model = tmpl.feature_id.model
-                for step in tmpl.steps():
-                    arg = step.get('click') if isinstance(step, dict) else None
-                    name = arg.get('button') if isinstance(arg, dict) else None
-                    if model and isinstance(name, str) and re.fullmatch(r'[a-z_][a-z0-9_]*', name):
-                        targets.add((model, name))
-            if targets:
-                package._knowledge_code_chains(instance, sandbox.db_name, sorted(targets))
+            with self.env.cr.savepoint():   # 唯一鍵撞到（兩個方案同時跑）不能弄壞整個交易
+                self._manual_code_structure_inner(package, sandbox, instance, ctx)
             self._manual_commit()
         except Exception as e:  # noqa: BLE001
             _logger.warning('[knowledge.manual] 程式知識結構層失敗：%s', e)
+        finally:
+            ctx['code_identity_done'] = True   # 失敗也不在同一輪的其他說明庫重試
+
+    @api.model
+    def _manual_code_structure_inner(self, package, sandbox, instance, ctx):
+        """程式碼身分（每輪一次）＋腳本會按的物件按鈕的繼承鏈。"""
+        if not ctx.get('code_identity_done'):
+            ident = package._knowledge_code_identity(instance, sandbox.db_name)
+            if ident.get('error'):
+                package._knowledge_update_profile({'code_error': ident['error']})
+            else:
+                package._knowledge_update_profile({'code': ident, 'code_error': ''})
+        targets = set()
+        Template = self.env['corpaas.knowledge.shot_template'].sudo()
+        for tmpl in Template.search([('binding_ids.scenario_id', '=', sandbox.scenario_id.id)]):
+            model = tmpl.feature_id.model
+            for step in tmpl.steps():
+                arg = step.get('click') if isinstance(step, dict) else None
+                name = arg.get('button') if isinstance(arg, dict) else None
+                if model and isinstance(name, str) and re.fullmatch(r'[a-z_][a-z0-9_]*', name):
+                    targets.add((model, name))
+        if targets:
+            package._knowledge_code_chains(instance, sandbox.db_name, sorted(targets))
 
     @api.model
     def _manual_demo_state(self, scenario):
@@ -954,7 +964,7 @@ class KnowledgeHooks(models.AbstractModel):
         """步驟 2 後半～4：解析 → 一批拍完 → 採用圖片。回傳失敗、要 AI 修的繫結。"""
         package._knowledge_heartbeat('kb_shoot', _('拍攝 %s 個畫面') % len(bindings))
         # AI 修過的這次重拍結果：算「修補成功率」（儀表板）
-        repaired = {b.id for b in bindings if b.repair_attempts}
+        repaired = {b.id for b in bindings if b.repair_checking}
         Binding = self.env['corpaas.knowledge.shot_binding']
         xmlids = sorted({x for b in bindings for x in b.bindings().values()
                          if isinstance(x, str)})
@@ -1071,7 +1081,7 @@ class KnowledgeHooks(models.AbstractModel):
             # 標註找不到的步驟不算失敗（圖照用），但留在 last_error 讓審稿的人看得到
             warn = '\n'.join(r.get('warnings') or [])[:4000] or False
             vals.update(state='ok', last_error=warn, needs_repair=False, repair_attempts=0,
-                        repair_fp=False,
+                        repair_fp=False, transient_fp=False, repair_bonus_used=False,
                         shot_scope_hash=b.template_id.fingerprint,
                         shot_inputs=self._manual_shot_inputs(b))
             b.write(vals)
@@ -1080,6 +1090,7 @@ class KnowledgeHooks(models.AbstractModel):
             done = Binding.browse(list(repaired)).exists()
             st['repairs_ok'] = st.get('repairs_ok', 0) + len(done.filtered(lambda b: b.state == 'ok'))
             st['repairs_bad'] = st.get('repairs_bad', 0) + len(done.filtered(lambda b: b.state == 'failed'))
+            done.filtered(lambda b: b.state in ('ok', 'failed')).write({'repair_checking': False})
         if down and down == len(by_id):
             # 整批都打不開後台：後面的批次也一樣，停止這一輪拍攝（不再寫腳本、不叫 AI）
             ctx['manual_backend_down'] = True
@@ -1242,8 +1253,9 @@ class KnowledgeHooks(models.AbstractModel):
                 _logger.info('[knowledge.manual] 修腳本停止：%s', e)
                 stop['ai'] = True
             except AI_ERRORS as e:
-                # ★ AI 回覆壞掉也算修過一次：否則每次更新都再付費問同一個錯
-                b.write({'repair_attempts': b.repair_attempts + 1, 'repair_fp': fp})
+                # ★ AI 沒修成（Hub 逾時、回覆壞掉）也算用掉一次機會（上限 MAX_REPAIRS，不會無限付費）；
+                #   但不記 repair_fp：記了就變成「修過仍同一個錯」而永久停修，其實從沒修過
+                b.write({'repair_attempts': b.repair_attempts + 1})
                 _logger.warning('[knowledge.manual] 修腳本失敗 %s：%s',
                                 b.template_id.display_name, e)
 
@@ -1281,7 +1293,7 @@ class KnowledgeHooks(models.AbstractModel):
             tmpl.write({'steps_json': json.dumps(steps, ensure_ascii=False),
                         'repair_count': tmpl.repair_count + 1, 'source': 'ai'})
         tmpl.message_post(body=_('AI 修補截圖腳本：%s') % ai_text(data.get('reason')))
-        vals = {'state': 'pending', 'needs_repair': False,
+        vals = {'state': 'pending', 'needs_repair': False, 'repair_checking': True,
                 'repair_attempts': binding.repair_attempts + 1}
         if isinstance(data.get('bindings'), dict):
             vals['bindings_json'] = json.dumps(ai_str_map(data['bindings']))
