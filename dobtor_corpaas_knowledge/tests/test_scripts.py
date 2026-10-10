@@ -328,3 +328,18 @@ class TestGateBatchScript(TransactionCase):
         bad = json.loads(printed[-1][len(scripts.MARK):])['bad']
         self.assertEqual(bad['a'], [], '模組 xmlid 的記錄允許')
         self.assertEqual(bad['b'], [['res.partner', mine.id]], '關聯欄位指到的舊記錄要擋')
+
+
+@tagged('post_install', '-at_install')
+class TestDemoStateScript(TransactionCase):
+
+    def test_names_states_transient(self):
+        import json
+        printed = []
+        src = scripts.demo_state_script(['base.user_admin', 'base.nope_x'], {})
+        exec(compile(src.replace('env.cr.rollback()', 'pass'), '<demo>', 'exec'),
+             {'env': self.env, 'print': printed.append})
+        res = json.loads(printed[-1][len(scripts.MARK):])
+        self.assertTrue(res['records']['base.user_admin']['name'])
+        self.assertTrue(res['records']['base.nope_x']['missing'])
+        self.assertIn('base.language.install', res['transient'])

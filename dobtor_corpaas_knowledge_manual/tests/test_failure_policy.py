@@ -219,3 +219,41 @@ class TestReviewPromptStates(ManualCase):
         prompt = art._manual_review_prompt(self.pkg)
         self.assertIn('準備中', prompt)
         self.assertIn('已撥款', prompt)
+
+
+@tagged('post_install', '-at_install')
+class TestCodeContext(ManualCase):
+
+    def test_wizard_opens(self):
+        from ..services import manual_lib
+        steps = [{'goto': {'url': '/odoo/wallet.charge.wizard/100'}}, {'open': {'model': 'sale.order', 'res_id': 1}},
+                 {'open': {'model': 'x.wizard', 'res_id': 2}}, {'goto': {'url': '/odoo/action-sale.action_orders'}}]
+        self.assertEqual(manual_lib.wizard_opens(steps, ['wallet.charge.wizard', 'x.wizard']),
+                         ['wallet.charge.wizard', 'x.wizard'])
+        self.assertEqual(fp.classify('腳本用網址打開精靈 x.wizard：…'), fp.SCRIPT)
+
+    def test_demo_list_has_state_and_hides_missing(self):
+        seed = [{'xmlid': 's.a', 'model': 'sale.order'}, {'xmlid': 's.b', 'model': 'sale.order'},
+                {'xmlid': 's.c', 'model': 'sale.order', 'call': 'action_confirm'}]
+        state = {'records': {'s.a': {'name': 'S001', 'state': '報價單'}, 's.b': {'missing': True}}}
+        H = type(self.hooks)
+        with patch.object(H, '_manual_seed', lambda s, sc: seed), \
+                patch.object(H, '_manual_demo_state', lambda s, sc: state):
+            demo = self.hooks._manual_demo(self.scenario)
+        self.assertEqual(demo, [{'xmlid': 's.a', 'model': 'sale.order', 'name': 'S001', 'state': '報價單'}])
+
+    def test_flow_brief_and_prompt(self):
+        from ..services import prompts
+        flow = self.env['corpaas.knowledge.flow'].sudo().create({'model': 'kb.x', 'state_field': 'state'})
+        Step = self.env['corpaas.knowledge.flow.step'].sudo()
+        Step.create([{'flow_id': flow.id, 'sequence': 1, 'value': 'draft', 'label': '準備中'},
+                     {'flow_id': flow.id, 'sequence': 2, 'value': 'done', 'label': '已核准'}])
+        self.env['corpaas.knowledge.flow.transition'].sudo().create(
+            {'flow_id': flow.id, 'from_value': 'draft', 'to_value': 'done', 'button_name': 'action_ok',
+             'button_label': '核准'})
+        brief = self.hooks._manual_flow_brief('kb.x')
+        self.assertEqual(brief[0]['states'], ['準備中', '已核准'])
+        self.assertEqual(brief[0]['buttons'][0], {'button': 'action_ok', 'label': '核准', 'from': '準備中', 'to': '已核准'})
+        text = prompts.repair_prompt({'name': 'n', 'key': 'k'}, [], {}, 'err', '', '', [], [], flows=brief)
+        self.assertIn('已核准', text)
+        self.assertIn('state', text)

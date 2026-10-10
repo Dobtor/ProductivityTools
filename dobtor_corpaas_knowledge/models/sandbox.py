@@ -76,6 +76,8 @@ class KnowledgeSandbox(models.Model):
                                 help='D1 清除完成時間：之後建立的記錄都是示範資料或拍攝產生的')
     password = fields.Char(readonly=True, groups='dobtor_corpaas_knowledge.group_knowledge_manager')
     role_logins = fields.Text(readonly=True, help='{role_code: login}')
+    demo_state_json = fields.Text(readonly=True,
+                                  help='拍攝前讀的示範資料現況：{records: {xmlid: {name, state}}, transient: [...]}')
     purge_report = fields.Text(readonly=True)
     purge_skipped = fields.Boolean(string='免清除', readonly=True,
                                    help='黃金庫的範本資料來源是空白或純示範（A4）：沒有個資可清，'
@@ -397,6 +399,23 @@ class KnowledgeSandbox(models.Model):
         allow = tuple(scripts.CONFIG_MODELS) + tuple(self._rule_values('gate_allow_model'))
         res = self._shell(scripts.gate_script(pairs or {}, since, refs or {}, allow=allow))
         return res.get('bad') or []
+
+    def refresh_demo_state(self, seed):
+        """讀示範資料目前的名稱與狀態、精靈模型清單（一次 shell），存在 demo_state_json。"""
+        self.ensure_one()
+        xids = [r['xmlid'] for r in seed or [] if not r.get('call') and r.get('xmlid')]
+        models = {r.get('model') for r in seed or [] if r.get('model')}
+        flows = self.env['corpaas.knowledge.flow'].sudo().search([('model', 'in', list(models))])
+        res = self._shell(scripts.demo_state_script(xids, {f.model: f.state_field for f in flows}))
+        self.demo_state_json = json.dumps(res, ensure_ascii=False)
+        return res
+
+    def demo_state(self):
+        self.ensure_one()
+        try:
+            return json.loads(self.demo_state_json or '{}') or {}
+        except ValueError:
+            return {}
 
     def gate_bad_records_batch(self, items):
         """一次檢查多張圖：items={鍵: (pairs, refs)} → {鍵: 不允許的 [model, id]}（一次 shell）。"""

@@ -340,6 +340,12 @@ class KnowledgeHooks(models.AbstractModel):
         stats = ctx.setdefault('stats', {})
         if not self._manual_backend_preflight(sandbox, ctx):
             return res
+        try:
+            # 示範資料現況（名稱、狀態）＋精靈模型：寫／修腳本與挑示範資料要用
+            sandbox.sudo().refresh_demo_state(self._manual_seed(sandbox.scenario_id))
+            self._manual_commit()
+        except Exception as e:  # noqa: BLE001 — 讀不到就照舊只給 xmlid
+            _logger.warning('[knowledge.manual] 讀取示範資料現況失敗：%s', e)
         stats['templates_rule'] = stats.get('templates_rule', 0) + (
             self._manual_prepare_templates(package, sandbox, token, stop) or 0)
         self._manual_commit()
@@ -690,8 +696,50 @@ class KnowledgeHooks(models.AbstractModel):
 
     @api.model
     def _manual_demo(self, scenario):
-        return [{'xmlid': r['xmlid'], 'model': r['model']}
-                for r in self._manual_seed(scenario) if not r.get('call')][:300]
+        """給 AI 的示範資料清單：xmlid、模型，加上說明庫裡讀到的名稱與目前狀態。
+
+        ★ 沒有狀態時 AI 分不出草稿與已核准，常把「已核准才有」的按鈕綁到草稿上。"""
+        state = self._manual_demo_state(scenario).get('records') or {}
+        out = []
+        for r in self._manual_seed(scenario):
+            if r.get('call'):
+                continue
+            d = {'xmlid': r['xmlid'], 'model': r['model']}
+            info = state.get(r['xmlid']) or {}
+            if info.get('missing'):
+                continue   # 說明庫裡沒有（重播失敗或被刪）：不給 AI 挑
+            for k in ('name', 'state', 'archived'):
+                if info.get(k):
+                    d[k] = info[k]
+            out.append(d)
+        return out[:300]
+
+    @api.model
+    def _manual_demo_state(self, scenario):
+        sb = self.env['corpaas.knowledge.sandbox'].sudo().search(
+            [('scenario_id', '=', scenario.id), ('demo_state_json', '!=', False)],
+            order='write_date desc', limit=1)
+        return sb.demo_state() if sb else {}
+
+    @api.model
+    def _manual_flow_brief(self, model):
+        """模型的狀態流程（系統量到的）：狀態順序、哪顆按鈕從哪裡推到哪裡、會開哪個精靈。"""
+        out = []
+        for flow in self.env['corpaas.knowledge.flow'].sudo().search([('model', '=', model)]):
+            labels = {st.value: st.label or st.value for st in flow.step_ids}
+            moves = []
+            for t in flow.transition_ids[:30]:
+                m = {'button': t.button_name, 'label': t.button_label}
+                if t.from_value:
+                    m['from'] = labels.get(t.from_value, t.from_value)
+                if t.to_value:
+                    m['to'] = labels.get(t.to_value, t.to_value)
+                if t.opens_model:
+                    m['opens'] = t.opens_model
+                moves.append(m)
+            out.append({'state_field': flow.state_field,
+                        'states': [labels[k] for k in labels], 'buttons': moves})
+        return out
 
     @api.model
     def _manual_binding_fits(self, bindings, scenario):
@@ -745,7 +793,7 @@ class KnowledgeHooks(models.AbstractModel):
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
             'manual_explore', prompts.explore_prompt(
                 self._manual_feature_dict(feature, package), archs, self._manual_demo(scenario), roles,
-                screen=screen),
+                screen=screen, flows=self._manual_flow_brief(feature.model) if feature.model else None),
             package=package, refresh_token=token, record=feature), 'manual_explore')
         steps = data.get('steps')
         manual_lib.validate_steps(steps)
@@ -867,10 +915,19 @@ class KnowledgeHooks(models.AbstractModel):
         logins = json.loads(sb.role_logins or '{}')
         password = sb.password
         shots, by_id, failed = [], {}, Binding
+        transient = sb.demo_state().get('transient') or []
         for b in bindings:
             resolved = {name: resolved_x[x] for name, x in b.bindings().items()
                         if x in resolved_x}
             steps, missing = manual_lib.fill_placeholders(b.template_id.steps(), resolved)
+            wizards = manual_lib.wizard_opens(steps, transient)
+            if wizards:
+                # ★ 精靈是暫存資料，用網址打不開（畫面空白、等元素逾時）：不必拍就知道會失敗
+                #   ☠️ 實機（社群電商方案）：/odoo/wallet.charge.wizard/100 等元素逾時，AI 修了 3 次
+                self._manual_fail(b, _('腳本用網址打開精靈 %s：精靈（暫存模型）只能按開啟它的按鈕打開，'
+                                       '請改成先打開來源單據再按按鈕') % '、'.join(sorted(set(wizards))))
+                failed |= b
+                continue
             role = b.login_role()
             front = b.template_id.feature_id.kind == 'route'
             if not front and role in (ROUTE_VISITOR, ROUTE_MEMBER):
@@ -1108,7 +1165,8 @@ class KnowledgeHooks(models.AbstractModel):
             'manual_repair', prompts.repair_prompt(
                 self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
                 binding.last_error, last.get('dom_text'), last.get('url'), roles,
-                self._manual_demo(binding.scenario_id)),
+                self._manual_demo(binding.scenario_id),
+                flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None),
             package=package, refresh_token=token, record=tmpl), 'manual_repair')
         steps = data.get('steps') or tmpl.steps()
         manual_lib.validate_steps(steps)

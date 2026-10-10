@@ -265,3 +265,25 @@ def clean_title(title, scenario_name=None):
         t = re.sub(r'^%s\s*[-－—–:：|｜]\s*' % name, '', t)
         t = re.sub(r'\s*[-－—–:：|｜]\s*%s$' % name, '', t)
     return t.strip() or (title or '').strip()
+
+
+_MODEL_URL = re.compile(r'^/odoo/([a-z0-9_]+(?:\.[a-z0-9_]+)+)(?:/|$|\?)')
+
+
+def wizard_opens(steps, transient):
+    """腳本用網址或 open 直接打開精靈（暫存模型）的步驟 → 模型名清單（精靈只能按按鈕開）。"""
+    transient = set(transient or ())
+    hits = []
+    for step in steps or []:
+        if not isinstance(step, dict) or not step:
+            continue
+        kind, arg = next(iter(step.items()))
+        model = None
+        if kind == 'open' and isinstance(arg, dict):
+            model = arg.get('model')
+        elif kind == 'goto' and isinstance(arg, dict) and isinstance(arg.get('url'), str):
+            m = _MODEL_URL.match(arg['url'])
+            model = m.group(1) if m else None
+        if model and model in transient:
+            hits.append(model)
+    return hits

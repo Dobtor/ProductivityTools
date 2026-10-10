@@ -42,7 +42,18 @@ def _delta_note(feature):
             % _j(delta))
 
 
-def explore_prompt(feature, archs, demo, roles, screen=None):
+def _flows_note(flows):
+    if not flows:
+        return ''
+    return ("\n\n這個模型的狀態流程（系統實測：狀態順序、哪顆按鈕從哪個狀態推到哪個狀態、會開哪個精靈）："
+            "%s\n要拍「某狀態才有的按鈕」時，挑示範資料清單裡 state 是那個狀態的記錄。" % _j(flows)[:6000])
+
+
+DEMO_NOTE = ("示範資料附了說明庫裡的名稱（name）與目前狀態（state）；按鈕只在特定狀態出現，"
+             "綁記錄前先對狀態。精靈（暫存模型）不能用網址或 open 打開，要按開啟它的按鈕。")
+
+
+def explore_prompt(feature, archs, demo, roles, screen=None, flows=None):
     """沒有截圖腳本範本的功能：看畫面結構與示範資料，寫出範本與繫結。"""
     return (
         "任務：為功能「%(name)s」寫一份無頭瀏覽器截圖腳本（操作說明用）。\n"
@@ -57,10 +68,11 @@ def explore_prompt(feature, archs, demo, roles, screen=None):
         "4. login_role 從角色清單挑最適合操作這個功能的一個 code。\n%(delta)s\n"
         "回覆格式：{\"login_role\":\"<code>\",\"steps\":[…],"
         "\"bindings\":{\"<佔位符名>\":\"<xmlid>\"},\"note\":\"<一句話說明>\"}\n\n"
-        "角色：%(roles)s\n\n示範資料（xmlid, model）：%(demo)s\n\n"
+        "角色：%(roles)s\n\n%(demo_note)s\n示範資料：%(demo)s%(flows)s\n\n"
         "實際畫面（entry＝打開功能後、record＝打開一筆示範記錄）：%(screen)s\n\n"
         "畫面結構（arch）：%(archs)s"
     ) % {
+        'demo_note': DEMO_NOTE, 'flows': _flows_note(flows),
         'screen': _j(screen or {})[:20000], 'delta': _delta_note(feature),
         'name': feature.get('name'), 'key': feature.get('key'), 'kind': feature.get('kind'),
         'model': feature.get('model') or '', 'menu': feature.get('menu_path') or '',
@@ -77,14 +89,14 @@ def bind_prompt(feature, steps, placeholders, demo):
         "把腳本裡的每個佔位符對應到一筆示範資料的 xmlid（挑最能說明功能的那筆）。"
         "不要修改腳本。\n\n"
         "回覆格式：{\"bindings\":{\"<佔位符名>\":\"<xmlid>\"}}\n\n"
-        "佔位符：%(ph)s\n\n示範資料（xmlid, model）：%(demo)s\n\n腳本：%(steps)s"
+        "佔位符：%(ph)s\n\n" + DEMO_NOTE + "\n示範資料：%(demo)s\n\n腳本：%(steps)s"
     ) % {
         'name': feature.get('name'), 'key': feature.get('key'), 'ph': _j(placeholders),
         'demo': _j(demo), 'steps': _j(steps),
     }
 
 
-def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, demo=None):
+def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, demo=None, flows=None):
     """截圖失敗（含佔位符對不到示範資料、角色沒有帳號）：依錯誤修腳本或繫結。
 
     下一次 refresh 才重試。
@@ -99,8 +111,9 @@ def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, de
         "\"login_role\":\"<code>\"（沒改可省略）,\"reason\":\"<修了什麼>\"}\n\n"
         "錯誤：%(error)s\n\n失敗時網址：%(url)s\n\n失敗時畫面文字：%(dom)s\n\n"
         "目前腳本：%(steps)s\n\n目前繫結：%(bindings)s\n\n角色：%(roles)s\n\n"
-        "示範資料（xmlid, model）：%(demo)s"
+        "%(demo_note)s\n示範資料：%(demo)s%(flows)s"
     ) % {
+        'demo_note': DEMO_NOTE, 'flows': _flows_note(flows),
         'name': feature.get('name'), 'key': feature.get('key'), 'vocab': STEP_VOCAB,
         'error': (error or '')[:3000], 'url': url or '', 'dom': (dom_text or '')[:6000],
         'steps': _j(steps), 'bindings': _j(bindings or {}), 'roles': _j(roles or []),

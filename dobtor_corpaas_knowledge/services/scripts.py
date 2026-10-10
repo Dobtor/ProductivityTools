@@ -844,6 +844,40 @@ def gate_batch_script(items, since, allow=CONFIG_MODELS):
     ) % (json.dumps(items), since, json.dumps(list(allow or ())))
 
 
+def demo_state_script(xmlids, state_fields):
+    """示範資料目前的樣子（唯讀）：{xmlid: {name, state}}＋精靈（暫存模型）清單。
+
+    state_fields={model: 狀態欄位}（來自流程）；沒有流程的模型有 state 欄位就用它。
+    ★ 給寫／修截圖腳本的 AI：只給 xmlid 時它分不出哪張是草稿、哪張已核准，
+      常把要「已核准才有」的按鈕綁到草稿單據上。"""
+    return _HEAD + (
+        "XIDS = json.loads(%r)\n"
+        "SF = json.loads(%r)\n"
+        "out = {}\n"
+        "for x in XIDS:\n"
+        "    rec = env.ref(x, raise_if_not_found=False)\n"
+        "    if not rec or rec._name not in env:\n"
+        "        out[x] = {'missing': True}\n"
+        "        continue\n"
+        "    rec = rec.sudo()\n"
+        "    d = {'name': (rec.display_name or '')[:60]}\n"
+        "    f = SF.get(rec._name) or ('state' if 'state' in rec._fields else None)\n"
+        "    if f and f in rec._fields:\n"
+        "        fld = rec._fields[f]\n"
+        "        val = rec[f]\n"
+        "        if fld.type == 'selection':\n"
+        "            d['state'] = dict(fld._description_selection(env)).get(val, val) if val else ''\n"
+        "        elif fld.type == 'many2one':\n"
+        "            d['state'] = val.display_name or ''\n"
+        "    if 'active' in rec._fields and not rec.active:\n"
+        "        d['archived'] = True\n"
+        "    out[x] = d\n"
+        "transient = sorted(m for m in env.registry if env[m]._transient)\n"
+        "env.cr.rollback()\n"
+        "print(MARK + json.dumps({'records': out, 'transient': transient}))\n"
+    ) % (json.dumps(sorted(set(xmlids))), json.dumps(state_fields or {}))
+
+
 def fields_script(models):
     """示範資料起草用：各模型的欄位定義（唯讀）。只回必填、關聯、選項等 AI 需要的部分。"""
     return _HEAD + (
