@@ -453,11 +453,8 @@ class SolutionPackageCode(models.Model):
             if isinstance(data, dict) and data.get('purpose'):
                 rec.write({'summary_json': json.dumps(_trim_summary(data), ensure_ascii=False), 'source': 'ai'})
                 done += 1
-                # ★ 寫一份就提交：之後的步驟失敗回滾也不會把付過錢的摘要丟掉
-                #   ☠️ 實機：20 份摘要寫完、提案時失敗，整個工作回滾，摘要全沒了
-                from ..services import txn
-                if not txn.in_tests(self.env):
-                    self.env.cr.commit()
+                # ☠️ 不能在這裡 commit：AI 工作整段跑在 savepoint 裡，commit 會讓 savepoint 消失，
+                #    工作結束時 RELEASE 失敗、整個工作回滾（實機：方案 14 的情境提案因此不見）
         return done
 
     def action_knowledge_module_summaries(self):

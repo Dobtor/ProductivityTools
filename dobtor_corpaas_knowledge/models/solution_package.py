@@ -1483,7 +1483,8 @@ class SolutionPackage(models.Model):
         if cluster:
             # ★ 計畫第 53 項：從零分群（提出能力）前先讀方案自訂模組，能力依商業邏輯劃分
             try:
-                self._knowledge_module_summaries(token=token)
+                with self.env.cr.savepoint():
+                    self._knowledge_module_summaries(token=token)
             except Exception as e:  # noqa: BLE001
                 _logger.warning('[knowledge] 模組摘要失敗：%s', e)
             modules = self._knowledge_module_brief()
@@ -1910,7 +1911,8 @@ class SolutionPackage(models.Model):
         features = own | off[:150 - len(own)]
         # ★ 計畫第 53 項：提案前先讀方案自訂模組的程式（模組摘要，沒改過就沿用），能力邊界與差異點才準
         try:
-            self._knowledge_module_summaries()
+            with self.env.cr.savepoint():   # 出錯只回滾這一段，不讓整個交易壞掉
+                self._knowledge_module_summaries()
         except Exception as e:  # noqa: BLE001 — 讀不到程式照舊提案
             _logger.warning('[knowledge] 模組摘要失敗：%s', e)
         modules = self._knowledge_module_brief()
@@ -2033,9 +2035,10 @@ class SolutionPackage(models.Model):
                 'reason': item.get('reason'), 'score': item.get('score') or 0})
         # ★ 能力提案出來了：這時才命名流程、歸入能力（一起送審，流程沿用這些能力名稱）
         try:
-            for _i in range(5):   # 一次 10 個流程，最多 50 個
-                if not self._knowledge_flow_names(None):
-                    break
+            with self.env.cr.savepoint():   # 出錯只回滾流程命名，情境與能力提案照樣保留
+                for _i in range(5):   # 一次 10 個流程，最多 50 個
+                    if not self._knowledge_flow_names(None):
+                        break
         except Exception as e:  # noqa: BLE001
             _logger.warning('[knowledge] 圈選後命名流程失敗：%s', e)
         return {
