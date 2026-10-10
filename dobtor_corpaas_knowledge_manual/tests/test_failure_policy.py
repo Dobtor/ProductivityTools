@@ -182,3 +182,16 @@ class TestSelfReview(ManualCase):
         plain = new_test_user(self.env, 'kb_plain_review', groups='base.group_user')
         with self.assertRaises(AccessError):
             art.with_user(plain).with_context(knowledge_system_approve=True).action_approve()
+
+
+@tagged('post_install', '-at_install')
+class TestRunFunnel(ManualCase):
+
+    def test_funnel_rows(self):
+        run = self.env['corpaas.knowledge.run'].sudo().create({'package_id': self.pkg.id, 'token': 'tok-f'})
+        art = self._article(self.f1, self.cap_a, name='建立報名')
+        art.write({'state': 'review', 'manual_review_state': 'fail'})
+        rows = dict((r[0], r[1]) for r in run._knowledge_dashboard_funnel())
+        self.assertEqual(rows['例外清單'], 1)
+        self.assertGreaterEqual(rows['文章'], 1)
+        self.assertIn('漏斗', run.dashboard_html)

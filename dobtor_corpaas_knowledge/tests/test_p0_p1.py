@@ -79,6 +79,30 @@ class TestRunRecord(TransactionCase):
         self.assertEqual([x['stage'] for x in log], ['prepare', 'shoot'])
         self.assertTrue(all('seconds' in x for x in log))
 
+    def test_dashboard(self):
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create(
+                {'name': 'DASH', 'type': 'service'}).id})
+        run = self.env['corpaas.knowledge.run'].sudo().create(
+            {'package_id': pkg.id, 'token': 'tok-dash'})
+        run.begin_stage('shoot')
+        Call = self.env['corpaas.knowledge.ai.call'].sudo()
+        Call.create({'purpose': 'manual_repair', 'refresh_token': 'tok-dash', 'cost_usd': 0.5, 'ok': True})
+        Call.create({'purpose': 'manual_repair', 'refresh_token': 'tok-dash', 'cost_usd': 0.25, 'ok': False})
+        Call.create({'purpose': 'select', 'refresh_token': 'other', 'cost_usd': 9})
+        run.add_stats(shots_failed_access=3, shots_halted=12, shots_ok=5)
+        self.env['corpaas.knowledge.gap_item'].sudo().create(
+            {'package_id': pkg.id, 'kind': 'access', 'evidence': 'x'})
+        html = run.dashboard_html
+        self.assertIn('拍攝', html)
+        self.assertIn('manual_repair', html)
+        self.assertIn('0.75', html, '只算這一輪的 AI 花費')
+        self.assertNotIn('select', html)
+        self.assertIn('失敗：權限', html)
+        self.assertIn('整批提前終止', html)
+        self.assertIn('權限不足', html)
+        self.assertNotIn('拍成功', html, '成功數在摘要，不在失敗區')
+
     def test_failed_run_resumes_failed_stage(self):
         pkg = self.env['infrastructure.solution.package'].sudo().create({
             'product_tmpl_id': self.env['product.template'].create(

@@ -140,3 +140,33 @@ class KnowledgeHooksSelfReview(models.AbstractModel):
                            'manual_review_note': _('自動核准失敗：%s') % str(e)[:300]})
                 failed += 1
         return published, failed
+
+
+class KnowledgeRunFunnel(models.Model):
+    _inherit = 'corpaas.knowledge.run'
+
+    def _knowledge_dashboard_funnel(self):
+        """功能 → 截圖 → 文章 → 上線（計畫第 47 項）：一眼看出卡在哪一段。"""
+        self.ensure_one()
+        package = self.package_id
+        scenarios = package.knowledge_scenario_ids
+        n_feat = self.env['corpaas.knowledge.feature'].sudo().search_count(
+            [('package_ids', 'in', package.id)])
+        shots = self.env['corpaas.knowledge.shot_binding'].sudo().read_group(
+            [('scenario_id', 'in', scenarios.ids)], ['state'], ['state'])
+        shot = {g['state']: g['state_count'] for g in shots}
+        Article = self.env['corpaas.knowledge.article'].sudo()
+        dom = [('scenario_id', 'in', scenarios.ids)]
+        arts = {g['state']: g['state_count'] for g in Article.read_group(dom, ['state'], ['state'])}
+        auto = Article.search_count(dom + [('state', '=', 'published'), ('manual_review_state', '=', 'pass')])
+        exc = Article.search_count(dom + [('state', '=', 'review'), ('manual_review_state', '=', 'fail')])
+        sampled = Article.search_count(dom + [('manual_review_sampled', '=', True)])
+        return [
+            (_('功能'), n_feat, _('方案範圍內的功能')),
+            (_('截圖'), sum(shot.values()), _('成功 %(ok)s、失敗 %(f)s、待拍 %(p)s', ok=shot.get('ok', 0),
+                                              f=shot.get('failed', 0), p=shot.get('pending', 0))),
+            (_('文章'), sum(arts.values()), _('草稿 %(d)s、待審 %(r)s', d=arts.get('draft', 0),
+                                              r=arts.get('review', 0))),
+            (_('上線'), arts.get('published', 0), _('其中自審自動上線 %(a)s、待抽查 %(s)s', a=auto, s=sampled)),
+            (_('例外清單'), exc, _('自審不過、等人處理')),
+        ]

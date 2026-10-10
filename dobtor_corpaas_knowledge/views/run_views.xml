@@ -55,6 +55,9 @@
                         <field name="summary" nolabel="1" colspan="2"/>
                     </group>
                     <notebook>
+                        <page string="儀表板" name="dashboard">
+                            <field name="dashboard_html" nolabel="1"/>
+                        </page>
                         <page string="錯誤" name="error" invisible="not error">
                             <field name="error"/>
                         </page>

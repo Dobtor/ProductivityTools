@@ -5,6 +5,7 @@
   token／是否全量／說明庫，失敗的階段可以單獨重跑。
 """
 import json
+from html import escape
 
 from odoo import _, api, fields, models
 
@@ -45,6 +46,7 @@ class KnowledgeRun(models.Model):
     cancel_requested = fields.Boolean(string='已要求停止', readonly=True,
                                       help='每一批（拍照、起草）之間會檢查；停在乾淨的批次邊界')
     resumes = fields.Integer(string='自動續跑次數', readonly=True)
+    dashboard_html = fields.Html(string='執行儀表板', compute='_compute_dashboard', sanitize=False)
 
     def _compute_name(self):
         for rec in self:
@@ -65,8 +67,8 @@ class KnowledgeRun(models.Model):
             rec.ai_calls = len(calls)
             rec.ai_cost = sum(calls.mapped('cost_usd'))
 
-    def _compute_summary(self):
-        labels = {'sandboxes_rebuilt': _('重建說明庫'), 'sandboxes_reused': _('沿用說明庫'),
+    def _summary_labels(self):
+        return {'sandboxes_rebuilt': _('重建說明庫'), 'sandboxes_reused': _('沿用說明庫'),
                   'sandboxes_overlaid': _('疊加說明庫'),
                   'shots_planned': _('要拍'), 'shots_skipped': _('沿用截圖'),
                   'shots_ok': _('拍成功'), 'shots_failed': _('拍失敗'),
@@ -89,9 +91,85 @@ class KnowledgeRun(models.Model):
                   'diagrams_created': _('新增流程圖'), 'diagrams_updated': _('更新流程圖'),
                   'diagrams_versioned': _('流程圖另開新版'), 'diagrams_failed': _('流程圖沒過檢查'),
                   'diagrams_same': _('流程圖未變')}
+
+    def _compute_summary(self):
+        labels = self._summary_labels()
         for rec in self:
             stats = rec.stats()
             rec.summary = '、'.join('%s %s' % (labels.get(k, k), v) for k, v in stats.items())
+
+    #: 儀表板「失敗與斷路」區塊要顯示的成果鍵（其餘在摘要裡）
+    DASH_FAILURE_KEYS = ('shots_failed_access', 'shots_failed_locator', 'shots_failed_empty',
+                         'shots_failed_backend', 'shots_backend_down', 'shots_halted', 'roles_down',
+                         'repair_skipped_env', 'repair_skipped_same', 'review_failed',
+                         'public_failed', 'iterate_stopped', 'carried_over')
+
+    def _compute_dashboard(self):
+        """一頁看完一次更新（計畫第 47 項）：各階段耗時與 AI 花費、AI 用途排行、失敗分類與斷路、
+        缺口、以及「功能 → 截圖 → 文章 → 上線」漏斗。"""
+        Call = self.env['corpaas.knowledge.ai.call'].sudo()
+        labels = self._summary_labels()
+        for rec in self:
+            calls = Call.search([('refresh_token', '=', rec.token)]) if rec.token else Call
+            parts = [rec._dashboard_stages(calls), rec._dashboard_ai(calls)]
+            stats = rec.stats()
+            fails = [(labels.get(k, k), stats[k]) for k in self.DASH_FAILURE_KEYS if stats.get(k)]
+            parts.append(_dash_table(_('失敗與斷路'), [_('項目'), _('數量')], fails,
+                                     empty=_('這一輪沒有失敗或斷路')))
+            parts.append(rec._dashboard_gaps())
+            funnel = rec._knowledge_dashboard_funnel()
+            if funnel:
+                parts.append(_dash_table(_('漏斗（方案目前狀態）'), [_('階段'), _('數量'), _('說明')], funnel))
+            rec.dashboard_html = '<div class="o_kb_dashboard">%s</div>' % ''.join(parts)
+
+    def _dashboard_stages(self, calls):
+        self.ensure_one()
+        try:
+            log = json.loads(self.log_json or '[]')
+        except ValueError:
+            log = []
+        names = dict(STAGES)
+        rows = []
+        for i, item in enumerate(log):
+            start = fields.Datetime.from_string(item.get('start')) if item.get('start') else None
+            end = fields.Datetime.from_string(item.get('end')) if item.get('end') else None
+            inside = calls.filtered(lambda c: start and c.create_date >= start
+                                    and (not end or c.create_date <= end))
+            minutes = round((end - start).total_seconds() / 60.0, 1) if start and end else _('進行中')
+            rows.append((names.get(item.get('stage'), item.get('stage')), minutes, len(inside),
+                         '%.2f' % sum(inside.mapped('cost_usd'))))
+        return _dash_table(_('階段'), [_('階段'), _('分鐘'), _('AI 次數'), _('AI 花費 USD')], rows,
+                           empty=_('還沒有階段紀錄'))
+
+    def _dashboard_ai(self, calls):
+        by = {}
+        for c in calls:
+            row = by.setdefault(c.purpose, [0, 0.0, 0, 0])
+            row[0] += 1
+            row[1] += c.cost_usd or 0
+            row[2] += 1 if c.cached else 0
+            row[3] += 0 if c.ok else 1
+        rows = [(p, n, '%.2f' % cost, cached, bad)
+                for p, (n, cost, cached, bad) in sorted(by.items(), key=lambda kv: -kv[1][1])]
+        return _dash_table(_('AI 用途（花費高的在前）'),
+                           [_('用途'), _('次數'), _('花費 USD'), _('快取命中'), _('失敗')], rows,
+                           empty=_('這一輪沒有呼叫 AI'))
+
+    def _dashboard_gaps(self):
+        self.ensure_one()
+        Gap = self.env['corpaas.knowledge.gap_item'].sudo()
+        kinds, states = dict(Gap._fields['kind'].selection), dict(Gap._fields['state'].selection)
+        rows = []
+        for g in Gap.read_group([('package_id', '=', self.package_id.id)], ['kind', 'state'],
+                                ['kind', 'state'], lazy=False, orderby='kind, state'):
+            rows.append((kinds.get(g['kind'], g['kind']), states.get(g['state'], g['state']),
+                         g['__count']))
+        return _dash_table(_('缺口（方案目前狀態）'), [_('類型'), _('狀態'), _('數量')], rows,
+                           empty=_('沒有缺口'))
+
+    def _knowledge_dashboard_funnel(self):
+        """漏斗列：[(階段, 數量, 說明)]；說明書模組擴充。"""
+        return []
 
     def stats(self):
         self.ensure_one()
@@ -242,3 +320,14 @@ class SolutionPackageRuns(models.Model):
 
     knowledge_run_ids = fields.One2many('corpaas.knowledge.run', 'package_id',
                                         string='更新執行紀錄')
+
+
+def _dash_table(title, head, rows, empty=None):
+    """儀表板的一個區塊：標題＋表格（內容一律跳脫）。"""
+    if not rows:
+        body = '<p class="text-muted">%s</p>' % escape(empty or '')
+    else:
+        body = '<table class="table table-sm table-striped w-auto"><thead><tr>%s</tr></thead><tbody>%s</tbody></table>' % (
+            ''.join('<th>%s</th>' % escape(str(h)) for h in head),
+            ''.join('<tr>%s</tr>' % ''.join('<td>%s</td>' % escape(str(v)) for v in r) for r in rows))
+    return '<h5 class="mt-3">%s</h5>%s' % (escape(title), body)
