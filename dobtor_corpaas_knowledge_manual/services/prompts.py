@@ -69,7 +69,20 @@ def demo_static(demo, limit=30000):
     return '%s\n\n%s\n示範資料：%s' % (STEP_VOCAB, DEMO_NOTE, text)
 
 
-def explore_prompt(feature, archs, demo, roles, screen=None, flows=None, static_demo=False):
+def _code_note(code, modules):
+    """讀過程式的資訊：模組摘要（用途、規則、前置設定）＋按鈕的程式結論。"""
+    out = ''
+    if modules:
+        out += ("\n\n這個功能所屬模組（讀過程式的摘要：用途、核心規則、前置設定；腳本要符合，例如先完成前置設定、"
+                "選符合規則的記錄）：%s" % _j(modules)[:4000])
+    if code:
+        out += ("\n\n這個模型按鈕在程式裡做什麼（讀過程式的結論：前提、狀態轉換、會開的精靈、需要的設定）：%s"
+                % _j(code)[:4000])
+    return out
+
+
+def explore_prompt(feature, archs, demo, roles, screen=None, flows=None, static_demo=False, code=None,
+                   modules=None):
     """沒有截圖腳本範本的功能：看畫面結構與示範資料，寫出範本與繫結。"""
     return (
         "任務：為功能「%(name)s」寫一份無頭瀏覽器截圖腳本（操作說明用）。\n"
@@ -84,10 +97,11 @@ def explore_prompt(feature, archs, demo, roles, screen=None, flows=None, static_
         "4. login_role 從角色清單挑最適合操作這個功能的一個 code。\n%(delta)s\n"
         "回覆格式：{\"login_role\":\"<code>\",\"steps\":[…],"
         "\"bindings\":{\"<佔位符名>\":\"<xmlid>\"},\"note\":\"<一句話說明>\"}\n\n"
-        "角色：%(roles)s\n\n%(demo_part)s%(flows)s\n\n"
+        "角色：%(roles)s\n\n%(demo_part)s%(flows)s%(code)s\n\n"
         "實際畫面（entry＝打開功能後、record＝打開一筆示範記錄）：%(screen)s\n\n"
         "畫面結構（arch）：%(archs)s"
     ) % {
+        'code': _code_note(code, modules),
         'demo_part': _IN_SYSTEM if static_demo else '%s\n示範資料：%s' % (DEMO_NOTE, _j(demo)),
         'flows': _flows_note(flows),
         'screen': _j(screen or {})[:20000], 'delta': _delta_note(feature),
@@ -115,7 +129,7 @@ def bind_prompt(feature, steps, placeholders, demo, static_demo=False):
 
 
 def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, demo=None, flows=None,
-                  static_demo=False, code=None):
+                  static_demo=False, code=None, modules=None):
     """截圖失敗（含佔位符對不到示範資料、角色沒有帳號）：依錯誤修腳本或繫結。
 
     下一次 refresh 才重試。
@@ -132,8 +146,7 @@ def repair_prompt(feature, steps, bindings, error, dom_text, url, roles=None, de
         "目前腳本：%(steps)s\n\n目前繫結：%(bindings)s\n\n角色：%(roles)s\n\n"
         "%(demo_part)s%(flows)s%(code)s"
     ) % {
-        'code': ("\n\n腳本按的按鈕在程式裡做什麼（讀過程式的結論：前提、狀態轉換、會開的精靈、需要的設定）：%s"
-                 % _j(code)[:4000]) if code else '',
+        'code': _code_note(code, modules),
         'demo_part': _IN_SYSTEM if static_demo else '%s\n示範資料：%s' % (DEMO_NOTE, _j(demo or [])[:30000]),
         'flows': _flows_note(flows),
         'name': feature.get('name'), 'key': feature.get('key'), 'vocab': '' if static_demo else STEP_VOCAB,

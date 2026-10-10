@@ -319,3 +319,20 @@ class TestCodeContext(ManualCase):
         text = prompts.repair_prompt({'name': 'n', 'key': 'k'}, [], {}, 'err', '', '', [], [], flows=brief)
         self.assertIn('已核准', text)
         self.assertIn('state', text)
+
+
+@tagged('post_install', '-at_install')
+class TestCodeBeforeScripts(ManualCase):
+
+    def test_targets_from_flows_and_prompt_has_code(self):
+        from ..services import prompts
+        flow = self.env['corpaas.knowledge.flow'].sudo().create(
+            {'model': 'sale.order', 'state_field': 'kbz', 'package_ids': [(6, 0, self.pkg.ids)]})
+        self.env['corpaas.knowledge.flow.transition'].sudo().create(
+            {'flow_id': flow.id, 'button_name': 'action_confirm', 'button_label': '確認'})
+        self.assertIn(('sale.order', 'action_confirm'), self.hooks._manual_button_targets(self.pkg),
+                      '流程上的按鈕在寫腳本前就是讀程式的對象')
+        text = prompts.explore_prompt({'name': 'n', 'key': 'k'}, [], [], [], code={'sale.order.action_confirm': {
+            'preconditions': ['要有明細']}}, modules=[{'module': 'x', 'purpose': '推薦碼', 'setup': ['先設佣金規則']}])
+        self.assertIn('要有明細', text)
+        self.assertIn('先設佣金規則', text)

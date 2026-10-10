@@ -568,6 +568,21 @@ class TestModuleSummary(TransactionCase):
             {'module': 'x_bad', 'dir_hash': 'b1', 'summary_json': '{"purpose": "未結束', 'facts_json': '{}'})
         self.assertEqual(bad.brief()['module'], 'x_bad', '壞掉的舊資料不讓提案失敗')
 
+    def test_flow_naming_prompt_has_module_summaries(self):
+        from unittest.mock import patch
+        pkg = self.env['infrastructure.solution.package'].sudo().create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'FN', 'type': 'service'}).id})
+        self.env['corpaas.knowledge.capability'].sudo().create({'name': '推薦', 'code': 'kbx_ref'})
+        self.env['corpaas.knowledge.flow'].sudo().create(
+            {'model': 'res.partner', 'state_field': 'kby', 'structure_hash': 'a', 'package_ids': [(6, 0, pkg.ids)]})
+        Pkg = type(pkg)
+        prompts = []
+        with patch.object(Pkg, '_knowledge_module_brief', lambda s: [{'module': 'x_ref', 'purpose': '推薦碼與分享金'}]), \
+                patch.object(type(self.env['corpaas.knowledge.ai']), 'ask',
+                             lambda s, p, prompt, **kw: prompts.append(prompt) or {'items': []}):
+            pkg._knowledge_flow_names(None)
+        self.assertTrue(prompts and '推薦碼與分享金' in prompts[0], '流程命名帶上模組摘要')
+
     def test_flow_naming_waits_for_capabilities(self):
         from unittest.mock import patch
         pkg = self.env['infrastructure.solution.package'].sudo().create({

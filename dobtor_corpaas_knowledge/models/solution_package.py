@@ -1681,14 +1681,26 @@ class SolutionPackage(models.Model):
             return Sel
         waiting_rule = ("待審的能力提案：%s——適合的話 new_capability 填完全相同的名稱，"
                         "不要另取近似的名稱。\n" % '、'.join(waiting)) if waiting else ''
+        # ★ 計畫第 53 項：流程名稱與摘要也依讀過程式的資訊寫（模組摘要＋轉換按鈕的程式結論）
+        subjects = {'%s.%s' % (f.model, t.button_name) for f in todo for t in f.transition_ids if t.button_name}
+        code = self._knowledge_code_facts_for(subjects) if subjects else {}
+        modules = self._knowledge_module_brief()
+        code_rule = ''
+        if modules:
+            code_rule += "方案自訂模組摘要（讀過程式）：%s\n" % json.dumps(
+                [{k: b.get(k) for k in ('module', 'purpose', 'rules')} for b in modules],
+                ensure_ascii=False)[:8000]
+        if code:
+            code_rule += ("轉換按鈕在程式裡做什麼（前提、會開的精靈；摘要要寫出關鍵前提）：%s\n"
+                          % json.dumps(code, ensure_ascii=False)[:6000])
         prompt = (
             "以下是方案「%s」裡的任務流程（狀態步驟與觸發按鈕）。請為每個流程：(1) 取一個使用者"
             "看得懂的業務名稱（4–12 字）；(2) 用 1–2 句寫出這個流程在做什麼；(3) 建議歸入哪個能力"
-            "（用能力 code；優先本方案的；都不適合才給 new_capability 名稱）。\n%s"
+            "（用能力 code；優先本方案的；都不適合才給 new_capability 名稱）。\n%s%s"
             "格式：{\"items\":[{\"model\":…,\"name\":…,\"summary\":…,"
             "\"capability\":…|null,\"new_capability\":…|null,\"reason\":…}]}\n\n"
             "能力：%s\n\n流程：%s"
-        ) % (self.display_name, waiting_rule,
+        ) % (self.display_name, waiting_rule, code_rule,
              json.dumps([{'code': c.code, 'name': c.name, 'in_package': c in mine}
                          for c in caps], ensure_ascii=False),
              json.dumps([f.as_outline() for f in todo], ensure_ascii=False))

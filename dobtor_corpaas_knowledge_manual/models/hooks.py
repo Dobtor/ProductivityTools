@@ -755,7 +755,7 @@ class KnowledgeHooks(models.AbstractModel):
                 package._knowledge_update_profile({'code_error': ident['error']})
             else:
                 package._knowledge_update_profile({'code': ident, 'code_error': ''})
-        targets = set()
+        targets = set(self._manual_button_targets(package))
         Template = self.env['corpaas.knowledge.shot_template'].sudo()
         for tmpl in Template.search([('binding_ids.scenario_id', '=', sandbox.scenario_id.id)]):
             model = tmpl.feature_id.model
@@ -769,10 +769,37 @@ class KnowledgeHooks(models.AbstractModel):
             icp = self.env['ir.config_parameter'].sudo()
             if icp.get_param('corpaas_knowledge.code_semantic') in ('1', 'True', 'true'):
                 # 語意層（要 AI Runner 掛好原始碼、AI Hub 授權讀這個實例）：每輪最多 N 條，只讀還沒有結論的
-                limit = int(icp.get_param('corpaas_knowledge.code_semantic_limit') or 5)
+                limit = int(icp.get_param('corpaas_knowledge.code_semantic_limit') or 15)
                 todo = [f for f in facts.values() if f.state != 'current'][:limit]
                 if todo:
                     package._knowledge_code_semantic(instance, todo, token=ctx.get('token'))
+
+    @api.model
+    def _manual_button_targets(self, package):
+        """方案功能點與流程上的物件按鈕 (model, method)：盤點就知道，不必等腳本寫好。
+
+        ★ 程式結論要在寫腳本「之前」產生：寫腳本、修腳本都用得上。
+          ☠️ 原本只收腳本裡按的按鈕：從零的第一輪腳本還不存在，一條都讀不到。"""
+        ok = re.compile(r'[a-z_][a-z0-9_]*$')
+        out = set()
+        for f in self._manual_candidates(package):
+            if f.kind == 'button' and f.model and f.button_name and ok.match(f.button_name):
+                out.add((f.model, f.button_name))
+        flows = self.env['corpaas.knowledge.flow'].sudo().search([('package_ids', 'in', package.id)])
+        for t in flows.mapped('transition_ids'):
+            if t.button_name and ok.match(t.button_name):
+                out.add((t.flow_id.model, t.button_name))
+        return sorted(out)
+
+    @api.model
+    def _manual_code_context(self, package, feature):
+        """寫／修腳本用的程式資訊：功能所屬模組的摘要＋這個模型按鈕的程式結論。"""
+        brief = [b for b in (package._knowledge_module_brief() if hasattr(package, '_knowledge_module_brief') else [])
+                 if b.get('module') == feature.module]
+        subjects = {'%s.%s' % (m, b) for m, b in self._manual_button_targets(package) if m == feature.model}
+        facts = package._knowledge_code_facts_for(subjects) if subjects and hasattr(
+            package, '_knowledge_code_facts_for') else {}
+        return brief, facts
 
     @api.model
     def _manual_demo_state(self, scenario):
@@ -852,11 +879,12 @@ class KnowledgeHooks(models.AbstractModel):
         roles = [{'code': r.code, 'name': r.name} for r in scenario.all_roles()]
         screen = self._manual_probe(sandbox, feature)
         demo = self._manual_demo(scenario)
+        modules, code = self._manual_code_context(package, feature)
         data = ai_dict(self.env['corpaas.knowledge.ai'].ask(
             'manual_explore', prompts.explore_prompt(
                 self._manual_feature_dict(feature, package), archs, demo, roles,
                 screen=screen, flows=self._manual_flow_brief(feature.model) if feature.model else None,
-                static_demo=True), static=prompts.demo_static(demo),
+                static_demo=True, code=code, modules=modules), static=prompts.demo_static(demo),
             package=package, refresh_token=token, record=feature), 'manual_explore')
         steps = data.get('steps')
         manual_lib.validate_steps(steps)
@@ -1279,17 +1307,12 @@ class KnowledgeHooks(models.AbstractModel):
         tmpl = binding.template_id
         last = json.loads(binding.last_result or '{}')
         demo = self._manual_demo(binding.scenario_id)
-        model = tmpl.feature_id.model
-        buttons = {'%s.%s' % (model, st['click']['button']) for st in tmpl.steps()
-                   if model and isinstance(st, dict) and isinstance(st.get('click'), dict)
-                   and isinstance(st['click'].get('button'), str)}
-        code = package._knowledge_code_facts_for(buttons) \
-            if buttons and hasattr(package, '_knowledge_code_facts_for') else {}
+        modules, code = self._manual_code_context(package, tmpl.feature_id)
         return prompts.repair_prompt(
             self._manual_feature_dict(tmpl.feature_id, package), tmpl.steps(), binding.bindings(),
             binding.last_error, last.get('dom_text'), last.get('url'), self._manual_repair_roles(binding),
             demo, flows=self._manual_flow_brief(tmpl.feature_id.model) if tmpl.feature_id.model else None,
-            static_demo=True, code=code), prompts.demo_static(demo)
+            static_demo=True, code=code, modules=modules), prompts.demo_static(demo)
 
     @api.model
     def _manual_repair(self, package, binding, token):
