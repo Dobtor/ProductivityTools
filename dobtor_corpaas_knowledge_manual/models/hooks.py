@@ -778,20 +778,8 @@ class KnowledgeHooks(models.AbstractModel):
 
     @api.model
     def _manual_button_targets(self, package):
-        """方案功能點與流程上的物件按鈕 (model, method)：盤點就知道，不必等腳本寫好。
-
-        ★ 程式結論要在寫腳本「之前」產生：寫腳本、修腳本都用得上。
-          ☠️ 原本只收腳本裡按的按鈕：從零的第一輪腳本還不存在，一條都讀不到。"""
-        ok = re.compile(r'[a-z_][a-z0-9_]*$')
-        out = set()
-        for f in self._manual_candidates(package):
-            if f.kind == 'button' and f.model and f.button_name and ok.match(f.button_name):
-                out.add((f.model, f.button_name))
-        flows = self.env['corpaas.knowledge.flow'].sudo().search([('package_ids', 'in', package.id)])
-        for t in flows.mapped('transition_ids'):
-            if t.button_name and ok.match(t.button_name):
-                out.add((t.flow_id.model, t.button_name))
-        return sorted(out)
+        """功能點與流程上的物件按鈕：用核心的同一份清單（模組摘要讀程式時也用這份）。"""
+        return package._knowledge_button_targets() if hasattr(package, '_knowledge_button_targets') else []
 
     @api.model
     def _manual_code_context(self, package, feature):

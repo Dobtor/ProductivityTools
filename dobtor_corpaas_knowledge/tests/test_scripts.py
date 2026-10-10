@@ -469,7 +469,9 @@ class TestCodeSemantic(TransactionCase):
         Def = self.env['corpaas.knowledge.code_def'].sudo()
         d1 = Def.create({'def_hash': 'h1', 'method': 'action_ok', 'module': '(core)', 'line_start': 1, 'line_end': 9,
                          'path': '/usr/lib/python3/dist-packages/odoo/addons/sale/models/s.py'})
-        d2 = Def.create({'def_hash': 'h2', 'method': 'action_ok', 'module': 'x', 'summary_json': json.dumps('檢查服務商'),
+        d2 = Def.create({'def_hash': 'h2', 'method': 'action_ok', 'module': 'x',
+                         'summary_json': json.dumps({'summary': '檢查服務商', 'preconditions': ['要有啟用的服務商'],
+                                                     'opens': 'x.wizard'}),
                          'path': '/mnt/src/x.py', 'line_start': 3, 'line_end': 5})
         fact = self.env['corpaas.knowledge.code_fact'].sudo().create(
             {'subject': 'sale.order.action_ok', 'chain_hash': 'c1', 'def_ids': [(6, 0, (d1 | d2).ids)]})
@@ -477,7 +479,7 @@ class TestCodeSemantic(TransactionCase):
 
         def ask(s, purpose, prompt, **kw):
             prompts.append((prompt, kw.get('instance_ref')))
-            return {'defs': {'h1': '確認訂單'}, 'fact': {'preconditions': ['要有明細'], 'opens': ''}}
+            return {'defs': {'h1': {'summary': '確認訂單', 'preconditions': ['要有明細'], 'opens': ''}}}
 
         with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', ask):
             self.assertEqual(pkg._knowledge_code_semantic(inst, fact), 1)
@@ -485,10 +487,17 @@ class TestCodeSemantic(TransactionCase):
         self.assertEqual(ref, 228, '指定讀這個實例')
         self.assertIn('/odoo-core/abcdef123456/odoo/addons/sale/models/s.py 第 1–9 行', prompt)
         self.assertIn('檢查服務商', prompt, '已有摘要的那段不再讀，摘要直接給')
-        self.assertEqual(json.loads(d1.summary_json), '確認訂單')
+        self.assertNotIn('/mnt/src/x.py', prompt, '已有摘要的段落不叫 AI 讀')
+        self.assertEqual(json.loads(d1.summary_json)['summary'], '確認訂單')
         self.assertEqual(fact.state, 'current')
-        self.assertEqual(pkg._knowledge_code_facts_for({'sale.order.action_ok'})['sale.order.action_ok']['preconditions'],
-                         ['要有明細'])
+        got = pkg._knowledge_code_facts_for({'sale.order.action_ok'})['sale.order.action_ok']
+        self.assertEqual(got['preconditions'], ['要有明細', '要有啟用的服務商'], '規則合成：官方在前、覆寫在後')
+        self.assertEqual(got['opens'], 'x.wizard', '會開的精靈以最後覆寫的為準')
+        # 各段都有結構化摘要：結論直接用規則合成，不叫 AI
+        fact.write({'state': 'stale'})
+        with patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', side_effect=AssertionError('不該叫 AI')):
+            self.assertEqual(pkg._knowledge_code_semantic(inst, fact), 1)
+        self.assertEqual(fact.state, 'current')
         # 清理：舊映像沒人用就刪目錄，最近還有人用的不刪
         server = self.env['infrastructure.server'].search([], limit=1)
         tree.write({'server_id': server.id, 'last_seen': '2020-01-01 00:00:00'})
@@ -533,19 +542,28 @@ class TestModuleSummary(TransactionCase):
                  'x_wallet': {'name': '錢包', 'summary': '儲值', 'path': '/elsewhere/x_wallet', 'new_models': []}}
         asked = []
 
+        mdef = self.env['corpaas.knowledge.code_def'].sudo().create(
+            {'def_hash': 'm1', 'method': 'generate_referral_key', 'module': 'x_ref', 'path': '/mnt/src/x_ref/models/p.py',
+             'line_start': 10, 'line_end': 30})
+
         def ask(s, purpose, prompt, **kw):
             asked.append((purpose, kw.get('instance_ref')))
-            return {'purpose': '推薦碼與分享金', 'rules': ['推薦人要是會員'], 'setup': ['先設佣金規則']}
+            assert 'generate_referral_key' in prompt, '讀模組時同一次寫按鈕方法的段落摘要'
+            return {'purpose': '推薦碼與分享金', 'rules': ['推薦人要是會員'], 'setup': ['先設佣金規則'],
+                    'methods': {'m1': {'summary': '產生推薦碼', 'preconditions': ['聯絡人要是會員']}}}
 
         master = SimpleNamespace(_corpaas_golden_db=lambda: golden)
         with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: master), \
                 patch.object(Pkg, '_knowledge_runner_path',
                              lambda s, path, inst: path.replace('/mnt/src', '/instances/tpl-14') if path.startswith('/mnt/src') else ''), \
                 patch.object(remote, 'shell_json', lambda env, inst, db, src: facts), \
+                patch.object(Pkg, '_knowledge_code_chains', lambda s, inst, db, targets: {}), \
                 patch.object(type(self.env['corpaas.knowledge.ai']), 'ask', ask):
             self.assertEqual(pkg._knowledge_module_summaries(), 1, '讀得到程式的寫 AI 摘要')
             self.assertEqual(pkg._knowledge_module_summaries(), 0, '模組沒改就不重讀')
         self.assertEqual(asked, [('module_summary', 228)], '指定讀方案主實例；讀不到的只存結構事實')
+        self.assertEqual(json.loads(mdef.summary_json)['preconditions'], ['聯絡人要是會員'],
+                         '同一次呼叫就有按鈕方法的結構化摘要（之後程式結論不必再讀檔）')
         brief = {b['module']: b for b in pkg._knowledge_module_brief()}
         self.assertEqual(brief['x_ref']['purpose'], '推薦碼與分享金')
         self.assertEqual(brief['x_wallet']['purpose'], '儲值', '沒有 AI 摘要時用說明檔')

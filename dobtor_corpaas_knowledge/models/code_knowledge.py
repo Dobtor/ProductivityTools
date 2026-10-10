@@ -350,48 +350,44 @@ class SolutionPackageCode(models.Model):
         return ''
 
     def _knowledge_code_semantic(self, instance, facts, token=None):
-        """讓 AI 讀這些繼承鏈的程式、寫結論。回傳寫好的筆數。
+        """程式結論：每段定義有「結構化摘要」就用規則合成，不再叫 AI；只讀還沒有摘要的那幾段。
 
-        ★ 已有摘要的定義不再讀（內容雜湊沒變＝同一段程式），只把摘要給 AI 合成結論。"""
+        ★ 讀一次就好：自訂模組的段落在寫模組摘要時已經讀過（同一次 AI 呼叫寫出各按鈕方法的段落摘要），
+          官方原碼的段落依映像版本讀一次、所有方案共用；結論＝各段摘要依繼承順序合併（規則，不花 AI）。
+        回傳寫好的筆數。"""
         self.ensure_one()
         Ai = self.env['corpaas.knowledge.ai']
         done = 0
         for fact in facts:
-            parts, missing = [], []
-            for d in fact.def_ids:
-                where = self._knowledge_runner_path(d.path or '', instance)
-                if d.summary_json:
-                    parts.append({'def': d.def_hash, 'module': d.module, 'summary': json.loads(d.summary_json)})
-                elif where:
-                    missing.append(d)
-                    parts.append({'def': d.def_hash, 'module': d.module, 'read': '%s 第 %s–%s 行' % (
-                        where, d.line_start, d.line_end)})
-            if not missing and not parts:
-                continue
-            prompt = (
-                "任務：說明 Odoo 方法 %s 實際執行時做什麼（官方原碼＋各模組覆寫，依繼承順序由下而上）。\n"
-                "讀標了「read」的檔案行數（唯讀；需要時可以順著讀它呼叫的方法），已有 summary 的不必再讀。\n"
-                "只回 JSON：{\"defs\": {\"<def>\": \"這一段做什麼（一兩句）\"}, \"fact\": {"
-                "\"preconditions\": [\"要先滿足什麼，否則跳什麼錯\"], \"transitions\": [{\"from\": \"\", \"to\": \"\"}], "
-                "\"creates\": [\"會建立的記錄模型\"], \"opens\": \"會開的精靈或畫面模型\", "
-                "\"requires_config\": [\"需要的設定\"], \"errors\": [\"可能出現的錯誤訊息原文\"]}, "
-                "\"also_read\": [\"另外依據的方法 model.method\"]}\n\n繼承鏈：%s"
-            ) % (fact.subject, json.dumps(parts, ensure_ascii=False))
-            try:
-                data = Ai.ask('code_fact', prompt, package=self, refresh_token=token, record=fact,
-                              instance_ref=instance.id)
-            except hub_client.BudgetExceeded:
-                break
-            except Exception as e:  # noqa: BLE001 — Hub 不支援指定實例、回覆壞掉：下次再試
-                _logger.info('[knowledge] 程式結論 %s 沒有完成：%s', fact.subject, e)
-                continue
-            if not isinstance(data, dict) or not isinstance(data.get('fact'), dict):
-                continue
-            summaries = data.get('defs') if isinstance(data.get('defs'), dict) else {}
-            for d in missing:
-                if summaries.get(d.def_hash):
-                    d.summary_json = json.dumps(str(summaries[d.def_hash])[:500], ensure_ascii=False)
-            fact.write({'fact_json': json.dumps(data['fact'], ensure_ascii=False)[:4000], 'state': 'current'})
+            missing = [d for d in fact.def_ids if not _def_info(d)]
+            readable = [(d, self._knowledge_runner_path(d.path or '', instance)) for d in missing]
+            readable = [(d, w) for d, w in readable if w]
+            if readable:
+                parts = [{'def': d.def_hash, 'module': d.module, 'read': '%s 第 %s–%s 行' % (w, d.line_start, d.line_end)}
+                         for d, w in readable]
+                known = [{'def': d.def_hash, 'module': d.module, 'summary': _def_info(d)}
+                         for d in fact.def_ids if _def_info(d)]
+                prompt = (
+                    "任務：讀 Odoo 方法 %s 繼承鏈裡下列段落的程式（唯讀；需要時可順著讀它呼叫的方法），"
+                    "每一段各寫一份結構化摘要。其他段落已有摘要（給你參考，不必再讀）。\n"
+                    "只回 JSON：{\"defs\": {\"<def>\": " + DEF_SCHEMA + "}}\n\n要讀的段落：%s\n\n已有摘要的段落：%s"
+                ) % (fact.subject, json.dumps(parts, ensure_ascii=False), json.dumps(known, ensure_ascii=False)[:6000])
+                try:
+                    data = Ai.ask('code_fact', prompt, package=self, refresh_token=token, record=fact,
+                                  instance_ref=instance.id)
+                except hub_client.BudgetExceeded:
+                    break
+                except Exception as e:  # noqa: BLE001 — Hub 不支援指定實例、回覆壞掉：下次再試
+                    _logger.info('[knowledge] 程式結論 %s 沒有完成：%s', fact.subject, e)
+                    continue
+                got = data.get('defs') if isinstance(data, dict) and isinstance(data.get('defs'), dict) else {}
+                for d, _w in readable:
+                    if isinstance(got.get(d.def_hash), dict):
+                        d.summary_json = json.dumps(_trim_def(got[d.def_hash]), ensure_ascii=False)
+            infos = [_def_info(d) for d in fact.def_ids]
+            if not infos or not all(infos):
+                continue   # 還有段落讀不到：下次再試
+            fact.write({'fact_json': json.dumps(_compose_fact(infos), ensure_ascii=False), 'state': 'current'})
             done += 1
         return done
 
@@ -417,8 +413,16 @@ class SolutionPackageCode(models.Model):
         if not mods:
             return 0
         Summary = self.env['corpaas.knowledge.module_summary'].sudo()
+        Def = self.env['corpaas.knowledge.code_def'].sudo()
+        # ★ 讀一次就好：先由系統找出功能點與流程上的按鈕方法、各段定義在哪個模組，
+        #   讀模組時同一次就把那幾段的結構化摘要寫出來，之後的程式結論用規則合成、不再讀檔
+        try:
+            self._knowledge_code_chains(instance, db, self._knowledge_button_targets())
+        except Exception as e:  # noqa: BLE001
+            _logger.info('[knowledge] 模組摘要：找按鈕方法失敗：%s', e)
         todo = [m for m in mods if not Summary.search_count(
-            [('module', '=', m), ('dir_hash', '=', addons[m]['hash']), ('source', '=', 'ai')])]
+            [('module', '=', m), ('dir_hash', '=', addons[m]['hash']), ('source', '=', 'ai')])
+            or Def.search([('module', '=', m)]).filtered(lambda d: not _def_info(d))]
         if not todo:
             return 0
         facts = remote.shell_json(self.env, instance, db, scripts.module_facts_script(todo)) or {}
@@ -434,25 +438,48 @@ class SolutionPackageCode(models.Model):
             where = self._knowledge_runner_path((f.get('path') or '') + '/__manifest__.py', instance)
             if not where or done >= limit:
                 continue
-            prompt = (
-                "任務：讀 Odoo 擴充模組 %s 的程式（目錄 %s，唯讀；先看 __manifest__.py 與 models/ 下的 .py），"
-                "寫給「寫操作說明書的人」看的摘要。不要猜，只寫程式裡看得到的。\n"
-                "只回 JSON：{\"purpose\": \"這個模組解決什麼問題（一兩句）\", "
-                "\"rules\": [\"核心規則：什麼條件下做什麼、什麼情況會擋下（最多 8 條）\"], "
-                "\"links\": [\"跟哪些模組或模型串接、資料怎麼流\"], "
-                "\"key_models\": [\"主要模型\"], \"setup\": [\"使用前要先設定的\"]}\n\n系統抽的結構事實：%s"
-            ) % (m, where.rsplit('/', 1)[0], json.dumps(f, ensure_ascii=False)[:3000])
-            try:
-                data = Ai.ask('module_summary', prompt, package=self, refresh_token=token,
-                              instance_ref=instance.id)
-            except hub_client.BudgetExceeded:
-                break
-            except Exception as e:  # noqa: BLE001 — 讀不到就先只有結構事實
-                _logger.info('[knowledge] 模組 %s 摘要沒有完成：%s', m, e)
-                continue
-            if isinstance(data, dict) and data.get('purpose'):
-                rec.write({'summary_json': json.dumps(_trim_summary(data), ensure_ascii=False), 'source': 'ai'})
-                done += 1
+            defs = Def.search([('module', '=', m)]).filtered(lambda d: not _def_info(d))
+            batches = [defs[i:i + METHODS_PER_CALL] for i in range(0, len(defs), METHODS_PER_CALL)] or [Def]
+            for n, batch in enumerate(batches):
+                methods = [{'def': d.def_hash, 'method': d.method, 'lines': '%s 第 %s–%s 行' % (
+                    self._knowledge_runner_path(d.path or '', instance) or d.path, d.line_start, d.line_end)}
+                    for d in batch]
+                first = n == 0 and rec.source != 'ai'
+                ask = []
+                if first:
+                    ask.append("\"purpose\": \"這個模組解決什麼問題（一兩句）\", "
+                               "\"rules\": [\"核心規則：什麼條件下做什麼、什麼情況會擋下（最多 8 條）\"], "
+                               "\"links\": [\"跟哪些模組或模型串接、資料怎麼流\"], "
+                               "\"key_models\": [\"主要模型\"], \"setup\": [\"使用前要先設定的\"]")
+                if methods:
+                    ask.append("\"methods\": {\"<def>\": " + DEF_SCHEMA + "}")
+                if not ask:
+                    continue
+                prompt = (
+                    "任務：讀 Odoo 擴充模組 %s 的程式（目錄 %s，唯讀；先看 __manifest__.py 與 models/ 下的 .py），"
+                    "寫給「寫操作說明書的人」看。不要猜，只寫程式裡看得到的。%s\n只回 JSON：{%s}\n\n"
+                    "系統抽的結構事實：%s%s"
+                ) % (m, where.rsplit('/', 1)[0],
+                     "另外把下列按鈕方法各寫一份結構化摘要（按鈕背後的前提、狀態轉換、會開的精靈、錯誤訊息）。"
+                     if methods else '', ', '.join(ask), json.dumps(f, ensure_ascii=False)[:3000],
+                     ('\n\n按鈕方法：%s' % json.dumps(methods, ensure_ascii=False)) if methods else '')
+                try:
+                    data = Ai.ask('module_summary', prompt, package=self, refresh_token=token,
+                                  instance_ref=instance.id)
+                except hub_client.BudgetExceeded:
+                    return done
+                except Exception as e:  # noqa: BLE001 — 讀不到就先只有結構事實
+                    _logger.info('[knowledge] 模組 %s 摘要沒有完成：%s', m, e)
+                    break
+                if not isinstance(data, dict):
+                    continue
+                if first and data.get('purpose'):
+                    rec.write({'summary_json': json.dumps(_trim_summary(data), ensure_ascii=False), 'source': 'ai'})
+                    done += 1
+                got = data.get('methods') if isinstance(data.get('methods'), dict) else {}
+                for d in batch:
+                    if isinstance(got.get(d.def_hash), dict):
+                        d.summary_json = json.dumps(_trim_def(got[d.def_hash]), ensure_ascii=False)
                 # ☠️ 不能在這裡 commit：AI 工作整段跑在 savepoint 裡，commit 會讓 savepoint 消失，
                 #    工作結束時 RELEASE 失敗、整個工作回滾（實機：方案 14 的情境提案因此不見）
         return done
@@ -471,6 +498,21 @@ class SolutionPackageCode(models.Model):
         return {'type': 'ir.actions.act_window', 'name': '模組摘要：%s' % self.display_name,
                 'res_model': 'corpaas.knowledge.module_summary', 'view_mode': 'list,form',
                 'domain': [('id', 'in', ids)]}
+
+    def _knowledge_button_targets(self):
+        """方案功能點與流程上的物件按鈕 (model, method)：盤點就知道，不必等腳本寫好。"""
+        self.ensure_one()
+        ok = re.compile(r'[a-z_][a-z0-9_]*$')
+        out = set()
+        for f in self.env['corpaas.knowledge.feature'].sudo().search(
+                [('package_ids', 'in', self.id), ('kind', '=', 'button'), ('button_name', '!=', False)]):
+            if f.model and ok.match(f.button_name):
+                out.add((f.model, f.button_name))
+        for t in self.env['corpaas.knowledge.flow'].sudo().search(
+                [('package_ids', 'in', self.id)]).mapped('transition_ids'):
+            if t.button_name and ok.match(t.button_name):
+                out.add((t.flow_id.model, t.button_name))
+        return sorted(out)
 
     def _knowledge_module_brief(self, limit=40):
         """方案自訂模組摘要的精簡清單（給提案、示範資料的提示用）；沒有就空清單。"""
@@ -560,6 +602,50 @@ class SolutionPackageCode(models.Model):
             except ValueError:
                 continue
         return out
+
+
+#: 一次 AI 呼叫最多寫幾個按鈕方法的段落摘要（太多回覆會太長）
+METHODS_PER_CALL = 12
+#: 段落結構化摘要的格式（模組摘要與程式結論共用）
+DEF_SCHEMA = ('{"summary": "這一段做什麼（一兩句）", "preconditions": ["要先滿足什麼，否則跳什麼錯"], '
+              '"transitions": [{"from": "", "to": ""}], "creates": ["會建立的記錄模型"], '
+              '"opens": "會開的精靈或畫面模型", "requires_config": ["需要的設定"], "errors": ["錯誤訊息原文"]}')
+_DEF_LISTS = ('preconditions', 'transitions', 'creates', 'requires_config', 'errors')
+
+
+def _def_info(d):
+    """段落的結構化摘要（舊的純文字摘要不算：要重讀一次才有前提、轉換這些欄位）。"""
+    try:
+        v = json.loads(d.summary_json) if d.summary_json else None
+    except ValueError:
+        return None
+    return v if isinstance(v, dict) else None
+
+
+def _trim_def(v):
+    def lst(x, n, w):
+        x = x if isinstance(x, list) else [x] if x else []
+        return [(t if isinstance(t, dict) else str(t)[:w]) for t in x][:n]
+    out = {'summary': str(v.get('summary') or '')[:300], 'opens': str(v.get('opens') or '')[:120]}
+    for k in _DEF_LISTS:
+        out[k] = lst(v.get(k), 8, 300)
+    return out
+
+
+def _compose_fact(infos):
+    """繼承鏈各段摘要 → 一個結論（規則，不花 AI）：官方原碼在前、各模組覆寫在後；
+    前提、轉換、錯誤取聯集（保留順序）；會開的精靈以最後覆寫的為準。"""
+    out = {k: [] for k in _DEF_LISTS}
+    out['opens'] = ''
+    for info in infos:
+        for k in _DEF_LISTS:
+            for x in info.get(k) or []:
+                if x and x not in out[k]:
+                    out[k].append(x)
+        if info.get('opens'):
+            out['opens'] = info['opens']
+    out['summary'] = ' → '.join(i.get('summary') for i in infos if i.get('summary'))[:600]
+    return out
 
 
 def _trim_summary(data):
