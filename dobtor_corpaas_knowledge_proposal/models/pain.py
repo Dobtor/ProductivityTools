@@ -60,7 +60,7 @@ class ProposalPain(models.Model):
     color_hint = fields.Selection(COLORS, string='售前四色')
     module_hint = fields.Char(string='對應原生功能／模組')
     quote_note = fields.Text(string='報價重點／待確認')
-    source = fields.Selection([('manual', '手動'), ('import', '匯入')],
+    source = fields.Selection([('manual', '手動'), ('import', '匯入'), ('ai_source', 'AI 自筆記萃取')],
                               default='manual', required=True)
     mapping_ids = fields.One2many('corpaas.knowledge.mapping', 'pain_id', string='對應能力',
                                   copy=True)

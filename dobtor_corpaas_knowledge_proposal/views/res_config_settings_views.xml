@@ -24,6 +24,19 @@
                         <field name="proposal_third_party_default_monthly"/>
                         <field name="proposal_ai_point_cost"/>
                     </setting>
+                    <setting string="報價條款預設值" help="條款庫的 {validity_days}、{warranty_months}、{payment_days} 變數與「產生款別」的動員款比例。">
+                        <field name="proposal_validity_days"/>
+                        <field name="proposal_warranty_months"/>
+                        <field name="proposal_payment_days"/>
+                        <field name="proposal_acceptance_days"/>
+                        <field name="proposal_mobilization_ratio"/>
+                    </setting>
+                    <setting string="階段週數" help="「產生階段」時，把每個階段的工時換成週數用的每週投入工時。">
+                        <field name="proposal_hours_per_week"/>
+                    </setting>
+                    <setting string="商機同步" help="送出版本時更新商機的預估收入（所有未失敗案件、客戶手上那一版的合計）。商機階段與成交／失敗永遠不自動變。">
+                        <field name="proposal_sync_lead_revenue"/>
+                    </setting>
                     <setting string="工時回寫" help="timesheet 小時換人天；工時範本移動平均的視窗大小。">
                         <field name="proposal_hours_per_day"/>
                         <field name="proposal_calibration_window"/>

@@ -9,6 +9,14 @@
             <field name="company_id" eval="False"/>
         </record>
 
+        <record id="seq_corpaas_knowledge_case" model="ir.sequence">
+            <field name="name">報價案件</field>
+            <field name="code">corpaas.knowledge.case</field>
+            <field name="prefix">CAS/%(year)s/</field>
+            <field name="padding">4</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
         <!-- 報價單上導入服務／客製開發工項用的產品（數量＝人天）；設定頁可換成別的產品 -->
         <record id="product_implementation_service" model="product.product">
             <field name="name">導入服務（人天）</field>

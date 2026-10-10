@@ -12,7 +12,7 @@
 from odoo import _, fields, models
 from odoo.exceptions import UserError
 
-PROVISION_STATES = [('hold', '待確認開通'), ('released', '已確認開通')]
+PROVISION_STATES = [('hold', '待確認開通'), ('released', '已確認開通'), ('none', '不需開通')]
 
 
 class SaleOrder(models.Model):
@@ -27,7 +27,9 @@ class SaleOrder(models.Model):
 
     def _knowledge_provision_held(self):
         self.ensure_one()
-        return bool(self.knowledge_proposal_id) and self.knowledge_provision_state != 'released'
+        # 'none'＝工時制報價單：沒有平台可開通，不擋也不留言
+        return bool(self.knowledge_proposal_id) \
+            and self.knowledge_provision_state not in ('released', 'none')
 
     def _maybe_provision_by_tier(self):
         self.ensure_one()

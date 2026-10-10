@@ -30,6 +30,8 @@ from .effort import ACTIVITIES, ACTIVITY_ALIASES
 _logger = logging.getLogger(__name__)
 
 STATES = [('draft', '草稿'), ('sent', '已送出'), ('won', '成交'), ('lost', '未成交')]
+#: 計價形態。報價規格書至少有兩種：一次性導入＋訂閱，與工時制固定預算（含預算配比與款別驗收）。
+PRICING_MODELS = [('subscription', '訂閱＋一次性導入'), ('time_budget', '工時制固定預算')]
 CYCLES = [('monthly', '月繳'), ('quarterly', '季繳'), ('yearly', '年繳')]
 COLOR_BADGE = {
     'native': 'text-bg-success', 'dobtor': 'text-bg-primary', 'tuning': 'text-bg-warning',
@@ -133,6 +135,67 @@ class KnowledgeProposal(models.Model):
     feedback_date = fields.Datetime(string='工時回寫時間', readonly=True, copy=False)
     html = fields.Html(string='建議書內容', copy=False, readonly=True)
 
+    # 案件與版本：版本是一等公民（見 case.py）。case_id 在資料庫層不設必填 ——
+    # 舊資料升級時還沒有案件；create() 一律自動補上，所以新資料不會沒有。
+    case_id = fields.Many2one('corpaas.knowledge.case', string='案件', index=True,
+                              ondelete='restrict', copy=False, tracking=True)
+    version_major = fields.Integer(string='主版', default=1, copy=False)
+    version_minor = fields.Integer(string='次版', default=0, copy=False)
+    version_no = fields.Char(string='版號', compute='_compute_version_no', store=True)
+    version_date = fields.Date(string='版本日期', default=fields.Date.context_today,
+                               copy=False)
+    doc_purpose = fields.Char(
+        string='文件用途', help='寫在文件封面，例如「業務報價範圍參考」「導入範圍確認與預算配比」。')
+    supersedes_id = fields.Many2one('corpaas.knowledge.proposal', string='前一版',
+                                    copy=False, ondelete='set null', readonly=True)
+    superseded_by_ids = fields.One2many('corpaas.knowledge.proposal', 'supersedes_id',
+                                        string='後續版本')
+    opportunity_id = fields.Many2one(related='case_id.opportunity_id', string='商機')
+
+    # 計價形態（工時制：不含訂閱與加購，人天以每小時費率換算，另有預算配比與款別）
+    pricing_model = fields.Selection(
+        PRICING_MODELS, string='計價形態', default='subscription', required=True,
+        tracking=True, help='工時制固定預算：沒有訂閱與加購模組，只有導入工時；金額＝工時 × 每小時費率。')
+    hourly_rate = fields.Float(
+        string='每小時費率', help='工時制用。留空時取設定頁「對外日費率」÷「每人天工時」。')
+    budget_cap = fields.Monetary(
+        string='客戶預算上限', help='客戶給的預算（例如 NT$1,000,000）。只拿來提示超出多少，不會改金額。')
+    budget_gap = fields.Monetary(string='預算差額', compute='_compute_budget_gap',
+                                 help='預算上限減首年總額；負數＝超出預算。')
+
+    @api.depends('budget_cap', 'total')
+    def _compute_budget_gap(self):
+        for rec in self:
+            rec.budget_gap = (rec.budget_cap - rec.total) if rec.budget_cap else 0.0
+
+    def _day_rate(self, settings=None):
+        """估算明細用的人天費率。
+
+        ★ 工時制以每小時費率為準（每人天工時 × 每小時費率）：報價規格書寫的是
+          「NT$2,500／小時」，不是日費率；換算成人天只是系統內部的單位。
+        """
+        s = settings or self._settings()
+        if self.pricing_model == 'time_budget':
+            hourly = self.hourly_rate or (s['day_rate'] / (s['hours_per_day'] or 8.0))
+            return hourly * (s['hours_per_day'] or 8.0)
+        return s['day_rate']
+
+    _sql_constraints = [
+        ('case_version_uniq', 'unique(case_id, version_major, version_minor)',
+         '同一個案件的版號不能重複。'),
+    ]
+
+    @api.depends('version_major', 'version_minor')
+    def _compute_version_no(self):
+        for rec in self:
+            rec.version_no = 'v%s.%s' % (rec.version_major or 0, rec.version_minor or 0)
+
+    @api.depends('name', 'version_no')
+    def _compute_display_name(self):
+        for rec in self:
+            rec.display_name = '%s %s' % (rec.name, rec.version_no) if rec.version_no \
+                else rec.name
+
     pain_ids = fields.One2many('corpaas.knowledge.pain', 'proposal_id', string='痛點',
                                copy=True)
     mapping_ids = fields.One2many('corpaas.knowledge.mapping', 'proposal_id',
@@ -189,7 +252,28 @@ class KnowledgeProposal(models.Model):
                 raise UserError(_('建議書只能從草稿建立；狀態與送出快照由「送出」按鈕產生。'))
             if vals.get('name', '/') == '/':
                 vals['name'] = seq.next_by_code('corpaas.knowledge.proposal') or '/'
+            self._prepare_case_vals(vals)
         return super().create(vals_list)
+
+    @api.model
+    def _prepare_case_vals(self, vals):
+        """每一份建議書都屬於一個案件：沒指定就替它開一個，指定了就接在最新版號後面。
+
+        ★ 沒帶 partner_id 就不替它開案件 —— 反正必填欄位會讓這筆 create 失敗，
+          不要留下一個沒人要的空案件。
+        """
+        Case = self.env['corpaas.knowledge.case']
+        if vals.get('case_id'):
+            if 'version_major' not in vals and 'version_minor' not in vals:
+                major, minor = Case.browse(vals['case_id'])._next_version()
+                vals.update(version_major=major, version_minor=minor)
+        elif vals.get('partner_id'):
+            case = Case.create({
+                'partner_id': vals['partner_id'],
+                'user_id': vals.get('user_id', self.env.uid),
+                'company_id': vals.get('company_id', self.env.company.id),
+            })
+            vals['case_id'] = case.id
 
     def write(self, vals):
         if not is_internal(self.env):
@@ -213,7 +297,17 @@ class KnowledgeProposal(models.Model):
         return super().unlink()
 
     def copy(self, default=None):
+        """複製＝同一案件的下一版（版號、前版指標一併帶好）。
+
+        ★ 次版 +1 是一般的「複製新版」；context 帶 `proposal_major_version` 是重大改版。
+        """
         default = dict(default or {}, state='draft')
+        if 'case_id' not in default and self.case_id:
+            major, minor = self.case_id._next_version(
+                major=bool(self.env.context.get('proposal_major_version')))
+            default.update(
+                case_id=self.case_id.id, version_major=major, version_minor=minor,
+                supersedes_id=self.id, version_date=fields.Date.context_today(self))
         return super().copy(default)
 
     def _ensure_draft(self):
@@ -445,7 +539,8 @@ class KnowledgeProposal(models.Model):
                  'mapping_ids.addon_product_ids', 'master_data_ids.record_count',
                  'product_tmpl_id', 'product_tmpl_id.ccu_tier_line_ids.ccu_min',
                  'package_id', 'tier', 'ccu', 'billing_cycle', 'storage_gb',
-                 'committed_qty', 'committed_usage', 'state', 'snapshot_json')
+                 'committed_qty', 'committed_usage', 'state', 'snapshot_json',
+                 'pricing_model')
     def _compute_amounts(self):
         s = self._settings()
         for rec in self:
@@ -453,17 +548,26 @@ class KnowledgeProposal(models.Model):
             #   已寄給客戶的金額不能跟著重算。
             if rec.state != 'draft' and rec._apply_snapshot_amounts():
                 continue
-            try:
-                monthly, first_year, note = rec._subscription_price()
-            except Exception as e:  # noqa: BLE001 — 價格設定錯誤不能讓整張表單打不開
-                _logger.warning('建議書 %s 訂閱計價失敗：%s', rec.name, e)
-                monthly, first_year, note = 0.0, 0.0, _('訂閱計價失敗：%s') % e
+            time_budget = rec.pricing_model == 'time_budget'
+            if time_budget:
+                # 工時制沒有訂閱與加購；也沒有我們代管的主機，所以基礎設施、第三方、AI 成本都不算
+                monthly, first_year = 0.0, 0.0
+                note = _('工時制：%(h)s 小時 × %(r)s／小時',
+                         h=round(sum(rec.estimate_line_ids.mapped('days'))
+                                 * (s['hours_per_day'] or 8.0), 2),
+                         r=rec._money(rec._day_rate(s) / (s['hours_per_day'] or 8.0)))
+            else:
+                try:
+                    monthly, first_year, note = rec._subscription_price()
+                except Exception as e:  # noqa: BLE001 — 價格設定錯誤不能讓整張表單打不開
+                    _logger.warning('建議書 %s 訂閱計價失敗：%s', rec.name, e)
+                    monthly, first_year, note = 0.0, 0.0, _('訂閱計價失敗：%s') % e
             lines = rec.estimate_line_ids
             custom = lines.filtered('is_custom')
             impl = lines - custom
             rec.subscription_monthly = monthly
             rec.subscription_amount = first_year
-            rec.addon_amount = rec._addon_first_year()
+            rec.addon_amount = 0.0 if time_budget else rec._addon_first_year()
             rec.implementation_days = sum(impl.mapped('days'))
             rec.implementation_amount = sum(impl.mapped('amount'))
             rec.custom_days = sum(custom.mapped('days'))
@@ -473,13 +577,17 @@ class KnowledgeProposal(models.Model):
             rec.pricing_note = note
 
             reasons = []
-            infra, reliable = rec._infra_base_monthly(s)
+            if time_budget:
+                infra, reliable = 0.0, True
+            else:
+                infra, reliable = rec._infra_base_monthly(s)
             if not reliable:
                 reasons.append(_('主機成本以設定頁「每 CCU 月成本」估算'))
-            infra += (rec.storage_gb or 0) * s['cost_per_gb_monthly']
+            if not time_budget:
+                infra += (rec.storage_gb or 0) * s['cost_per_gb_monthly']
             third, ai_points = 0.0, 0.0
             uncalibrated = []
-            for cap in rec._capabilities().sudo():
+            for cap in (rec._capabilities().sudo() if not time_budget else []):
                 profile = calc.parse_resource_profile(cap.resource_profile)
                 if not profile.get('calibrated'):
                     uncalibrated.append(cap.name)
@@ -713,7 +821,7 @@ class KnowledgeProposal(models.Model):
         self.ensure_one()
         s = self._settings()
         Template = self.env['corpaas.knowledge.effort_template'].sudo()
-        base = {'proposal_id': self.id, 'day_rate': s['day_rate'],
+        base = {'proposal_id': self.id, 'day_rate': self._day_rate(s),
                 'internal_day_cost': s['internal_day_cost']}
         vals, done_caps = [], set()
         for m in self._active_mappings():
@@ -872,14 +980,15 @@ class KnowledgeProposal(models.Model):
 
         out += Markup('<h2>%s</h2>') % _('三、報價')
         out += head(_('項目'), _('內容'), _('金額（首年）'))
-        out += row(_('訂閱方案'), _('%(pkg)s・%(t)s・%(c)s CCU・月費 %(m)s',
-                                  pkg=self.product_tmpl_id.display_name or '', t=tier_label,
-                                  c=self._effective_ccu(),
-                                  m=self._money(self.subscription_monthly)),
-                   self._money(self.subscription_amount))
-        for prod in self._addon_products():
-            out += row(_('加購模組'), prod.display_name,
-                       self._money(self._addon_first_year_for(prod)))
+        if self.pricing_model != 'time_budget':
+            out += row(_('訂閱方案'), _('%(pkg)s・%(t)s・%(c)s CCU・月費 %(m)s',
+                                      pkg=self.product_tmpl_id.display_name or '', t=tier_label,
+                                      c=self._effective_ccu(),
+                                      m=self._money(self.subscription_monthly)),
+                       self._money(self.subscription_amount))
+            for prod in self._addon_products():
+                out += row(_('加購模組'), prod.display_name,
+                           self._money(self._addon_first_year_for(prod)))
         labels = dict(self.env['corpaas.knowledge.estimate_line']._fields['activity'].selection)
         for line in self.estimate_line_ids.filtered(lambda l: not l.is_custom):
             out += row(_('導入服務'), _('%(c)s／%(a)s：%(d)s 人天',
@@ -893,8 +1002,15 @@ class KnowledgeProposal(models.Model):
                    Markup('<strong>%s</strong>') % self._money(self.total))
         out += Markup('</tbody></table>')
         rate = self.estimate_line_ids[:1].day_rate or self._settings()['day_rate']
-        out += Markup('<p>%s</p>') % (_('導入服務以人天計價，日費率 %s；客製開發為估計區間中位數，'
-                                       '確認規格後另行報價。') % self._money(rate))
+        if self.pricing_model == 'time_budget':
+            hpd = self._settings()['hours_per_day'] or 8.0
+            out += Markup('<p>%s</p>') % (_('工時制：每小時 %(r)s，預估 %(h)s 小時；客製開發為估計區間中位數，'
+                                           '確認規格後另行報價。') % {
+                'r': self._money(rate / hpd),
+                'h': round((self.implementation_days + self.custom_days) * hpd, 2)})
+        else:
+            out += Markup('<p>%s</p>') % (_('導入服務以人天計價，日費率 %s；客製開發為估計區間中位數，'
+                                           '確認規格後另行報價。') % self._money(rate))
 
         if self.master_data_ids:
             out += Markup('<h2>%s</h2>') % _('四、需要貴公司提供的資料（資料移轉檢核表）')
@@ -918,7 +1034,8 @@ class KnowledgeProposal(models.Model):
         self.ensure_one()
         if self.sale_order_id:
             return self.action_open_sale_order()
-        if not self.product_tmpl_id:
+        time_budget = self.pricing_model == 'time_budget'
+        if not self.product_tmpl_id and not time_budget:
             raise UserError(_('請先選訂閱方案。'))
         self._check_ccu_bounds()
         if self.state != 'draft':
@@ -928,22 +1045,29 @@ class KnowledgeProposal(models.Model):
             raise UserError(_('請先在設定頁指定「導入服務產品」。'))
         # ★ 不標 is_to_create_paas：建議書來的報價單確認時不自動開通（既有客戶多半是
         #   疊加或換層級，預設開一座新平台是錯的）。確認後由業務按「確認開通」選模式。
+        # ★ 帶上商機：sale_crm 才會在報價單確認時回填收入，dobtor_mail_activity_crm 才會把
+        #   專案回寫到商機 —— 以前建單沒帶，這兩條都是斷的。
         order = self.env['sale.order'].create({
             'partner_id': self.partner_id.id, 'origin': self.name,
             'user_id': self.user_id.id, 'company_id': self.company_id.id,
-            'knowledge_proposal_id': self.id, 'knowledge_provision_state': 'hold'})
+            'opportunity_id': self.case_id.opportunity_id.id or False,
+            'knowledge_proposal_id': self.id,
+            # 工時制沒有平台可開通：不要留一個永遠按不掉的「待確認開通」
+            'knowledge_provision_state': 'none' if time_budget else 'hold'})
         Line = self.env['sale.order.line']
-        pkg_vals = {'order_id': order.id, 'product_id': self._package_variant().id,
-                    'product_uom_qty': 1}
-        for field, value in (('package_tier', self.tier),
-                             ('concurrent_users', self._effective_ccu()),
-                             ('storage_gb', self.storage_gb),
-                             ('committed_qty', self.committed_qty),
-                             ('committed_usage', self.committed_usage)):
-            if field in Line._fields:
-                pkg_vals[field] = value
-        vals_list = [pkg_vals]
-        for prod in self._addon_products():
+        pkg_vals = {}
+        if not time_budget:
+            pkg_vals = {'order_id': order.id, 'product_id': self._package_variant().id,
+                        'product_uom_qty': 1}
+            for field, value in (('package_tier', self.tier),
+                                 ('concurrent_users', self._effective_ccu()),
+                                 ('storage_gb', self.storage_gb),
+                                 ('committed_qty', self.committed_qty),
+                                 ('committed_usage', self.committed_usage)):
+                if field in Line._fields:
+                    pkg_vals[field] = value
+        vals_list = [] if time_budget else [pkg_vals]
+        for prod in ([] if time_budget else self._addon_products()):
             vals_list.append({'order_id': order.id, 'product_id': prod.id, 'product_uom_qty': 1})
         labels = dict(self.env['corpaas.knowledge.estimate_line']._fields['activity'].selection)
         for line in self.estimate_line_ids.sorted(lambda l: (l.is_custom, l.id)):
@@ -996,7 +1120,16 @@ class KnowledgeProposal(models.Model):
         caps = self._capabilities().sudo()
         return {
             'sent_at': fields.Datetime.to_string(fields.Datetime.now()),
+            'case': {'id': self.case_id.id, 'name': self.case_id.name,
+                     'title': self.case_id.title or False,
+                     'opportunity': self.case_id.opportunity_id.display_name or False},
+            'version': {'no': self.version_no, 'major': self.version_major,
+                        'minor': self.version_minor,
+                        'date': fields.Date.to_string(self.version_date) or False,
+                        'purpose': self.doc_purpose or False,
+                        'supersedes': self.supersedes_id.version_no or False},
             'partner': self.partner_id.display_name,
+            'company': self.company_id.name,
             'product': self.product_tmpl_id.display_name or False,
             'package_id': self.package_id.id or False,
             'tier': self.tier, 'ccu': self._effective_ccu(), 'billing_cycle': self.billing_cycle,
@@ -1030,6 +1163,36 @@ class KnowledgeProposal(models.Model):
                 'labor_cost', 'infra_monthly_cost', 'third_party_monthly', 'ai_monthly_cost',
                 'internal_cost', 'margin', 'margin_rate', 'cost_is_estimate', 'cost_note')},
             'html': str(self.html or ''),
+            'pricing': {'model': self.pricing_model,
+                        'model_label': dict(PRICING_MODELS).get(self.pricing_model),
+                        'hourly_rate': self.hourly_rate or False,
+                        'budget_cap': self.budget_cap or False,
+                        'total_hours': self.total_hours, 'weeks_total': self.weeks_total},
+            'basis': [{'kind': b.kind, 'date': fields.Date.to_string(b.date) or False,
+                       'title': b.title, 'note': b.note or False,
+                       'fingerprint': b.fingerprint or False} for b in self.basis_ids],
+            'changes': [{'ref_no': c.ref_no or False, 'demand': c.demand,
+                         'handling': c.handling or False, 'chapter': c.chapter_ref or False,
+                         'origin': c.origin} for c in self.change_ids],
+            'scope': [{'kind': i.kind, 'name': i.name, 'detail': i.detail or False}
+                      for i in self.scope_ids],
+            'obligations': [{'kind': o.kind, 'text': o.text} for o in self.obligation_ids],
+            'phases': [{'code': p.code or False, 'name': p.name, 'content': p.content or False,
+                        'milestone': p.milestone or False, 'activity': p.activity or False,
+                        'week_from': p.week_from, 'week_to': p.week_to, 'hours': p.hours}
+                       for p in self.phase_ids],
+            'units': [{'name': u.name, 'criteria': u.criteria or False, 'hours': u.hours,
+                       'ratio': u.ratio, 'amount': u.amount,
+                       'capabilities': u.capability_ids.mapped('name'),
+                       'is_custom': u.is_custom_bucket} for u in self.unit_ids],
+            'payments': [{'name': t.name, 'trigger': t.trigger or False, 'ratio': t.ratio,
+                          'unit': t.unit_id.name or False, 'amount': t.amount}
+                         for t in self.payment_ids],
+            'clauses': [{'category': c.category or False, 'text': c.text}
+                        for c in self.clause_ids if c.included],
+            'benefits': [{'name': b.name, 'current': b.current_manual or False,
+                          'after': b.after or False, 'saving': b.annual_saving,
+                          'assumption': b.assumption or False} for b in self.benefit_ids],
         }
 
     def action_send(self):
@@ -1044,19 +1207,57 @@ class KnowledgeProposal(models.Model):
             rec.flush_recordset()
             snap = json.dumps(rec._snapshot(), ensure_ascii=False, default=str)
             rec._internal().write({'state': 'sent', 'snapshot_json': snap})
+            rec._sync_lead('sent')
         return True
 
     def action_mark_won(self):
-        self.filtered(lambda p: p.state == 'sent')._internal().write({'state': 'won'})
+        won = self.filtered(lambda p: p.state == 'sent')
+        won._internal().write({'state': 'won'})
+        won._sync_lead('won')
         return True
 
     def action_mark_lost(self):
-        self.filtered(lambda p: p.state == 'sent')._internal().write({'state': 'lost'})
+        lost = self.filtered(lambda p: p.state == 'sent')
+        lost._internal().write({'state': 'lost'})
+        lost._sync_lead('lost')
         return True
 
+    def _sync_lead(self, event):
+        """把版本的進展告訴商機：留言一定做；送出時順便更新預估收入。
+
+        ☠️ 不自動搬商機階段、不自動標成交／失敗：各公司的階段名稱不同，而
+           「成交」是業務對客戶的承諾，不該由一個按鈕的副作用決定。
+        ★ 預估收入＝商機底下所有未失敗案件、客戶手上那一版的報價合計，不是這一版
+          單獨的金額 —— 一個商機有多個案件時，後送出的不能把前一案蓋掉。
+        ★ 幣別不同就不寫收入（商機用公司幣別，換算不是這裡的事）。
+        """
+        labels = {'sent': _('已送出'), 'won': _('成交'), 'lost': _('未成交')}
+        for rec in self:
+            lead = rec.case_id.opportunity_id
+            if not lead:
+                continue
+            lead.sudo().message_post(
+                body=_('報價案件 %(case)s 的 %(ver)s %(event)s（%(total)s）',
+                       case=rec.case_id.display_name, ver=rec.version_no,
+                       event=labels[event], total=rec._money(rec.total)),
+                subtype_xmlid='mail.mt_note')
+            if event == 'sent' and rec._settings()['sync_lead_revenue'] \
+                    and lead.company_currency == rec.currency_id:
+                revenue = lead.sudo()._knowledge_revenue_from_cases()
+                if revenue:
+                    lead.sudo().expected_revenue = revenue
+
     def action_copy_new_version(self):
+        """複製成同一案件的下一個次版（v1.0 → v1.1）。"""
         self.ensure_one()
         new = self.copy()
+        return {'type': 'ir.actions.act_window', 'res_model': self._name, 'res_id': new.id,
+                'view_mode': 'form', 'target': 'current'}
+
+    def action_copy_major_version(self):
+        """重大改版（v1.3 → v2.0）：範圍或計價方式變了，而不只是修訂。"""
+        self.ensure_one()
+        new = self.with_context(proposal_major_version=True).copy()
         return {'type': 'ir.actions.act_window', 'res_model': self._name, 'res_id': new.id,
                 'view_mode': 'form', 'target': 'current'}
 

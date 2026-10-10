@@ -14,6 +14,13 @@ PARAMS = {
     'ai_point_cost': ('float', 1.0),
     'calibration_window': ('int', 5),
     'service_product_id': ('int', 0),
+    'sync_lead_revenue': ('bool', True),
+    'hours_per_week': ('float', 20.0),
+    'validity_days': ('int', 60),
+    'warranty_months': ('int', 3),
+    'payment_days': ('int', 10),
+    'acceptance_days': ('int', 10),
+    'mobilization_ratio': ('float', 30.0),
 }
 PREFIX = 'corpaas_proposal.'
 
@@ -46,6 +53,25 @@ class ResConfigSettings(models.TransientModel):
         string='每 AI 點成本', config_parameter=PREFIX + 'ai_point_cost', default=1.0)
     proposal_calibration_window = fields.Integer(
         string='校正移動平均視窗', config_parameter=PREFIX + 'calibration_window', default=5)
+    proposal_sync_lead_revenue = fields.Boolean(
+        string='送出時更新商機預估收入', config_parameter=PREFIX + 'sync_lead_revenue',
+        default=True,
+        help='送出版本時，把商機底下所有未失敗案件、客戶手上那一版的報價合計寫進商機的預估收入；'
+             '無論開關，商機都會收到一則進展留言。商機階段與成交／失敗永遠不自動變。')
+    proposal_hours_per_week = fields.Float(
+        string='每階段每週投入工時', config_parameter=PREFIX + 'hours_per_week', default=20.0,
+        help='「產生階段」時用來把工時換成週數；預設 20 小時約 0.5 FTE。')
+    proposal_validity_days = fields.Integer(
+        string='報價有效天數', config_parameter=PREFIX + 'validity_days', default=60)
+    proposal_warranty_months = fields.Integer(
+        string='保固月數', config_parameter=PREFIX + 'warranty_months', default=3)
+    proposal_payment_days = fields.Integer(
+        string='付款期限（日）', config_parameter=PREFIX + 'payment_days', default=10)
+    proposal_acceptance_days = fields.Integer(
+        string='驗收期限（工作日）', config_parameter=PREFIX + 'acceptance_days', default=10,
+        help='驗收規則條款：客戶須在提出驗收申請後這麼多工作日內簽認或提出書面異議。')
+    proposal_mobilization_ratio = fields.Float(
+        string='動員款比例（%）', config_parameter=PREFIX + 'mobilization_ratio', default=30.0)
     proposal_service_product_id = fields.Many2one(
         'product.product', string='導入服務產品',
         domain="[('type', '=', 'service')]",
@@ -69,6 +95,13 @@ class ResConfigSettings(models.TransientModel):
         out = {}
         for key, (kind, default) in PARAMS.items():
             raw = icp.get_param(PREFIX + key)
+            if kind == 'bool':
+                # ★ ICP 存的是字串，所以字串 'False' 要當成假；
+                # ☠️ 但沒設定時 get_param 回的是布林 False（不是 None）—— 它要走預設值，
+                #    不能被當成「明確關閉」。
+                out[key] = default if raw in (None, '', False) \
+                    else str(raw).lower() in ('true', '1')
+                continue
             try:
                 out[key] = (int if kind == 'int' else float)(raw) if raw not in (None, '', False) \
                     else default

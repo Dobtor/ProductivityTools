@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="crm_lead_view_form_knowledge_sources" model="ir.ui.view">
+        <field name="name">crm.lead.form.knowledge.sources</field>
+        <field name="model">crm.lead</field>
+        <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="會議與筆記" name="knowledge_sources"
+                      invisible="type != 'opportunity'"
+                      groups="sales_team.group_sale_salesman">
+                    <button name="action_pick_knowledge_sources" type="object"
+                            string="選擇會議與筆記" class="btn-primary"/>
+                    <p class="text-muted mt-2">
+                        勾選「列入報價基礎」的來源會在建議書的報價基礎留一列（只放標題與日期）。
+                        「內部討論」預設不列入（可能含底價、成本），需要時可手動勾選；「AI 可讀」勾選的來源才會被 AI 讀取內容。
+                    </p>
+                    <field name="knowledge_source_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="note_title"/>
+                            <field name="note_date"/>
+                            <field name="role"/>
+                            <field name="include_in_basis"/>
+                            <field name="ai_readable"/>
+                            <field name="remark"/>
+                            <button name="action_open_note" type="object" icon="fa-external-link"
+                                    title="開啟筆記"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="lead_source_wizard_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.lead_source.wizard.form</field>
+        <field name="model">corpaas.knowledge.lead_source.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="lead_id" invisible="1"/>
+                <group>
+                    <field name="role"/>
+                    <field name="note_ids" widget="many2many_tags"/>
+                </group>
+                <p class="text-muted">預設帶出行事曆事件掛在這個商機上的會議記錄；也可自行加入其他筆記
+                    （只能選你看得到的）。</p>
+                <footer>
+                    <button name="action_confirm" type="object" string="加入" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

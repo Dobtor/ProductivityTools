@@ -6,6 +6,8 @@
         <field name="arch" type="xml">
             <list>
                 <field name="name"/>
+                <field name="version_no"/>
+                <field name="case_id" optional="show"/>
                 <field name="partner_id"/>
                 <field name="product_tmpl_id"/>
                 <field name="tier" optional="show"/>
@@ -47,8 +49,14 @@
                     <button name="action_feedback_actuals" string="工時回寫" type="object"
                             invisible="state not in ('sent', 'won') or not sale_order_id"
                             groups="dobtor_corpaas_knowledge.group_knowledge_editor"/>
+                    <button name="action_download_word" string="下載 Word" type="object"
+                            invisible="state == 'draft' and not pain_ids"
+                            help="輸出這個版本的 Word 檔（可編輯）。正式交給客戶請用 PDF。"/>
                     <button name="action_copy_new_version" string="複製新版" type="object"
                             invisible="state == 'draft'"/>
+                    <button name="action_copy_major_version" string="重大改版" type="object"
+                            invisible="state == 'draft'"
+                            confirm="重大改版會開出下一個主版號（例如 v1.3 → v2.0），用於範圍或計價方式有改變。確定？"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,sent,won"/>
                 </header>
                 <sheet>
@@ -62,16 +70,30 @@
                             <div class="o_stat_info"><span class="o_stat_text">報價單</span></div>
                         </button>
                     </div>
-                    <div class="oe_title"><h1><field name="name"/></h1></div>
+                    <div class="oe_title">
+                        <h1><field name="name"/> <field name="version_no" class="text-muted"/></h1>
+                    </div>
                     <field name="sale_order_id" invisible="1"/>
                     <field name="currency_id" invisible="1"/>
                     <group>
                         <group string="客戶與方案">
+                            <field name="case_id" readonly="state != 'draft' or id"
+                                   options="{'no_create': True}"/>
+                            <field name="version_date" readonly="state != 'draft'"/>
+                            <field name="doc_purpose" readonly="state != 'draft'"/>
                             <field name="partner_id" readonly="state != 'draft'"/>
                             <field name="user_id" readonly="state != 'draft'"/>
+                            <field name="pricing_model" readonly="state != 'draft'"/>
+                            <field name="hourly_rate" readonly="state != 'draft'"
+                                   invisible="pricing_model != 'time_budget'"/>
+                            <field name="budget_cap" readonly="state != 'draft'"/>
+                            <field name="budget_gap" invisible="not budget_cap"
+                                   decoration-danger="budget_gap &lt; 0"/>
                             <field name="product_tmpl_id" readonly="state != 'draft'"
+                                   invisible="pricing_model == 'time_budget'"
                                    options="{'no_create': True, 'no_open': True}"/>
                             <field name="package_id" readonly="state != 'draft'"
+                                   invisible="pricing_model == 'time_budget'"
                                    options="{'no_create': True, 'no_open': True}"/>
                             <field name="scenario_id" readonly="state != 'draft'"
                                    domain="[('package_ids', 'in', package_id)]"
@@ -79,7 +101,7 @@
                             <field name="company_id" groups="base.group_multi_company"
                                    readonly="state != 'draft'"/>
                         </group>
-                        <group string="訂閱規格">
+                        <group string="訂閱規格" invisible="pricing_model == 'time_budget'">
                             <field name="tier" readonly="state != 'draft'"/>
                             <field name="ccu" readonly="state != 'draft'"/>
                             <field name="billing_cycle" readonly="state != 'draft'"/>
@@ -210,6 +232,166 @@
                                 </list>
                             </field>
                         </page>
+                        <page string="版本與基礎" name="versioning">
+                            <group>
+                                <group>
+                                    <field name="supersedes_id"/>
+                                </group>
+                            </group>
+                            <separator string="報價基礎（客戶何時提供了什麼）"/>
+                            <button name="action_sync_sources" type="object"
+                                    string="從商機帶入會議與附件" class="btn-secondary"
+                                    invisible="state != 'draft' or not case_id"/>
+                            <button name="action_sync_sources_prune" type="object"
+                                    string="帶入並移除商機已不列入的來源" class="btn-secondary"
+                                    invisible="state != 'draft' or not case_id"
+                                    confirm="商機上已取消列入的會議／附件，其報價基礎列會被刪除（手動輸入的不動）。"/>
+                            <button name="action_ai_extract_pains" type="object"
+                                    string="AI 從會議筆記萃取痛點" class="btn-secondary"
+                                    invisible="state != 'draft' or not case_id or not package_id"/>
+                            <field name="basis_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="kind"/>
+                                    <field name="date"/>
+                                    <field name="title"/>
+                                    <field name="is_new" optional="show"/>
+                                    <field name="content_changed" optional="show"/>
+                                    <field name="note" optional="show"/>
+                                </list>
+                            </field>
+                            <separator string="需求核對與本版處理"/>
+                            <button name="action_draft_changes" type="object"
+                                    string="以前一版產生差異草稿" class="btn-secondary"
+                                    invisible="state != 'draft' or not supersedes_id"/>
+                            <field name="change_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="ref_no"/>
+                                    <field name="demand"/>
+                                    <field name="handling"/>
+                                    <field name="chapter_ref"/>
+                                    <field name="basis_id" optional="hide"/>
+                                    <field name="origin" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="範圍與前提" name="scope">
+                            <separator string="範圍界線"/>
+                            <button name="action_draft_scope" type="object"
+                                    string="由對應產生範圍草稿" class="btn-secondary"
+                                    invisible="state != 'draft' or scope_ids"/>
+                            <field name="scope_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="kind"/>
+                                    <field name="name"/>
+                                    <field name="detail"/>
+                                </list>
+                            </field>
+                            <separator string="前提與客戶配合事項"/>
+                            <field name="obligation_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="kind"/>
+                                    <field name="text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="期程與付款" name="schedule">
+                            <group>
+                                <group>
+                                    <field name="total_hours"/>
+                                    <field name="weeks_total"/>
+                                    <field name="fte_ratio"/>
+                                </group>
+                                <group>
+                                    <field name="payment_total"/>
+                                    <field name="payment_gap" invisible="not payment_ids"
+                                           decoration-danger="payment_gap != 0"/>
+                                </group>
+                            </group>
+                            <div class="mb-2" invisible="state != 'draft'">
+                                <button name="action_suggest_phases" type="object"
+                                        string="產生階段" class="btn-secondary"
+                                        confirm="會取代現有的階段。確定？"/>
+                                <button name="action_suggest_units" type="object"
+                                        string="產生驗收單元" class="btn-secondary"/>
+                                <button name="action_assign_units" type="object"
+                                        string="重新歸屬估算明細" class="btn-secondary"/>
+                                <button name="action_suggest_payments" type="object"
+                                        string="產生付款款別" class="btn-secondary"/>
+                            </div>
+                            <separator string="導入階段"/>
+                            <field name="phase_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="code"/>
+                                    <field name="name"/>
+                                    <field name="activity" optional="show"/>
+                                    <field name="content"/>
+                                    <field name="milestone"/>
+                                    <field name="week_from"/>
+                                    <field name="week_to"/>
+                                    <field name="hours" sum="工時"/>
+                                    <field name="density" optional="show"/>
+                                </list>
+                            </field>
+                            <separator string="驗收單元（預算大類）"/>
+                            <field name="unit_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="capability_ids" widget="many2many_tags"/>
+                                    <field name="is_custom_bucket"/>
+                                    <field name="criteria"/>
+                                    <field name="hours" sum="工時"/>
+                                    <field name="ratio"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="amount" sum="金額"/>
+                                </list>
+                            </field>
+                            <separator string="付款款別"/>
+                            <field name="payment_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="trigger"/>
+                                    <field name="unit_id"/>
+                                    <field name="ratio"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="amount" sum="金額"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="條款與效益" name="clauses">
+                            <div class="mb-2" invisible="state != 'draft'">
+                                <button name="action_load_clauses" type="object"
+                                        string="載入條款庫" class="btn-secondary"
+                                        confirm="會取代現有條款（包括人工改過的）。確定？"/>
+                            </div>
+                            <separator string="備註與免責"/>
+                            <field name="clause_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="included"/>
+                                    <field name="category"/>
+                                    <field name="text"/>
+                                </list>
+                            </field>
+                            <separator string="效益評估"/>
+                            <field name="benefit_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="current_manual"/>
+                                    <field name="after"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="annual_saving" sum="年化節省"/>
+                                    <field name="assumption" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="建議書" name="html">
                             <field name="html" readonly="1"/>
                         </page>
@@ -243,6 +425,7 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
+                <field name="case_id"/>
                 <field name="partner_id"/>
                 <field name="product_tmpl_id"/>
                 <field name="user_id"/>

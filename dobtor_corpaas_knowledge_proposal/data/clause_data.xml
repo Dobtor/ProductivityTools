@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 條款庫：從 8 份既有報價規格書（以賽亞 v2.0、預建 v6、SKF 7.4、極電 BYOD v1.0、蔦燒 V2、
+         永然 V1、大中和 v2、CBMC V3）歸納。只收跨文件重複出現、且不含客戶專屬資訊的通用條款；
+         客戶專屬的（例如「四家法人公司」「匯率界線」）請寫在版本的條款列，不要進庫。
+         法務性質的承諾（責任上限、資料保存與銷毀年限…）預設停用，法務確認後再啟用。
+         ★ noupdate：客戶改過的條款不會被升級蓋回去；要改出貨內容請寫 migration。
+         ★ 變數 {validity_days} 等見 clause_template 欄位說明。 -->
+    <data noupdate="1">
+        <record id="clause_doc_not_contract" model="corpaas.knowledge.clause_template">
+            <field name="code">doc_not_contract</field>
+            <field name="category">disclaimer</field>
+            <field name="condition">always</field>
+            <field name="sequence">110</field>
+            <field name="text">本文件為報價範圍參考文件，非正式合約；正式內容以雙方簽署之專案合約書為準。</field>
+            <field name="note">以賽亞、預建、蔦燒、永然、極電、CBMC（6/7 份）</field>
+        </record>
+        <record id="clause_budget_estimate" model="corpaas.knowledge.clause_template">
+            <field name="code">budget_estimate</field>
+            <field name="category">disclaimer</field>
+            <field name="condition">always</field>
+            <field name="sequence">120</field>
+            <field name="text">預算為概估，依需求確認與功能進階程度調整；模組可選配、分階段導入。</field>
+            <field name="note">以賽亞、蔦燒、永然、CBMC（4/7 份，措辭略有不同）</field>
+        </record>
+        <record id="clause_validity" model="corpaas.knowledge.clause_template">
+            <field name="code">validity</field>
+            <field name="category">disclaimer</field>
+            <field name="condition">always</field>
+            <field name="sequence">130</field>
+            <field name="text">本報價之有效期為本文件日期起 {validity_days} 天；逾期或範圍異動後須重新估列。</field>
+            <field name="note">以賽亞、預建（2/7 份；天數取設定頁「報價有效天數」）</field>
+        </record>
+        <record id="clause_currency_tax" model="corpaas.knowledge.clause_template">
+            <field name="code">currency_tax</field>
+            <field name="category">disclaimer</field>
+            <field name="condition">always</field>
+            <field name="sequence">140</field>
+            <field name="text">本報價金額以新臺幣計，除另有註明外為未稅金額，營業稅另計。</field>
+            <field name="note">歸納自預算表的表示方式（預建標示「未稅」、以賽亞另列營業稅 5%）；非逐字取自某一份</field>
+        </record>
+        <record id="clause_license_lgpl" model="corpaas.knowledge.clause_template">
+            <field name="code">license_lgpl</field>
+            <field name="category">technical</field>
+            <field name="condition">always</field>
+            <field name="sequence">210</field>
+            <field name="text">本方案基於 Odoo 18 社群版開發，框架授權為 LGPL-3 開源授權，無每席永久授權費用。</field>
+            <field name="note">以賽亞、預建、蔦燒、永然、極電、SKF（6/7 份）</field>
+        </record>
+        <record id="clause_deploy_env" model="corpaas.knowledge.clause_template">
+            <field name="code">deploy_env</field>
+            <field name="category">technical</field>
+            <field name="condition">always</field>
+            <field name="sequence">220</field>
+            <field name="text">建議部署環境：PostgreSQL 16+、Python 3.12+、Linux Ubuntu 24.04 LTS。</field>
+            <field name="note">以賽亞、預建、蔦燒、永然（極電為較舊版本需求）</field>
+        </record>
+        <record id="clause_web_only" model="corpaas.knowledge.clause_template">
+            <field name="code">web_only</field>
+            <field name="category">technical</field>
+            <field name="condition">always</field>
+            <field name="sequence">230</field>
+            <field name="text">本系統為網頁式系統，不提供原生行動 App；行動裝置一律透過手機／平板瀏覽器使用。</field>
+            <field name="note">以賽亞、預建、蔦燒、永然、極電（5/7 份）</field>
+        </record>
+        <record id="clause_ip_reserved" model="corpaas.knowledge.clause_template">
+            <field name="code">ip_reserved</field>
+            <field name="category">technical</field>
+            <field name="condition">always</field>
+            <field name="sequence">240</field>
+            <field name="text">智慧財產權：通用性技術模組之著作權與再利用權利由本公司保留，客戶取得之權利為使用授權；授權範圍、期間及是否可移轉，於合約另行約定。</field>
+            <field name="note">極電、SKF（2/7 份）</field>
+        </record>
+        <record id="clause_major_upgrade" model="corpaas.knowledge.clause_template">
+            <field name="code">major_upgrade</field>
+            <field name="category">technical</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">250</field>
+            <field name="text">Odoo 大版本升級（例如 18 升 19）不含於一次性建置費與訂閱費，需另行評估報價。</field>
+            <field name="note">SKF 第 29 條（原文被截斷，此處依其意旨改寫；送出前請確認措辭）</field>
+        </record>
+        <record id="clause_subscription_includes" model="corpaas.knowledge.clause_template">
+            <field name="code">subscription_includes</field>
+            <field name="category">warranty</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">310</field>
+            <field name="text">訂閱含版本更新、法規更新、資安更新與技術支援。</field>
+            <field name="note">以賽亞、蔦燒、永然、CBMC（4/7 份）</field>
+        </record>
+        <record id="clause_subscription_hosting" model="corpaas.knowledge.clause_template">
+            <field name="code">subscription_hosting</field>
+            <field name="category">warranty</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">320</field>
+            <field name="text">訂閱含雲端主機維運（標準規格 2 vCPU／4 GB／100 GB）與每日備份；超出標準規格之主機資源另計。</field>
+            <field name="note">以賽亞（最新一份；蔦燒、永然、預建、極電則是主機另計，見 subscription_hosting_extra）</field>
+        </record>
+        <record id="clause_subscription_hosting_extra" model="corpaas.knowledge.clause_template">
+            <field name="code">subscription_hosting_extra</field>
+            <field name="category">warranty</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">330</field>
+            <field name="text">雲端主機費用另計，不含於訂閱費。</field>
+            <field name="note">蔦燒、永然、預建、極電的作法；與 subscription_hosting 二選一，預設停用</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="clause_subscription_billing" model="corpaas.knowledge.clause_template">
+            <field name="code">subscription_billing</field>
+            <field name="category">payment</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">410</field>
+            <field name="text">訂閱得選擇年繳或月繳，金額相同。</field>
+            <field name="note">以賽亞、蔦燒、永然、CBMC</field>
+        </record>
+        <record id="clause_payment_terms" model="corpaas.knowledge.clause_template">
+            <field name="code">payment_terms</field>
+            <field name="category">payment</field>
+            <field name="condition">always</field>
+            <field name="sequence">420</field>
+            <field name="text">付款方式：{payment_summary}。</field>
+            <field name="note">7 份都有付款條款但比例各異（50/50、50/40/10、40/40/20、動員款30%＋各單元驗收70%…）；本條改由版本的「付款款別」表自動產生，沒填款別時顯示預設</field>
+        </record>
+        <record id="clause_one_time_only" model="corpaas.knowledge.clause_template">
+            <field name="code">one_time_only</field>
+            <field name="category">payment</field>
+            <field name="condition">time_budget</field>
+            <field name="sequence">430</field>
+            <field name="text">本預算為一次性建置費用，不含上線後之經常性維運；維運範圍與費用另行約定。</field>
+            <field name="note">預建</field>
+        </record>
+        <record id="clause_acceptance_rule" model="corpaas.knowledge.clause_template">
+            <field name="code">acceptance_rule</field>
+            <field name="category">payment</field>
+            <field name="condition">always</field>
+            <field name="sequence">440</field>
+            <field name="text">驗收規則：各驗收單元自我方提出驗收申請日起 {acceptance_days} 個工作日內，客戶應完成測試並簽認，或提出書面異議；逾期未表示者視為驗收通過。異議以本文件所列涵蓋範圍為限；各單元獨立驗收，任一單元之異議不影響其他單元之驗收與付款。</field>
+            <field name="note">預建第 8.6 節；極電、SKF 亦建議明訂驗收期限</field>
+        </record>
+        <record id="clause_warranty_period" model="corpaas.knowledge.clause_template">
+            <field name="code">warranty_period</field>
+            <field name="category">warranty</field>
+            <field name="condition">always</field>
+            <field name="sequence">340</field>
+            <field name="text">專案保固期為驗收完成後 {warranty_months} 個月，保固期間提供本次交付功能之瑕疵修復服務。</field>
+            <field name="note">以賽亞、預建、蔦燒、永然、極電、CBMC（6/7 份；月數取設定頁）</field>
+        </record>
+        <record id="clause_warranty_exclusions" model="corpaas.knowledge.clause_template">
+            <field name="code">warranty_exclusions</field>
+            <field name="category">warranty</field>
+            <field name="condition">always</field>
+            <field name="sequence">350</field>
+            <field name="text">因客戶自行修改設定、資料錯誤或第三方服務異常所致之情形，不在保固範圍內。</field>
+            <field name="note">極電、SKF</field>
+        </record>
+        <record id="clause_change_management" model="corpaas.knowledge.clause_template">
+            <field name="code">change_management</field>
+            <field name="category">scope</field>
+            <field name="condition">always</field>
+            <field name="sequence">510</field>
+            <field name="text">範圍變更管理：本文件所列範圍以外之需求，須另行估算並經雙方書面同意後始行開發。</field>
+            <field name="note">以賽亞、預建、永然、極電、SKF（5/7 份）</field>
+        </record>
+        <record id="clause_estimate_cap" model="corpaas.knowledge.clause_template">
+            <field name="code">estimate_cap</field>
+            <field name="category">scope</field>
+            <field name="condition">time_budget</field>
+            <field name="sequence">520</field>
+            <field name="text">預估上限制：各階段預估工時為投入上限；實際低於預估者按實計列，超出預估須於發生前提出並經客戶書面同意；範圍變更費率同本報價之單位工時費率（{hourly_rate}）。</field>
+            <field name="note">預建、永然、極電（極電為人日制）</field>
+        </record>
+        <record id="clause_time_report" model="corpaas.knowledge.clause_template">
+            <field name="code">time_report</field>
+            <field name="category">scope</field>
+            <field name="condition">time_budget</field>
+            <field name="sequence">530</field>
+            <field name="text">工時紀錄：每雙週提供工時投入報表，載明階段、項目與累計耗用。</field>
+            <field name="note">預建</field>
+        </record>
+        <record id="clause_custom_spec_baseline" model="corpaas.knowledge.clause_template">
+            <field name="code">custom_spec_baseline</field>
+            <field name="category">scope</field>
+            <field name="condition">custom_dev</field>
+            <field name="sequence">540</field>
+            <field name="text">客製開發之細部規格於需求確認階段定稿並經雙方簽認；簽認後之規格為驗收依據，其細化不構成範圍變更，新增或變更依範圍變更管理辦理。</field>
+            <field name="note">SKF 第 20 條、極電（驗收以規格為依據）</field>
+        </record>
+        <record id="clause_third_party_fees" model="corpaas.knowledge.clause_template">
+            <field name="code">third_party_fees</field>
+            <field name="category">scope</field>
+            <field name="condition">always</field>
+            <field name="sequence">550</field>
+            <field name="text">第三方服務費用（金流手續費、簡訊費、電子發票加值中心費用、通訊平台官方帳號與推播費等）由客戶自行承擔。</field>
+            <field name="note">極電、蔦燒、永然、CBMC、SKF</field>
+        </record>
+        <record id="clause_integration_prereq" model="corpaas.knowledge.clause_template">
+            <field name="code">integration_prereq</field>
+            <field name="category">scope</field>
+            <field name="condition">integration</field>
+            <field name="sequence">560</field>
+            <field name="text">與第三方系統整合（例如 POS、通訊平台、既有系統），需對方提供 API 或匯出介面與連線憑證；本案以 Odoo 為整合層，不取代現場操作。</field>
+            <field name="note">蔦燒、永然、SKF</field>
+        </record>
+        <record id="clause_data_delay" model="corpaas.knowledge.clause_template">
+            <field name="code">data_delay</field>
+            <field name="category">data</field>
+            <field name="condition">data_migration</field>
+            <field name="sequence">610</field>
+            <field name="text">因客戶資料交付延遲導致之重工或等待，其額外工時另行計列，期程順延且不計入我方履約遲延。</field>
+            <field name="note">預建、極電</field>
+        </record>
+        <record id="clause_migration_basis" model="corpaas.knowledge.clause_template">
+            <field name="code">migration_basis</field>
+            <field name="category">data</field>
+            <field name="condition">data_migration</field>
+            <field name="sequence">620</field>
+            <field name="text">資料移轉以客戶提供之 xlsx 或原系統匯出檔為準；移轉前須由雙方確認欄位語意對照表；超出約定範圍者另行計價。</field>
+            <field name="note">以賽亞、預建、蔦燒（3/7 份）</field>
+        </record>
+        <record id="clause_migration_copy_reconcile" model="corpaas.knowledge.clause_template">
+            <field name="code">migration_copy_reconcile</field>
+            <field name="category">data</field>
+            <field name="condition">data_migration</field>
+            <field name="sequence">630</field>
+            <field name="text">舊系統資料採複製方式移轉，原資料不刪除；金額類資料須通過對帳，差異逐筆說明後始得驗收。</field>
+            <field name="note">永然</field>
+        </record>
+        <record id="clause_multi_company_mapping" model="corpaas.knowledge.clause_template">
+            <field name="code">multi_company_mapping</field>
+            <field name="category">data</field>
+            <field name="condition">multi_company</field>
+            <field name="sequence">640</field>
+            <field name="text">多公司架構下，資料之公司歸屬對應表須由客戶提供，為資料移轉之前置條件；未提供前移轉無法開始，上線後再重新歸屬者視同重做移轉，另行計費。</field>
+            <field name="note">以賽亞</field>
+        </record>
+        <record id="clause_confidentiality" model="corpaas.knowledge.clause_template">
+            <field name="code">confidentiality</field>
+            <field name="category">security</field>
+            <field name="condition">always</field>
+            <field name="sequence">710</field>
+            <field name="text">客戶提供之名冊、價格等營業資訊，其保密義務與使用範圍於合約另行約定。</field>
+            <field name="note">極電</field>
+        </record>
+        <record id="clause_personal_data" model="corpaas.knowledge.clause_template">
+            <field name="code">personal_data</field>
+            <field name="category">security</field>
+            <field name="condition">always</field>
+            <field name="sequence">720</field>
+            <field name="text">涉及個人資料處理時，依個人資料保護法於合約約定雙方角色、處理範圍、保存期限與資料刪除義務。</field>
+            <field name="note">極電、永然</field>
+        </record>
+        <record id="clause_data_ownership" model="corpaas.knowledge.clause_template">
+            <field name="code">data_ownership</field>
+            <field name="category">security</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">730</field>
+            <field name="text">資料所有權：平台所儲存之全部業務資料，其所有權均歸屬客戶；本公司僅為受委託之資料處理者，就該等資料之蒐集、處理與利用限於本案目的，不得為目的外之利用，亦不得提供予第三人。</field>
+            <field name="note">法務性質的承諾，預設停用；數字取自 SKF v7.4，啟用前請法務確認：第 22 條</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="clause_data_retention" model="corpaas.knowledge.clause_template">
+            <field name="code">data_retention</field>
+            <field name="category">security</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">740</field>
+            <field name="text">資料保存年限：線上資料自產生日起保存 5 年，逾期轉入離線封存；稽核軌跡保存 5 年。</field>
+            <field name="note">法務性質的承諾，預設停用；數字取自 SKF v7.4，啟用前請法務確認：第 23 條</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="clause_exit_handover" model="corpaas.knowledge.clause_template">
+            <field name="code">exit_handover</field>
+            <field name="category">security</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">750</field>
+            <field name="text">終止時之資料交還：服務終止、期滿不續訂或提前終止時，本公司應於終止日起 30 個日曆日內完成一次全量資料交付，格式包含業務資料匯出檔、資料庫備份檔、附件原始檔與資料字典。</field>
+            <field name="note">法務性質的承諾，預設停用；數字取自 SKF v7.4，啟用前請法務確認：第 24 條</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="clause_data_destruction" model="corpaas.knowledge.clause_template">
+            <field name="code">data_destruction</field>
+            <field name="category">security</field>
+            <field name="condition">subscription</field>
+            <field name="sequence">760</field>
+            <field name="text">資料銷毀：資料交付並經客戶書面確認完整無誤後 30 個日曆日內，本公司應刪除線上系統與備份中之全部客戶資料，並出具資料銷毀證明。</field>
+            <field name="note">法務性質的承諾，預設停用；數字取自 SKF v7.4，啟用前請法務確認：第 25 條</field>
+            <field name="active" eval="False"/>
+        </record>
+        <record id="clause_liability_cap" model="corpaas.knowledge.clause_template">
+            <field name="code">liability_cap</field>
+            <field name="category">disclaimer</field>
+            <field name="condition">always</field>
+            <field name="sequence">150</field>
+            <field name="text">責任範圍與上限：本公司就本案所負之損害賠償責任，以客戶所受之直接損害為限，不含間接、附帶、特殊或衍生性損害；累計賠償責任以該訂單總價為上限；因故意或重大過失、違反保密義務或侵害第三方智慧財產權者不在此限。</field>
+            <field name="note">法務性質的承諾，預設停用；數字取自 SKF v7.4，啟用前請法務確認：第 21 條</field>
+            <field name="active" eval="False"/>
+        </record>
+    </data>
+</odoo>
