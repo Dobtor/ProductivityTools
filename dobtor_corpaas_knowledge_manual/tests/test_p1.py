@@ -149,6 +149,11 @@ class TestReuseShots(ManualCase):
         b.shot_inputs = 'old-runner'
         self.assertIn(b, self.hooks._manual_bindings_to_shoot(self.pkg, sb, Event, {}))
 
+    def test_binding_keys_without_braces(self):
+        _tmpl, b = self._setup()
+        b.bindings_json = json.dumps({'{rec}': 'x.a', ' other ': 'x.b'})
+        self.assertEqual(b.bindings(), {'rec': 'x.a', 'other': 'x.b'}, 'AI 回的鍵帶大括號也要對得到')
+
     def test_seed_revision_changes_inputs(self):
         _tmpl, b = self._setup()
         before = self.hooks._manual_shot_inputs(b)

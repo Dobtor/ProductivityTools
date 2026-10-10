@@ -838,7 +838,8 @@ class KnowledgeHooks(models.AbstractModel):
         import hashlib
         tmpl = binding.template_id
         seed_rev = binding.scenario_id.seed_revisions()   # 含資料包的上線版號
-        data = [tmpl.steps_json, binding.bindings_json, binding.roles_json, tmpl.fingerprint,
+        # 繫結用正規化後的（鍵不含大括號）：跟原文一樣的不會變，帶大括號的會變→重拍一次
+        data = [tmpl.steps_json, json.dumps(binding.bindings()), binding.roles_json, tmpl.fingerprint,
                 tmpl.login_role, seed_rev, shooter.runner_signature()]
         return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False)
                             .encode('utf-8')).hexdigest()[:16]

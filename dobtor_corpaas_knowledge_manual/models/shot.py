@@ -161,11 +161,18 @@ class KnowledgeShotBinding(models.Model):
             rec.asset_count = len(assets)
 
     def bindings(self):
+        """佔位符 → 示範資料 xmlid。鍵一律不含大括號（腳本裡寫 {rec}，對照鍵是 rec）。
+
+        ☠️ 實機（社群電商方案）：AI 修腳本回的鍵是 "{agent_partner}"，永遠對不到，
+          4 張報「說明庫找不到示範資料」，AI 又照樣修了 3 次。"""
         self.ensure_one()
         try:
-            return json.loads(self.bindings_json or '{}') or {}
+            data = json.loads(self.bindings_json or '{}') or {}
         except ValueError:
             return {}
+        if not isinstance(data, dict):
+            return {}
+        return {str(k).strip().strip('{}').strip(): v for k, v in data.items()}
 
     def login_role(self):
         self.ensure_one()
