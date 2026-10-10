@@ -5,7 +5,7 @@
 ## 第一次設定
 
 ```bash
-# 1. 正式機連線密碼存入鑰匙圈（會提示輸入，不會留在指令記錄）
+# 1. 正式機連線密碼存入鑰匙圈（請在「終端機」App 執行；在 Claude Code 用 ! 執行收不到輸入，會存成空白）
 security add-generic-password -s corpaas-knowledge-rpc -a admin -w
 # 2. 本機測試環境（~/Library/Caches/corpaas-kb：虛擬環境、內嵌 PostgreSQL、檔案庫）
 tools/knowledge/setup_local.sh

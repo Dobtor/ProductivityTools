@@ -25,13 +25,19 @@ def _password():
     pw = os.environ.get('CORPAAS_RPC_PASSWORD')
     if pw:
         return pw
+    hint = ('請在「終端機」App 執行 `security add-generic-password -s %s -a %s -w` 存入鑰匙圈'
+            '（在 Claude Code 用 ! 執行收不到鍵盤輸入，會存成空白），或設定 CORPAAS_RPC_PASSWORD'
+            % (KEYCHAIN_SERVICE, LOGIN))
     try:
-        return subprocess.run(['security', 'find-generic-password', '-s', KEYCHAIN_SERVICE,
-                               '-a', LOGIN, '-w'], capture_output=True, text=True,
-                              check=True).stdout.strip()
+        pw = subprocess.run(['security', 'find-generic-password', '-s', KEYCHAIN_SERVICE,
+                             '-a', LOGIN, '-w'], capture_output=True, text=True,
+                            check=True).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        raise SystemExit('找不到密碼：請執行 `security add-generic-password -s %s -a %s -w` '
-                         '存入鑰匙圈，或設定 CORPAAS_RPC_PASSWORD' % (KEYCHAIN_SERVICE, LOGIN))
+        raise SystemExit('找不到密碼：' + hint)
+    if not pw:
+        raise SystemExit('鑰匙圈裡的密碼是空的：先 `security delete-generic-password -s %s -a %s`，再%s'
+                         % (KEYCHAIN_SERVICE, LOGIN, hint[1:]))
+    return pw
 
 
 def _call(service, method, *args):
