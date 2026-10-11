@@ -264,6 +264,12 @@ class KnowledgePlanExec(models.Model):
             return
         if not run.plan_id:
             run.sudo().plan_id = self.id
+        if self.state == 'running' and self._run_did_nothing(run):
+            # ★ 增量更新什麼都沒做（沒有要拍、沒有要審）：自動能修的都修過了，剩下的在例外清單
+            # ☠️ 實機（2026-10-11）：方案 13 連兩輪各 1 分鐘空轉，白白用掉修正輪數
+            self.write({'rounds': self.rounds + 1})
+            self._plan_stop(_('沒有可以自動修正的項目（剩下的在例外清單，需要下一版計畫或人工處理）'))
+            return
         metrics = self.env['corpaas.knowledge.hooks']._knowledge_plan_metrics(self)
         prev = json.loads(self.last_metrics_json or '{}') if self.last_metrics_json else {}
         vals = {'last_metrics_json': json.dumps(metrics, ensure_ascii=False), 'rounds': self.rounds + 1}
@@ -293,6 +299,15 @@ class KnowledgePlanExec(models.Model):
                 self._plan_stop(_('連續 %s 輪沒有進步') % streak)
                 return
         self.package_id.knowledge_enqueue_refresh(full=False, reason=PLAN_ROUND_REASON)
+
+    @staticmethod
+    def _run_did_nothing(run):
+        try:
+            stats = json.loads(run.stats_json or '{}') or {}
+        except ValueError:
+            stats = {}
+        return not any(stats.get(k) for k in ('shots_planned', 'auto_published', 'review_failed',
+                                              'gaps_fixed_shot', 'repairs_ok', 'concepts_drafted'))
 
     def _targets_met(self, m):
         if not m.get('shots_total') or not m.get('articles_total'):
@@ -386,7 +401,7 @@ class KnowledgePlanExec(models.Model):
             Item.create({'plan_id': nxt.id, 'kind': item.kind, 'key': item.key, 'name': item.name,
                          'content_json': item.content_json, 'summary': item.summary, 'evidence': item.evidence,
                          'confidence': item.confidence, 'confirmed': item.confirmed, 'locked': item.locked,
-                         'change': 'same'})
+                         'res_model': item.res_model, 'res_id': item.res_id, 'change': 'same'})
         for ins in instructions or []:
             Item.create(dict(ins, plan_id=nxt.id, kind='instruction', change='new'))
         if rebuild_ledger:

@@ -143,7 +143,9 @@ class KnowledgePlanCheck(models.Model):
         if not chapters:
             reasons.append(_('沒有章節'))
         if empty:
-            reasons.append(_('沒有功能點的章節：%s') % '、'.join(empty.mapped('name')))
+            # 空章節不影響執行：只提醒（反推的計畫常有能力底下沒有功能點）
+            out.append(_r('A2b', _('每章都有功能點'), WARN,
+                          _('沒有功能點的章節：%s') % '、'.join(empty.mapped('name'))))
         if not self.live_items('role'):
             reasons.append(_('沒有角色'))
         story_sc = self.live_items('story')[:1].record() if self.live_items('story') else None

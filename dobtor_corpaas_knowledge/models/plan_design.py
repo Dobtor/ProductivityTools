@@ -438,6 +438,11 @@ class KnowledgePlanDesign(models.Model):
         Ai = self.env['corpaas.knowledge.ai']
         icp = self.env['ir.config_parameter'].sudo()
         n = self.lines_chapter
+        if self.parent_id:
+            # 修訂與分期只估剩下要做的：入選功能點扣掉前一版已上線的文章
+            done = self.env['corpaas.knowledge.hooks']._knowledge_plan_metrics(self.parent_id).get(
+                'articles_published') or 0
+            n = max(0, n - done)
         explore_ratio = float(icp.get_param('corpaas_knowledge.plan_explore_ratio') or 0.4)
         repair_ratio = float(icp.get_param('corpaas_knowledge.plan_repair_ratio') or 0.3)
         per_article = Ai.unit_cost('manual_step_block') + Ai.unit_cost('manual_scenario') + \
