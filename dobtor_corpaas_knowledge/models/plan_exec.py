@@ -276,10 +276,17 @@ class KnowledgePlanExec(models.Model):
         self.write(vals)
         icp = self.env['ir.config_parameter'].sudo()
         if self.state == 'canary':
-            need = float(icp.get_param('corpaas_knowledge.plan_canary_shot_rate') or 80)
-            if metrics.get('shots_total') and metrics.get('shot_rate', 0) < need:
-                self._plan_stop(_('前哨批未達標：截圖成功率 %(r).0f%%（門檻 %(n).0f%%）',
-                                  r=metrics.get('shot_rate', 0), n=need), canary=True)
+            rate = metrics.get('shot_rate', 0)
+            if self.parent_id:
+                # ★ 修訂與分期：跟前一版比，退步才停（說明書已在線上，絕對門檻沒有意義）
+                # ☠️ 實機（2026-10-11）：方案 14 修訂版截圖成功率 75% 本來就是前一版的水準，被初版門檻 80% 擋下
+                base = json.loads(self.parent_id.last_metrics_json or '{}').get('shot_rate')
+                need = (base - 5) if base is not None else 0
+            else:
+                need = float(icp.get_param('corpaas_knowledge.plan_canary_shot_rate') or 80)
+            if metrics.get('shots_total') and rate < need:
+                self._plan_stop(_('前哨批未達標：截圖成功率 %(r).0f%%（門檻 %(n).0f%%）', r=rate, n=need),
+                                canary=True)
                 return
             self.write({'state': 'running'})
         if self._targets_met(metrics):

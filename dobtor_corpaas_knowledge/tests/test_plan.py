@@ -319,3 +319,19 @@ class TestBackfill(_PlanBase):
         self.assertEqual(self.pkg.knowledge_plan_id, plan)
         with self.assertRaises(UserError):
             self.pkg._knowledge_plan_backfill()
+
+    def test_revision_canary_compares_to_parent(self):
+        plan = self._designed()
+        with patch.object(type(self.env['corpaas.knowledge.scenario']), '_knowledge_auto_draft_seed'):
+            plan.with_context(knowledge_plan_system=True)._plan_approve('manual')
+        plan.with_context(knowledge_plan_system=True).write(
+            {'state': 'stopped', 'last_metrics_json': json.dumps({'shot_rate': 75.0})})
+        nxt = plan.with_context(knowledge_plan_system=True)._plan_new_version('revision', rebuild_ledger=False)
+        nxt.with_context(knowledge_plan_system=True).write({'state': 'canary'})
+        run = self.env['corpaas.knowledge.run'].create({'package_id': self.pkg.id, 'token': 'rc'})
+        same = {'shots_total': 10, 'shots_ok': 7, 'shot_rate': 74.0, 'articles_total': 10,
+                'articles_published': 6, 'review_rate': 60.0}
+        with patch.object(type(self.env['corpaas.knowledge.hooks']), '_knowledge_plan_metrics', return_value=same), \
+                patch.object(type(self.pkg), 'knowledge_enqueue_refresh'):
+            nxt.with_context(knowledge_plan_system=True)._plan_after_run(run)
+        self.assertEqual(nxt.state, 'running', '修訂版跟前一版差不多就繼續，不套初版的絕對門檻')
