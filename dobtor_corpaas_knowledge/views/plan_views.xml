@@ -331,6 +331,10 @@
             <xpath expr="//field[@name='knowledge_enabled']" position="before">
                 <button name="action_knowledge_plans" type="object" string="說明書製作計畫"
                         class="btn-link" icon="fa-map-o" colspan="2"/>
+                <button name="action_knowledge_plan_backfill" type="object" string="依現行內容反推第一版計畫"
+                        class="btn-link" icon="fa-history" colspan="2" invisible="knowledge_plan_ids"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                <field name="knowledge_plan_ids" invisible="1"/>
             </xpath>
         </field>
     </record>

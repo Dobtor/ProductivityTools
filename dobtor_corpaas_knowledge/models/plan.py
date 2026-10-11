@@ -450,6 +450,7 @@ class SolutionPackagePlan(models.Model):
     knowledge_plan_mode = fields.Boolean(string='依計畫產出', compute='_compute_knowledge_plan',
                                          help='有生效中的計畫：範圍、章節、故事都以計畫為準，不再產生圈選提案')
 
+    @api.depends('knowledge_plan_ids.state', 'knowledge_plan_ids.source_type', 'knowledge_plan_ids.version')
     def _compute_knowledge_plan(self):
         """生效中的計畫：產品來源優先（方案本身的說明書）；建議書來源的計畫各自管客戶專屬情境。"""
         Plan = self.env['corpaas.knowledge.plan'].sudo()

@@ -295,3 +295,27 @@ class TestFeedback(_PlanBase):
         self.assertTrue(nxt._is_minor_change())
         self.assertEqual(nxt.approve_mode, 'auto', '標準等級：只有內容指示的輕微變更自動核准')
         self.assertEqual(plan.state, 'superseded')
+
+
+@tagged('post_install', '-at_install')
+class TestBackfill(_PlanBase):
+
+    def test_backfill_from_current(self):
+        cap = self.env['corpaas.knowledge.capability'].create(
+            {'name': '接單', 'code': 'bf_order', 'package_ids': [(4, self.pkg.id)],
+             'feature_ids': [(4, self.f_order.id)]})
+        role = self.env['corpaas.knowledge.role'].create({'code': 'bf_sales', 'name': '業務',
+                                                          'group_xmlids': 'base.group_user'})
+        self.env['corpaas.knowledge.scenario'].create({'name': '貿易公司', 'code': 'bf_sc', 'narrative': '敘事',
+                                                       'package_ids': [(4, self.pkg.id)],
+                                                       'role_ids': [(4, role.id)]})
+        plan = self.pkg._knowledge_plan_backfill()
+        self.assertEqual(plan.state, 'done')
+        self.assertEqual(plan.live_items('chapter').record(), cap)
+        line = plan.line_ids.filtered(lambda l: l.feature_id == self.f_order)
+        if line.assignment == 'chapter':
+            self.assertEqual(line.item_id.record(), cap)
+        self.assertEqual(plan.lines_unassigned, 0)
+        self.assertEqual(self.pkg.knowledge_plan_id, plan)
+        with self.assertRaises(UserError):
+            self.pkg._knowledge_plan_backfill()

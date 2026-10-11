@@ -494,3 +494,72 @@ class SolutionPackagePlanRenames(models.Model):
             ('state', '=', 'proposed'), ('old_feature_id', 'in', removed.ids), ('similarity', '>=', auto)])
         cands.filtered(lambda r: r.old_feature_id.model == r.new_feature_id.model)._knowledge_accept()
         return res
+
+
+class SolutionPackagePlanBackfill(models.Model):
+    _inherit = 'infrastructure.solution.package'
+
+    def action_knowledge_plan_backfill(self):
+        """依目前已核准的情境、能力、角色與範圍，反推出第一版計畫（移轉用，規格第 20 節）。"""
+        for pkg in self:
+            if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
+                raise AccessError(_('只有知識管理者可以反推計畫。'))
+            pkg.sudo()._knowledge_plan_backfill()
+        return True
+
+    def _knowledge_plan_backfill(self):
+        self.ensure_one()
+        Plan = self.env['corpaas.knowledge.plan'].sudo().with_context(knowledge_plan_system=True)
+        if Plan.search_count([('package_id', '=', self.id), ('source_type', '=', 'product')]):
+            raise UserError(_('方案「%s」已經有計畫，不需要反推。') % self.display_name)
+        plan = Plan.create({'package_id': self.id, 'source_type': 'product', 'version': 1,
+                            'version_type': 'initial', 'state': 'draft'})
+        Item = self.env['corpaas.knowledge.plan.item'].sudo().with_context(knowledge_plan_system=True)
+        sc = self.knowledge_scenario_ids.filtered(lambda s: not s.knowledge_private_partner_id)[:1]
+        if sc:
+            company = ''
+            seed = []
+            try:
+                seed = sc.live_seed()
+            except Exception:  # noqa: BLE001 — 沒有核准版就不帶公司名
+                seed = []
+            for row in seed:
+                if row.get('xmlid') == 'base.main_company':
+                    company = (row.get('values') or {}).get('name') or ''
+            Item.create({'plan_id': plan.id, 'kind': 'story', 'key': 'story', 'name': company or sc.name,
+                         'summary': sc.narrative, 'confidence': 'high', 'confirmed': True,
+                         'res_model': sc._name, 'res_id': sc.id,
+                         'content_json': json.dumps({'company': company or sc.name, 'narrative': sc.narrative,
+                                                     'glossary': sc.glossary_map()}, ensure_ascii=False)})
+            for seq, role in enumerate(sc.all_roles() if hasattr(sc, 'all_roles') else sc.role_ids, 1):
+                Item.create({'plan_id': plan.id, 'kind': 'role', 'key': role.code, 'name': role.name,
+                             'sequence': seq, 'confidence': 'high', 'confirmed': True,
+                             'res_model': role._name, 'res_id': role.id,
+                             'content_json': json.dumps({'groups': (role.group_xmlids or '').split()})})
+        chapters = {}
+        for seq, cap in enumerate(self.knowledge_capability_ids.sorted(lambda c: (c.sequence, c.id)), 1):
+            key = re.sub(r'[^a-z0-9_]+', '_', (cap.code or 'cap_%s' % cap.id).lower()).strip('_')
+            chapters[cap.id] = Item.create({
+                'plan_id': plan.id, 'kind': 'chapter', 'key': key, 'name': cap.name, 'sequence': seq,
+                'summary': '%s → %s' % (cap.pain or '', cap.outcome or ''), 'confidence': 'high',
+                'confirmed': True, 'res_model': cap._name, 'res_id': cap.id,
+                'content_json': json.dumps({'pain': cap.pain, 'outcome': cap.outcome, 'priority': 'must',
+                                            'library_code': cap.code or None}, ensure_ascii=False)})
+        plan._ledger_build()
+        cands = self.env['corpaas.knowledge.hooks']._manual_candidates(self) \
+            if hasattr(self.env['corpaas.knowledge.hooks'], '_manual_candidates') else {}
+        Line = self.env['corpaas.knowledge.scope_line'].sudo().with_context(knowledge_plan_system=True)
+        for line in plan.line_ids:
+            cap = cands.get(line.feature_id)
+            item = chapters.get(cap.id) if cap else None
+            if item:
+                line.write({'assignment': 'chapter', 'item_id': item.id, 'reason': _('現行版本已納入'),
+                            'confidence': 'high'})
+            elif line.assignment == 'unassigned':
+                line.write({'assignment': 'exclude', 'reason': _('現行版本未納入'), 'confidence': 'medium'})
+        plan._d4_exclusions()
+        plan._d5_cost_quality()
+        plan.write({'state': 'done', 'approve_mode': 'manual', 'approved_by': self.env.uid,
+                    'approved_at': fields.Datetime.now()})
+        plan.message_post(body=_('依現行已核准的情境、能力、角色與範圍反推出第一版計畫'))
+        return plan

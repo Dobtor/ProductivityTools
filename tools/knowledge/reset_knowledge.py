@@ -30,7 +30,11 @@ CATALOG = ['corpaas.knowledge.feature', 'corpaas.knowledge.feature.class', 'corp
            'corpaas.knowledge.flow.step', 'corpaas.knowledge.flow.transition', 'corpaas.knowledge.selection',
            'corpaas.knowledge.toggle', 'corpaas.knowledge.toggle.state', 'corpaas.knowledge.coverage',
            'corpaas.knowledge.official_doc', 'corpaas.knowledge.fingerprint', 'corpaas.knowledge.event',
-           'corpaas.knowledge.sandbox']
+           'corpaas.knowledge.sandbox',
+           # 說明書製作計畫（決策紀錄）與上線後意見：只清產出時保留
+           'corpaas.knowledge.plan', 'corpaas.knowledge.plan.item', 'corpaas.knowledge.scope_line',
+           'corpaas.knowledge.check', 'corpaas.knowledge.source_module', 'corpaas.knowledge.module_relation',
+           'corpaas.knowledge.feedback', 'corpaas.knowledge.feedback.session']
 #: --code 另外清掉的程式知識；程式碼版本（code_tree：已抽出的官方原碼，跟映像版本綁定、內容不會變）照樣保留
 CODE = ['corpaas.knowledge.code_def', 'corpaas.knowledge.code_fact', 'corpaas.knowledge.module_summary']
 #: 方案上要清掉的「算出來的狀態」
@@ -74,8 +78,11 @@ chans.unlink()
 # ☠️ 不能用 TRUNCATE ... CASCADE：它會把「有外鍵指過來的表」整張清空（全站 slide、流程圖、驗收紀錄），
 #    不是只清指過來的那幾列。用逐表 DELETE：每個外鍵照它自己的規則（設空值／串聯）處理那幾列；
 #    被 restrict 擋住的下一輪再刪，直到沒有進展。
+# ★ 只清核心與說明書模組自己定義的模型：建議書模組（建議書、案件、開發項目…）同樣是 corpaas.knowledge.*，
+#   那是業務資料，清除知識產出時不能動
+RESET_MODULES = ('dobtor_corpaas_knowledge', 'dobtor_corpaas_knowledge_manual')
 models = sorted(m for m in env.registry if m.startswith('corpaas.knowledge.') and m not in KEEP
-                and not env[m]._abstract and env[m]._auto)
+                and not env[m]._abstract and env[m]._auto and env[m]._original_module in RESET_MODULES)
 for m in models:
     env.cr.execute('SELECT count(*) FROM "%%s"' %% env[m]._table)
     n = env.cr.fetchone()[0]
