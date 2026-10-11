@@ -307,7 +307,9 @@ class TestReviewPromptStates(ManualCase):
             [{'flow_id': flow.id, 'sequence': 1, 'value': 'prep', 'label': '準備中'},
              {'flow_id': flow.id, 'sequence': 2, 'value': 'paid', 'label': '已撥款'}])
         art = self._article(self.f1, self.cap_a, name='建立報名')
+        art.scenario_id.narrative = '拾光社群購物靠會員推薦帶動銷售'
         prompt = art._manual_review_prompt(self.pkg)
+        self.assertIn('拾光社群購物', prompt, '審稿人看得到情境敘事：公司背景不判成編造')
         self.assertIn('準備中', prompt)
         self.assertIn('已撥款', prompt)
 

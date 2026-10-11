@@ -125,10 +125,16 @@ class KnowledgeArticleReview(models.Model):
             "功能資料裡的選單路徑當補充說明提到不算對不上）；"
             "(2) 讀者身分正確：這篇的讀者是「%(who)s」，用語與入口要符合（前台文章不寫後台選單路徑，"
             "後台文章不叫讀者去網站前台操作）；(3) 沒有編造系統沒有的功能、沒有內部代碼或英文欄位名。\n"
+            "★ 下面的情境敘事是這份說明書的公司背景：公司名稱、業務說法照敘事寫不算編造；但敘事裡別的功能"
+            "硬套到這篇（這個功能做不到的事）仍算。\n"
+            "★ 只列會讓讀者照做失敗或誤解功能的問題；措辭、按鈕位置描述（例如左上角）、用了 Odoo 標準按鈕的"
+            "畫面文字（例如「編輯此內容」）這類小地方不列。\n"
             "只回 JSON：{\"ok\": true|false, \"problems\": [\"…\"]}；有問題才列，最多 3 點、每點一句。\n\n"
             "系統裡這個模型的狀態值（文章提到這些狀態不算編造）：%(states)s\n\n"
+            "情境敘事：%(narrative)s\n\n"
             "功能：%(feature)s\n\n截圖腳本：%(steps)s\n\n文章全文：%(text)s"
         ) % {'who': who, 'feature': json.dumps(feature, ensure_ascii=False)[:1500],
+             'narrative': (self.scenario_id.narrative or '（無）')[:1500],
              'states': json.dumps(states, ensure_ascii=False)[:800] if states else '（無）',
              'steps': json.dumps(steps, ensure_ascii=False)[:3000], 'text': text}
 
