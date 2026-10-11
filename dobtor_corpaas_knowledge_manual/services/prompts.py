@@ -7,6 +7,7 @@
   不得另寫一套完整步驟——所以寫情境區塊時一定把既有步驟區塊帶進去。
 """
 import json
+import re
 
 ALLOWED_HTML = (
     "HTML 只能用這些標籤：p、strong、em、ul、ol、li、table、thead、tbody、tr、th、td、span、br、blockquote；"
@@ -181,7 +182,11 @@ def step_block_prompt(feature, steps, shots, elements, flow_ctx=None):
         "2. 依截圖腳本的順序分成數個步驟；每步一個短標題＋說明。★ 每一步只寫腳本裡真的做了的操作"
         "（開畫面、點按鈕、切分頁、填欄位）；腳本沒做的（儲存、切換發佈、捲動、點選單進入、點文字修改）"
         "不要寫成步驟——讀者照圖操作，圖上沒有就對不上。腳本直接打開網址或動作的，寫「打開『…』畫面」，"
-        "選單路徑只在句末補一句「（也可從 選單 / 子選單 進入）」。\n"
+        "選單路徑只在句末補一句「（也可從 選單 / 子選單 進入）」，而且只能用下面給的選單路徑，"
+        "不要自己另找其他路徑。\n"
+        "★ 腳本只是打開畫面、標示欄位（沒有點選、勾選、儲存）時，這篇就是「查看／確認」：說明讀者在畫面上"
+        "要看哪些欄位、各代表什麼；設定頁要說明這個選項的作用與勾選後的影響（依功能資料），"
+        "不要寫成開啟、建立、修改的操作。\n"
         "3. 截圖上的紅框編號在說明裡以「（圖中 1）」這樣引用。\n"
         "4. 在適當的步驟說明裡放截圖標記 [[shot:<截圖名稱>]]（單獨一段），每張圖只放一次。\n"
         "5. %(allowed)s\n"
@@ -254,9 +259,11 @@ def _class_note(feature):
     lines = ["\n★ 功能分類：%s%s。文章標題前加上【%s】。" % (
         c.get('classification_label') or '', '（方案核心）' if c.get('core') else '',
         c.get('classification_label') or '')]
-    if c.get('tier') == 'advanced' and c.get('toggle_paths'):
-        lines.append("開頭第一句寫明：「此功能於 %s 開啟（方案預設已開啟）」。"
-                     % '、'.join(c['toggle_paths']))
+    # ★ 設定路徑有英文（黃金庫沒翻譯的選項名）就不寫：讀者在中文介面找不到，審稿也會退
+    # ☠️ 實機（2026-10-11）：「Security Lead Time for Purchase」「Variants」被退稿
+    paths = [p for p in c.get('toggle_paths') or [] if not re.search(r'[A-Za-z]{3,}', p or '')]
+    if c.get('tier') == 'advanced' and paths:
+        lines.append("開頭第一句寫明：「此功能於 %s 開啟（方案預設已開啟）」。" % '、'.join(paths))
     if c.get('tier') == 'advanced' and (c.get('core') or c.get('downstream_bom')):
         extra = ('，並一併移除：%s' % '、'.join(c['downstream_bom'])) if c.get('downstream_bom') \
             else ''
@@ -286,6 +293,8 @@ def scenario_prompt(scenario, glossary, feature, capability, step_html, demo=Non
         "4. 100–250 字。%(allowed)s\n"
         "5. 舉例時用下面「截圖裡的示範資料」的實際名稱與數字（客戶、商品、數量、金額），"
         "讓讀者能對照截圖；示範資料沒有的數字不要編。沒有示範資料就不舉數字。\n%(cls)s\n"
+        "★ 標題的動詞要和下面的操作步驟一致：步驟只有查看就寫「查看／確認…」，不要寫成開啟、建立、維護。\n"
+        "★ 品名、數量、單價、電話等具體資料只能用「截圖裡的示範資料」，沒有就不寫。\n"
         "★ 標題寫使用者要完成的事（例如「建立報價單並轉成訂單」），不要加分類標籤"
         "（如【標準功能】【標準進階】），也不要放情境名稱或示範資料裡的客戶、商品、公司名稱"
         "（標題要能套用在任何公司）。\n"

@@ -166,6 +166,11 @@ class KnowledgeHooksPlanManual(models.AbstractModel):
         """計畫的內容指示 → 掛到文章（永久）並標「待依指示重寫」；截圖指示 → 重拍。"""
         res = super()._knowledge_plan_apply_instructions(plan)
         Article = self.env['corpaas.knowledge.article'].sudo()
+        # ★ 每個新的計畫版本開始執行：自審不過的文章再給一次「依審稿意見重寫」（寫作規則可能已經改進）
+        if plan.parent_id:
+            Article.search([('scenario_id', 'in', plan.package_id.knowledge_scenario_ids.ids),
+                            ('state', '=', 'review'), ('manual_review_state', '=', 'fail')]).write(
+                {'manual_redrafts': 0, 'manual_review_input': False})
         Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
         for item in plan.live_items('instruction').filtered(lambda i: i.change == 'new'):
             data = item.content()

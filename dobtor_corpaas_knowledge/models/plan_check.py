@@ -146,7 +146,9 @@ class KnowledgePlanCheck(models.Model):
             reasons.append(_('沒有功能點的章節：%s') % '、'.join(empty.mapped('name')))
         if not self.live_items('role'):
             reasons.append(_('沒有角色'))
-        if not self.live_items('data'):
+        story_sc = self.live_items('story')[:1].record() if self.live_items('story') else None
+        if not self.live_items('data') and not (story_sc and story_sc.published_rev_no):
+            # 情境的示範資料已經核准上線（反推或修訂版本）就不需要另列資料需求
             reasons.append(_('沒有資料需求'))
         if not self.live_items('story'):
             reasons.append(_('沒有故事'))
