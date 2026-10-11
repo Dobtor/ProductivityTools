@@ -9,3 +9,4 @@ from . import blueprint
 from . import version_parts
 from . import proposal_doc
 from . import lead_source
+from . import plan_source

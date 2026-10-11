@@ -79,7 +79,32 @@ class KnowledgeHooksPlanManual(models.AbstractModel):
                 continue
             cap = line.item_id.record() if line.item_id else None
             out[f] = cap or Cap
+        # 建議書來源的計畫（客戶專屬情境）：它們入選的功能點也要做（只配對客戶專屬情境，見下）
+        for prop_plan in self.env['corpaas.knowledge.plan'].sudo().search([
+                ('package_id', '=', package.id), ('source_type', '!=', 'product'),
+                ('state', 'in', ('approved', 'expanding', 'canary', 'running', 'done', 'stopped'))]):
+            for line in prop_plan.line_ids.filtered(lambda l: l.assignment == 'chapter'):
+                f = line.feature_id
+                if f in out or not (f.model or f.kind == 'route') or f in renamed_to \
+                        or not f.is_present_in(package):
+                    continue
+                cap = line.item_id.record() if line.item_id else None
+                out[f] = cap or Cap
         return out
+
+    @api.model
+    def _manual_scenarios_for(self, package, capability):
+        """客戶專屬情境只說明它的適用章節；共用情境不寫只屬於客戶計畫的章節。"""
+        scenarios = super()._manual_scenarios_for(package, capability)
+        for sc in scenarios.filtered('knowledge_private_partner_id'):
+            if not capability or capability not in sc.knowledge_scope_capability_ids:
+                scenarios -= sc
+        plan = package.knowledge_plan_id
+        if plan and capability:
+            product_caps = [i.record() for i in plan.live_items('chapter')]
+            if capability not in product_caps:
+                scenarios = scenarios.filtered('knowledge_private_partner_id')
+        return scenarios
 
     @api.model
     def _manual_scenario_prompt(self, package, scenario, feature, capability, blocks):
@@ -104,7 +129,9 @@ class KnowledgeHooksPlanManual(models.AbstractModel):
         res = super()._knowledge_plan_metrics(plan)
         lines = plan.line_ids.filtered(lambda l: l.assignment == 'chapter')
         feats = lines.mapped('feature_id')
-        scenarios = plan.package_id.knowledge_scenario_ids
+        story = plan.live_items('story')[:1].record() if plan.live_items('story') else None
+        scenarios = story or plan.package_id.knowledge_scenario_ids.filtered(
+            lambda s: not s.knowledge_private_partner_id)
         Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
         Article = self.env['corpaas.knowledge.article'].sudo()
         bindings = Binding.search([('scenario_id', 'in', scenarios.ids)]).filtered(

@@ -253,8 +253,9 @@ class SolutionPackageLedger(models.Model):
     def _knowledge_run_ledger(self):
         self.ensure_one()
         self = self.with_context(knowledge_fresh_cursor=True, knowledge_ledger=True)
-        Plan = self.env['corpaas.knowledge.plan']
-        plan = Plan._plan_building(self)
+        Plan = self.env['corpaas.knowledge.plan'].sudo()
+        plans = Plan.search([('package_id', '=', self.id), ('state', '=', 'ledger')], order='id')
+        plan = plans[:1]
         if self.knowledge_pending_reason:
             self._knowledge_bookkeep({'knowledge_pending_reason': False})
         if not plan:
@@ -269,17 +270,21 @@ class SolutionPackageLedger(models.Model):
             run.begin_stage('prepare')
             self._knowledge_commit()
             self._knowledge_stage_ledger(run, plan)
+            for other in plans - plan:
+                other._ledger_build()   # 同方案其他建底稿中的計畫：共用 K1～K4，各自建範圍底稿
             run.end_stage()
             run.mark_done()
             self._knowledge_commit()
         except Exception as e:
             self._knowledge_stage_failed(run, e)
-            plan.with_context(knowledge_plan_system=True).write({'state': 'blocked'})
-            plan.message_post(body=_('建立知識底稿失敗：%s') % str(e)[:500])
+            plans.with_context(knowledge_plan_system=True).write({'state': 'blocked'})
+            for p in plans:
+                p.message_post(body=_('建立知識底稿失敗：%s') % str(e)[:500])
             if not txn.in_tests(self.env):
                 self.env.cr.commit()
             raise
-        plan._plan_after_ledger()
+        for p in plans:
+            p._plan_after_ledger()
         return True
 
     def _knowledge_stage_ledger(self, run, plan):

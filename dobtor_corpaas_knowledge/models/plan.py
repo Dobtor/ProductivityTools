@@ -425,6 +425,17 @@ class KnowledgeRunPlan(models.Model):
                               ondelete='set null', readonly=True)
 
 
+class KnowledgeScenarioPrivate(models.Model):
+    _inherit = 'corpaas.knowledge.scenario'
+
+    knowledge_private_partner_id = fields.Many2one(
+        'res.partner', string='客戶專屬', index=True, ondelete='set null',
+        help='建議書來源的客戶專屬情境：只發佈到該客戶的私人課程，不進範本庫')
+    knowledge_scope_capability_ids = fields.Many2many(
+        'corpaas.knowledge.capability', 'corpaas_knowledge_scenario_scope_cap_rel', 'scenario_id',
+        'capability_id', string='適用章節', help='客戶專屬情境只說明這些章節（建議書計畫的章節）')
+
+
 class SolutionPackagePlan(models.Model):
     _inherit = 'infrastructure.solution.package'
 
@@ -440,9 +451,11 @@ class SolutionPackagePlan(models.Model):
                                          help='有生效中的計畫：範圍、章節、故事都以計畫為準，不再產生圈選提案')
 
     def _compute_knowledge_plan(self):
+        """生效中的計畫：產品來源優先（方案本身的說明書）；建議書來源的計畫各自管客戶專屬情境。"""
         Plan = self.env['corpaas.knowledge.plan'].sudo()
         for rec in self:
-            plan = Plan.search([('package_id', '=', rec.id), ('state', 'in', LIVE_STATES)],
+            plan = Plan.search([('package_id', '=', rec.id), ('state', 'in', LIVE_STATES),
+                                ('source_type', '=', 'product')],
                                order='version desc, id desc', limit=1) if rec.id else Plan
             rec.knowledge_plan_id = plan
             rec.knowledge_plan_mode = bool(plan)

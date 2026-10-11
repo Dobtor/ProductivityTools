@@ -367,6 +367,9 @@ class SlideChannel(models.Model):
     knowledge_product_tmpl_id = fields.Many2one(
         'product.template', string='方案產品', index=True, ondelete='set null', copy=False,
         help='方案知識：一個方案產品一個說明 channel')
+    knowledge_private_key = fields.Char(string='客戶專屬鍵', index=True, copy=False, readonly=True,
+                                        help='建議書來源的客戶專屬說明書：方案產品＋客戶')
+    knowledge_partner_id = fields.Many2one('res.partner', string='專屬客戶', copy=False, readonly=True)
     knowledge_managed = fields.Boolean(string='由方案知識管理', copy=False,
                                        help='內容與排序由系統同步；手動改動會被覆蓋')
     knowledge_placement_ids = fields.One2many('corpaas.knowledge.placement', 'channel_id')
@@ -374,6 +377,7 @@ class SlideChannel(models.Model):
                                             'channel_id')
 
     _sql_constraints = [
+        ('knowledge_private_unique', 'unique(knowledge_private_key)', '每位客戶每個方案只能有一個專屬說明 channel'),
         ('knowledge_tmpl_unique', 'unique(knowledge_product_tmpl_id)',
          '每個方案產品只能有一個說明 channel'),
     ]
@@ -466,6 +470,39 @@ class SlideChannel(models.Model):
             if ours != wanted:
                 channel.tag_ids = [(3, t.id) for t in ours - wanted] + \
                     [(4, t.id) for t in wanted - ours]
+
+    @api.model
+    def _knowledge_article_channel(self, article, package, create=True):
+        """文章該發到哪個 channel：客戶專屬情境 → 該客戶的私人課程；其他 → 方案的公開課程。"""
+        partner = article.scenario_id.knowledge_private_partner_id
+        if partner:
+            return self._knowledge_private_channel_for(package.product_tmpl_id, partner, create=create)
+        if create:
+            return self._knowledge_channel_for(package.product_tmpl_id)
+        return self.with_context(active_test=False).search(
+            [('knowledge_product_tmpl_id', '=', package.product_tmpl_id.id)], limit=1)
+
+    @api.model
+    def _knowledge_private_channel_for(self, product_tmpl, partner, create=True):
+        """客戶專屬說明書：只有這位客戶（與其聯絡人）看得到；不設方案產品，不受「一個方案產品一個
+        channel」的限制，也不掛產業標籤。"""
+        key = 'tmpl:%s:partner:%s' % (product_tmpl.id, partner.commercial_partner_id.id)
+        channel = self.sudo().with_context(active_test=False).search(
+            [('knowledge_private_key', '=', key)], limit=1)
+        if channel or not create:
+            return channel
+        channel = self.with_user(SUPERUSER_ID).create({
+            'name': _('%(c)s %(p)s 操作說明', c=partner.commercial_partner_id.name, p=product_tmpl.name),
+            'channel_type': 'training', 'visibility': 'members', 'enroll': 'invite',
+            'promote_strategy': 'none', 'allow_comment': False, 'is_published': True,
+            'knowledge_managed': True, 'knowledge_private_key': key,
+            'knowledge_partner_id': partner.commercial_partner_id.id,
+        })
+        channel = self.sudo().browse(channel.id)
+        members = partner.commercial_partner_id | partner.commercial_partner_id.child_ids
+        if hasattr(channel, '_action_add_members'):
+            channel._action_add_members(members)
+        return channel
 
     @api.model
     def _knowledge_channel_for(self, product_tmpl):

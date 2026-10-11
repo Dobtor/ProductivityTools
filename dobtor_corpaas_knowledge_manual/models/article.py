@@ -606,9 +606,7 @@ class KnowledgeArticle(models.Model):
                 if not base and not art.placement_ids.filtered(
                         lambda p: p.package_id == pkg):
                     continue
-                channel = Channel._knowledge_channel_for(pkg.product_tmpl_id) if fits else \
-                    Channel.with_context(active_test=False).search(
-                        [('knowledge_product_tmpl_id', '=', pkg.product_tmpl_id.id)], limit=1)
+                channel = Channel._knowledge_article_channel(art, pkg, create=fits)
                 pl = art.placement_ids.filtered(lambda p: p.channel_id == channel)[:1] \
                     if channel else Placement
                 if pl and pl in handled:

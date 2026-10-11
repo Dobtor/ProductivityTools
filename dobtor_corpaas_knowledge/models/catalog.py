@@ -395,9 +395,16 @@ class KnowledgeScenario(models.Model):
     def _seed_plan(self):
         """引用這個情境的方案中，生效中或正在展開的說明書製作計畫（沒有回空）。"""
         Plan = self.env['corpaas.knowledge.plan'].sudo()
-        return Plan.search([('package_id', 'in', self.package_ids.ids),
-                            ('state', 'in', ('approved', 'expanding', 'canary', 'running', 'done', 'stopped'))],
-                           order='version desc, id desc', limit=1)
+        plans = Plan.search([('package_id', 'in', self.package_ids.ids),
+                             ('state', 'in', ('approved', 'expanding', 'canary', 'running', 'done', 'stopped'))],
+                            order='version desc, id desc')
+        # 這個情境是哪份計畫的故事展開出來的（建議書來源的客戶專屬情境各有自己的計畫）
+        own = plans.filtered(lambda p: any(i.res_model == self._name and i.res_id == self.id
+                                           for i in p.item_ids.filtered(lambda i: i.kind == 'story')))
+        if own:
+            return own[:1]
+        return plans.filtered(lambda p: p.source_type == 'product')[:1] \
+            if not self.knowledge_private_partner_id else Plan
 
     def _seed_plan_story(self):
         plan = self._seed_plan()

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識：服務建議書／評估報價／預估成本',
-    'version': '18.0.2.0.0',
+    'version': '18.0.3.0.0',
     'category': 'Productivity/Knowledge',
     'summary': '出口三：客戶痛點 → AI 對應方案能力 → 工項估算 → 建議書 PDF／報價單，'
                '送出凍結快照，工時回寫校正估算',
@@ -45,6 +45,7 @@ CorPaaS 方案知識：服務建議書
         'report/proposal_report.xml',
         'views/proposal_menus.xml',
         'views/clause_views.xml',
+        'views/plan_source_views.xml',
     ],
     'post_init_hook': 'post_init_hook',
     'installable': True,

@@ -133,13 +133,15 @@ class KnowledgePlanExec(models.Model):
         item = self.live_items('story')[:1]
         data = item.content() if item else {}
         prev = self.parent_id.live_items('story')[:1].record() if self.parent_id else None
-        sc = prev or (pkg.knowledge_scenario_ids[:1] if pkg.knowledge_scenario_ids else Sc)
+        shared = pkg.knowledge_scenario_ids.filtered(lambda s: not s.knowledge_private_partner_id)
+        sc = prev or (self._story_scenario_default(shared[:1]) if shared else Sc)
         vals = {'narrative': data.get('narrative') or False,
                 'glossary': glossary_text(data.get('glossary') or {}) or False}
+        vals.update(self._story_scenario_extra())
         if sc:
             sc.write(vals)
         else:
-            code = 'plan_%s' % pkg.id
+            code = self._story_scenario_code()
             sc = Sc.search([('code', '=', code)], limit=1) or Sc.create(dict(
                 vals, code=code, name=data.get('model') and '%s（%s）' % (data.get('company') or pkg.display_name,
                                                                           data.get('model'))
@@ -149,6 +151,17 @@ class KnowledgePlanExec(models.Model):
         if item:
             self._set_record(item, sc)
         return sc
+
+    def _story_scenario_default(self, shared):
+        """沒有前一版時沿用的情境（產品來源沿用方案既有的共用情境；建議書來源覆寫成另建）。"""
+        return shared
+
+    def _story_scenario_code(self):
+        return 'plan_%s' % self.package_id.id
+
+    def _story_scenario_extra(self):
+        """寫進情境的額外欄位（建議書來源覆寫：客戶專屬、適用章節）。"""
+        return {}
 
     def _materialize_chapters(self):
         """章節 → 能力（範本庫有的直接引用），掛到方案；入選的功能點加進能力。"""
@@ -416,9 +429,12 @@ class SolutionPackagePlanExec(models.Model):
     def _knowledge_iterate(self, run):
         """依計畫產出時，輪次由計畫的流程編排決定；沒有計畫照舊（收斂迴圈）。"""
         self.ensure_one()
-        plan = self.knowledge_plan_id
-        if plan and plan.state in ('canary', 'running'):
-            return plan.sudo().with_context(knowledge_plan_system=True)._plan_after_run(run)
+        plans = self.env['corpaas.knowledge.plan'].sudo().search(
+            [('package_id', '=', self.id), ('state', 'in', ('canary', 'running'))])
+        if plans:
+            for plan in plans:
+                plan.with_context(knowledge_plan_system=True)._plan_after_run(run)
+            return True
         return super()._knowledge_iterate(run)
 
     def _knowledge_stage_prepare(self, run):
