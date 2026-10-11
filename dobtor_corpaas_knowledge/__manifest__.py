@@ -50,6 +50,7 @@ CorPaaS 方案知識核心
         'views/rule_views.xml',
         'views/code_knowledge_views.xml',
         'views/plan_views.xml',
+        'views/feedback_views.xml',
         'wizard/reject_wizard_views.xml',
     ],
     'installable': True,

@@ -79,4 +79,13 @@ env['corpaas.knowledge.gap']._gc(180)</field>
         <field name="interval_type">days</field>
         <field name="active">True</field>
     </record>
+    <record id="ir_cron_knowledge_feedback_batch" model="ir.cron">
+        <field name="name">方案知識：說明書意見彙整成下一個計畫版本</field>
+        <field name="model_id" ref="model_corpaas_knowledge_feedback"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_feedback_batch()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+    </record>
 </odoo>

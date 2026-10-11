@@ -15,3 +15,4 @@ from . import concept
 from . import acceptance
 from . import self_review
 from . import plan_manual
+from . import feedback_entry

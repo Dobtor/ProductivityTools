@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 上線後的意見與修訂工作階段（新架構規格第 12 節） -->
+    <record id="view_kb_feedback_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feedback.list</field>
+        <field name="model">corpaas.knowledge.feedback</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="create_date" string="時間"/>
+                <field name="package_id"/>
+                <field name="source"/>
+                <field name="body"/>
+                <field name="change_type" widget="badge"/>
+                <field name="tier" widget="badge" decoration-danger="tier == 'major'" decoration-warning="tier == 'normal'"/>
+                <field name="state" widget="badge" decoration-info="state == 'new'" decoration-success="state == 'done'"
+                       decoration-muted="state in ('routed', 'rejected')"/>
+                <field name="plan_id" optional="show"/>
+                <field name="user_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_feedback_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feedback.form</field>
+        <field name="model">corpaas.knowledge.feedback</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_analyze" type="object" string="AI 分析" invisible="state != 'new'"/>
+                    <button name="action_reject" type="object" string="不採納" invisible="state in ('done', 'rejected')"/>
+                    <field name="state" widget="statusbar" statusbar_visible="new,analyzed,planned,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="package_id"/>
+                            <field name="source"/>
+                            <field name="session_id"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="change_type"/>
+                            <field name="tier"/>
+                            <field name="plan_id"/>
+                            <field name="activity_id"/>
+                        </group>
+                    </group>
+                    <group string="意見"><field name="body" nolabel="1" colspan="2"/></group>
+                    <group string="內容指示"><field name="instruction" nolabel="1" colspan="2"/></group>
+                    <group string="分析"><field name="analysis" nolabel="1" colspan="2"/></group>
+                    <group string="定位" groups="base.group_no_one">
+                        <field name="res_model"/>
+                        <field name="res_id"/>
+                        <field name="anchor_json"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_feedback_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feedback.search</field>
+        <field name="model">corpaas.knowledge.feedback</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="package_id"/>
+                <field name="body"/>
+                <filter name="new" string="待分析" domain="[('state', '=', 'new')]"/>
+                <filter name="ready" string="待排入計畫" domain="[('state', '=', 'analyzed'), ('plan_id', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_type" string="改版類型" context="{'group_by': 'change_type'}"/>
+                    <filter name="g_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_kb_feedback" model="ir.actions.act_window">
+        <field name="name">說明書意見</field>
+        <field name="res_model">corpaas.knowledge.feedback</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_ready': 1}</field>
+    </record>
+
+    <record id="view_kb_feedback_session_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feedback.session.form</field>
+        <field name="model">corpaas.knowledge.feedback.session</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_extract" type="object" string="AI 萃取意見" class="btn-primary"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name" placeholder="例如：10 月說明書審閱會議"/></h1></div>
+                    <group>
+                        <group><field name="package_id"/><field name="kind"/></group>
+                        <group><field name="participant_ids" widget="many2many_tags"/></group>
+                    </group>
+                    <group string="內容／逐字稿"><field name="content" nolabel="1" colspan="2"/></group>
+                    <field name="feedback_ids" readonly="1">
+                        <list>
+                            <field name="body"/>
+                            <field name="change_type"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="view_kb_feedback_session_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feedback.session.list</field>
+        <field name="model">corpaas.knowledge.feedback.session</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="create_date" string="時間"/>
+                <field name="name"/>
+                <field name="package_id"/>
+                <field name="kind"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_kb_feedback_session" model="ir.actions.act_window">
+        <field name="name">修訂工作階段</field>
+        <field name="res_model">corpaas.knowledge.feedback.session</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_knowledge_feedback_root" name="意見與改版" parent="menu_knowledge_root" sequence="6"/>
+    <menuitem id="menu_knowledge_feedback" name="說明書意見" parent="menu_knowledge_feedback_root"
+              action="action_kb_feedback" sequence="1"/>
+    <menuitem id="menu_knowledge_feedback_session" name="修訂工作階段" parent="menu_knowledge_feedback_root"
+              action="action_kb_feedback_session" sequence="2"/>
+
+    <record id="view_solution_package_form_knowledge_feedback" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.knowledge.feedback</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_solution_package_form_knowledge_plan"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_knowledge_plans']" position="after">
+                <button name="action_knowledge_feedback_to_plan" type="object" string="意見彙整成下一版"
+                        class="btn-link" icon="fa-comments-o" colspan="2"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

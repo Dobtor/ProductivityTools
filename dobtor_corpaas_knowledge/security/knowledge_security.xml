@@ -22,4 +22,9 @@
         <field name="implied_ids" eval="[(4, ref('group_knowledge_approver'))]"/>
         <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
     </record>
+    <!-- 租戶管理員：可以在前台課程頁提出說明書意見（已決事項第 2 項） -->
+    <record id="group_knowledge_feedback" model="res.groups">
+        <field name="name">說明書意見（租戶管理員）</field>
+        <field name="category_id" ref="module_category_knowledge"/>
+    </record>
 </odoo>

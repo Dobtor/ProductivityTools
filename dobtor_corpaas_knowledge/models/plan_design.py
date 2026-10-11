@@ -58,9 +58,12 @@ class KnowledgePlanDesign(models.Model):
         plan = self.sudo().with_context(knowledge_plan_system=True)
         pack = plan._design_pack()
         plan.design_pack = json.dumps(pack, ensure_ascii=False)
-        plan._d1_chapters(pack)
-        plan._d2_assign(pack)
-        plan._d3_story_roles_data(pack)
+        # ★ 只有內容指示的修訂（沒有審閱意見、沒有新的未歸屬功能點）：沿用前一版的設計，不重新問 AI
+        light = bool(plan.parent_id) and not (plan.review_notes or '').strip() and not plan.lines_unassigned
+        if not light:
+            plan._d1_chapters(pack)
+            plan._d2_assign(pack)
+            plan._d3_story_roles_data(pack)
         plan._d4_exclusions()
         plan._d5_cost_quality()
         for _i in range(MAX_D2_RETRY):
@@ -68,10 +71,11 @@ class KnowledgePlanDesign(models.Model):
                 break
             plan._d2_assign(pack, only_unassigned=True)
         plan._mark_changes()
-        try:
-            plan._plan_trial(pack)
-        except hub_client.HubError as e:
-            _logger.warning('[knowledge] 試寫略過：%s', e)
+        if not light:
+            try:
+                plan._plan_trial(pack)
+            except hub_client.HubError as e:
+                _logger.warning('[knowledge] 試寫略過：%s', e)
         plan.write({'state': 'review'})
         plan.message_post(body=_('AI 已設計計畫：%(c)s 章、入選 %(a)s 個功能點，預估 $%(e).2f',
                                  c=len(plan.live_items('chapter')), a=plan.lines_chapter,

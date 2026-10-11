@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_kb_feedback_wizard_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.feedback.wizard.form</field>
+        <field name="model">corpaas.knowledge.feedback.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="article_id" readonly="1"/>
+                    <field name="allowed_block_ids" invisible="1"/>
+                    <field name="step_block_id" options="{'no_create': True}"/>
+                    <field name="step_no"/>
+                    <field name="shot_name"/>
+                    <field name="selected_text"/>
+                </group>
+                <field name="body" placeholder="哪裡要改、怎麼改（例如：第 2 步要先選倉庫再填數量）"/>
+                <footer>
+                    <button name="action_submit" type="object" string="送出" class="btn-primary"/>
+                    <button special="cancel" string="取消"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_kb_article_form_feedback" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.article.form.feedback</field>
+        <field name="model">corpaas.knowledge.article</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge_manual.view_kb_article_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_open_feedback" type="object" string="提出意見"/>
+            </xpath>
+            <xpath expr="//sheet" position="inside">
+                <group string="人工指示" invisible="not manual_instructions">
+                    <field name="manual_instructions" nolabel="1" colspan="2"/>
+                    <field name="manual_pending_instruction"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 前台課程頁：租戶管理員可以直接對這一頁提出意見（已決事項第 2 項） -->
+    <template id="slide_main_knowledge_feedback" inherit_id="website_slides.slide_main"
+              name="Slide: knowledge feedback">
+        <xpath expr="//t[@t-call='website_slides.slide_content_detailed']" position="after">
+            <t t-if="slide._knowledge_feedback_allowed()">
+                <details class="o_kb_feedback mt-4 border rounded p-3">
+                    <summary>對這一頁提出修改意見</summary>
+                    <p t-if="request.params.get('kb_feedback')" class="text-success mt-2">已收到意見，謝謝。</p>
+                    <form t-attf-action="/knowledge/feedback/#{slide.id}" method="post" class="mt-2">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <label class="form-label" for="kb_feedback_selected">引用的文字（選填）</label>
+                        <input class="form-control mb-2" id="kb_feedback_selected" name="selected_text" maxlength="300"/>
+                        <label class="form-label" for="kb_feedback_body">意見</label>
+                        <textarea class="form-control mb-2" id="kb_feedback_body" name="body" rows="3" required="required"
+                                  maxlength="2000" placeholder="哪裡要改、怎麼改"/>
+                        <button type="submit" class="btn btn-primary btn-sm">送出意見</button>
+                    </form>
+                </details>
+            </t>
+        </xpath>
+    </template>
+</odoo>
