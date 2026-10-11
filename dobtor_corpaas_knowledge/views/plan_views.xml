@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 說明書製作計畫（新架構規格第 8 節）：一頁式審閱，唯一的人工核准點 -->
+    <record id="view_kb_plan_item_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.plan.item.list</field>
+        <field name="model">corpaas.knowledge.plan.item</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" create="0" decoration-muted="change == 'remove'"
+                  decoration-warning="confidence == 'low' and not confirmed and not locked">
+                <field name="sequence" widget="handle"/>
+                <field name="kind" column_invisible="1"/>
+                <field name="key" optional="hide"/>
+                <field name="name"/>
+                <field name="summary" optional="show"/>
+                <field name="confidence" widget="badge" decoration-danger="confidence == 'low'"
+                       decoration-success="confidence == 'high'"/>
+                <field name="change" widget="badge" optional="show" decoration-info="change == 'new'"
+                       decoration-warning="change == 'modify'" decoration-danger="change == 'remove'"/>
+                <field name="line_count" optional="show"/>
+                <field name="confirmed"/>
+                <field name="locked" optional="show"/>
+                <button name="action_confirm" type="object" string="確認" icon="fa-check"
+                        invisible="confirmed" title="確認這個項目"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_plan_item_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.plan.item.form</field>
+        <field name="model">corpaas.knowledge.plan.item</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name"/></h1><field name="kind" readonly="1"/></div>
+                    <group>
+                        <group>
+                            <field name="key" readonly="1"/>
+                            <field name="confidence"/>
+                            <field name="change" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="confirmed"/>
+                            <field name="locked"/>
+                            <field name="res_model" readonly="1"/>
+                            <field name="res_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="說明"><field name="summary" nolabel="1" colspan="2"/></group>
+                    <group string="回答" invisible="kind != 'question'"><field name="answer" nolabel="1" colspan="2"/></group>
+                    <group string="依據"><field name="evidence" nolabel="1" colspan="2"/></group>
+                    <group string="內容（JSON）" groups="base.group_no_one"><field name="content_json" nolabel="1" colspan="2"/></group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_kb_scope_line_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.scope_line.list</field>
+        <field name="model">corpaas.knowledge.scope_line</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" create="0" delete="0"
+                  decoration-danger="assignment == 'unassigned'" decoration-muted="assignment == 'exclude'"
+                  decoration-info="assignment == 'next'">
+                <field name="plan_id" column_invisible="1"/>
+                <field name="feature_id" readonly="1"/>
+                <field name="module" readonly="1"/>
+                <field name="module_category" readonly="1" optional="show"/>
+                <field name="kind" readonly="1" optional="show"/>
+                <field name="flow_id" readonly="1" optional="show"/>
+                <field name="usage" readonly="1" optional="show"/>
+                <field name="classification" readonly="1" optional="hide"/>
+                <field name="has_pack" readonly="1" optional="hide"/>
+                <field name="assignment"/>
+                <field name="item_id" options="{'no_create': True}"/>
+                <field name="reason"/>
+                <field name="confidence" widget="badge" optional="show" decoration-danger="confidence == 'low'"/>
+                <field name="by_rule" optional="hide"/>
+                <field name="locked" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kb_scope_line_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.scope_line.search</field>
+        <field name="model">corpaas.knowledge.scope_line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="feature_id"/>
+                <field name="module"/>
+                <field name="item_id"/>
+                <filter name="unassigned" string="未歸屬" domain="[('assignment', '=', 'unassigned')]"/>
+                <filter name="chapter" string="入選" domain="[('assignment', '=', 'chapter')]"/>
+                <filter name="exclude" string="排除" domain="[('assignment', '=', 'exclude')]"/>
+                <filter name="next" string="下期" domain="[('assignment', '=', 'next')]"/>
+                <filter name="low" string="低信心" domain="[('confidence', '=', 'low')]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_item" string="章節" context="{'group_by': 'item_id'}"/>
+                    <filter name="g_module" string="模組" context="{'group_by': 'module'}"/>
+                    <filter name="g_assignment" string="歸屬" context="{'group_by': 'assignment'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_kb_plan_list" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.plan.list</field>
+        <field name="model">corpaas.knowledge.plan</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="package_id"/>
+                <field name="version"/>
+                <field name="version_type"/>
+                <field name="source_type"/>
+                <field name="state" widget="badge" decoration-info="state in ('ledger', 'readiness', 'draft')"
+                       decoration-warning="state in ('review', 'blocked')" decoration-success="state == 'done'"
+                       decoration-danger="state == 'stopped'"/>
+                <field name="lines_chapter"/>
+                <field name="lines_total" optional="show"/>
+                <field name="cost_estimate" optional="show"/>
+                <field name="approve_mode" optional="show"/>
+                <field name="approved_at" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_kb_plan_form" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.plan.form</field>
+        <field name="model">corpaas.knowledge.plan</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_build_ledger" type="object" string="建立底稿" class="btn-secondary"
+                            invisible="state not in ('ledger', 'blocked', 'readiness', 'draft', 'review')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                    <button name="action_run_t1" type="object" string="重新檢查" class="btn-secondary"
+                            invisible="state not in ('blocked', 'readiness')"/>
+                    <button name="action_ai_revise" type="object" string="AI 修訂" class="btn-secondary"
+                            invisible="state != 'review'"/>
+                    <button name="action_approve" type="object" string="核准" class="btn-primary"
+                            invisible="state != 'review'" groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_stop" type="object" string="停止" class="btn-secondary"
+                            invisible="state not in ('expanding', 'canary', 'running')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_approver"/>
+                    <button name="action_new_version" type="object" string="建立下一版" class="btn-secondary"
+                            invisible="state not in ('done', 'stopped', 'running')"
+                            groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="ledger,readiness,draft,review,approved,canary,running,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_lines" type="object" class="oe_stat_button" icon="fa-list">
+                            <field name="lines_chapter" widget="statinfo" string="入選功能點"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="package_id" readonly="id"/>
+                            <field name="source_type" readonly="id"/>
+                            <field name="version_type" readonly="1"/>
+                            <field name="parent_id" readonly="1" invisible="not parent_id"/>
+                            <field name="reader" readonly="state not in ('ledger', 'blocked', 'readiness', 'draft', 'review')"/>
+                        </group>
+                        <group>
+                            <field name="budget" readonly="state not in ('ledger', 'blocked', 'readiness', 'draft', 'review')"/>
+                            <field name="cost_estimate"/>
+                            <field name="budget_accepted" invisible="not cost_estimate or cost_estimate &lt;= budget"/>
+                            <field name="cost_actual" invisible="state in ('ledger', 'blocked', 'readiness', 'draft', 'review')"/>
+                            <field name="approve_mode" invisible="not approve_mode"/>
+                            <field name="approved_by" invisible="not approved_by"/>
+                            <field name="stop_reason" invisible="not stop_reason"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert" invisible="state not in ('review', 'blocked')">
+                        <field name="decisions_html" nolabel="1"/>
+                    </div>
+                    <field name="summary_html" nolabel="1"/>
+                    <notebook>
+                        <page string="故事" name="story">
+                            <field name="story_item_ids" context="{'default_kind': 'story'}"/>
+                        </page>
+                        <page string="章節" name="chapters">
+                            <field name="chapter_item_ids" context="{'default_kind': 'chapter'}"/>
+                        </page>
+                        <page string="流程" name="flows">
+                            <field name="flow_item_ids" context="{'default_kind': 'flow'}"/>
+                        </page>
+                        <page string="角色" name="roles">
+                            <field name="role_item_ids" context="{'default_kind': 'role'}"/>
+                        </page>
+                        <page string="資料需求" name="data">
+                            <field name="data_item_ids" context="{'default_kind': 'data'}"/>
+                        </page>
+                        <page string="排除" name="exclusions">
+                            <field name="exclusion_item_ids" context="{'default_kind': 'exclusion'}"/>
+                        </page>
+                        <page string="待決事項" name="questions">
+                            <field name="question_item_ids" context="{'default_kind': 'question'}">
+                                <list editable="bottom" create="0">
+                                    <field name="name" readonly="1"/>
+                                    <field name="summary" readonly="1" optional="show"/>
+                                    <field name="answer"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="內容指示" name="instructions" invisible="not instruction_item_ids">
+                            <field name="instruction_item_ids"/>
+                        </page>
+                        <page string="範圍底稿" name="lines">
+                            <group>
+                                <group>
+                                    <field name="lines_total"/>
+                                    <field name="lines_chapter"/>
+                                </group>
+                                <group>
+                                    <field name="lines_excluded"/>
+                                    <field name="lines_next"/>
+                                    <field name="lines_unassigned"/>
+                                </group>
+                            </group>
+                            <field name="line_ids"/>
+                        </page>
+                        <page string="關聯模組" name="modules">
+                            <field name="module_ids">
+                                <list create="0" edit="0">
+                                    <field name="module"/>
+                                    <field name="origin"/>
+                                    <field name="category"/>
+                                    <field name="feature_count"/>
+                                    <field name="installed"/>
+                                    <field name="summarized"/>
+                                    <field name="version_ref" optional="hide"/>
+                                </list>
+                            </field>
+                            <field name="relation_ids">
+                                <list create="0" edit="0">
+                                    <field name="kind"/>
+                                    <field name="src"/>
+                                    <field name="dst"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="審閱意見與試寫" name="review">
+                            <group string="審閱意見（寫下後按「AI 修訂」）">
+                                <field name="review_notes" nolabel="1" colspan="2"
+                                       readonly="state not in ('ledger', 'blocked', 'readiness', 'draft', 'review')"/>
+                            </group>
+                            <group string="試寫"><field name="trial_html" nolabel="1" colspan="2"/></group>
+                        </page>
+                        <page string="品質目標" name="targets">
+                            <group>
+                                <field name="target_shot_rate"/>
+                                <field name="target_review_rate"/>
+                                <field name="target_blank_max"/>
+                                <field name="max_rounds"/>
+                                <field name="rounds"/>
+                            </group>
+                        </page>
+                        <page string="檢查紀錄" name="checks">
+                            <field name="check_ids">
+                                <list create="0" edit="0">
+                                    <field name="create_date" string="時間"/>
+                                    <field name="moment"/>
+                                    <field name="state" widget="badge" decoration-success="state == 'pass'"
+                                           decoration-warning="state == 'warn'" decoration-danger="state == 'block'"/>
+                                </list>
+                                <form>
+                                    <group><field name="moment"/><field name="state"/></group>
+                                    <field name="result_html"/>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="驗收報告" name="report" invisible="not report_html">
+                            <field name="report_html" nolabel="1"/>
+                        </page>
+                        <page string="執行紀錄" name="runs">
+                            <field name="run_ids" readonly="1"/>
+                        </page>
+                        <page string="輸入包" name="pack" groups="base.group_no_one">
+                            <field name="source_note"/>
+                            <field name="design_pack"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_kb_plan_search" model="ir.ui.view">
+        <field name="name">corpaas.knowledge.plan.search</field>
+        <field name="model">corpaas.knowledge.plan</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="package_id"/>
+                <filter name="review" string="等待審閱" domain="[('state', 'in', ('review', 'blocked'))]"/>
+                <filter name="live" string="生效中" domain="[('state', 'in', ('approved', 'expanding', 'canary', 'running', 'done', 'stopped'))]"/>
+                <group expand="0" string="分組">
+                    <filter name="g_pkg" string="方案" context="{'group_by': 'package_id'}"/>
+                    <filter name="g_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_kb_plan" model="ir.actions.act_window">
+        <field name="name">說明書製作計畫</field>
+        <field name="res_model">corpaas.knowledge.plan</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一份說明書製作計畫</p>
+            <p>選擇方案後按「建立底稿」：系統分析關聯模組、功能點與程式，AI 依底稿設計計畫，你審閱核准一次，之後自動產出說明書。</p>
+        </field>
+    </record>
+    <menuitem id="menu_knowledge_plan" name="說明書製作計畫" parent="menu_knowledge_root"
+              action="action_kb_plan" sequence="5"/>
+
+    <!-- 方案表單：目標客群說明、自動化等級、計畫入口 -->
+    <record id="view_solution_package_form_knowledge_plan" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.knowledge.plan</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_solution_package_form_knowledge"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='knowledge_enabled']" position="after">
+                <field name="knowledge_automation"/>
+                <field name="knowledge_plan_id" readonly="1"/>
+                <field name="knowledge_target_brief" placeholder="目標客戶的產業、規模、現況與痛點（只給說明書使用）"/>
+            </xpath>
+            <xpath expr="//field[@name='knowledge_enabled']" position="before">
+                <button name="action_knowledge_plans" type="object" string="說明書製作計畫"
+                        class="btn-link" icon="fa-map-o" colspan="2"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

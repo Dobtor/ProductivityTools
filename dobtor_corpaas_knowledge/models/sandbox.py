@@ -343,6 +343,12 @@ class KnowledgeSandbox(models.Model):
                 scenario._prune_failed_seed(report)
             except Exception as e:  # noqa: BLE001
                 _logger.warning('[knowledge] 情境 %s 移除失敗記錄失敗：%s', scenario.code, e)
+        try:
+            # 依計畫產出：檢查結果交給計畫的流程編排（通過就系統核准、接著更新）
+            with self.env.cr.savepoint():
+                scenario._plan_after_seed_check(state)
+        except Exception as e:  # noqa: BLE001 — 編排失敗不影響檢查結果本身
+            _logger.warning('[knowledge] 情境 %s 計畫接續失敗：%s', scenario.code, e)
         return state
 
     def _purge_models(self, seed):

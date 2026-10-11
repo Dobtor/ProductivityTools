@@ -20,3 +20,4 @@ from . import test_remote_fetch
 from . import test_p0_p1
 from . import test_p2
 from . import test_diagrams
+from . import test_plan

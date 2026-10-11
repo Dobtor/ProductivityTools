@@ -5,8 +5,8 @@
 （＝例外清單，人只處理這些）。自動上線的抽 5% 標「待抽查」，用來校正自審。
 
 ★ 審查者與寫作者分開：另一個提示詞、只拿文章與事實（截圖腳本、功能、讀者身分）對照，不看寫作理由。
-★ 方案「自動化等級」：保守（不自動核准文章）／標準（預設，自審通過就上線）／全自動（同標準，
-  另外 AI 審查失敗時只要事實檢查過也上線）。
+★ 方案「自動化等級」（欄位定義在核心模組，計畫也依它決定自動核准）：保守（不自動核准文章）／
+  標準（預設，自審通過就上線）／全自動（同標準，另外 AI 審查失敗時只要事實檢查過也上線）。
 ☠️ 依據（社群電商方案）：從零到可驗收經過 5 個人工核准關卡；98 篇文章要人逐篇按。
 """
 import hashlib
@@ -40,17 +40,6 @@ def review_reason(problems, reviewed):
         return _('AI 審查意見')
     first = (problems or [''])[0]
     return re.split(r'[：:]', first, 1)[0][:60] or _('其他')
-
-
-class SolutionPackageAutomation(models.Model):
-    _inherit = 'infrastructure.solution.package'
-
-    knowledge_automation = fields.Selection(
-        [('conservative', '保守：文章都要人核准'),
-         ('standard', '標準：自審通過的文章自動上線'),
-         ('full', '全自動：事實檢查通過就上線')],
-        string='自動化等級', default='standard', required=True,
-        help='自審不過的文章留在待審（例外清單），人只處理這些')
 
 
 class KnowledgeArticleReview(models.Model):

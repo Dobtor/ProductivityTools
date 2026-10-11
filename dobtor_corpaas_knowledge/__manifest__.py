@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識核心',
-    'version': '18.0.2.33.0',
+    'version': '18.0.3.0.0',
     'category': 'Productivity/Knowledge',
     'summary': '監控方案母體改版，自動盤點功能、算畫面指紋、重建說明庫並無頭截圖；'
                '說明書／行銷／建議書三個出口共用的事實層',
@@ -49,6 +49,7 @@ CorPaaS 方案知識核心
         'views/knowledge_package_views.xml',
         'views/rule_views.xml',
         'views/code_knowledge_views.xml',
+        'views/plan_views.xml',
         'wizard/reject_wizard_views.xml',
     ],
     'installable': True,

@@ -392,6 +392,28 @@ class KnowledgeScenario(models.Model):
         return (live.get('seed_json') or '[]') != (self.seed_json or '[]') \
             or sorted(live.get('pack_ids') or []) != sorted(self.pack_ids.ids)
 
+    def _seed_plan(self):
+        """引用這個情境的方案中，生效中或正在展開的說明書製作計畫（沒有回空）。"""
+        Plan = self.env['corpaas.knowledge.plan'].sudo()
+        return Plan.search([('package_id', 'in', self.package_ids.ids),
+                            ('state', 'in', ('approved', 'expanding', 'canary', 'running', 'done', 'stopped'))],
+                           order='version desc, id desc', limit=1)
+
+    def _seed_plan_story(self):
+        plan = self._seed_plan()
+        return plan.story() if plan else {}
+
+    def _seed_plan_text(self):
+        """計畫的資料需求（規格 11.1：示範資料依計畫的資料需求組裝）。"""
+        plan = self._seed_plan()
+        if not plan:
+            return ''
+        needs = [i.content() for i in plan.live_items('data')]
+        if not needs:
+            return ''
+        return ("★ 說明書製作計畫的資料需求（一定要涵蓋：單據要準備到指定狀態、數量大約如下）：%s\n"
+                % json.dumps(needs, ensure_ascii=False)[:4000])
+
     def _knowledge_auto_draft_seed(self):
         """核准圈選提案後自動接續：沒有示範資料的情境排 AI 起草；排不了只記一筆，不擋核准。"""
         for sc in self.filtered(lambda r: not r.seed_json and r.package_ids):
@@ -554,7 +576,7 @@ class KnowledgeScenario(models.Model):
             "\"narrative\":\"…\",\"seed\":[{\"xmlid\":\"短名\",\"model\":…,\"values\":{…}}]}\n\n"
             "資料包目錄：%s\n\n方案畫面：%s"
         ) % (self.name, self.narrative or '',
-             self._seed_rules_text(roles),
+             self._seed_rules_text(roles) + self._seed_plan_text(),
              ('上次拍照時沒有資料的畫面（優先補）：%s\n' % '、'.join(gaps)) if gaps else '',
              json.dumps(catalog, ensure_ascii=False)[:60000],
              json.dumps(screens, ensure_ascii=False)[:20000])
@@ -577,6 +599,9 @@ class KnowledgeScenario(models.Model):
         chosen = packs.filtered(lambda p: p.code in set((data or {}).get('packs') or []))
         if not chosen:
             raise UserError(_('AI 沒有挑出可用的資料包：%s') % '；'.join(problems[:3]))
+        story = self._seed_plan_story()
+        if story.get('company'):
+            data['company'] = story['company']   # 公司名已在計畫故事定稿
         identity = [
             {'xmlid': 'base.main_company', 'model': 'res.company',
              'values': {'name': (data.get('company') or self.name).strip()}},
@@ -589,7 +614,7 @@ class KnowledgeScenario(models.Model):
         vals = {'pack_ids': [(6, 0, chosen.ids)],
                 'seed_json': json.dumps(identity + extra, ensure_ascii=False, indent=1),
                 'seed_auto_repairs': 0}
-        if isinstance(data.get('narrative'), str) and len(data['narrative'].strip()) >= 30:
+        if not story and isinstance(data.get('narrative'), str) and len(data['narrative'].strip()) >= 30:
             # ★ 敘事跟著實際資料走：圈選時寫的敘事可能提到資料裡沒有的產品與人名，
             #   文章的情境說明照敘事寫，就會出現截圖裡看不到的東西
             vals['narrative'] = data['narrative'].strip()
