@@ -397,8 +397,9 @@ class KnowledgePlanExec(models.Model):
         src = self.sudo()
         nxt = src.with_context(knowledge_plan_system=True).create({
             'package_id': src.package_id.id, 'source_type': src.source_type, 'parent_id': src.id,
-            'version': (max(src.search([('package_id', '=', src.package_id.id),
-                                        ('source_type', '=', src.source_type)]).mapped('version') or [0]) + 1),
+            'version': (max(src.with_context(active_test=False).search(
+                [('package_id', '=', src.package_id.id), ('source_type', '=', src.source_type)]).mapped('version')
+                or [0]) + 1),
             'version_type': version_type, 'reader': src.reader, 'budget': src.budget,
             'target_shot_rate': src.target_shot_rate, 'target_review_rate': src.target_review_rate,
             'target_blank_max': src.target_blank_max, 'max_rounds': src.max_rounds,

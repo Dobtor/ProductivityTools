@@ -148,7 +148,7 @@ class KnowledgeProposalDev(models.Model):
         if not self.package_id:
             raise UserError(_('建議書沒有方案套件。'))
         Plan = self.env['corpaas.knowledge.plan'].sudo()
-        version = max(Plan.search([('package_id', '=', self.package_id.id),
+        version = max(Plan.with_context(active_test=False).search([('package_id', '=', self.package_id.id),
                                    ('source_type', '=', 'proposal')]).mapped('version') or [0]) + 1
         plan = Plan.with_context(knowledge_plan_system=True).create({
             'package_id': self.package_id.id, 'source_type': 'proposal', 'proposal_id': self.id,
