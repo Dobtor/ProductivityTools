@@ -1910,6 +1910,8 @@ class SolutionPackage(models.Model):
     def action_knowledge_ai_select(self):
         """提議這個方案要說明的情境與能力（排入佇列，完成後在提案清單查看）。"""
         self.ensure_one()
+        if self.knowledge_plan_mode:
+            raise UserError(_('這個方案已經依說明書製作計畫產出：範圍與章節請在計畫裡調整（建立下一版）。'))
         self._knowledge_master()
         return self.env['corpaas.knowledge.ai'].enqueue(
             self, '_knowledge_ai_select_run', self, note=_('AI 圈選情境與能力'))

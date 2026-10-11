@@ -131,6 +131,8 @@ class KnowledgeStepBlock(models.Model):
             domain.append(('feature_id', 'in', features.ids))
         groups = {}
         for blk in self.search(domain, order='id'):
+            if blk.instruction_fork:
+                continue   # 依人工指示分岔的專屬版本：刻意不同，不算收斂
             groups.setdefault((blk.feature_id.id, blk.fingerprint), self.browse())
             groups[(blk.feature_id.id, blk.fingerprint)] |= blk
         out = []

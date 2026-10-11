@@ -351,6 +351,10 @@ class KnowledgeRenameCandidate(models.Model):
     def action_accept(self):
         """把引用舊功能點的一切轉到新功能點。出口以 `_knowledge_rename_feature` 參與。"""
         self._check_approver()
+        return self._knowledge_accept()
+
+    def _knowledge_accept(self):
+        """接受改名（系統流程呼叫，不檢查群組；依計畫產出時相似度夠高就自動接受）。"""
         for rec in self.filtered(lambda r: r.state == 'proposed'):
             old, new = rec.old_feature_id, rec.new_feature_id
             new._knowledge_add_intents(old.intents)

@@ -452,3 +452,36 @@ class SolutionPackagePlan(models.Model):
         return {'type': 'ir.actions.act_window', 'name': _('說明書製作計畫'),
                 'res_model': 'corpaas.knowledge.plan', 'view_mode': 'list,form',
                 'domain': [('package_id', '=', self.id)], 'context': {'default_package_id': self.id}}
+
+
+#: 新架構的可調參數與預設值（規格第 21 節）：畫面上調整即生效，不必佈署
+PLAN_PARAM_DEFAULTS = {
+    'corpaas_knowledge.plan_target_shot_rate': '95',
+    'corpaas_knowledge.plan_target_review_rate': '85',
+    'corpaas_knowledge.plan_target_blank_max': '10',
+    'corpaas_knowledge.plan_max_rounds': '3',
+    'corpaas_knowledge.plan_canary_shot_rate': '80',
+    'corpaas_knowledge.plan_no_progress_rounds': '2',
+    'corpaas_knowledge.plan_minor_budget_ratio': '0.1',
+    'corpaas_knowledge.plan_require_summary': '1',
+    'corpaas_knowledge.plan_explore_ratio': '0.4',
+    'corpaas_knowledge.plan_repair_ratio': '0.3',
+    'corpaas_knowledge.ledger_semantic_limit': '40',
+    'corpaas_knowledge.rename_auto_threshold': '0.95',
+    'corpaas_knowledge.feedback_batch_min': '1',
+    'corpaas_knowledge.feedback_hourly_limit': '10',
+}
+
+
+class KnowledgePlanParams(models.AbstractModel):
+    _name = 'corpaas.knowledge.plan.params'
+    _description = '說明書製作計畫參數'
+
+    @api.model
+    def _seed_defaults(self):
+        """缺少的參數才補預設值（已存在的不動；用 XML record 種參數會撞唯一鍵）。"""
+        icp = self.env['ir.config_parameter'].sudo()
+        for key, value in PLAN_PARAM_DEFAULTS.items():
+            if icp.get_param(key) is False:
+                icp.set_param(key, value)
+        return True

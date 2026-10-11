@@ -27,8 +27,9 @@
                     <button name="action_knowledge_refresh" string="立即全量更新" type="object"
                             class="btn-primary" invisible="knowledge_blocker"
                             groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
-                    <button name="action_knowledge_ai_select" string="AI 圈選情境與能力" type="object"
-                            invisible="knowledge_blocker"
+                    <field name="knowledge_plan_mode" invisible="1"/>
+                            <button name="action_knowledge_ai_select" string="AI 圈選情境與能力" type="object"
+                            invisible="knowledge_blocker or knowledge_plan_mode"
                             groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
                     <button name="action_knowledge_coverage" string="說明覆蓋率" type="object"/>
                 </header>

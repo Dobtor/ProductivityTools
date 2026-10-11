@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <function model="corpaas.knowledge.plan.params" name="_seed_defaults"/>
+
+    <record id="action_kb_params" model="ir.actions.act_window">
+        <field name="name">方案知識參數</field>
+        <field name="res_model">ir.config_parameter</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('key', '=like', 'corpaas_knowledge.%')]</field>
+        <field name="help" type="html">
+            <p>方案知識的可調參數（門檻、批次大小、品質目標…）。調整後下一次執行就生效，不需要佈署。</p>
+        </field>
+    </record>
+    <menuitem id="menu_knowledge_params" name="參數" parent="menu_knowledge_ops"
+              action="action_kb_params" sequence="90" groups="base.group_system"/>
+</odoo>

@@ -462,3 +462,19 @@ class KnowledgeHooksPlan(models.AbstractModel):
         """計畫的執行指標（說明書模組覆寫）：shots_total、shots_ok、shot_rate、articles_total、
         articles_published、review_rate、chapters={item id: {...}}。"""
         return {}
+
+
+class SolutionPackagePlanRenames(models.Model):
+    _inherit = 'infrastructure.solution.package'
+
+    def _knowledge_detect_renames(self, added, removed, token):
+        """依計畫產出時，改名候選相似度夠高（同模組同種類）就自動接受，不等人確認。"""
+        res = super()._knowledge_detect_renames(added, removed, token)
+        if not self.knowledge_plan_mode or not removed:
+            return res
+        auto = float(self.env['ir.config_parameter'].sudo().get_param(
+            'corpaas_knowledge.rename_auto_threshold') or 0.95)
+        cands = self.env['corpaas.knowledge.rename'].sudo().search([
+            ('state', '=', 'proposed'), ('old_feature_id', 'in', removed.ids), ('similarity', '>=', auto)])
+        cands.filtered(lambda r: r.old_feature_id.model == r.new_feature_id.model)._knowledge_accept()
+        return res

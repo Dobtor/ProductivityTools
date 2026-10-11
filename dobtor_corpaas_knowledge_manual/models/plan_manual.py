@@ -51,6 +51,13 @@ class KnowledgeArticlePlan(models.Model):
         return prompt + ('\n\n' + '\n'.join(extra) if extra else '')
 
 
+class KnowledgeStepBlockPlan(models.Model):
+    _inherit = 'corpaas.knowledge.step_block'
+
+    instruction_fork = fields.Boolean(string='依指示分岔', readonly=True, copy=False,
+                                      help='依人工指示分岔的情境專屬版本：不參與指紋收斂合併')
+
+
 class KnowledgeHooksPlanManual(models.AbstractModel):
     _inherit = 'corpaas.knowledge.hooks'
 
@@ -148,6 +155,20 @@ class KnowledgeHooksPlanManual(models.AbstractModel):
         return res
 
     @api.model
+    def _manual_propose_merges(self, features):
+        """依計畫產出的方案：指紋相同的步驟區塊自動合併（規格 15.2），不再等人確認。"""
+        merges = super()._manual_propose_merges(features)
+        auto = merges.filtered(lambda m: m.state == 'proposed' and any(
+            p.knowledge_plan_mode for p in m.feature_id.package_ids))
+        for m in auto:
+            try:
+                with self.env.cr.savepoint():
+                    m.action_merge()
+            except Exception as e:  # noqa: BLE001 — 合併不了留給人看
+                _logger.warning('[knowledge.manual] 自動合併步驟區塊失敗 %s：%s', m.id, e)
+        return merges
+
+    @api.model
     def _manual_auto_publish(self, package, token, stop):
         """自審前先處理「待依指示重寫」的文章（已上線的會重新送審）。"""
         try:
@@ -198,7 +219,7 @@ class KnowledgeHooksPlanManual(models.AbstractModel):
                 if forks < MAX_FORKS:
                     target = Block.create({'name': block.name, 'feature_id': block.feature_id.id,
                                            'fingerprint': block.fingerprint, 'derived_from_id': base.id,
-                                           'sequence': block.sequence})
+                                           'sequence': block.sequence, 'instruction_fork': True})
             target.write({'name': ai_text(data.get('title')) or target.name,
                           'html': manual_lib.steps_to_html(steps, target.anchor)})
             if target.published_rev_no:
