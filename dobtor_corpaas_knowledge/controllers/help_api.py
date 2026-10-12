@@ -78,7 +78,8 @@ class KnowledgeHelpApi(http.Controller):
             view_type=view_type, limit=limit, groups=user_groups)
         results = env['corpaas.knowledge.hooks']._knowledge_help_links(
             package, matches, query, {'database': database, 'limit': limit,
-                                      'groups': user_groups})
+                                      'groups': user_groups, 'action_xmlid': action_xmlid,
+                                      'model': model, 'view_type': view_type})
         env['corpaas.knowledge.help.log'].create({
             'package_id': package.id, 'database': database[:120],
             'query': (query or '')[:500], 'action_xmlid': (action_xmlid or '')[:200],

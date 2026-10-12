@@ -475,3 +475,37 @@ class TestSubscription(_Base):
         payload['capabilities'] = [mirror.kb_uid]
         self.env['infrastructure.solution.package']._kb_apply_package(payload)
         self.assertIn(mirror, local.knowledge_capability_ids, '訂閱：主體方案的能力掛到本地方案')
+
+
+@tagged('post_install', '-at_install')
+class TestHelpSplit(_Base):
+
+    def test_replica_merges_master_links_local_first(self):
+        self.mode('replica', 'lookup')
+        self.Peer.create({'name': 'm', 'code': 'corpaas', 'role': 'master', 'url': 'https://m', 'key': 'k'})
+        pkg = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'P', 'type': 'service'}).id,
+            'knowledge_upstream_key': 'corpaas:pkg14'})
+        Hooks = type(self.env['corpaas.knowledge.hooks'])
+        local = [{'feature_key': 'a', 'url': '/local/a', 'kind': 'manual'}]
+        master = {'results': [{'feature_key': 'a', 'url': 'https://m/a'}, {'feature_key': 'b', 'url': 'https://m/b'}]}
+        from odoo.addons.dobtor_corpaas_knowledge.models.feature import KnowledgeHooks
+        with patch.object(KnowledgeHooks, '_knowledge_help_links', lambda s, *a, **k: list(local)), \
+                patch(POST, return_value=master) as p:
+            links = self.env['corpaas.knowledge.hooks']._knowledge_help_links(
+                pkg, [], '報名', {'limit': 5, 'action_xmlid': 'x.y'})
+        self.assertEqual([l['url'] for l in links], ['/local/a', 'https://m/b'], '同功能點本地優先')
+        self.assertEqual(p.call_args.args[1]['global_key'], 'corpaas:pkg14')
+        with patch.object(KnowledgeHooks, '_knowledge_help_links', lambda s, *a, **k: list(local)), \
+                patch(POST, side_effect=ConnectionError('down')):
+            links = self.env['corpaas.knowledge.hooks']._knowledge_help_links(pkg, [], '報名', {})
+        self.assertEqual(len(links), 1, '主體不通：只給本地')
+        self.assertTrue(Hooks)
+
+    def test_master_serves_by_global_key(self):
+        self.mode('master', 'lookup')
+        peer = self.Peer.create({'name': 'd', 'code': 'dobtor', 'role': 'replica', 'key': 'k'})
+        self.assertEqual(self.Ex._serve_help(peer, 'nope:pkg0', query='x'), [])
+        pkg = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create({'name': 'P2', 'type': 'service'}).id})
+        self.assertEqual(self.Ex._serve_help(peer, pkg.knowledge_global_key, query='沒有東西'), [])

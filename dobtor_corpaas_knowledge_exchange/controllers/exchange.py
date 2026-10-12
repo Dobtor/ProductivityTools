@@ -5,6 +5,7 @@ POST /corpaas/knowledge/exchange/v1/lookup    {items: [{kind, key}]}        → 
 POST /corpaas/knowledge/exchange/v1/ingest    {items: [payload]}            → {ok, results}
 POST /corpaas/knowledge/exchange/v1/feed      {cursor, limit}               → {ok, items, cursor, more}
 POST /corpaas/knowledge/exchange/v1/feedback  {items: [{kind, kb_uid, text}]} → {ok, results}
+POST /corpaas/knowledge/exchange/v1/help      {global_key, query, action_xmlid, model, view_type, limit, groups} → {ok, results}（說明連結分流）
 POST /corpaas/knowledge/exchange/v1/transfer  {transfer: {...同意紀錄}, items} → {ok, ref, count}（移交，含私有）
 全部帶 schema_version 與 nonce；標頭 X-KB-Peer／X-KB-Timestamp／X-KB-Signature。
 """
@@ -95,3 +96,13 @@ class KnowledgeExchangeApi(http.Controller):
             request.env.cr.rollback()
             return {'ok': False, 'error': str(e)[:200]}
         return {'ok': True, 'ref': 'transfer:%s' % rec.id, 'count': rec.item_count}
+
+    @http.route('/corpaas/knowledge/exchange/v1/help', type='json', auth='public', csrf=False, methods=['POST'])
+    def help(self, global_key=None, query=None, action_xmlid=None, model=None, view_type=None, limit=5,
+             groups=None, **kw):
+        peer, err = self._auth('lookup', kw)
+        if err:
+            return {'ok': False, 'error': err}
+        return {'ok': True, 'results': request.env(su=True)['corpaas.knowledge.exchange']._serve_help(
+            peer, global_key, query=query, action_xmlid=action_xmlid, model=model, view_type=view_type,
+            limit=limit, groups=groups)}

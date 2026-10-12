@@ -187,6 +187,45 @@ class KnowledgeExchange(models.AbstractModel):
         return out
 
     @api.model
+    def _serve_help(self, peer, global_key, query=None, action_xmlid=None, model=None, view_type=None,
+                    limit=5, groups=None):
+        """主體：從屬的租戶查主體公開方案的說明連結（說明連結分流，計畫 20.3）。
+
+        只回公開說明（連結＋功能名稱），不回任何租戶資料；方案依全域識別認。
+        """
+        pkg = self.env['infrastructure.solution.package'].sudo().search(
+            [('knowledge_global_key', '=', (global_key or '')[:120])], limit=1) if global_key else None
+        if not pkg:
+            return []
+        try:
+            limit = max(1, min(int(limit or 5), 10))
+        except (TypeError, ValueError):
+            limit = 5
+        groups = [g for g in groups if isinstance(g, str)][:200] if isinstance(groups, list) else None
+        Help = self.env['corpaas.knowledge.help']
+        matches = Help._match(pkg, query=query, action_xmlid=action_xmlid, model=model, view_type=view_type,
+                              limit=limit, groups=groups)
+        results = self.env['corpaas.knowledge.hooks']._knowledge_help_links(
+            pkg, matches, query, {'limit': limit, 'groups': groups, 'exchange_peer': peer.code})
+        return [r for r in results if r.get('kind') != 'upsell'][:limit]
+
+    @api.model
+    def _upstream_help(self, package, query, ctx):
+        """從屬：方案對應主體方案時，向主體查說明連結。主體不通就當沒有（本地結果照給）。"""
+        if self._mode() != 'replica' or not self._enabled('lookup') or not package.knowledge_upstream_key \
+                or ctx.get('exchange_peer'):
+            return []
+        try:
+            res = self._call('help', {'global_key': package.knowledge_upstream_key, 'query': query or '',
+                                      'action_xmlid': ctx.get('action_xmlid') or '', 'model': ctx.get('model') or '',
+                                      'view_type': ctx.get('view_type') or '', 'limit': ctx.get('limit') or 5,
+                                      'groups': ctx.get('groups')}, timeout=4)
+        except Exception as e:  # noqa: BLE001
+            _logger.info('[exchange] 向主體查說明連結失敗：%s', e)
+            return []
+        return [r for r in res.get('results') or [] if isinstance(r, dict) and r.get('url')]
+
+    @api.model
     def action_publish_all(self):
         """主體上線交換時：把既有公開知識全部寫進發佈清單（之後的變更自動發佈）。"""
         Vis = self.env['corpaas.knowledge.exchange.visibility']
