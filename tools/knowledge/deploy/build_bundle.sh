@@ -30,7 +30,7 @@ sed -e "s#__BACKUP__#/root/deploy-backup-$(date +%Y%m%d)-$TAG#" -e "s#__TAG__#$T
 if [ -n "$PREV" ]; then
   P=$(dirname "$OUT")/$PREV/new
   # 只比上一包也有的模組（這包新加的模組正式機本來就沒有）
-  CMP=$(cd "$P" && for m in $MODS; do [ -d "$m" ] && printf '%s ' "$m"; done)
+  CMP=$(cd "$P" && for m in $MODS; do if [ -d "$m" ]; then printf '%s ' "$m"; fi; done)
   (cd "$P" && find $CMP -type f | LC_ALL=C sort | xargs md5 -r) | awk '{print $1" "$2}' > "$OUT/prev.md5"
   ssh -n -i "$KEY" "$HOST" "cd $SRC && find $CMP -type f ! -name '*.pyc' | LC_ALL=C sort | xargs md5sum" \
     | awk '{print $1" "$2}' > "$OUT/server.md5"

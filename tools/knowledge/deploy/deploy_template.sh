@@ -25,7 +25,7 @@ while :; do
 done
 mkdir -p $BK/pt
 # 備份只包正式機上已經有的模組（這包新加的模組還不存在）
-HAVE=$(cd $S/ProductivityTools && for m in __MODS__; do [ -d "$m" ] && printf '%s ' "$m"; done)
+HAVE=$(cd $S/ProductivityTools && for m in __MODS__; do if [ -d "$m" ]; then printf '%s ' "$m"; fi; done)
 if [ -n "$HAVE" ]; then cd $S/ProductivityTools && tar czf $BK/before-pt.tgz $HAVE; fi
 # 資料庫裡還沒安裝的模組用 -i（-u 不會安裝新模組）
 NEW=$(docker exec $C python3 -c "
