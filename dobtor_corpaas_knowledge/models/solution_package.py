@@ -220,6 +220,12 @@ class SolutionPackage(models.Model):
         busy = Run.search([('package_id', '=', self.id), ('state', '=', 'running'),
                            ('create_date', '>', fields.Datetime.subtract(
                                fields.Datetime.now(), hours=6))], limit=1)
+        qid = self.env.context.get('corpaas_queue_id')
+        if busy and qid and busy.queue_id.id == qid:
+            # 同一張佇列單在部署重啟後重跑：上一次建的紀錄已經沒有行程在跑，收掉再重新開始
+            busy.mark_failed(_('部署重啟中斷，同一張佇列單重新執行'))
+            self._knowledge_commit()
+            busy = Run
         if busy and not txn.in_tests(self.env):
             # ★ 上一次更新的拍攝／出口階段還在排隊或執行：別在中間插進來重建說明庫，
             #   10 分鐘後再排（超過 6 小時沒結束的紀錄視為已中斷）
@@ -232,7 +238,8 @@ class SolutionPackage(models.Model):
             self._knowledge_bookkeep({'knowledge_pending_reason': False})
         token = uuid.uuid4().hex
         run = Run.create({
-            'package_id': self.id, 'token': token, 'full': bool(full), 'reason': reason or ''})
+            'package_id': self.id, 'token': token, 'full': bool(full), 'reason': reason or '',
+            'queue_id': qid or False})
         self._knowledge_commit()
         try:
             run.begin_stage('prepare')

@@ -133,6 +133,9 @@ class KnowledgeAi(models.AbstractModel):
                 extra = {'system': system} if system else {}
                 if instance_ref:
                     extra['instance_ref'] = instance_ref
+                if refresh_token:
+                    # ★ 預算以主控台為主：把這次更新剩下的錢帶給 Hub（Hub 的每日上限只當保險絲，計畫 #11）
+                    extra['budget_usd'] = conf['budget'] - self.spent(refresh_token)
                 text, cost, run_id = hub_client.call(
                     conf['hub_url'], conf['hub_key'], purpose, head + prompt, context=context, **extra)
             except hub_client.HubNoSystem as e:

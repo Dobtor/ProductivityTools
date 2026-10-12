@@ -30,6 +30,17 @@ class CorpaasQueue(models.Model):
         ondelete={'knowledge_refresh': 'cascade', 'knowledge_ai_job': 'cascade',
                   'knowledge_sandbox': 'cascade', 'knowledge_stage': 'cascade'})
 
+    #: 知識作業可以安全重跑（階段會跳過已完成的部分；更新會收掉被中斷的執行紀錄）
+    KNOWLEDGE_RETRY = {'knowledge_refresh': 2, 'knowledge_stage': 2, 'knowledge_ai_job': 1,
+                       'knowledge_sandbox': 2}
+
+    def _default_max_retry(self, qtype, operate):
+        """★ 部署重啟時，佇列只重排「還有重試次數」的作業，其餘直接標錯誤。
+        ☠️ 實機（2026-10-11）：重試次數 0 → 重啟後更新被標錯誤、執行紀錄卡在進行中成了孤兒。"""
+        if operate in self.KNOWLEDGE_RETRY:
+            return self.KNOWLEDGE_RETRY[operate]
+        return super()._default_max_retry(qtype, operate)
+
     @api.model
     def _get_queue_steps(self):
         steps = super()._get_queue_steps()

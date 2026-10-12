@@ -46,6 +46,8 @@ class KnowledgeRun(models.Model):
     cancel_requested = fields.Boolean(string='已要求停止', readonly=True,
                                       help='每一批（拍照、起草）之間會檢查；停在乾淨的批次邊界')
     resumes = fields.Integer(string='自動續跑次數', readonly=True)
+    queue_id = fields.Many2one('corpaas.queue', string='佇列單', readonly=True, ondelete='set null',
+                               help='建立這筆執行紀錄的佇列單：重啟後同一張單重跑時，用來認出被中斷的紀錄')
     dashboard_html = fields.Html(string='執行儀表板', compute='_compute_dashboard', sanitize=False)
 
     def _compute_name(self):

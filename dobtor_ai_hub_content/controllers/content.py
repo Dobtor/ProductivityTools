@@ -53,7 +53,7 @@ class AiHubContentUplink(AiHubUplink):
         if len(prompt) + len(system or '') > limit:
             return {'ok': False, 'error': 'prompt_too_long',
                     'detail': _('prompt＋system 超過上限（%s 字元）') % limit}
-        blocked = source.uplink_blocked_reason()
+        blocked = source.content_blocked_reason(kw.get('budget_usd'))
         if blocked:
             return {'ok': False, 'error': blocked[0], 'detail': blocked[1]}
 
@@ -75,7 +75,8 @@ class AiHubContentUplink(AiHubUplink):
         # ★ system：呼叫端的固定內容放進系統提示（吃提示詞快取）；派工在交易提交後才讀，寫在這裡來得及
         run.sudo().write({'origin': 'uplink', 'origin_message': name,
                           'extra_system_prompt': (system or '').strip() or False,
-                          'source_path_override': target.source_path if target else False})
+                          'source_path_override': target.source_path if target else False,
+                          'target_source_id': target.id if target else False})
         source.sudo().uplink_last_used = fields.Datetime.now()
         # ★ uplink_used_today 是非儲存 compute，uplink_blocked_reason() 時已被快取，
         #   不清掉的話回報的剩餘額度會少算這一次。

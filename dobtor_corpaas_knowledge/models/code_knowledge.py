@@ -237,8 +237,15 @@ class SolutionPackageCode(models.Model):
             tree.write({'core_path': self._knowledge_extract_core(instance, digest), 'core_tried': now})
         addons = remote.shell_json(self.env, instance, db_name, scripts.module_hash_script(core=False))
         prev = (self.knowledge_profile().get('code') or {}).get('addons') or {}
-        cur = {m: {'version': d.get('version'), 'hash': d.get('hash')} for m, d in addons.items()}
-        changed = sorted(m for m in cur if prev.get(m) != cur[m])
+        # ★ 版本識別統一（計畫 #1）：目錄雜湊（知識算的）＋git 版本（主控台的模組清單）一起記
+        manifest = instance._corpaas_code_manifest() if hasattr(instance, '_corpaas_code_manifest') else {}
+        cur = {m: {'version': d.get('version'), 'hash': d.get('hash'), 'git': manifest.get(m) or ''}
+               for m, d in addons.items()}
+        py = next((d.get('py') for d in addons.values() if d.get('py')), None)
+        if py and tree.python_version != py:
+            tree.python_version = py   # 段落雜湊依 Python 小版本而異（計畫 #2）
+        changed = sorted(m for m in cur if (prev.get(m) or {}).get('hash') != cur[m]['hash']
+                         or (prev.get(m) or {}).get('version') != cur[m]['version'])
         paths = self._knowledge_container_paths(instance)
         if paths.get('core') and not tree.core_container_path:
             tree.core_container_path = paths['core']
@@ -434,6 +441,7 @@ class SolutionPackageCode(models.Model):
                 continue
             rec = Summary.search([('module', '=', m), ('dir_hash', '=', addons[m]['hash'])], limit=1) or \
                 Summary.create({'module': m, 'dir_hash': addons[m]['hash'], 'source': 'facts',
+                                'git_revision': addons[m].get('git') or False,
                                 'facts_json': json.dumps(f, ensure_ascii=False)})
             where = self._knowledge_runner_path((f.get('path') or '') + '/__manifest__.py', instance)
             if not where or done >= limit:

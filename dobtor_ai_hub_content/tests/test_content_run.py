@@ -125,6 +125,20 @@ class TestContentRun(HttpCase):
         params = run._mode_run_params()
         self.assertEqual(params['allowed_tools'], 'Read,Grep,Glob', '知識內容只給唯讀工具')
         self.assertEqual(params['max_turns'], 20)
+        self.assertEqual(run.target_source_id, target)
+
+    def test_run_goes_to_target_runner(self):
+        """讀別台主機的實例：派給目標來源的 Runner，不是呼叫端的。"""
+        self.source.runner_url = 'http://runner-caller:8073'
+        target = self.env['ai.hub.source'].create({'name': '客戶實例', 'source_path': '/instances/cust',
+                                                   'instance_ref': 331, 'runner_url': 'https://runner-b.example'})
+        self.source.content_target_ids = [(4, target.id)]
+        res = self._post(PATH, {'purpose': 'code_fact', 'prompt': '讀程式', 'instance_ref': 331})
+        run = self.env['ai.hub.run'].browse(res['run_id'])
+        self.assertEqual(run._runner_base(), 'https://runner-b.example')
+        plain = self._post(PATH, {'purpose': 'code_fact', 'prompt': '一般'})
+        self.assertEqual(self.env['ai.hub.run'].browse(plain['run_id'])._runner_base(), 'http://runner-caller:8073',
+                         '沒有指定目標照舊用呼叫端的 Runner')
 
     def test_other_source_cannot_read_status(self):
         res = self._post(PATH, {'purpose': 'x', 'prompt': 'hi'})

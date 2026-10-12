@@ -866,7 +866,7 @@ def module_hash_script(core=False):
     ★ 計畫第 51 項：映像摘要與 Odoo 版號都對不上時才算官方原碼；擴充模組每次都比
       （版號不一定有升，所以也比目錄雜湊）。系統算，不花 AI。"""
     return _HEAD + (
-        "import hashlib, os\n"
+        "import hashlib, os, sys\n"
         "import odoo\n"
         "from odoo.modules.module import get_module_path\n"
         "CORE = os.path.dirname(odoo.__file__)\n"
@@ -887,7 +887,8 @@ def module_hash_script(core=False):
         "                fp = os.path.join(root, f)\n"
         "                h.update(os.path.relpath(fp, path).encode())\n"
         "                h.update(hashlib.sha1(open(fp, 'rb').read()).digest())\n"
-        "    out[m.name] = {'version': m.latest_version or '', 'hash': h.hexdigest()[:16], 'core': core}\n"
+        "    out[m.name] = {'version': m.latest_version or '', 'hash': h.hexdigest()[:16], 'core': core,\n"
+        "                   'py': '%%d.%%d' %% sys.version_info[:2]}\n"
         "env.cr.rollback()\n"
         "print(MARK + json.dumps(out))\n"
     ) % (bool(core),)
