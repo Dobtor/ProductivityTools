@@ -101,6 +101,37 @@ class TestPackageLayer(TransactionCase):
         self.a._knowledge_flow_transitions(flow, {'buttons': []}, feats)
         self.assertNotIn('act_a', flow.transition_ids.mapped('button_name'))
 
+    def test_package_structure_hash_ignores_other_packages(self):
+        """#3：各方案的結構雜湊只看自己推得出的轉換——B 加進來不影響 A 的值。"""
+        flow = self.env['corpaas.knowledge.flow'].create({'model': 'x.pl3', 'state_field': 'state'})
+        da = {'buttons': [{'name': 'act_a', 'visible': ['draft'], 'targets': ['done']}]}
+        db = {'buttons': [{'name': 'act_b', 'visible': ['draft'], 'targets': ['done']}]}
+        self.a._knowledge_flow_transitions(flow, da, self.f)
+        ha = flow._package_row(self.a).structure_hash
+        self.b._knowledge_flow_transitions(flow, db, self.f)
+        self.a._knowledge_flow_transitions(flow, da, self.f)
+        self.assertEqual(flow._package_row(self.a).structure_hash, ha)
+        self.assertNotEqual(flow._package_row(self.b).structure_hash, ha)
+        self.assertNotEqual(flow.structure_hash, ha, '聯集雜湊（命名用）另外算')
+
+    def test_flow_usage_rows_and_migration(self):
+        flow = self.env['corpaas.knowledge.flow'].create({'model': 'x.pl4', 'state_field': 'state'})
+        flow._set_package_usage(self.a, 3)
+        flow._set_package_usage(self.b, 8)
+        self.assertEqual((flow._package_usage(self.a), flow.usage_score), (3, 8))
+        # 舊資料：usage_json 欄位還在、有值 → 搬到分表後清掉
+        cr = self.env.cr
+        cr.execute("ALTER TABLE corpaas_knowledge_flow ADD COLUMN IF NOT EXISTS usage_json text")
+        flow2 = self.env['corpaas.knowledge.flow'].create({'model': 'x.pl5', 'state_field': 'state'})
+        cr.execute("UPDATE corpaas_knowledge_flow SET usage_json=%s WHERE id=%s",
+                   ('{"%s": 5, "999999": 4}' % self.a.id, flow2.id))
+        self.env['corpaas.knowledge.flow.transition.package'].init()
+        flow2.invalidate_recordset()
+        self.assertEqual(flow2._package_usage(self.a), 5)
+        self.assertEqual(len(flow2.package_row_ids), 1, '已不存在的方案略過')
+        cr.execute("SELECT usage_json FROM corpaas_knowledge_flow WHERE id=%s", (flow2.id,))
+        self.assertIsNone(cr.fetchone()[0], '搬完清掉，下次升級不重搬')
+
     def test_transition_usage_is_per_package(self):
         flow = self.env['corpaas.knowledge.flow'].create(
             {'model': 'x.pl2', 'state_field': 'state'})

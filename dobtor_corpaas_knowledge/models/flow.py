@@ -45,10 +45,12 @@ class KnowledgeFlow(models.Model):
     capability_id = fields.Many2one('corpaas.knowledge.capability', string='所屬能力',
                                     ondelete='set null')
     usage_score = fields.Float(string='租戶使用量', readonly=True,
-                               help='各方案中最大的一個（彙總顯示）；各方案的值在 usage_json')
-    usage_json = fields.Text(readonly=True, help='{方案 id: 使用量}（方案屬性層）')
+                               help='各方案中最大的一個（彙總顯示）；各方案的值在 package_row_ids')
+    package_row_ids = fields.One2many('corpaas.knowledge.flow.package', 'flow_id', string='各方案',
+                                      readonly=True)
     structure_hash = fields.Char(readonly=True,
-                                 help='步驟＋轉換的雜湊：結構變了才請 AI 重新命名')
+                                 help='步驟＋所有方案靜態轉換聯集的雜湊：結構變了才請 AI 重新命名'
+                                      '（本地用；跨主控台比對用各方案的結構雜湊）')
     named_hash = fields.Char(readonly=True, help='AI 命名時的結構雜湊')
     last_seen = fields.Datetime(readonly=True)
 
@@ -61,15 +63,29 @@ class KnowledgeFlow(models.Model):
         for rec in self:
             rec.name = rec.ai_name or rec.model_name or rec.model
 
+    def _package_row(self, package, create=False):
+        self.ensure_one()
+        row = self.package_row_ids.filtered(lambda r: r.package_id == package)[:1]
+        if not row and create:
+            row = self.env['corpaas.knowledge.flow.package'].sudo().create(
+                {'flow_id': self.id, 'package_id': package.id})
+        return row
+
     def _package_usage(self, package):
         self.ensure_one()
-        return json.loads(self.usage_json or '{}').get(str(package.id), 0)
+        return self._package_row(package).usage_score or 0
 
     def _set_package_usage(self, package, value):
         for rec in self:
-            data = json.loads(rec.usage_json or '{}')
-            data[str(package.id)] = value
-            rec.write({'usage_json': json.dumps(data), 'usage_score': max(data.values() or [0])})
+            rec._package_row(package, create=True).usage_score = value
+            rec.usage_score = max(rec.package_row_ids.mapped('usage_score') or [0])
+
+    def _set_package_structure(self, package, digest):
+        """這個方案自己推得出的結構（#3）：只看本方案的靜態轉換，不受其他方案影響。"""
+        for rec in self:
+            row = rec._package_row(package, create=True)
+            if row.structure_hash != digest:
+                row.structure_hash = digest
 
     def action_approve_proposals(self):
         """批次層：一次核准這個流程的流程提案，以及流程上功能點的待審歸類提案。"""
@@ -174,14 +190,15 @@ class KnowledgeFlowTransition(models.Model):
     code_condition = fields.Char(string='前提（讀過程式）',
                                  help='按這顆按鈕前要滿足的條件（程式結論），流程圖標在這條轉換上')
     usage_count = fields.Integer(string='租戶次數', readonly=True, help='各方案相加')
-    usage_json = fields.Text(readonly=True, help='{方案 id: 次數}（方案屬性層）')
+    package_row_ids = fields.One2many('corpaas.knowledge.flow.transition.package', 'transition_id',
+                                      string='各方案次數', readonly=True)
     package_ids = fields.Many2many(
         'infrastructure.solution.package', 'corpaas_knowledge_flow_transition_package_rel',
         'transition_id', 'package_id', string='靜態推得出的方案', readonly=True)
 
     def _package_usage(self, package):
         self.ensure_one()
-        return json.loads(self.usage_json or '{}').get(str(package.id), 0)
+        return self.package_row_ids.filtered(lambda r: r.package_id == package)[:1].usage_count or 0
 
     def is_handoff(self, target_model=None):
         """這顆按鈕是不是把工作交給下游單據（而不是回頭查看上游的關聯單據）。"""
@@ -214,17 +231,90 @@ class KnowledgeFlowTransition(models.Model):
 
     def _set_package_usage(self, package, value):
         """只改本方案的次數；租戶證據＝任一方案有次數。"""
+        Row = self.env['corpaas.knowledge.flow.transition.package'].sudo()
         for rec in self:
-            data = json.loads(rec.usage_json or '{}')
+            row = rec.package_row_ids.filtered(lambda r: r.package_id == package)[:1]
             if value:
-                data[str(package.id)] = value
-            else:
-                data.pop(str(package.id), None)
-            total = sum(data.values())
-            rec.write({'usage_json': json.dumps(data) if data else False,
-                       'usage_count': total, 'ev_tenant': bool(total)})
+                if row:
+                    row.usage_count = value
+                else:
+                    Row.create({'transition_id': rec.id, 'package_id': package.id, 'usage_count': value})
+            elif row:
+                row.unlink()
+            total = sum(rec.package_row_ids.mapped('usage_count'))
+            rec.write({'usage_count': total, 'ev_tenant': bool(total)})
 
     _sql_constraints = [
         ('transition_unique',
          'unique(flow_id, from_value, to_value, button_name)', '轉換重複'),
     ]
+
+
+class KnowledgeFlowPackage(models.Model):
+    """流程在各方案的屬性（#14）：使用量、本方案推得出的結構雜湊（#3）。
+
+    ★ 取代以方案本地 id 當鍵的 usage_json：FK 跟著方案刪除，跨主控台交換時以方案全域識別對應。
+    """
+    _name = 'corpaas.knowledge.flow.package'
+    _description = '流程的方案屬性'
+
+    flow_id = fields.Many2one('corpaas.knowledge.flow', required=True, ondelete='cascade', index=True)
+    package_id = fields.Many2one('infrastructure.solution.package', required=True, ondelete='cascade',
+                                 index=True)
+    usage_score = fields.Float(string='使用量')
+    structure_hash = fields.Char(string='本方案的結構雜湊',
+                                 help='步驟＋只有本方案推得出的靜態轉換；同一版程式在哪個主控台算都一樣')
+
+    _sql_constraints = [('flow_package_uniq', 'unique(flow_id, package_id)', '同一流程同一方案只有一列')]
+
+
+class KnowledgeFlowTransitionPackage(models.Model):
+    _name = 'corpaas.knowledge.flow.transition.package'
+    _description = '轉換的方案次數'
+
+    transition_id = fields.Many2one('corpaas.knowledge.flow.transition', required=True, ondelete='cascade',
+                                    index=True)
+    package_id = fields.Many2one('infrastructure.solution.package', required=True, ondelete='cascade',
+                                 index=True)
+    usage_count = fields.Integer(string='次數')
+
+    _sql_constraints = [('transition_package_uniq', 'unique(transition_id, package_id)',
+                         '同一轉換同一方案只有一列')]
+
+    def init(self):
+        """舊的 usage_json（{方案 id: 值}）搬進按方案分表（#14）；搬完清掉，不會重搬。
+
+        ★ 放在最後定義的這個模型：init() 依登記順序逐一執行，放在流程模型上時分表還沒建立。
+        """
+        res = super().init() if hasattr(super(), 'init') else None
+        _migrate_usage_json(self.env.cr, 'corpaas_knowledge_flow', 'corpaas_knowledge_flow_package',
+                            'flow_id', 'usage_score')
+        _migrate_usage_json(self.env.cr, 'corpaas_knowledge_flow_transition',
+                            'corpaas_knowledge_flow_transition_package', 'transition_id', 'usage_count')
+        return res
+
+
+def _migrate_usage_json(cr, table, target, fk, value_col):
+    """舊欄位 usage_json 還在且有值 → 搬到分表（方案已不存在的略過），然後清掉。"""
+    cr.execute("SELECT 1 FROM information_schema.columns WHERE table_name=%s AND column_name='usage_json'",
+               (table,))
+    if not cr.fetchone():
+        return
+    cr.execute("SELECT 1 FROM information_schema.tables WHERE table_name=%s", (target,))
+    if not cr.fetchone():
+        return
+    cr.execute('SELECT id, usage_json FROM "%s" WHERE usage_json IS NOT NULL' % table)
+    rows = cr.fetchall()
+    cr.execute('SELECT id FROM infrastructure_solution_package')
+    alive = {r[0] for r in cr.fetchall()}
+    for rid, raw in rows:
+        try:
+            data = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        for pkg, value in (data or {}).items():
+            if str(pkg).isdigit() and int(pkg) in alive and value:
+                cr.execute('INSERT INTO "%s" (%s, package_id, %s) VALUES (%%s, %%s, %%s) '
+                           'ON CONFLICT (%s, package_id) DO NOTHING' % (target, fk, value_col, fk),
+                           (rid, int(pkg), value))
+    cr.execute('UPDATE "%s" SET usage_json = NULL WHERE usage_json IS NOT NULL' % table)

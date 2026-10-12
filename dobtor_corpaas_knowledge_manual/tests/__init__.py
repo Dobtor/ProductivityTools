@@ -8,3 +8,4 @@ from . import test_p1
 from . import test_p2
 from . import test_guide
 from . import test_plan_manual
+from . import test_published_content

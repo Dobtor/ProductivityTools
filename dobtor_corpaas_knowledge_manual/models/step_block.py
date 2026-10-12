@@ -37,9 +37,30 @@ class KnowledgeStepBlock(models.Model):
         'corpaas.knowledge.article', 'corpaas_knowledge_article_step_block_rel',
         'step_block_id', 'article_id', string='引用的文章')
     article_count = fields.Integer(compute='_compute_article_count')
+    # ★ 已發佈內容的實體欄位（主從計畫 #15）：上線那一版的標題與步驟，不必再翻修訂表；
+    #   從屬鏡像主體的區塊時，只帶這兩欄就能在從屬建成已上線狀態。
+    published_name = fields.Char(string='上線標題', readonly=True, copy=False)
+    published_html = fields.Html(string='上線步驟', readonly=True, copy=False, sanitize=False,
+                                 help='核准上線時的步驟（已經過編輯器清理）；前台一律用這一版')
 
     def _knowledge_revision_fields(self):
         return ['name', 'html']
+
+    def init(self):
+        """既有上線區塊回填已發佈內容（取上線快照；沒有快照且狀態乾淨才用目前欄位）。"""
+        res = super().init() if hasattr(super(), 'init') else None
+        self.env.cr.execute("SELECT 1 FROM information_schema.columns "
+                            "WHERE table_name='corpaas_knowledge_step_block' AND column_name='published_html'")
+        if not self.env.cr.fetchone():
+            return res
+        self.env.cr.execute("SELECT id FROM corpaas_knowledge_step_block "
+                            "WHERE published_rev_no > 0 AND published_html IS NULL")
+        ids = [r[0] for r in self.env.cr.fetchall()]
+        for blk in self.sudo().with_context(active_test=False).browse(ids):
+            name, html = blk._manual_live_source()
+            self.env.cr.execute('UPDATE corpaas_knowledge_step_block SET published_name=%s, published_html=%s '
+                                'WHERE id=%s', (name, html or '', blk.id))
+        return res
 
     def _compute_article_count(self):
         for rec in self:
@@ -80,6 +101,8 @@ class KnowledgeStepBlock(models.Model):
         self.ensure_one()
         if not self.published_rev_no:
             return self.name, ''
+        if self.published_html is not False and self.published_html is not None:
+            return self.published_name or self.name, self.published_html or ''
         snap = self._last_published_snapshot()
         if not snap:
             # 舊資料沒有上線快照：只有乾淨的已發佈狀態才信目前欄位
@@ -98,6 +121,7 @@ class KnowledgeStepBlock(models.Model):
 
     def _do_publish(self, change, note=None):
         res = super()._do_publish(change, note=note)
+        self.write({'published_name': self.name, 'published_html': self.html or ''})
         # 步驟區塊是共用的：上線後把引用它、有上線版的文章重新推到 slide（送審中、草稿中的
         # 也推：前台只用各自的上線快照組裝，推的仍是上線那一版）。
         live = self.mapped('article_ids').filtered(

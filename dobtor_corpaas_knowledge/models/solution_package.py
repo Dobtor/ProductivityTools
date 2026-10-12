@@ -1295,9 +1295,12 @@ class SolutionPackage(models.Model):
         # 結構雜湊取「所有方案」的靜態轉換聯集：任一方案的程式改了才會變
         union = sorted((t.from_value or '', t.to_value or '', t.button_name or '')
                        for t in flow.transition_ids if t.ev_static)
+        steps = [s.value for s in flow.step_ids.sorted('sequence')]
         flow.structure_hash = hashlib.sha256(json.dumps(
-            [[s.value for s in flow.step_ids.sorted('sequence')], union],
-            sort_keys=True).encode()).hexdigest()[:32]
+            [steps, union], sort_keys=True).encode()).hexdigest()[:32]
+        # 本方案自己的結構（#3）：只看這次推得出的靜態轉換——跨主控台可比、不受其他方案影響
+        flow._set_package_structure(self, hashlib.sha256(json.dumps(
+            [steps, sorted(static)], sort_keys=True).encode()).hexdigest()[:32])
 
     def _knowledge_flow_tenant(self, flow):
         """租戶證據（K15）：近 30 天實際發生的「舊狀態→新狀態」次數（本方案的租戶）。
