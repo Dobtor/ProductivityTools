@@ -595,3 +595,21 @@ class TestPlanApproval(_Base):
         self.assertEqual(Feed.search_count([('kb_uid', '=', cap.kb_uid)]), 1, '排程補發')
         self.Ex._cron_exchange()
         self.assertEqual(Feed.search_count([('kb_uid', '=', cap.kb_uid)]), 1, '同一版不重發')
+
+
+@tagged('post_install', '-at_install')
+class TestUpstreamCodeContext(_Base):
+
+    def test_replica_package_uses_mirrored_code_knowledge(self):
+        self.mode('replica', 'feed')
+        pkg = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create({'name': '從屬', 'type': 'service'}).id,
+            'knowledge_upstream_key': 'corpaas:pkg13', 'knowledge_upstream_modules': '["x_mod_a"]'})
+        Sum = self.env['corpaas.knowledge.module_summary'].sudo()
+        Sum._kb_upsert({'kind': 'module_summary', 'kb_uid': 'u-s1', 'module': 'x_mod_a', 'dir_hash': 'h',
+                        'source': 'ai', 'content': {'summary_json': '{"purpose": "做 A"}', 'facts_json': '{}'}})
+        self.assertTrue(pkg._knowledge_module_brief(), '用主體方案的模組清單＋鏡像摘要')
+        Fact = self.env['corpaas.knowledge.code_fact'].sudo()
+        Fact._kb_upsert({'kind': 'code_fact', 'kb_uid': 'u-f1', 'subject': 'sale.order.action_confirm',
+                         'chain_hash': 'c', 'state': 'current', 'content': {'fact_json': '{}'}, 'defs': []})
+        self.assertIn(('sale.order', 'action_confirm'), pkg._knowledge_button_targets())

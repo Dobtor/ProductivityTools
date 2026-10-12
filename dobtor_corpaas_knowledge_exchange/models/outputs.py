@@ -42,6 +42,36 @@ class SolutionPackageExchange(models.Model):
                 pass
         return have
 
+    def _knowledge_module_brief(self, limit=40):
+        """從屬方案沒有自己的程式盤點時：用主體方案的模組清單＋已鏡像的模組摘要（建議書開發建議用）。"""
+        res = super()._knowledge_module_brief(limit=limit)
+        if res or not self.knowledge_upstream_modules:
+            return res
+        try:
+            mods = set(json.loads(self.knowledge_upstream_modules))
+        except ValueError:
+            return res
+        Summary = self.env['corpaas.knowledge.module_summary'].sudo()
+        out, seen = [], set()
+        for rec in Summary.search([('module', 'in', list(mods)), ('source', '=', 'ai')], order='id desc'):
+            if rec.module not in seen:
+                seen.add(rec.module)
+                out.append(rec.brief())
+        return out[:limit]
+
+    def _knowledge_button_targets(self):
+        """從屬方案沒有自己的功能點盤點時：用主體鏡像過來的程式結論的主體（model.method）。"""
+        res = super()._knowledge_button_targets()
+        if res or not self.knowledge_upstream_key:
+            return res
+        out = set()
+        for f in self.env['corpaas.knowledge.code_fact'].sudo().search(
+                [('kb_sync_state', '=', 'mirror'), ('state', '=', 'current')]):
+            model, _sep, method = f.subject.rpartition('.')
+            if model and method:
+                out.add((model, method))
+        return sorted(out)
+
     def _kb_upstream_sellable(self):
         self.ensure_one()
         try:

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識主從交換',
-    'version': '18.0.1.2.2',
+    'version': '18.0.1.2.3',
     'category': 'Productivity/Knowledge',
     'summary': '主體（admin.corpaas.com）與從屬主控台交換公開知識：先查主體再算、送件入庫、發佈清單、上收提案',
     'description': '''
