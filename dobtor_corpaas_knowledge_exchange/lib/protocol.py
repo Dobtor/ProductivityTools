@@ -54,9 +54,19 @@ KINDS = {
         'model': 'corpaas.knowledge.rule', 'category': 'template',
         'key': ('kb_uid',), 'extra': ('source', 'sequence'),
     },
+    #: 主體方案的產出：只從主體流向從屬（從屬不送、主體不收）。依（功能點, 畫面指紋）查：
+    #: 從屬的畫面指紋與主體相同就引用主體版本（計畫第 11 節）。
+    #: adopt_local=False：自然鍵相同的本地區塊（從屬自己寫的、可能已被客戶文章引用）不被改成鏡像。
+    'step_block': {
+        'model': 'corpaas.knowledge.step_block', 'category': 'output', 'adopt_local': False,
+        'key': ('feature_key', 'fingerprint'), 'extra': ('anchor',),
+    },
 }
 #: 鏡像 upsert 的順序：結論要引用段落，段落先寫
-ORDER = ('code_def', 'module_summary', 'code_fact', 'capability', 'scenario', 'seed_pack', 'role', 'rule')
+ORDER = ('code_def', 'module_summary', 'code_fact', 'capability', 'scenario', 'seed_pack', 'role', 'rule',
+         'step_block')
+#: 方案可用模組清單（不是可交換紀錄，發佈清單特別處理）
+PACKAGE_KIND = 'package'
 MODEL_KIND = {v['model']: k for k, v in KINDS.items()}
 
 #: 主體回覆送件的狀態

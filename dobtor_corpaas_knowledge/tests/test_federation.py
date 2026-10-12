@@ -68,3 +68,14 @@ class TestFederation(TransactionCase):
         self.assertEqual(pkg.knowledge_match_key(), pkg.knowledge_global_key)
         pkg.knowledge_upstream_key = 'corpaas:pkg14'
         self.assertEqual(pkg.knowledge_match_key(), 'corpaas:pkg14', '從屬對應主體方案')
+
+    def test_library_restore_matches_uid_and_leaves_mirror_content(self):
+        """#4：範本庫存回先以 kb_uid 對應（不靠代碼或名稱）；對到主體鏡像只掛關聯，不改內容。"""
+        mirror = self.Cap.create({'name': '主體能力', 'code': 'cap_master'})
+        mirror.with_context(knowledge_exchange_sync=EXCHANGE_SYNC).write({'kb_sync_state': 'mirror'})
+        data = {'caps': [{'code': 'cap_other_code', 'uid': mirror.kb_uid, 'sequence': 5,
+                          'values': {'name': '別的名稱'}, 'feature_keys': []}]}
+        self.assertEqual(self.pkg._knowledge_restore_capabilities(data), 1)
+        self.assertEqual(mirror.name, '主體能力', '鏡像內容不動')
+        self.assertIn(self.pkg, mirror.package_ids, '關聯照常掛上')
+        self.assertFalse(self.Cap.search([('code', '=', 'cap_other_code')]), '沒有因代碼不同多建一筆')

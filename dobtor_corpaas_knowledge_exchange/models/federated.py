@@ -41,6 +41,12 @@ class KnowledgeFederatedExchange(models.AbstractModel):
             return bool(self.fact_json) and self.state == 'current'
         if kind == 'module_summary':
             return self.source == 'ai' and bool(self.summary_json)
+        if kind == 'step_block':
+            return bool(self.published_rev_no) and self.published_html not in (False, None) \
+                and self.state != 'retired'
+        if 'published_rev_no' in self._fields:
+            # 有送審流程的範本：只有「目前內容就是核准上線那一版」才發（草稿、待審不出主控台）
+            return bool(self.published_rev_no) and self.state == 'published'
         return bool(kind)
 
     def _kb_export(self):
@@ -66,8 +72,15 @@ class KnowledgeFederatedExchange(models.AbstractModel):
         kind = self._kb_kind()
         spec = protocol.KINDS[kind]
         Model = self.sudo().with_context(active_test=False)
-        if spec['key'] != ('kb_uid',):
-            rec = Model.search([(f, '=', payload.get(f)) for f in spec['key']], limit=1)
+        if payload.get('kb_uid') and not spec.get('adopt_local', True):
+            rec = Model.search([('kb_uid', '=', payload['kb_uid'])], limit=1)
+            if rec:
+                return rec
+        if spec['key'] != ('kb_uid',) and all(payload.get(f) for f in spec['key']):
+            dom = [(f, '=', payload.get(f)) for f in spec['key']]
+            if not spec.get('adopt_local', True) and self.env['corpaas.knowledge.exchange']._mode() == 'replica':
+                dom.append(('kb_sync_state', '=', 'mirror'))
+            rec = Model.search(dom, limit=1)
             if rec:
                 return rec
         return Model.search([('kb_uid', '=', payload.get('kb_uid'))], limit=1) if payload.get('kb_uid') \
@@ -100,6 +113,21 @@ class KnowledgeFederatedExchange(models.AbstractModel):
         for f in spec['key'] + spec['extra']:
             if f in self._fields and f in payload and f != 'kb_uid':
                 vals[f] = payload[f] if payload[f] is not None else False
+        if 'feature_key' in vals:
+            feature = self.env['corpaas.knowledge.feature'].sudo().search(
+                [('feature_key', '=', vals.pop('feature_key'))], limit=1)
+            if not feature:
+                raise ValueError('本地沒有功能點 %s（方案還沒盤點到）' % payload.get('feature_key'))
+            vals['feature_id'] = feature.id
+        if kind == 'step_block' and state == 'mirror':
+            # 鏡像在從屬建成已上線狀態：前台與文章只用上線版
+            vals.update({'name': vals.get('published_name') or payload.get('anchor') or '?',
+                         'html': vals.get('published_html') or '', 'state': 'published',
+                         'published_rev_no': 1})
+        elif state == 'mirror' and protocol.KINDS[kind]['category'] == 'template' \
+                and 'published_rev_no' in self._fields:
+            # 範本鏡像＝主體已核准的正式版：在從屬直接是上線狀態（不走從屬的送審）
+            vals.update({'state': 'published', 'published_rev_no': 1})
         if kind == 'code_fact':
             Def = self.env['corpaas.knowledge.code_def']
             vals['def_ids'] = [(6, 0, [Def._kb_upsert(d, state=state, trust=trust, origin=origin).id
@@ -219,6 +247,9 @@ class KnowledgeExchangeVisibility(models.AbstractModel):
                     for r in records}
         if kind == 'rule':
             return {r: 'private' if r.package_id else r.kb_visibility for r in records}
+        if kind == 'step_block':
+            pub = self._public_modules(records.mapped('feature_id.module'))
+            return {r: 'public' if r.feature_id.module in pub else 'private' for r in records}
         return {r: r.kb_visibility for r in records}
 
     @api.model
@@ -237,7 +268,7 @@ class KnowledgeExchangeVisibility(models.AbstractModel):
 
     @api.model
     def _cron_classify(self, batch=5000):
-        for kind in ('code_def', 'module_summary', 'code_fact', 'rule'):
+        for kind in ('code_def', 'module_summary', 'code_fact', 'rule', 'step_block'):
             Model = self.env[protocol.KINDS[kind]['model']].sudo()
             self._classify(Model.search([('kb_sync_state', '!=', 'mirror')], limit=batch, order='id desc'))
         return True

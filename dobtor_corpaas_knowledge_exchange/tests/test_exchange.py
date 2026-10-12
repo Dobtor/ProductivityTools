@@ -135,7 +135,22 @@ class TestMasterSide(_Base):
         promo.action_approve()
         cap = self.env['corpaas.knowledge.capability'].search([('kb_uid', '=', 'u-cap-1')])
         self.assertEqual((cap.name, cap.kb_sync_state, cap.kb_origin), ('會員續約提醒', 'local', 'dobtor'))
+        self.assertEqual(cap.state, 'published', '核准即上線')
+        fed = self.env['corpaas.knowledge.exchange.feed'].search([('kb_uid', '=', 'u-cap-1')])
+        self.assertTrue(fed, '核准後寫進發佈清單，從屬才拉得到')
         self.assertEqual(self.Ex._serve_ingest(self.peer, [payload])[0]['result'], protocol.EXISTS)
+
+    def test_draft_template_not_fed_and_not_retracted(self):
+        Feed = self.env['corpaas.knowledge.exchange.feed']
+        start = Feed.search([], order='id desc', limit=1).id
+        cap = self.env['corpaas.knowledge.capability'].create({'name': '報名'})
+        cap._do_publish('new')
+        items = self.Ex._serve_feed(self.peer, start)['items']
+        self.assertIn(cap.kb_uid, [i['payload']['kb_uid'] for i in items if i['op'] == 'upsert'])
+        cap.write({'pain': '草稿中的修改', 'state': 'draft'})
+        items = [i for i in self.Ex._serve_feed(self.peer, start)['items']
+                 if (i.get('kb_uid') or i.get('payload', {}).get('kb_uid')) == cap.kb_uid]
+        self.assertEqual(items, [], '草稿不送也不作廢從屬已有的上線版')
 
     def test_merged_promotion_tells_replica(self):
         target = self.env['corpaas.knowledge.capability'].create({'name': '既有能力'})
@@ -303,3 +318,84 @@ class TestExchangeHttp(HttpCase):
                          '格式版本不一致拒收')
         self.env['ir.config_parameter'].sudo().set_param('corpaas_knowledge.exchange_enable_lookup', 'False')
         self.assertEqual(self._post(dict(ok, nonce='n-6'))[0].get('error'), 'disabled')
+
+
+@tagged('post_install', '-at_install')
+class TestOutputs(_Base):
+    """主體方案產出：步驟區塊（只從主體流向從屬）、方案可用模組清單。"""
+
+    def setUp(self):
+        super().setUp()
+        tmpl = self.env['product.template'].create({'name': '交換方案', 'type': 'service'})
+        self.pkg = self.env['infrastructure.solution.package'].create({'product_tmpl_id': tmpl.id})
+        self.feature = self.env['corpaas.knowledge.feature'].sudo().create({
+            'feature_key': 'kbx.action:a1', 'module': 'kbx_mod', 'kind': 'action', 'anchor': 'kbx.a1',
+            'name': '建立訂單', 'model': 'res.partner', 'package_ids': [(6, 0, self.pkg.ids)]})
+        self.Block = self.env['corpaas.knowledge.step_block'].sudo()
+        self.Vis = type(self.env['corpaas.knowledge.exchange.visibility'])
+
+    def test_published_block_feeds_and_mirrors_as_published(self):
+        self.mode('master', 'feed')
+        peer = self.Peer.create({'name': 'd', 'code': 'dobtor', 'role': 'replica', 'key': 'k'})
+        start = self.env['corpaas.knowledge.exchange.feed'].search([], order='id desc', limit=1).id
+        blk = self.Block.create({'name': '建立訂單', 'feature_id': self.feature.id, 'fingerprint': 'fp1',
+                                 'html': '<p>步驟</p>'})
+        with patch.object(self.Vis, '_public_modules', lambda s, mods: set(mods)):
+            self.env['corpaas.knowledge.exchange.visibility']._classify(blk)
+            blk._do_publish('text')
+        items = self.Ex._serve_feed(peer, start)['items']
+        payload = [i['payload'] for i in items if i['op'] == 'upsert' and i['payload']['kind'] == 'step_block'][-1]
+        self.assertEqual((payload['feature_key'], payload['content']['published_name']), ('kbx.action:a1', '建立訂單'))
+        self.assertNotIn('html', payload['content'], '草稿與修訂不出主控台')
+        # 從屬那邊：同一個功能點已有本地區塊（客戶文章可能引用）→ 不被改成鏡像，另建一筆
+        self.mode('replica', 'feed')
+        uid = payload['kb_uid']
+        blk.unlink()
+        local = self.Block.create({'name': '本地寫的', 'feature_id': self.feature.id, 'fingerprint': 'fp1'})
+        m = self.Block._kb_upsert(payload)
+        self.assertNotEqual(m, local, '本地區塊不被收編')
+        self.assertEqual((m.kb_uid, m.kb_sync_state, m.state), (uid, 'mirror', 'published'))
+        self.assertEqual(str(m._manual_live_source()[1]), '<p>步驟</p>', '前台用主體的上線版')
+        self.assertEqual(self.Block._kb_upsert(payload), m, '冪等')
+
+    def test_block_for_unknown_feature_is_skipped(self):
+        payload = {'kind': 'step_block', 'kb_uid': 'u-b', 'feature_key': 'nope.action:x', 'fingerprint': 'f',
+                   'content': {'published_name': 'x', 'published_html': '<p/>', 'fingerprint': 'f'}}
+        with self.assertRaises(ValueError):
+            self.Block._kb_upsert(payload)
+
+    def test_master_refuses_block_ingest(self):
+        self.mode('master', 'ingest')
+        peer = self.Peer.create({'name': 'd', 'code': 'dobtor', 'role': 'replica', 'key': 'k'})
+        res = self.Ex._serve_ingest(peer, [{'kind': 'step_block', 'kb_uid': 'x', 'feature_key': 'kbx.action:a1',
+                                            'fingerprint': 'f', 'content': {}}])
+        self.assertEqual((res[0]['result'], res[0]['reason']), (protocol.REJECTED, 'master_only'))
+
+    def test_package_module_list_and_addon(self):
+        self.mode('replica', 'feed')
+        local = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create({'name': '從屬方案', 'type': 'service'}).id,
+            'knowledge_upstream_key': 'corpaas:pkg14'})
+        cap = self.env['corpaas.knowledge.capability'].create({
+            'name': '會員', 'required_module_names': 'kbx_member\nkbx_wallet'})
+        Pkg = type(local)
+        with patch.object(Pkg, '_provision_module_names', lambda s: []):
+            self.assertEqual(cap.availability_for(local)[0], 'missing')
+            with patch(POST, return_value={'items': [{'op': 'upsert', 'payload': {
+                    'kind': 'package', 'global_key': 'corpaas:pkg14', 'modules': ['kbx_member'],
+                    'sellable': ['kbx_wallet']}}], 'cursor': 3, 'more': False}):
+                self.Peer.create({'name': 'm', 'code': 'corpaas', 'role': 'master', 'url': 'https://m', 'key': 'k'})
+                self.Ex._pull()
+            self.assertIn('kbx_member', local._knowledge_available_modules())
+            state, lacking = cap.availability_for(local)
+            self.assertEqual((state, lacking), ('addon', {'kbx_wallet'}), '主體登記可販售 → 加購可得')
+
+    def test_master_publishes_package_once_per_change(self):
+        self.mode('master', 'feed')
+        self.pkg.knowledge_enabled = True
+        Pkg = type(self.pkg)
+        with patch.object(Pkg, '_knowledge_available_modules', lambda s: {'sale'}):
+            first = self.pkg._kb_publish_packages()
+            again = self.pkg._kb_publish_packages()
+        self.assertGreaterEqual(first, 1)
+        self.assertEqual(again, 0, '沒變就不再發佈')

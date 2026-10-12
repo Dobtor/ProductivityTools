@@ -8,7 +8,7 @@ from odoo.exceptions import AccessError, UserError
 
 from ..lib import protocol
 
-KIND_SEL = [(k, k) for k in protocol.ORDER]
+KIND_SEL = [(k, k) for k in protocol.ORDER] + [(protocol.PACKAGE_KIND, protocol.PACKAGE_KIND)]
 
 
 class KnowledgeExchangePeer(models.Model):
@@ -143,6 +143,9 @@ class KnowledgeExchangePromotion(models.Model):
             payload = json.loads(rec.payload or '{}')
             Model = self.env[protocol.KINDS[rec.kind]['model']]
             res = Model._kb_upsert(payload, state='local', trust='replica', origin=rec.peer_id.code)
+            if 'published_rev_no' in res._fields and res.state != 'published':
+                # 審核就是這一步：核准即上線（並寫進發佈清單，從屬那筆改成鏡像）
+                res._do_publish('new', note=_('上收提案核准（來自 %s）') % rec.peer_id.code)
             rec._done('approved', result_model=res._name, result_id=res.id)
         return True
 

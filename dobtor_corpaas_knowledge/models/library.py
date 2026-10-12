@@ -111,7 +111,7 @@ class SolutionPackage(models.Model):
             vals = {k: v for k, v in snap.items()
                     if k in cap._knowledge_revision_fields() and isinstance(v, (str, int, float))}
             caps.append({
-                'code': cap.code, 'sequence': cap.sequence, 'values': vals,
+                'code': cap.code, 'uid': cap.kb_uid, 'sequence': cap.sequence, 'values': vals,
                 'feature_keys': sorted(f.feature_key for f in cap.feature_ids
                                        if self in f.package_ids)})
         common = self.env['corpaas.knowledge.selection'].sudo().search([
@@ -124,7 +124,7 @@ class SolutionPackage(models.Model):
         for sc in self.knowledge_scenario_ids.filtered('published_rev_no'):
             snap = sc._last_published_snapshot() or {}
             out.append({
-                'code': sc.code, 'name': snap.get('name') or sc.name,
+                'code': sc.code, 'uid': sc.kb_uid, 'name': snap.get('name') or sc.name,
                 'narrative': snap.get('narrative') or '', 'glossary': snap.get('glossary') or '',
                 'required_module_names': snap.get('required_module_names') or '',
                 'seed_json': snap.get('seed_json') or '[]',
@@ -168,11 +168,12 @@ class SolutionPackage(models.Model):
         for item in data.get('caps') or []:
             mine = Feature.browse([feats[k].id for k in item.get('feature_keys') or [] if k in feats])
             vals = dict(item.get('values') or {}, code=item['code'], sequence=item.get('sequence', 10))
-            cap = Cap.search([('code', '=', item['code'])], limit=1)
+            cap = _match(Cap, item)
             if cap:
-                cap.write(vals)
+                if cap.kb_sync_state != 'mirror':   # 主體的鏡像：內容唯讀，只掛關聯
+                    cap.write(vals)
             else:
-                cap = Cap.create(vals)
+                cap = Cap.create(dict(vals, **({'kb_uid': item['uid']} if item.get('uid') else {})))
             cap.write({'package_ids': [(4, self.id)], 'feature_ids': [(4, f.id) for f in mine]})
             mine.write({'classify_pending': False})
             if not cap.published_rev_no or cap.state != 'published':
@@ -199,11 +200,14 @@ class SolutionPackage(models.Model):
                     'seed_json': item.get('seed_json') or '[]',
                     'pack_ids': [(6, 0, Pack.search([('code', 'in', item.get('packs') or [])]).ids)],
                     'role_ids': [(6, 0, Role.search([('code', 'in', item.get('roles') or [])]).ids)]}
-            sc = Sc.search([('code', '=', item['code'])], limit=1)
+            sc = _match(Sc, item)
             if sc:
-                sc.write(vals)
+                if sc.kb_sync_state != 'mirror':
+                    sc.write(vals)
+                else:
+                    sc.write({k: vals[k] for k in ('pack_ids', 'role_ids')})
             else:
-                sc = Sc.create(vals)
+                sc = Sc.create(dict(vals, **({'kb_uid': item['uid']} if item.get('uid') else {})))
             sc.package_ids = [(4, self.id)]
             if not sc.published_rev_no or sc.state != 'published':
                 sc._do_publish('new', note=_('從範本庫建立'))
@@ -252,3 +256,12 @@ class SolutionPackage(models.Model):
                               'button_name': btn, 'button_label': label or False, 'ev_shot': True})
             n += 1
         return n
+
+
+def _match(Model, item):
+    """範本庫項目 → 既有紀錄：先以全域識別（#4：有 kb_uid 就不靠代碼或名稱），再退回代碼。"""
+    if item.get('uid'):
+        rec = Model.search([('kb_uid', '=', item['uid'])], limit=1)
+        if rec:
+            return rec
+    return Model.search([('code', '=', item['code'])], limit=1)

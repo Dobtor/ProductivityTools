@@ -64,7 +64,7 @@ class KnowledgeExchange(models.AbstractModel):
         Vis = self.env['corpaas.knowledge.exchange.visibility']
         for item in (items or [])[:500]:
             kind = item.get('kind') if isinstance(item, dict) else None
-            if kind not in protocol.KINDS or protocol.KINDS[kind]['category'] != 'fact':
+            if kind not in protocol.KINDS or protocol.KINDS[kind]['category'] not in ('fact', 'output'):
                 continue
             rec = self._model(kind)._kb_find(item.get('key') or {})
             if rec and rec.kb_sync_state != 'mirror':
@@ -89,7 +89,9 @@ class KnowledgeExchange(models.AbstractModel):
             spec = protocol.KINDS[kind]
             key = protocol.key_of(kind, payload)
             res, reason, rec = protocol.REJECTED, '', None
-            if spec['category'] == 'fact':
+            if spec['category'] == 'output':
+                reason = 'master_only'   # 主體方案的產出只從主體流向從屬
+            elif spec['category'] == 'fact':
                 modules = self._payload_modules(kind, payload)
                 if not modules or modules - Vis._public_modules(modules):
                     # ★ 主體用自己的模組清單再判一次：私有的不收（雙重把關）
@@ -153,11 +155,16 @@ class KnowledgeExchange(models.AbstractModel):
                 continue
             seen.add(ident)
             rec = self.env[row.res_model].sudo().browse(row.res_id).exists() if row.res_model in self.env else None
-            if rec and row.op == 'upsert' and rec.kb_visibility == 'public' and rec.kb_sync_state != 'mirror' \
-                    and rec._kb_exchange_ready():
-                items.append({'op': 'upsert', 'payload': rec._kb_export()})
-            else:
-                items.append({'op': 'retract', 'kind': row.kind, 'kb_uid': row.kb_uid})
+            if row.kind == protocol.PACKAGE_KIND:
+                if rec:
+                    items.append({'op': 'upsert', 'payload': rec._kb_package_payload()})
+                continue
+            if rec and row.op == 'upsert' and rec.kb_visibility == 'public' and rec.kb_sync_state != 'mirror':
+                if rec._kb_exchange_ready():
+                    items.append({'op': 'upsert', 'payload': rec._kb_export()})
+                # 暫時是草稿／待審：這次不送（核准時會再發佈），也不作廢從屬已有的上一版
+                continue
+            items.append({'op': 'retract', 'kind': row.kind, 'kb_uid': row.kb_uid})
         items.reverse()
         return {'items': items, 'cursor': rows[-1].id if rows else int(cursor or 0),
                 'more': len(rows) == limit}
@@ -188,6 +195,7 @@ class KnowledgeExchange(models.AbstractModel):
             recs = self._model(kind).search([('kb_sync_state', '!=', 'mirror')])
             Vis._classify(recs)
             n += recs._kb_publish()
+        n += self.env['infrastructure.solution.package']._kb_publish_packages()
         return n
 
     # ==================================================================
@@ -238,6 +246,34 @@ class KnowledgeExchange(models.AbstractModel):
                     self._model(r['kind'])._kb_upsert(r['payload'])
                     n += 1
         return n
+
+    @api.model
+    def _lookup_step_blocks(self, pairs):
+        """從屬：（功能點鍵, 畫面指紋）相同的主體已上線步驟區塊 → 鏡像；回傳 {(鍵, 指紋): 區塊}。
+
+        客戶專屬說明書（第三期）寫原生功能前先呼叫：指紋相同就引用主體版本，不同才在本地分岔。
+        """
+        out = {}
+        if self._mode() != 'replica' or not self._enabled('lookup') or not pairs:
+            return out
+        items = [{'kind': 'step_block', 'key': {'feature_key': k, 'fingerprint': fp}} for k, fp in pairs]
+        try:
+            res = self._call('lookup', {'items': items[:500]})
+        except Exception as e:  # noqa: BLE001
+            _logger.info('[exchange] 查主體步驟區塊失敗：%s', e)
+            return out
+        Block = self._model('step_block')
+        for r in res.get('results') or []:
+            if r.get('found') and isinstance(r.get('payload'), dict):
+                try:
+                    with self.env.cr.savepoint():
+                        blk = Block._kb_upsert(r['payload'])
+                except ValueError as e:
+                    _logger.info('[exchange] 步驟區塊鏡像略過：%s', e)
+                    continue
+                key = r.get('key') or {}
+                out[(key.get('feature_key'), key.get('fingerprint'))] = blk
+        return out
 
     @api.model
     def _collect(self, limit=500):
@@ -346,6 +382,9 @@ class KnowledgeExchange(models.AbstractModel):
     def _apply_feed_item(self, item):
         if item.get('op') == 'upsert':
             payload = item.get('payload') or {}
+            if payload.get('kind') == protocol.PACKAGE_KIND:
+                self.env['infrastructure.solution.package']._kb_apply_package(payload)
+                return
             if payload.get('kind') in protocol.KINDS:
                 with self.env.cr.savepoint():
                     self._model(payload['kind'])._kb_upsert(payload)
@@ -382,6 +421,7 @@ class KnowledgeExchange(models.AbstractModel):
         Vis = self.env['corpaas.knowledge.exchange.visibility']
         if mode == 'master':
             Vis._cron_classify()
+            self.env['infrastructure.solution.package']._kb_publish_packages()
             return True
         self._collect()
         self._push()

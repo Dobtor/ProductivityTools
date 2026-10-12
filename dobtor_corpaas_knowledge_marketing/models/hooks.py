@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """行銷出口對核心掛勾的參與（一律 super 串起來）。"""
+import urllib.parse
+
 from odoo import api, models
 
 from odoo.addons.dobtor_corpaas_knowledge.services import search_lib
@@ -89,6 +91,23 @@ class KnowledgeHooks(models.AbstractModel):
                 or icp.get_param('web.base.url') or '').rstrip('/')
 
     @api.model
+    def _marketing_variant(self, package):
+        """方案自己的變體（同分支），不是商品的第一個變體。"""
+        tmpl = package.product_tmpl_id
+        return package.product_id or tmpl.product_variant_ids.filtered(
+            lambda v: package.branch_name and v.branch_name == package.branch_name)[:1] \
+            or tmpl.product_variant_id
+
+    @api.model
+    def _marketing_solution_path(self, package, variant=None):
+        """對外連結的方案頁路徑（#16）：用方案全域識別的穩定網址，不帶本地變體 id——
+        換變體、搬主控台、從屬引用主體的連結都不會斷。沒有全域識別才退回變體頁。"""
+        if package.knowledge_global_key:
+            return '/corpaas/s/%s' % urllib.parse.quote(package.knowledge_global_key, safe='')
+        variant = variant or self._marketing_variant(package)
+        return '/corpaas/solution/%s' % variant.id
+
+    @api.model
     def _marketing_upsell_links(self, package, matches, query):
         """命中的功能在方案不可用、但能力可加購 → kind='upsell' 連到方案商品頁的加購卡片。
 
@@ -98,10 +117,7 @@ class KnowledgeHooks(models.AbstractModel):
              不會出現在 `_match`（只找方案內功能點），不另外比對就永遠推不出加購。
         """
         tmpl = package.product_tmpl_id
-        # ★ 連到這個方案自己的變體頁（同分支），不是商品的第一個變體
-        variant = package.product_id or tmpl.product_variant_ids.filtered(
-            lambda v: package.branch_name and v.branch_name == package.branch_name)[:1] \
-            or tmpl.product_variant_id
+        variant = self._marketing_variant(package)
         if not variant:
             return []
         matched = self.env['corpaas.knowledge.feature'].browse(
@@ -125,7 +141,7 @@ class KnowledgeHooks(models.AbstractModel):
             out.append({
                 'feature_key': feature.feature_key or False,
                 'title': '加購可得：%s' % cap.name,
-                'url': '%s/corpaas/solution/%s#%s' % (base, variant.id, anchor),
+                'url': '%s%s#%s' % (base, self._marketing_solution_path(package, variant), anchor),
                 'kind': 'upsell',
                 'scenario': False,
                 'anchor': anchor,

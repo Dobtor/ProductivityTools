@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識主從交換',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Productivity/Knowledge',
     'summary': '主體（admin.corpaas.com）與從屬主控台交換公開知識：先查主體再算、送件入庫、發佈清單、上收提案',
     'description': '''
@@ -19,7 +19,7 @@
     'author': 'Dobtor',
     'website': 'https://www.dobtor.com',
     'license': 'OPL-1',
-    'depends': ['dobtor_corpaas_knowledge'],
+    'depends': ['dobtor_corpaas_knowledge', 'dobtor_corpaas_knowledge_manual'],
     'external_dependencies': {'python': ['requests']},
     'data': [
         'security/ir.model.access.csv',

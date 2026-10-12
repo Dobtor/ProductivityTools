@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識：產品行銷出口',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Productivity/Knowledge',
     'summary': '方案知識核心的出口二：能力卡片、宣稱錨定、本期新增、加購可得，推到方案商品頁',
     'description': '''

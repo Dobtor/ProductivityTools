@@ -3,7 +3,7 @@ import base64
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
-from odoo.tests import TransactionCase, new_test_user, tagged
+from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 
 from odoo.addons.dobtor_corpaas_knowledge.services import hub_client
 
@@ -359,8 +359,9 @@ class TestKnowledgeMarketing(TransactionCase):
             self.assertEqual(len(upsell), 1)
             self.assertEqual(upsell[0]['feature_key'], self.f_pay.feature_key)
             self.assertEqual(
-                upsell[0]['url'], 'https://docs.example.com/corpaas/solution/%s#kb-addon-signup_pay'
-                % self.tmpl.product_variant_id.id)
+                upsell[0]['url'], 'https://docs.example.com/corpaas/s/%s#kb-addon-signup_pay'
+                % self.package.knowledge_global_key.replace(':', '%3A'),
+                '#16：穩定網址用方案全域識別，不帶本地變體 id')
             by_query = hooks._knowledge_help_links(self.package, [], '報名收費', {})
             self.assertTrue([link for link in by_query if link['kind'] == 'upsell'])
             unrelated = hooks._knowledge_help_links(self.package, [], 'zzzz', {})
@@ -541,3 +542,15 @@ class TestKnowledgeMarketing(TransactionCase):
         self.assertEqual(len(page()['pitches']), 1)
         self.assertLessEqual(five, one + 4, '查詢數不能跟卡片數成正比（1 張 %s、5 張 %s）'
                              % (one, five))
+
+
+@tagged('post_install', '-at_install')
+class TestSolutionLink(HttpCase):
+
+    def test_stable_link_redirects_to_variant(self):
+        tmpl = self.env['product.template'].create({'name': '穩定網址方案', 'type': 'service'})
+        pkg = self.env['infrastructure.solution.package'].create({'product_tmpl_id': tmpl.id})
+        res = self.url_open('/corpaas/s/%s' % pkg.knowledge_global_key, allow_redirects=False)
+        self.assertIn(res.status_code, (301, 302, 303))
+        self.assertTrue(res.headers['Location'].endswith('/corpaas/solution/%s' % tmpl.product_variant_id.id))
+        self.assertEqual(self.url_open('/corpaas/s/nope:pkg0', allow_redirects=False).status_code, 404)
