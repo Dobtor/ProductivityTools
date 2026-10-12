@@ -45,6 +45,18 @@ class TestVisibility(_Base):
         Vis._classify(core)
         self.assertEqual(core.kb_visibility, 'private', '系統參數可強制私有')
 
+    def test_public_module_list(self):
+        Vis = self.env['corpaas.knowledge.exchange.visibility']
+        d = self.make_def('dobtor_ec_product', 'p1')
+        Vis._classify(d)
+        self.assertEqual(d.kb_visibility, 'private')
+        self.icp.set_param('corpaas_knowledge.exchange_public_modules', 'dobtor_ec_product, dobtor_user_signup')
+        Vis._classify(d)
+        self.assertEqual(d.kb_visibility, 'public', '人工確認的公開模組清單')
+        self.icp.set_param('corpaas_knowledge.exchange_private_modules', 'dobtor_ec_product')
+        Vis._classify(d)
+        self.assertEqual(d.kb_visibility, 'private', '強制私有優先')
+
     def test_fact_with_private_segment_is_private(self):
         Vis = self.env['corpaas.knowledge.exchange.visibility']
         Fact = self.env['corpaas.knowledge.code_fact'].sudo()

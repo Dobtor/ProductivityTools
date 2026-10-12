@@ -225,8 +225,10 @@ class KnowledgeExchangeVisibility(models.AbstractModel):
     def _public_modules(self, modules):
         """回傳 modules 裡判為公開的集合。
 
-        公開：Odoo 核心（(core)、映像官方模組）；或登記在模組清單且來源為 odoo／dobtor／oca。
-        系統參數 corpaas_knowledge.exchange_private_modules（逗號分隔）強制私有。
+        公開：Odoo 核心（(core)、映像官方模組）；登記在模組清單且來源為 odoo／dobtor／oca；
+        或列在系統參數 corpaas_knowledge.exchange_public_modules（逗號分隔，人工確認過的產品模組——
+        不改模組清單的來源欄位：那欄由 repo 同步帶下來，也決定官網的應用分類）。
+        系統參數 corpaas_knowledge.exchange_private_modules（逗號分隔）強制私有，優先於公開清單。
         ★ 主體入庫時用主體自己的清單再判一次（雙重把關）。
         """
         modules = {m for m in modules if m}
@@ -235,7 +237,9 @@ class KnowledgeExchangeVisibility(models.AbstractModel):
         icp = self.env['ir.config_parameter'].sudo()
         forced = {m.strip() for m in (icp.get_param('corpaas_knowledge.exchange_private_modules') or '').split(',')
                   if m.strip()}
-        public = {m for m in modules if m == '(core)'}
+        listed = {m.strip() for m in (icp.get_param('corpaas_knowledge.exchange_public_modules') or '').split(',')
+                  if m.strip()}
+        public = {m for m in modules if m == '(core)'} | (modules & listed)
         for tree in self.env['corpaas.knowledge.code_tree'].sudo().search([('core_hashes', '!=', False)]):
             try:
                 core = json.loads(tree.core_hashes or '{}')
