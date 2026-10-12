@@ -424,6 +424,16 @@ class KnowledgeHooks(models.AbstractModel):
         return out
 
     @api.model
+    def _knowledge_code_prefetch(self, modules=(), defs=(), facts=()):
+        """算程式知識前先查主體（知識主從計畫 8.1；交換模組在從屬模式覆寫）。
+
+        modules：[(模組, 目錄雜湊)]；defs：[(定義雜湊, 方法, 模組)]；facts：[(主體, 繼承鏈雜湊)]。
+        主體有的就存成本地鏡像，呼叫端接著照常判斷「本地有沒有」——有了就不再叫 AI。
+        主體連不上一律當作沒有（本地照算），不得拋例外。
+        """
+        return True
+
+    @api.model
     def _knowledge_scenarios_needing_shots(self, package, events):
         """哪些情境要重建說明庫並拍攝（manual 模組覆寫）。"""
         return self.env['corpaas.knowledge.scenario']

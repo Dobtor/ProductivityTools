@@ -12,7 +12,7 @@ sed -E 's/[<>=;].*//; s/ *$//' "$ODOO/requirements.txt" | grep -v '^#' | grep -v
   | grep -vixE 'pypiwin32|psycopg2|python-ldap|gevent|greenlet' | sort -u > req.txt
 uv pip install --python venv/bin/python -q -r req.txt psycopg2-binary pgserver websocket-client \
   "Werkzeug==3.0.1" "lxml==5.2.1" paramiko fabric invoke gitpython pygithub pyjwt pyyaml \
-  simplejson responses pathspec
+  simplejson responses pathspec python-docx
 uv pip install --python venv/bin/python -q --no-deps "odoo-addon-github-connector>=18.0,<18.1" \
   "odoo-addon-github-connector-odoo>=18.0,<18.1"
 venv/bin/python - <<PY

@@ -365,7 +365,13 @@ class SolutionPackageCode(models.Model):
         self.ensure_one()
         Ai = self.env['corpaas.knowledge.ai']
         done = 0
+        todo_defs = {(d.def_hash, d.method, d.module) for f in facts for d in f.def_ids if not _def_info(d)}
+        if todo_defs:
+            self.env['corpaas.knowledge.hooks']._knowledge_code_prefetch(
+                defs=sorted(todo_defs), facts=sorted({(f.subject, f.chain_hash) for f in facts}))
         for fact in facts:
+            if fact.kb_sync_state == 'mirror':
+                continue   # 主體的結論（鏡像）：內容唯讀，也不必再算
             missing = [d for d in fact.def_ids if not _def_info(d)]
             readable = [(d, self._knowledge_runner_path(d.path or '', instance)) for d in missing]
             readable = [(d, w) for d, w in readable if w]
@@ -427,8 +433,15 @@ class SolutionPackageCode(models.Model):
             self._knowledge_code_chains(instance, db, self._knowledge_button_targets())
         except Exception as e:  # noqa: BLE001
             _logger.info('[knowledge] 模組摘要：找按鈕方法失敗：%s', e)
+        # ★ 先查主體（交換模組從屬模式）：主體有的模組摘要與段落摘要存成鏡像，下面就不會再讀
+        self.env['corpaas.knowledge.hooks']._knowledge_code_prefetch(
+            modules=[(m, addons[m]['hash']) for m in mods],
+            defs=[(d.def_hash, d.method, d.module) for d in Def.search([('module', 'in', mods)])
+                  if not _def_info(d)])
+        # ★ 從屬提供的模組摘要只是暫用（已決事項 3）：主體要自己重讀一次才算正式
         todo = [m for m in mods if not Summary.search_count(
-            [('module', '=', m), ('dir_hash', '=', addons[m]['hash']), ('source', '=', 'ai')])
+            [('module', '=', m), ('dir_hash', '=', addons[m]['hash']), ('source', '=', 'ai'),
+             ('kb_trust', '!=', 'replica')])
             or Def.search([('module', '=', m)]).filtered(lambda d: not _def_info(d))]
         if not todo:
             return 0
@@ -452,7 +465,7 @@ class SolutionPackageCode(models.Model):
                 methods = [{'def': d.def_hash, 'method': d.method, 'lines': '%s 第 %s–%s 行' % (
                     self._knowledge_runner_path(d.path or '', instance) or d.path, d.line_start, d.line_end)}
                     for d in batch]
-                first = n == 0 and rec.source != 'ai'
+                first = n == 0 and (rec.source != 'ai' or rec.kb_trust == 'replica')
                 ask = []
                 if first:
                     ask.append("\"purpose\": \"這個模組解決什麼問題（一兩句）\", "
@@ -483,6 +496,12 @@ class SolutionPackageCode(models.Model):
                     continue
                 if first and data.get('purpose'):
                     rec.write({'summary_json': json.dumps(_trim_summary(data), ensure_ascii=False), 'source': 'ai'})
+                    if rec.kb_trust == 'replica':
+                        # 主體重讀取代從屬的暫用版
+                        # ☠️ 不能在檔頭 import federation：它的類別會比 code_def 先登記，載入失敗
+                        from .federation import EXCHANGE_SYNC
+                        models.Model.write(rec.with_context(knowledge_exchange_sync=EXCHANGE_SYNC),
+                                           {'kb_trust': 'own'})
                     done += 1
                 got = data.get('methods') if isinstance(data.get('methods'), dict) else {}
                 for d in batch:

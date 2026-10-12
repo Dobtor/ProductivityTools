@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="cron_knowledge_exchange" model="ir.cron">
+        <field name="name">知識交換：公開判定、送件、拉取發佈清單</field>
+        <field name="model_id" ref="model_corpaas_knowledge_exchange"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_exchange()</field>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+    </record>
+</odoo>
