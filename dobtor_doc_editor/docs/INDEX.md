@@ -14,7 +14,7 @@
 | 文件 | 回答的問題 |
 |---|---|
 | [DONE_CRITERIA.md](DONE_CRITERIA.md) | **「完成了嗎」** — 13 條可機器判定的判準，`make done` 給單一判決（0 全過／1 有判準沒過／**2 環境不具備或被跳過，不是通過**） |
-| [AUDIT_LENSES.md](AUDIT_LENSES.md) | **「還有什麼沒查」** — 16 把用過的尺（各自量到什麼、留下什麼守衛）＋ 5 把還沒用過的 |
+| [AUDIT_LENSES.md](AUDIT_LENSES.md) | **「還有什麼沒查」** — 17 把用過的尺（各自量到什麼、留下什麼守衛）＋ 5 把還沒用過的 |
 | [REQUIREMENTS_CONFORMANCE.md](REQUIREMENTS_CONFORMANCE.md) | **「符合需求嗎」** — 逐條對照主規畫書 §2.2；含「需求適用的路徑不是出貨路徑」與「閘門比需求鬆 2.5–25 倍」兩個關鍵落差 |
 | [OPTIMIZATION_RECOMMENDATIONS.md](OPTIMIZATION_RECOMMENDATIONS.md) | **「下一步做什麼」** — 分該做／可做／**不該做**，每條附代價、理由與依據的量測 |
 | [DEPLOYMENT_FOOTPRINT.md](DEPLOYMENT_FOOTPRINT.md) | **「`git pull` 會送多少東西到正式機」** — 實測 94.4 MB，排掉兩個模組的 `tests/` 後剩 9.0 MB；含兩個陷阱（`tests/` 這個樣式會把 `static/tests/` 一起排掉；`git sparse-checkout` 要 2.25+）與部署端的兩種寫法 |

@@ -10,10 +10,15 @@ Odoo 會把 tour「跳過」而不是失敗——整份測試仍然全綠，但�
 所以這裡用一則獨立的測試把環境需求釘住，而不是讓它靜默略過。
 """
 
+import glob
+import os
+import re
 from importlib.util import find_spec
 
 from odoo.tests.common import HttpCase, tagged
 from odoo.tools.misc import find_in_path
+
+MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _chrome_available():
@@ -112,3 +117,163 @@ class TestDocEditorPanelsTour(HttpCase):
             login='admin',
             timeout=180,
         )
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestListOpensEditorTour(HttpCase):
+    """從清單進編輯器的四條路（點一筆／按新增 × 文件／範本）。
+
+    ☠️ 為什麼要有這一組：TestDocEditorPanelsTour 從編輯器的 client action
+    直接進去，**繞過清單**。所以清單的 js_class
+    （static/src/views/doc_document_list_open_editor.js）一行都沒被測過——
+    2026-10-12 正式機上點清單任一筆就炸（Odoo 18 的 ListController 沒有
+    this.orm），而 678 則測試全綠。
+    """
+
+    def setUp(self):
+        super().setUp()
+        # 清單至少要有一筆才點得到。名字帶 id 只是讓失敗訊息好認。
+        # ☠️ 以 admin 身分建：文件清單的 action 預設套「我的文件」
+        #    （search_default_my_docs ＝ create_uid = uid），超級使用者建的
+        #    那筆 admin 登入後看不到，清單是空的、「點一筆」根本沒東西點。
+        admin = self.env.ref('base.user_admin')
+        self.env = self.env(user=admin)
+        self.Template = self.env['doc.template']
+        self.template = self.Template.create({
+            'name': 'tour 清單範本 %s' % self.id(),
+            'model_id': self.env.ref('base.model_res_partner').id,
+        })
+        self.document = self.env['doc.document'].create({
+            'name': 'tour 清單文件 %s' % self.id(),
+        })
+
+    def _run(self, action_xmlid, tour):
+        if not _chrome_available() or find_spec('websocket') is None:
+            self.skipTest('缺瀏覽器或 websocket-client，tour 未執行')
+        action = self.env.ref(action_xmlid)
+        self.start_tour('/odoo/action-%d' % action.id, tour,
+                        login='admin', timeout=120)
+
+    def test_document_list_click_opens_editor(self):
+        self._run('dobtor_doc_editor.action_doc_document_list',
+                  'doc_document_list_click_tour')
+
+    def test_document_list_new_opens_editor(self):
+        self._run('dobtor_doc_editor.action_doc_document_list',
+                  'doc_document_list_new_tour')
+
+    def test_template_list_click_opens_editor(self):
+        self._run('dobtor_doc_editor.action_doc_template_list',
+                  'doc_template_list_click_tour')
+
+    def test_template_list_new_opens_editor(self):
+        self._run('dobtor_doc_editor.action_doc_template_list',
+                  'doc_template_list_new_tour')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPortalEditorMountsTour(HttpCase):
+    """Portal 協作者打開 /my/documents/<id>，編輯器真的在瀏覽器裡掛起來。
+
+    ☠️ 這個頁面的 HTTP 回應早就有測（test_route_remaining.py），但頁面上的
+    JS 從沒執行過。Portal 是 DocEditor 唯一沒有 action／dialog service 的
+    環境，那些 null 分支只有在這裡會跑到。
+    """
+
+    def setUp(self):
+        super().setUp()
+        # start_tour(login=X) 內部是 self.authenticate(X, X)——密碼必須等於帳號。
+        login = 'tour_portal_doc'
+        self.portal_user = self.env['res.users'].create({
+            'name': 'tour portal 協作者',
+            'login': login,
+            'password': login,
+            'groups_id': [(6, 0, [
+                self.env.ref('base.group_portal').id,
+                self.env.ref('dobtor_doc_editor.group_doc_portal').id,
+            ])],
+        })
+        self.document = self.env['doc.document'].create({
+            'name': 'tour portal 文件',
+            'collaborator_ids': [(6, 0, [self.portal_user.id])],
+        })
+
+    def test_portal_editor_mounts(self):
+        if not _chrome_available() or find_spec('websocket') is None:
+            self.skipTest('缺瀏覽器或 websocket-client，tour 未執行')
+        self.start_tour('/my/documents/%d' % self.document.id,
+                        'doc_portal_editor_mount_tour',
+                        login=self.portal_user.login, timeout=120)
+
+
+#: 每個前端進入點 → 從它進去的 tour（必須存在於 static/tests/tours/）。
+#: 新增 js_class／client action／public component 時，這張表要跟著加一列，
+#: 而且要真的寫一支從那裡進去的 tour——否則 TestEveryEntryPointHasATour 會紅。
+ENTRY_POINT_TOURS = {
+    ('actions', 'dobtor_doc_editor.action_doc_editor'): 'doc_editor_panels_tour',
+    ('views', 'doc_document_list_open_editor'): 'doc_document_list_click_tour',
+    ('views', 'doc_template_list_open_editor'): 'doc_template_list_click_tour',
+    ('public_components', 'dobtor_doc_editor.DocEditor'): 'doc_portal_editor_mount_tour',
+}
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestEveryEntryPointHasATour(HttpCase):
+    """前端每個進入點都要有一支**從那裡進去**的 tour。
+
+    ☠️ 2026-10-12 一天裡抓到的三個正式機缺陷，根因是同一個：
+      - 清單點一筆就炸（ListController 沒有 this.orm）
+      - 清單「新增」就炸（@api.model 方法被傳了 [[]]）
+      - Portal 編輯器永遠停在「載入中」（doc_field_picker 不在前台 bundle）
+    三個進入點都**存在，但沒有任何測試從那裡進去**——唯一的 tour 是直接從
+    編輯器的 client action 開始的。進入點跟 tour 的對應表就是這一則的分母；
+    registry 多一個進入點、表沒跟上，這裡就紅。
+    """
+
+    _ADD_RE = re.compile(
+        r'registry\s*\.category\(\s*"(views|actions|public_components|fields|systray)"\s*\)'
+        r'\s*\.add\(\s*"([^"]+)"')
+    _TOUR_RE = re.compile(
+        r'web_tour\.tours"\)\s*\.add\(\s*(?:"([^"]+)"|name)')
+
+    def _registered_entry_points(self):
+        found = set()
+        for path in glob.glob(os.path.join(MODULE_ROOT, 'static', 'src', '**', '*.js'),
+                              recursive=True):
+            if os.sep + 'lib' + os.sep in path:
+                continue
+            with open(path, encoding='utf-8') as fh:
+                found.update(self._ADD_RE.findall(fh.read()))
+        return found
+
+    def _defined_tours(self):
+        names = set()
+        for path in glob.glob(os.path.join(MODULE_ROOT, 'static', 'tests', 'tours', '*.js')):
+            with open(path, encoding='utf-8') as fh:
+                src = fh.read()
+            names.update(n for n in self._TOUR_RE.findall(src) if n)
+            # 用迴圈註冊的那幾支：[["name", step], …] 形式
+            names.update(re.findall(r'\[\s*"([a-z_]+_tour)"\s*,', src))
+        return names
+
+    def test_entry_points_are_found(self):
+        """先確認抽得到——抽到 0 個的話下一則會空轉過關。"""
+        self.assertGreaterEqual(len(self._registered_entry_points()), 3)
+        self.assertGreaterEqual(len(self._defined_tours()), 3)
+
+    def test_every_entry_point_is_mapped_to_a_tour(self):
+        found = self._registered_entry_points()
+        mapped = set(ENTRY_POINT_TOURS)
+        self.assertFalse(
+            sorted(found - mapped),
+            '這些前端進入點沒有對應的 tour：%s\n'
+            '——請寫一支從那裡進去的 tour，並在 ENTRY_POINT_TOURS 加一列。'
+            % sorted(found - mapped))
+        self.assertFalse(
+            sorted(mapped - found),
+            'ENTRY_POINT_TOURS 列了已不存在的進入點：%s' % sorted(mapped - found))
+
+    def test_every_mapped_tour_exists(self):
+        tours = self._defined_tours()
+        missing = sorted(t for t in ENTRY_POINT_TOURS.values() if t not in tours)
+        self.assertFalse(missing, '對應表指向不存在的 tour：%s' % missing)

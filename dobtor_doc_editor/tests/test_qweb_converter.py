@@ -813,6 +813,23 @@ class TestAutoFormat(TestQwebConverterBase):
     單據上每一行數字都不一樣，等於不能用。
     """
 
+    def _need_account_fields(self):
+        # ☠️ credit_limit（float）與 debit_limit（monetary）是 **account** 加在
+        #    res.partner 上的欄位，而本模組不依賴 account。以前一直綠，是因為
+        #    每個測試 DB 都先裝了 sale／account（連 core-standalone 判準也是），
+        #    這個隱性前提從沒浮現。2026-10-12 在只裝本模組的乾淨 DB 上，
+        #    這四則紅成「'' != format_number(...)」——轉換器的行為是對的
+        #    （欄位不存在就不產格式），錯的是測試沒寫出它的前提。
+        #    base 的 res.partner 沒有 monetary 欄位可以替代，所以缺的時候
+        #    明說原因地 skip，而不是假紅或默默略過。
+        missing = [f for f in ('credit_limit', 'debit_limit')
+                   if f not in self.env['res.partner']._fields]
+        if missing:
+            self.skipTest(
+                '需要 account 模組：res.partner 沒有 %s（本模組不依賴 account，'
+                '這組只在裝了 account 的 DB 上驗 float／monetary 的格式）'
+                % '、'.join(missing))
+
     def _expr(self, body, model='res.partner'):
         res = self._convert(body, model=model)
         metas = [m for m in self._metas(res['tree']['main'])
@@ -820,10 +837,12 @@ class TestAutoFormat(TestQwebConverterBase):
         return (metas[0].get('expression') or '') if metas else ''
 
     def test_float_gets_format_number(self):
+        self._need_account_fields()
         self.assertEqual(self._expr('<span t-out="o.credit_limit"/>'),
                          "format_number(object.credit_limit, ',.2f')")
 
     def test_monetary_gets_format_money(self):
+        self._need_account_fields()
         self.assertEqual(self._expr('<span t-out="o.debit_limit"/>'),
                          'format_money(object.debit_limit)')
 
@@ -855,6 +874,7 @@ class TestAutoFormat(TestQwebConverterBase):
 
     def test_line_level_fields_are_formatted_too(self):
         """明細欄位的模型要從迴圈來源推出來。"""
+        self._need_account_fields()
         res = self._convert(
             '<table><t t-foreach="o.child_ids" t-as="kid">'
             '<tr><td><span t-out="kid.credit_limit"/></td></tr></t></table>'
@@ -866,6 +886,7 @@ class TestAutoFormat(TestQwebConverterBase):
 
     def test_branch_values_are_formatted(self):
         """三元式裡的取值也要補格式（明細的折扣／金額／單價都是這種）。"""
+        self._need_account_fields()
         res = self._convert(
             '<table><t t-foreach="o.child_ids" t-as="kid">'
             '<tr><td><span t-if="kid.credit_limit"'

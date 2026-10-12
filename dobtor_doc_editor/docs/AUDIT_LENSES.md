@@ -39,6 +39,7 @@
 | 14 | 文件裡的連結與路徑還成立嗎 | 4 處會害人的：`CONTRIBUTING.md` 把規矩外包給另一個 repo 的檔案、`onboarding_prompt.md` 叫人讀兩個從未存在的檔案並 `cd` 到已不存在的機器 | `test_doc_links.py` |
 | 15 | 視圖的無障礙警告（**用 Odoo 自己的驗證器**，不自己重寫判準） | 6 處裝飾性 fa 圖示沒有說明文字——安裝時 Odoo 一直在報，沒有人在看。☠️ 我第一次自己重寫判準漏了第一段檢查，算出 21 處；補回去算出 7 處；Odoo 報 6 處（差的那 1 處是 QWeb 模板，`_check_xml()` 對 qweb 直接 `continue`） | `test_view_a11y.py`（4 則，含負向控制與一則掃 Odoo 根本不看的 qweb） |
 | 16 | 部署足跡（`git pull` 會送多少東西到正式機） | 94.4 MB 裡有 85.4 MB 是 `tests/`，而正式機不跑測試。前提「出貨程式不依賴 `tests/`」成立但**真的可能破**——`tests/session_probe.py` 已經是跨模組公開介面 | `run_ships_without_tests_check.sh` ＋ 判準 `ships-without-tests`；數字與部署端寫法見 [`DEPLOYMENT_FOOTPRINT.md`](DEPLOYMENT_FOOTPRINT.md) |
+| 17 | 前端進入點覆蓋（**每個進入點都要有一支從那裡進去的 tour**） | **3 個正式機缺陷**，2026-10-12 admin.dobtor.com 回報第一個後一路抓出：清單點一筆就炸（Odoo 18 的 `ListController` 沒有 `this.orm`）、清單「新增」就炸（`@api.model` 方法被傳了 `[[]]`）、Portal 編輯器永遠停在「載入中」（`doc_field_picker` 不在前台 bundle）；外加 Portal 的「載入中」fallback 掛載後永遠不消失（OWL `app.mount` 是附加不是取代）。根因相同：唯一的 tour 直接從編輯器 client action 進去，**清單與 Portal 兩種進入點從沒被執行過** | `TestListOpensEditorTour`（4 則）、`TestPortalEditorMountsTour`、`TestEveryEntryPointHasATour`（registry 的進入點集合＝對應表）、`TestAssetBundleClosure`（不開瀏覽器就判 bundle 閉合） |
 
 ## 還沒用過的尺
 

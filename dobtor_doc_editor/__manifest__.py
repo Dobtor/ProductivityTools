@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.15.3.0',
+    'version': '18.0.15.4.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -154,6 +154,14 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_pills.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_templateui.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
+            # 欄位挑選器——☠️ 一定要在這裡。doc_editor 的五支 mixin 都在**模組
+            #    頂層** import DocFieldPickerDialog，少了它整條編輯器的模組在前台
+            #    都是「unmet dependencies」，Portal 協作者打開文件會永遠停在
+            #    「載入文件編輯器…」。2026-10-12 由 TestPortalEditorMountsTour
+            #    第一次在瀏覽器裡跑 portal 頁時抓到——在那之前這個頁面的 JS 從沒
+            #    被執行過。守衛：tests/test_manifest_assets.py 的 bundle 閉包檢查。
+            'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.xml',
+            'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.js',
             # 版本歷史面板（讓 portal 協作者也能查看歷次儲存）
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.xml',
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.js',

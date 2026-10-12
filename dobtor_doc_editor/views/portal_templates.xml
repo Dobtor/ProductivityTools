@@ -132,8 +132,11 @@
                                    t-att-props="editor_props_json"
                                    class="d-block border rounded"
                                    style="min-height: 600px;">
-                        <!-- public_component_service mount 完成前的 fallback 內容 -->
-                        <div class="text-center text-muted py-5">
+                        <!-- public_component_service mount 完成前的 fallback 內容。
+                             ☠️ OWL 的 app.mount(el) 是「附加」，不會清掉這裡的子節點——
+                             沒有 o_doc_portal_fallback 那條 CSS 的話，這段「載入中…請重新
+                             整理」會永遠留在編輯器上方（2026-10-12 tour 抓到）。 -->
+                        <div class="o_doc_portal_fallback text-center text-muted py-5">
                             <i class="fa fa-spinner fa-spin fa-3x" aria-hidden="true"/>
                             <p class="mt-3">載入文件編輯器…</p>
                             <p class="small">

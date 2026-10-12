@@ -13,11 +13,23 @@
  * ☠️ 文件與範本在「新增」這一步**刻意不同**，理由見 DocTemplate… 那一段。
  */
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { listView } from "@web/views/list/list_view";
 import { ListController } from "@web/views/list/list_controller";
 
 /** 點一筆 → 編輯器。文件與範本共用。 */
 export class DocOpenEditorListController extends ListController {
+    setup() {
+        super.setup();
+        // ☠️ Odoo 18 的 ListController 只注入 action 與 dialog，**沒有 this.orm**
+        //    （list_controller.js:79-80）。FormController、GanttController 有，
+        //    所以從那些地方抄來的 this.orm.call 在這裡會是
+        //    「Cannot read properties of undefined (reading 'call')」
+        //    ——2026-10-12 admin.dobtor.com 點清單任一筆就炸。
+        //    dobtor_xmind 的 list_open_editor.js 沒事，是因為它只用 actionService。
+        this.orm = useService("orm");
+    }
+
     async openRecord(record) {
         const action = await this.orm.call(
             record.resModel, "action_open_editor", [[record.resId]]
@@ -34,7 +46,11 @@ export class DocOpenEditorListController extends ListController {
 export class DocDocumentOpenEditorListController extends DocOpenEditorListController {
     async createRecord() {
         const action = await this.orm.call(
-            this.props.resModel, "action_new_and_open_editor", [[]]
+            // ☠️ args 是 []，不是 [[]]：後端是 @api.model，不吃 ids。
+            //    傳 [[]] 的話那個空陣列會變成第二個位置參數 →
+            //    「takes 1 positional argument but 2 were given」。
+            //    這個錯跟 this.orm 那個一起活到正式機，因為「新增」一樣沒有測試。
+            this.props.resModel, "action_new_and_open_editor", []
         );
         await this.actionService.doAction(action);
     }
@@ -58,7 +74,11 @@ registry.category("views").add("doc_document_list_open_editor", {
 export class DocTemplateOpenEditorListController extends DocOpenEditorListController {
     async createRecord() {
         const action = await this.orm.call(
-            this.props.resModel, "action_new_and_open_editor", [[]]
+            // ☠️ args 是 []，不是 [[]]：後端是 @api.model，不吃 ids。
+            //    傳 [[]] 的話那個空陣列會變成第二個位置參數 →
+            //    「takes 1 positional argument but 2 were given」。
+            //    這個錯跟 this.orm 那個一起活到正式機，因為「新增」一樣沒有測試。
+            this.props.resModel, "action_new_and_open_editor", []
         );
         await this.actionService.doAction(action);
     }

@@ -104,3 +104,69 @@ class TestManifestAssets(TransactionCase):
             orphans,
             '下列檔案沒被 manifest assets 主動引用——加進 assets，或放進 '
             'ALLOW_NOT_IN_ASSETS 並寫明原因：\n  ' + '\n  '.join(sorted(orphans)))
+
+
+#: `import … from "./x"` / `"../x"` / `"@dobtor_doc_editor/x"`（只看本模組自己的）
+_IMPORT_RE = re.compile(
+    r'''^\s*import\s[^;]*?from\s+["']((?:\.{1,2}/|@dobtor_doc_editor/)[^"']+)["']''',
+    re.M)
+
+
+def _resolve_import(importer_rel, spec):
+    """把 import 的字串解成模組內相對路徑（含 .js）。"""
+    if spec.startswith('@dobtor_doc_editor/'):
+        rel = os.path.join('static', 'src', spec[len('@dobtor_doc_editor/'):])
+    else:
+        rel = os.path.normpath(os.path.join(os.path.dirname(importer_rel), spec))
+    return rel if rel.endswith('.js') else rel + '.js'
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAssetBundleClosure(TransactionCase):
+    """每個 bundle 裡的 JS 所 import 的本模組檔案，必須在**同一個** bundle 裡。
+
+    ☠️ 2026-10-12：doc_field_picker.js 只列在 web.assets_backend，而編輯器的
+    五支 mixin 都在模組頂層 import 它。後台沒事；前台（Portal 的
+    /my/documents/<id>）整條編輯器模組「unmet dependencies」，Portal 協作者打開
+    文件永遠停在「載入文件編輯器…」。那個頁面的 JS 在那之前從沒在測試裡執行過，
+    而 Odoo 18 沒有跨 bundle 的相依機制——**少一支就是整條斷掉，而且只在那個
+    bundle 斷**。這一則不用瀏覽器就能抓到（tour 只在有 Chrome 時才跑）。
+    """
+
+    def _bundles(self):
+        return {
+            name: [e for e in entries if isinstance(e, str)]
+            for name, entries in _manifest()[0].get('assets', {}).items()
+        }
+
+    def test_bundles_are_found(self):
+        """先確認抽得到兩個 bundle——抽不到的話下一則會空轉過關。"""
+        b = self._bundles()
+        for name in ('web.assets_backend', 'web.assets_frontend'):
+            self.assertIn(name, b, '找不到 %s' % name)
+            self.assertTrue(
+                [e for e in b[name] if e.endswith('.js')],
+                '%s 裡一支 .js 都沒有——_bundles() 可能壞了' % name)
+
+    def test_every_own_import_is_in_the_same_bundle(self):
+        missing = []
+        for name, entries in self._bundles().items():
+            listed = set()
+            for e in entries:
+                rel = e.split('/', 1)[1] if e.startswith('dobtor_doc_editor/') else None
+                if rel:
+                    listed.update(
+                        os.path.relpath(p, MODULE_ROOT)
+                        for p in glob.glob(os.path.join(MODULE_ROOT, rel)))
+            for importer in sorted(p for p in listed if p.endswith('.js')):
+                with open(os.path.join(MODULE_ROOT, importer), encoding='utf-8') as fh:
+                    src = fh.read()
+                for spec in _IMPORT_RE.findall(src):
+                    target = _resolve_import(importer, spec)
+                    if target not in listed:
+                        missing.append('%s：%s import 了 %s，但它不在這個 bundle'
+                                       % (name, importer, target))
+        self.assertFalse(
+            missing,
+            'bundle 不閉合（Odoo 18 沒有跨 bundle 相依，少一支整條就載不起來）：\n  %s'
+            % '\n  '.join(missing))

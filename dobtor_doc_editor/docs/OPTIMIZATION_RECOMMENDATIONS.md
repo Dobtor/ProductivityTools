@@ -156,6 +156,22 @@ sparse-checkout 寫法都在
 那第 7 處是 QWeb 模板——`_check_xml()` 對 `type == 'qweb'` 直接 `continue`，
 Odoo 根本不驗 QWeb，所以那一塊由同一支測試裡一條**比 Odoo 寬**的規則顧。
 
+### 7. ~~前端每個進入點都要有從那裡進去的 tour~~ ✅ 已完成（2026-10-12）
+
+**量測**：模組在 registry 註冊了 4 個前端進入點（編輯器 client action、文件清單與範本清單
+兩個 `js_class`、Portal 的 `public_components`），而唯一的 tour 只從第一個進去。
+另外三個**一行都沒被執行過**——而那三個裡藏著 3 個正式機缺陷加 1 個 UX 缺陷
+（細節見 `AUDIT_LENSES.md` 第 17 把尺）。全部是 admin.dobtor.com 回報
+「點清單就炸」之後，新寫的 tour 第一次跑就接連抓出來的。
+
+**做法**：四個進入點各有一支 tour；`TestEveryEntryPointHasATour` 把「registry 裡的進入點」
+與「進入點→tour 對應表」做集合相等——之後新增一個 `js_class` 卻沒寫 tour，那一則會紅。
+`TestAssetBundleClosure` 補上不需要瀏覽器的那一半：每個 bundle 裡的 JS 所 import 的本模組檔案
+必須在同一個 bundle 裡（Odoo 18 沒有跨 bundle 相依，少一支整條斷掉、而且只在那個 bundle 斷）。
+
+**還沒做到的**：tour 需要 Chrome。沒有 Chrome 的環境這幾則會**明說原因地 skip**
+（不是靜默綠）——`TestBrowserAvailable` 那一則會把「前端未驗證」寫在結果裡。
+
 ---
 
 ## 可做（有價值，但代價或風險需要權衡）

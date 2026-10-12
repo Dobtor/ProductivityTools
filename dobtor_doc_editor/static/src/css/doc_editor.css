@@ -3375,3 +3375,12 @@
 .doc-model-picker-item:hover { background: #f0ebf8; }
 .doc-model-picker-name { font-size: 0.8rem; color: #202124; }
 .doc-model-picker-tech { font-size: 0.68rem; color: #9aa0a6; }
+
+
+/* Portal：編輯器掛上之後藏掉「載入中」的 fallback。
+ * ☠️ OWL 的 app.mount(el) 是把元件附加到 <owl-component> 裡，不會清掉原本的
+ *    子節點；不藏的話那段「載入文件編輯器…如未顯示請重新整理」會跟編輯器
+ *    一起永遠顯示。見 views/portal_templates.xml 與 TestPortalEditorMountsTour。 */
+owl-component:has(.o_dobtor_doc_editor) > .o_doc_portal_fallback {
+    display: none;
+}
