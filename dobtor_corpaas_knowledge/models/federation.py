@@ -220,6 +220,14 @@ class SolutionPackageFederated(models.Model):
             rec.knowledge_global_key = '%s:pkg%s' % (code, rec.id)
         return recs
 
+    @api.model
+    def _knowledge_seed_public_base_url(self):
+        """安裝時種公開網址：只有主體預設 www.corpaas.com（從屬裝上去不能指到主體網域）。"""
+        icp = self.env['ir.config_parameter'].sudo()
+        if not icp.get_param('corpaas_knowledge.public_base_url') and console_code(self.env) == 'corpaas':
+            icp.set_param('corpaas_knowledge.public_base_url', 'https://www.corpaas.com')
+        return True
+
     def knowledge_match_key(self):
         """認方案的鍵：從屬有填對應主體方案就用它，否則用自己的全域識別。"""
         self.ensure_one()

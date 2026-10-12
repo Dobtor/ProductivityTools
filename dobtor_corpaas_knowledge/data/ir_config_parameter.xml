@@ -8,8 +8,8 @@
               eval="('corpaas_knowledge.phash_threshold', '10')"/>
     <function model="ir.config_parameter" name="set_param"
               eval="('corpaas_knowledge.rename_threshold', '0.6')"/>
-    <function model="ir.config_parameter" name="set_param"
-              eval="('corpaas_knowledge.public_base_url', 'https://www.corpaas.com')"/>
+    <!-- 公開網址每個主控台各自設定：只有主體（corpaas）預設 www.corpaas.com，從屬沒設就用自己的網址 -->
+    <function model="infrastructure.solution.package" name="_knowledge_seed_public_base_url"/>
     <!-- 知識更新與 AI 工作共用的佇列 channel：同時只跑一張（Chromium 很吃資源） -->
     <function model="ir.config_parameter" name="set_param"
               eval="('corpaas.queue_channel_cap_knowledge', '1')"/>

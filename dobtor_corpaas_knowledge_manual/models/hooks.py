@@ -1980,8 +1980,9 @@ class KnowledgeHooks(models.AbstractModel):
     # ------------------------------------------------------------------
     @api.model
     def _manual_public_url(self, slide):
-        base = (self.env['ir.config_parameter'].sudo().get_param(
-            'corpaas_knowledge.public_base_url') or '').rstrip('/')
+        icp = self.env['ir.config_parameter'].sudo()
+        # 沒設公開網址就用這個主控台自己的網址（不回相對路徑：租戶端拿到相對路徑會連到自己）
+        base = (icp.get_param('corpaas_knowledge.public_base_url') or icp.get_param('web.base.url') or '').rstrip('/')
         url = slide.website_url or ''
         if not base:
             return url

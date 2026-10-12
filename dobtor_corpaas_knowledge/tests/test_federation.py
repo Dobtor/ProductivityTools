@@ -104,3 +104,13 @@ class TestFederation(TransactionCase):
             self.assertEqual(Sb._cron_knowledge_sandbox_gc(), 0)
         self.icp.set_param('corpaas_knowledge.sandbox_ttl_days', '0')
         self.assertEqual(Sb._cron_knowledge_sandbox_gc(), 0, '0＝不清')
+
+    def test_public_base_url_seed_only_on_master(self):
+        Pkg = self.env['infrastructure.solution.package']
+        self.icp.set_param('corpaas_knowledge.public_base_url', '')
+        self.icp.set_param('corpaas_knowledge.console_code', 'dobtor')
+        Pkg._knowledge_seed_public_base_url()
+        self.assertFalse(self.icp.get_param('corpaas_knowledge.public_base_url'), '從屬不種主體網域')
+        self.icp.set_param('corpaas_knowledge.console_code', 'corpaas')
+        Pkg._knowledge_seed_public_base_url()
+        self.assertEqual(self.icp.get_param('corpaas_knowledge.public_base_url'), 'https://www.corpaas.com')
