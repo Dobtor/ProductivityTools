@@ -509,3 +509,34 @@ class TestHelpSplit(_Base):
         pkg = self.env['infrastructure.solution.package'].create({
             'product_tmpl_id': self.env['product.template'].create({'name': 'P2', 'type': 'service'}).id})
         self.assertEqual(self.Ex._serve_help(peer, pkg.knowledge_global_key, query='沒有東西'), [])
+
+
+@tagged('post_install', '-at_install')
+class TestKeyRotation(_Base):
+
+    def test_peer_key_rotation_keeps_old_key_during_grace(self):
+        peer = self.Peer.create({'name': 'd', 'code': 'dobtor', 'role': 'replica', 'key': 'old'})
+        peer.action_generate_key()
+        keys = peer._valid_keys()
+        self.assertEqual(len(keys), 2)
+        self.assertIn('old', keys, '寬限期內舊金鑰仍有效')
+        peer.sudo().key_prev_until = '2000-01-01 00:00:00'
+        self.assertEqual(peer._valid_keys(), [peer.sudo().key], '過了寬限期只剩新金鑰')
+
+    def test_help_key_rotation_accepts_previous(self):
+        import hashlib, hmac
+        from .test_helpers import make_db
+        db = make_db(self.env)
+        db.sudo().write({'knowledge_help_key': 'k-old'})
+        Cls = type(db)
+        with patch.object(Cls, '_knowledge_set_tenant_params', lambda s, p: None):
+            db._knowledge_push_help_key()
+        DB = self.env['infrastructure.database']
+        body = b'{}'
+        ts = str(int(time.time()))
+        hdr = lambda k: {'X-KB-Database': db.name, 'X-KB-Timestamp': ts,
+                         'X-KB-Signature': hmac.new(k.encode(), ts.encode() + b'.' + body, hashlib.sha256).hexdigest()}
+        self.assertIsNone(DB._knowledge_verify_help_request(db.name, hdr('k-old'), body), '舊金鑰在寬限期內仍通過')
+        self.assertIsNone(DB._knowledge_verify_help_request(db.name, hdr(db.sudo().knowledge_help_key), body))
+        db.sudo().knowledge_help_key_prev_until = '2000-01-01 00:00:00'
+        self.assertEqual(DB._knowledge_verify_help_request(db.name, hdr('k-old'), body), 'bad_signature')

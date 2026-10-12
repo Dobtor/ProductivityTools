@@ -23,6 +23,9 @@ class KnowledgeExchangePeer(models.Model):
     url = fields.Char(string='主體網址', help='主體的主控台網址（例如 https://admin.corpaas.com）；只有主體需要')
     key = fields.Char(string='交換金鑰', copy=False, groups='dobtor_corpaas_knowledge.group_knowledge_manager',
                       help='主體為每個從屬發一把；從屬把同一把填在「主體」那筆。只能查詢與送件，不能改主體紀錄')
+    key_prev = fields.Char(copy=False, groups='dobtor_corpaas_knowledge.group_knowledge_manager',
+                           help='換金鑰後的舊金鑰：寬限期內仍然有效（計畫 #13）')
+    key_prev_until = fields.Datetime(string='舊金鑰有效至', readonly=True, copy=False)
     allowed_ips = fields.Char(string='允許來源 IP', help='逗號分隔；空白＝不限（只用在從屬那筆）')
     active = fields.Boolean(default=True)
     feed_cursor = fields.Integer(string='發佈清單游標', readonly=True, help='從屬：已拉到主體發佈清單的哪一筆')
@@ -34,9 +37,22 @@ class KnowledgeExchangePeer(models.Model):
     def action_generate_key(self):
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
             raise AccessError(_('只有知識管理者可以產生交換金鑰。'))
-        for rec in self:
-            rec.sudo().key = secrets.token_urlsafe(32)
+        from odoo.addons.dobtor_corpaas_knowledge.models.help_key import _grace_hours
+        for rec in self.sudo():
+            vals = {'key': secrets.token_urlsafe(32)}
+            if rec.key:
+                vals.update({'key_prev': rec.key,
+                             'key_prev_until': fields.Datetime.add(fields.Datetime.now(), hours=_grace_hours(self.env))})
+            rec.write(vals)
         return True
+
+    def _valid_keys(self):
+        self.ensure_one()
+        rec = self.sudo()
+        keys = [rec.key] if rec.key else []
+        if rec.key_prev and rec.key_prev_until and rec.key_prev_until > fields.Datetime.now():
+            keys.append(rec.key_prev)
+        return keys
 
     def _ip_allowed(self, ip):
         self.ensure_one()

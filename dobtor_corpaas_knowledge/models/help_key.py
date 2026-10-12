@@ -28,6 +28,13 @@ _logger = logging.getLogger(__name__)
 MAX_SKEW = 300
 
 
+def _grace_hours(env):
+    try:
+        return max(0, int(env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.key_grace_hours', '24')))
+    except ValueError:
+        return 24
+
+
 class InfrastructureDatabase(models.Model):
     _inherit = 'infrastructure.database'
 
@@ -36,6 +43,11 @@ class InfrastructureDatabase(models.Model):
         groups='dobtor_corpaas_knowledge.group_knowledge_manager')
     knowledge_help_key_pushed = fields.Datetime(string='說明金鑰下發時間', copy=False,
                                                 readonly=True)
+    # ★ 輪替期雙金鑰（計畫 #13）：換新金鑰後舊的在寬限期內仍然有效——
+    #   租戶的 worker 可能還拿著舊值（ICP 快取、正在進行的請求），不該一換就斷。
+    knowledge_help_key_prev = fields.Char(copy=False, readonly=True,
+                                          groups='dobtor_corpaas_knowledge.group_knowledge_manager')
+    knowledge_help_key_prev_until = fields.Datetime(copy=False, readonly=True)
 
     def action_knowledge_push_help_key(self):
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
@@ -66,6 +78,10 @@ class InfrastructureDatabase(models.Model):
                                 type(e).__name__)
                 continue
             vals = {'knowledge_help_key': key, 'knowledge_help_key_pushed': fields.Datetime.now()}
+            if rec.knowledge_help_key:
+                vals.update({'knowledge_help_key_prev': rec.knowledge_help_key,
+                             'knowledge_help_key_prev_until': fields.Datetime.add(
+                                 fields.Datetime.now(), hours=_grace_hours(self.env))})
             if txn.in_tests(self.env):
                 rec.write(vals)
             else:
@@ -133,6 +149,18 @@ class InfrastructureDatabase(models.Model):
         return rec.knowledge_help_key if rec else False
 
     @api.model
+    def _knowledge_help_keys_for(self, database, org=None):
+        """目前有效的金鑰：新金鑰，加上寬限期內的舊金鑰。"""
+        rec = self._knowledge_help_db(database, org)
+        if not rec:
+            return []
+        keys = [rec.knowledge_help_key] if rec.knowledge_help_key else []
+        if rec.knowledge_help_key_prev and rec.knowledge_help_key_prev_until \
+                and rec.knowledge_help_key_prev_until > fields.Datetime.now():
+            keys.append(rec.knowledge_help_key_prev)
+        return keys
+
+    @api.model
     def _knowledge_verify_help_request(self, database, headers, body, nonce=None):
         """回傳 None＝通過；否則回錯誤代碼。"""
         icp = self.env['ir.config_parameter'].sudo()
@@ -151,12 +179,13 @@ class InfrastructureDatabase(models.Model):
             return 'bad_signature'
         if skew > MAX_SKEW:
             return 'bad_signature'
-        key = self._knowledge_help_key_for(database, org)
-        if not key:
+        keys = [self._knowledge_help_key_for(database, org)]
+        keys += [k for k in self._knowledge_help_keys_for(database, org) if k not in keys]
+        keys = [k for k in keys if k]
+        if not keys:
             return 'bad_signature'
-        expected = hmac.new(key.encode(), ts.encode() + b'.' + (body or b''),
-                            hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(expected, sig):
+        if not any(hmac.compare_digest(hmac.new(k.encode(), ts.encode() + b'.' + (body or b''),
+                                                hashlib.sha256).hexdigest(), sig) for k in keys):
             return 'bad_signature'
         # ★ nonce 在簽章驗過之後才記：沒簽好的請求不能拿來把別人的 nonce 先占掉。
         if nonce:

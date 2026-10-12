@@ -39,9 +39,10 @@ class KnowledgeExchangeApi(http.Controller):
         ip = request.httprequest.remote_addr or ''
         if not peer or not peer._ip_allowed(ip):
             return None, 'bad_signature'
-        err = protocol.verify(peer.key, headers.get('X-KB-Timestamp'), request.httprequest.get_data(),
-                              headers.get('X-KB-Signature') or '')
-        if err:
+        body = request.httprequest.get_data()
+        # 輪替期：新金鑰或寬限期內的舊金鑰都收
+        if not any(protocol.verify(k, headers.get('X-KB-Timestamp'), body, headers.get('X-KB-Signature') or '') is None
+                   for k in peer._valid_keys()):
             return None, 'bad_signature'
         nonce = kw.get('nonce')
         if not isinstance(nonce, str) or not nonce or not env['corpaas.knowledge.help.nonce']._knowledge_claim(
