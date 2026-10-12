@@ -450,3 +450,28 @@ class TestTransfer(_Base):
         self.assertEqual((got.kb_visibility, got.kb_origin), ('private', 'dobtor'), '移交來的維持私有')
         self.assertFalse(self.Def.search([('def_hash', '=', 'r2')]), '範圍外的不收')
         self.assertEqual(Feed.search_count([]), before, '私有不進發佈清單')
+
+
+@tagged('post_install', '-at_install')
+class TestSubscription(_Base):
+
+    def test_package_payload_lists_published_caps_and_replica_attaches(self):
+        self.mode('master', 'feed')
+        tmpl = self.env['product.template'].create({'name': '主體方案', 'type': 'service', 'default_code': 'PKG-EDU'})
+        mpkg = self.env['infrastructure.solution.package'].create({'product_tmpl_id': tmpl.id})
+        cap = self.env['corpaas.knowledge.capability'].create({'name': '線上報名', 'package_ids': [(4, mpkg.id)]})
+        draft = self.env['corpaas.knowledge.capability'].create({'name': '草稿能力', 'package_ids': [(4, mpkg.id)]})
+        cap._do_publish('new')
+        payload = mpkg._kb_package_payload()
+        self.assertEqual(payload['capabilities'], [cap.kb_uid], '只列已核准的')
+        self.assertEqual(payload['default_code'], 'PKG-EDU')
+        self.assertNotIn(draft.kb_uid, payload['capabilities'])
+        # 從屬：鏡像先到、方案只靠「對應主體方案」
+        self.mode('replica', 'feed')
+        local = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create({'name': '本地', 'type': 'service'}).id,
+            'knowledge_upstream_key': payload['global_key']})
+        mirror = self.env['corpaas.knowledge.capability'].create({'name': '鏡像能力'})
+        payload['capabilities'] = [mirror.kb_uid]
+        self.env['infrastructure.solution.package']._kb_apply_package(payload)
+        self.assertIn(mirror, local.knowledge_capability_ids, '訂閱：主體方案的能力掛到本地方案')

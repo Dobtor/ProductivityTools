@@ -29,6 +29,9 @@ class SolutionPackageExchange(models.Model):
         help='從屬：主體登記為可單獨販售的模組；判斷「加購可得」用')
     knowledge_exchange_hash = fields.Char(readonly=True, copy=False,
                                           help='主體：上次發佈的可用模組清單雜湊（變了才再發佈）')
+    knowledge_upstream_items = fields.Text(
+        readonly=True, copy=False,
+        help='從屬：主體方案的能力與情境全域識別（訂閱：鏡像到了就掛到本地方案）')
 
     def _knowledge_available_modules(self):
         have = super()._knowledge_available_modules()
@@ -56,8 +59,14 @@ class SolutionPackageExchange(models.Model):
         if RepoModule is not None and 'is_sellable' in RepoModule._fields:
             sellable = sorted(set(RepoModule.sudo().search([('is_sellable', '=', True)]).mapped('technical_name'))
                               - {False})
+        def uids(recs):
+            return sorted(r.kb_uid for r in recs if r.kb_visibility == 'public' and r.kb_sync_state != 'mirror'
+                          and r._kb_exchange_ready())
         return {'kind': protocol.PACKAGE_KIND, 'global_key': self.knowledge_global_key,
-                'modules': available, 'sellable': sellable}
+                'default_code': self.product_tmpl_id.default_code or '',
+                'modules': available, 'sellable': sellable,
+                'capabilities': uids(self.knowledge_capability_ids),
+                'scenarios': uids(self.knowledge_scenario_ids)}
 
     @api.model
     def _kb_publish_packages(self):
@@ -76,14 +85,45 @@ class SolutionPackageExchange(models.Model):
 
     @api.model
     def _kb_apply_package(self, payload):
-        """從屬：寫到「對應主體方案」是這個方案的本地方案上。"""
+        """從屬：寫到「對應主體方案」是這個方案的本地方案上，並訂閱（掛上主體方案的能力與情境鏡像）。
+
+        ★ 依建議書自動訂閱（已決事項 6）：建議書用到的本地方案還沒填對應時，商品代碼相同就自動對上。
+        """
         key = payload.get('global_key')
         if not key:
             return 0
-        pkgs = self.sudo().search([('knowledge_upstream_key', '=', key)])
+        Pkg = self.sudo()
+        code = payload.get('default_code')
+        Proposal = self.env.get('corpaas.knowledge.proposal')
+        if code and Proposal is not None:
+            used = Proposal.sudo().search([('package_id', '!=', False)]).mapped('package_id')
+            used.filtered(lambda p: not p.knowledge_upstream_key and p.product_tmpl_id.default_code == code) \
+                .write({'knowledge_upstream_key': key})
+        pkgs = Pkg.search([('knowledge_upstream_key', '=', key)])
         pkgs.write({'knowledge_upstream_modules': json.dumps(payload.get('modules') or []),
-                    'knowledge_upstream_sellable': json.dumps(payload.get('sellable') or [])})
+                    'knowledge_upstream_sellable': json.dumps(payload.get('sellable') or []),
+                    'knowledge_upstream_items': json.dumps({'capabilities': payload.get('capabilities') or [],
+                                                            'scenarios': payload.get('scenarios') or []})})
+        pkgs._kb_attach_upstream()
         return len(pkgs)
+
+    def _kb_attach_upstream(self):
+        """訂閱：主體方案的能力、情境鏡像已經到了的，掛到本地方案（關聯可寫；鏡像晚到下次拉取再掛）。"""
+        Cap = self.env['corpaas.knowledge.capability'].sudo()
+        Sc = self.env['corpaas.knowledge.scenario'].sudo()
+        n = 0
+        for pkg in self.sudo().filtered('knowledge_upstream_items'):
+            try:
+                items = json.loads(pkg.knowledge_upstream_items)
+            except ValueError:
+                continue
+            caps = Cap.search([('kb_uid', 'in', items.get('capabilities') or [])]) - pkg.knowledge_capability_ids
+            scs = Sc.search([('kb_uid', 'in', items.get('scenarios') or [])]) - pkg.knowledge_scenario_ids
+            if caps or scs:
+                pkg.write({'knowledge_capability_ids': [(4, c.id) for c in caps],
+                           'knowledge_scenario_ids': [(4, c.id) for c in scs]})
+                n += len(caps) + len(scs)
+        return n
 
 
 class KnowledgeCapabilityExchange(models.Model):

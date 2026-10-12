@@ -376,6 +376,9 @@ class KnowledgeExchange(models.AbstractModel):
             peer.sudo().write({'feed_cursor': int(res.get('cursor') or peer.feed_cursor)})
             if not res.get('more'):
                 break
+        # 方案訂閱：這次才到的能力／情境鏡像掛上去
+        self.env['infrastructure.solution.package'].sudo().search(
+            [('knowledge_upstream_items', '!=', False)])._kb_attach_upstream()
         return n
 
     @api.model
