@@ -540,3 +540,23 @@ class TestKeyRotation(_Base):
         self.assertIsNone(DB._knowledge_verify_help_request(db.name, hdr(db.sudo().knowledge_help_key), body))
         db.sudo().knowledge_help_key_prev_until = '2000-01-01 00:00:00'
         self.assertEqual(DB._knowledge_verify_help_request(db.name, hdr('k-old'), body), 'bad_signature')
+
+
+@tagged('post_install', '-at_install')
+class TestFeedbackWizard(_Base):
+
+    def test_only_mirrors_and_sends(self):
+        self.mode('replica', 'ingest')
+        self.Peer.create({'name': 'm', 'code': 'corpaas', 'role': 'master', 'url': 'https://m', 'key': 'k'})
+        cap = self.env['corpaas.knowledge.capability'].create({'name': '報名'})
+        W = self.env['corpaas.knowledge.exchange.feedback.wizard']
+        w = W.with_context(active_model=cap._name, active_id=cap.id).create({'text': '痛點太籠統'})
+        self.assertEqual(w.record_name, '報名')
+        with self.assertRaises(UserError):
+            w.action_send()   # 本地紀錄直接改就好
+        from odoo.addons.dobtor_corpaas_knowledge.models.federation import EXCHANGE_SYNC
+        cap.with_context(knowledge_exchange_sync=EXCHANGE_SYNC).write({'kb_sync_state': 'mirror'})
+        with patch(POST, return_value={'results': [{'ok': True}]}) as p:
+            w.action_send()
+        self.assertEqual(p.call_args.args[1]['items'][0], {'kind': 'capability', 'kb_uid': cap.kb_uid,
+                                                           'text': '痛點太籠統'})
