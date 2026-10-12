@@ -12,6 +12,7 @@
                 <field name="scope_module" optional="show"/>
                 <field name="package_id" optional="show"/>
                 <field name="source"/>
+                <field name="version" optional="show"/>
                 <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
@@ -28,6 +29,7 @@
                             <field name="kind"/>
                             <field name="track"/>
                             <field name="source"/>
+                            <field name="version"/>
                             <field name="active"/>
                         </group>
                         <group>

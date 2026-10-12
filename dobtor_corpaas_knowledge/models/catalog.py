@@ -1464,6 +1464,8 @@ class KnowledgeAiCall(models.Model):
     console = fields.Char(string='主控台', index=True, readonly=True)
     plan_id = fields.Many2one('corpaas.knowledge.plan', string='計畫', ondelete='set null', index=True,
                               readonly=True)
+    rules_sig = fields.Char(string='提示詞規則版本', readonly=True, index=True,
+                            help='這次呼叫套用的提示詞規則（規則 id:版號）——比較規則改版前後的效果用（#18）')
     run_id = fields.Integer()
     cost_usd = fields.Float(digits=(10, 4))
     ok = fields.Boolean()
@@ -1500,7 +1502,9 @@ class KnowledgeAiCall(models.Model):
             vals.setdefault('console', code)
             if not vals.get('plan_id'):
                 if vals.get('res_model') == 'corpaas.knowledge.plan' and vals.get('res_id'):
-                    vals['plan_id'] = vals['res_id']
+                    # ★ 記帳用獨立游標：計畫可能還沒 commit，看不到就不填（外鍵會炸）
+                    vals['plan_id'] = self.env['corpaas.knowledge.plan'].sudo().browse(vals['res_id']).exists().id \
+                        or False
                 elif vals.get('refresh_token') and 'plan_id' in Run._fields:
                     vals['plan_id'] = Run.search([('token', '=', vals['refresh_token'])], limit=1).plan_id.id \
                         or False

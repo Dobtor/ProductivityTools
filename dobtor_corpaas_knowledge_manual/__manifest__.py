@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識：操作說明',
-    'version': '18.0.2.1.0',
+    'version': '18.0.2.2.0',
     'category': 'Productivity/Knowledge',
     'summary': '方案知識出口一：功能 × 情境的操作說明，自動截圖標註、推到方案的文件型 slide 課程',
     'description': '''
@@ -21,6 +21,7 @@ CorPaaS 方案知識：操作說明（出口一）
     'depends': ['dobtor_corpaas_knowledge', 'website_slides'],
     'external_dependencies': {'python': ['PIL', 'lxml']},
     'data': [
+        'data/prompt_rules.xml',
         'security/ir.model.access.csv',
         'views/manual_menus.xml',
         'views/article_views.xml',

@@ -129,3 +129,19 @@ class TestFederation(TransactionCase):
         self.assertTrue(run)
         groups = Call.read_group([('plan_id', '=', plan.id)], ['cost_usd:sum'], ['purpose'])
         self.assertEqual({g['purpose']: g['cost_usd'] for g in groups}, {'plan_design': 0.4, 'plan_trial': 0.0})
+
+    def test_prompt_rules_as_data(self):
+        """#18：規則表的提示詞規則接到該用途的提示詞後面；改一次加一版，呼叫紀錄記版號。"""
+        Rule = self.env['corpaas.knowledge.rule']
+        Ai = self.env['corpaas.knowledge.ai']
+        r = Rule.create({'name': '測試規則', 'kind': 'ai_prompt', 'track': 'prompt',
+                         'value': '{"purpose": "kbx_test", "text": "不要用驚嘆號。"}'})
+        self.assertIn('★ 不要用驚嘆號。', Ai._with_profile('kbx_test', '原本的提示', None))
+        self.assertNotIn('驚嘆號', Ai._with_profile('other_purpose', '原本的提示', None))
+        sig1 = Ai._rules_sig('kbx_test')
+        r.value = '{"purpose": "kbx_test", "text": "不要用驚嘆號與表情符號。"}'
+        self.assertEqual(r.version, 2)
+        self.assertNotEqual(Ai._rules_sig('kbx_test'), sig1, '規則改版，版號跟著變')
+        Ai._log_call({'purpose': 'kbx_test', 'ok': True})
+        call = self.env['corpaas.knowledge.ai.call'].search([('purpose', '=', 'kbx_test')], limit=1)
+        self.assertEqual(call.rules_sig, '%s:2' % r.id)

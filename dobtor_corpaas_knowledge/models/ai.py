@@ -172,8 +172,17 @@ class KnowledgeAi(models.AbstractModel):
         if package and purpose in PROFILE_PURPOSES and hasattr(package, '_knowledge_profile_text'):
             prof = package._knowledge_profile_text()
             if prof:
-                return prof + '\n\n' + prompt
+                prompt = prof + '\n\n' + prompt
+        # 提示詞規則（#18）：規則表裡這個用途的規則接在最後；改規則不必部署
+        rules = self.env['corpaas.knowledge.rule'].prompt_rules(purpose, package)
+        if rules:
+            prompt += '\n\n補充規則（務必遵守）：\n' + '\n'.join('★ ' + t for _r, t in rules)
         return prompt
+
+    @api.model
+    def _rules_sig(self, purpose, package=None):
+        rules = self.env['corpaas.knowledge.rule'].prompt_rules(purpose, package)
+        return ','.join('%s:%s' % (r.id, r.version) for r, _t in rules) or False
 
     @api.model
     def prefetch(self, items, package=None, refresh_token=None, workers=3):
@@ -289,6 +298,9 @@ class KnowledgeAi(models.AbstractModel):
     @api.model
     def _log_call(self, vals):
         """記帳用獨立游標立即 commit：錢已經花了，後面整個作業失敗回滾也不能讓帳消失。"""
+        if 'rules_sig' not in vals and vals.get('purpose'):
+            pkg = self.env['infrastructure.solution.package'].sudo().browse(vals.get('package_id') or [])
+            vals['rules_sig'] = self._rules_sig(vals['purpose'], pkg.exists() or None)
         if not txn.in_tests(self.env):
             with self.env.registry.cursor() as cr:
                 # ★ 方案本身還沒 commit（同一交易剛建立）時，獨立游標看不到它，

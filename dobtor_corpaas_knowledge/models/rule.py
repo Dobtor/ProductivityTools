@@ -24,6 +24,7 @@ KINDS = [
     ('seed_prompt', '示範資料提示'),
     ('rank_keyword', '章節排序關鍵字'),
     ('front_route', '前台標準頁'),
+    ('ai_prompt', 'AI 提示詞規則'),
 ]
 #: 截圖安全檢查（D1）白名單一律不准放的模型：放了就等於讓客戶資料進截圖
 GATE_NEVER_ALLOW = frozenset({
@@ -31,9 +32,10 @@ GATE_NEVER_ALLOW = frozenset({
     'account.move', 'account.move.line', 'account.payment', 'stock.picking', 'crm.lead',
     'hr.employee', 'payment.transaction', 'mail.message'})
 #: 種類 → 預設軌道（驗證用＝系統執行；提示用＝寫進 AI 指示）
-DEFAULT_TRACK = {'seed_prompt': 'prompt'}
+DEFAULT_TRACK = {'seed_prompt': 'prompt', 'ai_prompt': 'prompt'}
 #: 值要是 JSON 物件的種類與必填鍵
 JSON_KEYS = {
+    'ai_prompt': ('purpose', 'text'),
     'mask_text': ('pattern', 'replace'),
     'empty_selector': ('present',),
     'seed_forbid_model': ('model',),
@@ -62,6 +64,33 @@ class KnowledgeRule(models.Model):
     source = fields.Selection([('builtin', '內建'), ('human', '人工'), ('ai', 'AI 提議')],
                               default='human', required=True)
     evidence = fields.Text(string='依據', help='為什麼有這條規則（哪個方案、哪次失敗）')
+    version = fields.Integer(string='版號', default=1, readonly=True, copy=False,
+                             help='值或啟用狀態每改一次加一；AI 呼叫紀錄記下套用的版號（#18）')
+
+    def write(self, vals):
+        if {'value', 'active', 'package_id', 'scope_module'} & set(vals) and 'version' not in vals:
+            for rec in self:
+                super(KnowledgeRule, rec).write(dict(vals, version=(rec.version or 1) + 1))
+            return True
+        return super().write(vals)
+
+    @api.model
+    def prompt_rules(self, purpose, package=None):
+        """某個 AI 用途目前生效的提示詞規則：[(規則, 文字)]（purpose＝'*' 套用到全部用途）。"""
+        dom = [('kind', '=', 'ai_prompt'), ('track', '=', 'prompt'),
+               '|', ('package_id', '=', False), ('package_id', '=', package.id if package else 0)]
+        scope = package._knowledge_scope_names() if package else set()
+        out = []
+        for r in self.sudo().search(dom):
+            if r.scope_module and r.scope_module not in scope:
+                continue
+            try:
+                data = json.loads(r.value or '{}')
+            except ValueError:
+                continue
+            if data.get('purpose') in (purpose, '*') and (data.get('text') or '').strip():
+                out.append((r, data['text'].strip()))
+        return out
 
     @api.constrains('kind', 'value')
     def _check_value(self):
