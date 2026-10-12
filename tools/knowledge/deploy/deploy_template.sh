@@ -24,7 +24,18 @@ while :; do
   i=$((i+1)); sleep 30
 done
 mkdir -p $BK/pt
-cd $S/ProductivityTools && tar czf $BK/before-pt.tgz __MODS__
+# 備份只包正式機上已經有的模組（這包新加的模組還不存在）
+HAVE=$(cd $S/ProductivityTools && for m in __MODS__; do [ -d "$m" ] && printf '%s ' "$m"; done)
+if [ -n "$HAVE" ]; then cd $S/ProductivityTools && tar czf $BK/before-pt.tgz $HAVE; fi
+# 資料庫裡還沒安裝的模組用 -i（-u 不會安裝新模組）
+NEW=$(docker exec $C python3 -c "
+import configparser,psycopg2
+c=configparser.ConfigParser();c.read('/etc/odoo/odoo.conf');o=c['options']
+cn=psycopg2.connect(host=o.get('db_host'),port=o.get('db_port') or 5432,user=o.get('db_user'),password=o.get('db_password'),dbname='__DB__')
+cur=cn.cursor();cur.execute(\"select name from ir_module_module where name = any(%s) and state='installed'\", ('__MODS_CSV__'.split(','),))
+have={r[0] for r in cur.fetchall()};print(','.join(m for m in '__MODS_CSV__'.split(',') if m not in have))")
+UPG=$(echo "__MODS_CSV__" | tr ',' '\n' | grep -vxF -f <(echo "$NEW" | tr ',' '\n' | grep .) | paste -sd, -)
+echo "upgrade: ${UPG:-（無）}  install: ${NEW:-（無）}"
 tar -xzf $BK/pt.tgz -C $BK/pt
 for m in __MODS__; do rm -rf $S/ProductivityTools/$m; cp -a $BK/pt/$m $S/ProductivityTools/; chmod -R a+rX $S/ProductivityTools/$m; done
 grep -h "'version'" $S/ProductivityTools/dobtor_corpaas_knowledge/__manifest__.py $S/ProductivityTools/dobtor_corpaas_knowledge_manual/__manifest__.py
@@ -33,7 +44,7 @@ OK=
 for i in 1 2 3 4 5 6; do
   # ☠️ 檔名要每次不同：同標籤重跑時沿用同一個 log 會把上次的錯誤字樣讀成這次失敗（實機 n84 第二次）
   L=upgrade-__TAG__-$i-$(date +%Y%m%d%H%M%S).log
-  docker exec $C odoo -c /etc/odoo/odoo.conf -d __DB__ -u __MODS_CSV__ --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
+  docker exec $C odoo -c /etc/odoo/odoo.conf -d __DB__ ${UPG:+-u $UPG} ${NEW:+-i $NEW} --stop-after-init --no-http --workers=0 --max-cron-threads=0 --logfile=/var/lib/odoo/$L >/dev/null 2>&1
   RC=$?
   H=$B/data_dir/$L
   # 容器掛了、指令沒跑起來、沒有 log：都算失敗（不能因為 log 裡找不到錯誤字樣就當成功）
@@ -50,6 +61,6 @@ if [ -z "$OK" ]; then
   # 升級沒成功：把舊程式碼放回去，免得下次容器重啟載入跟資料庫不相容的新程式
   echo "upgrade failed: restoring previous code from $BK/before-pt.tgz"
   for m in __MODS__; do rm -rf $S/ProductivityTools/$m; done
-  tar -xzf $BK/before-pt.tgz -C $S/ProductivityTools
+  [ -n "$HAVE" ] && tar -xzf $BK/before-pt.tgz -C $S/ProductivityTools
   exit 1
 fi

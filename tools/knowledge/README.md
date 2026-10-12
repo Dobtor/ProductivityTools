@@ -24,7 +24,7 @@ PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/corpaas-kb/ms-playwright ~/Library/Cac
 | `kq.py 14:inc` / `14:full` / `14:select` | 排方案知識更新／全量／AI 圈選情境與能力 |
 | `watch.py <佇列> <方案>` | 盯更新到結束 |
 | `approve.py <情境>` | 核准沒被自審擋下的待審文章（例外清單不批次核准） |
-| `deploy/build_bundle.sh <標籤> [上一包]` | 打包 git HEAD、檢查正式機有沒有被改過、印出部署指令 |
+| `deploy/build_bundle.sh <標籤> [上一包]` | 打包 git HEAD、檢查正式機有沒有被改過、印出部署指令。部署集 `KB_SET=core｜proposal｜marketing｜exchange｜all`（預設 core；proposal 連 doc_editor、會議記錄）；資料庫還沒裝的模組自動用 -i |
 | `deploy/deploy_runner.sh` | 只換截圖程式（不升級模組、不重啟、不必等佇列） |
 | `deploy/ai_access.py hub｜mount <實例>｜enable` | 讓 AI 讀得到方案程式：AI Hub 模組更新、Runner 唯讀掛載實例與 Odoo 原碼、打開提示詞快取與程式知識語意層（會動正式機） |
 | `hard_env/run_hard.py [--fresh]` | 本機刁難測試：真的截圖程式＋瀏覽器跑 11 項（彈窗登入、會員前台、自訂群組、缺群組的診斷、不准刪單據、不多建公司、平行拍攝、按鈕文字定位、點不到時列出畫面按鈕、匿名使用者封存）（用 venv 的 python；部署前先跑） |
