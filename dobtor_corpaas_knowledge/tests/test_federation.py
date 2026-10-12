@@ -114,3 +114,18 @@ class TestFederation(TransactionCase):
         self.icp.set_param('corpaas_knowledge.console_code', 'corpaas')
         Pkg._knowledge_seed_public_base_url()
         self.assertEqual(self.icp.get_param('corpaas_knowledge.public_base_url'), 'https://www.corpaas.com')
+
+    def test_ai_cost_dimensions(self):
+        """#17：AI 呼叫記主控台與計畫（依更新代碼對到執行紀錄的計畫）。"""
+        self.icp.set_param('corpaas_knowledge.console_code', 'dobtor')
+        Plan = self.env['corpaas.knowledge.plan']
+        plan = Plan.create({'package_id': self.pkg.id})
+        run = self.env['corpaas.knowledge.run'].create({'package_id': self.pkg.id, 'token': 'tok-cost',
+                                                         'plan_id': plan.id})
+        Call = self.env['corpaas.knowledge.ai.call']
+        c1 = Call.create({'purpose': 'plan_design', 'refresh_token': 'tok-cost', 'cost_usd': 0.4})
+        c2 = Call.create({'purpose': 'plan_trial', 'res_model': plan._name, 'res_id': plan.id})
+        self.assertEqual((c1.console, c1.plan_id, c2.plan_id), ('dobtor', plan, plan))
+        self.assertTrue(run)
+        groups = Call.read_group([('plan_id', '=', plan.id)], ['cost_usd:sum'], ['purpose'])
+        self.assertEqual({g['purpose']: g['cost_usd'] for g in groups}, {'plan_design': 0.4, 'plan_trial': 0.0})

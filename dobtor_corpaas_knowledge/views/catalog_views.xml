@@ -475,6 +475,8 @@
                 <field name="create_date"/>
                 <field name="purpose"/>
                 <field name="package_id"/>
+                <field name="plan_id" optional="show"/>
+                <field name="console" optional="hide"/>
                 <field name="cost_usd" sum="合計"/>
                 <field name="ok"/>
                 <field name="error" optional="hide"/>
@@ -482,11 +484,61 @@
             </list>
         </field>
     </record>
+    <record id="view_kb_ai_call_pivot" model="ir.ui.view">
+        <field name="model">corpaas.knowledge.ai.call</field>
+        <field name="arch" type="xml">
+            <pivot string="AI 成本" sample="1">
+                <field name="package_id" type="row"/>
+                <field name="purpose" type="row"/>
+                <field name="create_date" interval="month" type="col"/>
+                <field name="cost_usd" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_kb_ai_call_graph" model="ir.ui.view">
+        <field name="model">corpaas.knowledge.ai.call</field>
+        <field name="arch" type="xml">
+            <graph string="AI 成本" type="bar" stacked="1" sample="1">
+                <field name="create_date" interval="month"/>
+                <field name="purpose"/>
+                <field name="cost_usd" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_kb_ai_call_search" model="ir.ui.view">
+        <field name="model">corpaas.knowledge.ai.call</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="purpose"/>
+                <field name="package_id"/>
+                <field name="plan_id"/>
+                <filter name="real" string="實際呼叫（不含快取）" domain="[('cached', '=', False)]"/>
+                <filter name="failed" string="失敗" domain="[('ok', '=', False)]"/>
+                <filter name="this_month" string="本月"
+                        domain="[('create_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_console" string="主控台" context="{'group_by': 'console'}"/>
+                    <filter name="by_package" string="方案" context="{'group_by': 'package_id'}"/>
+                    <filter name="by_plan" string="計畫" context="{'group_by': 'plan_id'}"/>
+                    <filter name="by_purpose" string="用途" context="{'group_by': 'purpose'}"/>
+                    <filter name="by_month" string="月份" context="{'group_by': 'create_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
     <record id="action_kb_ai_call" model="ir.actions.act_window">
         <field name="name">AI 呼叫與成本</field>
         <field name="res_model">corpaas.knowledge.ai.call</field>
-        <field name="view_mode">list</field>
+        <field name="view_mode">list,pivot,graph</field>
     </record>
+    <record id="action_kb_ai_cost_report" model="ir.actions.act_window">
+        <field name="name">AI 成本報表</field>
+        <field name="res_model">corpaas.knowledge.ai.call</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="context">{'search_default_real': 1}</field>
+    </record>
+    <menuitem id="menu_kb_ai_cost_report" action="action_kb_ai_cost_report" sequence="41"
+              parent="menu_knowledge_ops" groups="group_knowledge_manager"/>
     <menuitem id="menu_kb_ai_call" action="action_kb_ai_call" sequence="40"
               parent="menu_knowledge_ops" groups="group_knowledge_manager"/>
 

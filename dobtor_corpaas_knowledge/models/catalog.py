@@ -1460,6 +1460,10 @@ class KnowledgeAiCall(models.Model):
     purpose = fields.Char(required=True, index=True)
     refresh_token = fields.Char(index=True)
     package_id = fields.Many2one('infrastructure.solution.package', ondelete='set null')
+    # 成本報表（#17）：依主控台、方案、計畫、用途、月份彙總
+    console = fields.Char(string='主控台', index=True, readonly=True)
+    plan_id = fields.Many2one('corpaas.knowledge.plan', string='計畫', ondelete='set null', index=True,
+                              readonly=True)
     run_id = fields.Integer()
     cost_usd = fields.Float(digits=(10, 4))
     ok = fields.Boolean()
@@ -1474,6 +1478,34 @@ class KnowledgeAiCall(models.Model):
                                  help='成本規劃器（D3）以今天最後一筆為準')
 
     @api.model
+    def init(self):
+        """既有紀錄回填主控台與計畫（依更新代碼對到執行紀錄的計畫）。"""
+        from .federation import console_code
+        cr = self.env.cr
+        cr.execute("UPDATE corpaas_knowledge_ai_call SET console = %s WHERE console IS NULL",
+                   (console_code(self.env),))
+        cr.execute("SELECT 1 FROM information_schema.columns WHERE table_name='corpaas_knowledge_run' "
+                   "AND column_name='plan_id'")
+        if cr.fetchone():
+            cr.execute("""UPDATE corpaas_knowledge_ai_call c SET plan_id = r.plan_id
+                          FROM corpaas_knowledge_run r
+                          WHERE c.plan_id IS NULL AND c.refresh_token = r.token AND r.plan_id IS NOT NULL""")
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        from .federation import console_code
+        code = console_code(self.env)
+        Run = self.env['corpaas.knowledge.run'].sudo()
+        for vals in vals_list:
+            vals.setdefault('console', code)
+            if not vals.get('plan_id'):
+                if vals.get('res_model') == 'corpaas.knowledge.plan' and vals.get('res_id'):
+                    vals['plan_id'] = vals['res_id']
+                elif vals.get('refresh_token') and 'plan_id' in Run._fields:
+                    vals['plan_id'] = Run.search([('token', '=', vals['refresh_token'])], limit=1).plan_id.id \
+                        or False
+        return super().create(vals_list)
+
     def _gc_cache(self):
         """過了快取期限的原始回應清掉（帳務欄位保留）；命中快取的零成本紀錄留 90 天。"""
         days = int(self.env['ir.config_parameter'].sudo().get_param(
