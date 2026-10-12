@@ -29,6 +29,9 @@
                 <header>
                     <button name="action_mark_done" type="object" string="標記完成" class="btn-primary"
                             invisible="state in ('done', 'no', 'next')"/>
+                    <button name="action_make_standard" type="object" string="轉為標準模組"
+                            invisible="state != 'done' or standard_module"
+                            confirm="模組要先登記在模組清單。轉為標準模組後，它的程式知識會改為公開並送給主體。確定？"/>
                     <field name="state" widget="statusbar" options="{'clickable': '1'}"/>
                 </header>
                 <sheet>
@@ -47,6 +50,7 @@
                             <field name="branch"/>
                             <field name="release_tag"/>
                             <field name="tests_green"/>
+                            <field name="standard_module"/>
                             <field name="reason"/>
                         </group>
                     </group>
@@ -73,6 +77,15 @@
             <xpath expr="//notebook" position="inside">
                 <page string="開發項目" name="dev_items">
                     <field name="dev_item_ids"/>
+                </page>
+                <page string="既有實例" name="customer_instance">
+                    <group>
+                        <field name="customer_database_id"/>
+                        <field name="customer_analysis_at"/>
+                    </group>
+                    <button name="action_analyze_customer_instance" type="object" string="分析"
+                            class="btn-secondary" invisible="not customer_database_id"/>
+                    <field name="customer_analysis_text" nolabel="1" readonly="1"/>
                 </page>
                 <page string="說明書製作計畫" name="manual_plans" invisible="not knowledge_plan_ids">
                     <field name="knowledge_plan_ids" readonly="1"/>

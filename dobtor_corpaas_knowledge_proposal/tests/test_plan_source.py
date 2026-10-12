@@ -138,6 +138,48 @@ class TestPlanSource(TransactionCase):
         sig = plan.overlay_scan_sig
         self.assertTrue(sig)
 
+    def test_make_standard_module(self):
+        """第四期：轉為標準模組要先登記；之後程式知識改判公開、被退回的改回待送。"""
+        from unittest.mock import patch
+        dev = self.env['corpaas.knowledge.dev_item'].create(
+            {'proposal_id': self.prop.id, 'name': '會員卡', 'state': 'done', 'module_name': 'x_std_mod'})
+        Repo = self.env.get('infrastructure.repository.module')
+        if Repo is None:
+            self.skipTest('沒有模組清單模型')
+        with self.assertRaises(UserError):
+            dev.action_make_standard()
+        d = self.env['corpaas.knowledge.code_def'].sudo().create(
+            {'def_hash': 'std1', 'method': 'action_x', 'module': 'x_std_mod', 'summary_json': '{"pre": []}'})
+        d.write({'kb_sync_state': 'rejected'})
+        self.assertEqual(d.kb_visibility, 'private')
+        Vis = type(self.env['corpaas.knowledge.exchange.visibility']) \
+            if 'corpaas.knowledge.exchange.visibility' in self.env else None
+        if Vis is None:
+            self.skipTest('沒裝交換模組')
+        with patch.object(type(Repo), 'search_count', lambda s, dom, **k: 1), \
+                patch.object(Vis, '_public_modules', lambda s, mods: set(mods)):
+            dev.action_make_standard()
+        self.assertTrue(dev.standard_module)
+        self.assertEqual((d.kb_visibility, d.kb_sync_state), ('public', 'local'), '改公開、下次送件再送')
+
+    def test_p4_customer_instance(self):
+        from unittest.mock import patch
+        from odoo.addons.dobtor_corpaas_knowledge.tests.test_usage_flow import make_database
+        plan = self._proposal_plan()
+        p4 = lambda: [r for r in plan.run_checks('t1').results() if r['code'] == 'P4'][0]
+        self.assertEqual(p4()['state'], 'pass', '新客戶不擋')
+        db = make_database(self.env, 9495)
+        self.prop.customer_database_id = db
+        self.assertEqual(p4()['state'], 'block', '有既有實例但還沒分析')
+        with patch('odoo.addons.dobtor_corpaas_knowledge.services.remote.shell_json',
+                   return_value={'installed': ['sale', 'x_legacy'], 'counts': {'res.partner': 120}}) as sj, \
+                patch.object(type(self.pkg), '_knowledge_available_modules', lambda s: {'sale', 'dobtor_p'}):
+            self.prop.action_analyze_customer_instance()
+        self.assertTrue(sj.call_args.kwargs.get('isolated'), '唯讀分析走一次性容器')
+        self.assertIn('x_legacy', self.prop.customer_analysis_text)
+        self.assertIn('dobtor_p', self.prop.customer_analysis_text)
+        self.assertEqual(p4()['state'], 'pass')
+
     def test_private_scenario_and_channel(self):
         plan = self._proposal_plan()
         Item = self.env['corpaas.knowledge.plan.item'].with_context(knowledge_plan_system=True)

@@ -38,7 +38,9 @@ COLOR_BADGE = {
     'custom': 'text-bg-danger', 'as_is': 'text-bg-secondary',
 }
 #: 送出後仍可寫的欄位（報價單連結、工時回寫時間）
-FROZEN_WRITABLE = {'sale_order_id', 'feedback_date'}
+FROZEN_WRITABLE = {'sale_order_id', 'feedback_date',
+                   # P4 客戶既有實例分析：送出後（建立說明書計畫時）才做，是分析資料不是建議書內容
+                   'customer_database_id', 'customer_analysis_json', 'customer_analysis_at'}
 #: 只有送出／成交／未成交按鈕能寫（草稿時也一樣）
 INTERNAL_ONLY = {'state', 'snapshot_json'}
 INTERNAL_CTX = 'corpaas_proposal_internal'
