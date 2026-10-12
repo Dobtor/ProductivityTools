@@ -50,7 +50,7 @@ for i in 1 2 3 4 5 6; do
   # 容器掛了、指令沒跑起來、沒有 log：都算失敗（不能因為 log 裡找不到錯誤字樣就當成功）
   if [ $RC -ne 0 ] || [ ! -f "$H" ] || grep -q "Failed to load registry\|ParseError" $H; then
     echo "try $i failed (exit $RC): $(grep -o '此計劃任務目前正在執行\|ParseError: while parsing [^,]*\|Error: .*' $H 2>/dev/null | head -3 | tr '\n' ' ')"
-    grep -q "此計劃任務目前正在執行\|could not obtain lock" $H 2>/dev/null || break
+    grep -q "此計劃任務目前正在執行\|could not obtain lock\|deadlock detected" $H 2>/dev/null || break
     sleep 20
   else
     echo "try $i OK"; grep -E " ERROR |CRITICAL" $H | head -8; docker restart $C >/dev/null; sleep 25
