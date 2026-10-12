@@ -560,3 +560,26 @@ class TestFeedbackWizard(_Base):
             w.action_send()
         self.assertEqual(p.call_args.args[1]['items'][0], {'kind': 'capability', 'kb_uid': cap.kb_uid,
                                                            'text': '痛點太籠統'})
+
+
+@tagged('post_install', '-at_install')
+class TestPlanApproval(_Base):
+
+    def test_capability_from_live_plan_is_exchangeable_and_cron_publishes(self):
+        self.mode('master', 'feed')
+        tmpl = self.env['product.template'].create({'name': '計畫方案', 'type': 'service'})
+        pkg = self.env['infrastructure.solution.package'].create({'product_tmpl_id': tmpl.id})
+        cap = self.env['corpaas.knowledge.capability'].create({'name': '採購'})
+        self.assertFalse(cap._kb_exchange_ready(), '沒核准過不送')
+        plan = self.env['corpaas.knowledge.plan'].create({'package_id': pkg.id})
+        self.env['corpaas.knowledge.plan.item'].create({'plan_id': plan.id, 'kind': 'chapter', 'key': 'po',
+                                                        'name': '採購', 'res_model': cap._name, 'res_id': cap.id})
+        self.assertFalse(cap._kb_exchange_ready(), '計畫還沒核准')
+        plan.with_context(knowledge_plan_system=True).write({'state': 'running'})
+        self.assertTrue(cap._kb_exchange_ready(), '計畫是唯一核准點：生效計畫引用的能力可以交換')
+        Feed = self.env['corpaas.knowledge.exchange.feed']
+        self.assertEqual(Feed.search_count([('kb_uid', '=', cap.kb_uid)]), 0)
+        self.Ex._cron_exchange()
+        self.assertEqual(Feed.search_count([('kb_uid', '=', cap.kb_uid)]), 1, '排程補發')
+        self.Ex._cron_exchange()
+        self.assertEqual(Feed.search_count([('kb_uid', '=', cap.kb_uid)]), 1, '同一版不重發')

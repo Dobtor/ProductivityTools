@@ -463,6 +463,8 @@ class KnowledgeExchange(models.AbstractModel):
         Vis = self.env['corpaas.knowledge.exchange.visibility']
         if mode == 'master':
             Vis._cron_classify()
+            for kind in ('capability', 'scenario', 'seed_pack', 'role', 'rule'):
+                self._model(kind)._kb_publish_unsent()
             self.env['infrastructure.solution.package']._kb_publish_packages()
             return True
         self._collect()

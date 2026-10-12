@@ -45,9 +45,20 @@ class KnowledgeFederatedExchange(models.AbstractModel):
             return bool(self.published_rev_no) and self.published_html not in (False, None) \
                 and self.state != 'retired'
         if 'published_rev_no' in self._fields:
-            # 有送審流程的範本：只有「目前內容就是核准上線那一版」才發（草稿、待審不出主控台）
-            return bool(self.published_rev_no) and self.state == 'published'
+            # 有送審流程的範本：目前內容就是核准上線那一版才發（草稿、待審不出主控台）
+            if self.published_rev_no and self.state == 'published':
+                return True
+            # ★ 新架構以「說明書製作計畫」為唯一核准點：能力、情境由已核准的計畫建出，
+            #   不再走自己的送審（實機 2026-10-12：主體 19 個能力沒有一個是「已上線」狀態）
+            return self._kb_approved_by_plan()
         return bool(kind)
+
+    def _kb_approved_by_plan(self):
+        self.ensure_one()
+        from odoo.addons.dobtor_corpaas_knowledge.models.plan import LIVE_STATES
+        return bool(self.env['corpaas.knowledge.plan.item'].sudo().search_count([
+            ('res_model', '=', self._name), ('res_id', '=', self.id),
+            ('plan_id.state', 'in', LIVE_STATES + ('superseded',))]))
 
     def _kb_export(self):
         """可攜的交換內容（不帶本地 id）。"""
@@ -180,6 +191,16 @@ class KnowledgeFederatedExchange(models.AbstractModel):
             changed = self.filtered(lambda r: r.kb_content_hash != before.get(r.id))
             changed._kb_publish()
         return res
+
+    @api.model
+    def _kb_publish_unsent(self, limit=2000):
+        """主體：可交換、但這一版內容還沒寫進發佈清單的（例如計畫核准後才建出的能力）補發。"""
+        Feed = self.env['corpaas.knowledge.exchange.feed'].sudo()
+        recs = self.sudo().search([('kb_sync_state', '!=', 'mirror'), ('kb_visibility', '=', 'public')],
+                                  limit=limit)
+        sent = {(r.res_id, r.content_hash) for r in Feed.search([('res_model', '=', self._name)])}
+        todo = recs.filtered(lambda r: (r.id, r.kb_content_hash) not in sent and r._kb_exchange_ready())
+        return todo._kb_publish()
 
     def _kb_publish(self):
         """寫進發佈清單：公開、非鏡像、有內容的才發。"""
