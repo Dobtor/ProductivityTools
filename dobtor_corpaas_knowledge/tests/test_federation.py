@@ -79,3 +79,28 @@ class TestFederation(TransactionCase):
         self.assertEqual(mirror.name, '主體能力', '鏡像內容不動')
         self.assertIn(self.pkg, mirror.package_ids, '關聯照常掛上')
         self.assertFalse(self.Cap.search([('code', '=', 'cap_other_code')]), '沒有因代碼不同多建一筆')
+
+    def test_channel_per_host_switch(self):
+        """#9：預設排同一列；打開後依母體主機分通道，上限沿用 knowledge 的設定。"""
+        from unittest.mock import patch
+        self.assertEqual(self.pkg._knowledge_channel(), 'knowledge')
+        self.icp.set_param('corpaas_knowledge.channel_per_host', 'True')
+        from .test_usage_flow import make_database
+        inst = make_database(self.env, 9471).instance_id
+        server = inst.server_id
+        self.assertTrue(server)
+        with patch.object(type(self.pkg), '_knowledge_master', lambda s, raise_if_missing=True: inst):
+            self.assertEqual(self.pkg._knowledge_channel(), 'knowledge_s%s' % server.id)
+        self.assertEqual(self.icp.get_param('corpaas.queue_channel_cap_knowledge_s%s' % server.id),
+                         self.icp.get_param('corpaas.queue_channel_cap_knowledge') or '1')
+
+    def test_sandbox_gc_drops_idle_only(self):
+        """#5：閒置超過存活期限的說明庫刪掉；方案還有知識工作排隊的不動。"""
+        from unittest.mock import patch
+        Sb = self.env['corpaas.knowledge.sandbox'].sudo()
+        dropped = []
+        with patch.object(type(Sb), 'drop', lambda s: dropped.extend(s.ids)), \
+                patch.object(type(Sb), 'search', lambda s, *a, **k: Sb.browse()):
+            self.assertEqual(Sb._cron_knowledge_sandbox_gc(), 0)
+        self.icp.set_param('corpaas_knowledge.sandbox_ttl_days', '0')
+        self.assertEqual(Sb._cron_knowledge_sandbox_gc(), 0, '0＝不清')

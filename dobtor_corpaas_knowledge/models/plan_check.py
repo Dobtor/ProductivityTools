@@ -116,6 +116,18 @@ class KnowledgePlanCheck(models.Model):
                             ('state', 'in', ('draft', 'review', 'approved', 'expanding', 'canary', 'running'))])
         out.append(_r('C7', _('沒有進行中的其他計畫版本'), BLOCK if busy else PASS,
                       '、'.join(busy.mapped('display_name'))))
+        # C9 說明主機容量（#6）：磁碟紅燈擋下、黃燈或沒量過只提醒（建說明庫時另有磁碟閘門）
+        server = master.server_id if master else None
+        if server and 'disk_state' in server._fields:
+            free = '%.1f GB' % (server.disk_free_gb or 0)
+            if server.disk_state == 'red':
+                out.append(_r('C9', _('說明主機磁碟足夠'), BLOCK, _('%(s)s 磁碟紅燈（剩 %(f)s）', s=server.name, f=free)))
+            elif server.disk_state in ('amber', 'unknown', False):
+                out.append(_r('C9', _('說明主機磁碟足夠'), WARN,
+                              _('%(s)s 磁碟%(st)s（剩 %(f)s）', s=server.name,
+                                st=_('黃燈') if server.disk_state == 'amber' else _('沒量過'), f=free)))
+            else:
+                out.append(_r('C9', _('說明主機磁碟足夠')))
         # C8 預算
         est = self._design_cost_estimate()
         out.append(_r('C8', _('計畫設計預估成本在預算內'), WARN if est > (self.budget or 0) else PASS,

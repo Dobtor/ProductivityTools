@@ -184,8 +184,9 @@ class SolutionPackage(models.Model):
             if running:
                 params['after'] = running.id
             q = Queue._enqueue(rec, 'knowledge_refresh', params, q_datetime=when)
-            if q.channel != 'knowledge':
-                q.channel = 'knowledge'
+            channel = rec._knowledge_channel()
+            if q.channel != channel:
+                q.channel = channel
             _logger.info('[knowledge] %s 排入更新（%s%s）', rec.display_name, reason,
                          '，全量' if full else '')
             queues |= q
@@ -309,9 +310,31 @@ class SolutionPackage(models.Model):
     def _knowledge_enqueue_stage(self, run, stage):
         q = self.env['corpaas.queue'].sudo()._enqueue(
             self, 'knowledge_stage', {'run_id': run.id, 'stage': stage})
-        if q.channel != 'knowledge':
-            q.channel = 'knowledge'
+        channel = self._knowledge_channel()
+        if q.channel != channel:
+            q.channel = channel
         return q
+
+    def _knowledge_channel(self):
+        """佇列通道（計畫 #9）：預設全部方案排同一列 knowledge；系統參數
+        corpaas_knowledge.channel_per_host＝True 時，依母體所在主機分通道 knowledge_s<主機 id>——
+        不同主機的說明庫重建、更新可以同時跑，同一台仍一次一件（上限沿用 knowledge 的設定）。
+
+        ★ 不改佇列引擎：通道是自由字串，上限讀 corpaas.queue_channel_cap_<通道>。
+        """
+        self.ensure_one()
+        ICP = self.env['ir.config_parameter'].sudo()
+        if ICP.get_param('corpaas_knowledge.channel_per_host', 'False') != 'True':
+            return 'knowledge'
+        master = self._knowledge_master(raise_if_missing=False)
+        server = master.server_id if master else None
+        if not server:
+            return 'knowledge'
+        channel = 'knowledge_s%s' % server.id
+        cap_key = 'corpaas.queue_channel_cap_%s' % channel
+        if not ICP.get_param(cap_key):
+            ICP.set_param(cap_key, ICP.get_param('corpaas.queue_channel_cap_knowledge') or '1')
+        return channel
 
     def _knowledge_stage_prepare(self, run):
         """盤點、指紋、流程、AI 歸類、說明庫。回傳要拍攝的說明庫。"""

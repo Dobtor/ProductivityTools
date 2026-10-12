@@ -274,7 +274,7 @@ class KnowledgeRun(models.Model):
         Queue = self.env['corpaas.queue'].sudo()
         ICP = self.env['ir.config_parameter'].sudo()
         quiet = fields.Datetime.subtract(fields.Datetime.now(), minutes=5)
-        dead = Queue.search([('channel', '=', 'knowledge'), ('state', '=', 'processing'),
+        dead = Queue.search([('channel', '=like', 'knowledge%'), ('state', '=', 'processing'),
                              ('write_date', '<', min(_BOOT, quiet))])
         if not dead:
             return 0

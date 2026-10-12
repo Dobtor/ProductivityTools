@@ -380,6 +380,32 @@ class KnowledgeSandbox(models.Model):
             rec.state = 'dropped'
         return True
 
+    @api.model
+    def _cron_knowledge_sandbox_gc(self):
+        """暫時型說明庫的統一清理（計畫 #5）：閒置超過存活期限的刪掉（下次要用再重建）。
+
+        ★ 不登記成 infrastructure.database：登記了會被算進服務清單、授權、容量與計量。
+          存活期限 corpaas_knowledge.sandbox_ttl_days（預設 14 天；0＝不清）。
+        ★ 方案還有排隊或執行中的知識工作就先不動（可能正要用這個說明庫）。
+        """
+        try:
+            ttl = int(self.env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.sandbox_ttl_days', '14'))
+        except ValueError:
+            ttl = 14
+        if ttl <= 0:
+            return 0
+        cutoff = fields.Datetime.subtract(fields.Datetime.now(), days=ttl)
+        stale = self.sudo().search([('state', 'in', ('ready', 'done', 'failed')), ('write_date', '<', cutoff)])
+        if not stale:
+            return 0
+        Queue = self.env['corpaas.queue'].sudo()
+        busy = set(Queue.search([('channel', '=like', 'knowledge%'), ('state', 'in', ('pending', 'processing'))])
+                   .mapped('reference_id'))
+        todo = stale.filtered(lambda s: s.package_id.id not in busy)
+        todo.drop()
+        _logger.info('[knowledge] 說明庫清理：刪除 %s 個閒置超過 %s 天的說明庫', len(todo), ttl)
+        return len(todo)
+
     def resolve_xmlids(self, xmlids):
         """{xmlid: [model, id]}：截圖前把繫結的示範記錄解析成 id。"""
         self.ensure_one()
@@ -526,7 +552,7 @@ class KnowledgeSandbox(models.Model):
                 raise UserError(_('說明庫 %s 正在使用中。') % rec.db_name)
             q = Queue._enqueue(rec.package_id, 'knowledge_sandbox',
                                {'sandbox_id': rec.id, 'op': op})
-            q.channel = 'knowledge'
+            q.channel = rec.package_id._knowledge_channel()
         return {'type': 'ir.actions.client', 'tag': 'display_notification',
                 'params': {'type': 'info', 'title': _('已排入佇列'),
                            'message': _('說明庫%s會在背景執行。') % (
