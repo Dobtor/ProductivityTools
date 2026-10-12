@@ -10,10 +10,9 @@ class KnowledgeHelp(models.AbstractModel):
     _description = '說明檢索'
 
     @api.model
-    def _package_for_database(self, database):
+    def _package_for_database(self, database, org=None):
         """租戶庫 → 方案：從範本誕生的庫記著版本；共享租戶的實例就是母體。"""
-        db = self.env['infrastructure.database'].sudo().search(
-            [('name', '=', database)], limit=1)
+        db = self.env['infrastructure.database']._knowledge_help_db(database, org)
         if not db:
             return self.env['infrastructure.solution.package']
         pkg = db.born_from_version_id.package_id

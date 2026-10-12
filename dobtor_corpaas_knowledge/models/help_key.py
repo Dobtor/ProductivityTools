@@ -5,6 +5,11 @@
   `_shell_set_param` 寫進租戶的 ir.config_parameter——不必另開通道，也不經任何人手。
 ★ 租戶以 HMAC-SHA256 簽「時間戳.原始 body」，主控台依標頭的庫名找金鑰驗證。
   沒有簽章，任何人都能冒用別的庫名查詢、或灌假的「畫面分歧」回報。
+★ 租戶身分（計畫 #12）：庫名在不同主機上會撞名，有 `X-KB-Org`（SSO 已下發給租戶的
+  `corpaas.org_uuid`）就以組織 UUID 認庫；沒有才退回庫名（舊版租戶）。
+★ 防重放（計畫 #12）：簽章涵蓋 params 裡的 nonce，主控台記住 MAX_SKEW×2 內看過的
+  nonce，同一個請求重送一次就擋。`corpaas_knowledge.help_require_nonce`＝True 時
+  沒帶 nonce 也擋（預設 False：舊版租戶照常可用）。
 """
 import hashlib
 import json
@@ -110,18 +115,32 @@ class InfrastructureDatabase(models.Model):
                 _logger.warning('[knowledge] 下發說明金鑰到 %s 失敗：%s', db.name, type(e).__name__)
 
     @api.model
-    def _knowledge_help_key_for(self, database):
-        rec = self.sudo().search([('name', '=', database)], limit=1)
+    def _knowledge_help_db(self, database, org=None):
+        """租戶庫記錄。有組織 UUID：庫自己的 UUID，或實例的 UUID（共享租戶）＋庫名；
+        組織 UUID 對不到就是查無此庫（不退回庫名：那正是撞名要避開的情況）。"""
+        Db = self.sudo()
+        if org:
+            rec = Db.search([('corpaas_org_uuid', '=', org), ('name', '=', database)], limit=1)
+            if not rec:
+                rec = Db.search([('instance_id.corpaas_org_uuid', '=', org),
+                                 ('name', '=', database)], limit=1)
+            return rec
+        return Db.search([('name', '=', database)], limit=1)
+
+    @api.model
+    def _knowledge_help_key_for(self, database, org=None):
+        rec = self._knowledge_help_db(database, org)
         return rec.knowledge_help_key if rec else False
 
     @api.model
-    def _knowledge_verify_help_request(self, database, headers, body):
+    def _knowledge_verify_help_request(self, database, headers, body, nonce=None):
         """回傳 None＝通過；否則回錯誤代碼。"""
-        require = self.env['ir.config_parameter'].sudo().get_param(
-            'corpaas_knowledge.help_require_signature', 'True') == 'True'
+        icp = self.env['ir.config_parameter'].sudo()
+        require = icp.get_param('corpaas_knowledge.help_require_signature', 'True') == 'True'
         sig = headers.get('X-KB-Signature') or ''
         ts = headers.get('X-KB-Timestamp') or ''
         db_hdr = headers.get('X-KB-Database') or ''
+        org = (headers.get('X-KB-Org') or '').strip()[:64] or None
         if not sig:
             return 'unsigned' if require else None
         if db_hdr != database:
@@ -132,9 +151,44 @@ class InfrastructureDatabase(models.Model):
             return 'bad_signature'
         if skew > MAX_SKEW:
             return 'bad_signature'
-        key = self._knowledge_help_key_for(database)
+        key = self._knowledge_help_key_for(database, org)
         if not key:
             return 'bad_signature'
         expected = hmac.new(key.encode(), ts.encode() + b'.' + (body or b''),
                             hashlib.sha256).hexdigest()
-        return None if hmac.compare_digest(expected, sig) else 'bad_signature'
+        if not hmac.compare_digest(expected, sig):
+            return 'bad_signature'
+        # ★ nonce 在簽章驗過之後才記：沒簽好的請求不能拿來把別人的 nonce 先占掉。
+        if nonce:
+            if not self.env['corpaas.knowledge.help.nonce']._knowledge_claim(
+                    '%s|%s' % (org or database, nonce)):
+                return 'replayed'
+        elif icp.get_param('corpaas_knowledge.help_require_nonce', 'False') == 'True':
+            return 'replayed'
+        return None
+
+
+class KnowledgeHelpNonce(models.Model):
+    """說明 API 看過的 nonce（只留 MAX_SKEW×2 秒；更舊的請求本來就會因時間戳過期被擋）。"""
+    _name = 'corpaas.knowledge.help.nonce'
+    _description = '說明查詢防重放'
+    _log_access = False
+
+    nonce = fields.Char(required=True, index=True)
+    ts = fields.Integer(required=True, index=True)
+
+    _sql_constraints = [('nonce_uniq', 'unique(nonce)', 'nonce 重複')]
+
+    @api.model
+    def _knowledge_claim(self, nonce):
+        """第一次看到回 True；看過回 False。
+
+        ★ 用 ON CONFLICT 而不是先查再寫：兩個 worker 同時收到同一個重送請求時，
+          先查再寫兩邊都會查不到。
+        """
+        now = int(time.time())
+        cr = self.env.cr
+        cr.execute('DELETE FROM corpaas_knowledge_help_nonce WHERE ts < %s', (now - 2 * MAX_SKEW,))
+        cr.execute('INSERT INTO corpaas_knowledge_help_nonce (nonce, ts) VALUES (%s, %s) '
+                   'ON CONFLICT (nonce) DO NOTHING RETURNING id', (nonce[:200], now))
+        return bool(cr.fetchone())

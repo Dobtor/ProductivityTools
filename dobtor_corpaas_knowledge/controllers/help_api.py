@@ -63,10 +63,10 @@ class KnowledgeHelpApi(http.Controller):
         if not _rate_ok('%s|%s' % (database, ip)):
             return {'ok': False, 'error': 'rate_limited'}
         env = request.env(su=True)
-        err = self._verify(env, database)
+        err = self._verify(env, database, kw.get('nonce'))
         if err:
             return {'ok': False, 'error': err}
-        package = env['corpaas.knowledge.help']._package_for_database(database)
+        package = env['corpaas.knowledge.help']._package_for_database(database, self._org())
         if not package:
             # ★ 不分辨「庫不存在」與「沒有說明」：前者是列舉客戶資料庫的探測訊號。
             return {'ok': True, 'package': False, 'results': []}
@@ -107,10 +107,16 @@ class KnowledgeHelpApi(http.Controller):
         return results
 
     @staticmethod
-    def _verify(env, database):
+    def _verify(env, database, nonce=None):
         """租戶簽章（見 models/help_key.py）。回 None＝通過。"""
+        nonce = nonce[:64] if isinstance(nonce, str) else None
         return env['infrastructure.database']._knowledge_verify_help_request(
-            database, request.httprequest.headers, request.httprequest.get_data())
+            database, request.httprequest.headers, request.httprequest.get_data(), nonce=nonce)
+
+    @staticmethod
+    def _org():
+        """租戶的組織 UUID（`X-KB-Org`；舊版租戶沒有）。只在簽章驗過後拿來認庫。"""
+        return (request.httprequest.headers.get('X-KB-Org') or '').strip()[:64] or None
 
     @staticmethod
     def _trim(results, limit):
@@ -132,9 +138,9 @@ class KnowledgeHelpApi(http.Controller):
                 or not _rate_ok('div|%s|%s' % (database, ip)):
             return {'ok': False}
         env = request.env(su=True)
-        if self._verify(env, database):
+        if self._verify(env, database, kw.get('nonce')):
             return {'ok': False}
-        package = env['corpaas.knowledge.help']._package_for_database(database)
+        package = env['corpaas.knowledge.help']._package_for_database(database, self._org())
         feature = env['corpaas.knowledge.feature'].search(
             [('feature_key', '=', feature_key)], limit=1)
         # ★ 只收「這個庫的方案確實有這個功能」的回報；同一庫同一功能一天只記一次，

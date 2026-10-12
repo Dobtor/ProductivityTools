@@ -277,7 +277,20 @@ class TestHelpSigning(TransactionCase):
                 patch.object(ai_help_links.threading, 'Thread') as thread:
             self.assertTrue(self.Links._report_divergence('k', 'a' * 32, 'b' * 32))
             thread.call_args.kwargs['target']()
-        self.assertEqual(post.call_args.kwargs, {'database': 'cust-a', 'key': KEY})
+        self.assertEqual(post.call_args.kwargs, {'database': 'cust-a', 'key': KEY, 'org': ''})
+
+    def test_nonce_and_org(self):
+        self.icp.set_param('corpaas.org_uuid', 'org-123')
+        _res, call = self._call()
+        _res2, call2 = self._call()
+        headers = call.kwargs['headers']
+        self.assertEqual(headers['X-KB-Org'], 'org-123', '庫名會撞名：帶組織 UUID 讓主控台認庫')
+        n1 = json.loads(call.kwargs['data'])['params']['nonce']
+        n2 = json.loads(call2.kwargs['data'])['params']['nonce']
+        self.assertTrue(n1 and n1 != n2, '每次請求一個新的 nonce（在簽章涵蓋的 body 裡）')
+        self.icp.set_param('corpaas.org_uuid', False)
+        _res, call = self._call()
+        self.assertNotIn('X-KB-Org', call.kwargs['headers'])
 
     def test_unsigned_when_no_key(self):
         self.icp.set_param('dobtor_ai_help.console_key', False)
@@ -286,6 +299,7 @@ class TestHelpSigning(TransactionCase):
         self.assertEqual(headers['X-KB-Database'], 'cust-a')
         self.assertNotIn('X-KB-Signature', headers)
         self.assertNotIn('X-KB-Timestamp', headers)
+        self.assertNotIn('nonce', json.loads(call.kwargs['data'])['params'], '沒簽章帶 nonce 沒有意義')
         self.assertEqual((res['ok'], res['error'], res['results']), (False, 'unsigned', []))
 
     def test_key_status_in_settings(self):

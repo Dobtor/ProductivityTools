@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor AI Bridge · 此畫面說明',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Productivity/AI',
     'summary': '後台助理面板加上「此畫面說明」：向 CorPaaS 主控台查這個畫面的操作說明連結',
     'description': '''

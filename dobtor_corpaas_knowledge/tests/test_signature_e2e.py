@@ -24,7 +24,7 @@ class TestSignatureEndToEnd(HttpCase):
         self.env['ir.config_parameter'].sudo().set_param(
             'corpaas_knowledge.help_require_signature', 'True')
         with patch.object(DB, '_knowledge_help_key_for',
-                          lambda s, db: 'e2e-key' if db == 'tenant_e2e' else False):
+                          lambda s, db, org=None: 'e2e-key' if db == 'tenant_e2e' else False):
             ok = _post_json(url, params, 8, database='tenant_e2e', key='e2e-key')
             self.assertTrue(ok.get('ok'), ok)
             self.assertEqual(_post_json(url, params, 8, database='tenant_e2e').get('error'),

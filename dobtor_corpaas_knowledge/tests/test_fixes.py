@@ -220,7 +220,7 @@ class TestHelpSignature(TransactionCase):
         Cls = type(DB)
         body = b'{"params": {"database": "tenant_a"}}'
         with patch.object(Cls, '_knowledge_help_key_for',
-                          lambda s, db: self.KEY if db == self.DBNAME else False):
+                          lambda s, db, org=None: self.KEY if db == self.DBNAME else False):
             v = DB._knowledge_verify_help_request
             self.assertIsNone(v(self.DBNAME, self._sign(self.KEY, body), body))
             self.assertEqual(v(self.DBNAME, self._sign(self.KEY, body), body + b' '),
@@ -236,6 +236,32 @@ class TestHelpSignature(TransactionCase):
             self.env['ir.config_parameter'].sudo().set_param(
                 'corpaas_knowledge.help_require_signature', 'False')
             self.assertIsNone(v(self.DBNAME, {}, body), '過渡期可關閉強制簽章')
+            # 防重放：同一個 nonce 第二次就擋；不同 nonce 照常
+            headers = self._sign(self.KEY, body)
+            self.assertIsNone(v(self.DBNAME, headers, body, nonce='n1'))
+            self.assertEqual(v(self.DBNAME, headers, body, nonce='n1'), 'replayed')
+            self.assertIsNone(v(self.DBNAME, headers, body, nonce='n2'))
+            self.assertIsNone(v(self.DBNAME, headers, body), '預設不強制 nonce（舊版租戶）')
+            self.env['ir.config_parameter'].sudo().set_param(
+                'corpaas_knowledge.help_require_nonce', 'True')
+            self.assertEqual(v(self.DBNAME, headers, body), 'replayed')
+            # 簽章錯的請求不占 nonce
+            self.assertEqual(v(self.DBNAME, self._sign('wrong', body), body, nonce='n3'), 'bad_signature')
+            self.assertIsNone(v(self.DBNAME, headers, body, nonce='n3'))
+
+    def test_help_db_by_org_uuid(self):
+        """兩台主機上同名的庫：有組織 UUID 就認得出是哪一個；UUID 對不到不退回庫名。"""
+        from .test_usage_flow import make_database
+        DB = self.env['infrastructure.database']
+        a = make_database(self.env, 241)
+        b = make_database(self.env, 242)
+        b.write({'name': a.name})
+        a.sudo().write({'corpaas_org_uuid': 'org-a'})
+        b.instance_id.sudo().write({'corpaas_org_uuid': 'org-b'})
+        self.assertEqual(DB._knowledge_help_db(a.name, 'org-a'), a)
+        self.assertEqual(DB._knowledge_help_db(a.name, 'org-b'), b, '共享租戶：實例的 UUID＋庫名')
+        self.assertFalse(DB._knowledge_help_db(a.name, 'org-x'), 'UUID 對不到：查無，不退回庫名')
+        self.assertTrue(DB._knowledge_help_db(a.name), '沒帶 UUID（舊版租戶）以庫名認')
 
     def test_push_writes_tenant_before_console(self):
         """先寫進租戶、成功才存在主控台：下發失敗不能讓主控台換掉租戶正在用的金鑰。"""

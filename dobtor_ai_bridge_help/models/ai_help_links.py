@@ -18,6 +18,7 @@
 簽章（IMPLEMENTATION_SPEC「修正第二輪」1）：兩支 POST 都帶
   X-KB-Database: <庫名>、X-KB-Timestamp: <unix 秒>、
   X-KB-Signature: hex(hmac_sha256(key, b"<ts>." + 原始 request body bytes))
+  X-KB-Org: <corpaas.org_uuid>（有才送）；params 另帶 nonce（有金鑰才帶）
   金鑰由主控台以 shell 寫進 ICP `dobtor_ai_help.console_key`。
 """
 import hashlib
@@ -28,6 +29,7 @@ import re
 import threading
 import time
 import urllib.parse
+import uuid
 
 import requests
 
@@ -66,7 +68,7 @@ def _sign(key, ts, body):
                     hashlib.sha256).hexdigest()
 
 
-def _post_json(url, params, timeout, database=None, key=None):
+def _post_json(url, params, timeout, database=None, key=None, org=None):
     """JSON-RPC POST；回 result dict，失敗拋例外。
 
     ☠️ `trust_env = False`：requests 預設會吃 .netrc、REQUESTS_CA_BUNDLE 等環境
@@ -75,12 +77,18 @@ def _post_json(url, params, timeout, database=None, key=None):
     ☠️ 自己 json.dumps 成 bytes、用 `data=` 送：用 `json=` 的話是 requests 自己序列化，
        簽的 bytes 與送出的 bytes 不保證一致（空白、ensure_ascii），主控台驗不過。
     ☠️ 金鑰絕不進 log／例外訊息：這裡只把它拿去算 HMAC。
+    ★ 有簽章就帶 nonce（在 params 裡、被簽章涵蓋）：主控台擋重送。
+    ★ org＝SSO 下發的 `corpaas.org_uuid`：庫名在不同主機會撞名，主控台以它認庫。
     """
+    if key:
+        params = dict(params, nonce=uuid.uuid4().hex)
     body = json.dumps({'jsonrpc': '2.0', 'method': 'call', 'params': params, 'id': 1},
                       separators=(',', ':')).encode('utf-8')
     headers = {'User-Agent': 'Dobtor-AI-Help/1.0', 'Content-Type': 'application/json'}
     if database:
         headers['X-KB-Database'] = database
+    if org:
+        headers['X-KB-Org'] = org
     if key:
         ts = str(int(time.time()))
         headers['X-KB-Timestamp'] = ts
@@ -128,6 +136,7 @@ class AiHelpLinks(models.AbstractModel):
             'hosts': sorted(hosts),
             # ☠️ 金鑰只給 _post_json 算簽章；不要把整個 cfg 印進 log。
             'key': (get('dobtor_ai_help.console_key') or '').strip(),
+            'org': (get('corpaas.org_uuid') or '').strip(),
         }
 
     @api.model
@@ -280,11 +289,11 @@ class AiHelpLinks(models.AbstractModel):
                   'expected': expected, 'actual': actual}
 
         # ★ 執行緒裡不碰 self.env：請求結束 cursor 就關了。
-        database, secret = cfg['database'], cfg['key']
+        database, secret, org = cfg['database'], cfg['key'], cfg['org']
 
         def _send():
             try:
-                _post_json(url, params, DIVERGENCE_TIMEOUT, database=database, key=secret)
+                _post_json(url, params, DIVERGENCE_TIMEOUT, database=database, key=secret, org=org)
             except Exception as exc:  # noqa: BLE001
                 _logger.info('此畫面說明：回報畫面差異失敗（%s）', exc)
 
@@ -315,7 +324,8 @@ class AiHelpLinks(models.AbstractModel):
             return out
         try:
             res = _post_json(cfg['console_url'] + '/corpaas/knowledge/v1/help',
-                             params, TIMEOUT, database=cfg['database'], key=cfg['key'])
+                             params, TIMEOUT, database=cfg['database'], key=cfg['key'],
+                             org=cfg['org'])
         except Exception as exc:  # noqa: BLE001 - 主控台不通就沒有說明，面板照常
             _logger.warning('此畫面說明：查詢主控台失敗（%s）', exc)
             return dict(out, ok=False, error='unreachable')

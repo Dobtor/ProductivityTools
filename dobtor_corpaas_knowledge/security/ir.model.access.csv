@@ -82,3 +82,4 @@ access_kb_feedback_editor,kb.feedback.editor,model_corpaas_knowledge_feedback,gr
 access_kb_feedback_manager,kb.feedback.manager,model_corpaas_knowledge_feedback,group_knowledge_manager,1,1,1,1
 access_kb_feedback_session_editor,kb.feedback.session.editor,model_corpaas_knowledge_feedback_session,group_knowledge_editor,1,1,1,0
 access_kb_feedback_session_manager,kb.feedback.session.manager,model_corpaas_knowledge_feedback_session,group_knowledge_manager,1,1,1,1
+access_kb_help_nonce_manager,kb.help.nonce.manager,model_corpaas_knowledge_help_nonce,group_knowledge_manager,1,0,0,1
