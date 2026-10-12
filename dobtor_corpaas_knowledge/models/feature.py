@@ -434,6 +434,11 @@ class KnowledgeHooks(models.AbstractModel):
         return True
 
     @api.model
+    def _knowledge_sandbox_overlay(self, sandbox):
+        """這座說明庫要疊加的客戶模組（corpaas.knowledge.overlay；空＝不疊加）。建議書模組覆寫。"""
+        return self.env['corpaas.knowledge.overlay']
+
+    @api.model
     def _knowledge_scenarios_needing_shots(self, package, events):
         """哪些情境要重建說明庫並拍攝（manual 模組覆寫）。"""
         return self.env['corpaas.knowledge.scenario']

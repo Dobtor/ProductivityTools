@@ -87,3 +87,7 @@ access_kb_flow_package_editor,kb.flow.package.editor,model_corpaas_knowledge_flo
 access_kb_flow_package_manager,kb.flow.package.manager,model_corpaas_knowledge_flow_package,group_knowledge_manager,1,1,1,1
 access_kb_flow_transition_package_editor,kb.flow.transition.package.editor,model_corpaas_knowledge_flow_transition_package,group_knowledge_editor,1,0,0,0
 access_kb_flow_transition_package_manager,kb.flow.transition.package.manager,model_corpaas_knowledge_flow_transition_package,group_knowledge_manager,1,1,1,1
+access_kb_overlay_editor,kb.overlay.editor,model_corpaas_knowledge_overlay,group_knowledge_editor,1,0,0,0
+access_kb_overlay_manager,kb.overlay.manager,model_corpaas_knowledge_overlay,group_knowledge_manager,1,1,1,1
+access_kb_overlay_line_editor,kb.overlay.line.editor,model_corpaas_knowledge_overlay_line,group_knowledge_editor,1,0,0,0
+access_kb_overlay_line_manager,kb.overlay.line.manager,model_corpaas_knowledge_overlay_line,group_knowledge_manager,1,1,1,1

@@ -246,11 +246,17 @@ class KnowledgePlanProposal(models.Model):
                                    and not devs.filtered(lambda d: d.pain_id == p and d.state in ('done', 'no', 'next')))
         out.append({'code': 'P2', 'name': _('每個痛點都有結論'), 'state': 'block' if undecided else 'pass',
                     'reason': '、'.join((p.description or '')[:30] for p in undecided[:10])})
-        missing = self.module_ids.filtered(lambda m: m.origin in ('addon', 'dev') and not m.installed)
-        out.append({'code': 'P3', 'name': _('加購與開發模組已部署到分析環境'),
-                    'state': 'block' if missing else 'pass',
-                    'reason': _('還沒裝進方案母體（或標成下期）：%s') % '、'.join(missing.mapped('module'))
-                    if missing else ''})
+        # P3（方案 B）：母體沒有的加購／開發模組改疊加到客戶專屬說明庫；只有找不到程式來源
+        #   （開發項目沒有 repo 或發行標籤、加購模組沒有登記 repo／分支）才擋
+        not_in_master = self.module_ids.filtered(lambda m: m.origin in ('addon', 'dev') and not m.installed)
+        _mods, nosrc = prop._overlay_modules(self.package_id._knowledge_available_modules()) if prop \
+            else ([], [])
+        blocked = sorted(set(nosrc) & set(not_in_master.mapped('module')))
+        out.append({'code': 'P3', 'name': _('加購與開發模組找得到程式來源'),
+                    'state': 'block' if blocked else 'pass',
+                    'reason': _('找不到 repo 或發行標籤：%s') % '、'.join(blocked) if blocked else (
+                        _('將疊加到客戶專屬說明庫：%s') % '、'.join(not_in_master.mapped('module'))
+                        if not_in_master else '')})
         out.append({'code': 'P4', 'name': _('客戶實例讀得到並完成分析'), 'state': 'pass',
                     'reason': _('目前不分析客戶既有實例（疊加、換層級時人工確認）')})
         return out

@@ -1611,3 +1611,26 @@ except Exception as __e:
     __prof['error'] = str(__e)[:300]
 __OUT['profile'] = __prof
 '''
+
+
+def install_modules_script(names):
+    """在說明庫安裝客戶疊加模組（addons 路徑已含疊加目錄）。回 {installed, missing}。"""
+    return (
+        "import json\n"
+        "names = %r\n"
+        "Mod = env['ir.module.module'].sudo()\n"
+        "out = {}\n"
+        "try:\n"
+        "    Mod.update_list()\n"
+        "    mods = Mod.search([('name', 'in', names)])\n"
+        "    out['missing'] = sorted(set(names) - set(mods.mapped('name')))\n"
+        "    todo = mods.filtered(lambda m: m.state != 'installed')\n"
+        "    if todo and not out['missing']:\n"
+        "        todo.button_immediate_install()\n"
+        "    env.cr.commit()\n"
+        "    out['installed'] = sorted(env['ir.module.module'].sudo().search(\n"
+        "        [('name', 'in', names), ('state', '=', 'installed')]).mapped('name'))\n"
+        "except Exception as e:\n"
+        "    out['error'] = str(e)[:2000]\n"
+        "print('__CORPAAS_SHELL__:' + json.dumps(out))\n"
+    ) % (sorted(names),)

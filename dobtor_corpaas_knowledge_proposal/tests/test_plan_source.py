@@ -83,6 +83,61 @@ class TestPlanSource(TransactionCase):
         self.assertEqual(res['P1'], 'pass', '標成下期就不擋')
         self.assertEqual(res['P2'], 'pass')
 
+    def test_overlay_modules_and_p3(self):
+        """方案 B：完成的開發模組有 repo＋發行標籤就疊加到客戶說明庫；缺來源才擋 P3。"""
+        dev = self.env['corpaas.knowledge.dev_item'].create(
+            {'proposal_id': self.prop.id, 'pain_id': self.pain2.id, 'name': '刷卡機串接', 'state': 'done',
+             'module_name': 'x_morning_pos', 'repo': 'Dobtor/Customers', 'release_tag': 'v18.0.1.0',
+             'tests_green': True})
+        mods, missing = self.prop._overlay_modules()
+        self.assertEqual([(m['module'], m['repo_url'], m['ref']) for m in mods],
+                         [('x_morning_pos', 'https://github.com/Dobtor/Customers', 'v18.0.1.0')])
+        self.assertEqual(missing, [])
+        self.assertEqual(self.prop._overlay_modules({'x_morning_pos'})[0], [], '母體已經有的不疊')
+        dev.write({'repo': False})
+        self.assertEqual(self.prop._overlay_modules()[1], ['x_morning_pos'])
+        plan = self._proposal_plan()
+        p3 = [r for r in plan.run_checks('t1').results() if r['code'] == 'P3'][0]
+        if 'x_morning_pos' in plan.module_ids.mapped('module'):
+            self.assertEqual(p3['state'], 'block', '沒有程式來源才擋')
+        dev.write({'repo': 'Dobtor/Customers'})
+        p3 = [r for r in plan.run_checks('t1').results() if r['code'] == 'P3'][0]
+        self.assertEqual(p3['state'], 'pass', '有來源就改為疊加，不擋')
+
+    def test_overlay_scan_features_stay_off_package(self):
+        """掃描用說明庫盤到的客戶模組功能點進這份計畫的底稿，但不掛到方案。"""
+        from unittest.mock import patch
+        from odoo.addons.dobtor_corpaas_knowledge.tests.test_usage_flow import make_database
+        db = make_database(self.env, 9491)
+        self.env['corpaas.knowledge.dev_item'].create(
+            {'proposal_id': self.prop.id, 'pain_id': self.pain2.id, 'name': 'POS', 'state': 'done',
+             'module_name': 'x_morning_pos', 'repo': 'Dobtor/Customers', 'release_tag': 'v1', 'tests_green': True})
+        plan = self._proposal_plan()
+        Pkg, Sb = type(self.pkg), type(self.env['corpaas.knowledge.sandbox'])
+        Ov = type(self.env['corpaas.knowledge.overlay'])
+        analysis = {'features': [
+            {'module': 'x_morning_pos', 'kind': 'action', 'anchor': 'x_morning_pos.act', 'name': '刷卡紀錄',
+             'model': 'res.partner', 'action_xmlid': 'x_morning_pos.act'},
+            {'module': 'sale', 'kind': 'action', 'anchor': 'sale.act', 'name': '不該收'}]}
+
+        def prepare(ovs):
+            ovs.line_ids.write({'repo_dir': 'dobtor-customers', 'sha': 'c' * 40})
+            ovs.write({'state': 'ready'})
+        with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: db.instance_id), \
+                patch.object(Ov, 'action_prepare', prepare), \
+                patch.object(Sb, 'rebuild_scan', lambda s: True), \
+                patch.object(Sb, '_shell', lambda s, script: analysis if 'MODS' in script else {}), \
+                patch.object(Sb, 'drop', lambda s: True):
+            plan._ledger_build()
+        keys = plan.overlay_feature_ids.mapped('feature_key')
+        self.assertEqual(len(keys), 1)
+        f = plan.overlay_feature_ids
+        self.assertEqual(f.module, 'x_morning_pos', '只收疊加模組的')
+        self.assertNotIn(self.pkg, f.package_ids, '不掛到方案')
+        self.assertIn(f, plan.line_ids.mapped('feature_id'), '進這份計畫的底稿')
+        sig = plan.overlay_scan_sig
+        self.assertTrue(sig)
+
     def test_private_scenario_and_channel(self):
         plan = self._proposal_plan()
         Item = self.env['corpaas.knowledge.plan.item'].with_context(knowledge_plan_system=True)

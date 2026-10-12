@@ -47,6 +47,12 @@ def run_shots(env, sandbox, shots, settings):
     """
     instance = sandbox.master_instance_id
     server = instance.server_id
+    # 客戶疊加的說明庫：母體容器看不到疊加模組，另起一個只服務這個說明庫的臨時 Odoo
+    serve = None
+    if getattr(sandbox, 'overlay_id', False):
+        from . import overlay as overlay_svc
+        mount, addons = sandbox._overlay_args()
+        serve = overlay_svc.serve_start(env, instance, sandbox.db_name, mount, addons)
     token = uuid.uuid4().hex[:12]
     job_dir = '%s/%s' % (JOBS_ROOT, token)
     host = '%s.internal' % sandbox.db_name
@@ -56,7 +62,7 @@ def run_shots(env, sandbox, shots, settings):
         # 登入走 /web/session/authenticate（方案可能把登入頁改成彈出視窗）：要庫名
         'db': sandbox.db_name,
         # 把 <庫名>.internal 映射到母體容器名；docker 內建 DNS 會解析容器名。
-        'resolver_rule': 'MAP %s %s' % (host, instance.odoo_container),
+        'resolver_rule': 'MAP %s %s' % (host, serve or instance.odoo_container),
         'width': 1440, 'height': 900, 'scale': 2,
         'locale': 'zh-TW', 'tz': 'Asia/Taipei',
         'frozen_time': FROZEN_TIME,
@@ -91,6 +97,9 @@ def run_shots(env, sandbox, shots, settings):
         files = remote.fetch_dir(server, job_dir + '/out')
     finally:
         remote.remove_dir(server, job_dir)
+        if serve:
+            from . import overlay as overlay_svc
+            overlay_svc.serve_stop(server, sandbox.db_name)
     raw = files.pop('result.json', None)
     if not raw:
         raise ShotError('截圖容器沒有產出結果：%s'

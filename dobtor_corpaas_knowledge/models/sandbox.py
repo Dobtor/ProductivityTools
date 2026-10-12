@@ -23,6 +23,7 @@ import secrets
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from ..services import overlay as overlay_svc
 from ..services import remote, scripts
 
 _logger = logging.getLogger(__name__)
@@ -84,6 +85,11 @@ class KnowledgeSandbox(models.Model):
                                         '不跑清除、截圖前也不逐筆檢查')
     seed_report = fields.Text(readonly=True)
     error = fields.Text(readonly=True)
+    overlay_id = fields.Many2one('corpaas.knowledge.overlay', string='客戶疊加模組', readonly=True,
+                                 ondelete='restrict',
+                                 help='客戶專屬說明庫：建庫後加裝這些模組；探測與拍照都改用掛了疊加目錄的容器')
+    overlay_addons_path = fields.Char(readonly=True, help='建庫時的母體 addons_path（容器內），疊加接在後面')
+    overlay_report = fields.Text(readonly=True)
     selftest_ok = fields.Boolean(string='自我檢查通過', readonly=True)
     selftest_at = fields.Datetime(string='自我檢查時間', readonly=True)
     selftest_report = fields.Text(string='自我檢查結果', readonly=True)
@@ -96,7 +102,18 @@ class KnowledgeSandbox(models.Model):
 
     def _shell(self, script):
         self.ensure_one()
-        return remote.shell_json(self.env, self.master_instance_id, self.db_name, script)
+        return remote.shell_json(self.env, self.master_instance_id, self.db_name, script,
+                                 overlay=self._overlay_args())
+
+    def _overlay_args(self):
+        """(掛載參數, addons 路徑參數)；沒有疊加回 None。"""
+        self.ensure_one()
+        ovl = self.overlay_id
+        if not ovl:
+            return None
+        if not self.overlay_addons_path:
+            self.overlay_addons_path = overlay_svc.base_addons_path(self.env, self.master_instance_id)
+        return overlay_svc.docker_args(ovl.host_dir(), ovl.repo_dirs(), self.overlay_addons_path)
 
     def _check_manager(self):
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
@@ -118,7 +135,9 @@ class KnowledgeSandbox(models.Model):
                 list(scripts.CONFIG_MODELS) if purge else [],
                 # 規則表改了（清除前退回、禁止建立、白名單）也要重建，不能沿用舊說明庫
                 [self._rule_values(k) for k in ('purge_reset_method', 'seed_forbid_model',
-                                                'gate_allow_model')]]
+                                                'gate_allow_model')],
+                # 客戶疊加模組（模組或版本 SHA 變了要重建）
+                self.overlay_id.signature() if self.overlay_id else None]
 
     @staticmethod
     def _sig(data):
@@ -215,6 +234,9 @@ class KnowledgeSandbox(models.Model):
             raise UserError(_('說明庫 %s 正在%s，請等它完成。')
                             % (self.db_name, dict(self._fields['state'].selection)[self.state]))
         try:
+            ovl = self.env['corpaas.knowledge.hooks']._knowledge_sandbox_overlay(self)
+            if ovl != self.overlay_id:
+                self.write({'overlay_id': ovl.id or False, 'overlay_addons_path': False})
             master = self.master_instance_id
             golden = master._corpaas_golden_db()
             if not golden or golden.golden_state != 'verified':
@@ -237,6 +259,7 @@ class KnowledgeSandbox(models.Model):
             self.write({'code_manifest': json.dumps(master._corpaas_code_manifest(),
                                                     sort_keys=True),
                         'state': 'purging'})
+            self._install_overlay()
             # A4：空白／純示範的範本沒有個資可清，清除只會白跑（還曾誤刪設定類資料）
             skip = not golden._knowledge_needs_purge()
             if skip:
@@ -364,7 +387,51 @@ class KnowledgeSandbox(models.Model):
         allow = set(self._gate_allow())
         return sorted(models - {'res.config.settings'} - set(scripts.CONFIG_MODELS) - allow)
 
+    def rebuild_scan(self):
+        """掃描用：從黃金庫複製 → 裝上客戶疊加模組；不清除、不灌示範資料（只拿來盤點與算指紋，用完就刪）。"""
+        self.ensure_one()
+        self._check_name_free()
+        if not self.overlay_id:
+            raise UserError(_('掃描用說明庫一定要有客戶疊加模組。'))
+        master = self.master_instance_id
+        golden = master._corpaas_golden_db()
+        if not golden or golden.golden_state != 'verified':
+            raise UserError(_('母體「%s」沒有已驗證的黃金庫。') % master.display_name)
+        if hasattr(master.server_id, '_assert_disk_room'):
+            master.server_id._assert_disk_room(_('建立掃描用說明庫'), need_gb=2)
+        try:
+            self.write({'state': 'cloning', 'error': False, 'golden_id': golden.id})
+            with golden._corpaas_golden_lock():
+                golden._corpaas_golden_sync_code()
+                golden._duplicate_db_physical(self.db_name, False, overwrite=True, neutralize=False)
+            self.write({'state': 'seeding'})
+            self._install_overlay()
+            self.write({'state': 'ready', 'ready_at': fields.Datetime.now()})
+        except Exception as e:
+            self.write({'state': 'failed', 'error': str(e)[:4000]})
+            raise
+        return True
+
+    def _install_overlay(self):
+        """客戶疊加：模組抓到說明主機（沒抓過或內容變了）→ 在說明庫安裝。裝不上就整座失敗（P3 擋下）。"""
+        self.ensure_one()
+        ovl = self.overlay_id
+        if not ovl:
+            return None
+        if ovl.state != 'ready':
+            ovl.action_prepare()
+        if ovl.state != 'ready':
+            raise UserError(_('客戶疊加模組抓取失敗：%s') % (ovl.error or ''))
+        self.overlay_addons_path = overlay_svc.base_addons_path(self.env, self.master_instance_id)
+        res = self._shell(scripts.install_modules_script(ovl.module_names()))
+        self.overlay_report = json.dumps(res, ensure_ascii=False)
+        if res.get('missing') or res.get('error'):
+            raise UserError(_('客戶疊加模組安裝失敗：%s') % (res.get('error') or '、'.join(res['missing'])))
+        return res
+
     def drop(self):
+        for rec in self.filtered(lambda r: r.overlay_id):
+            overlay_svc.serve_stop(rec.master_instance_id.server_id, rec.db_name)
         for rec in self.filtered(lambda r: r.state != 'dropped'):
             # ★ 刪除前再驗一次名稱：_drop_full 刪的是 PG 上的庫，名字錯了就是客戶的庫。
             rec._check_name_free()

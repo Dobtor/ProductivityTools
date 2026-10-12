@@ -56,11 +56,15 @@ class KnowledgePlanLedger(models.Model):
         pkg = self.package_id
         Feature = self.env['corpaas.knowledge.feature'].sudo()
         feats = Feature.search([('package_ids', 'in', pkg.id), ('missing', '=', False)])
-        feats = feats.filtered(lambda f: f.is_present_in(pkg))
+        feats = feats.filtered(lambda f: f.is_present_in(pkg)) | self._ledger_extra_features()
         self._ledger_modules(feats)
         self._ledger_lines(feats)
         self._ledger_relations()
         return True
+
+    def _ledger_extra_features(self):
+        """方案以外、這份計畫另外要納入的功能點（建議書：客戶疊加模組的功能點）。出口覆寫。"""
+        return self.env['corpaas.knowledge.feature']
 
     def _ledger_module_category(self, module, code_addons, tech):
         if module in tech:

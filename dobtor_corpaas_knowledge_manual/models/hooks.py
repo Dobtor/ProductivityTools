@@ -865,7 +865,8 @@ class KnowledgeHooks(models.AbstractModel):
         Binding = self.env['corpaas.knowledge.shot_binding'].sudo()
         views = feature.views_for_fingerprint() or [[False, 'form']]
         archs = remote.shell_json(self.env, sandbox.master_instance_id, sandbox.db_name,
-                                  archs_script(feature.model, views))
+                                  archs_script(feature.model, views),
+                                  overlay=sandbox._overlay_args() if hasattr(sandbox, '_overlay_args') else None)
         roles = [{'code': r.code, 'name': r.name} for r in scenario.all_roles()]
         screen = self._manual_probe(sandbox, feature)
         demo = self._manual_demo(scenario)

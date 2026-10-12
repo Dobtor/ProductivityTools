@@ -33,7 +33,7 @@ def _isolated_enabled(env):
     return str(val).strip().lower() not in ('0', 'false', 'off', 'no')
 
 
-def _isolated_cmd(env, instance, db_name, tmp):
+def _isolated_cmd(env, instance, db_name, tmp, overlay=None):
     """一次性分析容器：同一個映像、唯讀掛同一份程式碼與設定，限記憶體，跑完即刪。
 
     ★ 不 docker exec 進母體：那是正在服務共享租戶的正式容器，每次分析都在裡面多開一個
@@ -51,9 +51,10 @@ def _isolated_cmd(env, instance, db_name, tmp):
         'corpaas_knowledge.analysis_memory') or '1g'
     return (
         "cat %(tmp)s | docker run --rm -i --network %(net)s --memory %(mem)s --cpus 1 "
-        "-v %(conf_dir)s:%(etc)s:ro -v %(src)s:%(addons)s:ro --entrypoint odoo %(image)s "
-        "shell -c %(conf)s --no-http --logfile=/dev/stderr --stop-after-init -d %(db)s%(pg)s"
+        "-v %(conf_dir)s:%(etc)s:ro -v %(src)s:%(addons)s:ro %(ov_mount)s--entrypoint odoo %(image)s "
+        "shell -c %(conf)s %(ov_path)s--no-http --logfile=/dev/stderr --stop-after-init -d %(db)s%(pg)s"
     ) % {
+        'ov_mount': (overlay[0] + ' ') if overlay else '', 'ov_path': (overlay[1] + ' ') if overlay else '',
         'tmp': shlex.quote(tmp), 'net': shlex.quote(inst.server_id.docker_network_name or 'bridge'),
         'mem': shlex.quote(mem), 'conf_dir': shlex.quote(inst.conf_path), 'etc': shlex.quote(etc),
         'src': shlex.quote(inst.sources_path), 'addons': shlex.quote(addons),
@@ -62,7 +63,7 @@ def _isolated_cmd(env, instance, db_name, tmp):
     }
 
 
-def shell_exec(env, instance, db_name, script, isolated=False):
+def shell_exec(env, instance, db_name, script, isolated=False, overlay=None):
     """在 `instance` 的 Odoo 容器內，對 `db_name` 跑 odoo shell；回傳 stdout。
 
     腳本不 commit 就不會留下任何東西（shell 結束時 rollback）。
@@ -77,15 +78,15 @@ def shell_exec(env, instance, db_name, script, isolated=False):
     with instance.server_id.get_connect() as c:
         _put(c, tmp, script.encode('utf-8'))
         try:
-            if isolated:
-                cmd = _isolated_cmd(env, instance, db_name, tmp)
+            if isolated or overlay:
+                cmd = _isolated_cmd(env, instance, db_name, tmp, overlay=overlay)
             else:
                 cmd = (
                     "cat %s | docker exec -i %s odoo shell -c %s --no-http "
                     "--logfile=/dev/stderr --stop-after-init -d %s%s" % (
                         shlex.quote(tmp), container, shlex.quote(conf), shlex.quote(db_name),
                         Database._pg_direct_cli_args(instance=instance)))
-            res = custom_sudo(c, cmd, dont_raise=isolated)
+            res = custom_sudo(c, cmd, dont_raise=isolated and not overlay)
         finally:
             custom_sudo(c, 'rm -f %s' % shlex.quote(tmp), dont_raise=True)
     return getattr(res, 'stdout', '') or ''
@@ -109,9 +110,15 @@ def parse_marker(out):
     return result
 
 
-def shell_json(env, instance, db_name, script, isolated=False):
+def shell_json(env, instance, db_name, script, isolated=False, overlay=None):
     """isolated=True：唯讀分析優先用一次性容器；起不來（映像沒拉、掛載路徑不對…）就記一筆
     警告、退回 docker exec 進母體，分析照樣完成。"""
+    if overlay:
+        # 疊加了客戶模組的說明庫：只能在掛了疊加目錄的一次性容器裡跑（母體容器看不到那些模組）
+        res = parse_marker(shell_exec(env, instance, db_name, script, overlay=overlay))
+        if res is None:
+            raise RemoteError('odoo shell（疊加）沒有回傳結果（%s）' % db_name)
+        return res
     if isolated and _isolated_enabled(env):
         try:
             out = shell_exec(env, instance, db_name, script, isolated=True)
