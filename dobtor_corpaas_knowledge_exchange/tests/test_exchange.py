@@ -399,3 +399,54 @@ class TestOutputs(_Base):
             again = self.pkg._kb_publish_packages()
         self.assertGreaterEqual(first, 1)
         self.assertEqual(again, 0, '沒變就不再發佈')
+
+
+@tagged('post_install', '-at_install')
+class TestTransfer(_Base):
+    """移交：同意紀錄由系統寫、沒同意不能送、主體只收範圍內且維持私有。"""
+
+    def test_consent_stamped_by_system(self):
+        T = self.env['corpaas.knowledge.exchange.transfer']
+        other = self.env.ref('base.user_root')
+        t = T.create({'module_names': 'x_cust', 'consent': True, 'consent_note': '合約第 9 條',
+                      'consent_user_id': other.id})
+        self.assertEqual(t.consent_user_id, self.env.user, '勾選人不能由呼叫端指定')
+        self.assertTrue(t.consent_at)
+        t.write({'consent_user_id': other.id})
+        self.assertEqual(t.consent_user_id, self.env.user)
+
+    def test_send_requires_consent_and_carries_private(self):
+        self.icp.set_param('corpaas_knowledge.console_code', 'dobtor')
+        self.mode('replica', 'ingest')
+        self.Peer.create({'name': 'm', 'code': 'corpaas', 'role': 'master', 'url': 'https://m', 'key': 'k'})
+        priv = self.make_def('x_cust', 't1')
+        t = self.env['corpaas.knowledge.exchange.transfer'].create({'module_names': 'x_cust'})
+        with self.assertRaises(UserError):
+            t.action_send()
+        t.write({'consent': True, 'consent_note': '客戶書面同意'})
+        with patch(POST, return_value={'ok': True, 'ref': 'transfer:9', 'count': 1}) as p:
+            t.action_send()
+        sent = p.call_args.args[1]
+        self.assertEqual(p.call_args.args[0], 'https://m/corpaas/knowledge/exchange/v1/transfer')
+        self.assertEqual([i['def_hash'] for i in sent['items']], ['t1'], '移交含私有')
+        self.assertEqual(sent['transfer']['note'], '客戶書面同意')
+        self.assertEqual((t.state, t.item_count, t.executor_id), ('sent', 1, self.env.user))
+        self.assertEqual(priv.kb_visibility, 'private', '送出不改本地公開性')
+
+    def test_master_receives_in_scope_and_keeps_private(self):
+        self.mode('master', 'ingest', 'feed')
+        peer = self.Peer.create({'name': 'd', 'code': 'dobtor', 'role': 'replica', 'key': 'k'})
+        Feed = self.env['corpaas.knowledge.exchange.feed']
+        before = Feed.search_count([])
+        mk = lambda m, h: {'kind': 'code_def', 'kb_uid': 'u-%s' % h, 'def_hash': h, 'method': 'action_x',
+                           'module': m, 'content': {'summary_json': '{"pre": ["客戶的"]}'}}
+        T = self.env['corpaas.knowledge.exchange.transfer']
+        with self.assertRaises(UserError):
+            T._receive(peer, {'modules': ['x_cust']}, [mk('x_cust', 'r1')])
+        rec = T._receive(peer, {'modules': ['x_cust'], 'note': '同意', 'consent_by': '王經理', 'consent_at': 'x',
+                                'partner_name': '客戶甲'}, [mk('x_cust', 'r1'), mk('x_other', 'r2')])
+        self.assertEqual((rec.state, rec.item_count, rec.direction), ('received', 1, 'in'))
+        got = self.Def.search([('def_hash', '=', 'r1')])
+        self.assertEqual((got.kb_visibility, got.kb_origin), ('private', 'dobtor'), '移交來的維持私有')
+        self.assertFalse(self.Def.search([('def_hash', '=', 'r2')]), '範圍外的不收')
+        self.assertEqual(Feed.search_count([]), before, '私有不進發佈清單')

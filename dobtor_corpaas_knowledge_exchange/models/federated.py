@@ -135,7 +135,7 @@ class KnowledgeFederatedExchange(models.AbstractModel):
         return vals
 
     @api.model
-    def _kb_upsert(self, payload, state='mirror', trust='master', origin=None):
+    def _kb_upsert(self, payload, state='mirror', trust='master', origin=None, visibility='public'):
         """依交換鍵 upsert；回傳紀錄。內容雜湊相同就不動（冪等）。
 
         state／trust：從屬寫鏡像＝('mirror', 'master')；主體入庫＝('local', 'replica')。
@@ -145,7 +145,7 @@ class KnowledgeFederatedExchange(models.AbstractModel):
                 and rec.kb_sync_state == state and (rec.kb_uid == payload.get('kb_uid') or not payload.get('kb_uid')):
             return rec
         vals = self._kb_vals_from(payload, state=state, trust=trust, origin=origin)
-        meta = {'kb_sync_state': state, 'kb_trust': trust, 'kb_visibility': 'public',
+        meta = {'kb_sync_state': state, 'kb_trust': trust, 'kb_visibility': visibility,
                 'kb_origin': origin or payload.get('kb_origin')}
         uid = payload.get('kb_uid')
         if uid and (not rec or rec.kb_uid != uid):

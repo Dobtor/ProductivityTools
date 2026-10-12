@@ -186,6 +186,71 @@
         </field>
     </record>
 
+
+    <!-- 移交 -->
+    <record id="view_kbx_transfer_list" model="ir.ui.view">
+        <field name="model">corpaas.knowledge.exchange.transfer</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="create_date"/>
+                <field name="name"/>
+                <field name="direction"/>
+                <field name="partner_id"/>
+                <field name="partner_name" optional="hide"/>
+                <field name="state"/>
+                <field name="item_count"/>
+                <field name="executor_id"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_kbx_transfer_form" model="ir.ui.view">
+        <field name="model">corpaas.knowledge.exchange.transfer</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_send" type="object" string="送出移交" class="btn-primary"
+                            invisible="direction != 'out' or state != 'draft'"
+                            confirm="會把這些模組的程式知識（含客戶私有）整包送給主體。確定客戶已同意？"/>
+                    <button name="action_cancel" type="object" string="取消" invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,sent,received"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" readonly="state != 'draft'"/>
+                            <field name="direction"/>
+                            <field name="partner_id" readonly="state != 'draft'" invisible="direction == 'in'"/>
+                            <field name="partner_name" invisible="direction == 'out'"/>
+                            <field name="peer_id" invisible="direction == 'out'"/>
+                        </group>
+                        <group>
+                            <field name="item_count"/>
+                            <field name="executor_id"/>
+                            <field name="executed_at"/>
+                            <field name="remote_ref"/>
+                        </group>
+                    </group>
+                    <group string="範圍">
+                        <field name="module_names" nolabel="1" colspan="2" readonly="state != 'draft'"
+                               placeholder="一行一個模組技術名"/>
+                    </group>
+                    <group string="客戶同意">
+                        <field name="consent" readonly="state != 'draft'"/>
+                        <field name="consent_note" readonly="state != 'draft'" required="consent"/>
+                        <field name="consent_user_id"/>
+                        <field name="consent_at"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="action_kbx_transfer" model="ir.actions.act_window">
+        <field name="name">移交</field>
+        <field name="res_model">corpaas.knowledge.exchange.transfer</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
     <menuitem id="menu_knowledge_exchange" name="主從交換" parent="dobtor_corpaas_knowledge.menu_knowledge_root"
               sequence="40" groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
     <menuitem id="menu_kbx_promotion" name="上收提案與意見" parent="menu_knowledge_exchange"
@@ -194,6 +259,8 @@
               action="action_kbx_ingest" sequence="20"/>
     <menuitem id="menu_kbx_outbox" name="送件匣" parent="menu_knowledge_exchange"
               action="action_kbx_outbox" sequence="30"/>
+    <menuitem id="menu_kbx_transfer" name="移交" parent="menu_knowledge_exchange"
+              action="action_kbx_transfer" sequence="40"/>
     <menuitem id="menu_kbx_peer" name="對端主控台" parent="menu_knowledge_exchange"
               action="action_kbx_peer" sequence="90"/>
 </odoo>

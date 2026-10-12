@@ -5,6 +5,7 @@ POST /corpaas/knowledge/exchange/v1/lookup    {items: [{kind, key}]}        → 
 POST /corpaas/knowledge/exchange/v1/ingest    {items: [payload]}            → {ok, results}
 POST /corpaas/knowledge/exchange/v1/feed      {cursor, limit}               → {ok, items, cursor, more}
 POST /corpaas/knowledge/exchange/v1/feedback  {items: [{kind, kb_uid, text}]} → {ok, results}
+POST /corpaas/knowledge/exchange/v1/transfer  {transfer: {...同意紀錄}, items} → {ok, ref, count}（移交，含私有）
 全部帶 schema_version 與 nonce；標頭 X-KB-Peer／X-KB-Timestamp／X-KB-Signature。
 """
 import logging
@@ -81,3 +82,16 @@ class KnowledgeExchangeApi(http.Controller):
             return {'ok': False, 'error': err}
         return {'ok': True, 'results': request.env(su=True)['corpaas.knowledge.exchange']._serve_feedback(
             peer, items if isinstance(items, list) else [])}
+
+    @http.route('/corpaas/knowledge/exchange/v1/transfer', type='json', auth='public', csrf=False, methods=['POST'])
+    def transfer(self, transfer=None, items=None, **kw):
+        peer, err = self._auth('ingest', kw)
+        if err:
+            return {'ok': False, 'error': err}
+        try:
+            rec = request.env(su=True)['corpaas.knowledge.exchange.transfer']._receive(
+                peer, transfer, items if isinstance(items, list) else [])
+        except Exception as e:  # noqa: BLE001 — 缺同意紀錄等：回錯誤，不寫任何東西
+            request.env.cr.rollback()
+            return {'ok': False, 'error': str(e)[:200]}
+        return {'ok': True, 'ref': 'transfer:%s' % rec.id, 'count': rec.item_count}
