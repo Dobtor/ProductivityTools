@@ -180,6 +180,20 @@ class TestPlanSource(TransactionCase):
         self.assertIn('dobtor_p', self.prop.customer_analysis_text)
         self.assertEqual(p4()['state'], 'pass')
 
+    def test_dev_done_triggers_project_refresh(self):
+        Pkg = type(self.pkg)
+        proj = self.env['infrastructure.solution.package'].create({
+            'product_tmpl_id': self.env['product.template'].create({'name': '專案', 'type': 'service'}).id,
+            'knowledge_kind': 'project', 'knowledge_project_partner_id': self.partner.id, 'knowledge_enabled': True})
+        dev = self.env['corpaas.knowledge.dev_item'].create(
+            {'proposal_id': self.prop.id, 'name': '刷卡', 'state': 'test', 'module_name': 'x_pos',
+             'release_tag': 'v1', 'tests_green': True})
+        calls = []
+        with patch.object(Pkg, 'knowledge_enqueue_refresh', lambda s, full=False, reason='', **k: calls.append((s.ids, reason))):
+            dev.action_mark_done()
+            dev.write({'state': 'done'})
+        self.assertEqual(calls, [(proj.ids, 'dev_release')], '完成一次觸發一次（重寫完成不重複）')
+
     def test_private_scenario_and_channel(self):
         plan = self._proposal_plan()
         Item = self.env['corpaas.knowledge.plan.item'].with_context(knowledge_plan_system=True)

@@ -56,6 +56,17 @@ class KnowledgeDevItem(models.Model):
         self.write({'state': 'done'})
         return True
 
+    def write(self, vals):
+        done_before = {r.id for r in self if r.state == 'done'}
+        res = super().write(vals)
+        if vals.get('state') == 'done':
+            # 專案的穩定點：開發項目完成（有發行標籤、測試全綠）→ 該客戶的專案知識排更新（套等待期）
+            Pkg = self.env['infrastructure.solution.package']
+            for rec in self.filtered(lambda r: r.id not in done_before):
+                Pkg._knowledge_projects_for_partner(rec.proposal_id.partner_id).knowledge_enqueue_refresh(
+                    full=False, reason='dev_release')
+        return res
+
 
 class KnowledgeProposalDev(models.Model):
     _inherit = 'corpaas.knowledge.proposal'

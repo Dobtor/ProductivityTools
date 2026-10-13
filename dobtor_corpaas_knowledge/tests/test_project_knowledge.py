@@ -97,3 +97,17 @@ class TestProjectKnowledge(TransactionCase):
         prod.invalidate_recordset()
         self.assertEqual(self.env['corpaas.knowledge.help']._package_for_database(prod.name), pkg,
                          '客戶正式機的「此畫面說明」對到專案知識（同名的重複聯絡人也算）')
+
+    def test_stable_point_triggers(self):
+        """正式機模組變動觸發；測試機（基準）自己的變動不觸發。"""
+        pkg = self._create()
+        Pkg = type(pkg)
+        calls = []
+        with patch.object(Pkg, 'knowledge_enqueue_refresh', lambda s, full=False, reason='', **k: calls.append((s.ids, reason))):
+            self.db._on_installed_modules_changed(['x_new'], [])
+            self.assertEqual(calls, [], '測試機自己的變動不觸發')
+            prod = make_database(self.env, 9503)
+            self.env.cr.execute('UPDATE infrastructure_database SET partner_id=%s WHERE id=%s', (self.partner.id, prod.id))
+            prod.invalidate_recordset()
+            prod._on_installed_modules_changed(['x_new'], [])
+        self.assertEqual(calls, [(pkg.ids, 'customer_release')], '客戶正式機的模組變了＝上線 → 觸發')

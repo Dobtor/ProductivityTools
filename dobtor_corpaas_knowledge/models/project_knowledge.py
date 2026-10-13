@@ -86,6 +86,16 @@ class SolutionPackageProject(models.Model):
                 res |= self._knowledge_golden_installed(db)
         return res
 
+    @api.model
+    def _knowledge_projects_for_partner(self, partner):
+        """客戶的專案知識（同一家公司在 CRM 有重複聯絡人也對得上）。"""
+        if not partner:
+            return self.browse()
+        cp = partner.commercial_partner_id
+        return self.sudo().search([('knowledge_kind', '=', 'project'), ('knowledge_enabled', '=', True),
+                                   '|', ('knowledge_project_partner_id', 'child_of', cp.id),
+                                   ('knowledge_project_partner_id.name', '=', cp.name)])
+
     def action_knowledge_project_refresh(self):
         self.ensure_one()
         if self.knowledge_kind != 'project':
@@ -141,6 +151,23 @@ class DatabaseKnowledgeBase(models.Model):
         if self._knowledge_is_project_base():
             return True
         return self._corpaas_golden_sync_code()
+
+    def _on_installed_modules_changed(self, added, removed):
+        """專案的穩定點：客戶**正式機**的模組變了＝真的上線了 → 排更新（套等待期與每日上限）。
+
+        ★ 測試機（專案的基準）自己的變動不觸發：開發人員天天在上面試，跟著跑會把半成品一直重拍。
+        """
+        res = super()._on_installed_modules_changed(added, removed)
+        Pkg = self.env['infrastructure.solution.package']
+        for rec in self:
+            if rec._knowledge_is_project_base() or not rec.partner_id:
+                continue
+            projects = Pkg._knowledge_projects_for_partner(rec.partner_id)
+            if projects:
+                _logger.info('[knowledge] 專案客戶正式環境 %s 模組變動：%s', rec.name,
+                             ', '.join(sorted(set(added) | set(removed)))[:300])
+                projects.knowledge_enqueue_refresh(full=False, reason='customer_release')
+        return res
 
     def _knowledge_needs_purge(self):
         """專案的測試庫是客戶資料：說明庫一律清除。"""
