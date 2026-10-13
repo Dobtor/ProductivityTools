@@ -68,3 +68,17 @@ class TestRefreshThrottle(TransactionCase):
         self.assertIn(sc, self.pkg.knowledge_pending_scenario_ids, '記下要重拍的情境')
         self.assertFalse(self.pkg.knowledge_pending_full, '不整個方案全量')
         self.assertEqual(len(self._job()), 1)
+
+    def test_draft_parallel_follows_runner(self):
+        Ai = self.env['corpaas.knowledge.ai']
+        icp = self.env['ir.config_parameter'].sudo()
+        icp.set_param('corpaas_knowledge.draft_parallel', '5')
+        self.assertEqual(Ai._parallel_workers(), 5, '明確設定優先')
+        icp.set_param('corpaas_knowledge.draft_parallel', '')
+        Runner = self.env.get('infrastructure.ai_runner')
+        if Runner is None:
+            self.skipTest('沒有 AI Runner 模組')
+        fake = Runner.new({'cpus': 2.0})
+        fake._compute_sizing()
+        with patch.object(type(Runner), 'search', lambda s, *a, **k: fake):
+            self.assertEqual(Ai._parallel_workers(), 3, '跟說明主機 Runner 的並發數連動')

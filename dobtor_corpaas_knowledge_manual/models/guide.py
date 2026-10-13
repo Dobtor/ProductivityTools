@@ -535,8 +535,7 @@ class KnowledgeHooks(models.AbstractModel):
                                ('feature_id', 'in', [f.id for f in cands])])
         if features is not None:
             arts = arts.filtered(lambda a: a.feature_id in features)
-        workers = int(self.env['ir.config_parameter'].sudo().get_param(
-            'corpaas_knowledge.draft_parallel', 3) or 3)
+        workers = self.env['corpaas.knowledge.ai']._parallel_workers()
         blocks = {}
         for art in arts:
             tmpl = art.shot_binding_id.template_id

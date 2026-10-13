@@ -185,6 +185,25 @@ class KnowledgeAi(models.AbstractModel):
         return ','.join('%s:%s' % (r.id, r.version) for r, _t in rules) or False
 
     @api.model
+    def _parallel_workers(self):
+        """起草時同時送幾個 AI 請求：系統參數 corpaas_knowledge.draft_parallel 有填就用它；
+        沒填就跟說明主機上 AI Runner 的並發數連動（並發數又跟 vCPU 連動）——送得比 Runner 跑得多只會在
+        Runner 裡排隊。"""
+        val = self.env['ir.config_parameter'].sudo().get_param('corpaas_knowledge.draft_parallel')
+        if val:
+            try:
+                return max(1, min(int(val), 12))
+            except ValueError:
+                pass
+        Runner = self.env.get('infrastructure.ai_runner')
+        if Runner is not None:
+            server = self.env['infrastructure.solution.package']._knowledge_doc_server()
+            runner = Runner.sudo().search([('server_id', '=', server.id)] if server else [], limit=1)
+            if runner and runner.max_concurrency:
+                return max(1, min(runner.max_concurrency, 12))
+        return 3
+
+    @api.model
     def prefetch(self, items, package=None, refresh_token=None, workers=3):
         """平行送出多個 AI 呼叫（只有 HTTP 在執行緒裡；記帳回主執行緒做）。
 
