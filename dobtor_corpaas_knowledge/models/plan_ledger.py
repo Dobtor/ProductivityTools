@@ -126,6 +126,8 @@ class KnowledgePlanLedger(models.Model):
     def _ledger_rule(self, feature):
         """規則直接判定的歸屬：(assignment, reason) 或 None（交給 AI）。"""
         pkg = self.package_id
+        if feature.module in pkg._knowledge_platform_default_modules():
+            return 'exclude', _('平台預設模組（基礎建設與去品牌，不寫操作說明）')
         if not feature.model and feature.kind != 'route':
             return 'exclude', _('沒有畫面（不寫操作說明）')
         if not pkg._knowledge_documents_feature(feature):

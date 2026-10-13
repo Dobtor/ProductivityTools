@@ -111,3 +111,23 @@ class TestProjectKnowledge(TransactionCase):
             prod.invalidate_recordset()
             prod._on_installed_modules_changed(['x_new'], [])
         self.assertEqual(calls, [(pkg.ids, 'customer_release')], '客戶正式機的模組變了＝上線 → 觸發')
+
+    def test_platform_default_modules_excluded(self):
+        """說明書排除平台預設模組本身；它們拉進來的官方相依（例 account）照常盤點。"""
+        pkg = self._create()
+        pkg.knowledge_include_official = True
+        DM = self.env['infrastructure.database_module'].sudo()
+        for name, kind in (('x_trade_import', 'custom'), ('dobtor_database_tools', 'default'),
+                           ('account', 'default'), ('sale', 'odoo')):
+            DM.create({'database_id': self.db.id, 'module_name': name, 'module_type': kind, 'state': 'installed'})
+        Pkg = type(pkg)
+        with patch.object(Pkg, '_knowledge_platform_default_modules', lambda s: {'dobtor_database_tools'}):
+            custom, official, _inst = pkg._knowledge_scope_modules(self.db)
+            self.assertEqual(custom, ['x_trade_import'])
+            self.assertNotIn('dobtor_database_tools', official)
+            self.assertIn('account', official, '預設模組的官方相依照常盤點')
+            F = self.env['corpaas.knowledge.feature'].sudo()
+            feat = F.create({'feature_key': 'dobtor_database_tools.action:x', 'module': 'dobtor_database_tools',
+                             'kind': 'action', 'anchor': 'x', 'name': '工具', 'model': 'res.partner'})
+            plan = self.env['corpaas.knowledge.plan'].create({'package_id': pkg.id})
+            self.assertEqual(plan._ledger_rule(feat)[0], 'exclude', '底稿再擋一次')

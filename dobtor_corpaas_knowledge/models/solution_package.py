@@ -630,14 +630,25 @@ class SolutionPackage(models.Model):
         BOM 裡的官方模組算 BOM（全種類盤點），不重複列在官方範圍。
         """
         self.ensure_one()
-        bom = self._provision_module_names()
+        defaults = self._knowledge_platform_default_modules()
+        bom = [m for m in self._provision_module_names() if m not in defaults]
         installed_official = self._knowledge_golden_installed(golden, official_only=True)
         official = []
         if self.knowledge_include_official:
             patterns = self._knowledge_official_exclude_patterns()
-            official = sorted(n for n in installed_official - set(bom)
+            official = sorted(n for n in installed_official - set(bom) - defaults
                               if not self._knowledge_is_official_excluded(n, patterns))
         return bom, official, installed_official
+
+    @api.model
+    def _knowledge_platform_default_modules(self):
+        """平台預設模組（控制台「分層預設模組」清單）：每座實例都帶的基礎建設與去品牌模組，
+        不是客戶要學的功能——說明書一律不做。只排清單上的模組本身，它們拉進來的官方相依
+        （account、mail…）照常盤點。清單改了自動跟著變，不寫死在程式裡。"""
+        Default = self.env.get('infrastructure.module_default')
+        if Default is None:
+            return set()
+        return set(Default.sudo().with_context(active_test=False).search([]).mapped('technical_name')) - {False}
 
     @api.model
     def _knowledge_golden_installed(self, golden, official_only=False):

@@ -70,12 +70,18 @@ class SolutionPackageProject(models.Model):
         self.ensure_one()
         rows = self.env['infrastructure.database_module'].sudo().search(
             [('database_id', '=', golden.id), ('state', '=', 'installed')])
+        defaults = self._knowledge_platform_default_modules()
         installed_official = set(rows.filtered(lambda r: r.module_type == 'odoo').mapped('technical_name')) - {False}
-        custom = sorted(set(rows.filtered(lambda r: r.module_type != 'odoo').mapped('technical_name')) - {False})
+        # ★ 平台預設模組本身不做說明；追蹤表上它們的官方相依也被標成「預設」，那些要照常盤點
+        custom = sorted(set(rows.filtered(lambda r: r.module_type == 'custom').mapped('technical_name'))
+                        - {False} - defaults)
+        installed_official |= set(rows.filtered(lambda r: r.module_type == 'default').mapped('technical_name')) \
+            - {False} - defaults
         official = []
         if self.knowledge_include_official:
             patterns = self._knowledge_official_exclude_patterns()
-            official = sorted(n for n in installed_official if not self._knowledge_is_official_excluded(n, patterns))
+            official = sorted(n for n in installed_official - defaults
+                              if not self._knowledge_is_official_excluded(n, patterns))
         return custom, official, installed_official
 
     def _knowledge_available_modules(self):
