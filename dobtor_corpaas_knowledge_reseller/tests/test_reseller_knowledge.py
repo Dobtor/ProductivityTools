@@ -157,3 +157,20 @@ class TestResellerKnowledgeApi(_ResellerProject, ManualCase, HttpCase):
         r = self._call('/api/v1/knowledge/project',
                        {'external_ref': self.req.external_ref, 'consent_note': 'x'})
         self.assertEqual(r.status_code, 409)   # 已經有專案知識
+
+
+@tagged('post_install', '-at_install')
+class TestOwnHubNotBilled(_ResellerProject, ManualCase):
+
+    def setUp(self):
+        super().setUp()
+        self._setup_project(9621)
+
+    def test_own_hub_costs_not_billed(self):
+        self.pkg.write({'knowledge_hub_url': 'https://ai.reseller.example', 'knowledge_hub_key': 'k'})
+        c = self.env['corpaas.knowledge.ai.call'].sudo().create(
+            {'purpose': 'x', 'package_id': self.pkg.id, 'cost_usd': 5.0, 'ok': True})
+        self.env.cr.execute("UPDATE corpaas_knowledge_ai_call SET create_date='2026-09-10' WHERE id=%s", (c.id,))
+        made = self.env['reseller.billing.statement'].sudo()._apply_knowledge_costs(
+            date(2026, 9, 1), date(2026, 9, 30))
+        self.assertFalse(made)

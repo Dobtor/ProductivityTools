@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'CorPaaS 方案知識 × 白標經銷商',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.0.1',
     'category': 'Productivity/Knowledge',
     'summary': '經銷商在自己的白標後台管理他代管客戶的專案知識：建立、核准說明書製作計畫、取回已發佈的說明書；AI 費用進批發月結',
     'description': '''

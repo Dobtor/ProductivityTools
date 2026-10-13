@@ -158,7 +158,9 @@ class BillingStatementKnowledge(models.Model):
         dom = [('create_date', '>=', fields.Datetime.to_datetime(period_start)),
                ('create_date', '<', fields.Datetime.add(fields.Datetime.to_datetime(period_end),
                                                         days=1)),
-               ('cached', '=', False), ('package_id.knowledge_reseller_id', '!=', False)]
+               ('cached', '=', False), ('package_id.knowledge_reseller_id', '!=', False),
+               # 用經銷商自己的 AI Hub 跑的（他自己的 Claude 帳號付費）不再向他收一次
+               ('package_id.knowledge_hub_url', 'in', (False, ''))]
         if reseller:
             dom.append(('package_id.knowledge_reseller_id', '=', reseller.id))
         by_reseller = {}
