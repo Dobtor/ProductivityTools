@@ -62,7 +62,22 @@ class SolutionPackageKnowledgeReseller(models.Model):
         action = wiz.action_confirm()
         pkg = self.sudo().browse(action['res_id'])
         pkg.knowledge_reseller_assigned_id = reseller.id
+        pkg._reseller_ensure_plan()
         return pkg
+
+    def _reseller_ensure_plan(self):
+        """沒有說明書製作計畫就開初版並建底稿（盤點 → 就緒檢查 → AI 擬計畫 → 待核准）。
+
+        平台上這一步原本是人在方案表單按的；經銷商那邊沒有這顆按鈕，不自動開的話
+        專案知識只會停在「盤點完成」，永遠等不到計畫。回傳是否新開。"""
+        self.ensure_one()
+        Plan = self.env['corpaas.knowledge.plan'].sudo()
+        if Plan.search_count([('package_id', '=', self.id), ('source_type', '=', 'product'),
+                              ('state', '!=', 'superseded')]):
+            return False
+        plan = Plan.create({'package_id': self.id, 'source_type': 'product', 'version': 1})
+        plan.action_build_ledger()
+        return True
 
     # ------------------------------------------------------------------
     # 說明書匯出（給白標後台匯入自己的網站）

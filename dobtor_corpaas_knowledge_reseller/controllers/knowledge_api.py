@@ -123,7 +123,8 @@ class ResellerKnowledgeApi(http.Controller):
         pkg = self._own(reseller, pkg_id)
         if not pkg:
             return _error(_('Knowledge not found.'), code='not_found', status=404)
-        pkg.knowledge_enqueue_refresh(full=False, reason='manual')
+        if not pkg._reseller_ensure_plan():
+            pkg.knowledge_enqueue_refresh(full=False, reason='manual')
         return _json_response({'id': pkg.id, 'status': 'queued'}, status=202)
 
     @http.route('/api/v1/knowledge/<int:pkg_id>/plan', type='http', auth='public',

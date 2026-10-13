@@ -60,7 +60,7 @@ class TestResellerProject(_ResellerProject, ManualCase):
     def test_plan_review_and_done_emit_webhooks(self):
         self.reseller.write({'reseller_webhook_url': 'https://example.com/h',
                              'reseller_webhook_secret': 's'})
-        plan = self.env['corpaas.knowledge.plan'].sudo().create({'package_id': self.pkg.id})
+        plan = self.env['corpaas.knowledge.plan'].sudo().search([('package_id', '=', self.pkg.id)], limit=1)
         Ev = self.env['reseller.webhook.event'].sudo()
         plan.with_context(knowledge_plan_system=True).write({'state': 'review'})
         plan.with_context(knowledge_plan_system=True).write({'state': 'done'})
@@ -133,7 +133,7 @@ class TestResellerKnowledgeApi(_ResellerProject, ManualCase, HttpCase):
                                     reseller=other).status_code, 404)
 
     def test_approve_requires_review_state(self):
-        plan = self.env['corpaas.knowledge.plan'].sudo().create({'package_id': self.pkg.id})
+        plan = self.env['corpaas.knowledge.plan'].sudo().search([('package_id', '=', self.pkg.id)], limit=1)
         r = self._call('/api/v1/knowledge/%s/plan/%s/approve' % (self.pkg.id, plan.id), {})
         self.assertEqual(r.status_code, 409)
         plan.with_context(knowledge_plan_system=True).write({'state': 'review'})
@@ -174,3 +174,22 @@ class TestOwnHubNotBilled(_ResellerProject, ManualCase):
         made = self.env['reseller.billing.statement'].sudo()._apply_knowledge_costs(
             date(2026, 9, 1), date(2026, 9, 30))
         self.assertFalse(made)
+
+
+@tagged('post_install', '-at_install')
+class TestResellerPlanStart(_ResellerProject, ManualCase):
+
+    def setUp(self):
+        super().setUp()
+        Plan = type(self.env['corpaas.knowledge.plan'])
+        self._p = patch.object(Plan, 'action_build_ledger', lambda s: s.with_context(
+            knowledge_plan_system=True).write({'state': 'ledger'}))
+        self._p.start()
+        self.addCleanup(self._p.stop)
+        self._setup_project(9631)
+
+    def test_project_opens_initial_plan_once(self):
+        plans = self.env['corpaas.knowledge.plan'].search([('package_id', '=', self.pkg.id)])
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(plans.state, 'ledger')
+        self.assertFalse(self.pkg._reseller_ensure_plan(), '已有計畫不再開')
