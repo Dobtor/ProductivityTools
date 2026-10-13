@@ -41,6 +41,10 @@ OFFICIAL_EXCLUDE_DEFAULT = (
     'partner_autocomplete, social_media')
 
 
+
+#: 流程本身要的更新：不套合併等待期與每日上限（延誤會卡住製作流程）
+WORKFLOW_REASONS = frozenset({'manual', 'plan_ledger', 'plan_round', 'gap_fix', 'budget_carryover', 'resume'})
+
 class SolutionPackage(models.Model):
     _inherit = 'infrastructure.solution.package'
 
@@ -162,6 +166,8 @@ class SolutionPackage(models.Model):
         if not icp.get_param('corpaas.queue_channel_cap_knowledge'):
             icp.set_param('corpaas.queue_channel_cap_knowledge', '1')
         queues = Queue
+        auto = reason not in WORKFLOW_REASONS
+        now = fields.Datetime.now()
         for rec in self.filtered('knowledge_enabled'):
             if not rec._knowledge_master(raise_if_missing=False):
                 _logger.info('[knowledge] %s 略過：%s', rec.display_name,
@@ -169,10 +175,16 @@ class SolutionPackage(models.Model):
                 continue
             if full:
                 rec._knowledge_bookkeep({'knowledge_pending_full': True})
-            # 觸發原因記在方案上（params 只放 package_id 才能去重），執行時寫進執行紀錄
-            rec._knowledge_bookkeep({'knowledge_pending_reason': reason})
-            when = fields.Datetime.add(fields.Datetime.now(), minutes=delay_minutes) \
-                if delay_minutes else False
+            prev_reason = rec.knowledge_pending_reason
+            pending = Queue.search([('type', '=', 'solution.package'), ('operate', '=', 'knowledge_refresh'),
+                                    ('reference_id', '=', rec.id), ('state', '=', 'pending')], limit=1)
+            # 觸發原因記在方案上（params 只放 package_id 才能去重），執行時寫進執行紀錄。
+            # ★ 已經有一張流程本身要的（手動、計畫各輪…）在等：原因保留它，變動併進去一起跑
+            if not (auto and pending and prev_reason in WORKFLOW_REASONS):
+                rec._knowledge_bookkeep({'knowledge_pending_reason': reason})
+            when = fields.Datetime.add(now, minutes=delay_minutes) if delay_minutes else False
+            if auto:
+                when = max(when or now, rec._knowledge_auto_not_before(now))
             # ★ 正在跑的那張也算「重複」（佇列去重包含 processing）：更新進行中又來了
             #   改版觸發，直接去重就被吃掉了。改排一張「接在它後面」的（params 不同＝不同鍵；
             #   channel 上限 1，自然等前一張跑完）。之後的觸發再去重到這張待執行的。
@@ -184,6 +196,14 @@ class SolutionPackage(models.Model):
             if running:
                 params['after'] = running.id
             q = Queue._enqueue(rec, 'knowledge_refresh', params, q_datetime=when)
+            if q.state == 'pending':
+                if auto and not (pending and prev_reason in WORKFLOW_REASONS):
+                    # 合併等待期：每次變動把開跑時間往後推（安靜夠久才跑，連續變動只跑一輪）
+                    if not q.q_datetime or q.q_datetime < when:
+                        q.q_datetime = when
+                elif not auto and q.q_datetime and q.q_datetime > now and not delay_minutes:
+                    # 流程本身要的：不等，等待中的變動一起跑
+                    q.q_datetime = False
             channel = rec._knowledge_channel()
             if q.channel != channel:
                 q.channel = channel
@@ -191,6 +211,31 @@ class SolutionPackage(models.Model):
                          '，全量' if full else '')
             queues |= q
         return queues
+
+    def _knowledge_auto_not_before(self, now):
+        """變動驅動的更新最早什麼時候跑：安靜等待期（預設 30 分鐘）＋每日上限（預設 24 小時內 2 次）。
+
+        ★ 只管「變動驅動」的觸發（模組、程式碼、映像、上架、示範資料、每月）；手動與製作流程不受限。
+        """
+        self.ensure_one()
+        icp = self.env['ir.config_parameter'].sudo()
+
+        def _int(key, default):
+            try:
+                return max(0, int(icp.get_param(key, default)))
+            except (TypeError, ValueError):
+                return default
+        quiet, cap = _int('corpaas_knowledge.refresh_quiet_minutes', 30), _int('corpaas_knowledge.refresh_daily_cap', 2)
+        when = fields.Datetime.add(now, minutes=quiet)
+        if cap:
+            since = fields.Datetime.subtract(now, hours=24)
+            runs = self.env['corpaas.knowledge.run'].sudo().search(
+                [('package_id', '=', self.id), ('create_date', '>=', since),
+                 ('reason', 'not in', list(WORKFLOW_REASONS))], order='create_date asc')
+            if len(runs) >= cap:
+                # 24 小時內已經自動跑滿：順延到最早那次滿 24 小時之後（中間的變動都併進那一輪）
+                when = max(when, fields.Datetime.add(runs[len(runs) - cap].create_date, hours=24))
+        return when
 
     def action_knowledge_refresh(self):
         if not self.env.user.has_group('dobtor_corpaas_knowledge.group_knowledge_manager'):
