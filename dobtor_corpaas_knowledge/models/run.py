@@ -5,10 +5,12 @@
   token／是否全量／說明庫，失敗的階段可以單獨重跑。
 """
 import json
+import logging
 from html import escape
 
 from odoo import _, api, fields, models
 
+_logger = logging.getLogger(__name__)
 RUN_STATES = [('running', '進行中'), ('done', '完成'), ('failed', '失敗')]
 #: 這個 worker 程序的啟動時間：比它早、卻還停在「處理中」的知識佇列工作，執行緒已經不在了
 #:（部署重啟後所有 worker 都重新載入，任何一個 worker 的這個值都晚於重啟前的工作）
@@ -32,6 +34,8 @@ class KnowledgeRun(models.Model):
     state = fields.Selection(RUN_STATES, string='狀態', default='running', required=True,
                              readonly=True, index=True)
     stage = fields.Selection(STAGES, string='目前階段', readonly=True)
+    release_summary = fields.Text(string='更新摘要', readonly=True,
+                                  help='這一輪結束時一次發佈的說明：新增、更新了哪些')
     started_at = fields.Datetime(string='開始', default=fields.Datetime.now, readonly=True)
     ended_at = fields.Datetime(string='結束', readonly=True)
     duration_min = fields.Float(string='耗時（分）', compute='_compute_duration')
@@ -224,10 +228,21 @@ class KnowledgeRun(models.Model):
         self.end_stage(note=_('失敗'))
         self.write({'state': 'failed', 'error': str(error)[:4000],
                     'ended_at': fields.Datetime.now()})
+        self._finished()
 
     def mark_done(self):
         self.end_stage()
         self.write({'state': 'done', 'stage': False, 'ended_at': fields.Datetime.now()})
+        self._finished()
+
+    def _finished(self):
+        """一輪結束（完成或失敗）：出口把這輪暫存的發佈一次推完、寫更新摘要。失敗不影響狀態。"""
+        for rec in self:
+            try:
+                with self.env.cr.savepoint():
+                    self.env['corpaas.knowledge.hooks']._knowledge_run_finished(rec)
+            except Exception as e:  # noqa: BLE001
+                _logger.warning('[knowledge] 執行紀錄 %s 收尾發佈失敗：%s', rec.id, e)
 
     def events(self):
         self.ensure_one()

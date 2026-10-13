@@ -434,6 +434,11 @@ class KnowledgeHooks(models.AbstractModel):
         return True
 
     @api.model
+    def _knowledge_run_finished(self, run):
+        """一輪知識更新結束（出口覆寫：例如把暫存的發佈一次推完、寫更新摘要）。"""
+        return True
+
+    @api.model
     def _knowledge_sandbox_overlay(self, sandbox):
         """這座說明庫要疊加的客戶模組（corpaas.knowledge.overlay；空＝不疊加）。建議書模組覆寫。"""
         return self.env['corpaas.knowledge.overlay']

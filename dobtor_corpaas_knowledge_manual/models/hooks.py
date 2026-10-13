@@ -300,6 +300,39 @@ class KnowledgeHooks(models.AbstractModel):
     # 要拍哪些情境
     # ------------------------------------------------------------------
     @api.model
+    def _knowledge_run_finished(self, run):
+        """一輪結束：把這個方案暫存的發佈一次推完，並寫更新摘要（內部紀錄，不寄信給學員）。"""
+        res = super()._knowledge_run_finished(run)
+        pkg = run.package_id
+        if self.env['corpaas.knowledge.run'].sudo().search_count(
+                [('package_id', '=', pkg.id), ('state', '=', 'running'), ('id', '!=', run.id)]):
+            return res   # 還有別輪在跑：留給它收尾
+        Placement = self.env['corpaas.knowledge.placement'].sudo()
+        deferred = Placement.search([('sync_deferred', '=', True), ('package_id', '=', pkg.id)])
+        channels = deferred.mapped('channel_id') | self.env['slide.channel'].sudo().search(
+            [('knowledge_sync_deferred', '=', True), ('knowledge_product_tmpl_id', '=', pkg.product_tmpl_id.id)])
+        if not channels:
+            return res
+        new = deferred.filtered(lambda p: not p.last_synced_rev).mapped('article_id')
+        updated = deferred.filtered('last_synced_rev').mapped('article_id')
+        for channel in channels:
+            pls = deferred.filtered(lambda p: p.channel_id == channel)
+            channel.with_context(kb_flush_deferred=True)._knowledge_sync(pls)
+            channel.knowledge_sync_deferred = False
+        deferred.write({'sync_deferred': False})
+        lines = []
+        if new:
+            lines.append(_('新增 %s 篇：%s') % (len(new), '、'.join(new.mapped('name')[:30])))
+        if updated:
+            lines.append(_('更新 %s 篇：%s') % (len(updated), '、'.join(updated.mapped('name')[:30])))
+        summary = '\n'.join(lines) or _('只重新整理章節順序')
+        run.release_summary = summary
+        if hasattr(pkg, 'message_post'):
+            pkg.message_post(body=_('知識更新已發佈（%s）：%s') % (run.reason or '-', summary),
+                             subtype_xmlid='mail.mt_note')
+        return res
+
+    @api.model
     def _knowledge_scenarios_needing_shots(self, package, events):
         """要重建說明庫的情境：還沒有這個指紋的範本或繫結、待拍（pending）、成功卻沒素材、
         情境示範資料變了。

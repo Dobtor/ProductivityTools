@@ -306,6 +306,21 @@ class TestManualHooks(ManualCase):
         art._do_publish('new')
         return art, block
 
+    def test_publish_is_batched_during_refresh(self):
+        """整批發佈：更新進行中只登記，這一輪結束時一次推完並寫摘要；不在更新中照舊立刻推。"""
+        self._only_f1()
+        self._fp(self.f1, 'h1')
+        run = self.env['corpaas.knowledge.run'].sudo().create(
+            {'package_id': self.pkg.id, 'token': 'tok-batch', 'reason': 'modules'})
+        art, _blk = self._published_article()
+        pl = art.placement_ids.filtered(lambda p: p.package_id == self.pkg)
+        self.assertTrue(pl.sync_deferred, '更新進行中：先登記')
+        self.assertFalse(pl.slide_id, '還沒推到課程')
+        run.mark_done()
+        self.assertFalse(pl.sync_deferred)
+        self.assertTrue(pl.slide_id, '這一輪結束時一次推完')
+        self.assertIn(art.name, run.release_summary or '', '更新摘要列出這篇')
+
     def test_scope_change_in_shared_article_forks_new_one(self):
         """B1：兩個方案共用一篇；方案 A 改版 → A 分岔一篇新的，B 的文字與圖一個字都不變。"""
         self._only_f1()

@@ -101,6 +101,8 @@ class KnowledgePlacement(models.Model):
     slide_id = fields.Many2one('slide.slide', ondelete='set null', readonly=True)
     sequence = fields.Integer(default=10, help='章節內排序')
     last_synced_rev = fields.Integer(readonly=True)
+    sync_deferred = fields.Boolean(readonly=True, copy=False, index=True,
+                                   help='知識更新進行中：先登記，這一輪結束時和其他文章一起發佈')
     text_hash = fields.Char(readonly=True, help='上次推送的文字雜湊（判斷是否重設「新」標記）')
     is_canonical = fields.Boolean(string='主要位置', copy=False,
                                   help='多個 channel 都有這篇文章時，搜尋引擎以這個為準')
@@ -367,6 +369,8 @@ class SlideChannel(models.Model):
     knowledge_product_tmpl_id = fields.Many2one(
         'product.template', string='方案產品', index=True, ondelete='set null', copy=False,
         help='方案知識：一個方案產品一個說明 channel')
+    knowledge_sync_deferred = fields.Boolean(readonly=True, copy=False, index=True,
+                                             help='知識更新進行中有暫存的發佈（這一輪結束時一次推）')
     knowledge_private_key = fields.Char(string='客戶專屬鍵', index=True, copy=False, readonly=True,
                                         help='建議書來源的客戶專屬說明書：方案產品＋客戶')
     knowledge_partner_id = fields.Many2one('res.partner', string='專屬客戶', copy=False, readonly=True)
@@ -403,6 +407,19 @@ class SlideChannel(models.Model):
                 channel._knowledge_sync(mine)
         return True
 
+    def _knowledge_defer_sync(self, placements):
+        """整批發佈：這個 channel 的方案正在跑知識更新 → 只登記，這一輪結束時一次推（租戶不會在更新中途
+        陸續看到零碎的改動）。不在更新中（例如人工核准單篇）就照舊立刻推。"""
+        self.ensure_one()
+        pkgs = placements.sudo().mapped('package_id') or self.env['corpaas.knowledge.placement'].sudo().search(
+            [('channel_id', '=', self.id)]).mapped('package_id')
+        if not pkgs or not self.env['corpaas.knowledge.run'].sudo().search_count(
+                [('package_id', 'in', pkgs.ids), ('state', '=', 'running')]):
+            return False
+        placements.sudo().write({'sync_deferred': True})
+        self.sudo().knowledge_sync_deferred = True
+        return True
+
     def _knowledge_sync(self, placements):
         """★ 原子發佈：一個 channel 一個 savepoint。讀回不一致 → 整個 channel 回滾。
 
@@ -410,6 +427,8 @@ class SlideChannel(models.Model):
         last_synced_rev 不動，下一次 refresh 會重推（_manual_refresh_article）。
         """
         self.ensure_one()
+        if not self.env.context.get('kb_flush_deferred') and self._knowledge_defer_sync(placements):
+            return True
         Placement = self.env['corpaas.knowledge.placement'].sudo()
         placements = placements.sudo()
         errors = {}
