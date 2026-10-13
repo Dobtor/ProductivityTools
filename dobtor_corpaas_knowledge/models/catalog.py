@@ -441,12 +441,16 @@ class KnowledgeScenario(models.Model):
         return res
 
     def _knowledge_refresh_packages(self, reason='seed_approved'):
+        """示範資料變了：只重建、重拍這些情境（記在方案上，下一輪轉成「情境變了」事件），不整個方案全量重拍。"""
         packages = self.mapped('package_ids').filtered('knowledge_enabled')
         if not packages:
             return packages
         try:
             with self.env.cr.savepoint():
-                packages.sudo().knowledge_enqueue_refresh(full=True, reason=reason)
+                for pkg in packages:
+                    mine = self.filtered(lambda sc: pkg in sc.package_ids)
+                    pkg.sudo()._knowledge_bookkeep({'knowledge_pending_scenario_ids': [(4, sc.id) for sc in mine]})
+                packages.sudo().knowledge_enqueue_refresh(full=False, reason=reason)
         except Exception as e:  # noqa: BLE001 — 排不了只記一筆，核准照樣成立
             _logger.warning('[knowledge] 示範資料核准後排更新失敗：%s', e)
         return packages

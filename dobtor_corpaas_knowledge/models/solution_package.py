@@ -66,6 +66,9 @@ class SolutionPackage(models.Model):
     knowledge_last_refresh = fields.Datetime(readonly=True, copy=False)
     knowledge_last_token = fields.Char(readonly=True, copy=False)
     knowledge_image_digest = fields.Char(readonly=True, copy=False)
+    knowledge_pending_scenario_ids = fields.Many2many(
+        'corpaas.knowledge.scenario', 'corpaas_knowledge_package_pending_scenario_rel', 'package_id', 'scenario_id',
+        readonly=True, copy=False, help='示範資料核准過、下一輪要重建重拍的情境（取代整個方案全量重拍）')
     knowledge_pending_full = fields.Boolean(readonly=True, copy=False,
                                             help='待執行的更新要做全量（多個觸發合併成一張）')
     knowledge_include_official = fields.Boolean(
@@ -286,6 +289,13 @@ class SolutionPackage(models.Model):
         run = Run.create({
             'package_id': self.id, 'token': token, 'full': bool(full), 'reason': reason or '',
             'queue_id': qid or False})
+        # 示範資料核准記下的情境：轉成這一輪的「情境變了」事件（只重建、重拍那幾個情境）
+        pend = self.sudo().knowledge_pending_scenario_ids
+        if pend:
+            self.env['corpaas.knowledge.event'].sudo().create([
+                {'type': 'scenario_changed', 'package_id': self.id, 'scenario_id': sc.id, 'refresh_token': token}
+                for sc in pend])
+            self._knowledge_bookkeep({'knowledge_pending_scenario_ids': [(5,)]})
         self._knowledge_commit()
         try:
             run.begin_stage('prepare')
@@ -2152,8 +2162,10 @@ class SolutionPackage(models.Model):
     def _corpaas_bind_masters(self, version, masters, publish_website=False):
         res = super()._corpaas_bind_masters(version, masters,
                                             publish_website=publish_website)
+        # ★ 上架跑增量：新母體的程式碼若與上一版相同，指紋不變就不重拍；有變的模組增量會抓到。
+        #   第一次（還沒有指紋）增量自然等於全量。全量只留每月保底與手動。
         self.filtered('knowledge_enabled').knowledge_enqueue_refresh(
-            full=True, reason='publish')
+            full=False, reason='publish')
         return res
 
     @api.model

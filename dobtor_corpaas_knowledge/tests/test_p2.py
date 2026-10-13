@@ -442,7 +442,7 @@ class TestAutoChain(TransactionCase):
         self.assertEqual(sel.state, 'approved')
         self.assertTrue(sel.scenario_id)
 
-    def test_seed_approval_enqueues_full_refresh_once(self):
+    def test_seed_approval_enqueues_scenario_refresh_once(self):
         Pkg = type(self.pkg)
         Sc = type(self.env['corpaas.knowledge.scenario'])
         calls = []
@@ -456,7 +456,9 @@ class TestAutoChain(TransactionCase):
             sc.knowledge_propose('new')
             self.assertEqual(sc.state, 'review')
             sc.with_user(self.approver).action_approve()
-            self.assertEqual(calls, [([self.pkg.id], {'full': True, 'reason': 'seed_approved'})])
+            # 只重拍這個情境（記在方案上），不整個方案全量
+            self.assertEqual(calls, [([self.pkg.id], {'full': False, 'reason': 'seed_approved'})])
+            self.assertIn(sc, self.pkg.knowledge_pending_scenario_ids)
             # 只改敘事再核准：不排更新
             sc.narrative = '改敘事'
             sc.knowledge_propose('new')

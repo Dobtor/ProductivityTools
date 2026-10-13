@@ -60,3 +60,11 @@ class TestRefreshThrottle(TransactionCase):
         self._job().state = 'cancel'
         self.pkg.knowledge_enqueue_refresh(reason='manual')
         self.assertFalse(self._job().q_datetime, '手動不受上限')
+
+    def test_seed_approval_reshoots_only_that_scenario(self):
+        sc = self.env['corpaas.knowledge.scenario'].create({'name': '情境甲', 'code': 'kbthr_a',
+                                                            'package_ids': [(4, self.pkg.id)]})
+        sc._knowledge_refresh_packages()
+        self.assertIn(sc, self.pkg.knowledge_pending_scenario_ids, '記下要重拍的情境')
+        self.assertFalse(self.pkg.knowledge_pending_full, '不整個方案全量')
+        self.assertEqual(len(self._job()), 1)
