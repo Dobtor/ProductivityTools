@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_solution_package_form_knowledge_reseller" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.knowledge.reseller</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_solution_package_form_knowledge_project"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='knowledge_kind']" position="after">
+                <field name="knowledge_reseller_id" readonly="1" invisible="not knowledge_reseller_id"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
