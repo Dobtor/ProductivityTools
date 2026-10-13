@@ -22,6 +22,14 @@ class KnowledgeHelp(models.AbstractModel):
         if not pkg:
             pkg = db.instance_id.template_package_id \
                 or db.instance_id.corpaas_pin_source_id.template_package_id
+        if not pkg and db.partner_id:
+            # 專案客戶（第五期）：沒有方案，依客戶找專案知識（客戶的正式機、測試機都對到同一份）
+            pkg = self.env['infrastructure.solution.package'].sudo().search([
+                ('knowledge_kind', '=', 'project'),
+                ('knowledge_project_partner_id', 'child_of', db.partner_id.commercial_partner_id.id)], limit=1) \
+                or self.env['infrastructure.solution.package'].sudo().search([
+                    ('knowledge_kind', '=', 'project'),
+                    ('knowledge_project_partner_id.name', '=', db.partner_id.commercial_partner_id.name)], limit=1)
         return pkg
 
     @api.model

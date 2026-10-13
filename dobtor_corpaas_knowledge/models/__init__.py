@@ -31,4 +31,5 @@ from . import plan_design
 from . import plan_exec
 from . import feedback
 from . import overlay
+from . import project_knowledge
 from . import federation

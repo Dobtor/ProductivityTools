@@ -39,6 +39,16 @@ class _FakeGolden:
     def _corpaas_golden_sync_code(self):
         return []
 
+    # 知識的基準入口（第五期）：替身照黃金庫回答
+    def _knowledge_base_ok(self):
+        return self.golden_state == 'verified'
+
+    def _knowledge_base_sync_code(self):
+        return self._corpaas_golden_sync_code()
+
+    def _knowledge_is_project_base(self):
+        return False
+
 
 class _FakeMaster(_FakeInstance):
     display_name = 'fake master'
@@ -48,6 +58,9 @@ class _FakeMaster(_FakeInstance):
         self.golden = _FakeGolden(self)
 
     def _corpaas_golden_db(self, version=None):
+        return self.golden
+
+    def _knowledge_base_db(self):
         return self.golden
 
 

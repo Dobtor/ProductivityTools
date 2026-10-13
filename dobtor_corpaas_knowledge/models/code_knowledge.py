@@ -410,7 +410,7 @@ class SolutionPackageCode(models.Model):
         ★ 依模組目錄雜湊沿用：模組沒改就不重讀，換方案也共用。AI 讀不到程式（沒掛載、Hub 沒授權）
           就先只存結構事實，下次再補。回傳寫了幾份 AI 摘要。"""
         self.ensure_one()
-        golden = self._knowledge_master()._corpaas_golden_db()
+        golden = self._knowledge_master()._knowledge_base_db()
         instance, db = golden.instance_id, golden.name
         code = self.knowledge_profile().get('code') or {}
         if not code.get('addons'):

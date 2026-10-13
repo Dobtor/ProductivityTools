@@ -638,7 +638,7 @@ class KnowledgeScenario(models.Model):
         from ..services import remote, scripts
         package = self.package_ids[:1]
         master = package._knowledge_master()
-        golden = master._corpaas_golden_db()
+        golden = master._knowledge_base_db()
         features = self.env['corpaas.knowledge.feature'].search(
             [('package_ids', 'in', package.id), ('model', '!=', False)]).sorted(
             lambda f: -(f.attr_for(package, 'usage_score') or 0))[:60]
@@ -734,7 +734,7 @@ class KnowledgeScenario(models.Model):
             return {}
         try:
             from ..services import remote, scripts
-            golden = package._knowledge_master()._corpaas_golden_db()
+            golden = package._knowledge_master()._knowledge_base_db()
             return remote.shell_json(self.env, golden.instance_id, golden.name,
                                      scripts.screen_filter_script(actions)) or {}
         except Exception as e:  # noqa: BLE001
@@ -766,7 +766,7 @@ class KnowledgeScenario(models.Model):
         if bad_models:
             try:
                 from ..services import remote, scripts
-                golden = package._knowledge_master()._corpaas_golden_db()
+                golden = package._knowledge_master()._knowledge_base_db()
                 fields_info = remote.shell_json(self.env, golden.instance_id, golden.name,
                                                 scripts.fields_script(bad_models))
             except Exception as e:  # noqa: BLE001 — 拿不到欄位就照舊只給錯誤訊息

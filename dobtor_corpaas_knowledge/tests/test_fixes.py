@@ -189,7 +189,7 @@ class TestSeedDraft(TransactionCase):
         Pkg, Ai = type(pkg), type(self.env['corpaas.knowledge.ai'])
         from ..services import remote
         golden = type('G', (), {'instance_id': None, 'name': 'g'})()
-        master = type('M', (), {'_corpaas_golden_db': lambda s: golden})()
+        master = type('M', (), {'_corpaas_golden_db': lambda s: golden, '_knowledge_base_db': lambda s: golden})()
         with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: master), \
                 patch.object(remote, 'shell_json', return_value={'res.partner': {}}), \
                 patch.object(Ai, 'ask', return_value={'seed': [

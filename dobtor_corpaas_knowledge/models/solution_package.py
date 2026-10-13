@@ -342,8 +342,8 @@ class SolutionPackage(models.Model):
         Event = self.env['corpaas.knowledge.event'].sudo()
         with self._op_step('kb_check'):
             master = self._knowledge_master()
-            golden = master._corpaas_golden_db()
-            if not golden or golden.golden_state != 'verified':
+            golden = master._knowledge_base_db()
+            if not golden or not golden._knowledge_base_ok():
                 raise UserError(_('母體「%s」沒有已驗證的黃金庫。') % master.display_name)
         with self._op_step('kb_golden_sync'):
             with golden._corpaas_golden_lock():
@@ -351,7 +351,7 @@ class SolutionPackage(models.Model):
                 # golden_refresh_state：知識更新要最新的模組狀態（開通前則只讀快取）
                 changed = golden.with_context(
                     knowledge_skip_modules_trigger=True,
-                    golden_refresh_state=True)._corpaas_golden_sync_code()
+                    golden_refresh_state=True)._knowledge_base_sync_code()
             if changed:
                 Event.create({'type': 'code_changed', 'package_id': self.id,
                               'refresh_token': token,
@@ -496,7 +496,7 @@ class SolutionPackage(models.Model):
           會計四個角色都只是內部使用者——拿那些帳號拍，畫面全是權限錯誤。"""
         self.ensure_one()
         try:
-            golden = self._knowledge_master()._corpaas_golden_db()
+            golden = self._knowledge_master()._knowledge_base_db()
             rows = remote.shell_json(self.env, golden.instance_id, golden.name,
                                      scripts.groups_script())
             groups = sorted({'%s｜%s／%s' % (r['xmlid'], r.get('app') or '', r.get('name') or '')
@@ -603,7 +603,7 @@ class SolutionPackage(models.Model):
         self.ensure_one()
         have = set(self._provision_module_names())
         master = self._knowledge_master(raise_if_missing=False)
-        golden = master._corpaas_golden_db() if master else None
+        golden = master._knowledge_base_db() if master else None
         if golden:
             have |= self._knowledge_golden_installed(golden)
         return have

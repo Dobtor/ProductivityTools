@@ -105,6 +105,11 @@ class KnowledgeSandbox(models.Model):
         return remote.shell_json(self.env, self.master_instance_id, self.db_name, script,
                                  overlay=self._overlay_args())
 
+    def _knowledge_needs_serve(self):
+        """拍照要不要另起只服務這個說明庫的臨時 Odoo：有客戶疊加，或基準是專案的測試實例。"""
+        self.ensure_one()
+        return bool(self.overlay_id) or self.package_id.knowledge_kind == 'project'
+
     def _overlay_args(self):
         """(掛載參數, addons 路徑參數)；沒有疊加回 None。"""
         self.ensure_one()
@@ -126,7 +131,7 @@ class KnowledgeSandbox(models.Model):
         """示範資料以外、重建說明庫要用到的輸入。"""
         self.ensure_one()
         master = self.master_instance_id
-        golden = master._corpaas_golden_db()
+        golden = master._knowledge_base_db()
         scenario = self.scenario_id
         purge = golden._knowledge_needs_purge()
         return [golden.id, golden.name, master._corpaas_code_manifest(),
@@ -238,8 +243,8 @@ class KnowledgeSandbox(models.Model):
             if ovl != self.overlay_id:
                 self.write({'overlay_id': ovl.id or False, 'overlay_addons_path': False})
             master = self.master_instance_id
-            golden = master._corpaas_golden_db()
-            if not golden or golden.golden_state != 'verified':
+            golden = master._knowledge_base_db()
+            if not golden or not golden._knowledge_base_ok():
                 raise UserError(_('母體「%s」沒有已驗證的黃金庫，不能建立說明庫。')
                                 % master.display_name)
             # 複製黃金庫一次吃好幾 GB：主機硬碟紅燈或空間不夠先擋下（PAAS 硬碟閘）
@@ -253,9 +258,10 @@ class KnowledgeSandbox(models.Model):
             self.write({'state': 'cloning', 'error': False, 'golden_id': golden.id,
                         'ready_at': False, 'purged_at': False})
             with golden._corpaas_golden_lock():
-                golden._corpaas_golden_sync_code()
+                golden._knowledge_base_sync_code()
+                # ★ 專案的基準是客戶測試庫（未中和）：複製時一併中和（排程、外寄信件）
                 golden._duplicate_db_physical(self.db_name, False, overwrite=True,
-                                              neutralize=False)
+                                              neutralize=golden._knowledge_is_project_base())
             self.write({'code_manifest': json.dumps(master._corpaas_code_manifest(),
                                                     sort_keys=True),
                         'state': 'purging'})
@@ -394,16 +400,17 @@ class KnowledgeSandbox(models.Model):
         if not self.overlay_id:
             raise UserError(_('掃描用說明庫一定要有客戶疊加模組。'))
         master = self.master_instance_id
-        golden = master._corpaas_golden_db()
-        if not golden or golden.golden_state != 'verified':
+        golden = master._knowledge_base_db()
+        if not golden or not golden._knowledge_base_ok():
             raise UserError(_('母體「%s」沒有已驗證的黃金庫。') % master.display_name)
         if hasattr(master.server_id, '_assert_disk_room'):
             master.server_id._assert_disk_room(_('建立掃描用說明庫'), need_gb=2)
         try:
             self.write({'state': 'cloning', 'error': False, 'golden_id': golden.id})
             with golden._corpaas_golden_lock():
-                golden._corpaas_golden_sync_code()
-                golden._duplicate_db_physical(self.db_name, False, overwrite=True, neutralize=False)
+                golden._knowledge_base_sync_code()
+                golden._duplicate_db_physical(self.db_name, False, overwrite=True,
+                                              neutralize=golden._knowledge_is_project_base())
             self.write({'state': 'seeding'})
             self._install_overlay()
             self.write({'state': 'ready', 'ready_at': fields.Datetime.now()})
@@ -430,7 +437,7 @@ class KnowledgeSandbox(models.Model):
         return res
 
     def drop(self):
-        for rec in self.filtered(lambda r: r.overlay_id):
+        for rec in self.filtered(lambda r: r._knowledge_needs_serve()):
             overlay_svc.serve_stop(rec.master_instance_id.server_id, rec.db_name)
         for rec in self.filtered(lambda r: r.state != 'dropped'):
             # ★ 刪除前再驗一次名稱：_drop_full 刪的是 PG 上的庫，名字錯了就是客戶的庫。

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 實例表單：客戶測試實例上「建立專案知識」 -->
+    <record id="view_instance_form_knowledge_project" model="ir.ui.view">
+        <field name="name">infrastructure.instance.form.knowledge.project</field>
+        <field name="model">infrastructure.instance</field>
+        <field name="inherit_id" ref="dobtor_infrastructure.view_infrastructure_instance_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="knowledge_project_ids" invisible="1"/>
+                <button name="action_knowledge_create_project" type="object" string="建立專案知識"
+                        invisible="knowledge_project_ids or state != 'active'"
+                        groups="dobtor_corpaas_knowledge.group_knowledge_manager"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_knowledge_project_wizard" model="ir.ui.view">
+        <field name="model">corpaas.knowledge.project.wizard</field>
+        <field name="arch" type="xml">
+            <form string="建立專案知識">
+                <div class="alert alert-info" role="status">
+                    以這座客戶實例為知識基準：盤點功能點、讀客戶客製模組程式（只讀）、做整個客戶系統的說明書。
+                    說明庫是複製這座的資料庫、中和並清除客戶資料後才拍照。
+                </div>
+                <div class="alert alert-warning" role="alert" invisible="not is_production_warning">
+                    名稱看起來不是測試實例。專案知識應該用客戶的<b>測試實例</b>，不要用正式機。
+                </div>
+                <group>
+                    <field name="instance_id" readonly="1"/>
+                    <field name="database_id"/>
+                    <field name="partner_id"/>
+                    <field name="is_production_warning" invisible="1"/>
+                </group>
+                <group string="客戶同意">
+                    <field name="consent"/>
+                    <field name="consent_note" required="consent" placeholder="例如：合約第 9 條、2026-10-13 會議同意"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object" string="建立並開始盤點" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 方案表單（知識頁）：種類與專案欄位 -->
+    <record id="view_solution_package_form_knowledge_project" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.form.knowledge.project</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="inherit_id" ref="dobtor_corpaas_knowledge.view_solution_package_form_knowledge"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='knowledge_enabled']" position="before">
+                <field name="knowledge_kind" readonly="1"/>
+                <field name="knowledge_project_partner_id" invisible="knowledge_kind != 'project'"/>
+                <field name="knowledge_project_instance_id" invisible="knowledge_kind != 'project'"/>
+                <field name="knowledge_project_database_id" invisible="knowledge_kind != 'project'"/>
+                <field name="knowledge_project_consent" invisible="knowledge_kind != 'project'" readonly="1"/>
+                <field name="knowledge_project_consent_note" invisible="knowledge_kind != 'project'" readonly="1"/>
+                <field name="knowledge_project_consent_user_id" invisible="knowledge_kind != 'project'"/>
+                <field name="knowledge_project_consent_at" invisible="knowledge_kind != 'project'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 方案知識 › 專案知識 -->
+    <record id="view_knowledge_project_list" model="ir.ui.view">
+        <field name="name">infrastructure.solution.package.list.knowledge.project</field>
+        <field name="model">infrastructure.solution.package</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list create="0">
+                <field name="knowledge_project_partner_id"/>
+                <field name="knowledge_project_instance_id"/>
+                <field name="knowledge_project_database_id"/>
+                <field name="knowledge_enabled"/>
+                <button name="action_knowledge_project_refresh" type="object" string="立即更新" icon="fa-refresh"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_knowledge_project" model="ir.actions.act_window">
+        <field name="name">專案知識</field>
+        <field name="res_model">infrastructure.solution.package</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('knowledge_kind', '=', 'project')]</field>
+        <field name="context">{'default_knowledge_kind': 'project'}</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_knowledge_project_list')})]"/>
+        <field name="help" type="html"><p>專案客戶的知識：到客戶的<b>測試實例</b>表單按「建立專案知識」。</p></field>
+    </record>
+    <menuitem id="menu_knowledge_project" name="專案知識" parent="menu_knowledge_root"
+              action="action_knowledge_project" sequence="5"/>
+</odoo>

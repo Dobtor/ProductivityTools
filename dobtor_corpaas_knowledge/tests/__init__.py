@@ -23,3 +23,4 @@ from . import test_diagrams
 from . import test_plan
 from . import test_federation
 from . import test_overlay
+from . import test_project_knowledge

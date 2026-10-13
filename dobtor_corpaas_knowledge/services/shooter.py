@@ -48,10 +48,12 @@ def run_shots(env, sandbox, shots, settings):
     instance = sandbox.master_instance_id
     server = instance.server_id
     # 客戶疊加的說明庫：母體容器看不到疊加模組，另起一個只服務這個說明庫的臨時 Odoo
+    # ★ 專案的說明庫在客戶測試實例上：測試站的 dbfilter 只服務自己的庫，也一律改用臨時 Odoo
     serve = None
-    if getattr(sandbox, 'overlay_id', False):
+    if getattr(sandbox, 'overlay_id', False) or (hasattr(sandbox, '_knowledge_needs_serve')
+                                                 and sandbox._knowledge_needs_serve()):
         from . import overlay as overlay_svc
-        mount, addons = sandbox._overlay_args()
+        mount, addons = sandbox._overlay_args() or ('', '')
         serve = overlay_svc.serve_start(env, instance, sandbox.db_name, mount, addons)
     token = uuid.uuid4().hex[:12]
     job_dir = '%s/%s' % (JOBS_ROOT, token)

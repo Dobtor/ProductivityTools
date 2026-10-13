@@ -62,9 +62,9 @@ class KnowledgePlanCheck(models.Model):
         out = []
         # C1 來源資料完整
         master = pkg._knowledge_master(raise_if_missing=False)
-        golden = master._corpaas_golden_db() if master else None
+        golden = master._knowledge_base_db() if master else None
         if self.source_type == 'product':
-            if not golden or golden.golden_state != 'verified':
+            if not golden or not golden._knowledge_base_ok():
                 out.append(_r('C1', _('來源資料完整'), BLOCK, _('母體沒有已驗證的黃金庫')))
             elif not (pkg.knowledge_target_brief or '').strip():
                 out.append(_r('C1', _('來源資料完整'), WARN,
@@ -128,6 +128,14 @@ class KnowledgePlanCheck(models.Model):
                                 st=_('黃燈') if server.disk_state == 'amber' else _('沒量過'), f=free)))
             else:
                 out.append(_r('C9', _('說明主機磁碟足夠')))
+        # C10 AI 讀得到基準實例的程式：沒開時程式知識會默默只存結構（C4 擋下卻看不出原因）
+        if master and 'ai_source_mount' in master._fields:
+            if not master.ai_source_mount:
+                out.append(_r('C10', _('AI 讀得到基準實例的程式'), WARN, _(
+                    '%s 沒有勾「允許 AI 讀原始碼」：到實例表單勾選 → 該主機 AI Runner 按「同步來源」→ '
+                    'AI Hub 的知識來源「知識內容可讀的實例」加上它') % master.name))
+            else:
+                out.append(_r('C10', _('AI 讀得到基準實例的程式')))
         # C8 預算
         est = self._design_cost_estimate()
         out.append(_r('C8', _('計畫設計預估成本在預算內'), WARN if est > (self.budget or 0) else PASS,

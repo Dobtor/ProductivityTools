@@ -91,3 +91,4 @@ access_kb_overlay_editor,kb.overlay.editor,model_corpaas_knowledge_overlay,group
 access_kb_overlay_manager,kb.overlay.manager,model_corpaas_knowledge_overlay,group_knowledge_manager,1,1,1,1
 access_kb_overlay_line_editor,kb.overlay.line.editor,model_corpaas_knowledge_overlay_line,group_knowledge_editor,1,0,0,0
 access_kb_overlay_line_manager,kb.overlay.line.manager,model_corpaas_knowledge_overlay_line,group_knowledge_manager,1,1,1,1
+access_kb_project_wizard_manager,kb.project.wizard.manager,model_corpaas_knowledge_project_wizard,group_knowledge_manager,1,1,1,1

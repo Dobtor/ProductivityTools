@@ -80,7 +80,7 @@ class KnowledgePlanLedger(models.Model):
         code = pkg.knowledge_profile().get('code') or {}
         addons = code.get('addons') or {}
         master = pkg._knowledge_master(raise_if_missing=False)
-        golden = master._corpaas_golden_db() if master else None
+        golden = master._knowledge_base_db() if master else None
         bom = set(pkg._provision_module_names())
         installed = pkg._knowledge_golden_installed(golden) if golden else set()
         scope = set(pkg._knowledge_scope_names() or []) or (bom | installed)
@@ -297,14 +297,14 @@ class SolutionPackageLedger(models.Model):
         Event = self.env['corpaas.knowledge.event'].sudo()
         with self._op_step('kb_check'):
             master = self._knowledge_master()
-            golden = master._corpaas_golden_db()
-            if not golden or golden.golden_state != 'verified':
+            golden = master._knowledge_base_db()
+            if not golden or not golden._knowledge_base_ok():
                 raise UserError(_('母體「%s」沒有已驗證的黃金庫。') % master.display_name)
         with self._op_step('kb_golden_sync'):
             with golden._corpaas_golden_lock():
                 changed = golden.with_context(
                     knowledge_skip_modules_trigger=True,
-                    golden_refresh_state=True)._corpaas_golden_sync_code()
+                    golden_refresh_state=True)._knowledge_base_sync_code()
             if changed:
                 Event.create({'type': 'code_changed', 'package_id': self.id, 'refresh_token': token,
                               'payload': json.dumps({'modules': changed})})

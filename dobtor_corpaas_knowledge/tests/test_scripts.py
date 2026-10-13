@@ -552,7 +552,7 @@ class TestModuleSummary(TransactionCase):
             return {'purpose': '推薦碼與分享金', 'rules': ['推薦人要是會員'], 'setup': ['先設佣金規則'],
                     'methods': {'m1': {'summary': '產生推薦碼', 'preconditions': ['聯絡人要是會員']}}}
 
-        master = SimpleNamespace(_corpaas_golden_db=lambda: golden)
+        master = SimpleNamespace(_corpaas_golden_db=lambda: golden, _knowledge_base_db=lambda: golden)
         with patch.object(Pkg, '_knowledge_master', lambda s, raise_if_missing=True: master), \
                 patch.object(Pkg, '_knowledge_runner_path',
                              lambda s, path, inst: path.replace('/mnt/src', '/instances/tpl-14') if path.startswith('/mnt/src') else ''), \
