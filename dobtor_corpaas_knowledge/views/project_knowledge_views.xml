@@ -55,6 +55,10 @@
                 <field name="knowledge_project_partner_id" invisible="knowledge_kind != 'project'"/>
                 <field name="knowledge_project_instance_id" invisible="knowledge_kind != 'project'"/>
                 <field name="knowledge_project_database_id" invisible="knowledge_kind != 'project'"/>
+                <field name="knowledge_hub_url" invisible="knowledge_kind != 'project'"
+                       placeholder="留空＝全域 AI Hub"/>
+                <field name="knowledge_hub_key" password="True" groups="base.group_system"
+                       invisible="knowledge_kind != 'project' or not knowledge_hub_url"/>
                 <field name="knowledge_project_consent" invisible="knowledge_kind != 'project'" readonly="1"/>
                 <field name="knowledge_project_consent_note" invisible="knowledge_kind != 'project'" readonly="1"/>
                 <field name="knowledge_project_consent_user_id" invisible="knowledge_kind != 'project'"/>

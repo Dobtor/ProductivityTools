@@ -58,13 +58,20 @@ class KnowledgeAi(models.AbstractModel):
     _description = '知識 AI 呼叫'
 
     @api.model
-    def _conf(self):
+    def _conf(self, package=None):
+        """AI Hub 設定。方案（專案知識）可指定自己的 Hub：AI 要讀程式時，Hub 的 Runner
+        必須和基準實例在同一台主機（例如經銷商主機上的專案），全域 Hub 的 Runner 讀不到。"""
         icp = self.env['ir.config_parameter'].sudo()
-        return {
+        conf = {
             'hub_url': icp.get_param('corpaas_knowledge.hub_url') or '',
             'hub_key': icp.get_param('corpaas_knowledge.hub_key') or '',
             'budget': float(icp.get_param('corpaas_knowledge.budget_usd_per_refresh') or 20.0),
         }
+        pkg = package.sudo() if package else None
+        if pkg and 'knowledge_hub_url' in pkg._fields and pkg.knowledge_hub_url \
+                and pkg.knowledge_hub_key:
+            conf.update(hub_url=pkg.knowledge_hub_url, hub_key=pkg.knowledge_hub_key)
+        return conf
 
     @api.model
     def spent(self, refresh_token):
@@ -100,7 +107,7 @@ class KnowledgeAi(models.AbstractModel):
         超出本次 refresh 預算時拋 BudgetExceeded——呼叫端應把工作留到下一次，
         而不是當成失敗。
         """
-        conf = self._conf()
+        conf = self._conf(package)
         prompt = self._with_profile(purpose, prompt, package)
         cacheable = purpose in CACHEABLE
         phash = hashlib.sha256(('%s\n%s\n%s' % (purpose, static or '', prompt)).encode('utf-8')
@@ -213,7 +220,7 @@ class KnowledgeAi(models.AbstractModel):
         from concurrent.futures import ThreadPoolExecutor
         if txn.in_tests(self.env) and not self.env.context.get('kb_prefetch_in_tests'):
             return 0
-        conf = self._conf()
+        conf = self._conf(package)
         items = [(it[0], self._with_profile(it[0], it[1], package), it[2] if len(it) > 2 else None)
                  for it in items]
         todo = [(p, q, st) for p, q, st in items

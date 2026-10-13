@@ -31,6 +31,12 @@ class SolutionPackageProject(models.Model):
         'infrastructure.database', string='基準資料庫', ondelete='restrict',
         domain="[('instance_id', '=', knowledge_project_instance_id)]")
     knowledge_project_consent = fields.Boolean(string='客戶已同意 AI 讀原始碼', copy=False)
+    # 專用 AI Hub：AI 讀程式靠 Hub 的 Runner 掛載原始碼，Runner 必須和基準實例同一台主機。
+    # 基準實例在別台主機（例如經銷商自己的主機）時，指定那台主機的 Hub；留空＝全域 Hub。
+    knowledge_hub_url = fields.Char(string='專用 AI Hub 網址', copy=False,
+                                    help='例如 https://ai.qytech.com.tw；留空用系統設定的全域 Hub。')
+    knowledge_hub_key = fields.Char(string='專用 AI Hub 金鑰', copy=False, groups='base.group_system',
+                                    help='該 Hub「知識來源」的金鑰；來源要把基準實例加入可讀實例。')
     knowledge_project_consent_note = fields.Char(string='同意說明', copy=False)
     knowledge_project_consent_user_id = fields.Many2one('res.users', string='勾選人', readonly=True, copy=False)
     knowledge_project_consent_at = fields.Datetime(string='勾選時間', readonly=True, copy=False)

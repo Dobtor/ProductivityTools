@@ -131,3 +131,13 @@ class TestProjectKnowledge(TransactionCase):
                              'kind': 'action', 'anchor': 'x', 'name': '工具', 'model': 'res.partner'})
             plan = self.env['corpaas.knowledge.plan'].create({'package_id': pkg.id})
             self.assertEqual(plan._ledger_rule(feat)[0], 'exclude', '底稿再擋一次')
+
+    def test_project_can_use_its_own_hub(self):
+        pkg = self._create()
+        Ai = self.env['corpaas.knowledge.ai']
+        self.env['ir.config_parameter'].sudo().set_param('corpaas_knowledge.hub_url', 'https://global.example')
+        self.assertEqual(Ai._conf(pkg)['hub_url'], 'https://global.example')
+        pkg.write({'knowledge_hub_url': 'https://ai.reseller.example', 'knowledge_hub_key': 'k1'})
+        conf = Ai._conf(pkg)
+        self.assertEqual((conf['hub_url'], conf['hub_key']), ('https://ai.reseller.example', 'k1'))
+        self.assertEqual(Ai._conf()['hub_url'], 'https://global.example', '其他方案照舊用全域')
