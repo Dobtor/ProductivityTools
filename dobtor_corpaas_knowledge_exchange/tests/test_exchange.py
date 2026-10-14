@@ -613,3 +613,66 @@ class TestUpstreamCodeContext(_Base):
         Fact._kb_upsert({'kind': 'code_fact', 'kb_uid': 'u-f1', 'subject': 'sale.order.action_confirm',
                          'chain_hash': 'c', 'state': 'current', 'content': {'fact_json': '{}'}, 'defs': []})
         self.assertIn(('sale.order', 'action_confirm'), pkg._knowledge_button_targets())
+
+
+@tagged('post_install', '-at_install')
+class TestProjectNeverLeaves(_Base):
+    """專案方案（客戶專屬）的方案、能力、說明都不得經交換離開主控台。"""
+
+    def setUp(self):
+        super().setUp()
+        self.mode('master', 'lookup', 'ingest', 'feed')
+        self.peer = self.Peer.create({'name': 'dobtor', 'code': 'dobtor', 'role': 'replica', 'key': 'k'})
+        Pkg = self.env['infrastructure.solution.package']
+        self.proj = Pkg.create({'product_tmpl_id': self.env['product.template'].create(
+            {'name': '客戶專案', 'type': 'service'}).id, 'knowledge_kind': 'project', 'knowledge_enabled': True})
+        self.sell = Pkg.create({'product_tmpl_id': self.env['product.template'].create(
+            {'name': '一般方案', 'type': 'service'}).id, 'knowledge_enabled': True})
+        self.Feed = self.env['corpaas.knowledge.exchange.feed']
+        self.start = self.Feed.search([], order='id desc', limit=1).id
+
+    def _uids(self, op):
+        return [i.get('kb_uid') or i.get('payload', {}).get('kb_uid')
+                for i in self.Ex._serve_feed(self.peer, self.start)['items'] if i['op'] == op]
+
+    def test_project_only_capability_private_and_not_fed(self):
+        Cap = self.env['corpaas.knowledge.capability']
+        mine = Cap.create({'name': '客戶的流程', 'package_ids': [(4, self.proj.id)]})
+        shared = Cap.create({'name': '共用能力', 'package_ids': [(4, self.proj.id), (4, self.sell.id)]})
+        mine._do_publish('new')
+        shared._do_publish('new')
+        self.assertEqual(mine.kb_visibility, 'private')
+        self.assertEqual(shared.kb_visibility, 'public', '同時屬於一般方案的照常交換')
+        self.assertNotIn(mine.kb_uid, self._uids('upsert'))
+        self.assertIn(shared.kb_uid, self._uids('upsert'))
+
+    def test_already_fed_then_project_only_is_retracted(self):
+        cap = self.env['corpaas.knowledge.capability'].create(
+            {'name': '原本是一般方案', 'package_ids': [(4, self.sell.id)]})
+        cap._do_publish('new')
+        self.assertIn(cap.kb_uid, self._uids('upsert'))
+        cap.package_ids = [(6, 0, self.proj.ids)]
+        self.env['corpaas.knowledge.exchange.visibility']._classify(cap)
+        self.assertEqual(cap.kb_visibility, 'private')
+        self.assertIn(cap.kb_uid, self._uids('retract'), '從屬已拿到的要收到作廢')
+
+    def test_project_package_not_in_feed_and_old_rows_skipped(self):
+        self.env['infrastructure.solution.package']._kb_publish_packages()
+        keys = [i['payload'].get('global_key') for i in self.Ex._serve_feed(self.peer, self.start)['items']
+                if i['op'] == 'upsert' and i['payload'].get('kind') == protocol.PACKAGE_KIND]
+        self.assertIn(self.sell.knowledge_global_key, keys)
+        self.assertNotIn(self.proj.knowledge_global_key, keys)
+        # 修正前已寫進發佈清單的舊列：照樣不送
+        self.Feed.create({'kind': protocol.PACKAGE_KIND, 'res_model': self.proj._name, 'res_id': self.proj.id,
+                          'kb_uid': self.proj.knowledge_global_key, 'content_hash': 'old'})
+        items = self.Ex._serve_feed(self.peer, self.start)['items']
+        self.assertNotIn(self.proj.knowledge_global_key,
+                         [i.get('payload', {}).get('global_key') for i in items])
+
+    def test_help_refuses_project_package(self):
+        self.assertEqual(self.Ex._serve_help(self.peer, self.proj.knowledge_global_key, query='x'), [])
+
+    def test_replica_does_not_promote_project_templates(self):
+        self.mode('replica', 'ingest')
+        cap = self.env['corpaas.knowledge.capability'].create({'name': '客戶的', 'package_ids': [(4, self.proj.id)]})
+        self.assertEqual(self.Ex._submit_promotion(cap), 0)

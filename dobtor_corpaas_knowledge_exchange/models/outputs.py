@@ -103,7 +103,8 @@ class SolutionPackageExchange(models.Model):
         """主體：可用模組清單有變的方案寫進發佈清單。"""
         Feed = self.env['corpaas.knowledge.exchange.feed'].sudo()
         n = 0
-        for pkg in self.sudo().search([('knowledge_enabled', '=', True)]):
+        # ★ 專案方案（客戶專屬）不進發佈清單
+        for pkg in self.sudo().search([('knowledge_enabled', '=', True), ('knowledge_kind', '!=', 'project')]):
             payload = pkg._kb_package_payload()
             digest = hashlib.sha1(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:20]
             if digest != pkg.knowledge_exchange_hash:

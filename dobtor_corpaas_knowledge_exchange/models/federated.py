@@ -203,12 +203,16 @@ class KnowledgeFederatedExchange(models.AbstractModel):
         return todo._kb_publish()
 
     def _kb_publish(self):
-        """寫進發佈清單：公開、非鏡像、有內容的才發。"""
+        """寫進發佈清單：公開、非鏡像、有內容的才發。
+
+        ★ 只屬於專案方案的紀錄（客戶專屬）一律不發，即使公開性還沒被排程改成私有。
+        """
         Feed = self.env['corpaas.knowledge.exchange.feed'].sudo()
+        Vis = self.env['corpaas.knowledge.exchange.visibility']
         rows = [{'kind': r._kb_kind(), 'res_model': r._name, 'res_id': r.id, 'kb_uid': r.kb_uid,
                  'content_hash': r.kb_content_hash}
                 for r in self if r._kb_kind() and r.kb_visibility == 'public'
-                and r.kb_sync_state != 'mirror' and r._kb_exchange_ready()]
+                and r.kb_sync_state != 'mirror' and r._kb_exchange_ready() and not Vis._project_only(r)]
         if rows:
             Feed.create(rows)
         return len(rows)
@@ -255,6 +259,34 @@ class KnowledgeExchangeVisibility(models.AbstractModel):
                     public.add(r.technical_name)
         return public - forced
 
+    #: 範本／產出類：由所屬方案決定是否「只屬於專案」
+    PACKAGE_SCOPED = ('capability', 'scenario', 'seed_pack', 'step_block')
+
+    @api.model
+    def _packages_of(self, rec):
+        """這筆紀錄掛在哪些方案底下；None＝與方案無關（不適用專案判定）。"""
+        kind = protocol.MODEL_KIND.get(rec._name)
+        if kind in ('capability', 'scenario'):
+            return rec.package_ids
+        if kind == 'seed_pack':
+            return rec.scenario_ids.package_ids
+        if kind == 'step_block':
+            return rec.article_ids.scenario_id.package_ids
+        if kind == 'rule':
+            return rec.package_id
+        return None
+
+    @api.model
+    def _project_only(self, rec):
+        """只掛在專案方案（knowledge_kind='project'）底下：客戶專屬內容，不得離開本主控台。
+
+        同時掛在一般方案底下的（共用能力、共用步驟）不算——一般方案本來就要交換。
+        """
+        pkgs = self._packages_of(rec)
+        if not pkgs or 'knowledge_kind' not in pkgs._fields:
+            return False
+        return set(pkgs.sudo().mapped('knowledge_kind')) == {'project'}
+
     @api.model
     def _desired(self, records):
         """{record: 'public'|'private'}，只判程式知識與規則；範本類維持原值（從屬只靠人工上收送出）。"""
@@ -274,26 +306,50 @@ class KnowledgeExchangeVisibility(models.AbstractModel):
             return {r: 'private' if r.package_id else r.kb_visibility for r in records}
         if kind == 'step_block':
             pub = self._public_modules(records.mapped('feature_id.module'))
-            return {r: 'public' if r.feature_id.module in pub else 'private' for r in records}
+            return {r: 'public' if r.feature_id.module in pub and not self._project_only(r) else 'private'
+                    for r in records}
+        if kind in self.PACKAGE_SCOPED:
+            # 範本類預設公開；只屬於專案方案的改私有（專案之後又被一般方案引用時回到公開）
+            return {r: 'private' if self._project_only(r) else 'public' for r in records}
         return {r: r.kb_visibility for r in records}
 
     @api.model
     def _classify(self, records):
         """套用判定（鏡像不動）；回傳由私有轉公開的紀錄。"""
         records = records.filtered(lambda r: r.kb_sync_state != 'mirror')
-        became = records.browse()
+        became = hidden = records.browse()
         for rec, vis in self._desired(records).items():
             if rec.kb_visibility != vis:
                 _sync(rec).write({'kb_visibility': vis})
                 if vis == 'public':
                     became |= rec
-        if became and self.env['corpaas.knowledge.exchange']._mode() == 'master':
-            became._kb_publish()
+                else:
+                    hidden |= rec
+        if self.env['corpaas.knowledge.exchange']._mode() == 'master':
+            if became:
+                became._kb_publish()
+            if hidden:
+                self._retract(hidden)
         return became
 
     @api.model
+    def _retract(self, records):
+        """主體：發過的紀錄改成私有 → 寫一筆作廢進發佈清單，游標已走過的從屬也會收到並停用鏡像。"""
+        Feed = self.env['corpaas.knowledge.exchange.feed'].sudo()
+        sent = Feed.search([('res_model', '=', records._name), ('res_id', 'in', records.ids),
+                            ('op', '=', 'upsert')])
+        ids = set(sent.mapped('res_id'))
+        rows = [{'kind': r._kb_kind(), 'res_model': r._name, 'res_id': r.id, 'kb_uid': r.kb_uid,
+                 'content_hash': r.kb_content_hash, 'op': 'retract'}
+                for r in records if r.id in ids and r.kb_uid]
+        if rows:
+            Feed.create(rows)
+        return len(rows)
+
+    @api.model
     def _cron_classify(self, batch=5000):
-        for kind in ('code_def', 'module_summary', 'code_fact', 'rule', 'step_block'):
+        for kind in ('code_def', 'module_summary', 'code_fact', 'rule', 'step_block',
+                     'capability', 'scenario', 'seed_pack'):
             Model = self.env[protocol.KINDS[kind]['model']].sudo()
             self._classify(Model.search([('kb_sync_state', '!=', 'mirror')], limit=batch, order='id desc'))
         return True

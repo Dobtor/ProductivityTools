@@ -146,6 +146,7 @@ class KnowledgeExchange(models.AbstractModel):
     def _serve_feed(self, peer, cursor, limit=FEED_PAGE):
         """依游標取變更清單；同一筆只回最新狀態。回傳 {items, cursor, more}。"""
         Feed = self.env['corpaas.knowledge.exchange.feed'].sudo()
+        Vis = self.env['corpaas.knowledge.exchange.visibility']
         limit = max(1, min(int(limit or FEED_PAGE), 500))
         rows = Feed.search([('id', '>', int(cursor or 0))], limit=limit)
         items, seen = [], set()
@@ -156,10 +157,12 @@ class KnowledgeExchange(models.AbstractModel):
             seen.add(ident)
             rec = self.env[row.res_model].sudo().browse(row.res_id).exists() if row.res_model in self.env else None
             if row.kind == protocol.PACKAGE_KIND:
-                if rec:
+                # ★ 專案方案（客戶專屬）不發；舊的發佈紀錄也一併略過
+                if rec and getattr(rec, 'knowledge_kind', 'package') != 'project':
                     items.append({'op': 'upsert', 'payload': rec._kb_package_payload()})
                 continue
-            if rec and row.op == 'upsert' and rec.kb_visibility == 'public' and rec.kb_sync_state != 'mirror':
+            if rec and row.op == 'upsert' and rec.kb_visibility == 'public' and rec.kb_sync_state != 'mirror' \
+                    and not Vis._project_only(rec):
                 if rec._kb_exchange_ready():
                     items.append({'op': 'upsert', 'payload': rec._kb_export()})
                 # 暫時是草稿／待審：這次不送（核准時會再發佈），也不作廢從屬已有的上一版
@@ -195,7 +198,8 @@ class KnowledgeExchange(models.AbstractModel):
         """
         pkg = self.env['infrastructure.solution.package'].sudo().search(
             [('knowledge_global_key', '=', (global_key or '')[:120])], limit=1) if global_key else None
-        if not pkg:
+        # ★ 專案方案的說明是客戶專屬，不回給任何從屬
+        if not pkg or getattr(pkg, 'knowledge_kind', 'package') == 'project':
             return []
         try:
             limit = max(1, min(int(limit or 5), 10))
@@ -449,7 +453,10 @@ class KnowledgeExchange(models.AbstractModel):
     def _submit_promotion(self, records):
         """從屬：把本地範本項目送上收提案（人工決定才送）。"""
         n = 0
+        Vis = self.env['corpaas.knowledge.exchange.visibility']
         for rec in records:
+            if Vis._project_only(rec):
+                continue   # 專案客戶的範本不上收
             if rec.kb_sync_state in ('local', 'rejected') and protocol.KINDS.get(rec._kb_kind() or '', {}).get(
                     'category') == 'template':
                 n += self._enqueue(rec)
