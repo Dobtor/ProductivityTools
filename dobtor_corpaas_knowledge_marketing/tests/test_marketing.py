@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import base64
+import json
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
@@ -542,6 +543,70 @@ class TestKnowledgeMarketing(TransactionCase):
         self.assertEqual(len(page()['pitches']), 1)
         self.assertLessEqual(five, one + 4, '查詢數不能跟卡片數成正比（1 張 %s、5 張 %s）'
                              % (one, five))
+
+    # ------------------------------------------------------------------
+    # 匯出（白標經銷商商品頁）
+    # ------------------------------------------------------------------
+    def test_export_empty_has_no_hash(self):
+        payload, images = self.package._marketing_export()
+        self.assertEqual(payload, {'cards': [], 'release_note': None, 'content_hash': False})
+        self.assertEqual(images, set())
+        pitch = self._pitch()
+        pitch.knowledge_propose('claim')
+        self.assertFalse(self.package._marketing_export()[0]['cards'], '送審中、沒上線過的不匯出')
+
+    def test_export_live_cards_images_and_hash(self):
+        pitch = self._pitch()
+        pitch.body_html = '<p>痛點到成果</p><p><a href="https://evil.example">連結</a></p>'
+        self._publish(pitch)
+        note = self.env['corpaas.knowledge.release_note'].create(
+            {'product_tmpl_id': self.tmpl.id, 'package_id': self.package.id,
+             'title': '可以線上退費了', 'body_html': '<p>退費</p>',
+             'feature_ids': [(6, 0, self.f_pay.ids)]})
+        self._publish(note)
+        payload, images = self.package._marketing_export()
+        card = payload['cards'][0]
+        att = self.asset.attachment_id
+        self.assertEqual(card['headline'], '報名就收到錢')
+        self.assertEqual(card['claims'], ['報名後立即線上付款', '報名表自動建檔'])
+        self.assertEqual(card['images'], [{'src': 'corpaas-image:%s' % att.id, 'alt': '報名表'}])
+        self.assertEqual(images, {att.id})
+        self.assertNotIn('<a', card['body_html'], '送到別人網站前收斂成行銷白名單')
+        self.assertNotIn('/web/image', json.dumps(payload), '不外流本站網址與 access_token')
+        self.assertEqual(payload['release_note']['title'], '可以線上退費了')
+        h1 = payload['content_hash']
+        self.assertTrue(h1)
+        self.assertEqual(self.package._marketing_export()[0]['content_hash'], h1, '沒變＝同一個 hash')
+        # 未核准的改稿不影響匯出
+        pitch.headline = '還沒核准'
+        self.assertEqual(self.package._marketing_export()[0]['content_hash'], h1)
+
+    def test_export_follows_invalidation_and_retire(self):
+        pitch = self._pitch()
+        self._publish(pitch)
+        h1 = self.package._marketing_export()[0]['content_hash']
+        self._remove(self.f_pay)
+        self._dispatch(self._event('feature_removed', self.f_pay))
+        payload, images = self.package._marketing_export()
+        card = payload['cards'][0]
+        self.assertEqual(card['claims'], ['報名表自動建檔'], '待查的宣稱不匯出')
+        self.assertEqual(card['images'], [], '失效期間撤圖')
+        self.assertEqual(images, set(), '撤下的圖也不能再被下載')
+        self.assertNotEqual(payload['content_hash'], h1)
+        pitch.action_retire()
+        self.assertFalse(self.package._marketing_export()[0]['content_hash'], '下架＝清空')
+
+    def test_export_scoped_to_package(self):
+        pitch = self._pitch()
+        self._publish(pitch)
+        other_tmpl = self.env['product.template'].create({'name': '別的方案', 'type': 'service'})
+        other = self.env['infrastructure.solution.package'].create(
+            {'product_tmpl_id': other_tmpl.id})
+        self.assertFalse(other._marketing_export()[0]['cards'])
+        sibling = self.env['infrastructure.solution.package'].create(
+            {'product_tmpl_id': self.tmpl.id})
+        self.assertFalse(sibling._marketing_export()[0]['cards'],
+                         '同商品的另一個方案（例如另一個分支）不混')
 
 
 @tagged('post_install', '-at_install')
