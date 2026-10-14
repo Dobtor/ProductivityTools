@@ -4,6 +4,8 @@ from odoo.tests import TransactionCase, tagged
 
 from ..services import hub_client, scripts
 
+from odoo.addons.dobtor_infrastructure.tests.test_bluegreen import BlueGreenCommon
+
 
 @tagged('post_install', '-at_install')
 class TestScripts(TransactionCase):
@@ -461,7 +463,7 @@ class TestCodeSemantic(TransactionCase):
                             'core_path': '/srv/ai-src/odoo/abcdef123456',
                             'core_container_path': '/usr/lib/python3/dist-packages/odoo'})
         pkg._knowledge_update_profile({'code': {'digest': tree.image_digest, 'container_sources': '/mnt/src'}})
-        inst = SimpleNamespace(name='tpl 14', id=228)
+        inst = SimpleNamespace(name='tpl 14', id=228, _knowledge_hub_ref=lambda: 228)
         self.assertEqual(pkg._knowledge_runner_path('/usr/lib/python3/dist-packages/odoo/addons/sale/models/s.py', inst),
                          '/odoo-core/abcdef123456/odoo/addons/sale/models/s.py')
         if 'infrastructure.ai_runner' in self.env:
@@ -534,7 +536,8 @@ class TestModuleSummary(TransactionCase):
         pkg = self.env['infrastructure.solution.package'].sudo().create({
             'product_tmpl_id': self.env['product.template'].create({'name': 'MS', 'type': 'service'}).id})
         Pkg = type(pkg)
-        golden = SimpleNamespace(instance_id=SimpleNamespace(id=228, name='tpl 14'), name='gold')
+        golden = SimpleNamespace(instance_id=SimpleNamespace(id=228, name='tpl 14', _knowledge_hub_ref=lambda: 228),
+                                 name='gold')
         pkg._knowledge_update_profile({'code': {'digest': 'sha256:x', 'container_sources': '/mnt/src',
                                                 'addons': {'x_ref': {'version': '1', 'hash': 'h1'},
                                                            'x_wallet': {'version': '1', 'hash': 'w1'}}}})
@@ -665,3 +668,23 @@ class TestCodeFactsIntoFlows(TransactionCase):
                                                      and x.ev_code))
         self.assertFalse(flow.named_hash, '改過的流程下次重新命名')
         self.assertEqual(pkg._knowledge_apply_code_facts()['marked'], 0, '沒變就不再動')
+
+
+@tagged('post_install', '-at_install')
+class TestKnowledgeHubRef(BlueGreenCommon):
+    """送給 AI Hub 的 instance_ref：預設本機 id（原行為）；鏡射實例可改填對方的 id。"""
+
+    def test_hub_ref_defaults_to_own_id_and_is_overridable(self):
+        inst = self._instance(951, 'kb-hub-ref')
+        self.assertFalse(inst.knowledge_hub_instance_ref)
+        self.assertEqual(inst._knowledge_hub_ref(), inst.id, '沒填＝本機實例 id，與原行為相同')
+        inst.knowledge_hub_instance_ref = 229
+        self.assertEqual(inst._knowledge_hub_ref(), 229, '鏡射實例送對方主控台上的 id')
+
+    def test_call_sites_send_hub_ref(self):
+        """兩個呼叫點都改走 _knowledge_hub_ref()，不再直接送 instance.id。"""
+        import inspect
+        from ..models import code_knowledge
+        src = inspect.getsource(code_knowledge)
+        self.assertNotIn('instance_ref=instance.id', src)
+        self.assertEqual(src.count('instance_ref=instance._knowledge_hub_ref()'), 2)

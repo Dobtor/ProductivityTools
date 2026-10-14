@@ -2238,6 +2238,19 @@ class Database(models.Model):
 class Instance(models.Model):
     _inherit = 'infrastructure.instance'
 
+    knowledge_hub_instance_ref = fields.Integer(
+        string='Hub 實例代號',
+        help='留空＝本機實例 id；鏡射自其他主控台的實例填對方的實例 id，AI Hub 才認得授權')
+
+    def _knowledge_hub_ref(self):
+        """送給 AI Hub 的實例代號（instance_ref）。
+
+        ★ AI Hub 依「主控台上的實例 id」授權 runner。知識節點上的實例是鏡射記錄，
+          本機 id 對 Hub 毫無意義——要填對方主控台上的 id。沒填＝本機 id（原行為）。
+        """
+        self.ensure_one()
+        return self.knowledge_hub_instance_ref or self.id
+
     def _knowledge_is_doc_master(self):
         self.ensure_one()
         server = self.env['infrastructure.solution.package']._knowledge_doc_server()

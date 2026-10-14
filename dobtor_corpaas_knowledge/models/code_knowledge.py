@@ -387,7 +387,7 @@ class SolutionPackageCode(models.Model):
                 ) % (fact.subject, json.dumps(parts, ensure_ascii=False), json.dumps(known, ensure_ascii=False)[:6000])
                 try:
                     data = Ai.ask('code_fact', prompt, package=self, refresh_token=token, record=fact,
-                                  instance_ref=instance.id)
+                                  instance_ref=instance._knowledge_hub_ref())
                 except hub_client.BudgetExceeded:
                     break
                 except Exception as e:  # noqa: BLE001 — Hub 不支援指定實例、回覆壞掉：下次再試
@@ -486,7 +486,7 @@ class SolutionPackageCode(models.Model):
                      ('\n\n按鈕方法：%s' % json.dumps(methods, ensure_ascii=False)) if methods else '')
                 try:
                     data = Ai.ask('module_summary', prompt, package=self, refresh_token=token,
-                                  instance_ref=instance.id)
+                                  instance_ref=instance._knowledge_hub_ref())
                 except hub_client.BudgetExceeded:
                     return done
                 except Exception as e:  # noqa: BLE001 — 讀不到就先只有結構事實
