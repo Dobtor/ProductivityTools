@@ -181,6 +181,8 @@ class BpmnExecutableProcessEditor(models.Model):
 
     def set_node_config(self, element_id, vals):
         self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_('流程「%s」非草稿狀態，不可修改節點設定。', self.name))
         cfg = self.node_config_ids.filtered(
             lambda c: c.bpmn_element_id == element_id)
         if not cfg:

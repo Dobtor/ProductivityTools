@@ -51,6 +51,7 @@ class TestDmnApprovalNode(TransactionCase):
         self.decision = self.defn.decision_ids[:1]
 
         self.proc = self.env['bpmn.executable.process'].create({'name': 'p', 'xml': PROC_XML})
+        self.proc._sync_node_configs_from_xml(PROC_XML)     # create() 不會建節點規格；發佈前要先同步
         cfg = self.proc.node_config_ids.filtered(lambda c: c.bpmn_element_id == 'T1')
         role = self.env['bpmn.role'].create({
             'process_id': self.proc.id, 'name': 'r',

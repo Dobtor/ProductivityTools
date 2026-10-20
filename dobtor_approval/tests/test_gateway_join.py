@@ -35,9 +35,11 @@ class TestGatewayJoin(TransactionCase):
         ICP = self.env['ir.config_parameter'].sudo()
         ICP.set_param('dobtor_approval.parallel_gw', 'True')
         ICP.set_param('dobtor_approval.basic_approval', 'True')
-        self.user = self.env.user
+        # 內建的 OdooBot（uid 1）是停用帳號，解析簽核人時會被濾掉；改用 admin。
+        self.user = self.env.ref('base.user_admin')
         self.proc = self.env['bpmn.executable.process'].create({
             'name': '並行測試', 'xml': PAR_XML})
+        self.proc._sync_node_configs_from_xml(PAR_XML)      # create() 不會建節點規格；發佈前要先同步
         # 兩關綁簽核人＝測試使用者（specific_user）
         for eid in ('T1', 'T2'):
             cfg = self.proc.node_config_ids.filtered(lambda c: c.bpmn_element_id == eid)

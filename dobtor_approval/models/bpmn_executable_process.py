@@ -146,6 +146,13 @@ class BpmnExecutableProcess(models.Model):
         return True
 
     def action_set_draft(self):
+        for rec in self:
+            running = self.env['bpmn.process.instance'].sudo().search_count([
+                ('process_id', '=', rec.id), ('state', '=', 'running')])
+            if running:
+                raise UserError(_(
+                    '流程「%(name)s」還有 %(count)s 筆進行中的實例，不可退回草稿。'
+                    '請先等實例結束或將其取消。', name=rec.name, count=running))
         self.write({'state': 'draft'})
         return True
 
@@ -261,6 +268,10 @@ class BpmnExecutableProcess(models.Model):
                 matrix_errs = role.matrix_id.validate_for_publish()
                 if matrix_errs:
                     raise UserError('\n'.join(matrix_errs))
+            if role.resolver_type == 'job_position' and not role.job_id:
+                raise UserError(_(
+                    '簽核節點「%(node)s」選了指定職位但未填職位。',
+                    node=cfg.name or cfg.bpmn_element_id))
             if role.resolver_type == 'dmn_decision' and not role.decision_id:
                 raise UserError(_(
                     '簽核節點「%(node)s」選了 DMN 決策但未綁定。',

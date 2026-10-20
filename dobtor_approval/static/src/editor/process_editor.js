@@ -65,6 +65,22 @@ export class ApprovalProcessEditor extends Component {
 
         onMounted(() => this._initCanvas());
         onWillUnmount(() => this._destroy());
+
+        // 對外 hook（只讀）：讓其他模組取得目前編輯的流程與畫布選取，不需要知道本元件的內部。
+        // 登記到 registry 'dobtor_approval.bridge'；元件卸載時移除（只移除自己登記的那一筆）。
+        const bridgeRegistry = registry.category("dobtor_approval.bridge");
+        const bridgeEntry = {
+            processId: this.processId,
+            getSelectedId: () => this.state.selectedId || null,
+            getModeler: () => this.modeler,
+        };
+        onMounted(() => bridgeRegistry.add("process_editor", bridgeEntry, { force: true }));
+        onWillUnmount(() => {
+            if (bridgeRegistry.contains("process_editor") &&
+                bridgeRegistry.get("process_editor") === bridgeEntry) {
+                bridgeRegistry.remove("process_editor");
+            }
+        });
     }
 
     // ---- canvas ----

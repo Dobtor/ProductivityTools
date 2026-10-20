@@ -52,21 +52,26 @@ class BpmnDelegation(models.Model):
         for user in users:
             delegation = self._active_delegation_for(user, today, definition)
             if delegation:
-                result |= delegation.delegate_id
+                result |= Users.browse(delegation.delegate_id.id)
             else:
                 result |= user
         return result
 
     @api.model
     def _active_delegation_for(self, user, on_date, definition=False):
-        """找 user 在 on_date 生效中的代理（限定流程則優先 match）。"""
+        """找 user 在 on_date 生效中的代理（限定流程則優先 match）。
+
+        解析簽核人是引擎行為，不可受呼叫者（如申請人）的 record rule 影響，
+        否則看不到主管的代理 → 代理默默不生效。故以 sudo 只讀取代理關係；
+        回傳的是 sudo 記錄，僅供取 delegate_id 之用，不放寬使用者的可見範圍。
+        """
         domain = [
             ('delegator_id', '=', user.id),
             ('active', '=', True),
             ('date_start', '<=', on_date),
             ('date_end', '>=', on_date),
         ]
-        candidates = self.search(domain)
+        candidates = self.sudo().search(domain)
         if not candidates:
             return self.browse()
         if definition:

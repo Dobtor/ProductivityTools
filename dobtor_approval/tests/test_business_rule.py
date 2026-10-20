@@ -37,6 +37,7 @@ class TestBusinessRule(TransactionCase):
         self.defn = self.env['dmn.definitions'].create({'name': 'db', 'dmn_xml': LIT_XML})
         self.decision = self.defn.decision_ids[:1]
         self.proc = self.env['bpmn.executable.process'].create({'name': 'p', 'xml': PROC_XML})
+        self.proc._sync_node_configs_from_xml(PROC_XML)     # create() 不會建節點規格；發佈前要先同步
         cfg = self.proc.node_config_ids.filtered(lambda c: c.bpmn_element_id == 'BR1')
         cfg.write({'dmn_decision_id': self.decision.id})
 

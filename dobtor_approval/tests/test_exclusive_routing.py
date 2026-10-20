@@ -33,12 +33,13 @@ class TestExclusiveRouting(TransactionCase):
         for f in ('basic_approval', 'conditional'):
             ICP.set_param('dobtor_approval.%s' % f, 'True')
         proc = self.env['bpmn.executable.process'].create({'name': 'p', 'xml': xml})
+        proc._sync_node_configs_from_xml(xml)               # create() 不會建節點規格；發佈前要先同步
         for eid in ('T_yes', 'T_no'):
             cfg = proc.node_config_ids.filtered(lambda c: c.bpmn_element_id == eid)
             role = self.env['bpmn.role'].create({
                 'process_id': proc.id, 'name': eid,
                 'resolver_type': 'specific_user',
-                'user_ids': [(6, 0, [self.env.user.id])]})
+                'user_ids': [(6, 0, [self.env.ref('base.user_admin').id])]})
             cfg.write({'role_id': role.id, 'approval_mode': 'any'})
         proc.action_publish()
         return proc

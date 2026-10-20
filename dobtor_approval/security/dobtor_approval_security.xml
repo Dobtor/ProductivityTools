@@ -69,9 +69,9 @@
                   ('activity_link_ids.approver_user_id', '=', user.id)]
         </field>
         <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="False"/>
+        <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="False"/>
-        <field name="perm_unlink" eval="False"/>
+        <field name="perm_unlink" eval="True"/>
     </record>
 
     <record id="rule_bpmn_instance_manager" model="ir.rule">

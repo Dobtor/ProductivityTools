@@ -108,9 +108,11 @@ class BpmnRole(models.Model):
             users = self.specific_department_id.manager_id.user_id
 
         elif rtype == 'job_position':
-            # hr.job 上對應職位的所有在職員工 → 其 user
-            emps = self.env['hr.employee'].search([('job_id', '=', self.job_id.id)])
-            users = emps.mapped('user_id')
+            # hr.job 上對應職位的所有在職員工 → 其 user；未填職位 → 解析不到人
+            # （否則 job_id = False 會撈出所有沒職位的員工）
+            if self.job_id:
+                emps = self.env['hr.employee'].search([('job_id', '=', self.job_id.id)])
+                users = emps.mapped('user_id')
 
         elif rtype == 'specific_user':
             users = self.user_ids
@@ -203,20 +205,125 @@ class BpmnRole(models.Model):
             ids += self.env['res.users'].search([('name', 'in', names)]).ids
         return list(set(ids))
 
-    def resolve_preview(self, applicant_user_id, res_model=False, res_id=False):
+    def resolve_preview(self, applicant_user_id, res_model=False, res_id=False,
+                        with_reason=False):
         """dry-run 預覽：給定假申請人（與選用單據），算出此角色會解析出的簽核人。
-        以 transient 實例重用 resolve()，不建立真實流程實例。"""
+        以 transient 實例重用 resolve()，不建立真實流程實例。
+
+        :param with_reason: True 時回傳 ``(users, reason)``；結果為空時 reason 是
+            ``{'code', 'message'}`` 說明為什麼解析不到人（結果非空時為 ``{}``）。
+            預設 False，回傳型別與先前完全相同（單純 res.users）。
+        """
         self.ensure_one()
         inst = self.env['bpmn.process.instance'].new({
             'applicant_user_id': applicant_user_id or False,
             'res_model': res_model or False,
             'res_id': res_id or 0,
         })
+        error = None
         try:
-            return self.resolve(inst)
-        except Exception:  # noqa: BLE001 預覽不可因單一角色設定錯誤而中斷
+            users = self.resolve(inst)
+        except Exception as exc:  # noqa: BLE001 預覽不可因單一角色設定錯誤而中斷
             _logger.exception('resolve_preview 失敗 (role=%s)', self.id)
-            return self.env['res.users']
+            error = exc
+            users = self.env['res.users']
+        if not with_reason:
+            return users
+        return users, ({} if users else self._empty_reason(inst, error))
+
+    # ------------------------------------------------------------------
+    # 空結果診斷（唯讀；只檢視設定與組織資料，不改任何東西）
+    # ------------------------------------------------------------------
+    def _empty_reason(self, instance, error=None):
+        """回傳 ``{'code', 'message'}``：為什麼這個角色對該實例解析不到簽核人。"""
+        self.ensure_one()
+        if error is not None:
+            code = 'expression_error' if self.resolver_type == 'expression' else 'resolve_error'
+            return {'code': code, 'message': str(error)[:200]}
+        rtype = self.resolver_type
+        applicant = instance.applicant_user_id
+        employee = applicant.employee_id if applicant else self.env['hr.employee']
+
+        def reason(code, message):
+            return {'code': code, 'message': message}
+
+        if rtype in ('direct_manager', 'manager_level', 'department_manager'):
+            if not applicant:
+                return reason('no_applicant', _('沒有指定申請人。'))
+            if not employee:
+                return reason('no_employee', _('申請人沒有對應的員工資料。'))
+        if rtype == 'direct_manager':
+            if not employee.parent_id:
+                return reason('no_manager', _('申請人的員工資料沒有設定直屬主管。'))
+            return reason('manager_no_user', _('直屬主管沒有對應的使用者帳號（或已停用）。'))
+        if rtype == 'manager_level':
+            emp = employee
+            for lv in range(1, max(1, self.level) + 1):
+                emp = emp.parent_id
+                if not emp:
+                    return reason('no_manager_at_level',
+                                  _('主管鏈在第 %s 級中斷（需要第 %s 級）。', lv, self.level))
+            return reason('manager_no_user', _('第 %s 級主管沒有對應的使用者帳號（或已停用）。', self.level))
+        if rtype == 'department_manager':
+            if not employee.department_id:
+                return reason('no_department', _('申請人的員工資料沒有設定部門。'))
+            if not employee.department_id.manager_id:
+                return reason('department_no_manager', _('申請人的部門沒有設定經理。'))
+            return reason('manager_no_user', _('部門經理沒有對應的使用者帳號（或已停用）。'))
+        if rtype == 'department_specific':
+            if not self.specific_department_id:
+                return reason('department_not_set', _('角色沒有指定部門。'))
+            if not self.specific_department_id.manager_id:
+                return reason('department_no_manager', _('指定的部門沒有設定經理。'))
+            return reason('manager_no_user', _('部門經理沒有對應的使用者帳號（或已停用）。'))
+        if rtype == 'job_position':
+            if not self.job_id:
+                return reason('job_not_set', _('角色沒有指定職位。'))
+            emps = self.env['hr.employee'].search([('job_id', '=', self.job_id.id)])
+            if not emps:
+                return reason('job_no_employee', _('沒有任何在職員工擔任該職位。'))
+            return reason('job_no_user', _('擔任該職位的員工都沒有對應的使用者帳號。'))
+        if rtype == 'specific_user':
+            if not self.with_context(active_test=False).user_ids:
+                return reason('no_user_selected', _('角色沒有指定任何使用者。'))
+            return reason('users_inactive', _('指定的使用者都已停用。'))
+        if rtype == 'group':
+            if not self.group_id:
+                return reason('group_not_set', _('角色沒有指定權限群組。'))
+            return reason('group_no_users', _('該權限群組沒有任何啟用中的成員。'))
+        if rtype == 'field_on_record':
+            if not self.record_field:
+                return reason('field_not_set', _('角色沒有指定單據欄位。'))
+            record = instance._get_res_record()
+            if not record:
+                return reason('no_record', _('預覽沒有指定單據（或單據不存在），無法取欄位值。'))
+            if self.record_field not in record._fields:
+                return reason('field_missing_on_record',
+                              _('單據 %(model)s 沒有欄位 %(field)s。',
+                                model=record._name, field=self.record_field))
+            value = record[self.record_field]
+            if not value:
+                return reason('field_empty', _('單據上的欄位 %s 是空的。', self.record_field))
+            if getattr(value, '_name', None) not in ('res.users', 'hr.employee', 'res.partner'):
+                return reason('field_type_unsupported',
+                              _('欄位 %s 的型別不是使用者／員工／聯絡人。', self.record_field))
+            return reason('field_no_user', _('欄位值沒有對應的使用者帳號。'))
+        if rtype == 'expression':
+            if not (self.expression or '').strip():
+                return reason('expression_empty', _('角色沒有填寫運算式。'))
+            return reason('expression_returned_empty', _('運算式執行後沒有回傳任何使用者。'))
+        if rtype == 'authority_matrix':
+            if not self.matrix_id:
+                return reason('matrix_not_set', _('角色沒有綁定核決權限表。'))
+            record = instance._get_res_record()
+            if not self.matrix_id.evaluate(record, applicant):
+                return reason('matrix_no_match', _('依這張單據（金額／類別／部門），核決權限表沒有任何命中的規則列。'))
+            return reason('matrix_lines_no_users', _('命中的規則列沒有解析出任何使用者。'))
+        if rtype == 'dmn_decision':
+            if not self.decision_id:
+                return reason('decision_not_set', _('角色沒有綁定 DMN 決策。'))
+            return reason('decision_no_approver', _('DMN 決策沒有輸出任何簽核人。'))
+        return reason('no_users', _('解析不到任何有效的使用者。'))
 
     def _resolve_field_on_record(self, instance):
         """取單據上的欄位值，轉成 res.users。支援 res.users / hr.employee / partner→user。"""
