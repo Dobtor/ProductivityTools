@@ -5,6 +5,8 @@ from odoo import http
 from odoo.http import request
 from odoo.exceptions import UserError, AccessError
 
+from ..models.xmind_digest import XmindConflict
+
 
 class MindMapController(http.Controller):
 
@@ -54,6 +56,9 @@ class MindMapController(http.Controller):
             # Names of records that embed this whole workbook (via the "/" power-box
             # of any model's HTML editor) → shown as "關聯物件：..." in the project bar.
             'embeds': workbook.get_embed_names(),
+            # 樂觀鎖：編輯器存檔時把它帶回來（見 save_mindmap_data 的 base_digest）。
+            'sheet_id': first_sheet.id or False,
+            'digest': first_sheet._content_digest() if first_sheet else '',
         }
 
     def _get_relationships(self, sheet):
@@ -203,21 +208,32 @@ class MindMapController(http.Controller):
 
 
     @http.route('/xmind/workbook/<int:workbook_id>/save', type='json', auth='user')
-    def save_workbook_data(self, workbook_id, data, is_auto=False, sheet_id=None, **kwargs):
+    def save_workbook_data(self, workbook_id, data, is_auto=False, sheet_id=None,
+                           base_digest=None, **kwargs):
         """Save mindmap data from visual editor.
 
         sheet_id 由編輯器帶上目前顯示中的分頁 —— 少了它，多分頁的工作簿會一律
         寫進第一張 sheet，切分頁時就會用當下畫面覆蓋掉別張的內容。
+
+        base_digest（選填）是樂觀鎖：編輯器載入／上次存檔後拿到的分頁摘要。
+        不符就**不寫入**並回 ``{'conflict': True, 'error': …, 'digest': <目前摘要>}``；
+        不帶（舊前端）則維持原本「後存者覆蓋」的行為。
+        成功時多回 ``digest``（存檔後的新摘要）與 ``sheet_id``，舊前端會直接忽略。
         """
         workbook = self._check_workbook_access(workbook_id, 'write')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
         try:
-            workbook.save_mindmap_data(data, is_auto=bool(is_auto), sheet_id=sheet_id)
+            workbook.save_mindmap_data(data, is_auto=bool(is_auto), sheet_id=sheet_id,
+                                       base_digest=base_digest or None)
+        except XmindConflict as e:
+            return {'error': e.args[0] if e.args else str(e), 'conflict': True,
+                    'digest': e.current_digest or ''}
         except UserError as e:
             return {'error': e.args[0] if e.args else str(e)}
-        return {'success': True}
+        sheet = workbook._resolve_save_sheet(sheet_id)
+        return {'success': True, 'sheet_id': sheet.id, 'digest': sheet._content_digest()}
 
     @http.route('/xmind/workbook/<int:workbook_id>/project_sync', type='json', auth='user')
     def project_sync(self, workbook_id, create=False, confirmed=False, **kwargs):
@@ -433,6 +449,8 @@ class MindMapController(http.Controller):
             'boundaries': self._get_boundaries(sheet),
             'callouts': self._get_callouts(sheet),
             'floating_topics': self._get_floating_topics(sheet),
+            'sheet_id': sheet.id,
+            'digest': sheet._content_digest(),
         }
 
     @http.route('/xmind/workbook/<int:workbook_id>/sheet/<int:sheet_id>/rename', type='json', auth='user')

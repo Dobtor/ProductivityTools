@@ -12,6 +12,8 @@ from datetime import datetime, time
 from odoo import models, fields, api, Command, _
 from odoo.exceptions import UserError
 
+from .xmind_digest import XmindConflict
+
 _logger = logging.getLogger(__name__)
 
 
@@ -446,22 +448,13 @@ class XMindWorkbook(models.Model):
         reverse = {v: k for k, v in self._XMIND_STRUCTURE_MAP.items()}
         return reverse.get(layout_type, '')
 
-    def save_mindmap_data(self, data, is_auto=False, sheet_id=None):
-        """Save mindmap data from jsMind editor with command history.
+    def _resolve_save_sheet(self, sheet_id=None):
+        """``save_mindmap_data`` 要寫入哪一張分頁（沒有任何分頁時建一張）。
 
-        :param sheet_id: sheet the payload belongs to. **Must be supplied whenever
-            the workbook has more than one sheet** — the editor sends the sheet it
-            is currently displaying.
-
-            Previously this always wrote to ``sheet_ids[0]``. Since the editor
-            saves the canvas before switching tabs, switching away from sheet 2
-            back to sheet 1 wrote sheet 2's canvas into sheet 1 — silently wiping
-            sheet 1 — and sheet 2's own edits were never persisted at all.
-            Falling back to the first sheet is kept only for callers that predate
-            multi-sheet support (xmind.revision restore, tests).
+        獨立成方法是為了讓控制器在存檔後能取到「同一張」分頁算新的摘要，
+        而不必複製這段解析邏輯。
         """
         self.ensure_one()
-
         sheet = self.env['xmind.sheet']
         if sheet_id:
             sheet = self.sheet_ids.filtered(lambda s: s.id == int(sheet_id))[:1]
@@ -477,6 +470,44 @@ class XMindWorkbook(models.Model):
                 })
             else:
                 sheet = self.sheet_ids[0]
+        return sheet
+
+    def save_mindmap_data(self, data, is_auto=False, sheet_id=None, base_digest=None):
+        """Save mindmap data from jsMind editor with command history.
+
+        :param sheet_id: sheet the payload belongs to. **Must be supplied whenever
+            the workbook has more than one sheet** — the editor sends the sheet it
+            is currently displaying.
+
+            Previously this always wrote to ``sheet_ids[0]``. Since the editor
+            saves the canvas before switching tabs, switching away from sheet 2
+            back to sheet 1 wrote sheet 2's canvas into sheet 1 — silently wiping
+            sheet 1 — and sheet 2's own edits were never persisted at all.
+            Falling back to the first sheet is kept only for callers that predate
+            multi-sheet support (xmind.revision restore, tests).
+        :param base_digest: optional optimistic lock. The ``_content_digest()`` of the
+            sheet as the caller last saw it (when it loaded or last saved). If given
+            and different from the sheet's current digest, somebody else changed the
+            sheet in between and :class:`XmindConflict` is raised **before anything
+            is written** — the stale copy must not overwrite the newer one.
+            Omitted/empty = the historical last-writer-wins behaviour, unchanged
+            (old clients, revision restore, imports, tests).
+        """
+        self.ensure_one()
+
+        sheet = self._resolve_save_sheet(sheet_id)
+        # 每次存檔都「碰」一下分頁那一列：UPDATE 會取得列鎖，兩個存檔同時進來時
+        # 後到的會等前一個提交；Odoo 的 REPEATABLE READ 會因此對後到者丟出序列化
+        # 錯誤，整個請求自動重試，重試時就能在新資料上比對摘要。
+        sheet._touch_for_lock()
+        if base_digest:
+            current = sheet._content_digest()
+            if current != base_digest:
+                raise XmindConflict(_(
+                    "This sheet was changed by someone else (or by an assistant) after you "
+                    "opened it. Your copy was NOT saved so their changes are not overwritten. "
+                    "Reload the mind map to continue from the latest version."),
+                    current_digest=current)
 
         # 特徵層一律整組取代（筆數少、彼此有引用關係，逐筆對帳不划算）。
         # 主題樹則是差異更新 —— 見下方 _sync_jsmind_tree。
@@ -1110,7 +1141,12 @@ class XMindWorkbook(models.Model):
             previous_task.xmind_topic_id = False
 
         # Import children（sequence 直接在 upsert 時寫入，不再事後補寫）
-        for seq, child_node in enumerate(node.get('children', [])):
+        # 編輯器的預覽節點（``data._aiPreview``）只是畫面上的暫時疊加，**絕不入庫**。
+        # 前端存檔前本來就會先把它們拿掉；這裡是第二道防線 —— 萬一哪條存檔路徑
+        # 漏了，也不會有任何一個預覽節點變成真的主題。
+        children = [c for c in node.get('children', [])
+                    if not (c.get('data') or {}).get('_aiPreview')]
+        for seq, child_node in enumerate(children):
             self._upsert_jsmind_node(child_node, sheet, topic, _depth + 1,
                                      existing=existing, seen=seen, sequence=seq)
 

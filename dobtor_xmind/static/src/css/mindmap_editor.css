@@ -1019,3 +1019,54 @@
     cursor: pointer;
     padding: 4px 8px;
 }
+
+/* ===== 外部預覽疊加（mindmap_ai_hooks.js）=====
+   純視覺：這些節點／樣式只存在於畫面，不進復原堆疊、不被存檔。 */
+.xmind-node.xmind-ai-add {
+    background: #dcfce7 !important;
+    border: 2px solid #16a34a !important;
+    color: #14532d !important;
+}
+.xmind-node.xmind-ai-ghost {
+    opacity: 0.7;
+    background: #cffafe !important;
+    border: 2px dashed #0e7490 !important;
+    color: #164e63 !important;
+}
+.xmind-node.xmind-ai-moving {
+    opacity: 0.5;
+    outline: 2px dashed #0e7490;
+    outline-offset: 2px;
+}
+.xmind-node.xmind-ai-rename {
+    outline: 2px dashed #b45309;
+    outline-offset: 2px;
+}
+.xmind-node.xmind-ai-rename::after,
+.xmind-node.xmind-ai-note::after {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    margin-top: 4px;
+    padding: 1px 6px;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 60;
+}
+.xmind-node.xmind-ai-rename::after {
+    content: "→ " attr(data-ai-new);
+    background: #fef3c7;
+    color: #78350f;
+    border: 1px dashed #b45309;
+}
+.xmind-node.xmind-ai-note::after {
+    content: "備註 → " attr(data-ai-note);
+    background: #e0f2fe;
+    color: #0c4a6e;
+    border: 1px dashed #0369a1;
+}

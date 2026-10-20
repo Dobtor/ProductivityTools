@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor Mind Map',
-    'version': '18.0.3.0.0',
+    'version': '18.0.3.1.0',
     'category': 'Productivity',
     'summary': 'Visual Mind Map Editor',
     'description': '''
@@ -52,6 +52,7 @@
             'dobtor_xmind/static/src/js/mindmap_sheet_tabs.js',
             'dobtor_xmind/static/src/xml/mindmap_sheet_tabs.xml',
             'dobtor_xmind/static/src/xml/mindmap_prompt_dialog.xml',
+            'dobtor_xmind/static/src/js/mindmap_ai_hooks.js',
             'dobtor_xmind/static/src/js/mindmap_editor.js',
             'dobtor_xmind/static/src/xml/mindmap_templates.xml',
             # Pre-fill the "Schedule Activity" wizard summary from the clicked node.

@@ -36,6 +36,7 @@ import { DragDropManager } from "@dobtor_xmind/js/drag_drop_manager";
 import { RelationshipManager } from "@dobtor_xmind/js/relationship_manager";
 import { MindmapProjectBar } from "@dobtor_xmind/js/mindmap_project_bar";
 import { MindmapPager } from "@dobtor_xmind/js/mindmap_pager";
+import { AiPreview, stripPreviewNodes } from "@dobtor_xmind/js/mindmap_ai_hooks";
 import { MindmapSearch, MINDMAP_FILTERS } from "@dobtor_xmind/js/mindmap_search";
 
 /**
@@ -85,6 +86,15 @@ export class MindmapEditor extends Component {
         this.commandStack = new CommandStack(200);
         this.selectedNode = null;
         this.autoSaveTimer = null;
+        // 樂觀鎖：最後一次「載入／存檔」時拿到的分頁摘要。存檔時帶回後端，
+        // 不符（別人或外部程式改過這張分頁）就拒絕、不覆蓋。null＝後端沒給（舊後端）。
+        this._baseDigest = null;
+        this._digestSheetId = false;   // 摘要屬於哪一張分頁；與要存的分頁不同就不帶（避免誤判衝突）
+        this._firstSheetId = false;
+        this._conflict = false;
+        // 外部預覽（見 mindmap_ai_hooks.js）：預覽期間忽略 jsMind 事件。
+        this._aiPreview = null;
+        this._aiPreviewBusy = false;
         this.markers = [];
         this.relationshipMode = false;
         this.relationshipSource = null;
@@ -194,9 +204,11 @@ export class MindmapEditor extends Component {
             this._copiedStyle = null;
             this._numberingEnabled = false;
             this._updateStatus(_t('Ready'));
+            this._registerExternalBridge();
         });
 
         onWillUnmount(() => {
+            this._unregisterExternalBridge();
             if (this.autoSaveTimer) {
                 clearInterval(this.autoSaveTimer);
             }
@@ -277,6 +289,10 @@ export class MindmapEditor extends Component {
                 this.mindmapData = this._getDefaultData();
             } else {
                 this.mindmapData = result.mindmap_data;
+                this._baseDigest = result.digest || null;
+                this._digestSheetId = result.sheet_id || false;
+                this._firstSheetId = result.sheet_id || false;
+                this._conflict = false;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
                 this._setRecordName(result.name);
                 this.projectInfo = result.project || null;
@@ -712,7 +728,8 @@ export class MindmapEditor extends Component {
     // ===== Auto Save =====
     _setupAutoSave() {
         this.autoSaveTimer = setInterval(() => {
-            if (this.commandStack.isDirty && this.workbookId) {
+            // 衝突後不再自動重試：每分鐘跳一次同樣的錯誤只會干擾；等使用者重新載入。
+            if (this.commandStack.isDirty && this.workbookId && !this._conflict) {
                 this._autoSave();
             }
         }, 60000);
@@ -734,6 +751,9 @@ export class MindmapEditor extends Component {
 
     // ===== render-engine Events =====
     _onJsMindEvent(type, data) {
+        // 外部預覽期間 add_node 會發出與「選取」同型的事件；不擋的話側邊欄會彈出、
+        // selectedNode 會指到暫時節點。
+        if (this._aiPreviewBusy) return;
         if (type === 1 && (data.evt === 'expand' || data.evt === 'collapse')) {
             // Expand/collapse: reposition floating subtrees, rebuild features
             this._renderAllFloatingTopics();
@@ -3677,6 +3697,9 @@ export class MindmapEditor extends Component {
             return false;
         }
         this._loadFailed = false;   // a good sheet load re-enables saving
+        this._baseDigest = result.digest || null;
+        this._digestSheetId = result.sheet_id || sheetId || false;
+        this._conflict = false;
         this.mindmapData = result.mindmap_data;
         // 特徵層必須跟著換 —— 不換的話畫布是新分頁的樹、關聯線卻是
         // 上一張的，且下一次存檔會把它們寫進新分頁。
@@ -5211,7 +5234,11 @@ export class MindmapEditor extends Component {
         // previous cross-RPC race (a relationship could end up pointing at a
         // component_id whose topic save had not landed yet) and lets the
         // revision snapshot capture the complete state (incl. features).
-        const data = this.jm.get_data('node_tree');
+        // 預覽節點只存在於畫面：存檔前一定先收掉（再過濾一次當作保險）。
+        if (this._aiPreview && this._aiPreview.active) {
+            this._aiPreview.exit();
+        }
+        const data = stripPreviewNodes(this.jm.get_data('node_tree'));
 
         this._syncRelationshipControlPoints();
         data.relationships = this.relationships.map(r => ({
@@ -5261,10 +5288,21 @@ export class MindmapEditor extends Component {
                 data,
                 is_auto: isAuto,
                 sheet_id: this._currentSheetId || false,
+                // 沒有摘要（舊後端）、或摘要不是這張分頁的，就不帶 → 後端行為與以前相同。
+                base_digest: this._digestForSave(),
             });
+            if (result && result.conflict) {
+                this._conflict = true;
+                this._notifyConflict(result.error);
+                return false;
+            }
             if (result && result.error) {
                 this._showError(result.error);
                 return false;
+            }
+            if (result && result.digest) {
+                this._baseDigest = result.digest;
+                this._digestSheetId = result.sheet_id || this._digestSheetId;
             }
             return true;
         } catch (e) {
@@ -5272,6 +5310,119 @@ export class MindmapEditor extends Component {
             console.error('[xmind] save failed', e);
             return false;
         }
+    }
+
+    /** 這次存檔要帶的樂觀鎖摘要；不確定屬於同一張分頁時回 undefined（＝舊行為）。 */
+    _digestForSave() {
+        const target = this._currentSheetId || this._firstSheetId;
+        if (this._baseDigest && this._digestSheetId && this._digestSheetId === target) {
+            return this._baseDigest;
+        }
+        return undefined;
+    }
+
+    /** 存檔被樂觀鎖擋下：不覆蓋，讓使用者選擇重新載入（放棄這邊尚未儲存的變更）。 */
+    _notifyConflict(message) {
+        this._updateStatus(_t('Save blocked: changed elsewhere'));
+        this.notification.add(message || _t('This mind map was changed elsewhere.'), {
+            type: 'danger',
+            sticky: true,
+            buttons: [{
+                name: _t('Discard my changes and reload'),
+                primary: true,
+                onClick: () => this._reloadFromServer(),
+            }],
+        });
+    }
+
+    /** 以伺服器上的版本重新載入目前分頁（放棄畫面上未儲存的變更），並清掉復原堆疊。 */
+    async _reloadFromServer() {
+        if (!this.workbookId || !this.jm) return false;
+        if (this._aiPreview && this._aiPreview.active) {
+            this._aiPreview.exit();
+        }
+        const sheetId = this._currentSheetId || this._firstSheetId;
+        let ok = false;
+        if (sheetId) {
+            ok = !!(await this._loadSheetIntoCanvas(sheetId));
+        }
+        if (ok) {
+            // 舊畫面的復原堆疊對新內容沒有意義（甚至會指向已不存在的節點）。
+            this.commandStack.clear();
+            this.selectedNode = null;
+            this._updateStatus(_t('Reloaded'));
+        }
+        return ok;
+    }
+
+    // ===== 外部掛鉤（登記到 registry，供外部元件預覽／重載；編輯器不知道對方是誰）=====
+    /**
+     * 登記到 registry.category("dobtor_xmind.bridge") 的 "active" 鍵。
+     * 唯讀（嵌入）模式不登記：那種實例不能編輯，外部元件也不該去動它。
+     */
+    _registerExternalBridge() {
+        if (this.readonly || !this.workbookId) return;
+        this._externalBridge = {
+            workbookId: this.workbookId,
+            getContext: () => this._externalContext(),
+            flush: () => this._externalFlush(),
+            reload: () => this._reloadFromServer(),
+            enterPreview: (ops) => this._externalEnterPreview(ops),
+            exitPreview: () => this._externalExitPreview(),
+        };
+        registry.category("dobtor_xmind.bridge").add("active", this._externalBridge, { force: true });
+    }
+
+    _unregisterExternalBridge() {
+        const category = registry.category("dobtor_xmind.bridge");
+        // 只移除自己登記的那一個：快速切換編輯器時，新的可能已經先登記了。
+        if (this._externalBridge && category.contains("active")
+                && category.get("active") === this._externalBridge) {
+            category.remove("active");
+        }
+        this._externalBridge = null;
+        if (this._aiPreview) this._aiPreview.exit();
+    }
+
+    _externalContext() {
+        const selected = this.selectedNode && this.jm && this.jm.get_node(this.selectedNode);
+        return {
+            workbook_id: this.workbookId,
+            sheet_id: this._currentSheetId || this._firstSheetId || false,
+            // 預覽節點不是真的節點，不能當成「選取」回報
+            selected_id: selected && !(selected.data && selected.data._aiPreview) ? selected.id : false,
+            dirty: !!(this.commandStack && this.commandStack.isDirty),
+            digest: this._baseDigest || '',
+            conflict: !!this._conflict,
+        };
+    }
+
+    /** 套用前強制存檔。回 false＝不能存（衝突／載入失敗／存檔失敗），呼叫端應阻擋套用。 */
+    async _externalFlush() {
+        if (this._conflict || this._loadFailed) return false;
+        if (this._aiPreview && this._aiPreview.active) this._aiPreview.exit();
+        if (!this.commandStack.isDirty) return true;
+        const ok = await this._saveData(false);
+        if (ok === false) return false;
+        this.commandStack.markSaved();
+        return true;
+    }
+
+    _externalEnterPreview(ops) {
+        if (!this.jm) return { applied: 0, skipped: [] };
+        if (!this._aiPreview) {
+            this._aiPreview = new AiPreview(this.jm, {
+                setBusy: (busy) => { this._aiPreviewBusy = busy; },
+                afterChange: () => this._updateFeaturePositions(),
+            });
+        }
+        // jm 可能在重新載入時換過實例
+        this._aiPreview.jm = this.jm;
+        return this._aiPreview.enter(ops);
+    }
+
+    _externalExitPreview() {
+        if (this._aiPreview) this._aiPreview.exit();
     }
 
     async _saveSettings() {

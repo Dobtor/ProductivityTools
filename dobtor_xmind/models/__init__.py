@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from . import xmind_digest
 from . import xmind_tag
 from . import xmind_workbook
 from . import xmind_workbook_embed
