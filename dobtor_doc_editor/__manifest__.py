@@ -108,6 +108,7 @@ Dobtor Doc Editor v2.1
             # doc_editor 拆成四層 mixin + 共用常數（見各檔檔頭）。
             # 順序無所謂（Odoo 的 asset 走 define/require），但照相依序列著好讀。
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shared.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_bridge.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shell.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_io.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_pills.js',
@@ -149,6 +150,7 @@ Dobtor Doc Editor v2.1
             # doc_editor 拆成四層 mixin + 共用常數（見各檔檔頭）。
             # 順序無所謂（Odoo 的 asset 走 define/require），但照相依序列著好讀。
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shared.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_bridge.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_shell.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_io.js',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor_pills.js',

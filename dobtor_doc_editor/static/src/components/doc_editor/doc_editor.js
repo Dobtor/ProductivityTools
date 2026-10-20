@@ -18,6 +18,7 @@ import { OfflineManager } from "../../core/offline_manager";
 import { installGlobalErrorReporting, mark, reportError } from "../../core/telemetry";
 import { DocVersionPanel } from "../doc_version_panel/doc_version_panel";
 import { DocFieldPickerDialog } from "../doc_field_picker/doc_field_picker";
+import { registerEditorBridge, unregisterEditorBridge } from "./doc_editor_bridge";
 // 注意：normalizeMultiCharElements{,InTables} 留在 scanner module 內供未來重啟此方向時使用
 // （目前 Sprint T 因 canvas-editor auto-merge 無法用、見 onScanAndReplaceClick 內註解
 //  與 docs/phase8_sprint_t_2026-05-24.md）
@@ -687,6 +688,8 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
 
             // 2. 初始化 Canvas 編輯器（資料已暫存於 this._loadedContentJson）
             this._initCanvasEditor();
+            // 對外的穩定介面（外部整合用，見 doc_editor_bridge.js）；unmount 時移除
+            this._editorBridge = registerEditorBridge(this);
 
             // L2-v2 自動預覽模式：當 doc 同時有 res_id 與 alias 對映時，預設進入預覽模式，
             // 使用者一進來就看實際值而不是 token 原文。
@@ -742,6 +745,8 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
         });
 
         onWillUnmount(async () => {
+            unregisterEditorBridge(this._editorBridge);
+            this._editorBridge = null;
             // W4 P0-4：完整記憶體釋放，避免 portal user 反覆開關文件爆 RAM
             // 順序：flush 未存資料 → 解除全域引用 → 解除 listener closure → destroy 子系統
             try {

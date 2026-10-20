@@ -107,6 +107,21 @@ export class AutoSaveManager {
         }
     }
 
+    /** 有尚未存回伺服器的變更（含存檔進行中）。 */
+    isDirty() {
+        if (this._destroyed) return false;
+        const latest = this._pendingSave ?? this._latestHtml;
+        return this._saving || (latest != null && latest !== this._lastSavedHtml);
+    }
+
+    /** 內容已與伺服器一致（程式載入／外部已存好）：清掉待存狀態，不觸發儲存。 */
+    markClean(json) {
+        this.cancel();
+        this._latestHtml = null;
+        this._pendingSave = null;
+        this._lastSavedHtml = json;
+    }
+
     /** 取消所有待執行的計時器（匯入時呼叫，清除舊內容的存檔任務） */
     cancel() {
         clearTimeout(this._debounceTimer);
