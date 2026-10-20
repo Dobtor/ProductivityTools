@@ -244,6 +244,14 @@ class BpmnDiagram(models.Model):
 
     def write(self, vals):
         self._enforce_project_partner(vals)
+        # 定版（frozen）守門：定版的圖不能改設計 XML（只擋 xml；縮圖 svg、名稱、標籤、狀態轉換照舊可寫）。
+        # 同一次寫入若同時把 state 改離 frozen，視為「先設為草稿再改」，放行。
+        if 'xml' in vals and vals.get('state', 'frozen') == 'frozen':
+            frozen = self.filtered(lambda d: d.state == 'frozen')
+            if frozen:
+                raise UserError(_(
+                    '設計圖「%s」已定版，不能修改內容。請先「設為草稿」。',
+                    '、'.join(frozen.mapped('name'))))
         return super().write(vals)
 
     @api.model

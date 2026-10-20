@@ -8,6 +8,15 @@ import { Pager } from "@web/core/pager/pager";
 import { Component, onWillStart, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 
 /**
+ * 編輯器橋接登記處（中立的擴充點）：mounted 時登記目前的編輯器、unmount 時移除。
+ * 其他模組（例如 AI 助理）可由此取得 modeler 與編輯器狀態，而不需要改動本檔的邏輯。
+ *   registry.category("dobtor_bpmn.bridge").get("editor", null) →
+ *   { diagramId, getModeler(), isDirty(), getSelection(), save(): Promise<boolean>, reload(): Promise<void> }
+ * 只在可編輯的 BPMN 編輯器登記（唯讀嵌入與 DMN 不登記）。
+ */
+const bridgeRegistry = registry.category("dobtor_bpmn.bridge");
+
+/**
  * BPMN/DMN 全螢幕視覺編輯器（client action，仿 dobtor_xmind 架構）。
  * - 不在 form notebook 內；由設計圖 form header 按鈕 / kanban 卡片開啟。
  * - 文件 metadata 留在 form/kanban；本元件只負責畫布。
@@ -224,13 +233,67 @@ export class BpmnEditorAction extends Component {
                     // 某些 dmn-js 視圖無 commandStack，略過
                 }
             }
+            this._registerBridge();
             this.state.ready = true;
         } catch (e) {
             this.state.error = e?.message || String(e);
         }
     }
 
+    /** 登記編輯器橋接（見檔案開頭的說明）。 */
+    _registerBridge() {
+        if (this.readonly || this.state.diagramType === "dmn" || !this.modeler) {
+            return;
+        }
+        this._selection = [];
+        try {
+            this.modeler.on("selection.changed", (e) => {
+                this._selection = ((e && e.newSelection) || []).map((el) => ({
+                    id: el.id,
+                    type: el.type,
+                }));
+            });
+        } catch {
+            // 沒有 selection 事件就沒有選取資訊，不影響編輯
+        }
+        const self = this;
+        this._bridge = {
+            get diagramId() {
+                return self.diagramId;
+            },
+            getModeler: () => self.modeler,
+            isDirty: () => self.state.dirty,
+            getSelection: () => (self._selection || []).slice(),
+            save: () => self.onSave(),
+            reload: () => self.reloadFromServer(),
+        };
+        bridgeRegistry.add("editor", this._bridge, { force: true });
+    }
+
+    /** 以伺服器上的 XML 重新載入畫布並保留視圖位置；放棄未存的變更。 */
+    async reloadFromServer() {
+        if (!this.modeler) {
+            return;
+        }
+        const [rec] = await this.orm.read("bpmn.diagram", [this.diagramId], ["xml"]);
+        if (!rec || !rec.xml) {
+            return;
+        }
+        const canvas = this.modeler.get("canvas");
+        const viewbox = canvas.viewbox();
+        await this.modeler.importXML(rec.xml);
+        canvas.viewbox(viewbox);
+        this._selection = [];
+        this.state.dirty = false;
+    }
+
     _destroyModeler() {
+        if (this._bridge) {
+            if (bridgeRegistry.get("editor", null) === this._bridge) {
+                bridgeRegistry.remove("editor");
+            }
+            this._bridge = null;
+        }
         if (this.modeler) {
             try {
                 this.modeler.destroy();
@@ -241,9 +304,10 @@ export class BpmnEditorAction extends Component {
         }
     }
 
+    /** @returns {Promise<boolean>} 是否存檔成功（橋接用；既有呼叫端忽略回傳值）。 */
     async onSave() {
         if (!this.modeler || this.state.saving || this.readonly) {
-            return;
+            return false;
         }
         this.state.saving = true;
         try {
@@ -260,10 +324,12 @@ export class BpmnEditorAction extends Component {
             await this.orm.write("bpmn.diagram", [this.diagramId], changes);
             this.state.dirty = false;
             this.notification.add(_t("已儲存。"), { type: "success" });
+            return true;
         } catch (e) {
             this.notification.add(_t("儲存失敗：%s", e?.message || e), {
                 type: "danger",
             });
+            return false;
         } finally {
             this.state.saving = false;
         }
