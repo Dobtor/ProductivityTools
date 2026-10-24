@@ -27,7 +27,7 @@ Dobtor Messaging Base
 
 詳見 ``docs/DESIGN.md``。
     """,
-    'author': 'Dobtor SI',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': [
         'mail',   # discuss.channel, mail.message, personas
@@ -49,5 +49,5 @@ Dobtor Messaging Base
     'installable': True,
     'auto_install': False,
     'application': False,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
 }

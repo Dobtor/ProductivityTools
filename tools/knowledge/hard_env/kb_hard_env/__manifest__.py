@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'KB 刁難測試環境（只給本機測試用）',
+    'author': 'Dobtor S.I.',
+    'website': 'https://www.dobtor.com',
     'version': '18.0.1.0.0',
     'summary': '重現方案知識在社群電商方案踩過的坑：彈窗登入、第二家公司、自訂群組、不准刪的單據、限會員選單',
     'license': 'OPL-1',

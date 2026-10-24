@@ -48,7 +48,7 @@ Main Features:
   - Transfer history tracking
   - Create activity from message
     """,
-    'author': 'Dobtor SI',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': [
         'mail',
@@ -111,5 +111,5 @@ Main Features:
     'installable': True,
     'auto_install': False,
     'application': True,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
 }

@@ -14,7 +14,7 @@ with the Project bridge.
 * Confirming a sales order writes the project back to its opportunity
 * Activities on a lead log time into the lead's project
     """,
-    'author': 'Dobtor SI',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': [
         'dobtor_mail_activity_project',
@@ -27,5 +27,5 @@ with the Project bridge.
     ],
     'installable': True,
     'auto_install': True,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
 }

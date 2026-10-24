@@ -28,7 +28,8 @@ Dobtor Doc Import
   python-docx（DOCX 的純 Python fallback）、odfpy（.odt 解析）
     """,
     'category': 'Productivity',
-    'author': 'Dobtor',
+    'author': 'Dobtor S.I.',
+    'website': 'https://www.dobtor.com',
     'license': 'OPL-1',
     'depends': [
         'dobtor_doc_editor',

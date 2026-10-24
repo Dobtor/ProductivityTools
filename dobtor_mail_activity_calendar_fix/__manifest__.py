@@ -21,7 +21,7 @@ Fixes:
 These patches apply on Odoo <= 18.0; remove this module once Odoo fixes the
 issues upstream.
     """,
-    'author': 'Dobtor SI',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': [
         'calendar',
@@ -30,6 +30,6 @@ issues upstream.
     'installable': True,
     'auto_install': False,
     'application': False,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
     'post_init_hook': '_post_init_hook',
 }

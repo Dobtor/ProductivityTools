@@ -15,7 +15,7 @@ Installed automatically when Project and Timesheets are installed.
 * Default timesheet project per company
 * Hides project_todo's own To-do app (dobtor_mail_activity provides one)
     """,
-    'author': 'Dobtor SI',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': [
         'dobtor_mail_activity',
@@ -35,5 +35,5 @@ Installed automatically when Project and Timesheets are installed.
     ],
     'installable': True,
     'auto_install': True,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
 }

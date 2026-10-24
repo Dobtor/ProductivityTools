@@ -25,7 +25,8 @@ Dobtor Doc Editor v2.1
   pip install python-docx docxtpl odfpy
     """,
     'category': 'Productivity',
-    'author': 'Dobtor',
+    'author': 'Dobtor S.I.',
+    'website': 'https://www.dobtor.com',
     # Dobtor 模組授權統一政策：OPL-1（新舊模組皆是）。
     # 2026-10-09 由 LGPL-3 改為 OPL-1——變更前的查證與第三方盤點寫在根目錄的
     # LICENSE 與 LICENSES/README.md：depends 六支全為 LGPL-3 核心 Odoo（無

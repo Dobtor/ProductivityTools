@@ -18,7 +18,7 @@ so model ACLs (``ir.model.access``), record rules (``ir.rule``) and
 ``has_group`` checks are all narrowed consistently. Narrowing can only tighten
 access, never widen it.
 """,
-    'author': 'Dobtor',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': ['base', 'base_setup'],
     'data': [
@@ -27,7 +27,7 @@ access, never widen it.
         'views/apikey_scope_views.xml',
         'views/res_config_settings_views.xml',
     ],
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
     'installable': True,
     'application': False,
 }

@@ -34,7 +34,7 @@ to-do lists inside notes, weekly schedule notes.
   - Token-based access for signers
   - Meeting detail view with signature modal
     """,
-    'author': 'Dobtor SI',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': [
         'dobtor_mail_activity',
@@ -84,7 +84,7 @@ to-do lists inside notes, weekly schedule notes.
     'installable': True,
     'auto_install': False,
     'application': True,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
     'pre_init_hook': '_pre_init_hook',
     'post_init_hook': '_post_init_hook',
 }

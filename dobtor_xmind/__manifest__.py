@@ -15,7 +15,7 @@
         - Import/Export .xmind files
         - Drag-and-drop reorganization
     ''',
-    'author': 'Dobtor',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
     'depends': ['base', 'web', 'mail', 'project', 'dobtor_project'],
     'data': [
@@ -84,5 +84,5 @@
     'installable': True,
     'application': True,
     'auto_install': False,
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
 }

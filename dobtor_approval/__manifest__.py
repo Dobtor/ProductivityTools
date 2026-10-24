@@ -17,9 +17,9 @@ Dobtor Approval — BPM 簽核引擎（內含 BPMN 編輯器核心，可獨立�
 
 非目標：不提供表單設計器。資料輸入一律使用 Odoo 原生 form view。
 """,
-    'author': 'Dobtor',
+    'author': 'Dobtor S.I.',
     'website': 'https://www.dobtor.com',
-    'license': 'LGPL-3',
+    'license': 'OPL-1',
     'depends': ['web', 'mail', 'hr'],
     'data': [
         'security/dobtor_approval_security.xml',
