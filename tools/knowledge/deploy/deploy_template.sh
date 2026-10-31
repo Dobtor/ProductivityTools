@@ -1,15 +1,35 @@
 set -e
 B=__ENV_DIR__; S=$B/sources/Dobtor; BK=__BACKUP__
 C=__CONTAINER__
-# ★ 先等佇列（所有通道：知識、上架、開通…）沒有「處理中」的工作再動手——部署重啟會中斷它們。
+# ★ 先等佇列沒有「處理中」的工作再動手——部署重啟會中斷它們。
+#   知識通道不等：知識作業被重啟打斷會自動重排（_RESTART_RESUMABLE／重啟回收），
+#   而它常一個接一個跑（各方案輪流），等它會等到逾時放棄（2026-10-31 實機）。
 #   最多等 WAIT_MIN 分鐘（預設 60）；還在忙就放棄部署，除非 FORCE=1。
 WAIT_MIN=${WAIT_MIN:-60}
+# ★ 部署期間暫停派工：佇列派工與知識自動續跑三個排程（只動原本啟用的，結束一定恢復）。
+#   ☠️ 2026-10-31／11-01 實機：確認佇列空閒後，續跑排程立刻又起一個知識作業；它的子行程長時間
+#     開著交易，升級的 DROP NOT NULL（infrastructure_solution_package）拿不到鎖，Odoo 升級固定
+#     用 lock_timeout=15s（modules/loading.py），六次重試全敗或靠運氣。
+PAUSE_XIDS="dobtor_infrastructure.ir_cron_queue dobtor_corpaas_knowledge.ir_cron_knowledge_resume_orphans dobtor_corpaas_knowledge.cron_knowledge_autopilot"
+pg() {  # 在容器裡對 __DB__ 跑一段 SQL（自動提交），印出結果
+  docker exec -e Q="$1" $C python3 -c "
+import configparser,os,psycopg2
+c=configparser.ConfigParser();c.read('/etc/odoo/odoo.conf');o=c['options']
+cn=psycopg2.connect(host=o.get('db_host'),port=o.get('db_port') or 5432,user=o.get('db_user'),password=o.get('db_password'),dbname='__DB__')
+cn.autocommit=True;cur=cn.cursor();cur.execute(os.environ['Q'])
+print(','.join(str(r[0]) for r in cur.fetchall()) if cur.description else '')"
+}
+XIDS_SQL=$(printf "'%s'," $PAUSE_XIDS); XIDS_SQL=${XIDS_SQL%,}
+PAUSED=$(pg "update ir_cron c set active=false from ir_model_data d where d.model='ir.cron' and d.res_id=c.id and d.module||'.'||d.name in ($XIDS_SQL) and c.active returning c.id")
+echo "paused crons: ${PAUSED:-（無）}"
+resume() { [ -n "$PAUSED" ] && pg "update ir_cron set active=true where id in ($PAUSED) returning id" >/dev/null && echo "resumed crons: $PAUSED"; PAUSED=; }
+trap resume EXIT
 busy() {
   docker exec $C python3 -c "
 import configparser,psycopg2
 c=configparser.ConfigParser();c.read('/etc/odoo/odoo.conf');o=c['options']
 cn=psycopg2.connect(host=o.get('db_host'),port=o.get('db_port') or 5432,user=o.get('db_user'),password=o.get('db_password'),dbname='__DB__')
-cur=cn.cursor();cur.execute(\"select count(*), string_agg(channel || ':' || operate, ',') from corpaas_queue where state='processing'\")
+cur=cn.cursor();cur.execute(\"select count(*), string_agg(channel || ':' || operate, ',') from corpaas_queue where state='processing' and coalesce(channel,'') <> 'knowledge'\")
 n,ops=cur.fetchone();print(n, ops or '')"
 }
 i=0
@@ -23,6 +43,10 @@ while :; do
   [ $((i % 10)) -eq 0 ] && echo "waiting: $n queue job(s) running ($ops)…"
   i=$((i+1)); sleep 30
 done
+# ★ 知識作業（不等它）：結束它的子行程，連線與交易跟著關掉——反正重啟也會打斷它，系統會自動重排。
+#   只在非知識作業都閒下來之後做，所以剩下的 odoo shell 子行程都是知識作業。
+KILLED=$(docker exec $C sh -c "pkill -f '[o]doo shell --no-http' && echo yes || true")
+[ -n "$KILLED" ] && { echo "stopped running knowledge job subprocess(es)"; sleep 5; }
 mkdir -p $BK/pt
 # 備份只包正式機上已經有的模組（這包新加的模組還不存在）
 HAVE=$(cd $S/ProductivityTools && for m in __MODS__; do if [ -d "$m" ]; then printf '%s ' "$m"; fi; done)
@@ -50,7 +74,7 @@ for i in 1 2 3 4 5 6; do
   # 容器掛了、指令沒跑起來、沒有 log：都算失敗（不能因為 log 裡找不到錯誤字樣就當成功）
   if [ $RC -ne 0 ] || [ ! -f "$H" ] || grep -q "Failed to load registry\|ParseError" $H; then
     echo "try $i failed (exit $RC): $(grep -o '此計劃任務目前正在執行\|ParseError: while parsing [^,]*\|Error: .*' $H 2>/dev/null | head -3 | tr '\n' ' ')"
-    grep -q "此計劃任務目前正在執行\|could not obtain lock\|deadlock detected" $H 2>/dev/null || break
+    grep -q "此計劃任務目前正在執行\|could not obtain lock\|deadlock detected\|lock timeout\|LockNotAvailable" $H 2>/dev/null || break
     sleep 20
   else
     echo "try $i OK"; grep -E " ERROR |CRITICAL" $H | head -8; docker restart $C >/dev/null; sleep 25
