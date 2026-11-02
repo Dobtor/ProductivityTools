@@ -209,10 +209,13 @@ class DocTemplate(models.Model):
 
     @staticmethod
     def _layout_cell(*elements, **kw):
-        """表格儲存格。結尾一定補換行——canvas-editor 的儲存格都是這個形狀，
-        少了它在編輯器裡點進去會沒有可放游標的位置。"""
-        value = list(elements) + [{'value': '\n'}]
-        return dict({'colspan': 1, 'rowspan': 1, 'value': value}, **kw)
+        """表格儲存格。
+
+        結尾不補換行：canvas-editor 載入格子時一律在最前面補一個段落起點
+        （isForceCompensation），游標本來就有位置；結尾的換行反而是
+        「下一段的開頭」，會讓每一格多一行空白。
+        """
+        return dict({'colspan': 1, 'rowspan': 1, 'value': list(elements)}, **kw)
 
     @staticmethod
     def _layout_pill(label, **meta):
@@ -267,19 +270,23 @@ class DocTemplate(models.Model):
             },
             {'value': '\n'},
             tagline,
-            {'value': '\n'},
         ]
 
-        footer = [
-            pill('頁尾文字', source='html', path='company_id.report_footer'),
+        # 換行是下一段的開頭：頁碼那一行的置中寫在它開頭的換行與每個元素上，
+        # 不是寫在結尾（見 doc.render.mixin._elements_to_html）
+        page_line = [
             {'value': '\n'},
             {'value': '第 '},
             pill('頁碼', source='page', part='number'),
             {'value': ' / '},
             pill('總頁數', source='page', part='count'),
             {'value': ' 頁'},
-            {'value': '\n', 'rowFlex': 'center'},
         ]
+        for el in page_line:
+            el['rowFlex'] = 'center'
+        footer = [
+            pill('頁尾文字', source='html', path='company_id.report_footer'),
+        ] + page_line
         return {'header': header, 'main': [], 'footer': footer}
 
     @api.model

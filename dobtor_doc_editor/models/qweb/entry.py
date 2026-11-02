@@ -82,6 +82,10 @@ class ConvEntry:
         # 頁首頁尾一律留空，交給外框範本——公司 logo、公司資訊、頁碼對所有
         # 報表都一樣，複製進每一張範本的話改公司地址要改 N 張。
         tree = {'header': [], 'main': main, 'footer': []}
+        # 轉換器內部用「換行收尾一段、對齊寫在收尾換行上」的寫法；
+        # 交出去之前轉成編輯器的寫法（換行是下一段的開頭）。試算要用轉好的樹，
+        # 才會跟使用者之後在編輯器與 PDF 看到的一樣。
+        self.env['doc.render.mixin']._paragraph_ends_to_starts(tree)
         needs_layout = bool(
             root.xpath('//t[@t-call="web.external_layout"'
                        ' or @t-call="web.internal_layout"]')

@@ -592,7 +592,7 @@ class ConvBlocks:
                 cell_style = self._node_style(cell, 'td')
                 if cell_style:
                     for el in value[cell_start:]:
-                        if el.get('type') not in ('label', 'table'):
+                        if self._takes_style(el):
                             el.update(cell_style)
                 if not value or (value[-1].get('value') or '') != '\n':
                     value.append(self._newline())
@@ -613,7 +613,7 @@ class ConvBlocks:
                 align = row_static_style.pop('align', None)
                 for cell in td_list:
                     for el in cell.get('value') or []:
-                        if el.get('type') not in ('label', 'table'):
+                        if self._takes_style(el):
                             el.update(row_static_style)
                         if align and (el.get('value') or '') == '\n':
                             el['rowFlex'] = align

@@ -35,6 +35,21 @@ class ConvExpr:
     def _newline(self):
         return {'value': '\n'}
 
+    def _takes_style(self, el):
+        """這個元素要不要套上容器（td／tr／區塊）的固定樣式。
+
+        表格不套（它的格子各自處理）；條件、重複這類標記藥丸不套（不印字）。
+        欄位藥丸**要套**：以前把所有 label 都排除，粗體只落在段落結尾的
+        換行上——那個換行在編輯器裡是下一段的開頭，所以 fw-bold 的列
+        實際上從來沒有變粗。
+        """
+        etype = el.get('type')
+        if etype == 'table':
+            return False
+        if etype == 'label':
+            return not self.env['doc.render.mixin']._is_marker_element(el)
+        return True
+
     def _trim(self, out):
         """去掉開頭與結尾多餘的換行。"""
         while out and (out[0].get('value') or '') == '\n':

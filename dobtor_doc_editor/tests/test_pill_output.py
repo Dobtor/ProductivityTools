@@ -104,9 +104,157 @@ class TestContentJsonToHtml(TransactionCase):
         self.assertIn('&lt;script&gt;', html)
 
     def test_row_flex_alignment(self):
-        tree = {'main': [_text('置中'), _text('\n', rowFlex='center')]}
+        tree = {'main': [_text('置中', rowFlex='center')]}
         html = self.Mixin._content_json_to_html(tree)
         self.assertIn('text-align:center', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestEditorParagraphParity(TransactionCase):
+    """PDF 的段落與對齊要跟 canvas-editor 畫出來的一樣。
+
+    編輯器的規則（computeRowList／formatElementList）：換行是**下一段的開頭**，
+    一段的對齊看開頭那個元素、沒有就看下一個。以前這裡讀的是段落**結尾**
+    的換行，於是每一段都拿到下一段的對齊：標題置中消失、靠右的兩行在 PDF
+    變成「它們的上一行」靠右（待辦 #1175，10510 文件 2 實測）。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def _paras(self, *elements, **kw):
+        """回傳 [(對齊, 文字), ...]，對齊沒有就是 ''。"""
+        import re
+        html = self.Mixin._elements_to_html(list(elements), **kw)
+        out = []
+        for attrs, body in re.findall(r'<p([^>]*)>(.*?)</p>', html):
+            m = re.search(r'text-align:(\w+)', attrs)
+            text = re.sub(r'<[^>]+>', '', body)
+            out.append((m.group(1) if m else '', text))
+        return out
+
+    def test_alignment_comes_from_the_paragraph_start(self):
+        """10510 文件 2 的形狀：對齊寫在段落開頭的換行與段落內容上。"""
+        self.assertEqual(self._paras(
+            _text('客戶資料確認單', rowFlex='center'),
+            _text('\n'),
+            _text('所在國家：'),
+            _text('\n', rowFlex='right'),
+            _text('聯絡電話：', rowFlex='right'),
+            _text('\n', rowFlex='right'),
+            _text('電子郵件：', rowFlex='right'),
+            _text('\n'),
+            _text('列印日期：'),
+        ), [
+            ('center', '客戶資料確認單'),
+            ('', '所在國家：'),
+            ('right', '聯絡電話：'),
+            ('right', '電子郵件：'),
+            ('', '列印日期：'),
+        ])
+
+    def test_trailing_newline_is_an_empty_paragraph(self):
+        """結尾的換行是「下一段的開頭」——編輯器裡那是一行空白。"""
+        self.assertEqual(self._paras(_text('甲'), _text('\n')),
+                         [('', '甲'), ('', '')])
+
+    def test_leading_newline_in_body_is_the_start(self):
+        """正文以換行開頭時，那個換行就是第一段的起點，不多一行空白。"""
+        self.assertEqual(
+            self._paras(_text('\n', rowFlex='right'), _text('甲')),
+            [('right', '甲')])
+
+    def test_leading_newline_in_cell_is_an_empty_line(self):
+        """格子一律自帶起點（isForceCompensation），開頭的換行是一行空白。"""
+        self.assertEqual(
+            self._paras(_text('\n'), _text('甲'), in_cell=True),
+            [('', ''), ('', '甲')])
+
+    def test_no_empty_paragraph_after_a_table(self):
+        """表格自成一列，後面的換行是下一段的開頭，不是空行。"""
+        table = {'type': 'table', 'value': '',
+                 'trList': [{'tdList': [{'value': [_text('格')]}]}]}
+        html = self.Mixin._elements_to_html(
+            [_text('前'), table, _text('\n', rowFlex='right'),
+             _text('後', rowFlex='right')])
+        self.assertNotIn('<p><br/></p>', html)
+        self.assertIn('<p style="text-align:right">後</p>', html)
+        self.assertLess(html.index('<p>前</p>'), html.index('<table'))
+
+    def test_merged_newlines_are_split_into_paragraphs(self):
+        """編輯器存檔會把屬性相同的相鄰元素併成一個（'甲\\n乙'）。"""
+        self.assertEqual(
+            self._paras(_text('甲\n乙', rowFlex='center')),
+            [('center', '甲'), ('center', '乙')])
+
+    def test_zero_width_break_counts_as_a_newline(self):
+        """快照產生的值會帶 \\u200b，編輯器把它當換行。"""
+        self.assertEqual(self._paras(_text('甲'), _text('​\n'),
+                                     _text('乙')),
+                         [('', '甲'), ('', ''), ('', '乙')])
+
+    def test_multiline_field_value_stays_in_one_paragraph(self):
+        """多行地址是同一段裡的斷行，不能拆成好幾段。"""
+        tree = {'main': [_pill('地址', source='record', path='x')]}
+        tree['main'][0]['value'] = '台北市\n信義區'
+        flat = self.Mixin._flatten_content_json(tree)
+        html = self.Mixin._content_json_to_html(flat)
+        self.assertEqual(html.count('<p'), 1, html)
+        self.assertIn('台北市<br/>信義區', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestParagraphEndsToStarts(TransactionCase):
+    """轉換器／HTML 匯入的「收尾換行」寫法 → 編輯器的「開頭換行」寫法。"""
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def _vals(self, elements):
+        return [(el.get('value'), el.get('rowFlex')) for el in elements]
+
+    def test_alignment_moves_to_the_paragraph(self):
+        tree = {'main': [_text('標題'), _text('\n', rowFlex='center'),
+                         _text('內文'), _text('\n')]}
+        self.Mixin._paragraph_ends_to_starts(tree)
+        self.assertEqual(self._vals(tree['main']), [
+            ('標題', 'center'), ('\n', None), ('內文', None)])
+
+    def test_cell_loses_its_trailing_newline(self):
+        """格子結尾的收尾換行在編輯器裡是多一行空白。"""
+        table = {'type': 'table', 'value': '', 'trList': [{'tdList': [
+            {'value': [_text('金額'), _text('\n', rowFlex='right')]},
+            {'value': [_text('\n')]},
+        ]}]}
+        tree = {'main': [table]}
+        self.Mixin._paragraph_ends_to_starts(tree)
+        cells = table['trList'][0]['tdList']
+        self.assertEqual(self._vals(cells[0]['value']), [('金額', 'right')])
+        # 只有一個收尾換行＝一個空段落；格子自帶起點，空串列就是那一段
+        self.assertEqual(cells[1]['value'], [])
+
+    def test_newline_closing_a_table_is_not_a_blank_line(self):
+        table = {'type': 'table', 'value': '', 'trList': []}
+        tree = {'main': [_text('前'), _text('\n'), table, _text('\n'),
+                         _text('後'), _text('\n', rowFlex='right')]}
+        self.Mixin._paragraph_ends_to_starts(tree)
+        self.assertEqual(
+            [el.get('type') or el.get('value') for el in tree['main']],
+            ['前', 'table', '\n', '後'])
+        self.assertEqual(tree['main'][2].get('rowFlex'), 'right')
+
+    def test_round_trip_matches_the_old_reading(self):
+        """轉完之後 PDF 的段落數與對齊，要等於舊寫法原本的意思。"""
+        tree = {'main': [_text('甲'), _text('\n', rowFlex='center'),
+                         _text('\n'),
+                         _text('乙'), _text('\n', rowFlex='right')]}
+        self.Mixin._paragraph_ends_to_starts(tree)
+        html = self.Mixin._content_json_to_html(tree)
+        self.assertEqual(
+            html, '<p style="text-align:center">甲</p><p><br/></p>'
+                  '<p style="text-align:right">乙</p>')
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
@@ -501,10 +649,19 @@ class TestLayoutTemplate(TransactionCase):
             sum(c['width'] for c in table['colgroup']),
             794 - 96 - 96,
         )
-        # 每個儲存格都要以換行結尾，否則編輯器裡點進去沒有游標位置
+        # 儲存格不以換行結尾：編輯器載入格子時自己會補段落起點，
+        # 結尾的換行是「下一段的開頭」，會讓每一格多一行空白
         for row in table['trList']:
             for cell in row['tdList']:
-                self.assertEqual(cell['value'][-1]['value'], '\n')
+                self.assertNotEqual(cell['value'][-1].get('value'), '\n')
+
+    def test_builtin_layout_page_line_is_centred(self):
+        """頁碼那一行要置中——對齊寫在它開頭的換行上，不是結尾。"""
+        tmpl = self.env['doc.template'].create({'name': 'L', 'role': 'layout'})
+        tree = tmpl._build_layout_tree('side')
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree), zone='footer')
+        self.assertIn('<p style="text-align:center">第 ', html)
 
     def test_builtin_layout_has_logo_details_and_page_fields(self):
         tmpl = self.env['doc.template'].create({'name': 'L', 'role': 'layout'})

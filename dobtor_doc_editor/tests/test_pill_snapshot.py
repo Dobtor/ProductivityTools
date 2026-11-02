@@ -461,12 +461,16 @@ class TestConditionBlocks(TransactionCase):
         self.assertIn('後', html)
 
     def test_false_condition_leaves_no_blank_paragraph(self):
-        """移除後不可留下空段落——使用者看到「條件為假時多一行空白」完全追不到原因。"""
+        """移除後不可留下空段落——使用者看到「條件為假時多一行空白」完全追不到原因。
+
+        編輯器的形狀：在空行上插入的區塊，前面那個換行是表格上方的空行，
+        後面那個是「後」這一段的開頭（換行是下一段的開頭，結尾不會有換行）。
+        """
         tree = {'main': [
             _text('前'), _text('\n'),
-            self._block([_text('內容'), _text('\n')],
+            self._block([_text('內容')],
                         expression='object.name == "不存在"'),
-            _text('\n'), _text('後'), _text('\n'),
+            _text('\n'), _text('後'),
         ]}
         self.assertEqual(self._html(tree), '<p>前</p><p>後</p>')
 
@@ -1173,7 +1177,7 @@ class TestColumnConditions(TransactionCase):
                            _pill('欄條件', source='column',
                                  expression='object.name == "不存在"')],
                  'colspan': 1, 'rowspan': 1}]}]},
-            _text('\n'), _text('後'), _text('\n'),
+            _text('\n'), _text('後'),
         ]}
         self.Mixin._snapshot_content_json(tree, self.partner)
         html = self.Mixin._content_json_to_html(
@@ -1584,6 +1588,40 @@ class TestNestedTableSurvivesCollapse(TransactionCase):
         self.assertNotIn('客戶統編', html)
         self.assertIn('保留這段', html)
 
+    def test_collapsed_paragraph_does_not_pass_its_alignment_on(self):
+        """收合掉的那一段，對齊不能傳給下一段。
+
+        換行是下一段的開頭：收合時要拿掉這一段**開頭**的換行（帶著它的
+        置中），留下結尾那個（下一段自己的開頭）。拿反的話，下一段會接到
+        置中的換行上，整段跟著置中。
+        """
+        tree = {'header': [], 'footer': [], 'main': [
+            _text('標題'),
+            _text('\n', rowFlex='center'),
+            _text('客戶統編：', rowFlex='center'),
+            dict(_pill('統編', source='record', path='vat'), rowFlex='center'),
+            _text('\n'),
+            _text('靠左這段'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.partner)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(snapped))
+        self.assertEqual(html, '<p>標題</p><p>靠左這段</p>')
+
+    def test_removed_empty_table_keeps_the_paragraphs_apart(self):
+        """拿掉空表格之後，前後兩段不能接成一段，也不能多一行空白。"""
+        empty = {'type': 'table', 'value': '', 'trList': []}
+        for main, expected in (
+            ([_text('前'), empty, _text('後')], '<p>前</p><p>後</p>'),
+            ([_text('前'), empty, _text('\n'), _text('後')],
+             '<p>前</p><p>後</p>'),
+        ):
+            tree = {'header': [], 'footer': [], 'main': [
+                dict(el) if el is not empty else dict(empty) for el in main]}
+            snapped = self.Mixin._snapshot_content_json(tree, self.partner)
+            self.assertEqual(self.Mixin._content_json_to_html(snapped),
+                             expected)
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestRepeatRowNestedBlocks(TransactionCase):
@@ -1877,8 +1915,25 @@ class TestConditionalFormat(TransactionCase):
             _text('\n'),
         ]}
         snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        text = [el for el in snapped['main'] if el.get('value') == '靠右']
+        self.assertEqual(text[0].get('rowFlex'), 'right')
+        # 結尾那個換行是下一段的開頭，不能被染上這一段的對齊
         nl = [el for el in snapped['main'] if (el.get('value') or '') == '\n']
-        self.assertEqual(nl[0].get('rowFlex'), 'right')
+        self.assertIsNone(nl[0].get('rowFlex'))
+
+    def test_align_also_marks_the_paragraph_start(self):
+        """不是第一段時，開頭的換行也要寫上——編輯器先看它。"""
+        tree = {'header': [], 'footer': [], 'main': [
+            _text('前一段'),
+            _text('\n'),
+            _pill('條件格式', source='format', expression='', align='center'),
+            _text('置中'),
+        ]}
+        snapped = self.Mixin._snapshot_content_json(tree, self.parent)
+        html = self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(snapped))
+        self.assertIn('<p>前一段</p>', html)
+        self.assertIn('<p style="text-align:center">置中</p>', html)
 
     def test_table_inside_the_span_is_not_restyled(self):
         """同段落裡的表格是獨立區塊，它的格子各自處理，不該被整段套用。"""
@@ -2116,8 +2171,10 @@ class TestPageScopeMarker(TransactionCase):
         self.assertIn('<p>第二段</p>', html)
 
     def test_scope_coexists_with_alignment(self):
+        # 編輯器設對齊時整段都會寫上，標記藥丸也不例外
         html = self._html(
-            _pill('X', source='pageScope', scope='even', isMarker=True),
-            _text('靠右'), _text('\n', rowFlex='right'))
+            dict(_pill('X', source='pageScope', scope='even', isMarker=True),
+                 rowFlex='right'),
+            _text('靠右', rowFlex='right'))
         self.assertIn('doc-page-even', html)
         self.assertIn('text-align:right', html)

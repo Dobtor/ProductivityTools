@@ -1261,7 +1261,10 @@ class TestClassFormatting(TestQwebConverterBase):
             '<table><tr><td class="text-end"><span t-out="o.name"/></td>'
             '</tr></table>')
         cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
-        self.assertEqual(cell['value'][-1].get('rowFlex'), 'right')
+        # 編輯器的寫法：對齊在格子內容上（格子第一段看第一個元素），
+        # 結尾不留換行（那會讓每格多一行空白）
+        self.assertEqual(cell['value'][0].get('rowFlex'), 'right')
+        self.assertNotEqual(cell['value'][-1].get('value'), '\n')
 
     def test_cell_alignment_from_the_inner_span(self):
         """原生也常把 text-end 放在裡面那個 span 上。"""
@@ -1269,7 +1272,16 @@ class TestClassFormatting(TestQwebConverterBase):
             '<table><tr><td><span class="text-center"'
             ' t-out="o.name"/></td></tr></table>')
         cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
-        self.assertEqual(cell['value'][-1].get('rowFlex'), 'center')
+        self.assertEqual(cell['value'][0].get('rowFlex'), 'center')
+        self.assertNotEqual(cell['value'][-1].get('value'), '\n')
+
+    def test_block_alignment_survives_into_the_pdf(self):
+        """轉換完直接印：置中的區塊在 PDF 也要置中（編輯器同一套讀法）。"""
+        res = self._convert(
+            '<div>前一段</div><div class="text-center">置中</div>')
+        html = self.env['doc.render.mixin']._content_json_to_html(res['tree'])
+        self.assertIn('<p>前一段</p>', html)
+        self.assertIn('<p style="text-align:center">置中</p>', html)
 
     def test_grid_classes_are_ignored(self):
         """col-6 / mb-4 這種網格 class 不該變成任何文件屬性。"""

@@ -368,9 +368,12 @@ class RenderTree:
 
     # ─── 段落切分 ────────────────────────────────────────────────────
     #
-    # 段落在扁平元素串列裡有可靠邊界：value == '\n' 的元素。
-    # 這不是推測——_elements_to_html() 本身就是用它切段落的，所以「整段移除」
-    # 與渲染結果一定一致。這也是為什麼條件與重複都只做到段落／列的粒度。
+    # 段落在扁平元素串列裡有可靠邊界：value == '\n' 的元素——它是**下一段的
+    # 開頭**（canvas-editor 的寫法，見 _elements_to_html），所以 span 結尾的
+    # nl_index 其實屬於下一段，刪段落時要注意（見 _drop_span）。
+    # _elements_to_html() 也用同一個邊界切段落，所以「整段移除」與渲染結果一致；
+    # 唯一的差別是它會先把值裡夾帶的換行拆開（'甲\n乙'），這裡不拆。
+    # 這也是為什麼條件與重複都只做到段落／列的粒度。
 
     def _iter_paragraph_spans(self, elements):
         """回傳 [(start, end_exclusive, nl_index or None), ...]。
@@ -388,10 +391,105 @@ class RenderTree:
         return spans
 
     def _drop_span(self, elements, span):
-        """移除一個段落（含其結尾換行，否則會留下一條空行）。"""
+        """移除一個段落，連同一個相鄰的換行（否則會留下一條空行）。
+
+        canvas-editor 的換行是**下一段的開頭**、帶著下一段的對齊（見
+        _elements_to_html）。所以要拿掉的是這一段**開頭**的換行，結尾那個
+        是下一段的，留著。拿錯的話，下一段會接到這一段的開頭換行上，
+        繼承這一段的對齊。
+
+        第一段沒有開頭換行，只能拿掉結尾那個；它帶的對齊補到下一段的
+        第一個元素上（編輯器在那個位置看得到它）。
+        """
         start, end, nl = span
+        if start > 0:
+            del elements[start - 1:end]
+            return
         stop = (nl + 1) if nl is not None else end
+        removed_nl = elements[nl] if nl is not None else None
         del elements[start:stop]
+        flex = isinstance(removed_nl, dict) and removed_nl.get('rowFlex')
+        if flex and elements and isinstance(elements[0], dict):
+            elements[0].setdefault('rowFlex', flex)
+
+    # ─── 收尾換行 → 開頭換行 ──────────────────────────────────────────
+    #
+    # 轉換器（原生報表 → 範本）與 HTML 匯入內部是「先放內容、最後補一個
+    # 換行收尾、對齊寫在收尾換行上」：區塊結束時才知道對齊，這樣比較好寫，
+    # 十幾處程式也都是這個寫法。但 canvas-editor 的換行是**下一段的開頭**，
+    # 照原樣交出去的話，編輯器與 PDF 每一段都會拿到上一段的對齊，
+    # 格子裡也會多一行空白。所以內部維持原樣，出口統一在這裡轉一次。
+
+    def _paragraph_ends_to_starts(self, tree):
+        """把「收尾換行」寫法的樹轉成編輯器的寫法（就地改寫並回傳 tree）。"""
+        if isinstance(tree, dict):
+            for zone in self._ELEMENT_ZONES:
+                if isinstance(tree.get(zone), list):
+                    tree[zone][:] = self._ends_to_starts_list(tree[zone])
+        elif isinstance(tree, list):
+            tree[:] = self._ends_to_starts_list(tree)
+        return tree
+
+    def _ends_to_starts_list(self, elements, in_cell=False):
+        """單一串列的轉換。in_cell=True 表示表格格子（見 _elements_to_html）。
+
+        先照舊寫法切出段落（舊的讀法：換行收尾一段，表格自成一塊、緊接在
+        表格後面的換行只是收掉表格），再用編輯器的寫法排回去：
+        換行放在每一段的**前面**當開頭，對齊寫在開頭換行與段落內容上。
+        """
+        for el in elements:
+            if isinstance(el, dict) and el.get('type') == 'table':
+                for row in el.get('trList') or []:
+                    for cell in (row.get('tdList') or []) if isinstance(row, dict) else []:
+                        if isinstance(cell, dict) and isinstance(cell.get('value'), list):
+                            cell['value'][:] = self._ends_to_starts_list(
+                                cell['value'], in_cell=True)
+
+        def _is_block(el):
+            return (el.get('type') or '') in ('table', 'htmlBlock', 'pageBreak')
+
+        items = []  # ('p', 內容, 收尾換行 or None) 或 ('b', 區塊元素)
+        buf = []
+        for el in elements:
+            if not isinstance(el, dict):
+                continue
+            if _is_block(el):
+                if buf:
+                    items.append(('p', buf, None))
+                    buf = []
+                items.append(('b', el, None))
+                continue
+            if (el.get('value') or '') == '\n':
+                if not buf and items and items[-1][0] == 'b':
+                    # 只是收掉前面那個表格，不是一行空白
+                    continue
+                items.append(('p', buf, el))
+                buf = []
+                continue
+            buf.append(el)
+        if buf:
+            items.append(('p', buf, None))
+
+        out = []
+        for kind, content, end_nl in items:
+            if kind == 'b':
+                out.append(content)
+                continue
+            flex = end_nl.get('rowFlex') if end_nl else None
+            if flex:
+                for el in content:
+                    if not _is_block(el):
+                        el.setdefault('rowFlex', flex)
+            # 收尾換行搬到段落前面當開頭（它身上的字級等屬性決定空行高度）
+            starter = end_nl if end_nl is not None else {'value': '\n'}
+            if out:
+                out.append(starter)
+            elif not content and not in_cell:
+                # 正文第一段是空的：要一個換行當開頭，才會有那一行空白
+                # （正文開頭的換行會被當成起點，格子則一律自帶起點）
+                out.append(starter)
+            out.extend(content)
+        return out
 
     # ─── ②b 欄條件 ───────────────────────────────────────────────────
     #

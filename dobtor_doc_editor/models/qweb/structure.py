@@ -422,7 +422,7 @@ class ConvStructure:
                           if k != 'align'})
             if style:
                 for el in out[start:]:
-                    if el.get('type') not in ('label', 'table'):
+                    if self._takes_style(el):
                         el.update(style)
             align = self._node_align(node)
             if out and (out[-1].get('value') or '') != '\n':

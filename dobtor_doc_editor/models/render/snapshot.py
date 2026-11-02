@@ -19,19 +19,37 @@ from odoo.tools.mail import html_sanitize
 class RenderSnapshot:
 
     def _drop_empty_tables(self, tree):
-        """移除 trList 已空的表格，連同其後的孤兒換行。
+        """移除 trList 已空的表格。
 
         會變成空表格的兩種情況：條件區塊整塊被移除、重複列零筆明細。
-        不一起吃掉後面那個換行的話，版面會留下一個空段落——使用者看到的是
-        「條件為假時多了一行空白」，而且完全看不出來那行空白是怎麼來的。
 
-        只吃「緊跟其後」的那一個換行：使用者自己在表格後面多按的 Enter
-        是他要的空行，不該被當成殘渣清掉。
+        canvas-editor 裡表格自成一列，換行是**下一段的開頭**（見
+        _elements_to_html）。所以「連同哪個換行一起拿掉」看的是表格前面：
+          * 前面是換行：那個換行自己是一列、而且是空的——就是表格上方那一行
+            空白（在空行上插入表格就是這個形狀）。一起拿掉，否則條件為假時
+            會多一行空白，使用者完全追不到原因。後面那個換行是下一段的開頭、
+            帶著它的對齊，留著。
+          * 表格在最前面：後面那個換行一起拿掉（格子裡它會變成開頭的空行），
+            它的對齊補到下一個元素上。
+          * 前後都直接是文字：原本是表格把兩段隔開，換成一個換行，
+            不然兩段會接成一段。
         """
+        def _is_newline(e):
+            return isinstance(e, dict) and (e.get('value') or '') == '\n'
+
+        def _is_break(e):
+            """這個位置本身就會斷開段落（換行或另一個區塊）。"""
+            return not isinstance(e, dict) or _is_newline(e) or (
+                e.get('type') in ('table', 'htmlBlock', 'pageBreak'))
+
         removed = 0
         for elements in self._iter_element_lists(tree):
             # 由後往前刪，避免索引位移
             for idx in range(len(elements) - 1, -1, -1):
+                # 連同前面的換行一起刪時一次少兩個，下一輪可能已超出結尾
+                # （超出的那些都已經處理過）
+                if idx >= len(elements):
+                    continue
                 el = elements[idx]
                 if not isinstance(el, dict) or el.get('type') != 'table':
                     continue
@@ -41,11 +59,20 @@ class RenderSnapshot:
                 if rows and any((r.get('tdList') or []) for r in rows
                                 if isinstance(r, dict)):
                     continue
-                stop = idx + 1
-                nxt = elements[stop] if stop < len(elements) else None
-                if isinstance(nxt, dict) and (nxt.get('value') or '') == '\n':
-                    stop += 1
-                del elements[idx:stop]
+                prev = elements[idx - 1] if idx > 0 else None
+                nxt = elements[idx + 1] if idx + 1 < len(elements) else None
+                if _is_newline(prev):
+                    del elements[idx - 1:idx + 1]
+                elif prev is None:
+                    stop = idx + 2 if _is_newline(nxt) else idx + 1
+                    flex = nxt.get('rowFlex') if stop == idx + 2 else None
+                    del elements[idx:stop]
+                    if flex and elements and isinstance(elements[0], dict):
+                        elements[0].setdefault('rowFlex', flex)
+                elif nxt is not None and not (_is_break(prev) or _is_break(nxt)):
+                    elements[idx] = {'value': '\n'}
+                else:
+                    del elements[idx]
                 removed += 1
         return removed
 
@@ -1082,9 +1109,9 @@ class RenderSnapshot:
     def _apply_format_to(self, elements, meta, align_on=None):
         """把格式套到一串元素上（表格元素不碰，它自己的格子會各自處理）。
 
-        align_on 是「段落結尾的那個換行元素」——對齊掛在它身上
-        （_elements_to_html 讀它的 rowFlex）。段落區間不含那個換行，
-        所以要另外傳進來。
+        對齊寫在每個元素上，再加上 align_on——「段落**開頭**的那個換行」。
+        canvas-editor 一段的對齊看開頭的換行（見 _elements_to_html），
+        段落區間不含那個換行，所以要另外傳進來。
         """
         style = self._format_style(meta)
         align = (meta.get('align') or '').strip()
@@ -1097,7 +1124,7 @@ class RenderSnapshot:
                 continue
             if style:
                 el.update(style)
-            if align and (el.get('value') or '') == '\n':
+            if align:
                 el['rowFlex'] = align
         if align and isinstance(align_on, dict):
             align_on['rowFlex'] = align
@@ -1152,8 +1179,8 @@ class RenderSnapshot:
                            if self._element_format_meta(elements[i])]
                 if not markers:
                     continue
-                nl = elements[_nl] if _nl is not None and _nl < len(
-                    elements) else None
+                # 這一段的開頭換行＝上一段的結尾換行（第一段沒有）
+                nl = elements[start - 1] if start > 0 else None
                 for _el, meta in markers:
                     expression = (meta.get('expression') or '').strip()
                     if expression and self._try_eval_condition(
