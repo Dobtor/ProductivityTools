@@ -3082,12 +3082,15 @@
     font-size: 12px;
 }
 
+/* 每個清單都依內容長高，捲動交給外層左欄。
+ * 原本「主記錄欄位」用 flex:1 分剩餘高度、自己捲動；但上方的明細（一對多）、
+ * 圖片、多語文字等區塊一多（例如聯絡人），剩餘高度就歸零，整個清單只剩 8px，
+ * 主記錄欄位完全拖不到。 */
 .doc-field-palette-list {
     list-style: none;
     margin: 0;
     padding: 4px 0;
-    overflow-y: auto;
-    flex: 1;
+    flex: none;
 }
 .doc-field-palette-item {
     display: flex;
@@ -3190,7 +3193,7 @@
     border-top: 1px solid #e0e0e0;
     border-bottom: 1px solid #e0e0e0;
 }
-.doc-field-palette-list.is-compact { padding: 2px 0; flex: none; }
+.doc-field-palette-list.is-compact { padding: 2px 0; }
 .doc-palette-repeat-icon { color: #1565c0; font-size: 11px; flex: none; }
 .doc-field-palette-item.is-line { border-left-color: #e8a33d; }
 .doc-field-palette-item.is-line:hover {
