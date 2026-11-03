@@ -80,8 +80,8 @@ load_errors、addons_path、logs…）。各步驟 odoo log 同目錄 `<時間>-
 
 `[[target]]` 一筆一個：name、deploy_mode（`host`／`control_panel`）、ssh_host、ssh_key、container、db、sources_path、url、
 pause_crons、queue_busy_sql、kill_pattern、odoo_conf、container_log_dir；control_panel 另有 control_panel_instance_id／database_id。
-**「待確認」的欄位留空字串**——需要它的指令會拒絕，不會猜。目前：admin.corpaas.com（完整）、admin.dobtor.com（原碼路徑待確認）、
-demo-accounting（控制台實例 240／資料庫 238；原碼路徑、容器、網址待確認）。
+**「待確認」的欄位留空字串**——需要它的指令會拒絕，不會猜。目前：admin.corpaas.com（完整）、admin.dobtor.com（原碼路徑由控制台實例 #49 推得、未 SSH 確認；佇列排程待確認）、
+demo-accounting（控制台實例 240／資料庫 238；容器、原碼路徑、網址由控制台唯讀 RPC 查得、未 SSH 確認）。
 
 ### snapshot（唯讀）
 

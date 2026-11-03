@@ -155,6 +155,15 @@ class TestV0(Sandbox):
         git(self.repo, 'commit', '-qm', 'base')
         self.base = git(self.repo, 'rev-parse', 'HEAD').strip()
 
+    def test_repo_info_worktree_main_repo(self):
+        # git < 2.31 不認得 --path-format=absolute（會原樣印出），worktree 的 main_repo 曾因此變成垃圾路徑
+        wt = os.path.join(self.gh, 'Mine-worktrees', 'feat')
+        git(self.repo, 'worktree', 'add', '-q', '-b', 'feat', wt)
+        info = pv.repo_info(wt)
+        self.assertEqual(info['main_repo'], os.path.realpath(self.repo))
+        self.assertEqual(info['name'], 'Mine')
+        self.assertEqual(pv.repo_info(self.repo)['main_repo'], os.path.realpath(self.repo))
+
     def rules(self, issues, severity='error'):
         return sorted({i['rule'] for i in issues if i['severity'] == severity})
 

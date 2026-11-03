@@ -39,7 +39,9 @@ ssh_host = "root@corpaas01.corpaas.com"
 ssh_key = "~/dobtor-odoo18-cloudsql18"
 container = "odoo-dobtor18-prod_admin"
 db = "Dobtor18_admin"
-sources_path = ""          # 待確認：主機上原碼路徑
+# 原碼路徑：控制台 infrastructure.instance #49（Dobtor18-Prod_admin，主機 CorPAAS＝corpaas01）的 sources_path
+# 加上 addons_path 的 Dobtor/ 層推得（2026-11-03 唯讀 RPC）；尚未 SSH 實地確認。OCA repo 在 sources/OCA（不在快照範圍）。
+sources_path = "/opt/odoo/env00000115/Prod_admin/sources/Dobtor"
 url = "https://admin.dobtor.com"
 rpc_login = "admin"
 pause_crons = []           # 待確認：此站是否也有佇列派工排程
@@ -54,9 +56,13 @@ deploy_mode = "control_panel"
 control_panel_instance_id = 240
 control_panel_database_id = 238
 db = "demo_demo-accounting"
-ssh_host = "root@corpaas01.corpaas.com"   # 原碼在 corpaas01（路徑待確認）
+# 以下由控制台 infrastructure.instance #240（demo-Prod_demo-accounting，主機 CorPAAS＝corpaas01）唯讀 RPC 查得（2026-11-03）：
+#   odoo_container、sources_path（＋addons_path 的 Dobtor/ 層）、main_hostname；容器內 log 檔 /etc/odoo/odoo.log。尚未 SSH 實地確認。
+ssh_host = "root@corpaas01.corpaas.com"
 ssh_key = "~/dobtor-odoo18-cloudsql18"
-container = ""             # 待確認
-sources_path = ""          # 待確認
-url = ""                   # 待確認
+container = "odoo-demo-prod_demo-accounting"
+sources_path = "/opt/odoo/env00000175/Prod_demo-accounting/sources/Dobtor"
+url = "https://demo-accounting.corpaas.com"
 rpc_login = "admin"
+odoo_conf = "/etc/odoo/odoo.conf"
+container_log_dir = "/var/lib/odoo"

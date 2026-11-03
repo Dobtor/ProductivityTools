@@ -433,10 +433,10 @@ def repo_info(path):
     path = os.path.realpath(path)
     sha = git(path, 'rev-parse', 'HEAD').strip()
     branch = git(path, 'rev-parse', '--abbrev-ref', 'HEAD').strip()
-    common = git(path, 'rev-parse', '--path-format=absolute', '--git-common-dir', check=False).strip()
-    if not common:
-        common = os.path.join(path, git(path, 'rev-parse', '--git-common-dir').strip())
-    common = os.path.realpath(common)
+    # ★ 不用 --path-format=absolute：git < 2.31（本機 /usr/local/bin/git 是 2.19）不認得，會把它原樣印出、
+    #   回傳 0，main_repo 變成垃圾路徑 → V0-2 沒排除主 repo，同一模組自己跟自己撞名。
+    common = git(path, 'rev-parse', '--git-common-dir').strip()
+    common = os.path.realpath(common if os.path.isabs(common) else os.path.join(path, common))
     main = os.path.dirname(common) if os.path.basename(common) == '.git' else path
     return {'path': path, 'sha': sha, 'branch': branch, 'main_repo': main, 'name': os.path.basename(main),
             'dirty': bool(git(path, 'status', '--porcelain', check=False).strip())}
