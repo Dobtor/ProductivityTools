@@ -1,0 +1,62 @@
+# pt-verify 的正式機目標（snapshot／deploy-plan／post-check 用；run 的 --target／--base prod:<目標> 也讀這裡）。
+# 欄位：
+#   name                       目標名（指令用）
+#   deploy_mode                host＝本工具產遠端腳本、使用者用 ! 執行；control_panel＝走 CorPaaS 控制台（不產腳本）
+#   ssh_host／ssh_key          唯讀快照與部署腳本用的 SSH
+#   container／db              Odoo 容器與資料庫
+#   sources_path               主機上的原碼根目錄（底下一層是各 repo 子目錄）
+#   url                        站台網址（post-check 讀 /web/login；RPC 金鑰從環境變數 PT_VERIFY_RPC_KEY_<目標名大寫> 讀）
+#   pause_crons                部署期間暫停的排程 xmlid（只動原本啟用的，結束恢復）
+#   queue_busy_sql             等佇列閒置的查詢（回傳「忙碌中件數」；空字串＝不等）
+#   kill_pattern               換碼前要結束的容器內子行程（pkill -f；空字串＝不動）
+#   odoo_conf／container_log_dir  容器內 odoo.conf 與 log 目錄
+# 值寫「待確認」的欄位一律留空字串：工具會拒絕需要它的動作，不會猜。
+
+[[target]]
+name = "admin.corpaas.com"
+deploy_mode = "host"
+ssh_host = "root@dobtor-cloudsql18.dobtor.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-corpaas-prod_admin"
+db = "CorPAAS_admin"
+sources_path = "/opt/odoo/env00000036/Prod_admin/sources/Dobtor"
+url = "https://admin.corpaas.com"
+rpc_login = "admin"
+pause_crons = [
+  "dobtor_infrastructure.ir_cron_queue",
+  "dobtor_corpaas_knowledge.ir_cron_knowledge_resume_orphans",
+  "dobtor_corpaas_knowledge.cron_knowledge_autopilot",
+]
+queue_busy_sql = "select count(*) from corpaas_queue where state='processing' and coalesce(channel,'') <> 'knowledge'"
+kill_pattern = "[o]doo shell --no-http"
+odoo_conf = "/etc/odoo/odoo.conf"
+container_log_dir = "/var/lib/odoo"
+
+[[target]]
+name = "admin.dobtor.com"
+deploy_mode = "host"
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-dobtor18-prod_admin"
+db = "Dobtor18_admin"
+sources_path = ""          # 待確認：主機上原碼路徑
+url = "https://admin.dobtor.com"
+rpc_login = "admin"
+pause_crons = []           # 待確認：此站是否也有佇列派工排程
+queue_busy_sql = ""        # 待確認
+kill_pattern = ""
+odoo_conf = "/etc/odoo/odoo.conf"
+container_log_dir = "/var/lib/odoo"
+
+[[target]]
+name = "demo-accounting"
+deploy_mode = "control_panel"
+control_panel_instance_id = 240
+control_panel_database_id = 238
+db = "demo_demo-accounting"
+ssh_host = "root@corpaas01.corpaas.com"   # 原碼在 corpaas01（路徑待確認）
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = ""             # 待確認
+sources_path = ""          # 待確認
+url = ""                   # 待確認
+rpc_login = "admin"

@@ -1,0 +1,15 @@
+# V4（正式機整套原碼樹）時，把快照裡某個 repo 換成本機版本的替代清單。
+# 每筆都要寫清楚原因、登記日、推翻條件；推翻條件成立就刪掉那一筆（報告會列出實際套用了哪些替代）。
+#   target       目標名（targets.toml）
+#   repo         快照 src/ 底下的 repo 子目錄名
+#   replace_with 本機路徑
+#   branch       本機路徑應該在的分支（不符只警告）
+
+[[override]]
+target = "admin.corpaas.com"
+repo = "website-user"
+replace_with = "~/Documents/GitHub/website-user"
+branch = "dev-18.0"
+reason = "整套原碼全新安裝時 dobtor_topup_sale 的 wallet_btn_payment_topup 找不到 wallet_pay_form"
+registered = "2026-11-03"
+revoke_when = "正式機 website-user 更新後"

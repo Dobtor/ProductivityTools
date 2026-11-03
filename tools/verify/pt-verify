@@ -1,0 +1,7 @@
+#!/bin/bash
+# pt-verify：Odoo 18 模組本機驗證工具包（用法見同目錄 README.md）。
+# 優先用 corpaas-kb venv 的 Python（3.12，有 tomllib）；沒有就用系統 python3（3.9 也可，內建 TOML 子集解析）。
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PY=${PT_VERIFY_PYTHON:-$HOME/Library/Caches/corpaas-kb/venv/bin/python}
+[ -x "$PY" ] || PY=python3
+exec "$PY" "$HERE/pt_verify.py" "$@"
