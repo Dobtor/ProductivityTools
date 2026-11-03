@@ -216,8 +216,23 @@ class RenderOutput:
             return ''
         # 區塊容器不是真的表格，不可印框線。class 讓四條輸出路徑各自關掉邊框，
         # 而不是在這裡寫 inline style——inline style 進不了 python-docx 的表格樣式。
-        cls = ' class="doc-block"' if self._element_block_kind(el) else ''
-        return '<table%s>%s</table>' % (cls, ''.join(rows))
+        kind = self._element_block_kind(el)
+        cls = ' class="doc-block"' if kind else ''
+        cols = ''
+        if kind == 'layout' and (el.get('extension') or {}).get('fixedCols'):
+            # 轉換器排的並排區塊（地址、資訊欄）要照編輯器的欄寬：自動排版
+            # 依內容分寬，左格空著時會被縮成 0，右格的地址就跑到最左邊。
+            # 其他表格維持自動排版（明細表照內容分寬比平均分好看；外框頁首
+            # 的 logo／公司資訊也一直是自動排，不在這裡改它的樣子）。
+            widths = [int((c or {}).get('width') or 0)
+                      for c in (el.get('colgroup') or [])]
+            total = sum(widths)
+            if total > 0 and all(w > 0 for w in widths):
+                cls = ' class="doc-block doc-layout"'
+                cols = '<colgroup>%s</colgroup>' % ''.join(
+                    '<col style="width:%.2f%%"/>' % (w * 100.0 / total)
+                    for w in widths)
+        return '<table%s>%s%s</table>' % (cls, cols, ''.join(rows))
 
     # canvas-editor 的換行：存檔時是 '\n'，載入後在記憶體裡是 ZERO（​），
     # 兩種都會出現在 content_json 裡（快照產生的值就帶過 ​）。
@@ -300,8 +315,14 @@ class RenderOutput:
                 if is_break and not in_cell:
                     para = _open(el)
                     continue
-                para = _open({})
-                para['head'].append(el)
+                if in_cell and (el.get('type') or 'text') == 'table':
+                    # 格子以巢狀表格（條件區塊）開頭：編輯器把它畫在格子最上緣，
+                    # 上面沒有空行（實測）。補一個空段落的話這一格整個往下掉一行，
+                    # 跟旁邊的格子對不齊（外框地址左右兩格就是這樣）
+                    para = None
+                else:
+                    para = _open({})
+                    para['head'].append(el)
             elif para is not None and len(para['head']) < 2:
                 para['head'].append(el)
 

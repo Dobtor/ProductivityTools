@@ -3,6 +3,7 @@
 表格那一段最大，因為明細表是報表的主體：重複列、列變體（t-if 在 tr 上）、
 欄寬、合併、分組都在這裡。
 """
+import contextlib
 import json
 import logging
 import re
@@ -118,9 +119,17 @@ class ConvBlocks:
         """
         mapped = self._map_condition(cond, state, expand=True)
         whole = '%s if (%s) else ""' % (value_expr, mapped)
-        label = ' '.join((''.join(node.itertext()) or '').split())[:20]
+        label = ''
+        # 取值節點裡的文字是設計師放的範例值（<span t-field="…">27.00</span>），
+        # 拿來當標籤會在編輯器裡看到一顆「27.00」，像是寫死的數字。用欄位名
+        has_value = (any(node.get(a) for a in ('t-field', 't-out', 't-esc'))
+                     or node.xpath('.//*[@t-field or @t-out or @t-esc]'))
+        if not has_value:
+            label = ' '.join((''.join(node.itertext()) or '').split())[:20]
         if not label:
-            label = (value_expr or '').split('.')[-1].strip('()\'"')[:20]
+            paths = re.findall(r'\b(?:object|line)\.([\w.]+)', value_expr or '')
+            label = (paths[0].split('.')[-1] if paths
+                     else (value_expr or '').split('.')[-1].strip('()\'"'))[:20]
         state['stats']['condition'] += 1
         return self._pill(
             label or '條件取值', state,
@@ -143,7 +152,8 @@ class ConvBlocks:
             out.append(self._ternary_pill(node, expr, cond, state))
             return True
 
-        inner = self._conditional_body(node, state)
+        with self._in_width(state, self._block_body_width(state)):
+            inner = self._conditional_body(node, state)
         if not inner:
             return True
         if (inner[-1].get('value') or '') != '\n':
@@ -187,12 +197,16 @@ class ConvBlocks:
         holder.text = node.text
         for child in list(node):
             holder.append(child)
+        # 有條件時這張表格本身在條件區塊裡，要再窄一層
+        table_w = (self._block_body_width(state) if cond
+                   else self._inner_width(state))
         state['loop_vars'].append(as_var)
         state.setdefault('loop_sources', []).append((expr or '').strip())
         state.setdefault('loop_models', []).append(self._loop_model(state, expr))
         try:
             inner = []
-            self._emit_children(holder, inner, state)
+            with self._in_width(state, table_w - self._CELL_PADDING):
+                self._emit_children(holder, inner, state)
         finally:
             state['loop_vars'].pop()
             if state.get('loop_sources'):
@@ -211,7 +225,7 @@ class ConvBlocks:
         table = {
             'type': 'table', 'value': '',
             'borderType': 'empty',
-            'colgroup': [{'width': self._inner_width(state)}],
+            'colgroup': [{'width': table_w}],
             'trList': [{'tdList': [{
                 'colspan': 1, 'rowspan': 1,
                 'value': [marker] + inner,
@@ -229,9 +243,34 @@ class ConvBlocks:
 
     # ─── 表格 ───────────────────────────────────────────────────────
 
+    # canvas-editor 的 tdPadding 左右各 5px，再加左右框線
+    _CELL_PADDING = 12
+
     def _inner_width(self, state):
+        """目前這一層可用的寬度（px）。
+
+        在格子或條件區塊裡面時是那一格的寬度，不是整頁寬：以前一律回整頁寬，
+        格子裡的條件區塊在編輯器裡會超出右邊距（PDF 會自動縮，看不出來）。
+        """
+        stack = state.get('width_stack')
+        if stack:
+            return stack[-1]
         page_w = 1123 if state.get('page_format') == 'A4_landscape' else 794
         return max(200, page_w - 192)
+
+    @contextlib.contextmanager
+    def _in_width(self, state, width):
+        """在這個區塊內轉出來的巢狀表格，寬度以 width 為上限。"""
+        stack = state.setdefault('width_stack', [])
+        stack.append(max(40, int(width)))
+        try:
+            yield
+        finally:
+            stack.pop()
+
+    def _block_body_width(self, state):
+        """包在單欄區塊（條件、重複）裡的內容可用的寬度。"""
+        return self._inner_width(state) - self._CELL_PADDING
 
     def _table_tax_totals(self, node):
         """表格裡有沒有稅額彙總子範本的呼叫。
@@ -309,6 +348,7 @@ class ConvBlocks:
 
         inner = self._inner_width(state)
         colgroup = self._colgroup_from_widths(rows_src, max_cols, inner)
+        col_widths = [c['width'] for c in colgroup]
 
         # 欄條件：同一個 t-if 同時出現在 th 與 td 上 → 欄層級
         th_conds = {}
@@ -316,6 +356,17 @@ class ConvBlocks:
             for idx, cell in enumerate(tr.xpath('./th')):
                 if cell.get('t-if'):
                     th_conds[cell.get('t-if')] = idx
+        # 表頭用 <td> 寫的也算（選購商品表的「折扣%」就是）：同一個條件
+        # 出現在兩列以上的格子上，就是整欄的條件，不是某一格的
+        seen_rows = {}
+        for r_idx, tr in enumerate(rows_src):
+            for idx, cell in enumerate(self._row_cells(tr)):
+                cond = cell.get('t-if')
+                if cond and cond not in th_conds:
+                    seen_rows.setdefault(cond, {}).setdefault(r_idx, idx)
+        for cond, rows in seen_rows.items():
+            if len(rows) >= 2:
+                th_conds[cond] = next(iter(rows.values()))
 
         # 印累加器的那一列＝原生的章節小計列。本模組用「分組重複」表達：
         # 重複列設分組切分條件，再放一列分組小計。
@@ -357,6 +408,7 @@ class ConvBlocks:
                 row = self._table_row(
                     tr, state, repeat, th_conds, max_cols,
                     wrapper_conds=(), group_role='footer',
+                    col_widths=col_widths,
                 )
                 if row is not None:
                     tr_list.append(row)
@@ -371,6 +423,7 @@ class ConvBlocks:
                         row_filter=self._map_condition(
                             cond, state, expand=True) if cond else '',
                         with_marker=True, wrapper_conds=wrapper_conds,
+                        col_widths=col_widths,
                     )
                     if row is not None:
                         tr_list.append(row)
@@ -380,7 +433,8 @@ class ConvBlocks:
                 )
                 continue
             row = self._table_row(tr, state, repeat, th_conds, max_cols,
-                                  wrapper_conds=wrapper_conds)
+                                  wrapper_conds=wrapper_conds,
+                                  col_widths=col_widths)
             if row is not None:
                 tr_list.append(row)
         if foreach_rows:
@@ -391,6 +445,19 @@ class ConvBlocks:
             'trList': tr_list or [{'tdList': [
                 {'colspan': 1, 'rowspan': 1, 'value': [self._newline()]}]}],
         }
+
+    def _align_cell(self, elements, align):
+        """格子的對齊（td 上的 text-end）寫到格子裡每一段。
+
+        以前只寫在結尾的換行上：一段若是以表格收尾（數量欄後面接著包裝數量的
+        條件區塊），前面那段永遠拿不到對齊——原生靠右的數量印成靠左。
+        已有自己對齊的元素（裡面的 div 另外寫了 text-center）不覆蓋。
+        """
+        for el in elements:
+            if el.get('type') != 'table' and not el.get('rowFlex'):
+                el['rowFlex'] = align
+        if elements:
+            elements[-1]['rowFlex'] = align
 
     def _colgroup_from_widths(self, rows_src, max_cols, inner):
         """欄寬：有 style="width: N%" 就照它，其餘平分剩下的寬度。
@@ -506,8 +573,10 @@ class ConvBlocks:
 
     def _table_row(self, tr, state, repeat, th_conds, max_cols,
                    row_filter='', with_marker=None, wrapper_conds=(),
-                   group_role=''):
+                   group_role='', col_widths=None):
         pushed = False
+        col_widths = list(col_widths or [])
+        col_pos = 0
         if repeat:
             expr, as_var = repeat
             state['loop_vars'].append(as_var)
@@ -535,6 +604,7 @@ class ConvBlocks:
                 value = []
                 # 欄條件 / 格條件
                 cond = cell.get('t-if')
+                cell_cond = None
                 if cond:
                     if cond in th_conds:
                         value.append(self._pill(
@@ -544,11 +614,9 @@ class ConvBlocks:
                         ))
                         state['stats']['condition'] += 1
                     else:
-                        self._note(
-                            state,
-                            '儲存格條件「%s」已轉成列型條件的候選，'
-                            '請在右欄確認（或改用欄條件）。' % cond[:70],
-                        )
+                        # 只有這一格有條件（訂金列不印金額那種）。以前只留一句
+                        # 待辦、條件整個不見，訂金列多印一格「$ 0.00」
+                        cell_cond = cond
                 if first and group_role:
                     # 分組小計列：標記換成 groupFooter，而且不要帶列條件
                     # ——原生那個條件（「是這一節的最後一列」）是累加器時代
@@ -587,20 +655,55 @@ class ConvBlocks:
                             repeat, state, row_filter=row_filter,
                         ))
                     first = False
+                span = max(1, min(int(cell.get('colspan') or 1), max_cols))
+                cell_w = sum(col_widths[col_pos:col_pos + span])
+                col_pos += span
                 cell_start = len(value)
-                self._emit_children(cell, value, state)
+                if cell_cond:
+                    # 格子裡只有一個值（或純文字）→ 收成一顆三元式藥丸；
+                    # 包成條件區塊的話每一列都會多出區塊的上下空白，明細表整個變高
+                    state['chain_unsure'] = False
+                    expr = self._branch_expr(cell, state)
+                    if expr is not None:
+                        value.append(self._ternary_pill(
+                            cell, expr, cell_cond, state))
+                        cell_cond = None
+                    else:
+                        self._note(
+                            state,
+                            '儲存格條件「%s」已包成格子裡的條件區塊：不成立時'
+                            '那一格留白（原生是少一格）。' % cell.get('t-if')[:70],
+                        )
+                body_w = cell_w - self._CELL_PADDING if cell_w else 0
+                if cell_cond and body_w:
+                    body_w -= self._CELL_PADDING  # 內容在格子裡的條件區塊裡
+                if len(value) == cell_start:
+                    with (self._in_width(state, body_w) if body_w
+                          else contextlib.nullcontext()):
+                        self._emit_children(cell, value, state)
                 cell_style = self._node_style(cell, 'td')
                 if cell_style:
                     for el in value[cell_start:]:
                         if self._takes_style(el):
                             el.update(cell_style)
-                if not value or (value[-1].get('value') or '') != '\n':
-                    value.append(self._newline())
                 # 金額欄的右對齊就是靠這個：原生把 text-end 放在 <td>
                 # 或裡面那個 <span> 上，段落的對齊掛在結尾的換行元素
                 align = self._node_align(cell)
+                if cell_cond:
+                    inner = value[cell_start:]
+                    del value[cell_start:]
+                    if not inner or (inner[-1].get('value') or '') != '\n':
+                        inner.append(self._newline())
+                    if align:
+                        self._align_cell(inner, align)
+                    with (self._in_width(state, cell_w - self._CELL_PADDING)
+                          if cell_w else contextlib.nullcontext()):
+                        value.append(self._condition_wrap(
+                            cell_cond, inner, state))
+                if not value or (value[-1].get('value') or '') != '\n':
+                    value.append(self._newline())
                 if align:
-                    value[-1]['rowFlex'] = align
+                    self._align_cell(value, align)
                 # colspan 夾在欄數內：QWeb 的 colspan="99" 是「跨滿整列」
                 td = {'colspan': max(1, min(int(cell.get('colspan') or 1),
                                             max_cols)),
@@ -838,7 +941,8 @@ class ConvBlocks:
         return out
 
     def _condition_block(self, node, cond, state):
-        inner = self._conditional_body(node, state)
+        with self._in_width(state, self._block_body_width(state)):
+            inner = self._conditional_body(node, state)
         if not inner or (inner[-1].get('value') or '') != '\n':
             inner.append(self._newline())
         return self._condition_wrap(cond, inner, state)

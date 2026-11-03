@@ -2092,6 +2092,8 @@ class TestSnapshotPassOrder(TransactionCase):
         '_collapse_empty_paragraphs',   # 5（4 是下方的求值迴圈，不是方法）
         '_drop_blank_condition_blocks',  # 6
         '_drop_empty_tables',           # 6 內部收尾
+        '_reflow_layout_columns',       # 7
+        '_drop_empty_tables',           # 7 內部收尾
     ]
 
     def setUp(self):

@@ -785,6 +785,9 @@ class DocReport(models.Model):
             # wkhtmltopdf 在 collapse 模式下，沒有框線的表格仍會畫出淡灰色細線
             # （實測），區塊容器改用 separate 才真的看不到
             ".doc-block{border-collapse:separate;border-spacing:0}"
+            # 並排區塊（外框地址、資訊欄）照編輯器的欄寬：自動排版會把空的
+            # 那一格縮成 0，右邊的地址跟著跑到最左邊
+            ".doc-layout{table-layout:fixed;width:100%}"
             ".doc-page-break{page-break-after:always}"
             ".article{page-break-after:always}"
             ".article:last-child{page-break-after:auto}"

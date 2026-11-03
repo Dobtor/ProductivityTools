@@ -190,7 +190,11 @@ class RenderSandbox:
                 target = partner[:1] if hasattr(partner, 'ids') else partner
                 if not target:
                     return ''
-                body = target._display_address(without_company=without_company)
+                # 帶名稱時地址不再帶公司名：_display_address 會在公司（或掛在
+                # 公司底下的聯絡人）第一行加公司名稱，名稱本身已經含公司了，
+                # 不拿掉就印兩次。原生 contact widget 也是 without_company=True。
+                body = target._display_address(
+                    without_company=without_company or with_name)
                 if with_name:
                     name = str(target.display_name or '').strip()
                     body = ('%s\n%s' % (name, body)) if name else body
@@ -200,7 +204,9 @@ class RenderSandbox:
                     phone = str(target.phone or target.mobile or '').strip()
                     if phone:
                         body = '%s\n%s' % (body, phone)
-                return body
+                # 空欄位（沒填地址第二行之類）會留下空行與行尾空白，原生的
+                # display_name 用同一條規則收掉；不收的話單據上地址中間空一行
+                return re.sub(r'\s+\n', '\n', body).strip()
             except Exception:
                 # 不是 partner（或沒有這支方法）→ 退回 display_name，
                 # 至少印得出東西而不是讓整份文件產不出來

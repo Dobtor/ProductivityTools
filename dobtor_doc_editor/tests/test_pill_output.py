@@ -171,6 +171,20 @@ class TestEditorParagraphParity(TransactionCase):
             self._paras(_text('\n'), _text('甲'), in_cell=True),
             [('', ''), ('', '甲')])
 
+    def test_cell_starting_with_a_table_has_no_blank_line(self):
+        """格子以巢狀表格開頭時，編輯器把表格畫在格子最上緣。"""
+        table = {'type': 'table', 'value': '',
+                 'trList': [{'tdList': [{'value': [_text('格')]}]}]}
+        html = self.Mixin._elements_to_html([table, _text('\n')], in_cell=True)
+        self.assertTrue(html.startswith('<table'), html)
+
+    def test_body_starting_with_a_table_keeps_its_start_line(self):
+        """正文（不是格子）以表格開頭的畫法不變。"""
+        table = {'type': 'table', 'value': '',
+                 'trList': [{'tdList': [{'value': [_text('格')]}]}]}
+        html = self.Mixin._elements_to_html([table, _text('\n')])
+        self.assertTrue(html.startswith('<p><br/></p><table'), html)
+
     def test_no_empty_paragraph_after_a_table(self):
         """表格自成一列，後面的換行是下一段的開頭，不是空行。"""
         table = {'type': 'table', 'value': '',

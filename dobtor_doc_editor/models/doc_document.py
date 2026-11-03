@@ -1160,6 +1160,8 @@ table {{ border-collapse: collapse; width: 100%; }}
 td, th {{ border: 1px solid #ccc; padding: 6px; }}
 /* 區塊容器：條件區塊／稅額彙總用單格表格當可靠邊界，但輸出時不是表格 */
 .doc-block, .doc-block td {{ border: none; padding: 0; }}
+/* 並排區塊照編輯器的欄寬，空的那一格才不會被縮成 0 */
+.doc-layout {{ table-layout: fixed; width: 100%; }}
 </style>
 </head>
 <body>
@@ -1228,6 +1230,7 @@ table {{ border-collapse: collapse; }}
 td, th {{ border: 1px solid black; padding: 4px; word-break: break-word; }}
 /* 區塊容器：同 _build_full_html，兩條路徑要一致否則 PDF 與 DOCX 版面不同 */
 .doc-block, .doc-block td {{ border: none; padding: 0; }}
+.doc-layout {{ table-layout: fixed; width: 100%; }}
 img {{ max-width: 100%; height: auto; }}
 /* 手動分頁：_build_full_html（PDF 用）有這條，這裡原本漏了，
    導致同一份文件匯出 PDF 有分頁、匯出 DOCX 卻靜默少了分頁。 */

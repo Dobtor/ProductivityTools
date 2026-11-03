@@ -1,19 +1,23 @@
 """RenderSnapshot — 快照管線（pass 鏈）。
 
 「把藥丸換成值」的那條鏈：展開重複列 → 展開稅額彙總 → 條件（列／欄／
-段落）→ 條件式格式 → 清空表格 → 純量求值 → 收合空段落 → 拿掉只剩空白的條件區塊。
+段落）→ 條件式格式 → 清空表格 → 純量求值 → 收合空段落 → 拿掉只剩空白的條件區塊
+→ 並排區塊收掉空欄。
 
 **順序是這個模組唯一的硬約束**，權威寫在 _snapshot_content_json 的註解裡，
 並由 TestSnapshotPassOrder 斷言。加新的 pass 要同時改那段註解，
 否則測試會紅——那是故意的。
 """
 import base64
+import copy
 import html as html_mod
 
 
 from odoo import fields
 from odoo.tools.misc import format_amount
-from odoo.tools.image import FILETYPE_BASE64_MAGICWORD, image_data_uri
+from odoo.tools.image import (
+    FILETYPE_BASE64_MAGICWORD, base64_to_image, image_data_uri,
+)
 from odoo.tools.mail import html_sanitize
 
 
@@ -124,6 +128,121 @@ class RenderSnapshot:
                         el['trList'] = []
                         changed = True
         return self._drop_empty_tables(tree)
+
+    def _reflow_layout_columns(self, tree):
+        """並排區塊裡整欄都空白的欄拿掉，空出來的寬度分給彈性欄。
+
+        轉換器把原生的格線列（你的參考／報價日期／到期日／銷售人員）轉成一列
+        多格的無框表格，每一格各自帶條件。原生某一欄不印時其他欄會往左補滿；
+        表格的格子不會，沒有「你的參考」的單據左邊會空一大格。
+        只處理轉換器標了 reflowCols 的表格：使用者自己畫的表格空著一格是刻意的。
+        """
+        for elements in self._iter_element_lists(tree):
+            for el in elements:
+                if self._element_block_kind(el) != 'layout':
+                    continue
+                ext = el.get('extension') or {}
+                flags = ext.get('reflowCols')
+                rows = el.get('trList') or []
+                colgroup = el.get('colgroup') or []
+                if not isinstance(flags, list) or len(rows) != 1:
+                    continue
+                cells = rows[0].get('tdList') or []
+                if not (len(cells) == len(colgroup) == len(flags)):
+                    continue  # 使用者合併過格子，欄位對不上就不動
+                blank = [all(self._is_blank_element(item)
+                             for item in (cell.get('value') or []))
+                         for cell in cells]
+                if not any(blank):
+                    continue
+                if all(blank):
+                    el['trList'] = []
+                    continue
+                keep = [i for i, b in enumerate(blank) if not b]
+                widths = {i: int(colgroup[i].get('width') or 0) for i in keep}
+                freed = sum(int(colgroup[i].get('width') or 0)
+                            for i, b in enumerate(blank) if b)
+                flex = [i for i in keep if flags[i]]
+                if flex:
+                    share = freed // len(flex)
+                    for i in flex:
+                        widths[i] += share
+                    widths[flex[-1]] += freed - share * len(flex)
+                rows[0]['tdList'] = [cells[i] for i in keep]
+                el['colgroup'] = [dict(colgroup[i], width=widths[i])
+                                  for i in keep]
+                el['extension'] = dict(ext, reflowCols=[flags[i] for i in keep])
+        return self._drop_empty_tables(tree)
+
+    # 預覽時圖片最寬畫多少（px）。PDF 是 max-width:100%，A4 內文寬約 600
+    _PREVIEW_IMAGE_MAX_W = 600
+
+    def _preview_display_pills(self, tree):
+        """「顯示實際值」用：把藥丸的值換成編輯器畫得出來的樣子（就地改寫並回傳 tree）。
+
+        canvas-editor 的藥丸（label）只能畫成一行文字：
+          * 多行的值（地址）擠成一長串、超出右邊 → 拆成一行一顆
+          * 圖片（簽名、商品圖）印出一長串 data:image/png;base64,… → 換成圖片
+        PDF 不受影響（攤平時多行轉 <br/>、圖片轉 <img>）。
+        只給預覽用、不可存回：拆開後每一顆都帶同一個來源，重新帶值會變成
+        重複好幾份；換成圖片的則失去藥丸身分。
+        """
+        for elements in self._iter_element_lists(tree):
+            idx = 0
+            while idx < len(elements):
+                el = elements[idx]
+                value = el.get('value') if isinstance(el, dict) else None
+                if (not isinstance(el, dict) or el.get('type') != 'label'
+                        or not isinstance(value, str)):
+                    idx += 1
+                    continue
+                src = (self._element_field_meta(el) or {}).get('source') or ''
+                if src == self._IMAGE_SOURCE:
+                    if value.startswith('data:'):
+                        elements[idx] = self._preview_image_element(el, value)
+                    idx += 1
+                    continue
+                if src == self._HTML_SOURCE or '\n' not in value:
+                    idx += 1
+                    continue
+                pieces = []
+                for line in [ln for ln in value.split('\n') if ln.strip()]:
+                    if pieces:
+                        newline = {'value': '\n'}
+                        if el.get('rowFlex'):
+                            newline['rowFlex'] = el['rowFlex']
+                        pieces.append(newline)
+                    piece = copy.deepcopy(el)
+                    piece['value'] = line
+                    pieces.append(piece)
+                if not pieces:
+                    el['value'] = ''
+                    idx += 1
+                    continue
+                elements[idx:idx + 1] = pieces
+                idx += len(pieces)
+        return tree
+
+    def _preview_image_element(self, el, uri):
+        """圖片藥丸 → canvas-editor 的圖片元素（它一定要寬高才畫得出來）。
+
+        欄位設定沒給寬高時用圖片本身的大小，太寬的等比例縮小。
+        """
+        meta = self._element_field_meta(el) or {}
+        width, height = meta.get('width'), meta.get('height')
+        if not (width and height):
+            try:
+                width, height = base64_to_image(uri.split(',', 1)[1]).size
+            except Exception:
+                width, height = 120, 60
+        width, height = int(width), int(height)
+        if width > self._PREVIEW_IMAGE_MAX_W:
+            height = max(1, int(height * self._PREVIEW_IMAGE_MAX_W / width))
+            width = self._PREVIEW_IMAGE_MAX_W
+        image = {'type': 'image', 'value': uri, 'width': width, 'height': height}
+        if el.get('rowFlex'):
+            image['rowFlex'] = el['rowFlex']
+        return image
 
     def _image_data_uri(self, record, meta):
         """binary 欄位 → data: URI。取不到一律回空字串。
@@ -326,6 +445,8 @@ class RenderSnapshot:
         #        必須在求值後——要有值才知道是不是空的
         #   6.   _drop_blank_condition_blocks（內部再呼叫一次 _drop_empty_tables）
         #        排在 5 之後：段落收合完，條件區塊裡才看得出是不是只剩空行
+        #   7.   _reflow_layout_columns（內部再呼叫一次 _drop_empty_tables）
+        #        排在 6 之後：格子裡的條件區塊拿掉了，才看得出整欄是不是空的
         if not only_pending:
             self._expand_repeat_rows(tree, record)
             self._expand_tax_totals_rows(tree, record)
@@ -399,6 +520,8 @@ class RenderSnapshot:
             self._collapse_empty_paragraphs(tree)
             # 6. 條件成立但內容全空的條件區塊整塊拿掉（同樣只在完整快照時做）
             self._drop_blank_condition_blocks(tree)
+            # 7. 並排區塊裡整欄空白的欄拿掉，其他欄往左補滿
+            self._reflow_layout_columns(tree)
         return tree
 
     def _sort_lines(self, lines, sort_by, desc=False):

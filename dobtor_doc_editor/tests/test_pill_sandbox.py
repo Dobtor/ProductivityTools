@@ -5,6 +5,7 @@
 按**被測的那一層**分，讓「某一層壞了」一眼看得出是哪一批紅。
 共用的 _text / _pill helper 在 test_pill_helpers.py。
 """
+import re
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase, tagged
@@ -166,11 +167,19 @@ class TestFormatAddress(TransactionCase):
 
     def test_delegates_to_display_address(self):
         """委派給 res.partner._display_address()——那支就是 Odoo 自己用的，
-        依國家的地址格式排欄位。自己拼 street/city/zip 換個國家就排錯。"""
+        依國家的地址格式排欄位。自己拼 street/city/zip 換個國家就排錯。
+
+        空欄位留下的空行與行尾空白照原生 display_name 的規則收掉。"""
         self.assertEqual(
             self._render('format_address(object)'),
-            self.partner._display_address(),
+            re.sub(r'\s+\n', '\n', self.partner._display_address()).strip(),
         )
+
+    def test_blank_lines_are_collapsed(self):
+        """沒填地址第二行時，原生不會在地址中間空一行。"""
+        out = self._render('format_address(object, with_name=True)')
+        self.assertNotIn('\n\n', out)
+        self.assertNotRegex(out, r' \n')
 
     def test_with_name_prepends_display_name(self):
         """原生 contact widget 的 fields 預設含 "name"，_display_address 不含。

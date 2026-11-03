@@ -539,6 +539,10 @@ class DocEditorController(DocControllerBase, http.Controller):
         if not cj:
             return {'error': '範本內容是空的'}
         tree = template._preview_tree(copy.deepcopy(cj), record)
+        # 多行的值（地址）拆成一行一顆、圖片換成圖片，否則編輯器裡是一長串文字。
+        # 只有範本預覽可以這樣做：它是唯讀、存不回去的；文件的預覽可以直接
+        # 編輯並存檔，拆開的藥丸存回去之後重新帶值會印出好幾份
+        tree = template._preview_display_pills(tree)
         return {'success': True, 'content_json': tree, 'record_name': record.display_name}
 
     @http.route('/dobtor_doc/preview/<int:doc_id>', type='http', auth='user', methods=['GET'])
