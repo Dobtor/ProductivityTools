@@ -308,6 +308,27 @@ class TestExportBodySource(TransactionCase):
         self.doc._apply_value_snapshot()
         self.assertIn('匯出測試客戶', self.doc.content_html)
 
+    def test_preview_shows_what_export_prints(self):
+        """「顯示實際值」跟匯出同一套規則：凍結的維持原值，後來加的才求值。
+
+        預覽顯示「現在的值」、匯出卻印「凍結的值」，使用者會以為匯出壞了。
+        """
+        self.doc._apply_value_snapshot()
+        self.partner.write({'name': '改名後的客戶', 'phone': '02-1234-5678'})
+        tree = json.loads(self.doc.content_json)
+        tree['main'] += [_text('\n'), _text('電話：'),
+                         _pill('電話', source='record', path='phone')]
+        self.assertTrue(self.doc._fill_preview_pills(tree, self.partner))
+        values = [el.get('value') for el in tree['main']]
+        self.assertIn('匯出測試客戶', values, '凍結過的藥丸維持凍結時的值')
+        self.assertNotIn('改名後的客戶', values)
+        self.assertIn('02-1234-5678', values, '快照之後才加的藥丸要求值')
+
+    def test_preview_reports_when_there_is_no_pill(self):
+        tree = {'main': [_text('只有文字')]}
+        self.assertFalse(self.doc._fill_preview_pills(tree, self.partner))
+        self.assertEqual(tree['main'][0]['value'], '只有文字')
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestImagePill(TransactionCase):

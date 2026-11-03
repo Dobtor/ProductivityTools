@@ -2179,8 +2179,10 @@ export const DocEditorPills = (Base) => class extends Base {
                     this._editModeSnapshot = null;
                 }
                 this.state.previewMode = false;
+                // 欄位藥丸與舊的《token》都可能有，訊息不提 token——藥丸做的文件
+                // 根本沒有 token，提了只會讓人以為少了什麼
                 this.notification.add(
-                    "已切到範本模式（顯示 《token》 原文）。在此模式下可調整 token 位置。",
+                    "已切回編輯模式，欄位恢復原本的顯示。",
                     { type: "info" }
                 );
             } catch (e) {

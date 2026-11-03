@@ -882,6 +882,21 @@ class DocDocument(models.Model):
             },
         }
 
+    def _fill_preview_pills(self, tree, record):
+        """「顯示實際值」用：就地把欄位藥丸換成值，回傳這份內容有沒有欄位藥丸。
+
+        規則刻意與 _export_body_html 相同（only_pending）：已凍結的藥丸維持
+        凍結時的值，快照之後才拖進來的藥丸用綁定記錄求值。編輯器裡看到的
+        才會是匯出印出來的那一份——預覽顯示「現在的值」、匯出卻印「凍結的值」，
+        使用者會以為匯出壞了。
+        """
+        self.ensure_one()
+        has_pills = any(
+            self._element_field_meta(el) for el in self._iter_elements(tree))
+        if has_pills and record is not None:
+            self._snapshot_content_json(tree, record, only_pending=True)
+        return has_pills
+
     def _export_body_html(self, record=None):
         """匯出用的 body HTML。
 

@@ -104,6 +104,36 @@ class TestRemainingJsonRoutes(SessionAliveMixin, HttpCase):
             'preview_content_json 沒回 content_json：%r'
             % {k: str(v)[:60] for k, v in result.items()})
 
+    def test_preview_fills_pills_without_any_alias(self):
+        """只用欄位藥丸、沒有中文欄位對映的文件，也要顯示得出實際值。
+
+        以前這條路由只認 alias，藥丸做的文件一律回「尚無 alias 對映」。
+        """
+        import json
+        from .test_pill_helpers import _pill, _text
+        self.doc.sudo().write({'content_json': json.dumps({
+            'main': [_text('客戶：'),
+                     _pill('客戶名稱', source='record', path='name')],
+        })})
+        result = self._call('/dobtor_doc/preview_content_json',
+                            doc_id=self.doc.id)
+        self.assertTrue(result.get('success'), result)
+        values = [el.get('value') for el in result['content_json']['main']]
+        self.assertIn('剩餘路由測試客戶', values,
+                      '藥丸要換成綁定記錄的值：%r' % values)
+        self.doc.invalidate_recordset()
+        stored = [el.get('value') for el in json.loads(self.doc.content_json)['main']]
+        self.assertEqual(stored, ['客戶：', '客戶名稱'], '預覽不可以把值寫回文件')
+
+    def test_preview_without_pills_or_aliases_says_why(self):
+        import json
+        from .test_pill_helpers import _text
+        self.doc.sudo().write({'content_json': json.dumps({
+            'main': [_text('只有文字')]})})
+        result = self._call('/dobtor_doc/preview_content_json',
+                            doc_id=self.doc.id)
+        self.assertIn('沒有實際值可以顯示', result.get('error') or '')
+
     def test_set_model_changes_the_edit_target_model(self):
         """`set_model` 要真的改掉適用模型。"""
         users_model = self.env['ir.model']._get('res.users')
