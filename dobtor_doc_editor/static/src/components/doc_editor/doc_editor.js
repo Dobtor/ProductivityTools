@@ -571,18 +571,14 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
         // 確保初始 darkMode 與 themeMode + system pref 一致
         this._recomputeDarkMode();
 
-        // 取得 doc_id 優先順序：
-        //   1. this.props.docId — portal mount 模式（<owl-component props='{"docId":...}'>）
-        //   2. backend client action context.doc_id
-        //   3. URL query string ?doc_id=N — Sprint V：給 E2E / bookmark / share 用
-        //      （client action URL 預設不接 context，這層 fallback 讓
-        //       /odoo/action-dobtor_doc_editor.action_doc_editor?doc_id=N 能 work）
-        //   4. sessionStorage F5 恢復（backend 內按 F5 刷新時用）
+        // 決定「編輯哪一個對象」（輸出紀錄／範本／文件三者擇一）。來源分兩層：
+        //   明確指定——portal mount 的 props、後端按鈕帶的 context、網址參數
+        //     ?doc_id=N（client action 的網址預設不帶 context，給 E2E／書籤用）
+        //   分頁記憶——sessionStorage，只給 F5 重新整理用（重新整理後 context 不見了）
+        // 有明確指定就一律照指定的開，分頁記憶完全不看。以前兩層混在一起逐種比，
+        // 結果是「這個分頁編過範本」之後，從文件按「開啟編輯器」會開成那張範本。
         const context = this.props.action?.context || {};
         const _SESSION_KEY = "dobtor_doc_editor_last_id";
-        // Phase 1：解析「編輯哪一個對象」。template_id 優先於 doc_id——
-        // 兩者同時出現只可能是狀態殘留（例如 sessionStorage 舊值撞上新的 context），
-        // 後端 _resolve_edit_target 會直接擋下同時指定，所以這裡必須擇一送出。
         const _urlParam = (key) => {
             try {
                 const v = new URLSearchParams(window.location.search).get(key);
@@ -592,28 +588,30 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
                 return null;  // 非瀏覽器環境或 URL 異常 → 交給下一層 fallback
             }
         };
-        // sessionStorage 格式："template:45" / "document:123"；
-        // 舊格式是裸數字，視為 document 以相容既有分頁。
-        let _storedTarget = null;
-        const _stored = sessionStorage.getItem(_SESSION_KEY);
-        if (_stored) {
-            const [a, b] = _stored.includes(":") ? _stored.split(":") : ["document", _stored];
-            const n = parseInt(b, 10);
-            if (n > 0) {
-                _storedTarget = { kind: a === "template" ? "template" : "document", id: n };
+        // 明確指定同時出現多種時：output 優先於 template 優先於 doc——三者擇一，
+        // 後端 _resolve_edit_target 會擋下同時指定。
+        const explicitTargets = [
+            ["output", this.props.outputId || context.output_id || _urlParam("output_id")],
+            ["template", this.props.templateId || context.template_id || _urlParam("template_id")],
+            ["document", this.props.docId || context.doc_id || _urlParam("doc_id")],
+        ];
+        const explicit = explicitTargets.find(([, id]) => id);
+        let target = explicit ? { kind: explicit[0], id: explicit[1] } : null;
+        if (!target) {
+            // sessionStorage 格式："output:7" / "template:45" / "document:123"；
+            // 舊格式是裸數字，視為 document 以相容既有分頁。
+            // 認不得的種類一律不用——以前把 output 當成 document，輸出紀錄的唯讀
+            // 畫面按 F5 會開成同編號的文件、而且可以編輯。
+            const stored = sessionStorage.getItem(_SESSION_KEY) || "";
+            const [kind, rawId] = stored.includes(":") ? stored.split(":") : ["document", stored];
+            const id = parseInt(rawId, 10);
+            if (id > 0 && ["output", "template", "document"].includes(kind)) {
+                target = { kind, id };
             }
         }
-        // output 優先於 template 優先於 doc：三者擇一，後端會擋同時指定。
-        const outputId =
-            this.props.outputId || context.output_id || _urlParam("output_id") ||
-            (_storedTarget?.kind === "output" ? _storedTarget.id : null);
-        const templateId = outputId ? null : (
-            this.props.templateId || context.template_id || _urlParam("template_id") ||
-            (_storedTarget?.kind === "template" ? _storedTarget.id : null));
-        const docId = (outputId || templateId)
-            ? null
-            : (this.props.docId || context.doc_id || _urlParam("doc_id") ||
-               (_storedTarget?.kind === "document" ? _storedTarget.id : null));
+        const outputId = target?.kind === "output" ? target.id : null;
+        const templateId = target?.kind === "template" ? target.id : null;
+        const docId = target?.kind === "document" ? target.id : null;
         if (outputId) {
             this.state.editTarget = "output";
             this.state.outputId = outputId;
@@ -745,6 +743,9 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
         });
 
         onWillUnmount(async () => {
+            // 離開編輯器（關閉、麵包屑、切到別的選單）就清掉分頁記憶：它只給 F5 用，
+            // 而 F5 是整頁重載、不會走到 unmount，所以清了不影響重新整理後的恢復
+            sessionStorage.removeItem(_SESSION_KEY);
             unregisterEditorBridge(this._editorBridge);
             this._editorBridge = null;
             // W4 P0-4：完整記憶體釋放，避免 portal user 反覆開關文件爆 RAM
