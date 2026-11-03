@@ -1920,6 +1920,44 @@ export const DocEditorPills = (Base) => class extends Base {
      *                          user 可在右側 inspector 改填寫者/必填/佔位符/字型大小、
      *                          以及最關鍵的「Odoo 欄位名稱」（XML 已有對應輸入框）。
      */
+    /**
+     * 只給文件用的功能，在範本模式下說清楚「不支援」，回傳 true 表示已擋下。
+     *
+     * 這些入口原本用「沒有 docId」判斷，訊息寫成「請先儲存文件」——範本模式
+     * 的 docId 一定是空的（存了也一樣），使用者會一直按儲存再重試。
+     */
+    _warnDocumentOnly(actionLabel) {
+        if (this.state.editTarget !== "template") {
+            return false;
+        }
+        this.notification.add(
+            `「${actionLabel}」只適用於文件，範本模式不支援。`,
+            { type: "info" }
+        );
+        return true;
+    }
+
+    /**
+     * 範本模式下按了「只給文件用的插入欄位入口」→ 改帶去左欄「欄位」分頁，回傳 true 表示已處理。
+     *
+     * 範本的欄位一律是左欄拖進來的藥丸。以前這些入口在範本模式下說「請先儲存文件」，
+     * 使用者會一直按儲存再重試；直接幫他打開該用的那一頁比較快。
+     */
+    _redirectTemplateToFieldPalette(actionLabel) {
+        if (this.state.editTarget !== "template") {
+            return false;
+        }
+        if (this.showFieldPalette) {
+            this.state.leftPanelCollapsed = false;
+            this.onLeftPanelTab("fields");
+        }
+        this.notification.add(
+            `範本請從左欄「欄位」分頁把欄位拖進內文；「${actionLabel}」只適用於文件。`,
+            { type: "info" }
+        );
+        return true;
+    }
+
     async onOdooFieldClick() {
         if (!this.dialog) {
             this.notification.add("Dialog service 未就緒", { type: "warning" });
@@ -1927,6 +1965,10 @@ export const DocEditorPills = (Base) => class extends Base {
         }
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        // 這個入口建的是「文件專屬的待填欄位」，範本本來就不支援
+        if (this._redirectTemplateToFieldPalette("Odoo 欄位")) {
             return;
         }
         if (!this.state.docId) {
@@ -2033,6 +2075,10 @@ export const DocEditorPills = (Base) => class extends Base {
         }
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        // 中文 token 寫進的是文件自己的對映，範本模式沒有這個東西（而且這個做法已在退場）
+        if (this._redirectTemplateToFieldPalette("插入 Odoo 欄位（中文 token）")) {
             return;
         }
         if (!this.state.docId) {
@@ -2348,6 +2394,9 @@ export const DocEditorPills = (Base) => class extends Base {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
         }
+        if (this._warnDocumentOnly("掃描變數")) {
+            return;
+        }
         if (!this.state.docId) {
             this.notification.add("請先儲存文件後再執行掃描", { type: "warning" });
             return;
@@ -2500,6 +2549,9 @@ export const DocEditorPills = (Base) => class extends Base {
     async onScanAndReplaceClick() {
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (this._warnDocumentOnly("掃描並替換變數")) {
             return;
         }
         if (!this.state.docId) {

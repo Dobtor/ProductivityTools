@@ -79,6 +79,9 @@ export const DocEditorTemplateUi = (Base) => class extends Base {
      *   3. window.open 開新分頁、寫入 HTML
      */
     async onPreviewClick() {
+        if (this._warnDocumentOnly("預覽")) {
+            return;
+        }
         if (!this.state.docId) {
             this.notification.add("請先儲存文件後再預覽。", { type: "warning" });
             return;
@@ -414,6 +417,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         if (!field) return;
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        // 待填欄位掛在文件上（簽署人要填的格子），範本模式沒有
+        if (this._warnDocumentOnly(`新增${field.label}欄位`)) {
             return;
         }
         if (!this.state.docId) {
