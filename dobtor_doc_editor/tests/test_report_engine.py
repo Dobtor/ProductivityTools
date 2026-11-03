@@ -1270,6 +1270,91 @@ class TestReportPrintLayout(TransactionCase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportCustomerLanguage(TransactionCase):
+    """報表接管照「客戶」的語言印，不是照按列印的人——與原生報表一致。
+
+    10510 實測：英文客戶的報價單被中文介面的業務印成中文，日期「2026年11月02日」，
+    稅額標籤卻是英文，同一張單據中英混雜。
+    用 res.partner.bank 當單據：它有 partner_id，客戶語言才挑得出來。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['res.lang']._activate_lang('zh_TW')
+        model = self.env['ir.model']._get('res.partner.bank')
+
+        def template(name, text):
+            return self.env['doc.template'].create({
+                'name': name, 'role': 'content', 'model_id': model.id,
+                'content_json': json.dumps({'main': [
+                    _text(text), _pill('建立時間', source='record', path='create_date'),
+                ]}),
+            })
+
+        report = self.env['ir.actions.report'].create({
+            'name': '語言測試報表', 'model': 'res.partner.bank',
+            'report_type': 'qweb-pdf', 'report_name': 'dobtor_doc_editor.lang_probe',
+        })
+        self.report = report
+        Binding = self.env['doc.report']
+        self.fallback = Binding.create({
+            'name': '後備（中文範本）', 'report_id': report.id,
+            'template_id': template('語言測試中文範本', '中文固定字').id,
+        })
+        self.english = Binding.create({
+            'name': '英文客戶', 'report_id': report.id, 'lang': 'en_US',
+            'template_id': template('語言測試英文範本', 'English text').id,
+        })
+
+        def account(name, lang, number):
+            partner = self.env['res.partner'].create({'name': name, 'lang': lang})
+            return self.env['res.partner.bank'].create({
+                'acc_number': number, 'partner_id': partner.id})
+
+        self.en_account = account('English Customer', 'en_US', 'LANG-PROBE-EN')
+        self.zh_account = account('中文客戶', 'zh_TW', 'LANG-PROBE-ZH')
+
+    def test_binding_follows_customer_not_operator(self):
+        Binding = self.env['doc.report'].with_context(lang='zh_TW')
+        self.assertEqual(
+            Binding._resolve_for_records(self.report, self.en_account), self.english,
+            '中文介面的人印英文客戶的單據，要挑英文的定義')
+        self.assertEqual(
+            Binding.with_context(lang='en_US')._resolve_for_records(
+                self.report, self.zh_account),
+            self.fallback, '英文介面的人印中文客戶的單據，不該挑到英文的定義')
+
+    def test_each_record_uses_its_customers_template(self):
+        """一次印兩筆不同語言的客戶，各自用自己語言的範本。"""
+        html, _ = self.fallback.with_context(lang='zh_TW')._build_report_html(
+            self.en_account + self.zh_account)
+        en_part, zh_part = html.split('data-oe-id="%s"' % self.zh_account.id)
+        self.assertIn('English text', en_part)
+        self.assertNotIn('中文固定字', en_part)
+        self.assertIn('data-oe-lang="en_US"', en_part)
+        self.assertIn('中文固定字', zh_part)
+        self.assertIn('data-oe-lang="zh_TW"', zh_part)
+
+    def test_dates_follow_customer_not_operator(self):
+        """只換記錄的語言不夠：日期是用求值環境的語言格式化的。"""
+        html, _ = self.fallback.with_context(lang='zh_TW')._build_report_html(
+            self.en_account)
+        self.assertNotIn('年', html, '英文客戶的日期不該是中文格式')
+        # 英文的日期時間格式是「Nov 3, 2026, 5:05:49 AM」——確認真的有印出日期
+        self.assertRegex(html, r'\b20\d\d\b')
+        html, _ = self.fallback.with_context(lang='en_US')._build_report_html(
+            self.zh_account)
+        self.assertIn('年', html, '中文客戶的日期要是中文格式，不管誰按列印')
+
+    def test_record_lang_switch_checks_the_record_itself(self):
+        """求值環境已經是目標語言、記錄還是操作者語言時，記錄也要換過去。"""
+        Mixin = self.env['doc.render.mixin']
+        record = self.en_account.with_context(lang='zh_TW')
+        switched = Mixin.with_context(lang='en_US')._record_in_lang(record, 'en_US')
+        self.assertEqual(switched.env.context.get('lang'), 'en_US')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestOpenEditorDirectly(TransactionCase):
     """點開文件直接進編輯器（做法沿用 dobtor_xmind）。
 

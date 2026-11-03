@@ -16,6 +16,7 @@ Odoo 原生的「列印」按鈕、走原生的下載流程，只有「HTML 從�
 _render_qweb_pdf_prepare_streams。只有設了附頁的綁定會走到那裡，
 沒設的完全不碰——見 report_overrides.py 的那支覆寫。
 """
+import copy
 import logging
 import re
 
@@ -72,9 +73,9 @@ class DocReport(models.Model):
     lang = fields.Selection(
         _lang_get,
         string='語言',
-        help='只在此語言生效。留空＝所有語言的後備值。'
-             'content_json 是整份版面、不走 i18n，所以多語言的做法是'
-             '「一語言一筆定義指向不同範本」，而不是翻譯範本內容。',
+        help='只用在這個語言的客戶（依單據上客戶的語言挑，與原生報表一致）。'
+             '留空＝所有語言的後備值。範本裡打好的固定文字只有一種語言，'
+             '要給不同語言的客戶不同文字，可以各綁一張範本，或在範本裡改用多語文字。',
     )
     company_id = fields.Many2one(
         'res.company',
@@ -351,6 +352,39 @@ class DocReport(models.Model):
 
         return candidates.sorted(key=specificity)[0]
 
+    @api.model
+    def _customer_lang(self, record):
+        """這筆記錄該用哪個語言印：客戶的語言，沒有客戶就用操作者的。
+
+        與原生報表一致（sale 的範本是 doc.with_context(lang=doc.partner_id.lang)）。
+        以前挑定義用的是操作者語言，英文客戶的報價單會被中文介面的業務印成中文。
+        """
+        Mixin = self.env['doc.render.mixin'].with_context(doc_render_lang=None)
+        return (Mixin._render_lang(record) or self.env.context.get('lang')
+                or self.env.user.lang or 'en_US')
+
+    @api.model
+    def _resolve_for_records(self, report, records):
+        """整批列印要不要接管、以哪一筆定義為主：看第一筆記錄的客戶語言。
+
+        每一筆實際用哪張範本，_build_report_html 會再照各自的客戶語言挑
+        （_binding_for_record）；這裡只決定「接不接管」與頁首頁尾、紙張用誰的。
+        """
+        lang = self._customer_lang(records[:1]) if records else None
+        return self._resolve_for_report(report, lang=lang)
+
+    def _binding_for_record(self, record):
+        """這一筆該用哪一筆定義、用什麼語言印。回傳 (定義, 語言)。
+
+        定義照客戶語言挑：有該語言專屬的就用它，沒有就用後備（語言留空）的；
+        兩者都沒有就沿用 self（整批被選中的那一筆）——這時範本裡打好的固定文字
+        是那張範本的語言，只有從單據帶出來的值照客戶語言。
+        """
+        self.ensure_one()
+        lang = self._customer_lang(record)
+        binding = self._resolve_for_report(self.report_id, lang=lang) or self
+        return binding, lang
+
     # ─── HTML 組裝 ───────────────────────────────────────────────────
 
     def _build_report_html(self, records):
@@ -397,21 +431,19 @@ class DocReport(models.Model):
         frozen_trees = {}
         langs = {}
         for raw_record in records:
-            # 渲染語言必須套用到「記錄」而不只是 data-oe-lang：少了這一步，
-            # 綁定上設了 zh_TW 仍會把商品名稱、selection 標籤、付款條件
-            # 印成操作者的語言，而且完全不報錯。
-            lang = (
-                self.lang
-                or Mixin.with_context(doc_render_lang=None)._render_lang(raw_record)
-                or self.env.context.get('lang') or 'en_US'
-            )
-            record = Mixin._record_in_lang(raw_record, lang)
+            # 這一筆用哪一筆定義、什麼語言印：都照客戶語言（見 _binding_for_record）
+            binding, lang = self._binding_for_record(raw_record)
+            # 語言要同時套在「記錄」與「求值的環境」上。只換記錄的話，商品名稱、
+            # 稅額標籤照客戶語言，日期格式卻照操作者語言——同一張單據中英混雜。
+            LangMixin = Mixin.with_context(lang=lang)
+            record = LangMixin._record_in_lang(raw_record, lang)
             langs[raw_record.id] = lang
-            # 這一筆要用哪張範本。頁首頁尾（frame_tree）仍然只有一份——
-            # wkhtmltopdf 的頁首頁尾是整份 PDF 共用的，做不到逐筆不同。
-            # 覆寫的範本如果外框不一樣，會留下 log 並沿用綁定那一份外框。
-            record_template = self._record_template_for(record)
-            if record_template and record_template != template:
+            # 這一筆要用哪張範本：先看客戶語言對應的定義，再看記錄自己有沒有指定。
+            # 頁首頁尾（frame_tree）仍然只有一份——wkhtmltopdf 的頁首頁尾是整份
+            # PDF 共用的，做不到逐筆不同。外框不一樣時留 log 並沿用綁定那一份外框。
+            record_template = (
+                binding._record_template_for(record) or binding.template_id)
+            if record_template != template:
                 if record_template.id not in tree_cache:
                     tree_cache[record_template.id] = Mixin._parse_content_json(
                         record_template.content_json)
@@ -429,18 +461,17 @@ class DocReport(models.Model):
             if this_tree is None:
                 # 範本還沒用編輯器存過（只有 content_html）：退回舊的 alias 渲染，
                 # 至少印得出東西，而不是給一張空白紙。
-                body = this_template._render_template(
+                body = this_template.with_context(lang=lang)._render_template(
                     this_template.get_content_html(), record,
                 )
                 frozen_trees[record.id] = None
             else:
-                import copy as _copy
-                tree = Mixin._snapshot_content_json(
-                    _copy.deepcopy(this_tree), record,
+                tree = LangMixin._snapshot_content_json(
+                    copy.deepcopy(this_tree), record,
                 )
                 frozen_trees[record.id] = tree
-                body = Mixin._content_json_to_html(
-                    Mixin._flatten_content_json(_copy.deepcopy(tree))
+                body = LangMixin._content_json_to_html(
+                    LangMixin._flatten_content_json(copy.deepcopy(tree))
                 )
             articles.append(
                 '<div class="article" data-oe-model="%s" data-oe-id="%s" data-oe-lang="%s">'
@@ -460,20 +491,20 @@ class DocReport(models.Model):
             # 以第一筆記錄求值：wkhtmltopdf 的頁首頁尾是「整份文件一份、每頁重複」，
             # 多筆記錄一起印時沒有逐筆帶值的餘地（那是 wkhtmltopdf 的限制，
             # 不是這裡的選擇）。所以頁首頁尾適合放公司資訊與頁碼，不適合放單據欄位。
-            import copy as _copy
             hf_tree = {
-                zone: _copy.deepcopy(frame_tree.get(zone) or [])
+                zone: copy.deepcopy(frame_tree.get(zone) or [])
                 for zone in ('header', 'footer')
             }
             first = records[:1]
+            # 頁首頁尾的語言跟第一筆走（同一份 PDF 只有一份頁首頁尾）
+            HfMixin = Mixin.with_context(lang=langs[first.id]) if first else Mixin
             if first:
-                Mixin._snapshot_content_json(
-                    hf_tree,
-                    Mixin._record_in_lang(first, langs.get(first.id)),
+                HfMixin._snapshot_content_json(
+                    hf_tree, HfMixin._record_in_lang(first, langs[first.id]),
                 )
-            Mixin._flatten_content_json(hf_tree)
-            head = Mixin._content_json_to_html(hf_tree, zone='header')
-            foot = Mixin._content_json_to_html(hf_tree, zone='footer')
+            HfMixin._flatten_content_json(hf_tree)
+            head = HfMixin._content_json_to_html(hf_tree, zone='header')
+            foot = HfMixin._content_json_to_html(hf_tree, zone='footer')
             scope_js = self._page_scope_script(head + foot)
             if head.strip() and head != '<p><br/></p>':
                 header_footer += '<div class="header">%s%s%s%s</div>' % (

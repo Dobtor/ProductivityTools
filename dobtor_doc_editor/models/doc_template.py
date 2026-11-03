@@ -341,9 +341,10 @@ class DocTemplate(models.Model):
         印給這筆記錄時會長的樣子。tree 會被就地改寫，呼叫端要給一份副本。
         """
         self.ensure_one()
-        lang = (self.with_context(doc_render_lang=None)._render_lang(record)
-                or self.env.context.get('lang') or 'en_US')
-        return self._snapshot_content_json(tree, self._record_in_lang(record, lang))
+        lang = self.env['doc.report']._customer_lang(record)
+        # 語言要套在求值環境上，不只記錄——不然日期格式照操作者語言
+        in_lang = self.with_context(lang=lang)
+        return in_lang._snapshot_content_json(tree, in_lang._record_in_lang(record, lang))
 
     def frame_template(self):
         """提供頁首／頁尾與紙張設定的那一張範本。

@@ -206,7 +206,10 @@ class RenderI18n:
         if record is None:
             return record
         lang = lang or self._render_lang(record)
-        if not lang or self.env.context.get('lang') == lang:
+        # 看「記錄自己」的語言，不是 self 的：呼叫端常把求值環境先換成渲染語言，
+        # 這時 self 已經是目標語言，記錄卻還是操作者語言——拿 self 判斷會跳過換語言，
+        # 結果國家、單位、稅額標籤照操作者語言印
+        if not lang or record.env.context.get('lang') == lang:
             return record
         try:
             return record.with_context(lang=lang)
