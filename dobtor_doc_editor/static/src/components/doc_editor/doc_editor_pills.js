@@ -20,6 +20,7 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
+import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { AutoSaveManager } from "../../core/auto_save_manager";
 import { LeaderElection } from "../../core/leader_election";
 import { OfflineManager } from "../../core/offline_manager";
@@ -2207,6 +2208,14 @@ export const DocEditorPills = (Base) => class extends Base {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
         }
+        if (this.isOutputTarget) {
+            this.notification.add("輸出紀錄顯示的就是當時印出的值。", { type: "info" });
+            return;
+        }
+        if (this.state.editTarget === "template") {
+            await this._toggleTemplatePreview();
+            return;
+        }
         if (!this.state.docId) return;
         if (!this._loadedModelName || !this._loadedResId) {
             this.notification.add(
@@ -2282,6 +2291,88 @@ export const DocEditorPills = (Base) => class extends Base {
             console.error("[DocEditor] enter preview mode failed", e);
             this.notification.add(`進入預覽模式失敗：${e.message || e}`, { type: "danger" });
             this._editModeSnapshot = null;
+            this._suppressAutoSave = false;
+        }
+    }
+
+    /**
+     * 範本的「顯示實際值」：範本沒有綁定記錄，先讓使用者挑一筆，再用它把範本整份填好。
+     *
+     * 跟文件不同，預覽期間**完全不能編輯、也不能存**：預覽內容是展開後的結果
+     * （重複列逐筆複製、條件算掉、稅額彙總展開），存回去範本的結構就毀了。
+     * 所以自動儲存整段停掉、編輯器切成唯讀，直到再按一次切回編輯模式。
+     */
+    async _toggleTemplatePreview() {
+        const EditorMode = window["canvas-editor"]?.EditorMode;
+        if (this.state.previewMode) {
+            try {
+                this._suppressAutoSave = true;
+                if (this._editModeSnapshot) {
+                    this.editor.command.executeSetValue(this._editModeSnapshot);
+                    this._editModeSnapshot = null;
+                }
+                this.editor.command.executeMode(
+                    this._isReadonly ? EditorMode.READONLY : EditorMode.EDIT);
+                this.state.previewMode = false;
+                this.notification.add("已切回編輯模式，欄位恢復原本的顯示。", { type: "info" });
+            } finally {
+                // 讓 executeSetValue 觸發的 contentChange 跑完再恢復自動儲存
+                setTimeout(() => { this._suppressAutoSave = false; }, 200);
+            }
+            return;
+        }
+        if (!this._loadedModelName) {
+            this.notification.add(
+                "這張範本沒有設定適用模型，沒有記錄可以拿來顯示實際值。",
+                { type: "warning" }
+            );
+            return;
+        }
+        this.dialog.add(SelectCreateDialog, {
+            resModel: this._loadedModelName,
+            title: "挑一筆記錄來顯示實際值",
+            multiSelect: false,
+            noCreate: true,
+            onSelected: (resIds) => this._enterTemplatePreview(resIds && resIds[0]),
+        });
+    }
+
+    async _enterTemplatePreview(recordId) {
+        if (!recordId || !this.editor) return;
+        const EditorMode = window["canvas-editor"]?.EditorMode;
+        try {
+            // 預覽期間自動儲存會停掉，先把還沒存的修改存進去
+            await this._autoSave.flush();
+            const snapshot = this.editor.command.getValue().data;
+            const resp = await rpc("/dobtor_doc/template/preview_values", {
+                template_id: this.state.templateId,
+                record_id: recordId,
+                content_json: JSON.stringify(snapshot),
+            });
+            if (!resp || resp.error) {
+                this.notification.add(
+                    `顯示實際值失敗：${(resp && resp.error) || "沒有回應"}`,
+                    { type: "danger" }
+                );
+                return;
+            }
+            this._editModeSnapshot = JSON.parse(JSON.stringify(snapshot));
+            this._suppressAutoSave = true;
+            this.editor.command.executeSetValue(resp.content_json);
+            this.editor.command.executeMode(EditorMode.READONLY);
+            this.state.previewMode = true;
+            this.notification.add(
+                `以「${resp.record_name}」顯示實際值。預覽中不能編輯，再按一次回到編輯模式。`,
+                { type: "success" }
+            );
+        } catch (e) {
+            console.error("[DocEditor] enter template preview failed", e);
+            this.notification.add(`顯示實際值失敗：${e.message || e}`, { type: "danger" });
+            if (this._editModeSnapshot) {
+                this.editor.command.executeSetValue(this._editModeSnapshot);
+                this._editModeSnapshot = null;
+            }
+            this.state.previewMode = false;
             this._suppressAutoSave = false;
         }
     }

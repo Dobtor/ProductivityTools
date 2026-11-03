@@ -645,7 +645,22 @@ export const DocEditorShell = (Base) => class extends Base {
     // ─── 手動儲存 ────────────────────────────────────────────────────
 
     async onSave() {
-        if (!this.state.docId || this.state.isSaving) return;
+        if (this.state.isSaving) return;
+        // 以前只認文件（!docId 直接 return），範本按了沒有任何反應、也沒有提示，
+        // 使用者只能靠 1.5 秒後的自動儲存，卻看不出來到底存了沒。
+        if (this._isReadonly) {
+            this.notification.add("這是唯讀檢視，不能儲存。", { type: "info" });
+            return;
+        }
+        if (this.state.previewMode && this.state.editTarget === "template") {
+            // 預覽內容是展開後的結果，存進範本會毀掉範本結構（見 _toggleTemplatePreview）
+            this.notification.add(
+                "正在顯示實際值，不能儲存。請先按「範本模式」回到編輯。",
+                { type: "warning" }
+            );
+            return;
+        }
+        if (!this.targetId) return;
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
@@ -668,15 +683,22 @@ export const DocEditorShell = (Base) => class extends Base {
             });
             // P2-2: 衝突時 _handleSaveResult 會處理 reload + 警示
             this._handleSaveResult(result, json);
-            if (!result?.conflict) {
+            if (result?.success) {
                 this.state.statusMsg = "已儲存";
                 this.state.statusType = "saved";
+                // 手動按的儲存要有明顯回饋；底下狀態列的小字不夠，使用者會反覆點
+                this.notification.add("已儲存", { type: "success" });
+            } else if (!result?.conflict) {
+                // 路由用 {success: false, error} 回報失敗，不是丟例外
+                throw new Error(result?.error || "沒有回應");
             }
             stopSaveTimer(this.telemetryParams);
         } catch (error) {
             this.state.statusMsg = `儲存失敗：${error.message || error}`;
             this.state.statusType = "error";
-            this.notification.add("文件儲存失敗", { type: "danger" });
+            this.notification.add(
+                this.state.editTarget === "template" ? "範本儲存失敗" : "文件儲存失敗",
+                { type: "danger" });
             reportError({
                 type: "save_failure",
                 message: error.message || String(error),

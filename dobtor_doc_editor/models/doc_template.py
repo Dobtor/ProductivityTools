@@ -333,6 +333,18 @@ class DocTemplate(models.Model):
             'context': {'default_role': 'layout'},
         }
 
+    def _preview_tree(self, tree, record):
+        """範本「顯示實際值」：用一筆範例記錄跑完整快照，回傳填好值的元素樹（不存檔）。
+
+        跟報表接管列印走同一套（doc.report._build_report_html）：條件、重複列、
+        稅額彙總全部展開，語言也照列印時的規則挑。這樣在範本裡看到的就是
+        印給這筆記錄時會長的樣子。tree 會被就地改寫，呼叫端要給一份副本。
+        """
+        self.ensure_one()
+        lang = (self.with_context(doc_render_lang=None)._render_lang(record)
+                or self.env.context.get('lang') or 'en_US')
+        return self._snapshot_content_json(tree, self._record_in_lang(record, lang))
+
     def frame_template(self):
         """提供頁首／頁尾與紙張設定的那一張範本。
 

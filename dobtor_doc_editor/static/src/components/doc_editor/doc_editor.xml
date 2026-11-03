@@ -29,10 +29,13 @@
                            aria-label="文件標題"/>
                 </div>
                 <div class="doc-header-bar-right">
+                    <!-- 輸出紀錄是唯讀成品：顯示的就是當時印出的值，「顯示實際值」「預覽」
+                         「儲存」都用不到。以前三顆都還在、儲存還是藍色可按，按了沒反應。 -->
                     <button class="doc-header-btn"
+                            t-if="!isOutputTarget"
                             t-att-class="state.previewMode ? 'doc-header-btn-preview-active' : ''"
                             t-on-click="onTogglePreviewMode"
-                            t-attf-title="#{state.previewMode ? '目前顯示實際值（可直接編輯）— 按此回到範本模式看 《token》 原文' : '切到實際值模式（可直接編輯）；改動會凍結為純文字，不影響範本'}"
+                            t-attf-title="#{state.previewMode ? '目前顯示實際值 — 按此回到編輯模式' : (state.editTarget === 'template' ? '挑一筆記錄，看這張範本印出來的樣子（預覽中不能編輯）' : '用綁定的記錄顯示欄位的實際值；這時直接編輯，改動會凍結進這份文件')}"
                             aria-label="切換預覽模式">
                         <i t-attf-class="fa #{state.previewMode ? 'fa-tags' : 'fa-eye'}" aria-hidden="true"/>
                         <span class="d-none d-md-inline">
@@ -41,6 +44,7 @@
                         </span>
                     </button>
                     <button class="doc-header-btn"
+                            t-if="!isOutputTarget"
                             t-on-click="onPreviewClick"
                             title="開新分頁預覽填值結果"
                             aria-label="預覽">
@@ -48,6 +52,7 @@
                         <span class="d-none d-md-inline">預覽</span>
                     </button>
                     <button class="doc-header-btn primary"
+                            t-if="!_isReadonly"
                             t-att-class="state.isSaving ? 'saving' : ''"
                             t-on-click="onSave"
                             t-att-disabled="state.isSaving"

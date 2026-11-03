@@ -509,6 +509,38 @@ class DocEditorController(DocControllerBase, http.Controller):
         _walk(cj)
         return {'success': True, 'content_json': cj}
 
+    @http.route('/dobtor_doc/template/preview_values', type='json', auth='user', methods=['POST'])
+    def template_preview_values(self, template_id=None, record_id=None, content_json=None, **kw):
+        """範本的「顯示實際值」：用使用者挑的一筆記錄把範本整份填好，回傳元素樹（不存檔）。
+
+        範本沒有綁定記錄，所以要呼叫端（編輯器）先讓使用者挑一筆。
+        content_json：可選；給了就用編輯器當下的內容（還沒自動存檔的修改也看得到）。
+        """
+        template, _kind = self._resolve_edit_target(template_id=template_id, access='read')
+        if not template.model_id:
+            return {'error': '這張範本沒有設定適用模型，沒有記錄可以拿來顯示實際值。'}
+        if not record_id:
+            return {'error': '請先挑一筆記錄。'}
+        model = template.model_id.model
+        try:
+            record = request.env[model].browse(int(record_id))
+            record.check_access('read')
+            if not record.exists():
+                return {'error': f'記錄 {model}/{record_id} 不存在'}
+        except Exception as e:
+            return {'error': f'記錄存取失敗：{e}'}
+
+        cj = content_json if content_json is not None else template.content_json
+        if isinstance(cj, str):
+            try:
+                cj = json.loads(cj)
+            except Exception:
+                return {'error': 'content_json 無法解析'}
+        if not cj:
+            return {'error': '範本內容是空的'}
+        tree = template._preview_tree(copy.deepcopy(cj), record)
+        return {'success': True, 'content_json': tree, 'record_name': record.display_name}
+
     @http.route('/dobtor_doc/preview/<int:doc_id>', type='http', auth='user', methods=['GET'])
     def preview_document(self, doc_id, record_id=None, **kw):
         """瀏覽器直接打開的預覽頁（form view「快速預覽」按鈕用）。
