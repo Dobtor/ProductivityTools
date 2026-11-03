@@ -1,13 +1,14 @@
 """RenderSnapshot — 快照管線（pass 鏈）。
 
 「把藥丸換成值」的那條鏈：展開重複列 → 展開稅額彙總 → 條件（列／欄／
-段落）→ 條件式格式 → 清空表格 → 純量求值 → 收合空段落。
+段落）→ 條件式格式 → 清空表格 → 純量求值 → 收合空段落 → 拿掉只剩空白的條件區塊。
 
 **順序是這個模組唯一的硬約束**，權威寫在 _snapshot_content_json 的註解裡，
 並由 TestSnapshotPassOrder 斷言。加新的 pass 要同時改那段註解，
 否則測試會紅——那是故意的。
 """
 import base64
+import html as html_mod
 
 
 from odoo import fields
@@ -75,6 +76,54 @@ class RenderSnapshot:
                     del elements[idx]
                 removed += 1
         return removed
+
+    def _is_blank_element(self, el):
+        """這個元素印出來是不是什麼都沒有（只有換行／空白、空值藥丸、空表格）。"""
+        if not isinstance(el, dict):
+            return True
+        etype = el.get('type') or 'text'
+        if etype == 'table':
+            return not any((r.get('tdList') or []) for r in (el.get('trList') or [])
+                           if isinstance(r, dict))
+        if etype == 'label':
+            meta = self._element_field_meta(el) or {}
+            if meta.get('source') == 'page':
+                # 頁碼的值要到攤平時才變成 <span class="page">，這裡還是標籤文字
+                return False
+        elif etype not in ('text', 'image', 'hyperlink', 'subscript', 'superscript'):
+            # 分隔線、分頁、HTML 區塊等：放進條件區塊就是要它出現
+            return False
+        # ZERO（​）是編輯器的換行，Python 的 strip() 不會拿掉它
+        return not (el.get('value') or '').replace('​', '').strip()
+
+    def _drop_blank_condition_blocks(self, tree):
+        """條件成立、但留下來的內容全是空白的條件區塊 → 整塊拿掉。
+
+        轉換器把 QWeb 的 t-if／t-else 轉成條件區塊，原生報表常見「條件成立時
+        什麼都不印」的寫法（已經簽名就不印簽名欄、沒有選購項目就跳過那一段），
+        這時區塊裡只剩空行。留著的話單據結尾會多一大段空白，甚至多出一頁。
+
+        只看條件區塊：一般表格的格子空著是使用者刻意的（例如留白的簽名框）。
+        做法是把整塊的列清空，交給 _drop_empty_tables 連同前後換行一起收拾。
+        條件區塊可以巢狀，內層清空後外層才看得出是不是也空了，所以重複到沒有變化。
+        """
+        changed = True
+        while changed:
+            changed = False
+            for elements in self._iter_element_lists(tree):
+                for el in elements:
+                    if self._element_block_kind(el) != 'condition':
+                        continue
+                    rows = el.get('trList') or []
+                    cells = [td for tr in rows if isinstance(tr, dict)
+                             for td in (tr.get('tdList') or [])]
+                    if not cells:
+                        continue
+                    if all(self._is_blank_element(item)
+                           for td in cells for item in (td.get('value') or [])):
+                        el['trList'] = []
+                        changed = True
+        return self._drop_empty_tables(tree)
 
     def _image_data_uri(self, record, meta):
         """binary 欄位 → data: URI。取不到一律回空字串。
@@ -145,11 +194,35 @@ class RenderSnapshot:
         except Exception:
             return ''
         if not raw or raw in ('False', 'None'):
-            return ''
+            return self._company_details_fallback(record, meta)
         clean = html_sanitize(raw)
         if not self._html_has_content(clean):
-            return ''
+            return self._company_details_fallback(record, meta)
         return clean
+
+    def _company_details_fallback(self, record, meta):
+        """「公司資訊」沒填時，比照 Odoo 原生外框改印公司名稱與地址。
+
+        Odoo 的外框在 company_details 是空的時候改印公司聯絡人的名稱＋地址
+        （web 的 external_layout 用 is_company_details_empty 判斷）。內建外框的
+        「公司資訊」藥丸讀的就是 company_details，不比照的話，沒進「文件版面」
+        設定過的公司，頁首右邊整格空白，連公司名稱都沒有。
+        """
+        path = meta.get('path') or ''
+        if path != 'company_details' and not path.endswith('.company_details'):
+            return ''
+        prefix = path.rpartition('.')[0]
+        try:
+            company = record.mapped(prefix) if prefix else record
+        except (KeyError, AttributeError):
+            return ''
+        if company._name != 'res.company' or len(company) != 1:
+            return ''
+        partner = company.partner_id
+        address = partner._display_address(without_company=True) or ''
+        lines = [partner.name or ''] + address.split('\n')
+        return '<br/>'.join(
+            html_mod.escape(line.strip()) for line in lines if line.strip())
 
     # Odoo 自己的條碼 API 支援的型別（ir_actions_report.barcode()）。
     # 揀貨單用了 16 處條碼、發票有付款 QR——所以這不是發票專屬的需求。
@@ -251,6 +324,8 @@ class RenderSnapshot:
         #   4.   純量藥丸求值（下方既有迴圈，不是獨立方法）
         #   5.   _collapse_empty_paragraphs
         #        必須在求值後——要有值才知道是不是空的
+        #   6.   _drop_blank_condition_blocks（內部再呼叫一次 _drop_empty_tables）
+        #        排在 5 之後：段落收合完，條件區塊裡才看得出是不是只剩空行
         if not only_pending:
             self._expand_repeat_rows(tree, record)
             self._expand_tax_totals_rows(tree, record)
@@ -322,6 +397,8 @@ class RenderSnapshot:
         #    補值用的，那時版面早已定案，不該再動結構。
         if not only_pending:
             self._collapse_empty_paragraphs(tree)
+            # 6. 條件成立但內容全空的條件區塊整塊拿掉（同樣只在完整快照時做）
+            self._drop_blank_condition_blocks(tree)
         return tree
 
     def _sort_lines(self, lines, sort_by, desc=False):

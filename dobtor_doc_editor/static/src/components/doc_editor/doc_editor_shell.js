@@ -53,6 +53,12 @@ import {
     FIELD_TYPES,
 } from "./doc_editor_shared";
 
+// 紙張尺寸（px @ 96 DPI，直式），與 canvas-editor 預設的 A4 794×1123 同一套單位
+const PAGE_SIZES = {
+    A4: [794, 1123], A3: [1123, 1587], A5: [559, 794],
+    letter: [816, 1056], legal: [816, 1344],
+};
+
 export const DocEditorShell = (Base) => class extends Base {
 
     // ─── Canvas 編輯器初始化 ────────────────────────────────────────
@@ -94,8 +100,15 @@ export const DocEditorShell = (Base) => class extends Base {
 
         // 建立 Canvas 編輯器實例
         // readonly mode：portal 公開預覽或無寫入權限時走 EditorMode.READONLY
+        // 紙張與邊距照存好的設定開。少了這段，編輯器一律用 canvas-editor 的預設值
+        // （A4、上下 100px、左右 120px），列印卻照範本存的邊距——版面寬度不同，
+        // 換行與換頁的位置就跟 PDF 對不上。
+        const [paperWidth, paperHeight] = PAGE_SIZES[this.state.pageFormat] || PAGE_SIZES.A4;
         const editorOptions = {
             pageMode: PageMode?.PAGING,
+            width: paperWidth,
+            height: paperHeight,
+            ...(this._loadedMargins ? { margins: this._loadedMargins } : {}),
             // Phase 4：模型變數藥丸的預設外觀（每個元素可用 element.label 覆寫）
             label: {
                 defaultBackgroundColor: PILL_STYLE.backgroundColor,
@@ -507,6 +520,9 @@ export const DocEditorShell = (Base) => class extends Base {
                 `${this.state.editTarget}:${data.id}`
             );
             this.state.pageFormat = data.page_format || "A4";
+            // 暫存邊距（px，canvas-editor 的順序是上右下左），供 _initCanvasEditor 使用
+            const margins = [data.margin_top, data.margin_right, data.margin_bottom, data.margin_left];
+            this._loadedMargins = margins.every((v) => Number(v) > 0) ? margins.map(Number) : null;
 
             // 暫存 content_json，供 _initCanvasEditor 使用
             this._loadedContentJson = data.content_json || null;
@@ -1071,10 +1087,6 @@ export const DocEditorShell = (Base) => class extends Base {
 
     onApplyDocSettings() {
         const f = this.state.docSettingsForm;
-        const PAGE_SIZES = {
-            A4: [794, 1123], A3: [1123, 1587], A5: [559, 794],
-            letter: [816, 1056], legal: [816, 1344],
-        };
         try {
             const [w, h] = PAGE_SIZES[f.format] || PAGE_SIZES.A4;
             // 方向 = horizontal 時長寬互換

@@ -5,6 +5,7 @@ ir_actions_report._prepare_html() 的期待，失敗方式是 IndexError 或 Use
 而不是「版面有點怪」。所以結構比內容更該被釘住。
 """
 import json
+import re
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
@@ -1125,6 +1126,147 @@ class TestHeaderFooterLayout(TransactionCase):
         html = self._html()
         self.assertIn('v.page', html)
         self.assertIn('doc-pg-odd', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportPrintLayout(TransactionCase):
+    """報表接管印出來的版面要跟編輯器一致。
+
+    10510 實測過的走樣：表格縮成內容寬度、條件區塊的格線被印出來、
+    頁首壓到本文、字比編輯器小一號。原因都在「HTML 交給 wkhtmltopdf 之前
+    被 Odoo 重新包裝過」，所以這裡驗的是包裝之後的結果，不是我們吐出的 HTML。
+    """
+
+    PX_TO_MM = 25.4 / 96
+
+    def setUp(self):
+        super().setUp()
+        model = self.env['ir.model']._get('res.partner')
+        self.frame = self.env['doc.template'].create({
+            'name': '版面測試外框', 'role': 'layout', 'model_id': model.id,
+            'content_json': json.dumps({
+                'header': [_text('頁首')], 'footer': [_text('頁尾')], 'main': [],
+            }),
+        })
+        self.template = self.env['doc.template'].create({
+            'name': '版面測試範本', 'role': 'content',
+            'model_id': model.id, 'layout_id': self.frame.id,
+            'content_json': json.dumps({'main': [_text('本文')]}),
+        })
+        self.report = self.env['ir.actions.report'].create({
+            'name': '版面測試報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf',
+            'report_name': 'dobtor_doc_editor.layout_probe',
+        })
+        self.binding = self.env['doc.report'].create({
+            'name': '版面測試綁定',
+            'template_id': self.template.id, 'report_id': self.report.id,
+        })
+        self.partner = self.env['res.partner'].create({'name': '版面測試客戶'})
+
+    def _html(self):
+        html, _frozen = self.binding._build_report_html(self.partner)
+        return html
+
+    def _attrs(self):
+        html = self._html()
+        return dict(re.findall(r'(data-report-[a-z-]+)="([^"]*)"', html))
+
+    def _lines(self, zone, count):
+        """count 段的頁首或頁尾（每段在編輯器裡是一列）。"""
+        elements = [_text('第 1 列')]
+        for idx in range(2, count + 1):
+            elements += [_text('\n'), _text('第 %d 列' % idx)]
+        tree = {'header': [], 'footer': [], 'main': []}
+        tree[zone] = elements
+        self.frame.content_json = json.dumps(tree)
+
+    # ─── 樣式要撐過 Odoo 的重新包裝 ──────────────────────────────────
+
+    def test_style_survives_odoo_prepare_html(self):
+        """_prepare_html 只留 header／footer／article 三種 div，<head> 整個丟掉。"""
+        bodies, _ids, header, footer, _args = self.report._prepare_html(
+            self._html(), report_model='res.partner')
+        for part in bodies + [header, footer]:
+            self.assertIn('.doc-block{border-collapse:separate', part)
+            self.assertIn('table{border-collapse:collapse;width:100%}', part)
+            self.assertIn('body.o_body_pdf.container{padding:0', part,
+                          'Odoo 報表版面自帶的 11mm 內距要抵銷')
+
+    def test_shrinking_is_disabled_for_taken_over_reports(self):
+        """wkhtmltopdf 預設會再縮一次，字就比編輯器小一號。"""
+        self.assertEqual(self._attrs().get('data-report-disable-shrinking'), '1')
+        paperformat = self.report.get_paperformat()
+        args = self.report._build_wkhtmltopdf_args(
+            paperformat, False, {'data-report-disable-shrinking': '1'})
+        self.assertIn('--disable-smart-shrinking', args)
+        if not paperformat.disable_shrinking:
+            args = self.report._build_wkhtmltopdf_args(paperformat, False, {})
+            self.assertNotIn('--disable-smart-shrinking', args,
+                             '沒接管的報表維持 Odoo 原本的行為')
+
+    # ─── 頁首頁尾留空間 ─────────────────────────────────────────────
+
+    def test_short_header_keeps_the_template_margin(self):
+        """頁首放得下就不動邊距；頁首從離頂端 30px 的地方開始畫。"""
+        attrs = self._attrs()
+        self.assertEqual(attrs['data-report-margin-top'], '25.4')
+        # wkhtmltopdf 的頁首從「上邊距 − 頁首間距」往下畫
+        self.assertAlmostEqual(
+            float(attrs['data-report-margin-top'])
+            - float(attrs['data-report-header-spacing']),
+            30 * self.PX_TO_MM, delta=0.15)
+
+    def test_tall_header_pushes_the_body_down(self):
+        self._lines('header', 6)
+        attrs = self._attrs()
+        head_px = self.binding._estimate_html_height(
+            ''.join('<p>第 %d 列</p>' % i for i in range(1, 7)))
+        expected = (30 + head_px) * self.PX_TO_MM + self.frame.header_spacing
+        self.assertAlmostEqual(
+            float(attrs['data-report-margin-top']), expected, delta=0.15,
+            msg='上邊距要讓出頁首高度＋頁首間距，本文才不會被壓到')
+        self.assertAlmostEqual(
+            float(attrs['data-report-margin-top'])
+            - float(attrs['data-report-header-spacing']),
+            30 * self.PX_TO_MM, delta=0.15)
+
+    def test_tall_footer_raises_the_bottom_margin(self):
+        self._lines('footer', 6)
+        attrs = self._attrs()
+        foot_px = self.binding._estimate_html_height(
+            ''.join('<p>第 %d 列</p>' % i for i in range(1, 7)))
+        bottom = float(attrs['data-report-margin-bottom'])
+        self.assertAlmostEqual(
+            bottom, (30 + foot_px) * self.PX_TO_MM + self.frame.footer_spacing,
+            delta=0.15)
+        # wkhtmltopdf 的頁尾從「下邊距 − 頁尾間距」往下畫，要剛好畫到離底 30px
+        self.assertAlmostEqual(
+            bottom - float(attrs['data-report-footer-spacing']),
+            (30 + foot_px) * self.PX_TO_MM, delta=0.15)
+
+    # ─── 高度估計 ──────────────────────────────────────────────────
+
+    def test_estimate_counts_paragraph_lines(self):
+        """一列 16px×1.25＝20px，段落上下各 8px。"""
+        est = self.binding._estimate_html_height
+        self.assertEqual(est(''), 0)
+        self.assertEqual(est('<p>甲</p>'), 36)
+        self.assertEqual(est('<p><br/></p>'), 36, '空段落也佔一列')
+        self.assertEqual(est('<p>甲<br/>乙</p>'), 56)
+        self.assertEqual(est('<p>甲<br/></p>'), 36, '結尾的 <br> 不會多出一列')
+        self.assertEqual(est('<p>甲<br/><br/></p>'), 56)
+        self.assertEqual(est('<style>p{}</style><p>甲</p>'), 36)
+        self.assertEqual(est('<p><span style="font-size:24px">大</span></p>'), 46)
+
+    def test_estimate_tables_and_images(self):
+        """表格一列取最高的那一格；圖片照 height 算。"""
+        est = self.binding._estimate_html_height
+        row = ('<tr><td><p><img height="48"/></p></td>'
+               '<td><p>甲<br/>乙<br/>丙</p></td></tr>')
+        # 右格 3 列＝60＋16；左格圖 48＋4＋16
+        self.assertEqual(est('<table class="doc-block">%s</table>' % row), 76)
+        self.assertEqual(est('<table>%s</table>' % row), 81, '一般表格格子多 5px 下內距')
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')

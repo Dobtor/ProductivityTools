@@ -46,6 +46,13 @@ class IrActionsReport(models.Model):
                 args[args.index('--footer-spacing') + 1] = value
             else:
                 args.extend(['--footer-spacing', value])
+
+        # wkhtmltopdf 預設會「聰明縮小」：把整頁內容再縮一次（實測約 0.78 倍），
+        # 字級、圖片、列高都跟編輯器對不上。Odoo 只在紙張設定勾了
+        # disable_shrinking 才關，報表接管的頁面一律要關（見 doc.report._paperformat_attrs）。
+        if (specific_paperformat_args.get('data-report-disable-shrinking')
+                and '--disable-smart-shrinking' not in args):
+            args.append('--disable-smart-shrinking')
         return args
 
     # ══════════════════════════════════════════════════════════════════
