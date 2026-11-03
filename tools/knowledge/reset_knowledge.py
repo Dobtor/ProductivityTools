@@ -6,6 +6,12 @@
         # 只清產出（截圖腳本、截圖、文章、步驟、教學、缺口、已發佈手冊），保留已核准的盤點、情境、能力、流程
     python3 tools/knowledge/reset_knowledge.py 13 14 --code [--yes]
         # 連程式知識（模組摘要、段落、結論）一起清，只留程式碼版本（已抽出的官方原碼）：程式知識格式改版後重測用
+    python3 tools/knowledge/reset_knowledge.py 13 14 --all [--yes]
+        # 全部清、什麼都不留：含 --code，再加 AI 呼叫／更新／驗收紀錄、環境規則、角色、示範資料包，
+        # 以及行銷（宣稱、卡片、本期新增）與知識交換（發佈清單）；只留程式碼版本與交換對端設定
+    python3 tools/knowledge/reset_knowledge.py 13 14 --all [--yes]
+        # 全部清、什麼都不留：含 --code，再加上 AI 呼叫／更新／驗收紀錄、環境規則、角色、示範資料包，
+        # 以及行銷（宣稱、卡片、本期新增）與知識交換（發佈清單）；只留程式碼版本與交換對端設定
 
 保留：AI 呼叫／更新／驗收紀錄（比較用）、環境規則、角色範本、示範資料包、程式知識（跟映像版本綁定）。
 方案上的設定（自動化等級、門檻）保留；方案上算出來的狀態（方案檔案、範圍快照、指紋）清掉。
@@ -37,6 +43,11 @@ CATALOG = ['corpaas.knowledge.feature', 'corpaas.knowledge.feature.class', 'corp
            'corpaas.knowledge.feedback', 'corpaas.knowledge.feedback.session']
 #: --code 另外清掉的程式知識；程式碼版本（code_tree：已抽出的官方原碼，跟映像版本綁定、內容不會變）照樣保留
 CODE = ['corpaas.knowledge.code_def', 'corpaas.knowledge.code_fact', 'corpaas.knowledge.module_summary']
+#: --all 仍保留的：程式碼版本（官方原碼，跟映像綁定）與交換對端主控台（連線設定，不是知識）
+ALL_KEEP = ['corpaas.knowledge.code_tree', 'corpaas.knowledge.exchange.peer']
+#: 預設只清核心與說明書模組；--all 再加行銷與知識交換模組（建議書等業務資料一律不動）
+BASE_MODULES = ['dobtor_corpaas_knowledge', 'dobtor_corpaas_knowledge_manual']
+ALL_MODULES = BASE_MODULES + ['dobtor_corpaas_knowledge_marketing', 'dobtor_corpaas_knowledge_exchange']
 #: 方案上要清掉的「算出來的狀態」
 PKG_RESET = ['knowledge_cost_plan_at', 'knowledge_cost_plan_html', 'knowledge_fp_image', 'knowledge_fp_manifest',
              'knowledge_image_digest', 'knowledge_last_refresh', 'knowledge_last_token', 'knowledge_pending_full',
@@ -49,6 +60,7 @@ KEEP = set(%(keep)r)
 PKGS = %(pkgs)r
 PKG_RESET = %(reset)r
 MARK = %(mark)r
+RESET_MODULES = tuple(%(modules)r)
 env = env(context=dict(env.context, active_test=False, tracking_disable=True, mail_notrack=True))
 out = {'deleted': {}, 'dropped': [], 'errors': []}
 busy = env['corpaas.knowledge.run'].sudo().search([('state', '=', 'running')])
@@ -80,7 +92,6 @@ chans.unlink()
 #    被 restrict 擋住的下一輪再刪，直到沒有進展。
 # ★ 只清核心與說明書模組自己定義的模型：建議書模組（建議書、案件、開發項目…）同樣是 corpaas.knowledge.*，
 #   那是業務資料，清除知識產出時不能動
-RESET_MODULES = ('dobtor_corpaas_knowledge', 'dobtor_corpaas_knowledge_manual')
 models = sorted(m for m in env.registry if m.startswith('corpaas.knowledge.') and m not in KEEP
                 and not env[m]._abstract and env[m]._auto and env[m]._original_module in RESET_MODULES)
 for m in models:
@@ -140,12 +151,16 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     dry = '--yes' not in sys.argv
     outputs_only = '--outputs-only' in sys.argv
-    keep = [m for m in KEEP if '--code' not in sys.argv or m not in CODE]
+    full = '--all' in sys.argv
+    if full and outputs_only:
+        sys.exit('--all 與 --outputs-only 不能一起用')
+    keep = ALL_KEEP if full else [m for m in KEEP if '--code' not in sys.argv or m not in CODE]
     pkgs = [int(a) for a in args if a.isdigit()]
     if not pkgs:
         sys.exit(__doc__)
     script = SCRIPT % {'dry': dry, 'keep': keep + (CATALOG if outputs_only else []), 'pkgs': pkgs,
-                       'reset': [] if outputs_only else PKG_RESET, 'mark': MARK}
+                       'reset': [] if outputs_only else PKG_RESET, 'mark': MARK,
+                       'modules': ALL_MODULES if full else BASE_MODULES}
     host, key = setting('DEPLOY_HOST'), os.path.expandvars(setting('DEPLOY_KEY'))
     ctr, db = setting('DEPLOY_CONTAINER'), setting('DEPLOY_DB')
     cmd = ['ssh', '-i', key, host,
@@ -156,7 +171,7 @@ def main():
         sys.exit('沒有結果：\n%s\n%s' % (res.stdout[-2000:], res.stderr[-2000:]))
     out = json.loads(line[len(MARK):])
     print(('試跑（已回滾）' if dry else '已清除') + ('（只清產出）' if outputs_only else '')
-          + ('（含程式知識）' if '--code' in sys.argv else ''))
+          + ('（全部清，含紀錄與設定）' if full else '（含程式知識）' if '--code' in sys.argv else ''))
     for m, n in sorted(out['deleted'].items(), key=lambda kv: -kv[1]):
         print('  %6s  %s' % (n, m))
     print('保留：', out['kept'])
