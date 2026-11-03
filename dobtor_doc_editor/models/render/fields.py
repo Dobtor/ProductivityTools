@@ -292,14 +292,36 @@ class RenderFields:
         'date', 'datetime', 'boolean', 'selection', 'many2one',
     )
 
+    def _is_proxy_of_stored(self, model_name, field_name):
+        """沒存資料庫、但只是「轉接」到一個有存的欄位（related 欄位）。
+
+        使用者的姓名、電郵就是這種：res.users 透過 _inherits 把聯絡人的欄位
+        轉接過來，本身沒存。以前清單只列有存的欄位，展開「銷售員」就找不到
+        姓名、電郵，得繞到「關聯聯絡人」底下。
+        轉接到「沒存的計算欄位」的不算（頭像、活動摘要這類），列進來只會
+        淹沒真正要找的欄位。
+        """
+        field = self.env[model_name]._fields.get(field_name)
+        if field is None or field.store or not field.related:
+            return False
+        target = getattr(field, 'related_field', None)
+        return bool(target is not None and target.store)
+
     def _get_fields_for_model(self, model_name, max_depth=2, current_depth=0):
         """遞迴取得模型欄位，限制深度以防止無限遞迴。"""
         IrModelFields = self.env['ir.model.fields']
-        fields = IrModelFields.search([
+        candidates = IrModelFields.search([
             ('model', '=', model_name),
-            ('store', '=', True),
             ('ttype', 'in', self._FIELD_TTYPES),
         ], order='field_description asc')
+        # 轉接欄位只列在會再往下展開的層級，最深那一層不列：使用者模型
+        # 一次轉接進八十幾個聯絡人欄位，而最深那一層到處都是「建立者」「修改者」，
+        # 全部列進去清單會大一倍（報價單從 763KB 變 1.3MB，實測）。
+        # 「▸ 銷售員」這種直接展開的一層看得到姓名、電郵，才是常用的路。
+        with_proxies = current_depth < max_depth
+        fields = candidates.filtered(
+            lambda f: f.store or (
+                with_proxies and self._is_proxy_of_stored(model_name, f.name)))
 
         result = []
         for f in fields:
@@ -322,7 +344,11 @@ class RenderFields:
             # Many2one：若未達深度限制，遞迴取子欄位。
             # 刻意不遞迴 x2many——一對多的子欄位由「明細欄位」面板在設好
             # 重複列之後另外載入，在這裡展開只會讓 payload 爆掉。
-            if f.ttype == 'many2one' and f.relation and current_depth < max_depth:
+            # 轉接過來的 many2one 也不展開：res.users 一次轉接進八十幾個聯絡人
+            # 欄位，每個 many2one 再展開一層，清單會大好幾倍；要深入的話，
+            # 從它原本的那條路（例如「關聯聯絡人」）展開是一樣的資料。
+            if (f.ttype == 'many2one' and f.relation and f.store
+                    and current_depth < max_depth):
                 if f.relation in self.env:
                     try:
                         self.env[f.relation].check_access('read')
