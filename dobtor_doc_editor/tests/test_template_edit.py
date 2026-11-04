@@ -231,7 +231,8 @@ class TestEditTargetResolution(HttpCase):
         expected_keys = {
             'id', 'name', 'content_json', 'content_html', 'header_html',
             'footer_html', 'page_format', 'margin_top', 'margin_bottom',
-            'margin_left', 'margin_right', 'model_id', 'model_name', 'res_id',
+            'margin_left', 'margin_right', 'text_style',
+            'model_id', 'model_name', 'res_id',
             'field_aliases', 'template_field_aliases', 'template_name',
             'has_template', 'template_filename', 'template_variables',
             'has_different_first_page', 'first_header_html',

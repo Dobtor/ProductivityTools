@@ -153,6 +153,23 @@ class ConvStructure:
             )
         return None
 
+    def _set_empty_text(self, node, pill):
+        """t-field 節點裡的字 → 藥丸的「空值時印的字」（emptyText）。
+
+        QWeb 的 t-field 在欄位沒有值時，改印節點裡的字：訂金那一列沒有單位，
+        原生的 <span t-field="line.product_uom">units</span> 就印出「units」，
+        數量欄是「0.00 units」。有值時那些字會被值取代，所以平常看不到。
+        只收純文字（裡面還有取值節點的不是範例值），而且只收簡單欄位路徑
+        ——空不空要看欄位本身，算式的結果分不出「沒值」與「值是空字串」。
+        各語言的字由 _merge_languages 補上（中文是「單位」）。
+        """
+        meta = (pill.get('extension') or {}).get('dobtorField') or {}
+        if not meta.get('path') or len(node):
+            return
+        text = ' '.join(''.join(node.itertext()).split())
+        if text:
+            meta['emptyText'] = {self.env.lang or 'en_US': text}
+
     def _branch_extra_text(self, node, value_node):
         """分支裡除了那個取值節點，還有沒有其他可見文字。
 
@@ -217,14 +234,28 @@ class ConvStructure:
             )
         label = ' '.join((''.join(chain[0][1].itertext()) or '').split())
         if not label:
-            # 取值型分支沒有文字可當標籤，用第一個分支的欄位名
-            label = (exprs[0][1] or '').split('.')[-1].strip('()')
+            # 取值型分支沒有文字可當標籤，用第一個分支的欄位名稱（查不到才用
+            # 技術名稱——那比值還長，窄欄裡會蓋到隔壁欄）
+            found = re.findall(r'\b(object|line)\.([\w.]+)', exprs[0][1] or '')
+            label = ((self._field_display_label(
+                state, 'line' if found[0][0] == 'line' else 'record', found[0][1])
+                if found else None)
+                or (exprs[0][1] or '').split('.')[-1].strip('()'))
         state['stats']['condition'] += 1
         # 在重複列內要用 line 來源，否則會以主記錄求值、每列同一個值
         source = 'line' if _LINE_TOKEN_RE.search(expr) else 'record'
-        return self._pill(label[:20] or '多重分支', state,
+        pill = self._pill(label[:20] or '多重分支', state,
                           source=source, expression=expr,
                           unbound=bool(state.get('chain_unsure')))
+        # 分支節點自己的樣式要跟著藥丸走：原生的
+        # <strong t-if>Quotation Date</strong><strong t-else>Order Date</strong>
+        # 收成藥丸後，粗體是寫在分支節點上的，不套就印成一般字
+        styles = [self._node_style(node, node.tag.lower())
+                  if isinstance(node.tag, str) else None
+                  for _cond, node in chain]
+        if styles[0] and all(s == styles[0] for s in styles):
+            pill.update(styles[0])
+        return pill
 
     def _chain_blocks(self, chain, state):
         """複雜分支 → 巢狀的若／否則區塊（實測三擇一可行）。"""
@@ -448,6 +479,8 @@ class ConvStructure:
                         )
                     else:
                         pill = self._value_pill(node, expr, state)
+                        if attr == 't-field':
+                            self._set_empty_text(node, pill)
                 self._append_value(node, tag, pill, out)
                 return
 
@@ -515,10 +548,13 @@ class ConvStructure:
                 with self._in_width(state, self._block_body_width(state)):
                     grid = self._grid_table(columns, state)
                 out.append(self._condition_wrap(
-                    cond, [grid, self._newline()], state))
+                    cond, [grid, self._newline()]
+                    + self._spacer_rows(node, 'bottom'), state))
+                out.append(self._newline())
             else:
                 out.append(self._grid_table(columns, state))
-            out.append(self._newline())
+                out.append(self._newline())
+                out.extend(self._spacer_rows(node, 'bottom'))
             return
 
         # ── 區塊條件：t-if 掛在區塊元素上 → 條件區塊
@@ -547,6 +583,7 @@ class ConvStructure:
         if tag in _BLOCK_TAGS:
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
+            out.extend(self._spacer_rows(node, 'top'))
             start = len(out)
             block_markers, block_static = self._format_markers_for(node, state)
             out.extend(block_markers)
@@ -565,6 +602,7 @@ class ConvStructure:
                 # 段落的對齊掛在結尾那個換行元素上（_elements_to_html 就是
                 # 讀它的 rowFlex 決定 text-align）
                 out[-1]['rowFlex'] = align
+            out.extend(self._spacer_rows(node, 'bottom'))
             return
 
         # span / strong / t 等行內容器
@@ -749,9 +787,52 @@ class ConvStructure:
                 return True
         return False
 
+    # Bootstrap 的上下留白 class（mb-4 這類）：數字 → 幾倍 rem
+    _SPACING_CLASS_RE = re.compile(r'^(?P<prop>m[tby]?)-(?P<n>[0-5])$')
+    _SPACING_REM = {'0': 0, '1': 0.25, '2': 0.5, '3': 1, '4': 1.5, '5': 3}
+    # 官方報表 1rem 印出來約 12.8px（16px 縮到 0.8 倍，見 doc.template
+    # 的 _OFFICIAL_TEXT_STYLE），一列空白約 19.5px
+    _SPACING_REM_PX = 12.8
+    _SPACING_ROW_PX = 19.5
+
+    def _spacing_rows(self, node, side):
+        """節點上 mb-N／mt-N（含 my-N、m-N）的留白換算成幾列空白。
+
+        編輯器沒有「段落下方留多少 px」，只能用空白列表達；一列約 19.5px，
+        所以 mb-3（12.8px）、mb-4（19.2px）各一列，mb-5（38.4px）兩列，
+        mb-2 以下太小、不補。官方的地址區、資訊欄都是 mb-4——少了這一列，
+        地址、標題、資訊欄、明細表整張擠在一起。
+        """
+        wanted = 'b' if side == 'bottom' else 't'
+        px = 0.0
+        for token in self._class_tokens(node):
+            m = self._SPACING_CLASS_RE.match(token)
+            if not m:
+                continue
+            prop = m.group('prop')
+            if prop == 'm' or prop == 'my' or prop == 'm' + wanted:
+                px = max(px, self._SPACING_REM[m.group('n')] * self._SPACING_REM_PX)
+        return int(px / self._SPACING_ROW_PX + 0.5)
+
+    def _spacer_rows(self, node, side):
+        # _spacer：讓 _paragraph_ends_to_starts 知道這是空白列，不是收掉表格的換行
+        return [dict(self._newline(), _spacer=True)
+                for _ in range(self._spacing_rows(node, side))]
+
+    # 官方報表的標題字級是內文的幾倍（Bootstrap：h1 2.5、h2 2、h3 1.75…）。
+    # 粗細是 500，編輯器只有一般與粗體，取一般——印成粗體反而比官方重
+    _HEADING_SCALE = {'h1': 2.5, 'h2': 2, 'h3': 1.75, 'h4': 1.5,
+                      'h5': 1.25, 'h6': 1}
+
+    def _heading_size(self, tag):
+        base = self.env['doc.template']._OFFICIAL_TEXT_STYLE['text_size']
+        return int(round(base * self._HEADING_SCALE.get(tag, 1)))
+
     def _node_style(self, node, tag):
         """標籤與 class 一起決定的文字屬性。"""
         style = {}
+        if tag in self._HEADING_SCALE:
+            style['size'] = self._heading_size(tag)
         if tag in ('strong', 'b'):
             style['bold'] = True
         elif tag in ('em', 'i'):

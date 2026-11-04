@@ -1023,7 +1023,8 @@ class TestTaxTotalsInTable(TestQwebConverterBase):
         )
         blocks = self._blocks(res)
         self.assertTrue(blocks)
-        metas = [m for m in self._metas(blocks[0]['trList'][0]['tdList'][0]['value'])]
+        # 第一欄是撐出左半邊的空欄（合計區照官方在右半邊），說明在第二欄
+        metas = [m for m in self._metas(blocks[0]['trList'][0]['tdList'][1]['value'])]
         self.assertEqual(metas[0].get('currencyMode'), 'company')
 
 
@@ -1358,6 +1359,120 @@ class TestColumnWidths(TestQwebConverterBase):
             '<th style="width: 30%">乙</th></tr></table>')
         self.assertLessEqual(sum(widths), 794 - 192 + 1)
 
+    _LINES = (
+        '<table><thead><tr>'
+        '<th class="text-start">Description</th>'
+        '<th class="text-end text-nowrap">Qty</th>'
+        '<th class="text-end">Amount</th>'
+        '</tr></thead><tbody>'
+        '<tr t-foreach="o.child_ids" t-as="line">'
+        '<td><span t-field="line.name">Bacon Burger</span></td>'
+        '<td class="text-end"><span t-field="line.color">3</span>%s</td>'
+        '<td class="text-end"><span t-field="line.credit_limit">27.00</span></td>'
+        '</tr></tbody></table>'
+    )
+
+    def test_numeric_columns_sized_by_content(self):
+        """原生明細表沒寫欄寬、靠瀏覽器依內容排：數字欄剛好放得下，品名吃剩下的。
+
+        平均分的話品名欄被壓窄、「3.00 Units」「Unit Price」擠成兩行
+        （銷售訂單實測）。
+        """
+        res = self._convert(self._LINES % '')
+        table = list(self._tables(res['tree']['main']))[0]
+        widths = [c['width'] for c in table['colgroup']]
+        self.assertEqual(sum(widths), 794 - 192)
+        self.assertGreater(widths[0], widths[1] + widths[2],
+                           '品名欄要比兩個數字欄加起來還寬：%s' % widths)
+        self.assertGreaterEqual(widths[2], len('Amount') * 8,
+                                '表頭的字要放得下：%s' % widths)
+        self.assertGreater(widths[2], widths[1], '小數比整數長：%s' % widths)
+        self.assertTrue(table['extension'].get('fixedCols'),
+                        'PDF 要照這份欄寬印，不再自動排')
+
+    def test_conditional_content_does_not_widen_column(self):
+        """數量後面「有包裝才印」的包裝數量多半不印，算進去數量欄會寬一倍。"""
+        plain = self._colgroup(self._LINES % '')
+        extra = self._colgroup(self._LINES % (
+            '<span t-if="line.ref">(<span t-field="line.ref"/> 包裝)</span>'))
+        self.assertEqual(plain, extra)
+
+    def test_branch_style_follows_value_pill(self):
+        """<strong t-if>…</strong><strong t-else>…</strong> 收成一顆藥丸後，
+        粗體要跟著走——以前「Order Date」印成一般字。"""
+        res = self._convert(
+            '<div><strong t-if="o.is_company">Company Date</strong>'
+            '<strong t-else="">Person Date</strong></div>')
+        pill = next(el for el in res['tree']['main']
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertTrue(pill.get('bold'), pill)
+
+    def test_mixed_branch_styles_are_not_applied(self):
+        res = self._convert(
+            '<div><strong t-if="o.is_company">Company Date</strong>'
+            '<span t-else="">Person Date</span></div>')
+        pill = next(el for el in res['tree']['main']
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertFalse(pill.get('bold'), '只有一邊粗體時不猜')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestFieldEmptyText(TestQwebConverterBase):
+    """t-field 沒有值時印節點裡的字（QWeb 的預設內容）。
+
+    原生訂金那一列沒有單位，<span t-field="line.product_uom">units</span>
+    印出「0.00 units」；以前轉出來只有「0.00」。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def _value(self, body, partner):
+        res = self._convert(body)
+        tree = res['tree']
+        self.Mixin._snapshot_content_json(tree, partner)
+        return self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree))
+
+    def test_empty_field_prints_node_text(self):
+        partner = self.env['res.partner'].create({'name': '甲', 'ref': False})
+        html = self._value('<p>Ref: <span t-field="o.ref">REF-000</span></p>',
+                           partner)
+        self.assertIn('REF-000', html)
+
+    def test_value_replaces_node_text(self):
+        partner = self.env['res.partner'].create({'name': '甲', 'ref': 'R-7'})
+        html = self._value('<p>Ref: <span t-field="o.ref">REF-000</span></p>',
+                           partner)
+        self.assertIn('R-7', html)
+        self.assertNotIn('REF-000', html)
+
+    def test_zero_is_a_value(self):
+        """數字 0 不是空值：原生印「0.00」，不印範例值。"""
+        partner = self.env['res.partner'].create({'name': '甲', 'credit_limit': 0})
+        html = self._value(
+            '<p><span t-field="o.credit_limit">9.99</span></p>', partner)
+        self.assertNotIn('9.99', html)
+
+    def test_inside_repeated_rows(self):
+        parent = self.env['res.partner'].create({'name': '母公司', 'is_company': True})
+        self.env['res.partner'].create({'name': '子', 'parent_id': parent.id})
+        html = self._value(
+            '<table><tr t-foreach="o.child_ids" t-as="line">'
+            '<td><span t-field="line.name"/></td>'
+            '<td><span t-field="line.ref">units</span></td></tr></table>',
+            parent)
+        self.assertIn('units', html)
+
+    def test_condition_on_same_node_keeps_empty_blank(self):
+        """<span t-if t-field>：條件不成立時本來就什麼都不印，不可印範例值。"""
+        partner = self.env['res.partner'].create({'name': '甲', 'ref': False})
+        html = self._value(
+            '<p>Ref: <span t-if="o.ref" t-field="o.ref">REF-000</span></p>',
+            partner)
+        self.assertNotIn('REF-000', html)
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestUnconvertedAttrNotes(TestQwebConverterBase):
@@ -1632,6 +1747,248 @@ class TestNoteLevels(TestQwebConverterBase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestOfficialTextStyle(TestQwebConverterBase):
+    """轉換出來的範本帶官方報表的字型、字級、行距；手做的範本不受影響。
+
+    以前轉出來照編輯器預設（16px 正黑體、每列上下 8px），整張字大一號、
+    行距鬆，中文看起來像粗體——是跟官方最不像的地方。
+    """
+
+    def _wizard_template(self, body):
+        key = 'dobtor_doc_editor.conv_style_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        wizard = self.env['doc.qweb.import.wizard'].create({
+            'report_id': report.id, 'attach_layout': False})
+        wizard.action_convert()
+        return wizard.template_id
+
+    def test_converted_template_gets_official_style(self):
+        tmpl = self._wizard_template('<p><span t-field="o.name"/></p>')
+        style = tmpl.text_style()
+        self.assertEqual(style['font'], 'Lato')
+        self.assertEqual(style['size'], 13)
+        self.assertAlmostEqual(style['row_margin'], 0.2)
+
+    def test_hand_made_template_keeps_module_default(self):
+        tmpl = self.env['doc.template'].create({'name': '手做'})
+        self.assertEqual(tmpl.text_style(),
+                         self.env['doc.template']._DEFAULT_TEXT_STYLE)
+
+    def test_heading_is_twice_the_body_and_not_bold(self):
+        """官方 h2 是內文的兩倍、粗細 500——以前轉成 24px 粗體，比官方重。"""
+        res = self._convert('<h2>Quotation</h2>')
+        el = next(e for e in res['tree']['main'] if e.get('value') == 'Quotation')
+        self.assertEqual(el.get('size'), 26)
+        self.assertFalse(el.get('bold'))
+
+    def _newlines_between(self, body, first, second):
+        values = [e.get('value') for e in self._convert(body)['tree']['main']]
+        i, j = values.index(first), values.index(second)
+        return values[i + 1:j].count('\n')
+
+    def test_margin_class_adds_blank_rows(self):
+        """官方的地址區、資訊欄是 mb-4：下方留一列空白，少了整張擠在一起。"""
+        plain = self._newlines_between(
+            '<div><span>A</span></div><div><span>B</span></div>', 'A', 'B')
+        spaced = self._newlines_between(
+            '<div class="mb-4"><span>A</span></div><div><span>B</span></div>',
+            'A', 'B')
+        self.assertEqual(spaced, plain + 1)
+        big = self._newlines_between(
+            '<div class="mb-5"><span>A</span></div><div><span>B</span></div>',
+            'A', 'B')
+        self.assertEqual(big, plain + 2, 'mb-5 是 3rem，兩列')
+        small = self._newlines_between(
+            '<div class="mb-2"><span>A</span></div><div><span>B</span></div>',
+            'A', 'B')
+        self.assertEqual(small, plain, 'mb-2 不到半列，不補')
+
+    def test_margin_class_on_grid_row(self):
+        """資訊欄是 div.row.mb-4 ＞ div.col…，轉成並排表格後一樣要留白。"""
+        res = self._convert(
+            '<div class="row mb-4"><div class="col"><span>甲</span></div>'
+            '<div class="col"><span>乙</span></div></div><p>丙</p>')
+        main = res['tree']['main']
+        idx = next(i for i, e in enumerate(main) if e.get('type') == 'table')
+        following = [e.get('value') for e in main[idx + 1:idx + 3]]
+        self.assertEqual(following, ['\n', '\n'], '表格後面要多一列空白')
+
+    def test_print_css_follows_template_style(self):
+        Report = self.env['doc.report']
+        official = Report._report_css({
+            'font': 'Lato', 'size': 13, 'row_margin': 0.2, 'color': '#212529'})
+        self.assertIn("font-family:'Lato',", official)
+        self.assertIn('font-size:13px', official)
+        # 留白算進行高：13 × 1.25 ＋ 2 × 1.6 → 1.496，跟官方的 1.5 差不多
+        self.assertIn('line-height:1.496', official)
+        self.assertIn('p{margin:0;padding:0}', official)
+        default = Report._report_css()
+        self.assertIn('font-size:16px', default)
+        self.assertIn('p{margin:0;padding:8px 0}', default, '手做範本的版面不動')
+
+    def test_header_estimate_uses_template_style(self):
+        Report = self.env['doc.report']
+        html = '<p>公司<br/>地址<br/>電話</p>'
+        small = Report._estimate_html_height(html, {
+            'font': 'Lato', 'size': 13, 'row_margin': 0.2, 'color': '#212529'})
+        big = Report._estimate_html_height(html)
+        self.assertLess(small, big, '字小、行距緊，頁首就沒那麼高')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestOfficialTableStyle(TestQwebConverterBase):
+    """轉換出來的表格照官方的線條與留白：沒有框線、表頭下一條線、合計區在右半邊。
+
+    以前每一格都是黑框（編輯器預設的全框線），合計區整排靠左、沒有線。
+    """
+
+    _LINES = (
+        '<table class="table o_main_table table-borderless">'
+        '<thead><tr><th>Description</th><th class="text-end">Amount</th></tr></thead>'
+        '<tbody><tr t-foreach="o.child_ids" t-as="line">'
+        '<td><span t-field="line.name"/></td>'
+        '<td class="text-end"><span t-field="line.credit_limit"/></td>'
+        '</tr></tbody></table>'
+    )
+
+    def _table(self, body):
+        return list(self._tables(self._convert(body)['tree']['main']))[0]
+
+    def test_lines_table_has_only_the_header_rule(self):
+        table = self._table(self._LINES)
+        self.assertEqual(table.get('borderType'), 'empty')
+        head, body = table['trList'][0], table['trList'][1]
+        self.assertTrue(all(c.get('borderTypes') == ['bottom'] for c in head['tdList']))
+        self.assertFalse(any(c.get('borderTypes') for c in body['tdList']))
+
+    def test_bootstrap_table_gets_cell_padding_and_row_height(self):
+        """.table 每格上下留白：編輯器用列高、PDF 用格內距，單行的列兩邊一樣高。"""
+        table = self._table(self._LINES)
+        self.assertEqual(table['extension'].get('cellPadding'), [6, 6, 6, 6])
+        # 一列字（13 × 1.25 ＋ 上下各 1.6）＋ 上下格內距各 6 ≈ 31
+        self.assertEqual(self.Conv._report_row_height(), 31)
+        self.assertTrue(all(r.get('minHeight') == 31 for r in table['trList']))
+
+    def test_plain_table_has_no_padding(self):
+        table = self._table('<table><tr><td>甲</td><td>乙</td></tr></table>')
+        self.assertEqual(table.get('borderType'), 'empty', '沒寫 class 的表格本來就不畫線')
+        self.assertNotIn('cellPadding', table['extension'])
+
+    def test_bordered_table_keeps_its_borders(self):
+        table = self._table(
+            '<table class="table table-bordered"><tr><td>甲</td></tr></table>')
+        self.assertNotIn('borderType', table)
+
+    def test_tax_totals_sit_in_the_right_half(self):
+        res = self._convert(
+            '<div id="total" class="row"><div class="col-6 ms-auto">'
+            '<table class="o_total_table table table-borderless">'
+            '<t t-call="sale.document_tax_totals"/></table></div></div>')
+        block = next(t for t in self._tables(res['tree']['main'])
+                     if (t.get('extension') or {}).get('dobtorBlock') == 'taxTotals')
+        widths = [c['width'] for c in block['colgroup']]
+        self.assertEqual(len(widths), 3)
+        self.assertAlmostEqual(widths[0] + 6, sum(widths) / 2, delta=2,
+                               msg='左半邊空著：%s' % widths)
+        first, total = block['trList'][0], block['trList'][-1]
+        self.assertFalse(first['tdList'][0]['value'], '第一欄是空的')
+        self.assertEqual(first['tdList'][1].get('borderTypes'), ['top'])
+        self.assertEqual(total['tdList'][2].get('borderTypes'), ['top'])
+        self.assertTrue(any(el.get('bold') for el in total['tdList'][1]['value']),
+                        'Total 是粗體')
+        self.assertTrue(all(el.get('rowFlex') == 'right'
+                            for el in total['tdList'][2]['value']), '金額靠右')
+
+    def test_print_rules_and_padding(self):
+        """PDF：無框線的表格只印格子自己的線；第一欄不留左內距、最後一欄不留右內距。"""
+        Mixin = self.env['doc.render.mixin']
+        table = {
+            'type': 'table', 'value': '', 'borderType': 'empty',
+            'borderColor': '#212529',
+            'extension': {'fixedCols': True, 'cellPadding': [6, 6, 6, 6]},
+            'colgroup': [{'width': 300}, {'width': 302}],
+            'trList': [{'tdList': [
+                {'colspan': 1, 'rowspan': 1, 'borderTypes': ['bottom'],
+                 'value': [{'value': '品名'}]},
+                {'colspan': 1, 'rowspan': 1, 'borderTypes': ['bottom'],
+                 'value': [{'value': '金額'}]},
+            ]}],
+        }
+        html = Mixin._content_json_to_html({'main': [table]})
+        self.assertIn('doc-noborder', html)
+        self.assertIn('padding:6px 6px 6px 0px;border-bottom:1px solid #212529', html)
+        self.assertIn('padding:6px 0px 6px 6px;border-bottom:1px solid #212529', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPillFitsItsCell(TestQwebConverterBase):
+    """編輯器裡的藥丸是一整塊、不會換行：比格子寬就蓋到隔壁欄。
+
+    範本模式顯示欄位名稱（以前是 product_uom_qty 這種技術名稱，比值還長），
+    太長的縮短；「顯示實際值」時長的值切成幾顆。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def test_pill_shows_field_name_not_technical_name(self):
+        res = self._convert('<p><span t-field="o.credit_limit"/></p>')
+        meta = next(m for m in self._metas(res['tree']['main'])
+                    if m.get('path') == 'credit_limit')
+        expected = self.env['ir.model.fields']._get(
+            'res.partner', 'credit_limit').field_description
+        self.assertEqual(meta['labelText'], expected)
+        self.assertEqual(meta['path'], 'credit_limit', '來源不變')
+
+    def _cell_table(self, width, value):
+        pill = {'type': 'label', 'value': value,
+                'extension': {'dobtorField': {'source': 'record', 'path': 'name',
+                                              'labelText': value}}}
+        return {'main': [{'type': 'table', 'value': '',
+                          'colgroup': [{'width': width}, {'width': 300}],
+                          'trList': [{'tdList': [
+                              {'colspan': 1, 'rowspan': 1, 'value': [pill]},
+                              {'colspan': 1, 'rowspan': 1, 'value': []}]}]}]}
+
+    def _cell_values(self, tree):
+        return [el['value'] for el in tree['main'][0]['trList'][0]['tdList'][0]['value']]
+
+    def test_long_label_is_shortened_to_fit(self):
+        tree = self._cell_table(80, 'product_packaging_qty')
+        self.Mixin._fit_pill_labels(tree, 602, 13)
+        (value,) = self._cell_values(tree)
+        self.assertTrue(value.endswith('…'), value)
+        self.assertLessEqual(self.Mixin._estimate_text_px(value, 13), 80 - 10 - 12)
+        meta = tree['main'][0]['trList'][0]['tdList'][0]['value'][0]['extension']['dobtorField']
+        self.assertEqual(meta['labelText'], 'product_packaging_qty', '只縮顯示的字')
+
+    def test_short_label_is_untouched(self):
+        tree = self._cell_table(200, '數量')
+        self.Mixin._fit_pill_labels(tree, 602, 13)
+        self.assertEqual(self._cell_values(tree), ['數量'])
+
+    def test_preview_splits_long_value_into_pieces(self):
+        """訂金那一列的品名在品名欄放不下：切成幾顆，編輯器在藥丸之間換行。"""
+        text = 'Down Payment (ref: INV/2026/00001 on 11/03/2026)'
+        tree = self._cell_table(160, text)
+        self.Mixin._preview_wrap_pills(tree, 602, 13)
+        values = self._cell_values(tree)
+        self.assertGreater(len(values), 1)
+        self.assertEqual(''.join(values), text, '切開後字一個都不少')
+        for value in values:
+            self.assertLessEqual(self.Mixin._estimate_text_px(value.rstrip(), 13),
+                                 160 - 10 - 12, value)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestMultiLanguageStaticText(TestQwebConverterBase):
     """原生報表的固定文字依各語言的翻譯轉成多語文字。
 
@@ -1693,6 +2050,40 @@ class TestMultiLanguageStaticText(TestQwebConverterBase):
         self.assertEqual(
             Mixin._eval_for(self.partner.with_context(lang='en_US'))(title).strip(),
             'Company #')
+
+    def test_narrow_column_fits_longest_language(self):
+        """用中文轉換時「單價」兩個字，英文是「Unit Price」：窄欄要放得下最長的那個。"""
+        res = self._convert_translated(
+            '<table><thead><tr><th>Description</th>'
+            '<th class="text-end">Price</th></tr></thead><tbody>'
+            '<tr t-foreach="o.child_ids" t-as="line">'
+            '<td><span t-field="line.name"/></td>'
+            '<td class="text-end"><span t-field="line.credit_limit"/></td>'
+            '</tr></tbody></table>',
+            {'Price': 'Prix unitaire hors taxes'},
+        )
+        table = list(self._tables(res['tree']['main']))[0]
+        widths = [c['width'] for c in table['colgroup']]
+        self.assertGreaterEqual(widths[1], len('Prix unitaire hors taxes') * 8,
+                                '%s' % widths)
+        self.assertEqual(sum(widths), 794 - 192)
+
+    def test_cjk_text_counts_double(self):
+        self.assertEqual(self.Conv._text_units('單價'), 4)
+        self.assertEqual(self.Conv._text_units('Unit'), 4)
+
+    def test_empty_text_has_each_language(self):
+        """訂金列的「units」中文是「單位」：空值時印的字也要照客戶語言。"""
+        res = self._convert_translated(
+            '<p><span t-field="o.ref">units</span></p>', {'units': 'unités'})
+        meta = next(m for m in self._metas(res['tree']['main'])
+                    if m.get('path') == 'ref')
+        self.assertEqual(meta['emptyText'], {'en_US': 'units', 'fr_FR': 'unités'})
+        self.partner.ref = False
+        Mixin = self.env['doc.render.mixin']
+        self.assertEqual(
+            Mixin._empty_text(self.partner.with_context(lang='fr_FR'), meta),
+            'unités')
 
     def test_translate_literals_only_touches_strings_that_differ(self):
         expr = "\"A\" if object.state in ['draft'] else \"B\""

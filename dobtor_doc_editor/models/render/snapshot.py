@@ -11,9 +11,10 @@
 import base64
 import copy
 import html as html_mod
+import re
+import unicodedata
 
-
-from odoo import fields
+from odoo import fields, models
 from odoo.tools.misc import format_amount
 from odoo.tools.image import (
     FILETYPE_BASE64_MAGICWORD, base64_to_image, image_data_uri,
@@ -221,6 +222,126 @@ class RenderSnapshot:
                     continue
                 elements[idx:idx + 1] = pieces
                 idx += len(pieces)
+        return tree
+
+    # ─── 藥丸比格子寬（canvas-editor 的藥丸不會在中間換行）─────────
+    #
+    # 藥丸是一整塊，比所在的格子寬時直接蓋到隔壁欄。轉換時把顯示的名稱縮到
+    # 放得下（_fit_pill_labels），「顯示實際值」時把長的值切成幾顆
+    # （_preview_wrap_pills），編輯器就會在藥丸之間換行。
+    # 寬度是估的：英數字約半個字寬、中文一個字寬；藥丸左右各留 6px
+    # （PILL_STYLE 的 padding），格子左右各留 5px（canvas-editor 的 tdPadding）。
+    _PILL_PAD_X = 12
+    _TD_PAD_X = 10
+    # 英數字平均幾個字寬（em）。Lato 比較窄；其他字型（正黑體、Arial）寬一點，
+    # 估寬一點的代價只是多切一刀，估窄了才會蓋到隔壁欄
+    _CHAR_EM = 0.55
+    _CHAR_EM_BY_FONT = {'Lato': 0.5}
+
+    def _char_em(self, font=None):
+        return self._CHAR_EM_BY_FONT.get(font or '', self._CHAR_EM)
+
+    def _estimate_text_px(self, text, size, em=None):
+        units = sum(2 if unicodedata.east_asian_width(ch) in ('W', 'F') else 1
+                    for ch in text or '')
+        return units * size * (em or self._CHAR_EM)
+
+    def _lists_with_width(self, elements, width):
+        """yield (元素串列, 這一串可用的寬度)，往下走進表格的每一格。"""
+        yield elements, width
+        for el in elements:
+            if not isinstance(el, dict) or el.get('type') != 'table':
+                continue
+            cols = [int((c or {}).get('width') or 0) for c in (el.get('colgroup') or [])]
+            for row in el.get('trList') or []:
+                col = 0
+                for cell in (row.get('tdList') if isinstance(row, dict) else None) or []:
+                    if not isinstance(cell, dict):
+                        continue
+                    span = max(1, int(cell.get('colspan') or 1))
+                    cell_w = sum(cols[col:col + span]) or width
+                    col += span
+                    if isinstance(cell.get('value'), list):
+                        yield from self._lists_with_width(
+                            cell['value'], max(20, cell_w - self._TD_PAD_X))
+
+    def _split_to_width(self, text, width, size, em=None):
+        """文字切成每段都放得下 width 的幾段（在空白處切；中文任一字都能切）。"""
+        em = em or self._CHAR_EM
+        tokens = []
+        for token in re.findall(r'\S+\s*|\s+', text or ''):
+            if any(unicodedata.east_asian_width(ch) in ('W', 'F') for ch in token):
+                tokens.extend(token)
+            else:
+                tokens.append(token)
+        lines, current = [], ''
+        for token in tokens:
+            if current and self._estimate_text_px(current + token.rstrip(), size, em) > width:
+                lines.append(current)
+                current = ''
+            while self._estimate_text_px(token.rstrip(), size, em) > width and len(token) > 1:
+                # 一個字就比格子寬（很長的單號）：硬切
+                cut = max(1, int(width / (size * em)))
+                lines.append(token[:cut])
+                token = token[cut:]
+            current += token
+        if current.strip():
+            lines.append(current)
+        return lines or [text]
+
+    def _is_pill_text(self, el):
+        """畫成一行文字的藥丸（圖片、Html 欄位不算）。"""
+        if not isinstance(el, dict) or el.get('type') != 'label':
+            return False
+        src = (self._element_field_meta(el) or {}).get('source') or ''
+        return src not in (self._IMAGE_SOURCE, self._HTML_SOURCE) \
+            and isinstance(el.get('value'), str)
+
+    def _preview_wrap_pills(self, tree, width, size, font=None):
+        """「顯示實際值」：比所在位置寬的藥丸切成幾顆（就地改寫並回傳 tree）。
+
+        只給預覽用、不可存回（同 _preview_display_pills）。
+        """
+        em = self._char_em(font)
+        for elements, avail in self._lists_with_width(tree.get('main') or [], width):
+            idx = 0
+            while idx < len(elements):
+                el = elements[idx]
+                if not self._is_pill_text(el):
+                    idx += 1
+                    continue
+                px = el.get('size') or size
+                room = avail - self._PILL_PAD_X
+                if self._estimate_text_px(el['value'], px, em) <= room:
+                    idx += 1
+                    continue
+                pieces = []
+                for part in self._split_to_width(el['value'], room, px, em):
+                    piece = copy.deepcopy(el)
+                    piece['value'] = part
+                    pieces.append(piece)
+                elements[idx:idx + 1] = pieces
+                idx += len(pieces)
+        return tree
+
+    def _fit_pill_labels(self, tree, width, size, font=None):
+        """範本模式：藥丸上顯示的名稱比所在位置寬時縮短（尾巴換成「…」）。
+
+        只改顯示的字（value），來源與 labelText 不動——快照時 value 會被值蓋掉。
+        """
+        em = self._char_em(font)
+        for elements, avail in self._lists_with_width(tree.get('main') or [], width):
+            for el in elements:
+                if not self._is_pill_text(el):
+                    continue
+                px = el.get('size') or size
+                room = avail - self._PILL_PAD_X
+                text = el['value']
+                if self._estimate_text_px(text, px, em) <= room:
+                    continue
+                while len(text) > 1 and self._estimate_text_px(text + '…', px, em) > room:
+                    text = text[:-1]
+                el['value'] = text.rstrip() + '…'
         return tree
 
     def _preview_image_element(self, el, uri):
@@ -512,6 +633,8 @@ class RenderSnapshot:
             else:
                 expression = self._field_meta_expression(meta, record)
                 element['value'] = _eval(expression) if expression else ''
+                if not element['value']:
+                    element['value'] = self._empty_text(record, meta)
             meta['frozenAt'] = stamp
 
         # 5. 自動收合空段落（規則 A）。只在完整快照時做——only_pending 是匯出時
@@ -523,6 +646,32 @@ class RenderSnapshot:
             # 7. 並排區塊裡整欄空白的欄拿掉，其他欄往左補滿
             self._reflow_layout_columns(tree)
         return tree
+
+    def _empty_text(self, record, meta):
+        """欄位沒有值時改印的字（轉換器從 t-field 節點裡的字帶過來）；沒設回 ''。
+
+        要看欄位本身是不是空的，不能只看印出來是不是空字串：求值失敗也是
+        空字串，那時印出範例值（「Bacon Burger」）會像一筆真的資料。
+        數字 0 不算空——原生印「0.00」，不印範例值。
+        """
+        texts = meta.get('emptyText')
+        path = (meta.get('path') or '').strip()
+        if not texts or not path or record is None:
+            return ''
+        value = record
+        try:
+            for name in path.split('.'):
+                value = value[name] if value else value
+        except Exception:
+            return ''
+        if isinstance(value, models.BaseModel):
+            empty = not value
+        else:
+            empty = value is None or value is False or value == ''
+        if not empty:
+            return ''
+        lang = record.env.context.get('lang') or self.env.context.get('lang')
+        return self._pick_lang_text(texts, lang)
 
     def _sort_lines(self, lines, sort_by, desc=False):
         """依指定欄位排序明細。
@@ -809,6 +958,8 @@ class RenderSnapshot:
             if src == self._LINE_SOURCE:
                 expression = self._field_meta_expression(meta, line)
                 el['value'] = eval_line(expression) if expression else ''
+                if not el['value']:
+                    el['value'] = self._empty_text(line, meta)
                 meta['frozenAt'] = stamp
             elif src == self._RUNNING_SOURCE and state_bank is not None:
                 el['value'] = self._running_value(
@@ -1586,12 +1737,14 @@ class RenderSnapshot:
         cg = table.get('colgroup')
         if isinstance(cg, list) and 0 <= target < len(cg):
             removed = cg.pop(target)
-            # 被移除的寬度補給最後一欄，表格總寬維持不變——否則刪一欄
-            # 整張表就縮一截，使用者會以為版面壞了
-            if cg and isinstance(removed, dict) and removed.get('width'):
-                last = cg[-1]
-                if isinstance(last, dict) and last.get('width'):
-                    last['width'] = last['width'] + removed['width']
+            # 被移除的寬度補給最寬的那一欄，表格總寬維持不變——否則刪一欄
+            # 整張表就縮一截，使用者會以為版面壞了。給最寬的（明細表的品名欄）
+            # 而不是最後一欄：最後一欄通常是金額，多出來的寬度放在那裡只是空白，
+            # 品名欄卻還在換行
+            sized = [c for c in cg if isinstance(c, dict) and c.get('width')]
+            if sized and isinstance(removed, dict) and removed.get('width'):
+                widest = max(sized, key=lambda c: c['width'])
+                widest['width'] = widest['width'] + removed['width']
 
     def _apply_column_conditions(self, tree, record, group_results=None):
         """處理欄層級的 condition 標記。"""

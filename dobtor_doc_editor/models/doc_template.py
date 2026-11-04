@@ -135,6 +135,22 @@ class DocTemplate(models.Model):
         string='頁尾上方分隔線',
         help='對應 LibreOffice 頁尾的「邊框」。',
     )
+    # ─── 預設文字樣式
+    #
+    # 沒設的元素用這組值；留空＝模組預設（16px、正黑體、每列上下各留 8px、黑字）。
+    # 編輯器與列印用同一組值，畫面才會跟印出來的一樣。
+    # 從原生報表轉換的範本會帶上官方報表的樣式（_OFFICIAL_TEXT_STYLE）；
+    # 使用者自己做的範本不受影響。
+    text_font = fields.Char(
+        string='預設字型',
+        help='例如 Lato（Odoo 官方報表用的字型）。中文字一律退回系統的中文字型。',
+    )
+    text_size = fields.Integer(string='預設字級 (px)')
+    text_row_margin = fields.Float(
+        string='每列上下留白倍數', digits=(3, 2),
+        help='1＝每一列上下各留 8px（編輯器預設）；0.2＝各留 1.6px，接近官方報表的行距。',
+    )
+    text_color = fields.Char(string='預設文字顏色', help='例如 #212529。')
 
     page_format = fields.Selection([
         ('A4', 'A4'),
@@ -195,18 +211,46 @@ class DocTemplate(models.Model):
 
     # ─── 內建外框範本 ───────────────────────────────────────────────
     #
-    # 只提供兩張。Odoo 的 external_layout 實測有七種（standard / boxed / bold /
-    # striped / folder / wave / bubble），但那七種的差異幾乎全在 CSS（底色、
-    # 分隔線、字重、背景圖），canvas-editor 沒有 CSS 繼承，逐一復刻要把每個
-    # 樣式手刻進元素屬性，投報率很低。而客戶真正要的通常是「我們公司自己的
-    # 版面」，不是 Odoo 的其中一種。
+    # 「標準」「置中」兩張是起點。Odoo 的 external_layout 實測有七種（standard /
+    # boxed / bold / striped / folder / wave / bubble），但那七種的差異幾乎全在
+    # CSS（底色、分隔線、字重、背景圖），canvas-editor 沒有 CSS 繼承，逐一復刻
+    # 要把每個樣式手刻進元素屬性，投報率很低。而客戶真正要的通常是「我們公司
+    # 自己的版面」，不是 Odoo 的其中一種。所以這兩張的定位是「起點」，不是
+    # 「復刻」——命名也刻意用排版方式而不是 Odoo 的版面代號。
     #
-    # 所以這兩張的定位是「起點」，不是「復刻」——命名也刻意用排版方式而不是
-    # Odoo 的版面代號，避免讓人以為會長得一樣。
+    # 例外是第三張「Odoo 標準」：照 web.external_layout_standard 印出來的樣子
+    # 做（logo 在左、公司資訊在 logo 下方、頁尾一條線＋灰字頁碼、左右邊距
+    # 約 9mm），給從原生報表轉換的範本用——轉換的目標是印得跟官方一樣。
+    # 位置與大小照官方 PDF 實測（96dpi 量），一樣換算成本模組 1:1 的版面。
+
+    # Odoo 官方報表的文字樣式，換算成本模組 1:1 的版面：
+    # 官方的 CSS 是 Lato 16px、行高 1.5、#212529，但 wkhtmltopdf 會把 1140px 寬的
+    # 版面縮到紙寬，實際印出來約 0.8 倍——字級 12.8px、行距 19.2px（實測官方 PDF
+    # 的中文字寬推回來）。本模組的 PDF 不縮放，所以直接用縮放後的值。
+    # 每列上下留白 0.2 倍（各 1.6px）：13px × 1.25 ＋ 3.2px ≈ 19.5px，接近官方行距。
+    _OFFICIAL_TEXT_STYLE = {
+        'text_font': 'Lato',
+        'text_size': 13,
+        'text_row_margin': 0.2,
+        'text_color': '#212529',
+    }
 
     _LAYOUT_VARIANTS = {
         'side': '標準（logo 左、公司資訊右）',
         'stacked': '置中（logo 置中、公司資訊在下）',
+        'odoo': 'Odoo 標準（與官方報表相同）',
+    }
+    # 「Odoo 標準」外框的紙張設定（px @96dpi）：
+    #   左右 35px＝官方內容離紙邊的距離；上 212px 讓本文（地址）從約 235px 開始；
+    #   下 130px 讓本文停在頁尾那條線（約 1003px）上面。
+    #   頁首頁尾的左右內距留 0：實測頁首頁尾已經跟著左右邊距內縮，再加內距
+    #   會比本文多縮一段
+    _LAYOUT_VARIANT_VALS = {
+        'odoo': dict({
+            'margin_top': 212, 'margin_bottom': 130,
+            'margin_left': 35, 'margin_right': 35,
+            'footer_rule': True,
+        }, **_OFFICIAL_TEXT_STYLE),
     }
 
     @staticmethod
@@ -248,6 +292,9 @@ class DocTemplate(models.Model):
         tagline = pill('公司標語', source='html',
                        path='company_id.report_header')
 
+        if variant == 'odoo':
+            return self._build_odoo_layout_tree(inner)
+
         if variant == 'stacked':
             header_rows = [
                 {'tdList': [cell(logo)]},
@@ -279,6 +326,50 @@ class DocTemplate(models.Model):
         ] + self._page_line_elements()
         return {'header': header, 'main': [], 'footer': footer}
 
+    # 官方頁尾的頁碼是 text-muted 灰字
+    _OFFICIAL_MUTED_COLOR = '#6c757d'
+    # 官方頁尾離紙底約 100px，本模組的頁尾畫到離底 30px（doc.report
+    # 的 _FOOTER_BOTTOM_PX），差的那一段用頁碼下面的空白列補（一列約 19.5px）
+    _OFFICIAL_FOOTER_BLANK_ROWS = 3
+
+    def _build_odoo_layout_tree(self, inner):
+        """「Odoo 標準」外框：照 web.external_layout_standard 的樣子。
+
+        頁首第一列 logo 在左、公司標語（report_header，粗體）在右；
+        第二列公司資訊在 logo 下方。頁尾上方一條線（footer_rule）、
+        公司頁尾文字，頁碼靠左、灰字，字照官方外框的翻譯（繁中「頁：1 / 1」）。
+        logo 高 48px：照官方 PDF 量的 logo 大小（與本文同樣換算成 1:1）。
+        """
+        pill = self._layout_pill
+        cell = self._layout_cell
+        logo = pill('公司 logo', source='image', path='company_id.logo_web',
+                    height=48)
+        tagline = pill('公司標語', source='html', path='company_id.report_header')
+        tagline['rowFlex'] = 'right'
+        tagline['bold'] = True
+        half = inner // 2
+        header = [
+            # 頁首以表格開頭時編輯器會在上面補一列空行（PDF 照印）；字級壓到
+            # 最小，logo 才不會比官方低一截
+            {'value': '\n', 'size': 5},
+            {
+                'type': 'table', 'value': '',
+                'extension': {'dobtorBlock': 'layout', 'fixedCols': True},
+                'borderType': 'empty',
+                'colgroup': [{'width': half}, {'width': inner - half}],
+                'trList': [{'tdList': [cell(logo), cell(tagline)]}],
+            },
+            {'value': '\n'},
+            pill('公司資訊', source='html', path='company_id.company_details'),
+        ]
+        footer = (
+            [pill('頁尾文字', source='html', path='company_id.report_footer')]
+            + self._page_line_elements(
+                align='left', color=self._OFFICIAL_MUTED_COLOR, official=True)
+            + [{'value': '\n'} for _ in range(self._OFFICIAL_FOOTER_BLANK_ROWS)]
+        )
+        return {'header': header, 'main': [], 'footer': footer}
+
     # 頁尾頁碼「第 1 / 1 頁」。繁中沿用這個寫法；其他語言照 Odoo 自己外框的翻譯
     # （web 的「Page <頁碼> / <總頁數>」），沒有翻譯的語言用英文。以前寫死中文，
     # 範本內文依客戶語言切換之後，英文單據的頁尾還夾一行中文。
@@ -288,12 +379,16 @@ class DocTemplate(models.Model):
     }
     _PAGE_LINE_DEFAULT = ('Page ', ' / ', '')
 
-    def _page_line_parts(self):
-        """{語言: (頁碼前, 頁碼與總頁數之間, 總頁數後)}，涵蓋所有已啟用語言與 en_US。"""
+    def _page_line_parts(self, official=False):
+        """{語言: (頁碼前, 頁碼與總頁數之間, 總頁數後)}，涵蓋所有已啟用語言與 en_US。
+
+        official：照官方外框的字（繁中是「頁：1 / 1」），不套本模組的
+        「第 1 / 1 頁」。
+        """
         view = self.env.ref('web.external_layout_standard', raise_if_not_found=False)
         parts = {}
         for code, _name in self.env['res.lang'].get_installed():
-            parts[code] = (self._PAGE_LINE_OVERRIDES.get(code)
+            parts[code] = ((None if official else self._PAGE_LINE_OVERRIDES.get(code))
                            or self._odoo_page_line(view, code)
                            or self._PAGE_LINE_DEFAULT)
         parts.setdefault('en_US', self._PAGE_LINE_DEFAULT)
@@ -314,15 +409,15 @@ class DocTemplate(models.Model):
             return None
         return (holder.text or '', page.tail or '', topage.tail or '')
 
-    def _page_line_elements(self):
+    def _page_line_elements(self, align='center', color=None, official=False):
         """頁尾頁碼那一行的元素（開頭的換行算在內）。
 
         頁碼前後的字各是一顆多語文字；所有語言都一樣的（「 / 」）就用純文字。
         allowEmpty：英文的「頁」那個位置是空的，要真的不印，不能退回印中文。
-        換行是下一段的開頭：置中寫在開頭的換行與每個元素上，不是寫在結尾
+        換行是下一段的開頭：對齊寫在開頭的換行與每個元素上，不是寫在結尾
         （見 doc.render.mixin._elements_to_html）。
         """
-        parts = self._page_line_parts()
+        parts = self._page_line_parts(official=official)
         base = self.env.lang if self.env.lang in parts else 'en_US'
         pill = self._layout_pill
 
@@ -343,7 +438,9 @@ class DocTemplate(models.Model):
                 + [pill('總頁數', source='page', part='count')]
                 + piece(2, '頁碼後的字'))
         for el in line:
-            el['rowFlex'] = 'center'
+            el['rowFlex'] = align
+            if color and el.get('value') != '\n':
+                el['color'] = color
         return line
 
     # 舊版外框寫死中文的那一行：換行之後的五個元素
@@ -391,12 +488,12 @@ class DocTemplate(models.Model):
         )
         if existing:
             return existing
-        tmpl = self.create({
+        tmpl = self.create(dict({
             'name': name,
             'role': 'layout',
             'description': '由模組產生的起點外框，可自由修改。'
                            'logo 與公司資訊取自單據的 company_id。',
-        })
+        }, **self._LAYOUT_VARIANT_VALS.get(variant, {})))
         tmpl.content_json = json.dumps(
             tmpl._build_layout_tree(variant), ensure_ascii=False,
         )
@@ -441,6 +538,32 @@ class DocTemplate(models.Model):
         """
         self.ensure_one()
         return self.layout_id or self
+
+    # 模組預設：與 canvas-editor 的預設值一致（官方報表的樣式 _OFFICIAL_TEXT_STYLE
+    # 定義在內建外框那一段之前，「Odoo 標準」外框要用它）
+    _DEFAULT_TEXT_STYLE = {
+        'font': '', 'size': 16, 'row_margin': 1.0, 'color': '#000000',
+    }
+
+    def text_style(self):
+        """這張範本的預設文字樣式（沒設的取模組預設）→ {font, size, row_margin, color}。
+
+        編輯器（canvas-editor 的 defaultFont／defaultSize／defaultRowMargin／
+        defaultColor）與列印（doc.report._report_css）都讀這一份。
+        """
+        style = dict(self._DEFAULT_TEXT_STYLE)
+        if not self:
+            return style
+        self.ensure_one()
+        if self.text_font:
+            style['font'] = self.text_font.strip()
+        if self.text_size and self.text_size > 0:
+            style['size'] = self.text_size
+        if self.text_row_margin and self.text_row_margin > 0:
+            style['row_margin'] = self.text_row_margin
+        if self.text_color:
+            style['color'] = self.text_color.strip()
+        return style
 
     @api.model
     def action_new_and_open_editor(self):

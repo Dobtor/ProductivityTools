@@ -80,7 +80,16 @@ class DocQwebImportWizard(models.TransientModel):
             raise UserError('這個報表沒有指定模型，無法轉換。')
 
         sample = self._pick_sample()
-        result = self.env['doc.qweb.converter'].convert_report(
+        Template = self.env['doc.template']
+        # 版面寬度照官方的左右邊距（「Odoo 標準」外框），欄寬才估得對；
+        # 沒掛外框時範本自己也用同一組左右邊距（見下面 create）
+        official = Template._LAYOUT_VARIANT_VALS['odoo']
+        margin_x = official['margin_left'] + official['margin_right']
+        result = self.env['doc.qweb.converter'].with_context(
+            doc_convert_margin_x=margin_x,
+            doc_convert_text_size=Template._OFFICIAL_TEXT_STYLE['text_size'],
+            doc_convert_text_font=Template._OFFICIAL_TEXT_STYLE['text_font'],
+        ).convert_report(
             self.report_id, page_format=self.page_format,
             validate_with=sample,
         )
@@ -93,18 +102,26 @@ class DocQwebImportWizard(models.TransientModel):
         if self.attach_layout and result.get('needs_layout'):
             # 同一張外框給所有轉換出來的範本共用——每張各建一份的話，
             # 公司資訊又散回 N 份，外框存在的意義就沒了
-            layout = self.env['doc.template'].find_or_create_layout()
+            # 用「Odoo 標準」外框：頁首頁尾、邊距照官方報表，轉出來才印得一樣
+            layout = self.env['doc.template'].find_or_create_layout('odoo')
 
-        template = self.env['doc.template'].create({
-            'name': self.template_name or self.report_id.name,
-            'role': 'content',
-            'layout_id': layout.id or False,
-            'page_format': self.page_format,
-            'model_id': self.env['ir.model']._get(self.report_id.model).id,
-            'content_json': result['content_json'],
-            'description': '由原生報表「%s」轉換產生。請依待辦清單逐項確認。'
-                           % self.report_id.name,
-        })
+        template = Template.create(dict(
+            {
+                'name': self.template_name or self.report_id.name,
+                'role': 'content',
+                'layout_id': layout.id or False,
+                'page_format': self.page_format,
+                'model_id': self.env['ir.model']._get(self.report_id.model).id,
+                'content_json': result['content_json'],
+                'description': '由原生報表「%s」轉換產生。請依待辦清單逐項確認。'
+                               % self.report_id.name,
+                # 掛了外框時邊距由外框決定，這兩個值不會用到
+                'margin_left': official['margin_left'],
+                'margin_right': official['margin_right'],
+            },
+            # 轉換出來的範本要印得跟官方報表一樣：字型、字級、行距照官方
+            **Template._OFFICIAL_TEXT_STYLE,
+        ))
 
         stats = result.get('stats') or {}
         lines = [

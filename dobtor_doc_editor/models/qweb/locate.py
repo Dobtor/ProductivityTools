@@ -513,6 +513,10 @@ class ConvLocate:
                 ]}],
             })
             out.append(self._newline())
+            # web.address_layout 的外層是寫死的「address row mb-4」：地址區下方
+            # 留一列空白再接標題
+            out.extend(self._spacer_rows(
+                self._new_element_with_class('div', 'mb-4'), 'bottom'))
             state['stats']['table'] += 1
 
         title = blocks.get('layout_document_title')
@@ -520,10 +524,9 @@ class ConvLocate:
             piece = []
             self._emit_children(title, piece, state)
             for el in piece:
-                # 單據標題：原生是 <h2>，這裡用字級與粗體表達
+                # 單據標題：原生是 <h2>（內文兩倍、不是粗體），照官方的字級
                 if el.get('value') != '\n':
-                    el.setdefault('size', 24)
-                    el.setdefault('bold', True)
+                    el.setdefault('size', self._heading_size('h2'))
             out.extend(piece)
             if not out or (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
@@ -531,4 +534,9 @@ class ConvLocate:
     def _new_element(self, tag):
         from lxml import etree
         return etree.Element(tag)
+
+    def _new_element_with_class(self, tag, cls):
+        node = self._new_element(tag)
+        node.set('class', cls)
+        return node
 
