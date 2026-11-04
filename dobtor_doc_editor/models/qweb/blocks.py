@@ -3,6 +3,7 @@
 表格那一段最大，因為明細表是報表的主體：重複列、列變體（t-if 在 tr 上）、
 欄寬、合併、分組都在這裡。
 """
+import ast
 import contextlib
 import json
 import logging
@@ -405,9 +406,11 @@ class ConvBlocks:
             wrapper_conds = self._row_wrapper_conditions(tr, node)
             repeat = foreach_rows.get(tr)
             if tr in acc_rows:
+                # 外層條件交給 _group_row_conditions 挑：分組邊界那段丟掉，
+                # 「有章節才印」「訂金那一節不印」這種真條件要留
                 row = self._table_row(
                     tr, state, repeat, th_conds, max_cols,
-                    wrapper_conds=(), group_role='footer',
+                    wrapper_conds=wrapper_conds, group_role='footer',
                     col_widths=col_widths,
                 )
                 if row is not None:
@@ -554,6 +557,61 @@ class ConvBlocks:
             parent = parent.getparent()
         return [c for c in reversed(conds) if (c or '').strip()]
 
+    # QWeb 迴圈位置變數的字尾（line_last、line_index…）
+    _LOOP_POSITION_SUFFIXES = ('index', 'first', 'last', 'size',
+                               'parity', 'even', 'odd', 'value')
+
+    def _group_row_conditions(self, tr, wrapper_conds, repeat, state):
+        """分組小計列要保留的原生條件 → 轉好的沙箱表達式清單。
+
+        原生小計列外面那層條件（sale 報價單）：
+            current_section and (line_last or lines[line_index+1].display_type
+            == 'line_section' or …) and not line.is_downpayment
+        拆成三段看：
+          「是不是這一節最後一列」→ 丟掉。分組之後每組本來就只印一次。
+          current_section（有章節才印）→ group.header（這一組有章節標題）。
+          not line.is_downpayment（訂金那節不印）→ 照轉。印的時候 line 是
+            這一組最後一筆明細，跟原生在最後一筆時判斷一樣。
+        以前整條丟掉，訂金那一節和第一個章節之前的明細都多印一行小計。
+        """
+        loop_var = (repeat or ('', 'line'))[1] or 'line'
+        collection = ((repeat or ('', ''))[0] or '').strip()
+        accumulators = set(state.get('accumulators') or ())
+        # 「目前章節」：在迴圈裡被設成迴圈變數本身的累加器
+        # （<t t-set="current_section" t-value="line"/>）
+        root = tr.getroottree().getroot()
+        holders = {
+            name for name in accumulators
+            if root.xpath('//t[@t-set=%s][@t-value=%s]'
+                          % (json.dumps(name), json.dumps(loop_var)))
+        }
+        boundary = accumulators | {
+            '%s_%s' % (loop_var, suffix)
+            for suffix in self._LOOP_POSITION_SUFFIXES
+        }
+        if collection.isidentifier():
+            # lines_to_report[line_index+1]：拿下一筆來比，也是在判斷邊界
+            boundary.add(collection)
+        out = []
+        for cond in wrapper_conds:
+            try:
+                body = ast.parse(' '.join(cond.split()), mode='eval').body
+            except SyntaxError:
+                self._note(state, '小計列的條件看不懂，沒有帶過來：%s' % cond[:80])
+                continue
+            parts = (body.values
+                     if isinstance(body, ast.BoolOp) and isinstance(body.op, ast.And)
+                     else [body])
+            for part in parts:
+                if isinstance(part, ast.Name) and part.id in holders:
+                    out.append('group.header')
+                    continue
+                names = {n.id for n in ast.walk(part) if isinstance(n, ast.Name)}
+                if names & boundary:
+                    continue
+                out.append(self._map_condition(ast.unparse(part), state, expand=True))
+        return out
+
     def _chain_negation(self, node):
         """「前面的 t-if / t-elif 分支都不成立」的條件式。"""
         conds = []
@@ -618,9 +676,9 @@ class ConvBlocks:
                         # 待辦、條件整個不見，訂金列多印一格「$ 0.00」
                         cell_cond = cond
                 if first and group_role:
-                    # 分組小計列：標記換成 groupFooter，而且不要帶列條件
-                    # ——原生那個條件（「是這一節的最後一列」）是累加器時代
-                    # 的產物，分組之後每組輸出一次就已經是對的。
+                    # 分組小計列：標記換成 groupFooter。外層條件只留真條件
+                    # ——「是這一節的最後一列」是累加器時代的產物，分組之後
+                    # 每組輸出一次就已經是對的。
                     value.append(self._pill(
                         '〔分組小計〕', state, source='group%s'
                         % group_role.capitalize(), isMarker=True,
@@ -628,6 +686,13 @@ class ConvBlocks:
                             (repeat or ('', 'line'))[1],
                             (repeat or ('', ''))[0], state),
                     ))
+                    for expression in self._group_row_conditions(
+                            tr, wrapper_conds, repeat, state):
+                        value.append(self._pill(
+                            '列條件', state, source='condition',
+                            expression=expression,
+                        ))
+                        state['stats']['condition'] += 1
                     first = False
                 if first:
                     # <tr t-att-class="'fw-bold' if … else ''"> → 列層級

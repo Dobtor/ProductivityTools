@@ -60,3 +60,5 @@ _LIT = r"'[^']*'" + r'|"[^"]*"'
 # 藥丸的 source 就變成 record——印出來是空的，而且沒有任何訊息。
 _ROOT_TOKEN_RE = re.compile(r'\b(object|line)\b')
 _LINE_TOKEN_RE = re.compile(r'\bline\b')
+# 分組小計列的條件會用 group.header；前面不接點，免得 x.group 被當成它
+_GROUP_TOKEN_RE = re.compile(r'(?<![\w.])group\b')

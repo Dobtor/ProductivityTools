@@ -1004,12 +1004,21 @@ class RenderSnapshot:
                         clone = _copy.deepcopy(ftr_tmpl)
                         clone.pop('id', None)
                         self._fill_group_row(clone, group, record, stamp)
-                        new_rows.append(clone)
+                        # 小計列的列條件以這一組最後一筆明細判斷——原生就是在
+                        # 章節最後一筆時決定印不印（訂金那一節不印）；帶上
+                        # group 讓條件問得到「這一組有沒有章節標題」
+                        last = len(group['lines']) - 1
+                        if self._resolve_line_row_conditions(
+                                clone, record, group['lines'][last],
+                                self._loop_context(last, last + 1),
+                                group=group):
+                            new_rows.append(clone)
             if changed:
                 table['trList'] = new_rows
         return total
 
-    def _resolve_line_row_conditions(self, row, record, line, loop=None):
+    def _resolve_line_row_conditions(self, row, record, line, loop=None,
+                                     group=None):
         """重複列內的條件標記：以該筆明細求值，不成立就整列不輸出。
 
         為什麼要在展開階段處理，而不是交給後面的 _apply_row_conditions：
@@ -1020,6 +1029,8 @@ class RenderSnapshot:
 
         若／否則配對（groupId）不在這裡處理：它的另一半在別的列上，
         展開階段看不到，留給 _apply_row_conditions。
+
+        group：分組小計列用。條件可以寫 group.header（這一組有沒有章節標題）。
         """
         def _plain_markers(cell):
             out = []
@@ -1042,6 +1053,8 @@ class RenderSnapshot:
             return True
         extra = dict(loop or {})
         extra['line'] = line
+        if group is not None:
+            extra['group'] = group
         for _el, meta in found:
             expr = meta.get('expression') or meta.get('path') or ''
             # _eval_condition 求值失敗回 True（寧可多印），所以只在明確為

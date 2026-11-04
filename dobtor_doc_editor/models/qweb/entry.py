@@ -22,6 +22,7 @@ from .constants import (
     _LIT,
     _ROOT_TOKEN_RE,
     _LINE_TOKEN_RE,
+    _GROUP_TOKEN_RE,
 )
 
 
@@ -122,25 +123,36 @@ class ConvEntry:
     # 原生範本才知道該檢查什麼。
 
     def _iter_validation_targets(self, tree, record):
-        """yield (元素, 該元素所在重複列的一筆明細 or None)。
+        """yield (元素, 該元素所在重複列的一筆明細 or None, 迴圈位置, 分組 or None)。
 
         不能全樹共用一筆明細：同一張單據上可以有好幾個不同形狀的重複
         （發票同時有「明細列」與「付款列」，後者的一筆是 dict），
         拿明細列的那一筆去試算付款列的 line 藥丸，會得到一整批假失敗，
         而假失敗會把藥丸標成待確認——使用者去檢查一個其實沒問題的地方。
+
+        分組標題／小計列不是重複列，但印的時候帶著這一組的明細與 group：
+        用同一張表重複列的明細當樣本（小計列取最後一筆，跟渲染時一樣），
+        否則小計列上「訂金那一節不印」這種條件永遠被算成「沒試算」。
         """
         Mixin = self.env['doc.render.mixin']
 
-        def walk(elements, line, loop):
+        def walk(elements, line, loop, group):
             for element in elements:
-                yield element, line, loop
+                yield element, line, loop, group
                 if element.get('type') != 'table':
                     continue
-                for row in (element.get('trList') or []):
-                    if not isinstance(row, dict):
-                        continue
-                    row_line, row_loop = line, loop
+                rows = [r for r in (element.get('trList') or [])
+                        if isinstance(r, dict)]
+                table_lines = None
+                for row in rows:
                     marker, meta = Mixin._row_repeat_meta(row)
+                    if marker:
+                        table_lines = Mixin._resolve_repeat_records(record, meta)
+                        break
+                for row in rows:
+                    row_line, row_loop, row_group = line, loop, group
+                    marker, meta = Mixin._row_repeat_meta(row)
+                    _g_el, _g_meta, role = Mixin._row_group_meta(row)
                     if marker:
                         lines = Mixin._resolve_repeat_records(record, meta)
                         row_line = lines[0] if lines else None
@@ -150,13 +162,22 @@ class ConvEntry:
                         # 假失敗；假裝在最後一筆則 or 會短路，跟原生一樣。
                         row_loop = Mixin._loop_context(
                             max(0, len(lines) - 1), len(lines))
+                    elif role and table_lines is not None:
+                        lines = list(table_lines)
+                        idx = len(lines) - 1 if role == 'footer' else 0
+                        row_line = lines[idx] if lines else None
+                        row_loop = Mixin._loop_context(max(0, idx), len(lines))
+                        row_group = {
+                            'key': False, 'label': '', 'header': row_line,
+                            'lines': lines, 'index': 1, 'count': 1,
+                        } if lines else None
                     for cell in (row.get('tdList') or []):
                         if isinstance(cell, dict):
                             yield from walk(cell.get('value') or [],
-                                            row_line, row_loop)
+                                            row_line, row_loop, row_group)
 
         for zone in ('header', 'main', 'footer'):
-            yield from walk(tree.get(zone) or [], None, None)
+            yield from walk(tree.get(zone) or [], None, None, None)
 
     def validate_tree(self, tree, record, state):
         """拿一筆記錄試算所有藥丸的表達式。回傳 {'ok', 'failed'}。
@@ -166,7 +187,8 @@ class ConvEntry:
         """
         Mixin = self.env['doc.render.mixin']
         ok = failed = skipped = 0
-        for element, line, loop in self._iter_validation_targets(tree, record):
+        for element, line, loop, group in self._iter_validation_targets(
+                tree, record):
             meta = Mixin._element_field_meta(element)
             if not meta:
                 continue
@@ -200,6 +222,11 @@ class ConvEntry:
                     skipped += 1
                     continue
                 extra['line'] = line
+            if _GROUP_TOKEN_RE.search(expression):
+                if group is None:
+                    skipped += 1
+                    continue
+                extra['group'] = group
             if 'loop_' in expression:
                 if loop is None:
                     skipped += 1

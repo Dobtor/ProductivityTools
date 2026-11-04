@@ -912,6 +912,47 @@ class TestRepeatGrouping(TransactionCase):
         self.assertNotIn('〔標題〕', flat)
         self.assertNotIn('〔小計〕', flat)
 
+    def _footer_condition(self, tree, expression):
+        footer = tree['main'][0]['trList'][-1]
+        footer['tdList'][0]['value'].append(
+            _pill('列條件', source='condition', expression=expression))
+
+    def test_footer_condition_judged_by_last_line_of_group(self):
+        """小計列的列條件看這一組最後一筆明細（原生「訂金那一節不印小計」）。
+
+        以前小計列上的條件只用主記錄求值，line 取不到 → 求值失敗當真 →
+        每一組都印，訂金那一節多一行「小計 $ 0.00」。
+        """
+        tree = self._tree({
+            'path': 'child_ids',
+            'groupMode': 'marker',
+            'groupSplitOn': 'line.comment',
+        }, with_header=False)
+        # 甲區最後一筆是 3 A2（台中）、乙區最後一筆是 5 B1（台北）
+        self._footer_condition(tree, "line.city != '台北'")
+        self.Mixin._snapshot_content_json(tree, self.parent)
+        rows = self._rows(tree)
+        self.assertEqual([r[1] for r in rows], ['2 A1', '3 A2', '2', '5 B1'],
+                         '甲區印小計、乙區不印')
+        self.assertNotIn('列條件', json.dumps(rows, ensure_ascii=False))
+
+    def test_footer_condition_sees_group_header(self):
+        """group.header：第一個章節之前的明細沒有章節，原生不印小計。"""
+        self.env['res.partner'].create({
+            'name': '0 前置', 'parent_id': self.parent.id, 'type': 'other',
+            'city': '高雄'})
+        tree = self._tree({
+            'path': 'child_ids',
+            'groupMode': 'marker',
+            'groupSplitOn': 'line.comment',
+        }, with_header=False)
+        self._footer_condition(tree, 'group.header')
+        self.Mixin._snapshot_content_json(tree, self.parent)
+        rows = self._rows(tree)
+        self.assertEqual(
+            [r[1] for r in rows], ['0 前置', '2 A1', '3 A2', '2', '5 B1', '1'],
+            '前置那一組沒有章節、不印小計；甲區、乙區照印')
+
     def test_running_reset_on_group(self):
         """每組重新起算：resetOn='group' 的累加器在組界歸零。"""
         tree = {'main': [{'type': 'table', 'trList': [

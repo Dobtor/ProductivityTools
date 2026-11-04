@@ -423,7 +423,7 @@ class TestValidationProbePerRow(TestQwebConverterBase):
         pairs = list(self.Conv._iter_validation_targets(
             res['tree'], self.parent))
         by_source = {}
-        for element, line, _loop in pairs:
+        for element, line, _loop, _group in pairs:
             meta = (element.get('extension') or {}).get('dobtorField')
             if meta:
                 by_source[meta.get('source')] = line
@@ -1473,6 +1473,47 @@ class TestAccumulatorToGroup(TestQwebConverterBase):
         res = self._convert(self._arch())
         self.assertTrue(any('累加器' in n and '分組' in n for n in res['notes']),
                         '%s' % res['notes'])
+
+    def test_footer_keeps_real_conditions_drops_boundary(self):
+        """原生小計列外層條件：邊界那段丟掉，「有章節」「不是訂金」要留。
+
+        sale 報價單的寫法是
+            current_section and (line_last or lines[line_index+1]…)
+            and not line.is_downpayment
+        以前整條丟掉，訂金那一節與第一個章節之前的明細都多印一行小計。
+        """
+        arch = (
+            '<t t-set="total" t-value="0"/>'
+            '<table><tbody>'
+            '<t t-foreach="o.child_ids" t-as="kid">'
+            '<t t-set="total" t-value="total + kid.credit_limit"/>'
+            '<t t-if="kid.type == \'invoice\'">'
+            '<tr><td><span t-out="kid.name"/></td></tr>'
+            '<t t-set="current_section" t-value="kid"/>'
+            '</t>'
+            '<t t-else=""><tr><td><span t-out="kid.name"/></td></tr></t>'
+            '<t t-if="current_section and (kid_last'
+            ' or o.child_ids[kid_index+1].type == \'invoice\')'
+            ' and not kid.is_company">'
+            '<t t-set="current_section" t-value="None"/>'
+            '<tr><td>小計<span t-out="total"/></td></tr>'
+            '</t>'
+            '</t></tbody></table>'
+        )
+        res = self._convert(arch)
+        footer = None
+        for table in self._tables(res['tree']['main']):
+            for row in table['trList']:
+                _el, _meta, role = self.env['doc.render.mixin']._row_group_meta(row)
+                if role == 'footer':
+                    footer = row
+        self.assertIsNotNone(footer, '要有分組小計列')
+        conds = [
+            m.get('expression')
+            for cell in footer['tdList'] for m in self._metas(cell['value'])
+            if m.get('source') == 'condition'
+        ]
+        self.assertEqual(conds, ['group.header', 'not line.is_company'])
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
