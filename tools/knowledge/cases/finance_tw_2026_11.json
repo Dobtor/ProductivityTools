@@ -1154,7 +1154,7 @@
    "code": "small_diff_one_click_settle",
    "name": "小額差額（≤100 元）一鍵全額沖銷記手續費",
    "module": "dobtor_accounting",
-   "role": "accountant",
+   "role": "finance_manager",
    "narrative": "實收 2,985 元沖 3,000 元發票，差 15 元在門檻 100 元內，一鍵改成全額沖銷、差額記到公司設定的小額差額原因。",
    "narrative_ok": true,
    "source": "verification",
