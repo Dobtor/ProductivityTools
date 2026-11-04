@@ -2145,14 +2145,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "profile",
@@ -2361,14 +2365,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "profile",
@@ -2591,14 +2599,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "book_ifrs",
@@ -2861,14 +2873,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "cfg",
@@ -3064,14 +3080,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "book_tax",
@@ -3358,14 +3378,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "book_ifrs",
@@ -3578,14 +3602,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "book_tax",
@@ -3827,14 +3855,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "book_tax",
@@ -4016,14 +4048,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "profile",
@@ -4212,14 +4248,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "profile",
@@ -4386,14 +4426,18 @@
     {
      "ref": "book_main",
      "model": "account.asset.book",
-     "values": {
-      "name": "帳載",
-      "code": "BOOK",
-      "kind": "book",
-      "is_primary": true,
-      "posting_mode": "gl",
-      "journal_id": "ref:misc"
-     }
+     "domain": [
+      [
+       "kind",
+       "=",
+       "book"
+      ],
+      [
+       "is_primary",
+       "=",
+       true
+      ]
+     ]
     },
     {
      "ref": "profile",
@@ -7593,7 +7637,7 @@
    "code": "never_checked_close_shows_results",
    "name": "還沒跑檢查就按關帳：先跑檢查並攤出結果，不直接關",
    "module": "dobtor_account_close",
-   "role": "accountant",
+   "role": "finance_manager",
    "narrative": "會計主管在從沒跑過檢查的月份直接按「關帳」，系統先幫他把檢查跑完並顯示結果，期別不會被關；確認後再按一次才關。",
    "narrative_ok": true,
    "source": "verification",
@@ -7687,7 +7731,7 @@
    "code": "checked_period_closes_and_locks",
    "name": "跑過檢查無紅燈：關帳後套用鎖定日、封存報表包",
    "module": "dobtor_account_close",
-   "role": "accountant",
+   "role": "finance_manager",
    "narrative": "1 月檢查都通過後按「關帳」：期別變已關帳、公司鎖定日設為 1/31，並把報表包附在關帳單上。",
    "narrative_ok": true,
    "source": "verification",
@@ -7800,7 +7844,7 @@
    "code": "draft_move_blocks_close",
    "name": "本期有草稿分錄：必過項目紅燈，不能關帳",
    "module": "dobtor_account_close",
-   "role": "accountant",
+   "role": "finance_manager",
    "narrative": "1 月還有一張沒過帳的草稿分錄，「草稿分錄」檢查亮紅燈；按關帳只會列出未通過項目，期別不關。",
    "narrative_ok": true,
    "source": "verification",
@@ -7845,7 +7889,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -8323,7 +8374,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -8462,7 +8520,7 @@
    "code": "year_close_carryforward_auto_reviewed",
    "name": "年度關帳產生結轉分錄並自動複核傳票",
    "module": "dobtor_account_close",
-   "role": "accountant",
+   "role": "finance_manager",
    "narrative": "公司啟用「產生結轉分錄」（模式 B）。本年度傳票都複核完後關年度帳：系統產生「損益結轉」與「損益轉未分配盈餘」兩張分錄，落在 12/31，對應傳票由關帳人自動複核並配號。",
    "narrative_ok": true,
    "source": "verification",
@@ -8507,7 +8565,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -8895,7 +8960,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12015,7 +12087,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12124,7 +12203,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12303,7 +12389,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12442,7 +12535,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12569,7 +12669,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12691,7 +12798,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -12932,7 +13046,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
@@ -13168,7 +13289,14 @@
        "=",
        "general"
       ],
-      ["code", "in", ["MISC", "雜項"]]
+      [
+       "code",
+       "in",
+       [
+        "MISC",
+        "雜項"
+       ]
+      ]
      ]
     },
     {
