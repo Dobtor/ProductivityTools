@@ -852,21 +852,28 @@ class ConvBlocks:
         bare = dict(state, loop_vars=[], loop_sources=[], loop_models=[])
         path, kind = self._strip_root(expr, bare)
         label = ('列型 × %s' % path) if row_filter else ('明細 × %s' % path)
-        group_kw = {}
+        shared_kw = {}
         if state.get('group_split') is not None:
             # 分組設定掛在同一個 repeatId 的每一個列型上。後端取第一個列型的
             # 設定，所以至少要有一個帶著；全部帶著最省事也不會互相矛盾。
             split = state.get('group_split') or ''
-            group_kw = {'groupMode': 'marker'}
+            shared_kw = {'groupMode': 'marker'}
             if split:
-                group_kw['groupSplitOn'] = self._map_condition(
+                shared_kw['groupSplitOn'] = self._map_condition(
                     split, state, expand=True)
             if state.get('group_include_header'):
-                group_kw['groupIncludeHeader'] = True
+                shared_kw['groupIncludeHeader'] = True
+        # 明細是哪一張資料表：編輯器靠它列出左欄的「明細欄位」。來源是算出來的
+        # （report_helper(object, '_get_order_lines_to_report')）時沒有路徑可查，
+        # 以前就沒帶，轉換出來的範本因此拖不出明細欄位。_loop_model 查不到路徑
+        # 時會拿樣本實際跑一次。
+        relation = self._loop_model(state, expr)
+        if relation:
+            shared_kw['relation'] = relation
         if path and _SIMPLE_PATH_RE.match(path):
             return self._pill(label, state, source='repeat',
                               path=path, repeatId=repeat_id,
-                              rowFilter=row_filter, **group_kw)
+                              rowFilter=row_filter, **shared_kw)
 
         # lines_to_report / lines 這類中間變數：展開後多半就是真正的
         # 一對多欄位（或帶篩選／排序的表達式）
@@ -877,7 +884,7 @@ class ConvBlocks:
                 ('列型 × %s' if row_filter else '明細 × %s') % path2,
                 state, source='repeat', path=path2,
                 repeatId=repeat_id, rowFilter=row_filter,
-                unbound=used_rule, **group_kw,
+                unbound=used_rule, **shared_kw,
             )
         mapped = self._map_condition(expanded, bare)
         # 同樣用 token 比對：白名單改寫後的來源是
@@ -894,7 +901,7 @@ class ConvBlocks:
                 '列型 × 明細' if row_filter else '明細',
                 state, source='repeat', path='', sourceExpression=mapped,
                 repeatId=repeat_id, rowFilter=row_filter,
-                unbound=True, **group_kw,
+                unbound=True, **shared_kw,
             )
         self._note(
             state,
@@ -907,7 +914,7 @@ class ConvBlocks:
         return self._pill(
             '列型（待設定）' if row_filter else '明細（待設定）',
             state, source='repeat', path='', repeatId=repeat_id,
-            rowFilter=row_filter, unbound=True, **group_kw,
+            rowFilter=row_filter, unbound=True, **shared_kw,
         )
 
 

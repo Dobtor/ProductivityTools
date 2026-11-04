@@ -697,14 +697,20 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
                 Object.keys(this.state.fieldAliases || {}).length > 0 ||
                 Object.keys(this.state.templateFieldAliases || {}).length > 0;
             const hasControlSpecs = Object.keys(this._controlSpecByVar || {}).length > 0;
+            // 從既有內容找回重複列情境，否則重開範本後左欄不會出現「明細欄位」。
+            // 跟下面的變數升級無關，任何有重複列的範本／文件都要做——以前包在
+            // 下面那個條件裡，轉換出來的範本兩樣都沒有，所以永遠找不回來。
+            setTimeout(() => {
+                if (this.editor) {
+                    this._recoverRepeatContext();
+                }
+            }, 600);
             if (hasControlSpecs || (hasBoundRecord && hasAlias)) {
                 setTimeout(async () => {
                     if (!this.editor) return;
                     // Phase 5：先把殘餘 alias token 升級成藥丸並存回。
                     // 這是只有 content_html 的舊資料唯一的升級管道——
                     // 伺服器端 migration 碰不到它們。
-                    // 從既有內容復原重複列情境，否則重開範本後左欄不會出現「明細欄位」
-                    this._recoverRepeatContext();
                     // 語言清單：i18n 藥丸的 inspector 與預覽語言切換都靠它。
                     // 不等它完成——載不到時 inspector 會顯示提示而不是空白。
                     this.loadLanguages();

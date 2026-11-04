@@ -347,6 +347,34 @@ class TestSafeMethodRewrite(TestQwebConverterBase):
             parent, repeats[0])
         self.assertEqual(lines, [child], '來源要真的取得到明細')
 
+    def test_repeat_marker_carries_its_line_model(self):
+        """明細標記要記下明細是哪一張資料表——編輯器靠它列出左欄的明細欄位。
+
+        來源是算出來的（銷售訂單的 _get_order_lines_to_report）時沒有路徑
+        可查，以前就沒帶，轉換出來的範本重新打開後拖不出任何明細欄位。
+        """
+        self._allow(('res.partner', '_kids_to_report'))
+        self.startPatcher(patch.object(
+            type(self.env['res.partner']), '_kids_to_report',
+            lambda self: self.child_ids, create=True,
+        ))
+        parent = self.env['res.partner'].create({'name': '樣本母公司'})
+        self.env['res.partner'].create({
+            'name': '樣本子公司', 'parent_id': parent.id})
+        cases = {
+            '路徑': '<table><t t-foreach="o.child_ids" t-as="kid">'
+                    '<tr><td><span t-out="kid.name"/></td></tr></t></table>',
+            '算出來的來源': '<t t-set="kids" t-value="o._kids_to_report()"/>'
+                          '<table><t t-foreach="kids" t-as="kid">'
+                          '<tr><td><span t-out="kid.name"/></td></tr></t></table>',
+        }
+        for name, arch in cases.items():
+            with self.subTest(name):
+                res = self._convert(arch, validate_with=parent)
+                repeats = [m for m in self._metas(res['tree']['main'])
+                           if m.get('source') == 'repeat']
+                self.assertEqual(repeats[0].get('relation'), 'res.partner')
+
     def test_generate_qr_code_goes_through_public_method(self):
         """_generate_qr_code 會回寫 qr_code_method（印 PDF 就改資料）。
 
