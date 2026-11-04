@@ -67,6 +67,14 @@ if [ -n "$KILL_PATTERN" ]; then
   KILLED=$(docker exec "$C" sh -c "pkill -f '$KILL_PATTERN' && echo yes || true")
   [ -n "$KILLED" ] && { echo "stopped running job subprocess(es)"; sleep 5; }
 fi
+# 3a. 停過作業 → 先重啟容器再升級：派工的工作者（在主程式裡，不是被停掉的子程序）交易還開著、
+#   握著方案表的讀取鎖，-u 的 ALTER TABLE 要獨佔鎖，等到逾時（不一定是「閒置交易」，3b 抓不到）。
+#   ☠️ 實機（2026-11-04／05 admin.corpaas.com 三次）：停過知識作業的部署六次 lock timeout 全還原；
+#     佇列本來就空的部署都一次成功。排程已在第 2 步暫停，重啟後不會立刻再派工。
+if [ -n "${KILLED:-}" ]; then
+  docker restart "$C" >/dev/null && echo "restarted container to release job transactions"
+  sleep "${RESTART_WAIT:-25}"
+fi
 # 3b. 停掉的作業留下的資料庫連線（交易開著、閒置）會握著鎖，升級的 ALTER TABLE 等到逾時。
 #   ☠️ 實機（2026-11-04 admin.corpaas.com 兩次）：6 次升級都 lock timeout，自動還原。
 #   等最多 2 分鐘讓它們自己結束；還在就結束掉（網頁請求不會開著交易閒置 60 秒以上）。
