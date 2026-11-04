@@ -67,6 +67,19 @@ if [ -n "$KILL_PATTERN" ]; then
   KILLED=$(docker exec "$C" sh -c "pkill -f '$KILL_PATTERN' && echo yes || true")
   [ -n "$KILLED" ] && { echo "stopped running job subprocess(es)"; sleep 5; }
 fi
+# 3b. 停掉的作業留下的資料庫連線（交易開著、閒置）會握著鎖，升級的 ALTER TABLE 等到逾時。
+#   ☠️ 實機（2026-11-04 admin.corpaas.com 兩次）：6 次升級都 lock timeout，自動還原。
+#   等最多 2 分鐘讓它們自己結束；還在就結束掉（網頁請求不會開著交易閒置 60 秒以上）。
+STALE="from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid() and state like 'idle in transaction%' and now()-state_change > interval '60 seconds'"
+n=$(pg "select count(*) $STALE")
+for i in $(seq 1 12); do
+  [ "$n" = "0" ] && break
+  sleep 10; n=$(pg "select count(*) $STALE")
+done
+if [ "$n" != "0" ]; then
+  pg "select pg_terminate_backend(pid) $STALE" >/dev/null
+  echo "terminated $n stale idle-in-transaction session(s)"
+fi
 
 # 4. 備份＋換程式
 for i in $(seq 0 $((N-1))); do
