@@ -1928,6 +1928,67 @@ class TestOfficialTableStyle(TestQwebConverterBase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPillFitsItsCell(TestQwebConverterBase):
+    """編輯器裡的藥丸是一整塊、不會換行：比格子寬就蓋到隔壁欄。
+
+    範本模式顯示欄位名稱（以前是 product_uom_qty 這種技術名稱，比值還長），
+    太長的縮短；「顯示實際值」時長的值切成幾顆。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def test_pill_shows_field_name_not_technical_name(self):
+        res = self._convert('<p><span t-field="o.credit_limit"/></p>')
+        meta = next(m for m in self._metas(res['tree']['main'])
+                    if m.get('path') == 'credit_limit')
+        expected = self.env['ir.model.fields']._get(
+            'res.partner', 'credit_limit').field_description
+        self.assertEqual(meta['labelText'], expected)
+        self.assertEqual(meta['path'], 'credit_limit', '來源不變')
+
+    def _cell_table(self, width, value):
+        pill = {'type': 'label', 'value': value,
+                'extension': {'dobtorField': {'source': 'record', 'path': 'name',
+                                              'labelText': value}}}
+        return {'main': [{'type': 'table', 'value': '',
+                          'colgroup': [{'width': width}, {'width': 300}],
+                          'trList': [{'tdList': [
+                              {'colspan': 1, 'rowspan': 1, 'value': [pill]},
+                              {'colspan': 1, 'rowspan': 1, 'value': []}]}]}]}
+
+    def _cell_values(self, tree):
+        return [el['value'] for el in tree['main'][0]['trList'][0]['tdList'][0]['value']]
+
+    def test_long_label_is_shortened_to_fit(self):
+        tree = self._cell_table(80, 'product_packaging_qty')
+        self.Mixin._fit_pill_labels(tree, 602, 13)
+        (value,) = self._cell_values(tree)
+        self.assertTrue(value.endswith('…'), value)
+        self.assertLessEqual(self.Mixin._estimate_text_px(value, 13), 80 - 10 - 12)
+        meta = tree['main'][0]['trList'][0]['tdList'][0]['value'][0]['extension']['dobtorField']
+        self.assertEqual(meta['labelText'], 'product_packaging_qty', '只縮顯示的字')
+
+    def test_short_label_is_untouched(self):
+        tree = self._cell_table(200, '數量')
+        self.Mixin._fit_pill_labels(tree, 602, 13)
+        self.assertEqual(self._cell_values(tree), ['數量'])
+
+    def test_preview_splits_long_value_into_pieces(self):
+        """訂金那一列的品名在品名欄放不下：切成幾顆，編輯器在藥丸之間換行。"""
+        text = 'Down Payment (ref: INV/2026/00001 on 11/03/2026)'
+        tree = self._cell_table(160, text)
+        self.Mixin._preview_wrap_pills(tree, 602, 13)
+        values = self._cell_values(tree)
+        self.assertGreater(len(values), 1)
+        self.assertEqual(''.join(values), text, '切開後字一個都不少')
+        for value in values:
+            self.assertLessEqual(self.Mixin._estimate_text_px(value.rstrip(), 13),
+                                 160 - 10 - 12, value)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestMultiLanguageStaticText(TestQwebConverterBase):
     """原生報表的固定文字依各語言的翻譯轉成多語文字。
 

@@ -53,6 +53,11 @@ class ConvEntry:
         tree, state, root = built
         # 固定文字照各語言的翻譯轉成多語文字（見 _merge_languages）
         self._merge_languages(tree, view, report, page_format, validate_with, state)
+        # 藥丸上的名稱比所在的格子寬時縮短，編輯器裡才不會蓋到隔壁欄
+        self.env['doc.render.mixin']._fit_pill_labels(
+            tree, self._inner_width(state),
+            self.env.context.get('doc_convert_text_size') or 16,
+            self.env.context.get('doc_convert_text_font'))
         needs_layout = bool(
             root.xpath('//t[@t-call="web.external_layout"'
                        ' or @t-call="web.internal_layout"]')

@@ -450,7 +450,9 @@ class TestCellCondition(TestConverterLayoutBase):
             '</tr></table>')
         labels = [m.get('labelText') for m in self._metas(res['tree']['main'])
                   if m.get('source') == 'line']
-        self.assertIn('ref', labels)
+        # 標籤是欄位名稱（不是技術名稱 ref——那在窄欄裡比值還長）
+        self.assertIn(self.env['ir.model.fields']._get(
+            'res.partner', 'ref').field_description, labels)
         self.assertNotIn('27.00', labels)
 
     def test_complex_cell_becomes_condition_block_that_fits(self):

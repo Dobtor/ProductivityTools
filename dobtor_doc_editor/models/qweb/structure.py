@@ -234,8 +234,13 @@ class ConvStructure:
             )
         label = ' '.join((''.join(chain[0][1].itertext()) or '').split())
         if not label:
-            # 取值型分支沒有文字可當標籤，用第一個分支的欄位名
-            label = (exprs[0][1] or '').split('.')[-1].strip('()')
+            # 取值型分支沒有文字可當標籤，用第一個分支的欄位名稱（查不到才用
+            # 技術名稱——那比值還長，窄欄裡會蓋到隔壁欄）
+            found = re.findall(r'\b(object|line)\.([\w.]+)', exprs[0][1] or '')
+            label = ((self._field_display_label(
+                state, 'line' if found[0][0] == 'line' else 'record', found[0][1])
+                if found else None)
+                or (exprs[0][1] or '').split('.')[-1].strip('()'))
         state['stats']['condition'] += 1
         # 在重複列內要用 line 來源，否則會以主記錄求值、每列同一個值
         source = 'line' if _LINE_TOKEN_RE.search(expr) else 'record'

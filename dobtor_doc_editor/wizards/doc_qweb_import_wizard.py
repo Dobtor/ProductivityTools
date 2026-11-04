@@ -87,6 +87,8 @@ class DocQwebImportWizard(models.TransientModel):
         margin_x = official['margin_left'] + official['margin_right']
         result = self.env['doc.qweb.converter'].with_context(
             doc_convert_margin_x=margin_x,
+            doc_convert_text_size=Template._OFFICIAL_TEXT_STYLE['text_size'],
+            doc_convert_text_font=Template._OFFICIAL_TEXT_STYLE['text_font'],
         ).convert_report(
             self.report_id, page_format=self.page_format,
             validate_with=sample,

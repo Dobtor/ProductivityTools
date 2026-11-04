@@ -11,7 +11,8 @@
 import base64
 import copy
 import html as html_mod
-
+import re
+import unicodedata
 
 from odoo import fields, models
 from odoo.tools.misc import format_amount
@@ -221,6 +222,126 @@ class RenderSnapshot:
                     continue
                 elements[idx:idx + 1] = pieces
                 idx += len(pieces)
+        return tree
+
+    # ─── 藥丸比格子寬（canvas-editor 的藥丸不會在中間換行）─────────
+    #
+    # 藥丸是一整塊，比所在的格子寬時直接蓋到隔壁欄。轉換時把顯示的名稱縮到
+    # 放得下（_fit_pill_labels），「顯示實際值」時把長的值切成幾顆
+    # （_preview_wrap_pills），編輯器就會在藥丸之間換行。
+    # 寬度是估的：英數字約半個字寬、中文一個字寬；藥丸左右各留 6px
+    # （PILL_STYLE 的 padding），格子左右各留 5px（canvas-editor 的 tdPadding）。
+    _PILL_PAD_X = 12
+    _TD_PAD_X = 10
+    # 英數字平均幾個字寬（em）。Lato 比較窄；其他字型（正黑體、Arial）寬一點，
+    # 估寬一點的代價只是多切一刀，估窄了才會蓋到隔壁欄
+    _CHAR_EM = 0.55
+    _CHAR_EM_BY_FONT = {'Lato': 0.5}
+
+    def _char_em(self, font=None):
+        return self._CHAR_EM_BY_FONT.get(font or '', self._CHAR_EM)
+
+    def _estimate_text_px(self, text, size, em=None):
+        units = sum(2 if unicodedata.east_asian_width(ch) in ('W', 'F') else 1
+                    for ch in text or '')
+        return units * size * (em or self._CHAR_EM)
+
+    def _lists_with_width(self, elements, width):
+        """yield (元素串列, 這一串可用的寬度)，往下走進表格的每一格。"""
+        yield elements, width
+        for el in elements:
+            if not isinstance(el, dict) or el.get('type') != 'table':
+                continue
+            cols = [int((c or {}).get('width') or 0) for c in (el.get('colgroup') or [])]
+            for row in el.get('trList') or []:
+                col = 0
+                for cell in (row.get('tdList') if isinstance(row, dict) else None) or []:
+                    if not isinstance(cell, dict):
+                        continue
+                    span = max(1, int(cell.get('colspan') or 1))
+                    cell_w = sum(cols[col:col + span]) or width
+                    col += span
+                    if isinstance(cell.get('value'), list):
+                        yield from self._lists_with_width(
+                            cell['value'], max(20, cell_w - self._TD_PAD_X))
+
+    def _split_to_width(self, text, width, size, em=None):
+        """文字切成每段都放得下 width 的幾段（在空白處切；中文任一字都能切）。"""
+        em = em or self._CHAR_EM
+        tokens = []
+        for token in re.findall(r'\S+\s*|\s+', text or ''):
+            if any(unicodedata.east_asian_width(ch) in ('W', 'F') for ch in token):
+                tokens.extend(token)
+            else:
+                tokens.append(token)
+        lines, current = [], ''
+        for token in tokens:
+            if current and self._estimate_text_px(current + token.rstrip(), size, em) > width:
+                lines.append(current)
+                current = ''
+            while self._estimate_text_px(token.rstrip(), size, em) > width and len(token) > 1:
+                # 一個字就比格子寬（很長的單號）：硬切
+                cut = max(1, int(width / (size * em)))
+                lines.append(token[:cut])
+                token = token[cut:]
+            current += token
+        if current.strip():
+            lines.append(current)
+        return lines or [text]
+
+    def _is_pill_text(self, el):
+        """畫成一行文字的藥丸（圖片、Html 欄位不算）。"""
+        if not isinstance(el, dict) or el.get('type') != 'label':
+            return False
+        src = (self._element_field_meta(el) or {}).get('source') or ''
+        return src not in (self._IMAGE_SOURCE, self._HTML_SOURCE) \
+            and isinstance(el.get('value'), str)
+
+    def _preview_wrap_pills(self, tree, width, size, font=None):
+        """「顯示實際值」：比所在位置寬的藥丸切成幾顆（就地改寫並回傳 tree）。
+
+        只給預覽用、不可存回（同 _preview_display_pills）。
+        """
+        em = self._char_em(font)
+        for elements, avail in self._lists_with_width(tree.get('main') or [], width):
+            idx = 0
+            while idx < len(elements):
+                el = elements[idx]
+                if not self._is_pill_text(el):
+                    idx += 1
+                    continue
+                px = el.get('size') or size
+                room = avail - self._PILL_PAD_X
+                if self._estimate_text_px(el['value'], px, em) <= room:
+                    idx += 1
+                    continue
+                pieces = []
+                for part in self._split_to_width(el['value'], room, px, em):
+                    piece = copy.deepcopy(el)
+                    piece['value'] = part
+                    pieces.append(piece)
+                elements[idx:idx + 1] = pieces
+                idx += len(pieces)
+        return tree
+
+    def _fit_pill_labels(self, tree, width, size, font=None):
+        """範本模式：藥丸上顯示的名稱比所在位置寬時縮短（尾巴換成「…」）。
+
+        只改顯示的字（value），來源與 labelText 不動——快照時 value 會被值蓋掉。
+        """
+        em = self._char_em(font)
+        for elements, avail in self._lists_with_width(tree.get('main') or [], width):
+            for el in elements:
+                if not self._is_pill_text(el):
+                    continue
+                px = el.get('size') or size
+                room = avail - self._PILL_PAD_X
+                text = el['value']
+                if self._estimate_text_px(text, px, em) <= room:
+                    continue
+                while len(text) > 1 and self._estimate_text_px(text + '…', px, em) > room:
+                    text = text[:-1]
+                el['value'] = text.rstrip() + '…'
         return tree
 
     def _preview_image_element(self, el, uri):

@@ -160,9 +160,16 @@ class ConvBlocks:
         if not has_value:
             label = ' '.join((''.join(node.itertext()) or '').split())[:20]
         if not label:
-            paths = re.findall(r'\b(?:object|line)\.([\w.]+)', value_expr or '')
-            label = (paths[0].split('.')[-1] if paths
-                     else (value_expr or '').split('.')[-1].strip('()\'"'))[:20]
+            found = re.findall(r'\b(object|line)\.([\w.]+)', value_expr or '')
+            # 欄位名稱（「小計」）優先，查不到才用技術名稱：技術名稱比值長，
+            # 在明細表的窄欄裡會蓋到隔壁欄
+            if found:
+                root, path = found[0]
+                label = (self._field_display_label(
+                    state, 'line' if root == 'line' else 'record', path)
+                    or path.split('.')[-1])[:20]
+            else:
+                label = (value_expr or '').split('.')[-1].strip('()\'"')[:20]
         state['stats']['condition'] += 1
         return self._pill(
             label or '條件取值', state,
