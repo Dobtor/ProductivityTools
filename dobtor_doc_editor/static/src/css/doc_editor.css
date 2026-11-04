@@ -3075,6 +3075,12 @@
     border-bottom: 1px solid #eee;
 }
 .doc-field-palette-filter i { color: #9aa0a6; font-size: 12px; }
+/* 篩選中的說明：讓使用者知道工具區塊是暫時收起來，不是不見了 */
+.doc-palette-filter-note {
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #5f6368;
+}
 .doc-field-palette-filter input {
     flex: 1;
     min-width: 0;
@@ -3542,6 +3548,7 @@
     border-bottom-color: var(--gd-toolbar-border);
 }
 .o_dobtor_doc_editor.is-dark-mode .doc-field-palette-filter i,
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-filter-note,
 .o_dobtor_doc_editor.is-dark-mode .doc-field-palette-expand,
 .o_dobtor_doc_editor.is-dark-mode .doc-field-palette-empty,
 .o_dobtor_doc_editor.is-dark-mode .doc-field-palette-cond-btn {

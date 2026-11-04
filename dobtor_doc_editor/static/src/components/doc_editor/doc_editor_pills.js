@@ -357,12 +357,8 @@ export const DocEditorPills = (Base) => class extends Base {
     }
 
     get htmlFields() {
-        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        const list = (this.state.modelFields || []).filter(f => f.type === "html");
-        if (!q) return list;
-        return list.filter(f =>
-            (f.label || "").toLowerCase().includes(q) ||
-            (f.name || "").toLowerCase().includes(q)
+        return (this.state.modelFields || []).filter(
+            f => f.type === "html" && this._fieldMatchesQuery(f)
         );
     }
 
@@ -815,13 +811,7 @@ export const DocEditorPills = (Base) => class extends Base {
     }
 
     get filteredLineFields() {
-        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        const list = this.state.lineFields || [];
-        if (!q) return list;
-        return list.filter(f =>
-            (f.label || "").toLowerCase().includes(q) ||
-            (f.name || "").toLowerCase().includes(q)
-        );
+        return (this.state.lineFields || []).filter((f) => this._fieldMatchesQuery(f));
     }
 
     /** 明細欄位 → source='line' 的綁定定義（path 相對於當前明細）。 */
