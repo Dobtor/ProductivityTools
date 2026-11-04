@@ -769,6 +769,12 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
             if (this.editor?.listener) {
                 this.editor.listener.contentChange = null;
             }
+            this._workspaceEl?.removeEventListener("scroll", this._onWorkspaceScroll);
+            if (this._pageNoFrame) {
+                cancelAnimationFrame(this._pageNoFrame);
+            }
+            clearTimeout(this._thumbnailTimer);
+            this._workspaceEl = null;
 
             // 銷毀 Canvas 編輯器實例（v0.9.128 已提供 destroy 官方 API）
             this.editor?.destroy?.();

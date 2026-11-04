@@ -315,30 +315,14 @@ export const DocEditorShell = (Base) => class extends Base {
         };
 
         // Sprint B：同步 canvas-editor 頁碼狀態到 state，讓 pager / dashboard 即時反映。
-        //   intersectionPageNoChange → 滾動時 viewport 可見頁變更
-        //   pageSizeChange → 文件分頁數變更（新增/刪除內容導致分頁變化）
+        //   pageSizeChange → 文件分頁數變更（新增/刪除內容導致分頁變化），參數就是新的頁數
+        //     （canvas-editor 的 command 沒有 getPageCount，以前去呼叫它一律失敗，頁數永遠停在 1）
         //   pageScaleChange → 縮放比例變更（user 操作或 fit 模式觸發）
-        this.editor.listener.intersectionPageNoChange = (pageNo) => {
-            try {
-                // canvas-editor 用 0-based pageNo；UI 顯示 1-based
-                const oneBased = typeof pageNo === "number" ? pageNo + 1 : 1;
-                if (this.state.pageNo !== oneBased) {
-                    this.state.pageNo = oneBased;
-                }
-            } catch (e) {
-                // 不要讓 listener 抛例外破壞 canvas-editor 內部流程
-            }
-        };
-        this.editor.listener.pageSizeChange = () => {
-            try {
-                const total = typeof this.editor.command.getPageCount === "function"
-                    ? this.editor.command.getPageCount()
-                    : null;
-                if (typeof total === "number" && total >= 1 && this.state.totalPages !== total) {
-                    this.state.totalPages = total;
-                }
-            } catch (e) {
-                // 容錯：API 不存在或拋例外時保留現有 state.totalPages
+        // 目前頁不用 canvas-editor 的 intersectionPageNoChange：它只聽整個網頁的捲動，
+        // 但編輯器是工作區自己捲，它永遠以為停在第 1 頁 → 改由 _syncVisiblePageNo 自己算。
+        this.editor.listener.pageSizeChange = (pageSize) => {
+            if (Number.isInteger(pageSize) && pageSize >= 1 && this.state.totalPages !== pageSize) {
+                this.state.totalPages = pageSize;
             }
             // Sprint C：分頁數變更時必更新縮圖
             this._scheduleRebuildThumbnails(600);
@@ -352,19 +336,21 @@ export const DocEditorShell = (Base) => class extends Base {
                 // 容錯
             }
         };
-        // 初始化時讀一次總頁數（避免 listener 沒觸發前 dashboard 顯示 1）
-        try {
-            const total = typeof this.editor.command.getPageCount === "function"
-                ? this.editor.command.getPageCount()
-                : 1;
-            this.state.totalPages = total || 1;
-            const cur = typeof this.editor.command.getPageNo === "function"
-                ? this.editor.command.getPageNo()
-                : 0;
-            this.state.pageNo = (cur || 0) + 1;
-        } catch (e) {
-            // 容錯
-        }
+        // 初始化時讀一次總頁數（建構時第一次排版已建好每頁的 canvas，listener 掛上前就排完了）
+        this.state.totalPages = this._getPageCanvases().length || 1;
+        this.state.pageNo = 1;
+        this._workspaceEl = this.canvasContainer.el.closest(".doc-workspace");
+        this._onWorkspaceScroll = () => {
+            // 一個畫面更新只算一次，捲動時不卡
+            if (this._pageNoFrame) {
+                return;
+            }
+            this._pageNoFrame = requestAnimationFrame(() => {
+                this._pageNoFrame = null;
+                this._syncVisiblePageNo();
+            });
+        };
+        this._workspaceEl?.addEventListener("scroll", this._onWorkspaceScroll, { passive: true });
 
         // Sprint C：縮圖 panel 初始化 + 後續變更時 debounce 重生
         this._scheduleRebuildThumbnails(50);  // 初次延遲 50ms 等 canvas 真渲染
@@ -373,8 +359,8 @@ export const DocEditorShell = (Base) => class extends Base {
 
     // ─── Sprint C：頁面縮圖（debounced）─────────────────────────────
     //
-    // 設計：每頁 canvas-editor 渲染為獨立 <canvas> 元素，直接用 toDataURL
-    // 取縮圖（壓縮品質 0.5 + max 200x283 ≈ A4 縮影）。
+    // 設計：每頁 canvas-editor 渲染為獨立 <canvas> 元素，縮小後轉 JPEG 當縮圖
+    // （壓縮品質 0.5 + 寬 200 ≈ A4 縮影）。
     // 重生時機：
     //   1. 初次 _initCanvasEditor 完（50ms 延遲等 canvas 真渲染）
     //   2. contentChange listener 觸發後（已內部 debounce、再加 thumbnail 自家 800ms debounce 避免抖動）
@@ -390,52 +376,97 @@ export const DocEditorShell = (Base) => class extends Base {
         }, delayMs);
     }
 
-    _rebuildThumbnails() {
-        if (!this.canvasContainer?.el) {
+    /** 每頁一個 canvas（cursor、選取框等都是 div，不會混進來）。 */
+    _getPageCanvases() {
+        return [...(this.canvasContainer?.el?.querySelectorAll(".ce-page-container > canvas") || [])];
+    }
+
+    /**
+     * canvas-editor 只畫捲進畫面的頁，沒捲到的頁還是透明空白（轉 JPEG 會變全黑）。
+     * 每頁畫的時候會先鋪滿底色，所以看角落一個像素有沒有顏色就知道畫過沒。
+     */
+    _hasUnpaintedPage(pageCanvases) {
+        return pageCanvases.some((c) => {
+            try {
+                return c.getContext("2d").getImageData(1, 1, 1, 1).data[3] === 0;
+            } catch {
+                return false;
+            }
+        });
+    }
+
+    async _rebuildThumbnails() {
+        if (!this.editor || !this.canvasContainer?.el) {
             return;
         }
+        // 非同步期間可能又排了一次重建，只採用最後一次的結果
+        const token = (this._thumbnailToken = (this._thumbnailToken || 0) + 1);
         try {
-            const pageCanvases = this.canvasContainer.el.querySelectorAll("canvas");
+            // 有頁還沒畫過 → 請 canvas-editor 一次把所有頁畫完（getImage 會立即繪製全部頁面，
+            // 不記入復原紀錄、也不觸發內容變更）。焦點在側欄輸入框時先跳過：繪製時若紙上有
+            // 選取範圍，canvas-editor 會把焦點搶回紙上，打字到一半會被打斷；下次重建再補。
+            const focusInPanel = document.activeElement?.matches?.("input, textarea, select")
+                && !this.canvasContainer.el.contains(document.activeElement);
+            if (!focusInPanel && this._hasUnpaintedPage(this._getPageCanvases())) {
+                await this.editor.command.getImage();
+                if (token !== this._thumbnailToken || !this.editor) {
+                    return;
+                }
+            }
             const MAX_W = 200;
             const thumbs = [];
-            for (let i = 0; i < pageCanvases.length; i++) {
-                const c = pageCanvases[i];
-                // 跳過 0-size canvas（cursor canvas、隱藏 canvas）
-                if (!c.width || !c.height) continue;
+            this._getPageCanvases().forEach((c, i) => {
+                if (!c.width || !c.height) {
+                    return;
+                }
+                // 頁面 canvas 很大（A4 × 縮放 × 螢幕倍率），縮小後再轉檔，100 頁也不卡
+                const w = MAX_W;
+                const h = Math.max(1, Math.round((c.height * MAX_W) / c.width));
+                const tmp = document.createElement("canvas");
+                tmp.width = w;
+                tmp.height = h;
+                const ctx = tmp.getContext("2d");
+                // 先鋪白底：萬一某頁還沒畫，縮圖是空白紙而不是黑塊
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(c, 0, 0, w, h);
                 let dataUrl;
                 try {
-                    // canvas-editor 主 page canvas 通常很大（A4 @ 96DPI × pixelRatio）
-                    // 直接 toDataURL 對 100 頁文件會卡 UI；用 OffscreenCanvas 縮小
-                    if (typeof OffscreenCanvas !== "undefined") {
-                        const ratio = MAX_W / c.width;
-                        const w = Math.max(1, Math.floor(c.width * ratio));
-                        const h = Math.max(1, Math.floor(c.height * ratio));
-                        const off = new OffscreenCanvas(w, h);
-                        const ctx = off.getContext("2d");
-                        ctx.drawImage(c, 0, 0, w, h);
-                        // OffscreenCanvas.convertToBlob 是 async；用 toDataURL 退而求其次
-                        // → 走 sync 路徑：建臨時 HTMLCanvasElement
-                        const tmp = document.createElement("canvas");
-                        tmp.width = w;
-                        tmp.height = h;
-                        tmp.getContext("2d").drawImage(c, 0, 0, w, h);
-                        dataUrl = tmp.toDataURL("image/jpeg", 0.5);
-                    } else {
-                        dataUrl = c.toDataURL("image/jpeg", 0.3);
-                    }
-                } catch (toDataErr) {
+                    dataUrl = tmp.toDataURL("image/jpeg", 0.5);
+                } catch {
                     // SecurityError / tainted canvas：跳過該頁
-                    continue;
+                    return;
                 }
                 thumbs.push({
-                    pageNo: thumbs.length + 1,
+                    pageNo: i + 1,
                     dataUrl: dataUrl,
                     fieldCount: 0,  // 後續可從 _templateFieldsCache 對應頁數 group by 算
                 });
-            }
+            });
             this.state.thumbnails = thumbs;
         } catch (e) {
             console.warn("[DocEditor] _rebuildThumbnails failed", e);
+        }
+    }
+
+    /** 工作區捲動時，看哪一頁佔可視範圍最多，就當作目前頁。 */
+    _syncVisiblePageNo() {
+        if (!this._workspaceEl) {
+            return;
+        }
+        const view = this._workspaceEl.getBoundingClientRect();
+        let pageNo = 1;
+        let maxVisible = 0;
+        this._getPageCanvases().forEach((c, i) => {
+            const r = c.getBoundingClientRect();
+            const visible = Math.min(r.bottom, view.bottom) - Math.max(r.top, view.top);
+            if (visible > maxVisible) {
+                maxVisible = visible;
+                pageNo = i + 1;
+            }
+        });
+        if (this.state.pageNo !== pageNo) {
+            this.state.pageNo = pageNo;
         }
     }
 

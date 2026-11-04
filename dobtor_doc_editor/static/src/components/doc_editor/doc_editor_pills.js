@@ -3472,7 +3472,7 @@ export const DocEditorPills = (Base) => class extends Base {
      *
      * canvas-editor 沒有暴露 `editor.command.executePageNo`，但每頁渲染為獨立
      * `<canvas>` 元素於容器內。透過 `scrollIntoView` 把對應頁滾入視野，
-     * 隨後由 `intersectionPageNoChange` listener 回寫 state.pageNo。
+     * 隨後由工作區捲動事件（_syncVisiblePageNo）回寫 state.pageNo。
      */
     onPrevPage() {
         if (this.state.pageNo > 1) {
@@ -3498,8 +3498,8 @@ export const DocEditorPills = (Base) => class extends Base {
             return;
         }
         try {
-            // canvas-editor 每頁渲染為一個 <canvas>；用 nth-of-type 選第 N 個
-            const pageCanvases = this.canvasContainer.el.querySelectorAll("canvas");
+            // canvas-editor 每頁渲染為一個 <canvas>；選第 N 個
+            const pageCanvases = this._getPageCanvases();
             const idx = target - 1;
             if (idx < 0 || idx >= pageCanvases.length) {
                 this.notification.add(
@@ -3509,7 +3509,7 @@ export const DocEditorPills = (Base) => class extends Base {
                 return;
             }
             pageCanvases[idx].scrollIntoView({ behavior: "smooth", block: "start" });
-            // 樂觀更新 state.pageNo；intersectionPageNoChange listener 隨後會校正
+            // 樂觀更新 state.pageNo；捲動事件隨後會校正
             this.state.pageNo = target;
         } catch (e) {
             console.warn("[DocEditor] _scrollToPage failed", e);
