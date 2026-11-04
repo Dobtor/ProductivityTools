@@ -190,12 +190,42 @@ class RenderOutput:
             return text
         return '<span style="%s">%s</span>' % (style, text) if style else text
 
+    # canvas-editor 的逐格框線（td.borderTypes）→ CSS 屬性
+    _TD_BORDER_SIDES = {'top': 'border-top', 'right': 'border-right',
+                        'bottom': 'border-bottom', 'left': 'border-left'}
+
+    def _cell_style(self, cell, col, last_col, padding, border_color):
+        """格子的 inline style：逐格框線、轉換器指定的格內距。
+
+        padding（表格 extension 的 cellPadding，上右下左 px）照官方報表的
+        規則：第一欄不留左內距、最後一欄不留右內距（report_tables.scss 的
+        th:first-child／td:last-child）。
+        """
+        parts = []
+        if padding:
+            top, right, bottom, left = padding
+            parts.append('padding:%spx %spx %spx %spx' % (
+                top, 0 if col + int(cell.get('colspan') or 1) > last_col else right,
+                bottom, 0 if col == 0 else left))
+        for side in cell.get('borderTypes') or []:
+            prop = self._TD_BORDER_SIDES.get(side)
+            if prop:
+                parts.append('%s:1px solid %s' % (prop, border_color))
+        return ' style="%s"' % ';'.join(parts) if parts else ''
+
     def _table_to_html(self, el):
+        ext = el.get('extension') or {}
+        padding = ext.get('cellPadding')
+        if not (isinstance(padding, list) and len(padding) == 4):
+            padding = None
+        border_color = el.get('borderColor') or '#000'
+        last_col = max(len(el.get('colgroup') or []), 1) - 1
         rows = []
         for row in (el.get('trList') or []):
             if not isinstance(row, dict):
                 continue
             cells = []
+            col = 0
             for cell in (row.get('tdList') or []):
                 if not isinstance(cell, dict):
                     continue
@@ -204,6 +234,8 @@ class RenderOutput:
                     attrs += ' colspan="%d"' % int(cell['colspan'])
                 if (cell.get('rowspan') or 1) > 1:
                     attrs += ' rowspan="%d"' % int(cell['rowspan'])
+                attrs += self._cell_style(cell, col, last_col, padding, border_color)
+                col += max(1, int(cell.get('colspan') or 1))
                 # 格子一律有隱含的段落起點（canvas-editor 的 isForceCompensation），
                 # 開頭的換行在格子裡是一行空白，不像正文會被吸收
                 cells.append('<td%s>%s</td>' % (
@@ -217,9 +249,14 @@ class RenderOutput:
         # 區塊容器不是真的表格，不可印框線。class 讓四條輸出路徑各自關掉邊框，
         # 而不是在這裡寫 inline style——inline style 進不了 python-docx 的表格樣式。
         kind = self._element_block_kind(el)
-        cls = ' class="doc-block"' if kind else ''
+        classes = ['doc-block'] if kind else []
+        if not kind and el.get('borderType') == 'empty':
+            # 編輯器裡設成「無框線」的表格（轉換出來的明細表照官方只畫表頭
+            # 下一條線，那條線寫在格子的 borderTypes 上）
+            classes.append('doc-noborder')
+        cls = ' class="%s"' % ' '.join(classes) if classes else ''
         cols = ''
-        if kind in ('layout', '') and (el.get('extension') or {}).get('fixedCols'):
+        if kind != 'condition' and ext.get('fixedCols'):
             # 轉換器排的表格要照編輯器的欄寬：
             #   * 並排區塊（地址、資訊欄）：自動排版依內容分寬，左格空著時會被
             #     縮成 0，右格的地址就跑到最左邊
@@ -231,8 +268,7 @@ class RenderOutput:
                       for c in (el.get('colgroup') or [])]
             total = sum(widths)
             if total > 0 and all(w > 0 for w in widths):
-                cls = (' class="doc-block doc-layout"' if kind
-                       else ' class="doc-layout"')
+                cls = ' class="%s"' % ' '.join(classes + ['doc-layout'])
                 cols = '<colgroup>%s</colgroup>' % ''.join(
                     '<col style="width:%.2f%%"/>' % (w * 100.0 / total)
                     for w in widths)

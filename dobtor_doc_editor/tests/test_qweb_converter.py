@@ -1023,7 +1023,8 @@ class TestTaxTotalsInTable(TestQwebConverterBase):
         )
         blocks = self._blocks(res)
         self.assertTrue(blocks)
-        metas = [m for m in self._metas(blocks[0]['trList'][0]['tdList'][0]['value'])]
+        # 第一欄是撐出左半邊的空欄（合計區照官方在右半邊），說明在第二欄
+        metas = [m for m in self._metas(blocks[0]['trList'][0]['tdList'][1]['value'])]
         self.assertEqual(metas[0].get('currencyMode'), 'company')
 
 
@@ -1839,6 +1840,91 @@ class TestOfficialTextStyle(TestQwebConverterBase):
             'font': 'Lato', 'size': 13, 'row_margin': 0.2, 'color': '#212529'})
         big = Report._estimate_html_height(html)
         self.assertLess(small, big, '字小、行距緊，頁首就沒那麼高')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestOfficialTableStyle(TestQwebConverterBase):
+    """轉換出來的表格照官方的線條與留白：沒有框線、表頭下一條線、合計區在右半邊。
+
+    以前每一格都是黑框（編輯器預設的全框線），合計區整排靠左、沒有線。
+    """
+
+    _LINES = (
+        '<table class="table o_main_table table-borderless">'
+        '<thead><tr><th>Description</th><th class="text-end">Amount</th></tr></thead>'
+        '<tbody><tr t-foreach="o.child_ids" t-as="line">'
+        '<td><span t-field="line.name"/></td>'
+        '<td class="text-end"><span t-field="line.credit_limit"/></td>'
+        '</tr></tbody></table>'
+    )
+
+    def _table(self, body):
+        return list(self._tables(self._convert(body)['tree']['main']))[0]
+
+    def test_lines_table_has_only_the_header_rule(self):
+        table = self._table(self._LINES)
+        self.assertEqual(table.get('borderType'), 'empty')
+        head, body = table['trList'][0], table['trList'][1]
+        self.assertTrue(all(c.get('borderTypes') == ['bottom'] for c in head['tdList']))
+        self.assertFalse(any(c.get('borderTypes') for c in body['tdList']))
+
+    def test_bootstrap_table_gets_cell_padding_and_row_height(self):
+        """.table 每格上下留白：編輯器用列高、PDF 用格內距，單行的列兩邊一樣高。"""
+        table = self._table(self._LINES)
+        self.assertEqual(table['extension'].get('cellPadding'), [6, 6, 6, 6])
+        # 一列字（13 × 1.25 ＋ 上下各 1.6）＋ 上下格內距各 6 ≈ 31
+        self.assertEqual(self.Conv._report_row_height(), 31)
+        self.assertTrue(all(r.get('minHeight') == 31 for r in table['trList']))
+
+    def test_plain_table_has_no_padding(self):
+        table = self._table('<table><tr><td>甲</td><td>乙</td></tr></table>')
+        self.assertEqual(table.get('borderType'), 'empty', '沒寫 class 的表格本來就不畫線')
+        self.assertNotIn('cellPadding', table['extension'])
+
+    def test_bordered_table_keeps_its_borders(self):
+        table = self._table(
+            '<table class="table table-bordered"><tr><td>甲</td></tr></table>')
+        self.assertNotIn('borderType', table)
+
+    def test_tax_totals_sit_in_the_right_half(self):
+        res = self._convert(
+            '<div id="total" class="row"><div class="col-6 ms-auto">'
+            '<table class="o_total_table table table-borderless">'
+            '<t t-call="sale.document_tax_totals"/></table></div></div>')
+        block = next(t for t in self._tables(res['tree']['main'])
+                     if (t.get('extension') or {}).get('dobtorBlock') == 'taxTotals')
+        widths = [c['width'] for c in block['colgroup']]
+        self.assertEqual(len(widths), 3)
+        self.assertAlmostEqual(widths[0] + 6, sum(widths) / 2, delta=2,
+                               msg='左半邊空著：%s' % widths)
+        first, total = block['trList'][0], block['trList'][-1]
+        self.assertFalse(first['tdList'][0]['value'], '第一欄是空的')
+        self.assertEqual(first['tdList'][1].get('borderTypes'), ['top'])
+        self.assertEqual(total['tdList'][2].get('borderTypes'), ['top'])
+        self.assertTrue(any(el.get('bold') for el in total['tdList'][1]['value']),
+                        'Total 是粗體')
+        self.assertTrue(all(el.get('rowFlex') == 'right'
+                            for el in total['tdList'][2]['value']), '金額靠右')
+
+    def test_print_rules_and_padding(self):
+        """PDF：無框線的表格只印格子自己的線；第一欄不留左內距、最後一欄不留右內距。"""
+        Mixin = self.env['doc.render.mixin']
+        table = {
+            'type': 'table', 'value': '', 'borderType': 'empty',
+            'borderColor': '#212529',
+            'extension': {'fixedCols': True, 'cellPadding': [6, 6, 6, 6]},
+            'colgroup': [{'width': 300}, {'width': 302}],
+            'trList': [{'tdList': [
+                {'colspan': 1, 'rowspan': 1, 'borderTypes': ['bottom'],
+                 'value': [{'value': '品名'}]},
+                {'colspan': 1, 'rowspan': 1, 'borderTypes': ['bottom'],
+                 'value': [{'value': '金額'}]},
+            ]}],
+        }
+        html = Mixin._content_json_to_html({'main': [table]})
+        self.assertIn('doc-noborder', html)
+        self.assertIn('padding:6px 6px 6px 0px;border-bottom:1px solid #212529', html)
+        self.assertIn('padding:6px 0px 6px 6px;border-bottom:1px solid #212529', html)
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')

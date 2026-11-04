@@ -82,6 +82,12 @@ export const DocEditorShell = (Base) => class extends Base {
         if (Number(style.row_margin) > 0) {
             options.defaultRowMargin = Number(style.row_margin);
         }
+        if (Number(style.row_margin) > 0 && Number(style.row_margin) !== 1) {
+            // canvas-editor 預設每列至少 42px，PDF 的表格列沒有最小高度——
+            // 條件區塊、並排區塊在編輯器裡會比印出來高一截。照官方樣式的範本
+            // 把下限拿掉，需要列高的明細表由轉換器自己寫 minHeight
+            options.table = { defaultTrMinHeight: 10 };
+        }
         if (style.color) {
             options.defaultColor = style.color;
         }

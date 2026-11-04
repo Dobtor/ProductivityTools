@@ -91,24 +91,55 @@ class ConvBlocks:
 
         cell = lambda *els: {'colspan': 1, 'rowspan': 1,
                              'value': list(els) + [self._newline()]}
+
+        def amount(*els):
+            # 官方的金額靠右（td.text-end）
+            c = cell(*els)
+            self._align_cell(c['value'], 'right')
+            return c
+
+        def ruled(c):
+            # o_total_table 的 border-top：合計區頂端與 Total 那一列上方各一條線
+            c['borderTypes'] = ['top']
+            return c
+
+        def bold(c):
+            for el in c['value']:
+                if el.get('value') != '\n':
+                    el['bold'] = True
+            return c
+
+        # 官方的合計區在右半邊（div#total ＞ div.col-6.ms-auto），左半邊空著。
+        # 編輯器沒有「靠右半版」，用一個空欄撐出左半邊；空欄少算一份格內距，
+        # 說明欄的字才會剛好從頁面中線開始（官方第一欄不留左內距）
+        pad = self._REPORT_CELL_PAD
         inner = self._inner_width(state)
+        half = inner // 2
+        label_w = int(half * 0.6) + pad
+        blank_w = inner - half - pad
+        blank = lambda: {'colspan': 1, 'rowspan': 1, 'value': []}
+        height = self._report_row_height()
+        row = lambda *cells: {'tdList': [blank()] + list(cells),
+                              'minHeight': height, 'height': height}
         return {
             'type': 'table', 'value': '',
-            'extension': {'dobtorBlock': 'taxTotals'},
+            'extension': {'dobtorBlock': 'taxTotals', 'fixedCols': True,
+                          'cellPadding': [pad, pad, pad, pad]},
             'borderType': 'empty',
-            'colgroup': [{'width': int(inner * 0.6)},
-                         {'width': inner - int(inner * 0.6)}],
+            'borderColor': self._REPORT_BORDER_COLOR,
+            'colgroup': [{'width': blank_w}, {'width': label_w},
+                         {'width': inner - blank_w - label_w}],
             'trList': [
                 # 小計列依 tax_totals['subtotals'] 的筆數複製（多稅基時有好幾列）
-                {'tdList': [cell(val('untaxed', 'label', '稅前小計')),
-                            cell(val('untaxed', 'amount', '金額'))]},
-                {'tdList': [cell(val('groups', 'label', '稅別')),
-                            cell(val('groups', 'amount', '稅額'))]},
+                row(ruled(cell(val('untaxed', 'label', '稅前小計'))),
+                    ruled(amount(val('untaxed', 'amount', '金額')))),
+                row(cell(val('groups', 'label', '稅別')),
+                    amount(val('groups', 'amount', '稅額'))),
                 # 現金捨入：沒設定時 tax_totals 裡沒有那個鍵，這一列不印
-                {'tdList': [cell(label('rounding')),
-                            cell(val('rounding', 'amount', '捨入金額'))]},
-                {'tdList': [cell(label('total')),
-                            cell(val('total', 'amount', '總計金額'))]},
+                row(cell(label('rounding')),
+                    amount(val('rounding', 'amount', '捨入金額'))),
+                row(ruled(bold(cell(label('total')))),
+                    ruled(bold(amount(val('total', 'amount', '總計金額'))))),
             ],
         }
 
@@ -409,7 +440,10 @@ class ConvBlocks:
             )
 
         tr_list = []
+        head_starts = []  # 表頭列（<thead> 裡的 tr）轉出來從第幾列開始
         for tr in rows_src:
+            if self._in_thead(tr, node):
+                head_starts.append(len(tr_list))
             wrapper_conds = self._row_wrapper_conditions(tr, node)
             repeat = foreach_rows.get(tr)
             if tr in acc_rows:
@@ -449,7 +483,9 @@ class ConvBlocks:
                 tr_list.append(row)
         if foreach_rows:
             state['stats']['repeat'] += 1
-        return {
+        tr_list = tr_list or [{'tdList': [
+            {'colspan': 1, 'rowspan': 1, 'value': [self._newline()]}]}]
+        table = {
             'type': 'table', 'value': '',
             # fixedCols：PDF 照這裡的欄寬印——自動排版會依內容重分，數字欄
             # 又被擠成兩行，與編輯器畫面也不一樣。
@@ -458,9 +494,61 @@ class ConvBlocks:
             'extension': dict({'fixedCols': True},
                               **({'fitCols': fit_cols} if fit_cols else {})),
             'colgroup': colgroup,
-            'trList': tr_list or [{'tdList': [
-                {'colspan': 1, 'rowspan': 1, 'value': [self._newline()]}]}],
+            'trList': tr_list,
         }
+        self._apply_report_table_style(
+            table, self._class_tokens(node), set(head_starts))
+        return table
+
+    # 官方報表（o_table_standard）的表格：沒有框線，只有表頭下方一條深色線；
+    # Bootstrap 的 .table 每格上下左右留 .5rem，印出來約 6px（見
+    # doc.template._OFFICIAL_TEXT_STYLE 的 0.8 倍換算）
+    _REPORT_BORDER_COLOR = '#212529'
+    _REPORT_CELL_PAD = 6
+
+    def _report_row_height(self):
+        """一列文字加上下格內距的高度——編輯器的列最小高度用它。
+
+        編輯器的格內距只能整份範本設一個值（canvas-editor 的 tdPadding），
+        會連條件區塊、並排區塊一起撐開，所以明細表的上下留白改用列高表達；
+        PDF 則是照官方寫成格子的上下內距，單行的列兩邊一樣高。
+        """
+        style = self.env['doc.template']._OFFICIAL_TEXT_STYLE
+        line = style['text_size'] * 1.25 + 2 * 8 * style['text_row_margin']
+        return int(round(line + 2 * self._REPORT_CELL_PAD))
+
+    def _apply_report_table_style(self, table, classes, head_rows):
+        """轉換出來的表格照官方的線條與留白。
+
+        * 一律無框線（table-bordered 除外）：官方的明細表是 table-borderless，
+          沒寫 class 的表格瀏覽器本來就不畫線
+        * 表頭（<thead> 裡的列）每格下方一條線：o_table_standard 的
+          thead { border-bottom }
+        * Bootstrap 的 .table 才有格內距；沒寫 class 的表格沒有
+        """
+        if 'table-bordered' in classes:
+            return
+        table['borderType'] = 'empty'
+        table['borderColor'] = self._REPORT_BORDER_COLOR
+        for idx in head_rows:
+            if idx < len(table['trList']):
+                for cell in table['trList'][idx].get('tdList') or []:
+                    cell['borderTypes'] = ['bottom']
+        if 'table' in classes:
+            pad = self._REPORT_CELL_PAD
+            table['extension']['cellPadding'] = [pad, pad, pad, pad]
+            height = self._report_row_height()
+            for row in table['trList']:
+                row['minHeight'] = height
+                row['height'] = height
+
+    def _in_thead(self, tr, table):
+        parent = tr.getparent()
+        while parent is not None and parent is not table:
+            if isinstance(parent.tag, str) and parent.tag.lower() == 'thead':
+                return True
+            parent = parent.getparent()
+        return False
 
     def _align_cell(self, elements, align):
         """格子的對齊（td 上的 text-end）寫到格子裡每一段。
