@@ -114,21 +114,23 @@ class ConvBlocks:
         # 說明欄的字才會剛好從頁面中線開始（官方第一欄不留左內距）
         pad = self._REPORT_CELL_PAD
         inner = self._inner_width(state)
-        half = inner // 2
-        label_w = int(half * 0.6) + pad
-        blank_w = inner - half - pad
+        # 發票的合計區本身就在浮動靠右的那一欄裡（_float_end_table），不必再留空欄
+        with_blank = not state.get('in_float_end')
+        half = inner // 2 if with_blank else inner
+        label_w = int(half * 0.6) + (pad if with_blank else 0)
+        blank_w = inner - half - pad if with_blank else 0
         blank = lambda: {'colspan': 1, 'rowspan': 1, 'value': []}
         height = self._report_row_height()
-        row = lambda *cells: {'tdList': [blank()] + list(cells),
+        row = lambda *cells: {'tdList': ([blank()] if with_blank else []) + list(cells),
                               'minHeight': height, 'height': height}
+        widths = ([blank_w] if with_blank else []) + [label_w, inner - blank_w - label_w]
         return {
             'type': 'table', 'value': '',
             'extension': {'dobtorBlock': 'taxTotals', 'fixedCols': True,
                           'cellPadding': [pad, pad, pad, pad]},
             'borderType': 'empty',
             'borderColor': self._REPORT_BORDER_COLOR,
-            'colgroup': [{'width': blank_w}, {'width': label_w},
-                         {'width': inner - blank_w - label_w}],
+            'colgroup': [{'width': w} for w in widths],
             'trList': [
                 # 小計列依 tax_totals['subtotals'] 的筆數複製（多稅基時有好幾列）
                 row(ruled(cell(val('untaxed', 'label', '稅前小計'))),
@@ -827,13 +829,14 @@ class ConvBlocks:
         loop_var = (repeat or ('', 'line'))[1] or 'line'
         collection = ((repeat or ('', ''))[0] or '').strip()
         accumulators = set(state.get('accumulators') or ())
-        # 「目前章節」：在迴圈裡被設成迴圈變數本身的累加器
-        # （<t t-set="current_section" t-value="line"/>）
+        # 「目前章節」：在迴圈裡被設成迴圈變數本身的變數
+        # （<t t-set="current_section" t-value="line"/>）。不限累加器：
+        # 訂單另外會把它清成 None（設兩次），發票只設一次——以前只認設兩次的，
+        # 發票的小計列條件就被展開成「line」（永遠成立），沒有章節也印小計
         root = tr.getroottree().getroot()
         holders = {
-            name for name in accumulators
-            if root.xpath('//t[@t-set=%s][@t-value=%s]'
-                          % (json.dumps(name), json.dumps(loop_var)))
+            node.get('t-set') for node in
+            root.xpath('//t[@t-set][@t-value=%s]' % json.dumps(loop_var))
         }
         boundary = accumulators | {
             '%s_%s' % (loop_var, suffix)

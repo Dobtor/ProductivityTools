@@ -1658,6 +1658,40 @@ class TestAccumulatorToGroup(TestQwebConverterBase):
         ]
         self.assertEqual(conds, ['group.header', 'not line.is_company'])
 
+    def test_section_set_only_once_is_still_the_group_header(self):
+        """發票只設一次 current_section（訂單另外會清成 None、設兩次）。
+
+        以前只認設兩次的，發票的小計列條件被展開成「line」（永遠成立），
+        沒有章節的發票也多印一列小計。
+        """
+        arch = (
+            '<t t-set="total" t-value="0"/>'
+            '<table><tbody>'
+            '<t t-foreach="o.child_ids" t-as="kid">'
+            '<t t-set="total" t-value="total + kid.credit_limit"/>'
+            '<t t-if="kid.type == \'invoice\'">'
+            '<tr><td><span t-out="kid.name"/></td></tr>'
+            '<t t-set="current_section" t-value="kid"/>'
+            '<t t-set="total" t-value="0"/>'
+            '</t>'
+            '<t t-else=""><tr><td><span t-out="kid.name"/></td></tr></t>'
+            '<t t-if="current_section and (kid_last'
+            ' or o.child_ids[kid_index+1].type == \'invoice\')">'
+            '<tr><td>小計<span t-out="total"/></td></tr>'
+            '</t>'
+            '</t></tbody></table>'
+        )
+        res = self._convert(arch)
+        conds = [
+            m.get('expression')
+            for table in self._tables(res['tree']['main'])
+            for row in table['trList']
+            if self.env['doc.render.mixin']._row_group_meta(row)[2] == 'footer'
+            for cell in row['tdList'] for m in self._metas(cell['value'])
+            if m.get('source') == 'condition'
+        ]
+        self.assertEqual(conds, ['group.header'])
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestNoteLevels(TestQwebConverterBase):
@@ -1925,6 +1959,53 @@ class TestOfficialTableStyle(TestQwebConverterBase):
         self.assertIn('doc-noborder', html)
         self.assertIn('padding:6px 6px 6px 0px;border-bottom:1px solid #212529', html)
         self.assertIn('padding:6px 0px 6px 6px;border-bottom:1px solid #212529', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestInvoiceLayout(TestQwebConverterBase):
+    """官方發票的寫法：地址分在三個分支、合計區浮動靠右、粗體寫在取值節點上。"""
+
+    def test_address_in_every_branch_is_printed_once(self):
+        """每個分支都只是「記下地址給外框印」；以前只拆掉第一份，其他分支
+        的又被當成內容，標題下面再印一次客戶地址。"""
+        res = self._convert(
+            '<t t-call="web.external_layout"><div class="row">'
+            '<t t-if="o.is_company"><div class="col-6">'
+            '<t t-set="address"><span>ADDR</span></t></div></t>'
+            '<t t-else=""><div class="offset-col-6 col-6">'
+            '<t t-set="address"><span>ADDR</span></t></div></t>'
+            '</div><p>BODY</p></t>')
+        texts = self._texts(res['tree']['main'])
+        self.assertEqual(texts.count('ADDR'), 1, texts)
+        self.assertIn('BODY', texts)
+
+    def test_float_end_block_sits_beside_the_following_content(self):
+        """合計區（div.col-5.float-end）在右、後面的付款說明在左，不再掉到下面。"""
+        res = self._convert(
+            '<div><div class="col-5 ms-5 d-inline-block float-end">'
+            '<span>RIGHT</span></div>'
+            '<p>LEFT</p><p>MORE</p></div>')
+        table = next(self._tables(res['tree']['main']))
+        left, right = table['trList'][0]['tdList']
+        self.assertEqual(self._texts(left['value']), ['LEFT', 'MORE'])
+        self.assertEqual(self._texts(right['value']), ['RIGHT'])
+        widths = [c['width'] for c in table['colgroup']]
+        self.assertAlmostEqual(widths[1] / sum(widths), 5 / 12, delta=0.01)
+
+    def test_value_node_own_class_style(self):
+        res = self._convert('<p>Ref: <span class="fw-bold" t-field="o.ref"/></p>')
+        pill = next(el for el in res['tree']['main']
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertTrue(pill.get('bold'), '單號是粗體（發票付款說明）')
+
+    def test_bold_inside_branch_wrapper(self):
+        """<t t-if><strong>Invoice Date</strong></t>：粗體在分支裡面一層。"""
+        res = self._convert(
+            '<div><t t-if="o.is_company"><strong>Invoice Date</strong></t>'
+            '<t t-else=""><strong>Date</strong></t></div>')
+        pill = next(el for el in res['tree']['main']
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertTrue(pill.get('bold'), pill)
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')

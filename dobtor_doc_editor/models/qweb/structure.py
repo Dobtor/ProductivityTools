@@ -59,6 +59,11 @@ class ConvStructure:
         idx = 0
         while idx < len(children):
             child = children[idx]
+            if self._is_float_end(child):
+                # 浮動靠右的區塊：後面的兄弟節點都繞在它左邊排（見 _float_end_table）
+                out.append(self._float_end_table(child, children[idx + 1:], state))
+                out.append(self._newline())
+                return
             chain = self._collect_chain(children, idx)
             if chain:
                 self._emit_chain(chain, out, state)
@@ -250,12 +255,27 @@ class ConvStructure:
         # 分支節點自己的樣式要跟著藥丸走：原生的
         # <strong t-if>Quotation Date</strong><strong t-else>Order Date</strong>
         # 收成藥丸後，粗體是寫在分支節點上的，不套就印成一般字
-        styles = [self._node_style(node, node.tag.lower())
-                  if isinstance(node.tag, str) else None
-                  for _cond, node in chain]
+        styles = [self._branch_style(node) for _cond, node in chain]
         if styles[0] and all(s == styles[0] for s in styles):
             pill.update(styles[0])
         return pill
+
+    def _branch_style(self, node):
+        """分支的文字樣式：分支節點自己的；分支是 <t> 包一個節點時看裡面那個。
+
+        發票寫成 <t t-if=…><strong>Invoice Date</strong></t>：粗體在裡面一層，
+        只看分支節點（<t>）的話是一般字。
+        """
+        if not isinstance(node.tag, str):
+            return None
+        tag = node.tag.lower()
+        if tag == 't':
+            children = [c for c in node if isinstance(c.tag, str)]
+            if len(children) == 1 and not (node.text or '').strip() \
+                    and not (children[0].tail or '').strip():
+                return self._branch_style(children[0])
+            return None
+        return self._node_style(node, tag)
 
     def _chain_blocks(self, chain, state):
         """複雜分支 → 巢狀的若／否則區塊（實測三擇一可行）。"""
@@ -352,6 +372,61 @@ class ConvStructure:
         return True
 
     # col / col-6 / col-sm-7 / col-auto
+    def _is_float_end(self, node):
+        """沒有條件的 div.float-end（發票的合計區 #right-elements）。"""
+        if not isinstance(node.tag, str) or node.tag.lower() != 'div':
+            return False
+        if any(node.get(a) is not None for a in ('t-if', 't-elif', 't-else', 't-foreach')):
+            return False
+        return 'float-end' in self._class_tokens(node)
+
+    # 浮動區塊沒寫 col-N 時佔幾份（發票寫 col-5）
+    _FLOAT_DEFAULT_SPAN = 5
+
+    def _float_end_table(self, node, following, state):
+        """浮動靠右的區塊 → 兩格無框表格：左格是後面的內容、右格是浮動區塊。
+
+        官方發票把合計區寫成 div.col-5.float-end，後面的付款條件、付款說明、
+        QR code、備註都繞在它左邊排。編輯器沒有浮動排版，以前合計區印完
+        才接著印付款說明，整段掉到合計區下面。
+        """
+        span = self._FLOAT_DEFAULT_SPAN
+        for token in self._class_tokens(node):
+            m = self._COL_CLASS_RE.match(token)
+            if m and (m.group('n') or '').isdigit() and not m.group('bp'):
+                span = int(m.group('n'))
+        inner = self._inner_width(state)
+        right_w = int(inner * span / 12)
+        left_w = inner - right_w
+        holder = self._new_element('t')
+        holder.text = node.tail
+        for sibling in following:
+            holder.append(sibling)
+        left, right = [], []
+        with self._in_width(state, left_w - self._CELL_PADDING):
+            self._emit_children(holder, left, state)
+        # 右格裡的稅額合計不再自己留左半邊空白（它已經在右邊了）
+        state['in_float_end'] = state.get('in_float_end', 0) + 1
+        try:
+            with self._in_width(state, right_w - self._CELL_PADDING):
+                self._emit_children(node, right, state)
+        finally:
+            state['in_float_end'] -= 1
+        for cell in (left, right):
+            if not cell or (cell[-1].get('value') or '') != '\n':
+                cell.append(self._newline())
+        state['stats']['table'] += 1
+        return {
+            'type': 'table', 'value': '',
+            'extension': {'dobtorBlock': 'layout', 'fixedCols': True},
+            'borderType': 'empty',
+            'colgroup': [{'width': left_w}, {'width': right_w}],
+            'trList': [{'tdList': [
+                {'colspan': 1, 'rowspan': 1, 'value': left},
+                {'colspan': 1, 'rowspan': 1, 'value': right},
+            ]}],
+        }
+
     _COL_CLASS_RE = re.compile(
         r'^col(?:-(?P<bp>sm|md|lg|xl|xxl))?(?:-(?P<n>\d{1,2}|auto))?$')
 
@@ -481,6 +556,11 @@ class ConvStructure:
                         pill = self._value_pill(node, expr, state)
                         if attr == 't-field':
                             self._set_empty_text(node, pill)
+                # 取值節點自己的樣式：<span class="fw-bold" t-field="o.payment_reference">
+                # 以前只看外層容器，發票付款說明裡的單號印成一般字
+                own_style = self._node_style(node, tag)
+                if own_style and self._takes_style(pill):
+                    pill.update(own_style)
                 self._append_value(node, tag, pill, out)
                 return
 
