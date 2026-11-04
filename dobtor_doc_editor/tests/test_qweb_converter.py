@@ -1358,6 +1358,120 @@ class TestColumnWidths(TestQwebConverterBase):
             '<th style="width: 30%">乙</th></tr></table>')
         self.assertLessEqual(sum(widths), 794 - 192 + 1)
 
+    _LINES = (
+        '<table><thead><tr>'
+        '<th class="text-start">Description</th>'
+        '<th class="text-end text-nowrap">Qty</th>'
+        '<th class="text-end">Amount</th>'
+        '</tr></thead><tbody>'
+        '<tr t-foreach="o.child_ids" t-as="line">'
+        '<td><span t-field="line.name">Bacon Burger</span></td>'
+        '<td class="text-end"><span t-field="line.color">3</span>%s</td>'
+        '<td class="text-end"><span t-field="line.credit_limit">27.00</span></td>'
+        '</tr></tbody></table>'
+    )
+
+    def test_numeric_columns_sized_by_content(self):
+        """原生明細表沒寫欄寬、靠瀏覽器依內容排：數字欄剛好放得下，品名吃剩下的。
+
+        平均分的話品名欄被壓窄、「3.00 Units」「Unit Price」擠成兩行
+        （銷售訂單實測）。
+        """
+        res = self._convert(self._LINES % '')
+        table = list(self._tables(res['tree']['main']))[0]
+        widths = [c['width'] for c in table['colgroup']]
+        self.assertEqual(sum(widths), 794 - 192)
+        self.assertGreater(widths[0], widths[1] + widths[2],
+                           '品名欄要比兩個數字欄加起來還寬：%s' % widths)
+        self.assertGreaterEqual(widths[2], len('Amount') * 8,
+                                '表頭的字要放得下：%s' % widths)
+        self.assertGreater(widths[2], widths[1], '小數比整數長：%s' % widths)
+        self.assertTrue(table['extension'].get('fixedCols'),
+                        'PDF 要照這份欄寬印，不再自動排')
+
+    def test_conditional_content_does_not_widen_column(self):
+        """數量後面「有包裝才印」的包裝數量多半不印，算進去數量欄會寬一倍。"""
+        plain = self._colgroup(self._LINES % '')
+        extra = self._colgroup(self._LINES % (
+            '<span t-if="line.ref">(<span t-field="line.ref"/> 包裝)</span>'))
+        self.assertEqual(plain, extra)
+
+    def test_branch_style_follows_value_pill(self):
+        """<strong t-if>…</strong><strong t-else>…</strong> 收成一顆藥丸後，
+        粗體要跟著走——以前「Order Date」印成一般字。"""
+        res = self._convert(
+            '<div><strong t-if="o.is_company">Company Date</strong>'
+            '<strong t-else="">Person Date</strong></div>')
+        pill = next(el for el in res['tree']['main']
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertTrue(pill.get('bold'), pill)
+
+    def test_mixed_branch_styles_are_not_applied(self):
+        res = self._convert(
+            '<div><strong t-if="o.is_company">Company Date</strong>'
+            '<span t-else="">Person Date</span></div>')
+        pill = next(el for el in res['tree']['main']
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertFalse(pill.get('bold'), '只有一邊粗體時不猜')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestFieldEmptyText(TestQwebConverterBase):
+    """t-field 沒有值時印節點裡的字（QWeb 的預設內容）。
+
+    原生訂金那一列沒有單位，<span t-field="line.product_uom">units</span>
+    印出「0.00 units」；以前轉出來只有「0.00」。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def _value(self, body, partner):
+        res = self._convert(body)
+        tree = res['tree']
+        self.Mixin._snapshot_content_json(tree, partner)
+        return self.Mixin._content_json_to_html(
+            self.Mixin._flatten_content_json(tree))
+
+    def test_empty_field_prints_node_text(self):
+        partner = self.env['res.partner'].create({'name': '甲', 'ref': False})
+        html = self._value('<p>Ref: <span t-field="o.ref">REF-000</span></p>',
+                           partner)
+        self.assertIn('REF-000', html)
+
+    def test_value_replaces_node_text(self):
+        partner = self.env['res.partner'].create({'name': '甲', 'ref': 'R-7'})
+        html = self._value('<p>Ref: <span t-field="o.ref">REF-000</span></p>',
+                           partner)
+        self.assertIn('R-7', html)
+        self.assertNotIn('REF-000', html)
+
+    def test_zero_is_a_value(self):
+        """數字 0 不是空值：原生印「0.00」，不印範例值。"""
+        partner = self.env['res.partner'].create({'name': '甲', 'credit_limit': 0})
+        html = self._value(
+            '<p><span t-field="o.credit_limit">9.99</span></p>', partner)
+        self.assertNotIn('9.99', html)
+
+    def test_inside_repeated_rows(self):
+        parent = self.env['res.partner'].create({'name': '母公司', 'is_company': True})
+        self.env['res.partner'].create({'name': '子', 'parent_id': parent.id})
+        html = self._value(
+            '<table><tr t-foreach="o.child_ids" t-as="line">'
+            '<td><span t-field="line.name"/></td>'
+            '<td><span t-field="line.ref">units</span></td></tr></table>',
+            parent)
+        self.assertIn('units', html)
+
+    def test_condition_on_same_node_keeps_empty_blank(self):
+        """<span t-if t-field>：條件不成立時本來就什麼都不印，不可印範例值。"""
+        partner = self.env['res.partner'].create({'name': '甲', 'ref': False})
+        html = self._value(
+            '<p>Ref: <span t-if="o.ref" t-field="o.ref">REF-000</span></p>',
+            partner)
+        self.assertNotIn('REF-000', html)
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestUnconvertedAttrNotes(TestQwebConverterBase):
@@ -1693,6 +1807,40 @@ class TestMultiLanguageStaticText(TestQwebConverterBase):
         self.assertEqual(
             Mixin._eval_for(self.partner.with_context(lang='en_US'))(title).strip(),
             'Company #')
+
+    def test_narrow_column_fits_longest_language(self):
+        """用中文轉換時「單價」兩個字，英文是「Unit Price」：窄欄要放得下最長的那個。"""
+        res = self._convert_translated(
+            '<table><thead><tr><th>Description</th>'
+            '<th class="text-end">Price</th></tr></thead><tbody>'
+            '<tr t-foreach="o.child_ids" t-as="line">'
+            '<td><span t-field="line.name"/></td>'
+            '<td class="text-end"><span t-field="line.credit_limit"/></td>'
+            '</tr></tbody></table>',
+            {'Price': 'Prix unitaire hors taxes'},
+        )
+        table = list(self._tables(res['tree']['main']))[0]
+        widths = [c['width'] for c in table['colgroup']]
+        self.assertGreaterEqual(widths[1], len('Prix unitaire hors taxes') * 8,
+                                '%s' % widths)
+        self.assertEqual(sum(widths), 794 - 192)
+
+    def test_cjk_text_counts_double(self):
+        self.assertEqual(self.Conv._text_units('單價'), 4)
+        self.assertEqual(self.Conv._text_units('Unit'), 4)
+
+    def test_empty_text_has_each_language(self):
+        """訂金列的「units」中文是「單位」：空值時印的字也要照客戶語言。"""
+        res = self._convert_translated(
+            '<p><span t-field="o.ref">units</span></p>', {'units': 'unités'})
+        meta = next(m for m in self._metas(res['tree']['main'])
+                    if m.get('path') == 'ref')
+        self.assertEqual(meta['emptyText'], {'en_US': 'units', 'fr_FR': 'unités'})
+        self.partner.ref = False
+        Mixin = self.env['doc.render.mixin']
+        self.assertEqual(
+            Mixin._empty_text(self.partner.with_context(lang='fr_FR'), meta),
+            'unités')
 
     def test_translate_literals_only_touches_strings_that_differ(self):
         expr = "\"A\" if object.state in ['draft'] else \"B\""

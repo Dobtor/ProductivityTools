@@ -219,16 +219,20 @@ class RenderOutput:
         kind = self._element_block_kind(el)
         cls = ' class="doc-block"' if kind else ''
         cols = ''
-        if kind == 'layout' and (el.get('extension') or {}).get('fixedCols'):
-            # 轉換器排的並排區塊（地址、資訊欄）要照編輯器的欄寬：自動排版
-            # 依內容分寬，左格空著時會被縮成 0，右格的地址就跑到最左邊。
-            # 其他表格維持自動排版（明細表照內容分寬比平均分好看；外框頁首
-            # 的 logo／公司資訊也一直是自動排，不在這裡改它的樣子）。
+        if kind in ('layout', '') and (el.get('extension') or {}).get('fixedCols'):
+            # 轉換器排的表格要照編輯器的欄寬：
+            #   * 並排區塊（地址、資訊欄）：自動排版依內容分寬，左格空著時會被
+            #     縮成 0，右格的地址就跑到最左邊
+            #   * 明細表：轉換器照原生的內容估好了欄寬（數字欄剛好放得下），
+            #     自動排版會被長品名撐開，「3.00 Units」又擠成兩行
+            # 其他表格維持自動排版（使用者自己畫的表格、外框頁首的 logo／
+            # 公司資訊一直是自動排，不在這裡改它們的樣子）。
             widths = [int((c or {}).get('width') or 0)
                       for c in (el.get('colgroup') or [])]
             total = sum(widths)
             if total > 0 and all(w > 0 for w in widths):
-                cls = ' class="doc-block doc-layout"'
+                cls = (' class="doc-block doc-layout"' if kind
+                       else ' class="doc-layout"')
                 cols = '<colgroup>%s</colgroup>' % ''.join(
                     '<col style="width:%.2f%%"/>' % (w * 100.0 / total)
                     for w in widths)

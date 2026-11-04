@@ -8,6 +8,7 @@ import contextlib
 import json
 import logging
 import re
+import unicodedata
 from odoo import models
 from .constants import (
     _logger,
@@ -349,6 +350,12 @@ class ConvBlocks:
 
         inner = self._inner_width(state)
         colgroup = self._colgroup_from_widths(rows_src, max_cols, inner)
+        fit_cols = None
+        if colgroup is None:
+            colgroup, fit_cols = self._colgroup_from_content(
+                rows_src, max_cols, inner, state, foreach_rows)
+        if colgroup is None:
+            colgroup = self._colgroup_even(max_cols, inner)
         col_widths = [c['width'] for c in colgroup]
 
         # 欄條件：同一個 t-if 同時出現在 th 與 td 上 → 欄層級
@@ -444,6 +451,12 @@ class ConvBlocks:
             state['stats']['repeat'] += 1
         return {
             'type': 'table', 'value': '',
+            # fixedCols：PDF 照這裡的欄寬印——自動排版會依內容重分，數字欄
+            # 又被擠成兩行，與編輯器畫面也不一樣。
+            # fitCols：哪幾欄是照內容估的窄欄，給 _merge_languages 取各語言
+            # 裡最寬的（表頭「單價」兩個字，英文是「Unit Price」）
+            'extension': dict({'fixedCols': True},
+                              **({'fitCols': fit_cols} if fit_cols else {})),
             'colgroup': colgroup,
             'trList': tr_list or [{'tdList': [
                 {'colspan': 1, 'rowspan': 1, 'value': [self._newline()]}]}],
@@ -462,8 +475,15 @@ class ConvBlocks:
         if elements:
             elements[-1]['rowFlex'] = align
 
+    def _colgroup_even(self, max_cols, inner):
+        per = inner // max_cols
+        colgroup = [{'width': per} for _ in range(max_cols)]
+        colgroup[-1]['width'] = inner - per * (max_cols - 1)
+        return colgroup
+
     def _colgroup_from_widths(self, rows_src, max_cols, inner):
         """欄寬：有 style="width: N%" 就照它，其餘平分剩下的寬度。
+        一欄都沒寫回 None，交給 _colgroup_from_content 估。
 
         原生用百分比寬度指定明細表的欄寬（36 張報表有 22 處）。不讀的話
         每一欄都一樣寬——品名欄被壓窄、金額欄留一大片空白。
@@ -485,10 +505,7 @@ class ConvBlocks:
                 break
         known = [p for p in pct if p is not None]
         if not known:
-            per = inner // max_cols
-            colgroup = [{'width': per} for _ in range(max_cols)]
-            colgroup[-1]['width'] = inner - per * (max_cols - 1)
-            return colgroup
+            return None
         used = min(sum(known), 95.0)
         rest = [i for i, p in enumerate(pct) if p is None]
         share = (100.0 - used) / len(rest) if rest else 0.0
@@ -498,6 +515,144 @@ class ConvBlocks:
         # 最後一欄吸收湊整的誤差，總寬要剛好等於可用寬度
         widths[-1] = max(20, inner - sum(widths[:-1]))
         return [{'width': w} for w in widths]
+
+    # 照內容估欄寬用的數字。字寬是編輯器預設 16px 字級下英數字的平均寬度；
+    # 字數是各型別在單據上常見的長度（金額「$ 12,345.00」、數量「3.00」、
+    # 單位「Units」），不是上限——估多了品名欄就被壓窄。
+    _EST_CHAR_PX = 8
+    _EST_TYPE_CHARS = {
+        'monetary': 11, 'float': 6, 'integer': 4, 'date': 10,
+        'datetime': 16, 'many2one': 5, 'selection': 6, 'many2many': 6,
+        'boolean': 1,
+    }
+    # 這幾種型別的值會換行、長短不定，所在的欄要留給「吃剩下寬度」的那一邊
+    _EST_TEXT_TYPES = ('char', 'text', 'html')
+    _EST_COMPACT_CLASSES = frozenset({'text-end', 'text-center', 'text-nowrap'})
+    # 窄欄合計的上限：再寬就輪不到品名欄了
+    _EST_COMPACT_MAX = 0.75
+
+    def _colgroup_from_content(self, rows_src, max_cols, inner, state,
+                               foreach_rows):
+        """報表沒寫欄寬時照內容估：數字欄給剛好放得下的寬度，其餘欄平分剩下的。
+
+        原生明細表靠瀏覽器自動排版：數字欄靠右、加了 text-nowrap，寬度由內容
+        撐開，品名欄吃掉剩下的。編輯器的表格只有固定欄寬，平均分的結果是
+        品名欄被壓窄、「3.00 Units」「Unit Price」擠成兩行（銷售訂單實測）。
+
+        靠右／置中／不換行的欄算「窄欄」，寬度取表頭與內容估出來的字數；
+        內容是文字欄位（品名）的欄不算窄欄。
+        回 (colgroup, 每一欄是不是窄欄)；分不出窄欄與寬欄時回 (None, None)。
+        """
+        var_models = {}
+        for expr, as_var in foreach_rows.values():
+            if as_var not in var_models:
+                var_models[as_var] = self._loop_model(state, expr)
+        compact = [False] * max_cols
+        wide = [False] * max_cols
+        chars = [0] * max_cols
+        for tr in rows_src:
+            # 列型分派的每一組格子各自是一種版面，欄位置要分開算
+            holders = [h for _c, h in self._row_branches(tr)]
+            cell_groups = ([h.xpath('./td | ./th') for h in holders] if holders
+                           else [self._row_cells(tr)])
+            for cells in cell_groups:
+                col = 0
+                for cell in cells:
+                    span = max(1, int(cell.get('colspan') or 1))
+                    if span == 1 and col < max_cols:
+                        n, is_text = self._estimate_cell_chars(
+                            cell, state, var_models)
+                        chars[col] = max(chars[col], n)
+                        if is_text:
+                            wide[col] = True
+                        if self._class_tokens(cell) & self._EST_COMPACT_CLASSES:
+                            compact[col] = True
+                    col += span
+        flags = [compact[i] and not wide[i] for i in range(max_cols)]
+        if all(flags) or not any(flags):
+            return None, None
+        widths = [max(40, n * self._EST_CHAR_PX + self._CELL_PADDING)
+                  if fit else 0 for n, fit in zip(chars, flags)]
+        return self._fit_widths(widths, flags, inner), flags
+
+    def _fit_widths(self, widths, flags, inner):
+        """窄欄照 widths，其餘欄平分剩下的寬度 → colgroup。
+
+        窄欄合計超過上限時等比縮小，品名欄至少留四分之一。
+        """
+        fit = [w if f else 0 for w, f in zip(widths, flags)]
+        cap = int(inner * self._EST_COMPACT_MAX)
+        total = sum(fit)
+        if total > cap:
+            fit = [int(w * cap / total) for w in fit]
+        rest = [i for i, f in enumerate(flags) if not f]
+        share = (inner - sum(fit)) // len(rest)
+        for i in rest:
+            fit[i] = share
+        # 最後一個寬欄吸收湊整的誤差，總寬要剛好等於可用寬度
+        fit[rest[-1]] += inner - sum(fit)
+        return [{'width': w} for w in fit]
+
+    @staticmethod
+    def _text_units(text):
+        """字數，中日韓全形字算兩個：16px 的中文字差不多是兩個英數字寬。"""
+        return sum(2 if unicodedata.east_asian_width(ch) in ('W', 'F') else 1
+                   for ch in text)
+
+    def _estimate_cell_chars(self, cell, state, var_models):
+        """格子內容大約幾個字、裡面有沒有文字欄位 → (字數, 有文字欄位)。
+
+        取值節點裡的字是設計師放的範例值（<span t-field="x">3</span>），
+        不算進字數，改看欄位型別。有條件才印的部分（數量後面的包裝數量）
+        不算：多半不會印，算進去數量欄會寬一倍。
+        """
+        pieces = []
+        has_text = False
+
+        def walk(node):
+            nonlocal has_text
+            for attr in ('t-field', 't-out', 't-esc'):
+                expr = node.get(attr)
+                if expr:
+                    n, is_text = self._estimate_value_chars(
+                        node, expr, state, var_models)
+                    pieces.append(n)
+                    has_text = has_text or is_text
+                    return
+            text = (node.text or '').strip()
+            if text:
+                pieces.append(self._text_units(text))
+            for child in node:
+                if isinstance(child.tag, str) and not any(
+                        child.get(a) is not None
+                        for a in ('t-if', 't-elif', 't-else')):
+                    walk(child)
+                tail = (child.tail or '').strip()
+                if tail:
+                    pieces.append(self._text_units(tail))
+
+        walk(cell)
+        # 片段之間大多隔一個空白（「3.00 Units」）
+        total = sum(pieces) + max(0, len(pieces) - 1)
+        return total, has_text
+
+    def _estimate_value_chars(self, node, expr, state, var_models):
+        """取值節點 → (字數, 是不是文字欄位)。查不到欄位時看範例值的長度。"""
+        sample = self._text_units(' '.join(''.join(node.itertext()).split())) or 6
+        root, _dot, path = (expr or '').strip().partition('.')
+        if not path or not _SIMPLE_PATH_RE.match(path):
+            return min(sample, 8), False
+        if root in var_models:
+            model = var_models[root]
+        elif root in _ROOT_VARS:
+            model = state.get('model')
+        else:
+            return min(sample, 8), False
+        field = self._resolve_field(model, path) if model else None
+        ftype = getattr(field, 'type', None)
+        if ftype in self._EST_TEXT_TYPES:
+            return sample, True
+        return self._EST_TYPE_CHARS.get(ftype, min(sample, 8)), False
 
     def _row_cells(self, tr):
         """這一列的格子。

@@ -153,6 +153,23 @@ class ConvStructure:
             )
         return None
 
+    def _set_empty_text(self, node, pill):
+        """t-field 節點裡的字 → 藥丸的「空值時印的字」（emptyText）。
+
+        QWeb 的 t-field 在欄位沒有值時，改印節點裡的字：訂金那一列沒有單位，
+        原生的 <span t-field="line.product_uom">units</span> 就印出「units」，
+        數量欄是「0.00 units」。有值時那些字會被值取代，所以平常看不到。
+        只收純文字（裡面還有取值節點的不是範例值），而且只收簡單欄位路徑
+        ——空不空要看欄位本身，算式的結果分不出「沒值」與「值是空字串」。
+        各語言的字由 _merge_languages 補上（中文是「單位」）。
+        """
+        meta = (pill.get('extension') or {}).get('dobtorField') or {}
+        if not meta.get('path') or len(node):
+            return
+        text = ' '.join(''.join(node.itertext()).split())
+        if text:
+            meta['emptyText'] = {self.env.lang or 'en_US': text}
+
     def _branch_extra_text(self, node, value_node):
         """分支裡除了那個取值節點，還有沒有其他可見文字。
 
@@ -222,9 +239,18 @@ class ConvStructure:
         state['stats']['condition'] += 1
         # 在重複列內要用 line 來源，否則會以主記錄求值、每列同一個值
         source = 'line' if _LINE_TOKEN_RE.search(expr) else 'record'
-        return self._pill(label[:20] or '多重分支', state,
+        pill = self._pill(label[:20] or '多重分支', state,
                           source=source, expression=expr,
                           unbound=bool(state.get('chain_unsure')))
+        # 分支節點自己的樣式要跟著藥丸走：原生的
+        # <strong t-if>Quotation Date</strong><strong t-else>Order Date</strong>
+        # 收成藥丸後，粗體是寫在分支節點上的，不套就印成一般字
+        styles = [self._node_style(node, node.tag.lower())
+                  if isinstance(node.tag, str) else None
+                  for _cond, node in chain]
+        if styles[0] and all(s == styles[0] for s in styles):
+            pill.update(styles[0])
+        return pill
 
     def _chain_blocks(self, chain, state):
         """複雜分支 → 巢狀的若／否則區塊（實測三擇一可行）。"""
@@ -448,6 +474,8 @@ class ConvStructure:
                         )
                     else:
                         pill = self._value_pill(node, expr, state)
+                        if attr == 't-field':
+                            self._set_empty_text(node, pill)
                 self._append_value(node, tag, pill, out)
                 return
 

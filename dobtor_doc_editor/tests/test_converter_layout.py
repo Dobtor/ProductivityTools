@@ -503,6 +503,19 @@ class TestLayoutColumnWidthsInHtml(TransactionCase):
         self.assertIn('doc-layout', html)
         self.assertIn('<col style="width:58.33%"/>', html)
 
+    def test_converted_data_table_keeps_widths_and_borders(self):
+        """轉換出來的明細表照估好的欄寬印，但它是真的表格，框線要留著。"""
+        table = {
+            'type': 'table', 'value': '',
+            'extension': {'fixedCols': True},
+            'colgroup': [{'width': 400}, {'width': 200}],
+            'trList': [{'tdList': [_cell(_text('品名')), _cell(_text('金額'))]}],
+        }
+        html = self.Mixin._content_json_to_html({'main': [table]})
+        self.assertIn('<table class="doc-layout">', html)
+        self.assertIn('<col style="width:66.67%"/>', html)
+        self.assertNotIn('doc-block', html)
+
     def test_other_tables_stay_automatic(self):
         frame_header = {
             'type': 'table', 'value': '',

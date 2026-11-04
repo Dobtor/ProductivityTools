@@ -13,7 +13,7 @@ import copy
 import html as html_mod
 
 
-from odoo import fields
+from odoo import fields, models
 from odoo.tools.misc import format_amount
 from odoo.tools.image import (
     FILETYPE_BASE64_MAGICWORD, base64_to_image, image_data_uri,
@@ -512,6 +512,8 @@ class RenderSnapshot:
             else:
                 expression = self._field_meta_expression(meta, record)
                 element['value'] = _eval(expression) if expression else ''
+                if not element['value']:
+                    element['value'] = self._empty_text(record, meta)
             meta['frozenAt'] = stamp
 
         # 5. 自動收合空段落（規則 A）。只在完整快照時做——only_pending 是匯出時
@@ -523,6 +525,32 @@ class RenderSnapshot:
             # 7. 並排區塊裡整欄空白的欄拿掉，其他欄往左補滿
             self._reflow_layout_columns(tree)
         return tree
+
+    def _empty_text(self, record, meta):
+        """欄位沒有值時改印的字（轉換器從 t-field 節點裡的字帶過來）；沒設回 ''。
+
+        要看欄位本身是不是空的，不能只看印出來是不是空字串：求值失敗也是
+        空字串，那時印出範例值（「Bacon Burger」）會像一筆真的資料。
+        數字 0 不算空——原生印「0.00」，不印範例值。
+        """
+        texts = meta.get('emptyText')
+        path = (meta.get('path') or '').strip()
+        if not texts or not path or record is None:
+            return ''
+        value = record
+        try:
+            for name in path.split('.'):
+                value = value[name] if value else value
+        except Exception:
+            return ''
+        if isinstance(value, models.BaseModel):
+            empty = not value
+        else:
+            empty = value is None or value is False or value == ''
+        if not empty:
+            return ''
+        lang = record.env.context.get('lang') or self.env.context.get('lang')
+        return self._pick_lang_text(texts, lang)
 
     def _sort_lines(self, lines, sort_by, desc=False):
         """依指定欄位排序明細。
@@ -809,6 +837,8 @@ class RenderSnapshot:
             if src == self._LINE_SOURCE:
                 expression = self._field_meta_expression(meta, line)
                 el['value'] = eval_line(expression) if expression else ''
+                if not el['value']:
+                    el['value'] = self._empty_text(line, meta)
                 meta['frozenAt'] = stamp
             elif src == self._RUNNING_SOURCE and state_bank is not None:
                 el['value'] = self._running_value(
@@ -1586,12 +1616,14 @@ class RenderSnapshot:
         cg = table.get('colgroup')
         if isinstance(cg, list) and 0 <= target < len(cg):
             removed = cg.pop(target)
-            # 被移除的寬度補給最後一欄，表格總寬維持不變——否則刪一欄
-            # 整張表就縮一截，使用者會以為版面壞了
-            if cg and isinstance(removed, dict) and removed.get('width'):
-                last = cg[-1]
-                if isinstance(last, dict) and last.get('width'):
-                    last['width'] = last['width'] + removed['width']
+            # 被移除的寬度補給最寬的那一欄，表格總寬維持不變——否則刪一欄
+            # 整張表就縮一截，使用者會以為版面壞了。給最寬的（明細表的品名欄）
+            # 而不是最後一欄：最後一欄通常是金額，多出來的寬度放在那裡只是空白，
+            # 品名欄卻還在換行
+            sized = [c for c in cg if isinstance(c, dict) and c.get('width')]
+            if sized and isinstance(removed, dict) and removed.get('width'):
+                widest = max(sized, key=lambda c: c['width'])
+                widest['width'] = widest['width'] + removed['width']
 
     def _apply_column_conditions(self, tree, record, group_results=None):
         """處理欄層級的 condition 標記。"""

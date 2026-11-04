@@ -161,6 +161,7 @@ class ConvEntry:
                 self._note(state, '「%s」的版面跟原本對不上，固定文字沒有帶入這個'
                                   '語言的翻譯。' % name, level='check')
                 continue
+            self._merge_fit_widths(tree, built[0])
             mismatched = 0
             for li, (base, other) in enumerate(zip(base_lists, other_lists)):
                 if not self._same_shape(base, other):
@@ -170,10 +171,15 @@ class ConvEntry:
                     text_tr.setdefault((li, start, end), {})[code] = ''.join(
                         other[i].get('value') or '' for i in range(start, end))
                 for ei, (b_el, o_el) in enumerate(zip(base, other)):
-                    b_expr = (Mixin._element_field_meta(b_el) or {}).get('expression')
-                    o_expr = (Mixin._element_field_meta(o_el) or {}).get('expression')
+                    b_meta = Mixin._element_field_meta(b_el) or {}
+                    o_meta = Mixin._element_field_meta(o_el) or {}
+                    b_expr = b_meta.get('expression')
+                    o_expr = o_meta.get('expression')
                     if b_expr and o_expr and b_expr != o_expr:
                         expr_tr.setdefault((li, ei), {})[code] = o_expr
+                    # 欄位沒值時印的範例字也有翻譯（units → 單位）
+                    if b_meta.get('emptyText') and o_meta.get('emptyText'):
+                        b_meta['emptyText'].update(o_meta['emptyText'])
             if mismatched:
                 self._note(state, '有 %d 處的「%s」翻譯跟原本的版面對不上，那幾處'
                                   '固定文字只有一種語言。' % (mismatched, name),
@@ -224,6 +230,42 @@ class ConvEntry:
                    converted, rewritten),
                 level='info',
             )
+
+    def _merge_fit_widths(self, base_tree, other_tree):
+        """照內容估的窄欄取各語言裡最寬的，寬欄平分剩下的（就地改 base_tree）。
+
+        表頭的長短隨語言變：用中文轉換時「單價」只有兩個字，那一欄只估到
+        放得下數字的寬度，印給英文客戶時「Unit Price」就擠成兩行。
+        寬欄裡有巢狀表格時不動：那些表格的寬度是照原本的欄寬排的，欄變窄會
+        超出格子。
+        """
+        Mixin = self.env['doc.render.mixin']
+
+        def fitted(tree):
+            return [t for t in Mixin._iter_tables(tree)
+                    if (t.get('extension') or {}).get('fitCols')]
+
+        base_tables, other_tables = fitted(base_tree), fitted(other_tree)
+        if len(base_tables) != len(other_tables):
+            return
+        for base, other in zip(base_tables, other_tables):
+            flags = base['extension']['fitCols']
+            b_cols, o_cols = base.get('colgroup') or [], other.get('colgroup') or []
+            if (flags != other['extension'].get('fitCols')
+                    or len(b_cols) != len(flags) or len(o_cols) != len(flags)):
+                continue
+            if any(cell_el.get('type') == 'table'
+                   for row in base.get('trList') or []
+                   for col, cell in enumerate(row.get('tdList') or [])
+                   if col < len(flags) and not flags[col]
+                   and int(cell.get('colspan') or 1) == 1
+                   for cell_el in cell.get('value') or []):
+                continue
+            widths = [max(b['width'], o['width']) if fit else 0
+                      for b, o, fit in zip(b_cols, o_cols, flags)]
+            inner = sum(b['width'] for b in b_cols)
+            for col, new in zip(b_cols, self._fit_widths(widths, flags, inner)):
+                col['width'] = new['width']
 
     def _same_shape(self, base, other):
         """兩個元素串列結構相同（只有文字可以不同）才能逐位置對齊。"""
