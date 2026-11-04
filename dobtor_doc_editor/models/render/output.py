@@ -142,8 +142,11 @@ class RenderOutput:
             # ir_actions_report.py:441），那支範本內的 subst() JS 會填滿所有
             # class="page" / "topage" 的元素。輸出這個 span 就夠了。
             kind = el.get('pageKind') or 'number'
-            return '<span class="%s"></span>' % (
-                'topage' if kind == 'count' else 'page'
+            # 字色跟著藥丸：官方外框的頁碼是灰字，數字也要灰
+            style = self._element_style(el)
+            return '<span class="%s"%s></span>' % (
+                'topage' if kind == 'count' else 'page',
+                ' style="%s"' % style if style else '',
             )
         if etype == 'image':
             src = el.get('value') or ''
@@ -339,8 +342,11 @@ class RenderOutput:
         def _close():
             cls = (' class="doc-page-%s"' % para['scope']) if para['scope'] else ''
             if not para['buf']:
-                # 空段落也要保留，否則多個空行會被吃掉、版面走樣
-                out.append('<p%s><br/></p>' % cls)
+                # 空段落也要保留，否則多個空行會被吃掉、版面走樣。
+                # 空行多高看開頭那個換行的字級（編輯器就是這樣畫的）
+                size = (para['head'][0] or {}).get('size')
+                style = ' style="font-size:%spx"' % size if size else ''
+                out.append('<p%s%s><br/></p>' % (cls, style))
                 return
             flex = next((el.get('rowFlex') for el in para['head'][:2]
                          if el.get('rowFlex')), '')
@@ -368,6 +374,12 @@ class RenderOutput:
 
             etype = el.get('type') or 'text'
             if etype in self._BLOCK_ELEMENT_TYPES:
+                if (etype == 'htmlBlock' and para is not None and not para['buf']
+                        and not para['scope']):
+                    # Html 欄位在編輯器裡是一顆行內藥丸，就畫在這一段的那一列上；
+                    # 攤平後才變成區塊。前面那個只有開頭換行的段落不是空行，
+                    # 印成 <p><br/></p> 會比編輯器多一行（外框的公司資訊、備註）
+                    para = None
                 if para is not None:
                     _close()
                 para = None

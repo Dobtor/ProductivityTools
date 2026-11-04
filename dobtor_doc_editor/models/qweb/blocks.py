@@ -289,7 +289,7 @@ class ConvBlocks:
         if stack:
             return stack[-1]
         page_w = 1123 if state.get('page_format') == 'A4_landscape' else 794
-        return max(200, page_w - 192)
+        return max(200, page_w - (state.get('margin_x') or 192))
 
     @contextlib.contextmanager
     def _in_width(self, state, width):

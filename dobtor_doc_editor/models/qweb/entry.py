@@ -101,6 +101,10 @@ class ConvEntry:
             # 只能實際跑一次拿第一筆的 _name（見 _loop_model）
             'sample': validate_with[:1] if validate_with else None,
             'page_format': page_format,
+            # 左右邊距合計（px）。轉換精靈掛「Odoo 標準」外框時是 70（左右各
+            # 35px），版面比預設的 1 吋邊距寬；用錯寬度的話，多出來的寬度會被
+            # 按比例分給每一欄，品名欄還是不夠寬
+            'margin_x': self.env.context.get('doc_convert_margin_x') or 192,
             'view': view,
         }
         # 先把子範本併進來再收符號表：子範本自己的 t-set 要被看到，

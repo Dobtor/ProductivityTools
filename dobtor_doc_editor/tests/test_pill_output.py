@@ -765,7 +765,44 @@ class TestLayoutTemplate(TransactionCase):
         )
         self.assertIn('class="doc-block"', html)
 
+    def test_odoo_layout_matches_official_standard(self):
+        """「Odoo 標準」外框：照官方 web.external_layout_standard 印出來的樣子。
 
+        以前轉換出來的範本掛的是模組自己的「標準」外框——公司資訊在 logo
+        右邊、頁碼置中黑字沒有線、左右邊距 1 吋，跟官方差很多。
+        """
+        layout = self.env['doc.template'].find_or_create_layout('odoo')
+        self.assertEqual((layout.margin_left, layout.margin_right), (35, 35))
+        self.assertTrue(layout.footer_rule, '頁尾上方一條線')
+        self.assertEqual(layout.text_style()['font'], 'Lato')
+        tree = json.loads(layout.content_json)
+        header = tree['header']
+        # 開頭那一列空行壓到最小字級，logo 才不會比官方低
+        self.assertEqual(header[0], {'value': '\n', 'size': 5})
+        self.assertEqual(header[1]['type'], 'table', '第一列：logo 與公司標語')
+        self.assertEqual(
+            self.Mixin._element_field_meta(header[-1]).get('path'),
+            'company_id.company_details', '公司資訊在 logo 下方')
+        page = next(el for el in tree['footer']
+                    if (self.Mixin._element_field_meta(el) or {}).get('source') == 'page')
+        self.assertEqual(page.get('rowFlex'), 'left')
+        self.assertEqual(page.get('color'), '#6c757d', '官方頁碼是灰字')
+
+    def test_odoo_layout_uses_official_page_words(self):
+        """繁中照官方外框的翻譯（「頁：1 / 1」），不套本模組的「第 1 / 1 頁」。"""
+        self.env['res.lang']._activate_lang('zh_TW')
+        tmpl = self.env['doc.template'].with_context(lang='zh_TW').create(
+            {'name': 'L', 'role': 'layout'})
+        footer = tmpl._build_layout_tree('odoo')['footer']
+        # 測試資料庫不一定載了官方外框的中文翻譯：沒有時各語言一樣、是純文字
+        words = [el.get('value') or '' for el in footer] + [
+            text for meta in self._page_line_i18n({'footer': footer})
+            for text in (meta.get('texts') or {}).values()]
+        self.assertNotIn('第 ', words)
+        self.assertNotIn(' 頁', words)
+        official = tmpl._odoo_page_line(
+            self.env.ref('web.external_layout_standard'), 'zh_TW')
+        self.assertIn(official[0], words, '頁碼前的字照官方外框')
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
