@@ -692,7 +692,9 @@ class TestLayoutTemplate(TransactionCase):
 
     def test_builtin_layout_page_line_is_centred(self):
         """頁碼那一行要置中——對齊寫在它開頭的換行上，不是結尾。"""
-        tmpl = self.env['doc.template'].create({'name': 'L', 'role': 'layout'})
+        self.env['res.lang']._activate_lang('zh_TW')
+        tmpl = self.env['doc.template'].with_context(lang='zh_TW').create(
+            {'name': 'L', 'role': 'layout'})
         tree = tmpl._build_layout_tree('side')
         html = self.Mixin._content_json_to_html(
             self.Mixin._flatten_content_json(tree), zone='footer')
@@ -711,6 +713,49 @@ class TestLayoutTemplate(TransactionCase):
         self.assertIn(('html', 'company_id.company_details', None), sources)
         self.assertIn(('page', None, 'number'), sources)
         self.assertIn(('page', None, 'count'), sources)
+
+    def _page_line_i18n(self, tree):
+        return [m for el in tree['footer']
+                for m in [self.Mixin._element_field_meta(el)]
+                if m and m.get('source') == 'i18n']
+
+    def test_builtin_page_line_follows_language(self):
+        """頁碼前後的字依客戶語言印：繁中「第 1 / 1 頁」、英文「Page 1 / 1」。
+
+        以前寫死中文，範本內文依客戶語言切換之後，英文單據的頁尾還夾一行中文。
+        """
+        self.env['res.lang']._activate_lang('zh_TW')
+        tmpl = self.env['doc.template'].with_context(lang='zh_TW').create(
+            {'name': 'L', 'role': 'layout'})
+        prefix, suffix = self._page_line_i18n(tmpl._build_layout_tree('side'))
+        self.assertEqual(prefix['texts']['zh_TW'], '第 ')
+        self.assertEqual(prefix['texts']['en_US'], 'Page ')
+        self.assertEqual(suffix['texts']['zh_TW'], ' 頁')
+        partner = self.env['res.partner'].create({'name': '英文客戶'})
+        self.assertEqual(
+            self.Mixin._i18n_text(partner.with_context(lang='en_US'), suffix), '',
+            '英文的「頁」那個位置不印字，不能退回印中文')
+        self.assertEqual(
+            self.Mixin._i18n_text(partner.with_context(lang='zh_TW'), suffix), ' 頁')
+
+    def test_old_page_line_is_upgraded_only_when_untouched(self):
+        """舊外框寫死中文的那一行換成多語；使用者改過字的不碰。"""
+        def old_footer(prefix):
+            pill = self.env['doc.template']._layout_pill
+            return {'footer': [
+                _text('\n'), _text(prefix),
+                pill('頁碼', source='page', part='number'), _text(' / '),
+                pill('總頁數', source='page', part='count'), _text(' 頁'),
+            ]}
+        # 只有一種語言時頁碼前後的字各語言都一樣，就不會做成多語文字
+        self.env['res.lang']._activate_lang('zh_TW')
+        Template = self.env['doc.template'].with_context(lang='zh_TW')
+        tree = old_footer('第 ')
+        self.assertTrue(Template._upgrade_page_line(tree))
+        self.assertTrue(self._page_line_i18n(tree), '換成多語文字')
+        edited = old_footer('頁次 ')
+        self.assertFalse(Template._upgrade_page_line(edited))
+        self.assertEqual(edited['footer'][1]['value'], '頁次 ')
 
     def test_layout_table_is_borderless_in_output(self):
         tmpl = self.env['doc.template'].create({'name': 'L', 'role': 'layout'})

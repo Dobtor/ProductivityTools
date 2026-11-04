@@ -228,18 +228,25 @@ class RenderI18n:
         """
         lang = (record.env.context.get('lang')
                 if record is not None else None) or self.env.context.get('lang')
+        if meta.get('allowEmpty'):
+            return self._pick_lang_text(meta.get('texts'), lang, allow_empty=True)
         return (self._pick_lang_text(meta.get('texts'), lang)
                 or meta.get('labelText') or '')
 
-    def _pick_lang_text(self, texts, lang):
+    def _pick_lang_text(self, texts, lang, allow_empty=False):
         """{語言: 文字} 依渲染語言挑一個：當前語言 → 同語系 → en_US → 第一個有值的。
 
         多語文字藥丸與沙箱的 translated() 共用，兩邊挑字規則才會一樣。
+
+        allow_empty：空字串是「這個語言就是不印字」，不是「還沒翻譯」。
+        頁碼「第 1 / 1 頁」的「頁」在英文是空的，照一般規則會退回印出「頁」。
         """
         if not isinstance(texts, dict):
             return ''
         for candidate in (lang, (lang or '').split('_')[0], 'en_US'):
-            if candidate and texts.get(candidate):
+            if not candidate:
+                continue
+            if texts.get(candidate) or (allow_empty and candidate in texts):
                 return texts[candidate]
         for value in texts.values():
             if value:
