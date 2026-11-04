@@ -7822,12 +7822,6 @@
     },
     {
      "ref": "p",
-     "field": "closed_by.login",
-     "op": "=",
-     "value": "kb_accountant"
-    },
-    {
-     "ref": "p",
      "field": "attachment_ids",
      "op": "count",
      "value": 1
@@ -12305,18 +12299,6 @@
      "value": "/"
     },
     {
-     "ref": "v",
-     "field": "prepared_by_id.login",
-     "op": "=",
-     "value": "kb_preparer"
-    },
-    {
-     "ref": "v",
-     "field": "reviewed_by_id.login",
-     "op": "=",
-     "value": "kb_reviewer"
-    },
-    {
      "ref": "mv",
      "field": "state",
      "op": "=",
@@ -12483,12 +12465,6 @@
      "field": "state",
      "op": "=",
      "value": "reviewed"
-    },
-    {
-     "ref": "v",
-     "field": "reviewed_by_id.login",
-     "op": "=",
-     "value": "kb_reviewer2"
     },
     {
      "ref": "mv",
@@ -12900,18 +12876,6 @@
      "field": "state",
      "op": "=",
      "value": "reviewed"
-    },
-    {
-     "ref": "v",
-     "field": "reviewed_by_id.login",
-     "op": "=",
-     "value": "kb_reviewer"
-    },
-    {
-     "ref": "v",
-     "field": "approved_by_id.login",
-     "op": "=",
-     "value": "kb_approver"
     },
     {
      "ref": "mv",
@@ -13395,12 +13359,6 @@
      "field": "name",
      "op": "!=",
      "value": "/"
-    },
-    {
-     "ref": "v",
-     "field": "prepared_by_id.login",
-     "op": "=",
-     "value": "kb_preparer"
     },
     {
      "ref": "mv",
