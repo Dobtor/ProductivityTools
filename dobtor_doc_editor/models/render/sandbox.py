@@ -190,7 +190,11 @@ class RenderSandbox:
                 target = partner[:1] if hasattr(partner, 'ids') else partner
                 if not target:
                     return ''
-                body = target._display_address(without_company=without_company)
+                # 帶名稱時地址不再帶公司名：_display_address 會在公司（或掛在
+                # 公司底下的聯絡人）第一行加公司名稱，名稱本身已經含公司了，
+                # 不拿掉就印兩次。原生 contact widget 也是 without_company=True。
+                body = target._display_address(
+                    without_company=without_company or with_name)
                 if with_name:
                     name = str(target.display_name or '').strip()
                     body = ('%s\n%s' % (name, body)) if name else body
@@ -200,7 +204,9 @@ class RenderSandbox:
                     phone = str(target.phone or target.mobile or '').strip()
                     if phone:
                         body = '%s\n%s' % (body, phone)
-                return body
+                # 空欄位（沒填地址第二行之類）會留下空行與行尾空白，原生的
+                # display_name 用同一條規則收掉；不收的話單據上地址中間空一行
+                return re.sub(r'\s+\n', '\n', body).strip()
             except Exception:
                 # 不是 partner（或沒有這支方法）→ 退回 display_name，
                 # 至少印得出東西而不是讓整份文件產不出來
@@ -303,7 +309,20 @@ class RenderSandbox:
                 return ''
             return value
 
+        def translated(texts):
+            """{語言: 文字} → 依渲染語言挑字。
+
+            轉換器把原生報表寫在算式裡的字串（「報價單 #」if 草稿 else「訂單 #」）
+            換成這個，同一張範本才能依客戶語言印。挑字規則跟多語文字藥丸一樣。
+            """
+            # 明細可能是 dict（發票的付款列），沒有 env
+            record_env = getattr(record, 'env', None)
+            lang = ((record_env.context.get('lang') if record_env is not None else None)
+                    or self.env.context.get('lang'))
+            return self._pick_lang_text(texts, lang)
+
         return {
+            'translated': translated,
             'selection_label': selection_label,
             'names': names,
             'checkmark': checkmark,

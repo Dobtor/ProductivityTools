@@ -231,19 +231,23 @@ class ConvStructure:
         state['chain_seq'] = state.get('chain_seq', 0) + 1
         gid = 'cg%d' % state['chain_seq']
         cond, node = chain[0]
+        block_w = self._inner_width(state)
+        body_w = self._block_body_width(state)
         # 用 _conditional_body 而不是 _emit_children：分支節點自己就是內容的
         # 情況（<table t-if> / <table t-elif> 的一對）只轉子節點會讓
         # tr 上的 t-foreach 永遠看不到，明細整批消失。
-        if_inner = self._conditional_body(node, state)
+        with self._in_width(state, body_w):
+            if_inner = self._conditional_body(node, state)
         if not if_inner or (if_inner[-1].get('value') or '') != '\n':
             if_inner.append(self._newline())
 
         rest = chain[1:]
         else_inner = []
-        if len(rest) == 1 and rest[0][0] is None:
-            else_inner = self._conditional_body(rest[0][1], state)
-        elif rest:
-            else_inner.append(self._chain_blocks(rest, state))
+        with self._in_width(state, body_w):
+            if len(rest) == 1 and rest[0][0] is None:
+                else_inner = self._conditional_body(rest[0][1], state)
+            elif rest:
+                else_inner.append(self._chain_blocks(rest, state))
         if not else_inner or (else_inner[-1].get('value') or '') != '\n':
             else_inner.append(self._newline())
 
@@ -253,7 +257,7 @@ class ConvStructure:
             'type': 'table', 'value': '',
             'extension': {'dobtorBlock': 'condition'},
             'borderType': 'dash',
-            'colgroup': [{'width': self._inner_width(state)}],
+            'colgroup': [{'width': block_w}],
             'trList': [
                 {'tdList': [cell(*([self._pill(
                     '若', state, source='condition', groupId=gid, role='if',
@@ -265,6 +269,134 @@ class ConvStructure:
                     role='else',
                 )] + else_inner))]},
             ],
+        }
+
+    def _table_pieces(self, node, rows, totals_mode, totals_first, state):
+        """<table> → [明細表, 稅額彙總] 依原生順序排好的元素。"""
+        if not totals_mode:
+            state['stats']['table'] += 1
+            return [self._emit_table(node, state)]
+        block = self._tax_totals_block(state, totals_mode)
+        state['stats']['taxTotals'] += 1
+        if not rows:
+            # 這張表格本身就是稅額彙總表（內容全在子範本裡）
+            return [block]
+        state['stats']['table'] += 1
+        if totals_first:
+            return [block, self._newline(), self._emit_table(node, state)]
+        return [self._emit_table(node, state), self._newline(), block]
+
+    def _append_value(self, node, tag, pill, out):
+        """取值節點 → 藥丸；節點是區塊元素（<div t-field>）時自成一段。
+
+        原生的「標題在上、值在下」就是靠這個：
+            <strong>Your Reference</strong><div t-field="doc.client_order_ref"/>
+        以前不管標籤一律當行內，標題跟值擠在同一行；地址區塊的
+        「發票及送貨地址」後面直接接地址也是這個原因。
+        """
+        if tag not in _BLOCK_TAGS:
+            out.append(pill)
+            return
+        if not self._at_paragraph_start(out):
+            out.append(self._newline())
+        out.append(pill)
+        out.append(self._newline())
+        align = self._node_align(node)
+        if align:
+            out[-1]['rowFlex'] = align
+
+    def _at_paragraph_start(self, out):
+        """out 現在是不是在段落開頭（空的、剛換行、或前面只有標記藥丸）。
+
+        標記（重複、條件、格式）印出來會被拿掉，排在它們後面的仍算段落開頭；
+        不這樣算的話，格子第一個 <div t-field> 會在標記後面多一個空行。
+        """
+        Mixin = self.env['doc.render.mixin']
+        for el in reversed(out):
+            if (el.get('value') or '') == '\n':
+                return True
+            if Mixin._is_marker_element(el):
+                continue
+            return False
+        return True
+
+    # col / col-6 / col-sm-7 / col-auto
+    _COL_CLASS_RE = re.compile(
+        r'^col(?:-(?P<bp>sm|md|lg|xl|xxl))?(?:-(?P<n>\d{1,2}|auto))?$')
+
+    def _grid_columns(self, node):
+        """div.row 的欄 → [(欄節點, 份數 or None)]；不是格線列回 None。
+
+        份數是 Bootstrap 的 12 等分；None 是 col／col-auto（平分剩下的寬度）。
+        只認「每個子節點都是 div.col…」的列，混了其他東西就照舊一段一段轉
+        ——猜錯的並排比直排更難看懂。
+        """
+        tag = (node.tag if isinstance(node.tag, str) else '').lower()
+        if tag != 'div' or 'row' not in self._class_tokens(node):
+            return None
+        if (node.text or '').strip():
+            return None
+        columns = []
+        for child in node:
+            if not isinstance(child.tag, str):
+                continue  # 註解
+            if (child.tail or '').strip() or child.tag.lower() != 'div':
+                return None
+            # elif／else 的互斥關係與迴圈都表達不了，交給原本的路
+            if (child.get('t-elif') is not None
+                    or child.get('t-else') is not None
+                    or child.get('t-foreach')):
+                return None
+            span, is_col = None, False
+            for token in self._class_tokens(child):
+                m = self._COL_CLASS_RE.match(token)
+                if not m:
+                    continue
+                is_col = True
+                n = m.group('n')
+                # PDF 用的是不帶斷點的寫法（col-6）；只有斷點版時退而求其次
+                if n and n.isdigit() and (span is None or not m.group('bp')):
+                    span = int(n)
+            if not is_col:
+                return None
+            columns.append((child, span))
+        return columns if len(columns) >= 2 else None
+
+    def _grid_table(self, columns, state):
+        """格線列 → 一列多格的無框表格（外框的地址區塊也是這個容器）。
+
+        原生的 col 是彈性寬度：某一欄的條件不成立時，其他欄會往左補滿。
+        reflowCols 記下哪幾欄是彈性的，快照時把整欄空白的欄拿掉、寬度分給
+        彈性欄（見 _reflow_layout_columns）；固定寬度的欄（col-3）不放大。
+        """
+        inner = self._inner_width(state)
+        fixed = sum(span for _c, span in columns if span)
+        flex = [c for c, span in columns if not span]
+        flex_units = (max(0, 12 - fixed) / len(flex)) if flex else 0
+        if flex and flex_units <= 0:
+            flex_units = 1
+        units = [span or flex_units for _c, span in columns]
+        total = max(12, sum(units))
+        widths = [int(inner * u / total) for u in units]
+        if total == sum(units):
+            # 剛好排滿：最後一欄吸收湊整的誤差
+            widths[-1] = inner - sum(widths[:-1])
+        cells = []
+        for (child, _span), width in zip(columns, widths):
+            value = []
+            with self._in_width(state, width - self._CELL_PADDING):
+                self._emit(child, value, state)
+            if not value or (value[-1].get('value') or '') != '\n':
+                value.append(self._newline())
+            cells.append({'colspan': 1, 'rowspan': 1, 'value': value})
+        state['stats']['table'] += 1
+        return {
+            'type': 'table', 'value': '',
+            'extension': {'dobtorBlock': 'layout', 'fixedCols': True,
+                          'reflowCols': [not span for _c, span in columns]},
+            'borderType': 'empty',
+            'colgroup': [{'width': w} for w in widths],
+            'trList': [{'tdList': cells}],
         }
 
     def _emit(self, node, out, state):
@@ -303,19 +435,20 @@ class ConvStructure:
                     # 條碼是圖，收不成三元式。節點上的 t-if 幾乎都是
                     # 「欄位有值才印」，而值為空時圖本來就不印、段落收合會把
                     # 那一段帶走——結果與原生一致。
-                    out.append(self._barcode_value_pill(node, expr, state))
-                    return
-                cond = node.get('t-if')
-                if cond and not node.get('t-foreach'):
-                    # <span t-if="o.ref" t-field="o.ref"/>：條件與值在同一個
-                    # 節點上。原本只收值、條件整個不見——欄位有值時剛好一樣，
-                    # 沒值時會印出一段本來不該出現的東西。
-                    out.append(self._ternary_pill(
-                        node, self._branch_value(node, expr, state),
-                        cond, state,
-                    ))
-                    return
-                out.append(self._value_pill(node, expr, state))
+                    pill = self._barcode_value_pill(node, expr, state)
+                else:
+                    cond = node.get('t-if')
+                    if cond and not node.get('t-foreach'):
+                        # <span t-if="o.ref" t-field="o.ref"/>：條件與值在同一個
+                        # 節點上。原本只收值、條件整個不見——欄位有值時剛好一樣，
+                        # 沒值時會印出一段本來不該出現的東西。
+                        pill = self._ternary_pill(
+                            node, self._branch_value(node, expr, state),
+                            cond, state,
+                        )
+                    else:
+                        pill = self._value_pill(node, expr, state)
+                self._append_value(node, tag, pill, out)
                 return
 
         # ── 圖片
@@ -338,27 +471,14 @@ class ConvStructure:
             totals_mode, totals_first = self._table_tax_totals(node)
             rows = [tr for tr in node.xpath('.//tr')
                     if self._closest_table(tr) is node]
-            pieces = []
-            if totals_mode:
-                block = self._tax_totals_block(state, totals_mode)
-                state['stats']['taxTotals'] += 1
-                if not rows:
-                    # 這張表格本身就是稅額彙總表（內容全在子範本裡）
-                    pieces = [block]
-                elif totals_first:
-                    pieces = [block, self._newline(),
-                              self._emit_table(node, state)]
-                    state['stats']['table'] += 1
-                else:
-                    pieces = [self._emit_table(node, state), self._newline(),
-                              block]
-                    state['stats']['table'] += 1
-            else:
-                pieces = [self._emit_table(node, state)]
-                state['stats']['table'] += 1
+            table_cond = node.get('t-if')
+            # 有條件時表格會放進條件區塊裡，寬度要扣掉區塊的內距
+            with self._in_width(state, self._block_body_width(state)
+                                if table_cond else self._inner_width(state)):
+                pieces = self._table_pieces(node, rows, totals_mode,
+                                            totals_first, state)
             # <table t-if="…"> 的條件原本被丟掉（表格分支排在條件分支前面）。
             # 出貨單的兩張明細表就是這個形狀。
-            table_cond = node.get('t-if')
             if table_cond:
                 out.append(self._condition_wrap(
                     table_cond, pieces + [self._newline()], state))
@@ -386,8 +506,22 @@ class ConvStructure:
                 % (node.get('t-foreach') or '')[:60],
             )
 
-        # ── 區塊條件：t-if 掛在區塊元素上 → 條件區塊
+        # ── Bootstrap 格線列（div.row ＞ div.col…）→ 並排的無框表格
+        #    排在區塊條件之前：整列帶 t-if 時要先排成並排，再包條件
         cond = node.get('t-if')
+        columns = self._grid_columns(node)
+        if columns:
+            if cond:
+                with self._in_width(state, self._block_body_width(state)):
+                    grid = self._grid_table(columns, state)
+                out.append(self._condition_wrap(
+                    cond, [grid, self._newline()], state))
+            else:
+                out.append(self._grid_table(columns, state))
+            out.append(self._newline())
+            return
+
+        # ── 區塊條件：t-if 掛在區塊元素上 → 條件區塊
         if cond and tag in _BLOCK_TAGS:
             out.append(self._condition_block(node, cond, state))
             out.append(self._newline())
@@ -422,7 +556,7 @@ class ConvStructure:
                           if k != 'align'})
             if style:
                 for el in out[start:]:
-                    if el.get('type') not in ('label', 'table'):
+                    if self._takes_style(el):
                         el.update(style)
             align = self._node_align(node)
             if out and (out[-1].get('value') or '') != '\n':
@@ -438,7 +572,9 @@ class ConvStructure:
         self._emit_children(node, inline, state)
         style = self._node_style(node, tag)
         for el in inline:
-            if style and el.get('type') != 'label':
+            # 欄位藥丸也要套（規則同 _takes_style）：<strong> 包著的
+            # 「發票地址／發票及送貨地址」三元式藥丸以前不會變粗
+            if style and self._takes_style(el):
                 el.update(style)
         out.extend(inline)
 
@@ -581,8 +717,37 @@ class ConvStructure:
             )
         return markers, static
 
+    # t-attf-class 裡的動態片段：{{ … }} 與 #{ … }
+    _ATTF_DYNAMIC_RE = re.compile(r'\{\{.*?\}\}|#\{.*?\}', re.S)
+
     def _class_tokens(self, node):
-        return set((node.get('class') or '').split())
+        """節點的 class，含 t-attf-class 裡寫死的那幾個。
+
+        原生的數量欄、稅別欄寫成 t-attf-class="text-end {{ 'text-nowrap' if … }}"：
+        只讀 class 的話右對齊整個不見。動態片段（text-nowrap 這類）沒有對應物，丟掉。
+        """
+        tokens = set((node.get('class') or '').split())
+        attf = node.get('t-attf-class')
+        if attf:
+            tokens.update(self._ATTF_DYNAMIC_RE.sub(' ', attf).split())
+        return tokens
+
+    def _attf_dynamic_matters(self, raw):
+        """t-attf-class 的動態片段裡有沒有「看得出差別」的 class。
+
+        只有排版用的（text-nowrap、col-6、ms-auto…）時，轉不過去也不影響
+        單據長相，不必列進待辦。
+        """
+        visible = set(self._CLASS_STYLE) | set(self._CLASS_ALIGN)
+        for piece in self._ATTF_DYNAMIC_RE.findall(raw or ''):
+            for literal in re.findall(r"'([^']*)'|\"([^\"]*)\"", piece):
+                words = ' '.join(literal).split()
+                if visible.intersection(words):
+                    return True
+            if not re.search(r"'|\"", piece):
+                # 動態片段直接輸出變數（{{ cls }}）——看不出是什麼，當作有影響
+                return True
+        return False
 
     def _node_style(self, node, tag):
         """標籤與 class 一起決定的文字屬性。"""

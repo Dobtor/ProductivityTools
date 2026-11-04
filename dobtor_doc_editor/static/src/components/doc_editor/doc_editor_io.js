@@ -319,6 +319,9 @@ export const DocEditorIo = (Base) => class extends Base {
     }
 
     onShowVersionPanel() {
+        if (this._warnDocumentOnly("版本歷史")) {
+            return;
+        }
         if (!this.state.docId) {
             this.notification.add("請先儲存文件後再查看版本歷史。", { type: "warning" });
             return;

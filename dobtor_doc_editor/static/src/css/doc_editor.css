@@ -1720,6 +1720,7 @@
     /* --- 主色票 --- */
     --gd-bg: #f8f9fa;              /* doc 外圍背景 */
     --gd-paper-bg: #ffffff;        /* 紙張 */
+    --gd-surface: #ffffff;         /* 按鈕、標籤等元件底色；紙張永遠白，元件要跟著深色模式換，不能共用紙張色 */
     --gd-toolbar-bg: #ffffff;
     --gd-toolbar-border: #e5e7eb;
     --gd-text: #202124;
@@ -1762,7 +1763,7 @@
     background: var(--gd-hover-bg);
 }
 .o_dobtor_doc_editor .doc-header-title:focus {
-    background: var(--gd-paper-bg);
+    background: var(--gd-surface);
     border-color: var(--gd-accent);
     outline: none;
 }
@@ -1874,7 +1875,7 @@
     margin-right: 4px;
 }
 .o_dobtor_doc_editor .doc-field-btn {
-    background: var(--gd-paper-bg);
+    background: var(--gd-surface);
     border: 1px solid var(--gd-toolbar-border);
     color: var(--gd-text);
     font-family: var(--gd-font);
@@ -1922,7 +1923,7 @@
     padding: 6px 12px;
 }
 .o_dobtor_doc_editor .doc-signer-chip {
-    background: var(--gd-paper-bg);
+    background: var(--gd-surface);
     border: 1px solid var(--gd-toolbar-border);
     border-radius: 16px;
     padding: 4px 10px;
@@ -2623,6 +2624,7 @@
 .o_dobtor_doc_editor.is-dark-mode {
     --gd-bg: #1f1f1f;                          /* workspace 灰底 */
     --gd-paper-bg: #ffffff;                    /* canvas 紙張保白（列印 WYSIWYG）*/
+    --gd-surface: #303134;                     /* 按鈕、標籤底色跟著變深 */
     --gd-toolbar-bg: #2a2a2a;                  /* header / menubar / toolbars */
     --gd-toolbar-border: #3a3a3a;
     --gd-text: #e8eaed;
@@ -3073,6 +3075,12 @@
     border-bottom: 1px solid #eee;
 }
 .doc-field-palette-filter i { color: #9aa0a6; font-size: 12px; }
+/* 篩選中的說明：讓使用者知道工具區塊是暫時收起來，不是不見了 */
+.doc-palette-filter-note {
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #5f6368;
+}
 .doc-field-palette-filter input {
     flex: 1;
     min-width: 0;
@@ -3082,12 +3090,15 @@
     font-size: 12px;
 }
 
+/* 每個清單都依內容長高，捲動交給外層左欄。
+ * 原本「主記錄欄位」用 flex:1 分剩餘高度、自己捲動；但上方的明細（一對多）、
+ * 圖片、多語文字等區塊一多（例如聯絡人），剩餘高度就歸零，整個清單只剩 8px，
+ * 主記錄欄位完全拖不到。 */
 .doc-field-palette-list {
     list-style: none;
     margin: 0;
     padding: 4px 0;
-    overflow-y: auto;
-    flex: 1;
+    flex: none;
 }
 .doc-field-palette-item {
     display: flex;
@@ -3190,7 +3201,7 @@
     border-top: 1px solid #e0e0e0;
     border-bottom: 1px solid #e0e0e0;
 }
-.doc-field-palette-list.is-compact { padding: 2px 0; flex: none; }
+.doc-field-palette-list.is-compact { padding: 2px 0; }
 .doc-palette-repeat-icon { color: #1565c0; font-size: 11px; flex: none; }
 .doc-field-palette-item.is-line { border-left-color: #e8a33d; }
 .doc-field-palette-item.is-line:hover {
@@ -3375,6 +3386,415 @@
 .doc-model-picker-item:hover { background: #f0ebf8; }
 .doc-model-picker-name { font-size: 0.8rem; color: #202124; }
 .doc-model-picker-tech { font-size: 0.68rem; color: #9aa0a6; }
+
+
+/* ═══ 深色模式補齊 ════════════════════════════════════════════════════════
+   上面 Y9 的深色只換了 --gd-* 色票，但左欄、右欄、欄位工具列、各分頁面板
+   很多地方是寫死的淺色（白底、深灰字），深色模式下會變成深字配深底或刺眼
+   的白塊。這裡逐區補上深色版本；紙張與紙上的浮動欄位維持淺色（列印所見即所得）。
+   ════════════════════════════════════════════════════════════════════════ */
+.o_dobtor_doc_editor.is-dark-mode {
+    --gd-surface-2: #35363a;                   /* 區塊標題、小標籤底 */
+    --gd-border-strong: #5f6368;               /* 輸入框、按鈕框線 */
+    --gd-text-soft: #bdc1c6;                   /* 次要但仍需好讀的字 */
+    --gd-purple: #c58af9;
+    --gd-purple-soft: rgba(197, 138, 249, 0.14);
+    --gd-orange: #fcad70;
+    --gd-orange-soft: rgba(252, 173, 112, 0.14);
+    --gd-amber: #fdd663;
+    --gd-amber-soft: rgba(253, 214, 99, 0.12);
+    --gd-green: #81c995;
+    --gd-red: #f28b82;
+    /* Bootstrap 的 .border-* 讀這個變數 */
+    --border-color: var(--gd-toolbar-border);
+    /* 原生捲軸、核取方塊、下拉選單跟著變深 */
+    color-scheme: dark;
+}
+/* 紙張與紙上的浮動欄位維持淺色 */
+.o_dobtor_doc_editor.is-dark-mode .canvas-editor-container,
+.o_dobtor_doc_editor.is-dark-mode .doc-overlay-layer {
+    color-scheme: light;
+}
+
+/* Bootstrap 工具 class：原本寫死淺色且帶 !important */
+.o_dobtor_doc_editor.is-dark-mode .text-muted,
+.o_dobtor_doc_editor.is-dark-mode .text-secondary {
+    color: var(--gd-text-muted) !important;
+}
+.o_dobtor_doc_editor.is-dark-mode .bg-light,
+.o_dobtor_doc_editor.is-dark-mode .bg-white {
+    background-color: var(--gd-surface-2) !important;
+}
+.o_dobtor_doc_editor.is-dark-mode .btn-outline-secondary {
+    --btn-color: var(--gd-text-soft);
+    --btn-border-color: var(--gd-border-strong);
+    --btn-hover-color: var(--gd-text);
+    --btn-hover-bg: var(--gd-hover-bg);
+    --btn-hover-border-color: var(--gd-border-strong);
+}
+
+/* 側欄與分頁面板裡的輸入框 */
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-thumbnail-panel, .doc-inspector-panel, .doc-subnav-panel, .doc-version-panel)
+    :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea) {
+    background: var(--gd-bg);
+    color: var(--gd-text);
+    border-color: var(--gd-border-strong);
+}
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-thumbnail-panel, .doc-inspector-panel, .doc-subnav-panel, .doc-version-panel)
+    :is(input, textarea)::placeholder {
+    color: #80868b;
+}
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-inspector-panel, .doc-subnav-panel)
+    :is(input, select, textarea):is(:disabled, [readonly]) {
+    background: var(--gd-surface-2);
+    color: var(--gd-text-muted);
+}
+
+/* 頁首「儲存」：淺藍底配白字看不清，改深字 */
+.o_dobtor_doc_editor.is-dark-mode .doc-header-btn.primary {
+    color: #202124;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-header-btn.primary:hover:not(:disabled) {
+    background: #aecbfa;
+    border-color: #aecbfa;
+}
+
+/* 欄位工具列：行內／浮動切換與各功能鈕 */
+.o_dobtor_doc_editor.is-dark-mode .doc-field-btn:hover:not(:disabled) {
+    border-color: var(--gd-border-strong);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-btn-scan { border-color: var(--gd-accent); color: var(--gd-accent); }
+.o_dobtor_doc_editor.is-dark-mode .doc-field-btn-scan-replace { color: var(--gd-amber); }
+.o_dobtor_doc_editor.is-dark-mode .doc-field-btn-preview-vars { border-color: var(--gd-border-strong); color: var(--gd-text-soft); }
+.o_dobtor_doc_editor.is-dark-mode .doc-field-btn-rollback { border-color: var(--gd-green); color: var(--gd-green); }
+.o_dobtor_doc_editor.is-dark-mode .doc-layout-mode-group {
+    border-color: var(--gd-border-strong);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-layout-mode-btn:not(.active) {
+    background: var(--gd-surface);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-layout-mode-btn:not(:last-child) {
+    border-right-color: var(--gd-border-strong);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-layout-mode-btn:not(.active):hover {
+    background: #3c4043;
+}
+
+/* 簽約人列、翻頁、狀態列 */
+.o_dobtor_doc_editor.is-dark-mode .doc-signer-bar-label,
+.o_dobtor_doc_editor.is-dark-mode .doc-pager-label,
+.o_dobtor_doc_editor.is-dark-mode .doc-statusbar-hint,
+.o_dobtor_doc_editor.is-dark-mode .doc-statusbar-counts {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-signer-chip {
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-signer-chip.active {
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-signer-chip-count {
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-statusbar-saved { color: var(--gd-green); }
+.o_dobtor_doc_editor.is-dark-mode .doc-statusbar-error { color: var(--gd-red); }
+
+/* 左欄：分頁籤、頁面縮圖、收合條 */
+.o_dobtor_doc_editor.is-dark-mode .doc-left-tabs {
+    background: var(--gd-toolbar-bg);
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-left-tab {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-left-tab:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-left-tab.is-active {
+    color: var(--gd-accent);
+    border-bottom-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-thumbnail-panel-header {
+    color: var(--gd-text-muted);
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-thumbnail-num {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-panel-collapse-strip {
+    background: var(--gd-toolbar-bg);
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-panel-collapse-strip:hover {
+    background: var(--gd-purple-soft);
+    color: var(--gd-purple);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-panel-collapse-btn {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-panel-collapse-btn:hover {
+    color: var(--gd-purple);
+}
+
+/* 左欄：欄位清單（條件、內建區塊、明細、主記錄欄位…） */
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-hint {
+    background: var(--gd-amber-soft);
+    border-color: rgba(253, 214, 99, 0.35);
+    color: var(--gd-amber);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-filter {
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-filter i,
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-filter-note,
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-expand,
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-empty,
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-cond-btn {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-group-head {
+    background: var(--gd-surface-2);
+    color: var(--gd-text-soft);
+    border-top-color: var(--gd-toolbar-border);
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-label {
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-type {
+    background: #3c4043;
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-item:hover {
+    background: var(--gd-accent-soft);
+    border-left-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-item.is-line:hover {
+    background: rgba(232, 163, 61, 0.14);
+    border-left-color: #e8a33d;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-item.is-cond {
+    border-left-color: var(--gd-purple);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-item.is-cond:hover {
+    background: var(--gd-purple-soft);
+    border-left-color: var(--gd-purple);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-item.is-i18n {
+    border-left-color: var(--gd-orange);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-item.is-i18n:hover {
+    background: var(--gd-orange-soft);
+    border-left-color: var(--gd-orange);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-repeat-icon { color: var(--gd-accent); }
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-cond-icon,
+.o_dobtor_doc_editor.is-dark-mode .doc-field-palette-cond-btn:hover { color: var(--gd-purple); }
+.o_dobtor_doc_editor.is-dark-mode .doc-palette-i18n-icon,
+.o_dobtor_doc_editor.is-dark-mode .doc-i18n-extract-head { color: var(--gd-orange); }
+.o_dobtor_doc_editor.is-dark-mode .doc-i18n-extract {
+    background: var(--gd-orange-soft);
+    border-color: rgba(252, 173, 112, 0.35);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-model-picker-item:hover { background: var(--gd-purple-soft); }
+.o_dobtor_doc_editor.is-dark-mode .doc-model-picker-name { color: var(--gd-text); }
+.o_dobtor_doc_editor.is-dark-mode .doc-model-picker-tech { color: var(--gd-text-muted); }
+
+/* 右欄：欄位設定 */
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-header,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-section-label {
+    color: var(--gd-purple);
+    border-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-field > label,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-hint {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-checkbox,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-readonly {
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-note,
+.o_dobtor_doc_editor.is-dark-mode .doc-snapshot-badge {
+    background: var(--gd-surface-2);
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-snapshot-badge.is-stale {
+    background: var(--gd-amber-soft);
+    color: var(--gd-amber);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-preset-btn {
+    background: transparent;
+    border-color: var(--gd-border-strong);
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-preset-btn:hover {
+    background: var(--gd-purple-soft);
+    border-color: var(--gd-purple);
+    color: var(--gd-purple);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-field-id {
+    background: var(--gd-purple-soft);
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-actions {
+    border-top-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-delete-btn {
+    background: transparent;
+    border-color: rgba(242, 139, 130, 0.5);
+    color: var(--gd-red);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-delete-btn:hover {
+    background: rgba(242, 139, 130, 0.12);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list {
+    background: var(--gd-surface-2);
+    border-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-header,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-item,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-filter input {
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-filter {
+    background: var(--gd-bg);
+    border-color: var(--gd-border-strong);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-item {
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-item:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-item:not(.is-selected) .doc-inspector-fields-list-item-id {
+    background: #3c4043;
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-item.is-orphan,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-cleanup-orphans-btn {
+    background: var(--gd-amber-soft);
+    color: var(--gd-amber);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-fields-list-item.is-orphan:hover,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-cleanup-orphans-btn:hover {
+    background: rgba(253, 214, 99, 0.2);
+}
+
+/* 右欄：中文欄位對映 */
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-panel {
+    border-top-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-panel-header,
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-tool-btn,
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-expression {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-tool-btn:hover {
+    background: var(--gd-accent-soft);
+    border-color: var(--gd-accent);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-panel-empty {
+    background: var(--gd-surface-2);
+    border-color: var(--gd-border-strong);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-panel-row {
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-panel-row.doc-alias-source-template {
+    background: rgba(138, 180, 248, 0.06);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-source-icon { color: #a8b4ff; }
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-token {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-token:hover {
+    background: #394b6b;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-alias-delete-btn:hover {
+    background: rgba(242, 139, 130, 0.12);
+    color: var(--gd-red);
+}
+
+/* 面板選單的「儀表板／填寫請求／設定」分頁 */
+.o_dobtor_doc_editor.is-dark-mode .doc-subnav-panel {
+    background: var(--gd-bg);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-subnav-panel-header h2,
+.o_dobtor_doc_editor.is-dark-mode .doc-dashboard-card-value,
+.o_dobtor_doc_editor.is-dark-mode .doc-dashboard-section h3,
+.o_dobtor_doc_editor.is-dark-mode .doc-settings-field > label,
+.o_dobtor_doc_editor.is-dark-mode .doc-settings-toggle {
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-dashboard-card-label,
+.o_dobtor_doc_editor.is-dark-mode .doc-dashboard-card-hint,
+.o_dobtor_doc_editor.is-dark-mode .doc-settings-hint {
+    color: var(--gd-text-muted);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-subnav-panel-empty,
+.o_dobtor_doc_editor.is-dark-mode .doc-dashboard-card,
+.o_dobtor_doc_editor.is-dark-mode .doc-dashboard-section,
+.o_dobtor_doc_editor.is-dark-mode .doc-requests-table,
+.o_dobtor_doc_editor.is-dark-mode .doc-settings-grid {
+    background: var(--gd-toolbar-bg);
+    border-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-dashboard-table, .doc-requests-table) :is(th, td) {
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-dashboard-table, .doc-requests-table) th {
+    background: var(--gd-surface-2);
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-request-badge,
+.o_dobtor_doc_editor.is-dark-mode .doc-request-badge[data-state="draft"] {
+    background: #3c4043;
+    color: var(--gd-text-soft);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-request-badge[data-state="completed"] {
+    background: rgba(129, 201, 149, 0.16);
+    color: var(--gd-green);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-request-badge[data-state="sent"],
+.o_dobtor_doc_editor.is-dark-mode .doc-request-badge[data-state="opened"] {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-request-badge[data-state="expired"] {
+    background: rgba(242, 139, 130, 0.16);
+    color: var(--gd-red);
+}
+
+/* 版本歷史面板（文件模式） */
+.o_dobtor_doc_editor.is-dark-mode .doc-version-panel {
+    background: var(--gd-toolbar-bg);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-version-panel-header :is(h1, h2, h3, h4) {
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-version-panel .text-danger { color: var(--gd-red) !important; }
+.o_dobtor_doc_editor.is-dark-mode .doc-version-panel .text-success { color: var(--gd-green) !important; }
+/* 版本預覽是文件內容本身，跟紙張一樣維持白底深字 */
+.o_dobtor_doc_editor.is-dark-mode .doc-version-preview-html {
+    color: #202124;
+}
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-version-panel-header, .doc-version-item) {
+    border-bottom-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-version-item:hover { background: var(--gd-hover-bg); }
+.o_dobtor_doc_editor.is-dark-mode .doc-version-item.active { background: var(--gd-accent-soft); }
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-version-no, .doc-version-label) { color: var(--gd-text); }
+.o_dobtor_doc_editor.is-dark-mode :is(.doc-version-date, .doc-version-author) { color: var(--gd-text-muted); }
+.o_dobtor_doc_editor.is-dark-mode .diff-op { background: var(--gd-surface-2); }
+.o_dobtor_doc_editor.is-dark-mode .diff-op.diff-insert { background: rgba(129, 201, 149, 0.14); }
+.o_dobtor_doc_editor.is-dark-mode .diff-op.diff-delete { background: rgba(242, 139, 130, 0.14); }
+.o_dobtor_doc_editor.is-dark-mode .diff-op.diff-replace { background: var(--gd-amber-soft); }
 
 
 /* Portal：編輯器掛上之後藏掉「載入中」的 fallback。

@@ -29,10 +29,13 @@
                            aria-label="文件標題"/>
                 </div>
                 <div class="doc-header-bar-right">
+                    <!-- 輸出紀錄是唯讀成品：顯示的就是當時印出的值，「顯示實際值」「預覽」
+                         「儲存」都用不到。以前三顆都還在、儲存還是藍色可按，按了沒反應。 -->
                     <button class="doc-header-btn"
+                            t-if="!isOutputTarget"
                             t-att-class="state.previewMode ? 'doc-header-btn-preview-active' : ''"
                             t-on-click="onTogglePreviewMode"
-                            t-attf-title="#{state.previewMode ? '目前顯示實際值（可直接編輯）— 按此回到範本模式看 《token》 原文' : '切到實際值模式（可直接編輯）；改動會凍結為純文字，不影響範本'}"
+                            t-attf-title="#{state.previewMode ? '目前顯示實際值 — 按此回到編輯模式' : (state.editTarget === 'template' ? '挑一筆記錄，看這張範本印出來的樣子（預覽中不能編輯）' : '用綁定的記錄顯示欄位的實際值；這時直接編輯，改動會凍結進這份文件')}"
                             aria-label="切換預覽模式">
                         <i t-attf-class="fa #{state.previewMode ? 'fa-tags' : 'fa-eye'}" aria-hidden="true"/>
                         <span class="d-none d-md-inline">
@@ -41,6 +44,7 @@
                         </span>
                     </button>
                     <button class="doc-header-btn"
+                            t-if="!isOutputTarget"
                             t-on-click="onPreviewClick"
                             title="開新分頁預覽填值結果"
                             aria-label="預覽">
@@ -48,6 +52,7 @@
                         <span class="d-none d-md-inline">預覽</span>
                     </button>
                     <button class="doc-header-btn primary"
+                            t-if="!_isReadonly"
                             t-att-class="state.isSaving ? 'saving' : ''"
                             t-on-click="onSave"
                             t-att-disabled="state.isSaving"
@@ -951,9 +956,20 @@
                                        t-on-input="(ev) => this.onModelFieldFilterInput(ev.target.value)"
                                        aria-label="篩選模型欄位"/>
                             </div>
+                            <!-- 篩選中：工具區塊（條件、內建區塊、多語文字…）收起來，
+                                 欄位區塊只列命中的，沒命中的整區不顯示（見 paletteQuery） -->
+                            <t t-if="paletteQuery">
+                                <div t-if="!paletteHasHits" class="doc-field-palette-empty">
+                                    沒有符合「<t t-esc="state.modelFieldFilter.trim()"/>」的欄位
+                                </div>
+                                <div t-else="" class="doc-palette-filter-note">
+                                    只列出符合的欄位，清空篩選字會顯示全部項目。
+                                </div>
+                            </t>
                             <!-- ─── 條件式列印 ───
                                  「欄位有值才印」那一類由自動收合處理，使用者不必設定。
                                  這裡只服務真的需要表達式的條件。 -->
+                            <t t-if="!paletteQuery">
                             <div class="doc-palette-group-head">
                                 <i class="fa fa-code-fork me-1" aria-hidden="true"/>條件
                             </div>
@@ -1042,14 +1058,15 @@
                                     </li>
                                 </t>
                             </ul>
+                            </t>
 
                             <!-- ─── 重複列（表格明細）─── -->
-                            <t t-if="repeatableFields.length">
+                            <t t-if="paletteRepeatableFields.length">
                                 <div class="doc-palette-group-head">
                                     <i class="fa fa-list-ol me-1" aria-hidden="true"/>明細（一對多）
                                 </div>
                                 <ul class="doc-field-palette-list is-compact">
-                                    <t t-foreach="repeatableFields" t-as="rf" t-key="'rp-' + rf.name">
+                                    <t t-foreach="paletteRepeatableFields" t-as="rf" t-key="'rp-' + rf.name">
                                         <li class="doc-field-palette-item"
                                             t-on-click="() => this.onSetRepeatRow(rf)"
                                             t-attf-title="把游標所在的表格列設為「對 #{rf.label or rf.name} 重複」">
@@ -1062,7 +1079,7 @@
                             </t>
 
                             <!-- ─── 列型（同一明細多種版面）─── -->
-                            <t t-if="state.repeatContext">
+                            <t t-if="state.repeatContext and !paletteQuery">
                                 <ul class="doc-field-palette-list is-compact">
                                     <li class="doc-field-palette-item"
                                         t-on-click="() => this.onAddRowVariant()"
@@ -1075,7 +1092,7 @@
                             </t>
 
                             <!-- ─── 明細欄位（設了重複列才出現）─── -->
-                            <t t-if="state.repeatContext">
+                            <t t-if="state.repeatContext and (!paletteQuery or filteredLineFields.length)">
                                 <div class="doc-palette-group-head">
                                     <i class="fa fa-level-down me-1" aria-hidden="true"/>
                                     明細欄位（<t t-esc="state.repeatContext.label"/>）
@@ -1085,8 +1102,9 @@
                                 </t>
                                 <t t-elif="!state.repeatContext.model">
                                     <div class="doc-palette-hint">
-                                        這個重複來源沒有關聯模型資訊，無法列出明細欄位。
-                                        請刪除重複列標記後重新設定。
+                                        不知道這個明細是哪一張資料表，所以列不出明細欄位。
+                                        從原生報表轉換的範本，重新轉換一次就會補上；
+                                        自己設的重複列，刪掉標記後重新設定。
                                     </div>
                                 </t>
                                 <t t-else="">
@@ -1110,14 +1128,14 @@
                                             </li>
                                         </t>
                                         <t t-if="!filteredLineFields.length">
-                                            <li class="doc-field-palette-empty">無符合的明細欄位</li>
+                                            <li class="doc-field-palette-empty">沒有明細欄位</li>
                                         </t>
                                     </ul>
                                 </t>
                             </t>
 
                             <!-- ─── 分組與流水（設了重複列才出現）─── -->
-                            <t t-if="state.repeatContext">
+                            <t t-if="state.repeatContext and !paletteQuery">
                                 <div class="doc-palette-group-head">
                                     <i class="fa fa-object-group me-1" aria-hidden="true"/>分組與流水
                                 </div>
@@ -1192,6 +1210,7 @@
                             <!-- ─── 多語文字 ───
                                  欄位「值」的語言由綁定的 lang 與 ORM 負責；
                                  這裡只處理使用者自己打進範本的靜態文字。 -->
+                            <t t-if="!paletteQuery">
                             <div class="doc-palette-group-head">
                                 <i class="fa fa-language me-1" aria-hidden="true"/>多語文字
                             </div>
@@ -1290,6 +1309,7 @@
                                     </p>
                                 </div>
                             </t>
+                            </t>
 
                             <!-- ─── 圖片欄位 ───
                                  客戶簽名、公司 logo 這類 binary 欄位。
@@ -1312,6 +1332,7 @@
                                         </li>
                                     </t>
                                     <li class="doc-field-palette-item"
+                                        t-if="!paletteQuery"
                                         t-on-click="() => this.onInsertBarcode()"
                                         title="插入條碼／QR。預設以單號產生，可在右欄改欄位與型別。">
                                         <i class="fa fa-qrcode doc-palette-repeat-icon"
@@ -1345,6 +1366,7 @@
                                 </ul>
                             </t>
 
+                            <t t-if="!paletteQuery or filteredModelFields.length">
                             <div class="doc-palette-group-head">
                                 <i class="fa fa-file-text-o me-1" aria-hidden="true"/>主記錄欄位
                             </div>
@@ -1410,9 +1432,10 @@
                                     </t>
                                 </t>
                                 <t t-if="!filteredModelFields.length">
-                                    <li class="doc-field-palette-empty">無符合的欄位</li>
+                                    <li class="doc-field-palette-empty">沒有可放的欄位</li>
                                 </t>
                             </ul>
+                            </t>
                         </t>
                     </div>
 

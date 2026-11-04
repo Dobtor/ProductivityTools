@@ -1,6 +1,8 @@
 import html as html_mod
 import json
 
+from lxml import etree
+
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError
 
@@ -209,10 +211,13 @@ class DocTemplate(models.Model):
 
     @staticmethod
     def _layout_cell(*elements, **kw):
-        """表格儲存格。結尾一定補換行——canvas-editor 的儲存格都是這個形狀，
-        少了它在編輯器裡點進去會沒有可放游標的位置。"""
-        value = list(elements) + [{'value': '\n'}]
-        return dict({'colspan': 1, 'rowspan': 1, 'value': value}, **kw)
+        """表格儲存格。
+
+        結尾不補換行：canvas-editor 載入格子時一律在最前面補一個段落起點
+        （isForceCompensation），游標本來就有位置；結尾的換行反而是
+        「下一段的開頭」，會讓每一格多一行空白。
+        """
+        return dict({'colspan': 1, 'rowspan': 1, 'value': list(elements)}, **kw)
 
     @staticmethod
     def _layout_pill(label, **meta):
@@ -267,20 +272,110 @@ class DocTemplate(models.Model):
             },
             {'value': '\n'},
             tagline,
-            {'value': '\n'},
         ]
 
         footer = [
             pill('頁尾文字', source='html', path='company_id.report_footer'),
-            {'value': '\n'},
-            {'value': '第 '},
-            pill('頁碼', source='page', part='number'),
-            {'value': ' / '},
-            pill('總頁數', source='page', part='count'),
-            {'value': ' 頁'},
-            {'value': '\n', 'rowFlex': 'center'},
-        ]
+        ] + self._page_line_elements()
         return {'header': header, 'main': [], 'footer': footer}
+
+    # 頁尾頁碼「第 1 / 1 頁」。繁中沿用這個寫法；其他語言照 Odoo 自己外框的翻譯
+    # （web 的「Page <頁碼> / <總頁數>」），沒有翻譯的語言用英文。以前寫死中文，
+    # 範本內文依客戶語言切換之後，英文單據的頁尾還夾一行中文。
+    _PAGE_LINE_OVERRIDES = {
+        'zh_TW': ('第 ', ' / ', ' 頁'),
+        'zh_CN': ('第 ', ' / ', ' 页'),
+    }
+    _PAGE_LINE_DEFAULT = ('Page ', ' / ', '')
+
+    def _page_line_parts(self):
+        """{語言: (頁碼前, 頁碼與總頁數之間, 總頁數後)}，涵蓋所有已啟用語言與 en_US。"""
+        view = self.env.ref('web.external_layout_standard', raise_if_not_found=False)
+        parts = {}
+        for code, _name in self.env['res.lang'].get_installed():
+            parts[code] = (self._PAGE_LINE_OVERRIDES.get(code)
+                           or self._odoo_page_line(view, code)
+                           or self._PAGE_LINE_DEFAULT)
+        parts.setdefault('en_US', self._PAGE_LINE_DEFAULT)
+        return parts
+
+    def _odoo_page_line(self, view, lang):
+        """Odoo 外框裡 <span class="page"/> 那一行在這個語言的前後文字；讀不到回 None。"""
+        if view is None:
+            return None
+        try:
+            root = etree.fromstring(view.with_context(lang=lang).arch)
+            page = root.xpath('//span[@class="page"]')[0]
+            topage = root.xpath('//span[@class="topage"]')[0]
+        except (etree.LxmlError, ValueError, IndexError):
+            return None
+        holder = page.getparent()
+        if topage.getparent() is not holder:
+            return None
+        return (holder.text or '', page.tail or '', topage.tail or '')
+
+    def _page_line_elements(self):
+        """頁尾頁碼那一行的元素（開頭的換行算在內）。
+
+        頁碼前後的字各是一顆多語文字；所有語言都一樣的（「 / 」）就用純文字。
+        allowEmpty：英文的「頁」那個位置是空的，要真的不印，不能退回印中文。
+        換行是下一段的開頭：置中寫在開頭的換行與每個元素上，不是寫在結尾
+        （見 doc.render.mixin._elements_to_html）。
+        """
+        parts = self._page_line_parts()
+        base = self.env.lang if self.env.lang in parts else 'en_US'
+        pill = self._layout_pill
+
+        def piece(idx, placeholder):
+            texts = {code: values[idx] for code, values in parts.items()}
+            if len(set(texts.values())) == 1:
+                value = next(iter(texts.values()))
+                return [{'value': value}] if value else []
+            element = self._i18n_pill({}, texts[base] if texts[base].strip() else placeholder,
+                                      texts)
+            element['extension'][self.DOBTOR_FIELD_KEY]['allowEmpty'] = True
+            return [element]
+
+        line = ([{'value': '\n'}]
+                + piece(0, '頁碼前的字')
+                + [pill('頁碼', source='page', part='number')]
+                + piece(1, '頁碼之間')
+                + [pill('總頁數', source='page', part='count')]
+                + piece(2, '頁碼後的字'))
+        for el in line:
+            el['rowFlex'] = 'center'
+        return line
+
+    # 舊版外框寫死中文的那一行：換行之後的五個元素
+    _OLD_PAGE_LINE = ('第 ', 'number', ' / ', 'count', ' 頁')
+
+    def _upgrade_page_line(self, tree):
+        """把外框頁尾寫死中文的「第 X / Y 頁」換成多語寫法（就地改寫）。回傳有沒有換。
+
+        只換跟舊版一模一樣的那一行：使用者改過字（或刪掉頁碼）的不碰，
+        猜錯會蓋掉他的設定。
+        """
+        footer = tree.get('footer') if isinstance(tree, dict) else None
+        if not isinstance(footer, list):
+            return False
+
+        def signature(el):
+            meta = self._element_field_meta(el)
+            if meta and meta.get('source') == 'page':
+                return meta.get('part')
+            if isinstance(el, dict) and (el.get('type') or 'text') == 'text':
+                return el.get('value')
+            return None
+
+        size = len(self._OLD_PAGE_LINE)
+        for idx in range(len(footer) - size):
+            newline = footer[idx]
+            window = footer[idx + 1:idx + 1 + size]
+            if (isinstance(newline, dict) and newline.get('value') == '\n'
+                    and tuple(signature(el) for el in window) == self._OLD_PAGE_LINE):
+                footer[idx:idx + 1 + size] = self._page_line_elements()
+                return True
+        return False
 
     @api.model
     def find_or_create_layout(self, variant='side'):
@@ -325,6 +420,19 @@ class DocTemplate(models.Model):
             'domain': [('role', '=', 'layout')],
             'context': {'default_role': 'layout'},
         }
+
+    def _preview_tree(self, tree, record):
+        """範本「顯示實際值」：用一筆範例記錄跑完整快照，回傳填好值的元素樹（不存檔）。
+
+        跟報表接管列印走同一套（doc.report._build_report_html）：條件、重複列、
+        稅額彙總全部展開，語言也照列印時的規則挑。這樣在範本裡看到的就是
+        印給這筆記錄時會長的樣子。tree 會被就地改寫，呼叫端要給一份副本。
+        """
+        self.ensure_one()
+        lang = self.env['doc.report']._customer_lang(record)
+        # 語言要套在求值環境上，不只記錄——不然日期格式照操作者語言
+        in_lang = self.with_context(lang=lang)
+        return in_lang._snapshot_content_json(tree, in_lang._record_in_lang(record, lang))
 
     def frame_template(self):
         """提供頁首／頁尾與紙張設定的那一張範本。

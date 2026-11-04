@@ -5,6 +5,7 @@ ir_actions_report._prepare_html() 的期待，失敗方式是 IndexError 或 Use
 而不是「版面有點怪」。所以結構比內容更該被釘住。
 """
 import json
+import re
 from unittest.mock import patch
 
 from odoo.exceptions import AccessError, UserError
@@ -1125,6 +1126,232 @@ class TestHeaderFooterLayout(TransactionCase):
         html = self._html()
         self.assertIn('v.page', html)
         self.assertIn('doc-pg-odd', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportPrintLayout(TransactionCase):
+    """報表接管印出來的版面要跟編輯器一致。
+
+    10510 實測過的走樣：表格縮成內容寬度、條件區塊的格線被印出來、
+    頁首壓到本文、字比編輯器小一號。原因都在「HTML 交給 wkhtmltopdf 之前
+    被 Odoo 重新包裝過」，所以這裡驗的是包裝之後的結果，不是我們吐出的 HTML。
+    """
+
+    PX_TO_MM = 25.4 / 96
+
+    def setUp(self):
+        super().setUp()
+        model = self.env['ir.model']._get('res.partner')
+        self.frame = self.env['doc.template'].create({
+            'name': '版面測試外框', 'role': 'layout', 'model_id': model.id,
+            'content_json': json.dumps({
+                'header': [_text('頁首')], 'footer': [_text('頁尾')], 'main': [],
+            }),
+        })
+        self.template = self.env['doc.template'].create({
+            'name': '版面測試範本', 'role': 'content',
+            'model_id': model.id, 'layout_id': self.frame.id,
+            'content_json': json.dumps({'main': [_text('本文')]}),
+        })
+        self.report = self.env['ir.actions.report'].create({
+            'name': '版面測試報表', 'model': 'res.partner',
+            'report_type': 'qweb-pdf',
+            'report_name': 'dobtor_doc_editor.layout_probe',
+        })
+        self.binding = self.env['doc.report'].create({
+            'name': '版面測試綁定',
+            'template_id': self.template.id, 'report_id': self.report.id,
+        })
+        self.partner = self.env['res.partner'].create({'name': '版面測試客戶'})
+
+    def _html(self):
+        html, _frozen = self.binding._build_report_html(self.partner)
+        return html
+
+    def _attrs(self):
+        html = self._html()
+        return dict(re.findall(r'(data-report-[a-z-]+)="([^"]*)"', html))
+
+    def _lines(self, zone, count):
+        """count 段的頁首或頁尾（每段在編輯器裡是一列）。"""
+        elements = [_text('第 1 列')]
+        for idx in range(2, count + 1):
+            elements += [_text('\n'), _text('第 %d 列' % idx)]
+        tree = {'header': [], 'footer': [], 'main': []}
+        tree[zone] = elements
+        self.frame.content_json = json.dumps(tree)
+
+    # ─── 樣式要撐過 Odoo 的重新包裝 ──────────────────────────────────
+
+    def test_style_survives_odoo_prepare_html(self):
+        """_prepare_html 只留 header／footer／article 三種 div，<head> 整個丟掉。"""
+        bodies, _ids, header, footer, _args = self.report._prepare_html(
+            self._html(), report_model='res.partner')
+        for part in bodies + [header, footer]:
+            self.assertIn('.doc-block{border-collapse:separate', part)
+            self.assertIn('table{border-collapse:collapse;width:100%}', part)
+            self.assertIn('body.o_body_pdf.container{padding:0', part,
+                          'Odoo 報表版面自帶的 11mm 內距要抵銷')
+
+    def test_shrinking_is_disabled_for_taken_over_reports(self):
+        """wkhtmltopdf 預設會再縮一次，字就比編輯器小一號。"""
+        self.assertEqual(self._attrs().get('data-report-disable-shrinking'), '1')
+        paperformat = self.report.get_paperformat()
+        args = self.report._build_wkhtmltopdf_args(
+            paperformat, False, {'data-report-disable-shrinking': '1'})
+        self.assertIn('--disable-smart-shrinking', args)
+        if not paperformat.disable_shrinking:
+            args = self.report._build_wkhtmltopdf_args(paperformat, False, {})
+            self.assertNotIn('--disable-smart-shrinking', args,
+                             '沒接管的報表維持 Odoo 原本的行為')
+
+    # ─── 頁首頁尾留空間 ─────────────────────────────────────────────
+
+    def test_short_header_keeps_the_template_margin(self):
+        """頁首放得下就不動邊距；頁首從離頂端 30px 的地方開始畫。"""
+        attrs = self._attrs()
+        self.assertEqual(attrs['data-report-margin-top'], '25.4')
+        # wkhtmltopdf 的頁首從「上邊距 − 頁首間距」往下畫
+        self.assertAlmostEqual(
+            float(attrs['data-report-margin-top'])
+            - float(attrs['data-report-header-spacing']),
+            30 * self.PX_TO_MM, delta=0.15)
+
+    def test_tall_header_pushes_the_body_down(self):
+        self._lines('header', 6)
+        attrs = self._attrs()
+        head_px = self.binding._estimate_html_height(
+            ''.join('<p>第 %d 列</p>' % i for i in range(1, 7)))
+        expected = (30 + head_px) * self.PX_TO_MM + self.frame.header_spacing
+        self.assertAlmostEqual(
+            float(attrs['data-report-margin-top']), expected, delta=0.15,
+            msg='上邊距要讓出頁首高度＋頁首間距，本文才不會被壓到')
+        self.assertAlmostEqual(
+            float(attrs['data-report-margin-top'])
+            - float(attrs['data-report-header-spacing']),
+            30 * self.PX_TO_MM, delta=0.15)
+
+    def test_tall_footer_raises_the_bottom_margin(self):
+        self._lines('footer', 6)
+        attrs = self._attrs()
+        foot_px = self.binding._estimate_html_height(
+            ''.join('<p>第 %d 列</p>' % i for i in range(1, 7)))
+        bottom = float(attrs['data-report-margin-bottom'])
+        self.assertAlmostEqual(
+            bottom, (30 + foot_px) * self.PX_TO_MM + self.frame.footer_spacing,
+            delta=0.15)
+        # wkhtmltopdf 的頁尾從「下邊距 − 頁尾間距」往下畫，要剛好畫到離底 30px
+        self.assertAlmostEqual(
+            bottom - float(attrs['data-report-footer-spacing']),
+            (30 + foot_px) * self.PX_TO_MM, delta=0.15)
+
+    # ─── 高度估計 ──────────────────────────────────────────────────
+
+    def test_estimate_counts_paragraph_lines(self):
+        """一列 16px×1.25＝20px，段落上下各 8px。"""
+        est = self.binding._estimate_html_height
+        self.assertEqual(est(''), 0)
+        self.assertEqual(est('<p>甲</p>'), 36)
+        self.assertEqual(est('<p><br/></p>'), 36, '空段落也佔一列')
+        self.assertEqual(est('<p>甲<br/>乙</p>'), 56)
+        self.assertEqual(est('<p>甲<br/></p>'), 36, '結尾的 <br> 不會多出一列')
+        self.assertEqual(est('<p>甲<br/><br/></p>'), 56)
+        self.assertEqual(est('<style>p{}</style><p>甲</p>'), 36)
+        self.assertEqual(est('<p><span style="font-size:24px">大</span></p>'), 46)
+
+    def test_estimate_tables_and_images(self):
+        """表格一列取最高的那一格；圖片照 height 算。"""
+        est = self.binding._estimate_html_height
+        row = ('<tr><td><p><img height="48"/></p></td>'
+               '<td><p>甲<br/>乙<br/>丙</p></td></tr>')
+        # 右格 3 列＝60＋16；左格圖 48＋4＋16
+        self.assertEqual(est('<table class="doc-block">%s</table>' % row), 76)
+        self.assertEqual(est('<table>%s</table>' % row), 81, '一般表格格子多 5px 下內距')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportCustomerLanguage(TransactionCase):
+    """報表接管照「客戶」的語言印，不是照按列印的人——與原生報表一致。
+
+    10510 實測：英文客戶的報價單被中文介面的業務印成中文，日期「2026年11月02日」，
+    稅額標籤卻是英文，同一張單據中英混雜。
+    用 res.partner.bank 當單據：它有 partner_id，客戶語言才挑得出來。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['res.lang']._activate_lang('zh_TW')
+        model = self.env['ir.model']._get('res.partner.bank')
+
+        def template(name, text):
+            return self.env['doc.template'].create({
+                'name': name, 'role': 'content', 'model_id': model.id,
+                'content_json': json.dumps({'main': [
+                    _text(text), _pill('建立時間', source='record', path='create_date'),
+                ]}),
+            })
+
+        report = self.env['ir.actions.report'].create({
+            'name': '語言測試報表', 'model': 'res.partner.bank',
+            'report_type': 'qweb-pdf', 'report_name': 'dobtor_doc_editor.lang_probe',
+        })
+        self.report = report
+        Binding = self.env['doc.report']
+        self.fallback = Binding.create({
+            'name': '後備（中文範本）', 'report_id': report.id,
+            'template_id': template('語言測試中文範本', '中文固定字').id,
+        })
+        self.english = Binding.create({
+            'name': '英文客戶', 'report_id': report.id, 'lang': 'en_US',
+            'template_id': template('語言測試英文範本', 'English text').id,
+        })
+
+        def account(name, lang, number):
+            partner = self.env['res.partner'].create({'name': name, 'lang': lang})
+            return self.env['res.partner.bank'].create({
+                'acc_number': number, 'partner_id': partner.id})
+
+        self.en_account = account('English Customer', 'en_US', 'LANG-PROBE-EN')
+        self.zh_account = account('中文客戶', 'zh_TW', 'LANG-PROBE-ZH')
+
+    def test_binding_follows_customer_not_operator(self):
+        Binding = self.env['doc.report'].with_context(lang='zh_TW')
+        self.assertEqual(
+            Binding._resolve_for_records(self.report, self.en_account), self.english,
+            '中文介面的人印英文客戶的單據，要挑英文的定義')
+        self.assertEqual(
+            Binding.with_context(lang='en_US')._resolve_for_records(
+                self.report, self.zh_account),
+            self.fallback, '英文介面的人印中文客戶的單據，不該挑到英文的定義')
+
+    def test_each_record_uses_its_customers_template(self):
+        """一次印兩筆不同語言的客戶，各自用自己語言的範本。"""
+        html, _ = self.fallback.with_context(lang='zh_TW')._build_report_html(
+            self.en_account + self.zh_account)
+        en_part, zh_part = html.split('data-oe-id="%s"' % self.zh_account.id)
+        self.assertIn('English text', en_part)
+        self.assertNotIn('中文固定字', en_part)
+        self.assertIn('data-oe-lang="en_US"', en_part)
+        self.assertIn('中文固定字', zh_part)
+        self.assertIn('data-oe-lang="zh_TW"', zh_part)
+
+    def test_dates_follow_customer_not_operator(self):
+        """只換記錄的語言不夠：日期是用求值環境的語言格式化的。"""
+        html, _ = self.fallback.with_context(lang='zh_TW')._build_report_html(
+            self.en_account)
+        self.assertNotIn('年', html, '英文客戶的日期不該是中文格式')
+        # 英文的日期時間格式是「Nov 3, 2026, 5:05:49 AM」——確認真的有印出日期
+        self.assertRegex(html, r'\b20\d\d\b')
+        html, _ = self.fallback.with_context(lang='en_US')._build_report_html(
+            self.zh_account)
+        self.assertIn('年', html, '中文客戶的日期要是中文格式，不管誰按列印')
+
+    def test_record_lang_switch_checks_the_record_itself(self):
+        """求值環境已經是目標語言、記錄還是操作者語言時，記錄也要換過去。"""
+        Mixin = self.env['doc.render.mixin']
+        record = self.en_account.with_context(lang='zh_TW')
+        switched = Mixin.with_context(lang='en_US')._record_in_lang(record, 'en_US')
+        self.assertEqual(switched.env.context.get('lang'), 'en_US')
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')

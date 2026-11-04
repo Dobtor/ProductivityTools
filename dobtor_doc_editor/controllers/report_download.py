@@ -53,18 +53,18 @@ class DocReportDownload(ReportController):
         report = request.env['ir.actions.report']._get_report_from_name(reportname)
         if not report:
             return
-        doc_report = request.env['doc.report']._resolve_for_report(report)
-        pattern_str = (doc_report.filename_pattern or '').strip() \
-            if doc_report else ''
-        if not pattern_str:
-            return
-
         ids = [int(x) for x in docids.split(',') if x.strip().isdigit()]
         if len(ids) != 1:
             # 多筆合併成一份：單一記錄的檔名樣式套不上去，交回原生
             return
         record = request.env[report.model].browse(ids)
         if not record.exists():
+            return
+        # 跟列印內容用同一筆定義（照客戶語言挑），檔名樣式才對得上
+        doc_report = request.env['doc.report']._resolve_for_records(report, record)
+        pattern_str = (doc_report.filename_pattern or '').strip() \
+            if doc_report else ''
+        if not pattern_str:
             return
 
         name = request.env['doc.render.mixin']._render_filename(

@@ -54,6 +54,43 @@ class TestFieldListCoverage(TransactionCase):
         m2o = [f for f in fields if f['type'] == 'many2one' and f.get('sub_fields')]
         self.assertTrue(m2o, 'many2one 仍要展開子欄位')
 
+    def test_user_name_and_email_are_listed_under_salesperson(self):
+        """展開「▸ 業務員」要找得到姓名、電郵。
+
+        res.users 的姓名、電郵是從聯絡人轉接過來的（沒存資料庫），以前清單
+        只列有存的欄位，這兩個就被濾掉了。
+        """
+        fields = self.Mixin.get_available_fields('res.partner', max_depth=2)
+        user = next(f for f in fields if f['name'] == 'user_id')
+        names = {f['name'] for f in user['sub_fields']}
+        self.assertTrue({'name', 'email', 'phone'} <= names, sorted(names)[:20])
+
+    def test_proxies_of_computed_fields_stay_out(self):
+        """轉接到計算欄位的（頭像、活動摘要）不列——只會淹沒要找的欄位。"""
+        fields = self.Mixin.get_available_fields('res.partner', max_depth=2)
+        user = next(f for f in fields if f['name'] == 'user_id')
+        names = {f['name'] for f in user['sub_fields']}
+        self.assertFalse({'avatar_128', 'activity_summary'} & names)
+
+    def test_proxy_many2one_is_not_expanded(self):
+        """轉接過來的 many2one 不再往下展開，免得清單成倍長大；
+        要深入就走它原本那條路（例如「關聯聯絡人」）。"""
+        fields = self.Mixin.get_available_fields('res.partner', max_depth=2)
+        user = next(f for f in fields if f['name'] == 'user_id')
+        country = next(f for f in user['sub_fields'] if f['name'] == 'country_id')
+        self.assertNotIn('sub_fields', country)
+        partner = next(f for f in user['sub_fields'] if f['name'] == 'partner_id')
+        self.assertTrue(partner.get('sub_fields') is not None,
+                        '有存的 many2one 照常展開')
+
+    def test_deepest_level_lists_stored_fields_only(self):
+        """最深那一層不列轉接欄位：到處都是「建立者」，全列進去清單會大一倍。"""
+        fields = self.Mixin.get_available_fields('res.partner', max_depth=1)
+        user = next(f for f in fields if f['name'] == 'user_id')
+        names = {f['name'] for f in user['sub_fields']}
+        self.assertNotIn('email', names)
+        self.assertIn('login', names)
+
     def test_scalar_list_matches_frontend_constant(self):
         """後端 _SCALAR_TTYPES 必須與前端 SCALAR_FIELD_TYPES 同步。
 

@@ -16,10 +16,16 @@ Odoo 原生的「列印」按鈕、走原生的下載流程，只有「HTML 從�
 _render_qweb_pdf_prepare_streams。只有設了附頁的綁定會走到那裡，
 沒設的完全不碰——見 report_overrides.py 的那支覆寫。
 """
+import copy
 import logging
+import re
+
+import lxml.html
+from lxml import etree
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.image import base64_to_image
 
 _logger = logging.getLogger(__name__)
 
@@ -67,9 +73,9 @@ class DocReport(models.Model):
     lang = fields.Selection(
         _lang_get,
         string='語言',
-        help='只在此語言生效。留空＝所有語言的後備值。'
-             'content_json 是整份版面、不走 i18n，所以多語言的做法是'
-             '「一語言一筆定義指向不同範本」，而不是翻譯範本內容。',
+        help='只用在這個語言的客戶（依單據上客戶的語言挑，與原生報表一致）。'
+             '留空＝所有語言的後備值。範本裡打好的固定文字只有一種語言，'
+             '要給不同語言的客戶不同文字，可以各綁一張範本，或在範本裡改用多語文字。',
     )
     company_id = fields.Many2one(
         'res.company',
@@ -346,6 +352,39 @@ class DocReport(models.Model):
 
         return candidates.sorted(key=specificity)[0]
 
+    @api.model
+    def _customer_lang(self, record):
+        """這筆記錄該用哪個語言印：客戶的語言，沒有客戶就用操作者的。
+
+        與原生報表一致（sale 的範本是 doc.with_context(lang=doc.partner_id.lang)）。
+        以前挑定義用的是操作者語言，英文客戶的報價單會被中文介面的業務印成中文。
+        """
+        Mixin = self.env['doc.render.mixin'].with_context(doc_render_lang=None)
+        return (Mixin._render_lang(record) or self.env.context.get('lang')
+                or self.env.user.lang or 'en_US')
+
+    @api.model
+    def _resolve_for_records(self, report, records):
+        """整批列印要不要接管、以哪一筆定義為主：看第一筆記錄的客戶語言。
+
+        每一筆實際用哪張範本，_build_report_html 會再照各自的客戶語言挑
+        （_binding_for_record）；這裡只決定「接不接管」與頁首頁尾、紙張用誰的。
+        """
+        lang = self._customer_lang(records[:1]) if records else None
+        return self._resolve_for_report(report, lang=lang)
+
+    def _binding_for_record(self, record):
+        """這一筆該用哪一筆定義、用什麼語言印。回傳 (定義, 語言)。
+
+        定義照客戶語言挑：有該語言專屬的就用它，沒有就用後備（語言留空）的；
+        兩者都沒有就沿用 self（整批被選中的那一筆）——這時範本裡打好的固定文字
+        是那張範本的語言，只有從單據帶出來的值照客戶語言。
+        """
+        self.ensure_one()
+        lang = self._customer_lang(record)
+        binding = self._resolve_for_report(self.report_id, lang=lang) or self
+        return binding, lang
+
     # ─── HTML 組裝 ───────────────────────────────────────────────────
 
     def _build_report_html(self, records):
@@ -382,25 +421,29 @@ class DocReport(models.Model):
         # 沒有任何記錄覆寫時這個 dict 一直是空的，等於這段不存在。
         tree_cache = {template.id: base_tree}
 
+        # 樣式要放進每一個 header／footer／article 裡面，放在 <head> 會被丟掉：
+        # Odoo 的 _prepare_html 只把這三種 div 拆出來，各自重新包進
+        # web.minimal_layout 交給 wkhtmltopdf，原本的 <head> 整個不要了。
+        # 少了這份樣式，表格縮成內容寬度、條件區塊的格線被印出來、
+        # 頁首還會被 Odoo 報表版面自己的內距往下推，壓到本文。
+        style = '<style>%s</style>' % self._report_css()
         articles = []
         frozen_trees = {}
         langs = {}
         for raw_record in records:
-            # 渲染語言必須套用到「記錄」而不只是 data-oe-lang：少了這一步，
-            # 綁定上設了 zh_TW 仍會把商品名稱、selection 標籤、付款條件
-            # 印成操作者的語言，而且完全不報錯。
-            lang = (
-                self.lang
-                or Mixin.with_context(doc_render_lang=None)._render_lang(raw_record)
-                or self.env.context.get('lang') or 'en_US'
-            )
-            record = Mixin._record_in_lang(raw_record, lang)
+            # 這一筆用哪一筆定義、什麼語言印：都照客戶語言（見 _binding_for_record）
+            binding, lang = self._binding_for_record(raw_record)
+            # 語言要同時套在「記錄」與「求值的環境」上。只換記錄的話，商品名稱、
+            # 稅額標籤照客戶語言，日期格式卻照操作者語言——同一張單據中英混雜。
+            LangMixin = Mixin.with_context(lang=lang)
+            record = LangMixin._record_in_lang(raw_record, lang)
             langs[raw_record.id] = lang
-            # 這一筆要用哪張範本。頁首頁尾（frame_tree）仍然只有一份——
-            # wkhtmltopdf 的頁首頁尾是整份 PDF 共用的，做不到逐筆不同。
-            # 覆寫的範本如果外框不一樣，會留下 log 並沿用綁定那一份外框。
-            record_template = self._record_template_for(record)
-            if record_template and record_template != template:
+            # 這一筆要用哪張範本：先看客戶語言對應的定義，再看記錄自己有沒有指定。
+            # 頁首頁尾（frame_tree）仍然只有一份——wkhtmltopdf 的頁首頁尾是整份
+            # PDF 共用的，做不到逐筆不同。外框不一樣時留 log 並沿用綁定那一份外框。
+            record_template = (
+                binding._record_template_for(record) or binding.template_id)
+            if record_template != template:
                 if record_template.id not in tree_cache:
                     tree_cache[record_template.id] = Mixin._parse_content_json(
                         record_template.content_json)
@@ -418,27 +461,27 @@ class DocReport(models.Model):
             if this_tree is None:
                 # 範本還沒用編輯器存過（只有 content_html）：退回舊的 alias 渲染，
                 # 至少印得出東西，而不是給一張空白紙。
-                body = this_template._render_template(
+                body = this_template.with_context(lang=lang)._render_template(
                     this_template.get_content_html(), record,
                 )
                 frozen_trees[record.id] = None
             else:
-                import copy as _copy
-                tree = Mixin._snapshot_content_json(
-                    _copy.deepcopy(this_tree), record,
+                tree = LangMixin._snapshot_content_json(
+                    copy.deepcopy(this_tree), record,
                 )
                 frozen_trees[record.id] = tree
-                body = Mixin._content_json_to_html(
-                    Mixin._flatten_content_json(_copy.deepcopy(tree))
+                body = LangMixin._content_json_to_html(
+                    LangMixin._flatten_content_json(copy.deepcopy(tree))
                 )
             articles.append(
                 '<div class="article" data-oe-model="%s" data-oe-id="%s" data-oe-lang="%s">'
-                '%s</div>' % (
-                    record._name, record.id, lang, body,
+                '%s%s</div>' % (
+                    record._name, record.id, lang, style, body,
                 )
             )
 
         header_footer = ''
+        head_px = foot_px = 0
         if frame_tree is not None:
             # 頁首頁尾一定要走 snapshot + flatten。少了這一步的後果是靜默的：
             #   * 頁首頁尾裡的藥丸原樣印出標籤文字（單據上出現「客戶名稱」四個字）
@@ -448,33 +491,34 @@ class DocReport(models.Model):
             # 以第一筆記錄求值：wkhtmltopdf 的頁首頁尾是「整份文件一份、每頁重複」，
             # 多筆記錄一起印時沒有逐筆帶值的餘地（那是 wkhtmltopdf 的限制，
             # 不是這裡的選擇）。所以頁首頁尾適合放公司資訊與頁碼，不適合放單據欄位。
-            import copy as _copy
             hf_tree = {
-                zone: _copy.deepcopy(frame_tree.get(zone) or [])
+                zone: copy.deepcopy(frame_tree.get(zone) or [])
                 for zone in ('header', 'footer')
             }
             first = records[:1]
+            # 頁首頁尾的語言跟第一筆走（同一份 PDF 只有一份頁首頁尾）
+            HfMixin = Mixin.with_context(lang=langs[first.id]) if first else Mixin
             if first:
-                Mixin._snapshot_content_json(
-                    hf_tree,
-                    Mixin._record_in_lang(first, langs.get(first.id)),
+                HfMixin._snapshot_content_json(
+                    hf_tree, HfMixin._record_in_lang(first, langs[first.id]),
                 )
-            Mixin._flatten_content_json(hf_tree)
-            head = Mixin._content_json_to_html(hf_tree, zone='header')
-            foot = Mixin._content_json_to_html(hf_tree, zone='footer')
+            HfMixin._flatten_content_json(hf_tree)
+            head = HfMixin._content_json_to_html(hf_tree, zone='header')
+            foot = HfMixin._content_json_to_html(hf_tree, zone='footer')
             scope_js = self._page_scope_script(head + foot)
             if head.strip() and head != '<p><br/></p>':
-                header_footer += '<div class="header">%s%s%s</div>' % (
-                    self._zone_style(frame, 'header'), scope_js, head)
+                header_footer += '<div class="header">%s%s%s%s</div>' % (
+                    style, self._zone_style(frame, 'header'), scope_js, head)
+                head_px = self._estimate_html_height(head)
             if foot.strip() and foot != '<p><br/></p>':
-                header_footer += '<div class="footer">%s%s%s</div>' % (
-                    self._zone_style(frame, 'footer'), scope_js, foot)
+                header_footer += '<div class="footer">%s%s%s%s</div>' % (
+                    style, self._zone_style(frame, 'footer'), scope_js, foot)
+                foot_px = self._estimate_html_height(foot)
 
         html = (
-            '<html %s><head><meta charset="utf-8"/><style>%s</style></head>'
+            '<html %s><head><meta charset="utf-8"/></head>'
             '<body><main>%s%s</main></body></html>' % (
-                self._paperformat_attrs(),
-                self._report_css(),
+                self._paperformat_attrs(head_px, foot_px),
                 header_footer,
                 ''.join(articles),
             )
@@ -538,45 +582,212 @@ class DocReport(models.Model):
             return ''
         return '<style>div.%s{%s}</style>' % (zone, ';'.join(bits))
 
-    def _paperformat_attrs(self):
+    # 編輯器（canvas-editor）的頁首從紙張頂端往下 30px 開始畫，頁尾畫到離紙張
+    # 底端 30px 為止；頁首頁尾比邊距高時，編輯器會把本文往內推。PDF 照同一套。
+    _HEADER_TOP_PX = 30
+    _FOOTER_BOTTOM_PX = 30
+
+    def _paperformat_attrs(self, head_px=0, foot_px=0):
         """範本的頁面邊距 → 根 <html> 的 data-report-* 屬性。
 
         定案：**範本的版面設定優先於報表的 paperformat**。
         理由是「編輯器裡看到的就是列印結果」是這個模組的賣點；
         若讓 paperformat 贏，使用者調完版面列印出來卻不一樣，模組就沒有意義。
+
+        head_px / foot_px 是頁首頁尾的估計高度（_estimate_html_height）。
+        頁首頁尾要自己算位置，因為 wkhtmltopdf 不會依內容留空間：Odoo 的
+        web.minimal_layout 把頁首頁尾文件的高度設成 0（<html style="height:0">），
+        結果是頁首一律從「上邊距 − 頁首間距」那條線往下畫、頁尾一律從
+        「下邊距 − 頁尾間距」那條線往下畫，內容多高都一樣。所以：
+          * 頁首從 30px 開始畫：頁首間距參數 = 上邊距 − 30px
+          * 頁尾畫到離底 30px：頁尾間距參數 = 下邊距 − 30px − 頁尾高度
+          * 頁首（或頁尾）加上範本設定的間距超過邊距時，邊距跟著加大，
+            本文往內推，不會被壓到
         """
         self.ensure_one()
         # 紙張與邊距屬於「外框」。設了外框範本就由它決定——否則同一個外框底下
         # 各張內容範本的邊距不一致，頁首會在不同單據上落在不同高度。
         tmpl = self.template_id.frame_template()
         px_to_mm = 25.4 / 96
+        top = tmpl.margin_top or 96
+        bottom = tmpl.margin_bottom or 96
+        header_gap = tmpl.header_spacing or 5
+        footer_gap = tmpl.footer_spacing or 5
+        if head_px:
+            # 頁首下方分隔線：border 1px＋padding 4px（見 _zone_style）
+            head_px += 5 if tmpl.header_rule else 0
+            top = max(top, self._HEADER_TOP_PX + head_px + header_gap / px_to_mm)
+            header_gap = (top - self._HEADER_TOP_PX) * px_to_mm
+        if foot_px:
+            foot_px += 5 if tmpl.footer_rule else 0
+            bottom = max(bottom, self._FOOTER_BOTTOM_PX + foot_px + footer_gap / px_to_mm)
+            footer_gap = (bottom - self._FOOTER_BOTTOM_PX - foot_px) * px_to_mm
         attrs = {
-            'data-report-margin-top': round((tmpl.margin_top or 96) * px_to_mm, 1),
-            'data-report-margin-bottom': round((tmpl.margin_bottom or 96) * px_to_mm, 1),
+            'data-report-margin-top': round(top * px_to_mm, 1),
+            'data-report-margin-bottom': round(bottom * px_to_mm, 1),
             'data-report-margin-left': round((tmpl.margin_left or 96) * px_to_mm, 1),
             'data-report-margin-right': round((tmpl.margin_right or 96) * px_to_mm, 1),
-            # wkhtmltopdf 的頁首疊在上邊距區，比邊距高就壓到本文。
             # Odoo 只讀 data-report-header-spacing（ir_actions_report.py:339），
             # footer-spacing 由 models/report_overrides.py 的覆寫補上。
-            'data-report-header-spacing': tmpl.header_spacing or 5,
-            'data-report-footer-spacing': tmpl.footer_spacing or 5,
+            'data-report-header-spacing': round(header_gap, 1),
+            'data-report-footer-spacing': round(footer_gap, 1),
+            # 關掉 wkhtmltopdf 的自動縮小，1px 才會等於編輯器的 1px
+            # （models/report_overrides.py 的 _build_wkhtmltopdf_args 讀這個）
+            'data-report-disable-shrinking': 1,
         }
         return ' '.join('%s="%s"' % (k, v) for k, v in attrs.items())
+
+    # ─── 估計頁首頁尾的高度 ─────────────────────────────────────────
+    #
+    # 數字要跟 _report_css 一致：字級 16px、行高 1.25、<p> 上下各 8px、
+    # 一般表格格子下內距 5px（區塊容器是 0）。
+    _EST_FONT_PX = 16
+    _EST_LINE_HEIGHT = 1.25
+    _EST_P_PADDING_PX = 16
+    _EST_TD_PADDING_PX = 5
+    _EST_BLOCK_TAGS = frozenset((
+        'p', 'div', 'table', 'ul', 'ol', 'li', 'blockquote', 'address',
+        'section', 'article', 'header', 'footer',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    ))
+    _EST_FONT_RE = re.compile(r'font-size\s*:\s*(\d+(?:\.\d+)?)px')
+    _EST_HEIGHT_RE = re.compile(r'(?:^|;)\s*height\s*:\s*(\d+(?:\.\d+)?)px')
+
+    def _estimate_html_height(self, html):
+        """估計一段頁首／頁尾 HTML 印出來有多高（px）。
+
+        wkhtmltopdf 不會依頁首內容留空間（見 _paperformat_attrs），只好在這裡估。
+        只算會把高度撐開的東西：段落（含 <br> 斷行）、圖片、表格的列。
+        不算自動換行——頁首頁尾放的多半是短字串；估多了只是多留一點白，
+        估少了才會壓到本文，所以有疑問時往大的估。
+        """
+        if not (html or '').strip():
+            return 0
+        try:
+            root = lxml.html.fragment_fromstring(html, create_parent='div')
+        except (etree.ParserError, ValueError):
+            return 0
+        return int(round(self._est_node_height(root, self._EST_FONT_PX)))
+
+    def _est_font(self, node, font):
+        match = self._EST_FONT_RE.search(node.get('style') or '')
+        return float(match.group(1)) if match else font
+
+    def _est_img_height(self, node):
+        """圖片高度：有寫 height 用它；沒寫就讀圖檔本身的尺寸（有 width 時等比例換算）。"""
+        raw = node.get('height')
+        if raw and raw.isdigit():
+            return float(raw)
+        match = self._EST_HEIGHT_RE.search(node.get('style') or '')
+        if match:
+            return float(match.group(1))
+        src = node.get('src') or ''
+        if not src.startswith('data:image/') or ',' not in src:
+            return 0.0
+        try:
+            width, height = base64_to_image(src.split(',', 1)[1]).size
+        except Exception:
+            return 0.0
+        attr_w = node.get('width')
+        if attr_w and attr_w.isdigit() and width:
+            return height * float(attr_w) / width
+        return float(height)
+
+    def _est_node_height(self, node, font):
+        tag = node.tag if isinstance(node.tag, str) else ''
+        if tag in ('style', 'script'):
+            return 0.0
+        font = self._est_font(node, font)
+        if tag == 'img':
+            return self._est_img_height(node)
+        if tag == 'table':
+            pad = 0 if 'doc-block' in (node.get('class') or '') else self._EST_TD_PADDING_PX
+            total = 0.0
+            for row in node.xpath('./tr|./*/tr'):
+                cells = row.xpath('./td|./th')
+                total += max(
+                    [self._est_node_height(cell, font) + pad for cell in cells] or [0.0])
+            return total
+
+        height = 0.0
+        line = None  # 目前這一列的高度；None 表示這一列還沒開始
+
+        def add_to_line(value):
+            nonlocal line
+            line = max(line or 0.0, value)
+
+        def end_line():
+            nonlocal height, line
+            if line is not None:
+                height += line
+            line = None
+
+        def walk(el, el_font):
+            nonlocal height
+            if (el.text or '').strip():
+                add_to_line(el_font * self._EST_LINE_HEIGHT)
+            for child in el:
+                child_tag = child.tag if isinstance(child.tag, str) else ''
+                child_font = self._est_font(child, el_font)
+                if child_tag in ('style', 'script'):
+                    pass
+                elif child_tag == 'br':
+                    # <br> 收掉目前這一列；接連兩個 <br> 中間是一列空白
+                    if line is None:
+                        add_to_line(child_font * self._EST_LINE_HEIGHT)
+                    end_line()
+                elif child_tag == 'img':
+                    # 圖片坐在文字基線上，下面還有一截字的下緣
+                    add_to_line(self._est_img_height(child) + 4)
+                elif child_tag in self._EST_BLOCK_TAGS:
+                    end_line()
+                    height += self._est_node_height(child, child_font)
+                else:
+                    walk(child, child_font)
+                if (child.tail or '').strip():
+                    add_to_line(el_font * self._EST_LINE_HEIGHT)
+
+        walk(node, font)
+        end_line()
+        if tag == 'p':
+            height += self._EST_P_PADDING_PX
+        return height
 
     def _report_css(self):
         """列印用的最小樣式。
 
         刻意不帶藥丸網底——定案決策四：匯出只輸出值，網底屬編輯輔助。
         （_flatten_content_json 已經把 label 攤平成純文字，這裡是第二道保險。）
+
+        數字照編輯器（canvas-editor）的預設值，印出來才會跟畫面一樣：
+        預設字級 16px；每一列上下各留 8px（字級 12～30px 時固定 8px，
+        不隨字級放大，所以用 padding 而不是 line-height 倍數）；
+        表格格線黑色、格內距上 0、右下左 5px。
         """
         return (
+            # 先抵銷 Odoo 報表版面（web.minimal_layout）自帶的樣式：
+            #   * <body> 是 Bootstrap 的 .container，有最大寬度與左右內距；
+            #     紙張設了 css_margins（Odoo 預設的 A4 就是）時再多 11mm 左右內距、
+            #     頁首再多 11mm 上內距。邊距已經由範本的 data-report-margin-*
+            #     交給 wkhtmltopdf，這些疊上去本文會往內縮、頁首會往下掉
+            #   * Bootstrap 的 <p> 有 1rem 下邊距，編輯器的段落之間沒有
+            # 選擇器要比 Odoo 的 .o_body_pdf.o_css_margins 更具體才蓋得過
+            "body.o_body_pdf.container{padding:0;margin:0;max-width:none}"
+            "body.o_body_pdf.container .header{padding-top:0}"
             "body{font-family:'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif;"
-            "font-size:12px;line-height:1.6;color:#000;margin:0}"
+            "font-size:16px;line-height:1.25;color:#000;margin:0}"
+            "p{margin:0;padding:8px 0}"
             "table{border-collapse:collapse;width:100%}"
-            "td,th{border:1px solid #999;padding:4px 6px}"
+            "td,th{border:1px solid #000;padding:0 5px 5px 5px;vertical-align:top}"
             # 區塊容器（條件區塊／稅額彙總）用單格表格當邊界，但它不是表格，
             # 不可印框線。見 doc.render.mixin._element_block_kind。
             ".doc-block,.doc-block td{border:none;padding:0}"
+            # wkhtmltopdf 在 collapse 模式下，沒有框線的表格仍會畫出淡灰色細線
+            # （實測），區塊容器改用 separate 才真的看不到
+            ".doc-block{border-collapse:separate;border-spacing:0}"
+            # 並排區塊（外框地址、資訊欄）照編輯器的欄寬：自動排版會把空的
+            # 那一格縮成 0，右邊的地址跟著跑到最左邊
+            ".doc-layout{table-layout:fixed;width:100%}"
             ".doc-page-break{page-break-after:always}"
             ".article{page-break-after:always}"
             ".article:last-child{page-break-after:auto}"

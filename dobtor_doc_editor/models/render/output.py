@@ -12,6 +12,7 @@ content_json 為權威、在這裡自己轉。涵蓋本模組實際會產生的�
 import html as html_mod
 import io
 import json
+import re
 
 
 from odoo.exceptions import UserError
@@ -57,6 +58,10 @@ class RenderOutput:
                 plain = {k: v for k, v in el.items()
                          if k not in ('type', 'label', 'extension', 'labelId')}
                 plain['value'] = el.get('value') or ''
+                if '\n' in plain['value']:
+                    # 欄位值自己的換行（多行地址）是同一段裡的斷行，
+                    # 不是段落邊界——見 _split_paragraph_breaks
+                    plain['_softBreak'] = True
                 if src == self._IMAGE_SOURCE:
                     if (plain['value'] or '').startswith('data:'):
                         plain['type'] = 'image'
@@ -172,11 +177,10 @@ class RenderOutput:
 
         text = html_mod.escape(el.get('value') or '')
         if '\n' in text:
-            # 伺服器端求值會產生多行值（format_address、多行文字欄位）。
-            # canvas-editor 本身不把換行放進元素的 value 裡（它用獨立的 '\n'
-            # 元素），而「值剛好等於 '\n'」的段落標記在 _elements_to_html 就先
-            # 攔掉了——所以走到這裡的換行一定是值內部的，轉成 <br/> 沒有歧義。
-            # 不轉的話多行地址會塌成一行，而 HTML 裡看起來只是少了換行。
+            # 走到這裡的換行只剩欄位值內部的（format_address、多行文字欄位，
+            # 攤平時標了 _softBreak）——一般文字裡的換行在 _elements_to_html
+            # 已經拆成段落了。轉成 <br/> 讓多行地址留在同一段，
+            # 不轉的話會塌成一行，而 HTML 裡看起來只是少了換行。
             text = text.replace('\n', '<br/>')
         if not text:
             return ''
@@ -200,8 +204,11 @@ class RenderOutput:
                     attrs += ' colspan="%d"' % int(cell['colspan'])
                 if (cell.get('rowspan') or 1) > 1:
                     attrs += ' rowspan="%d"' % int(cell['rowspan'])
+                # 格子一律有隱含的段落起點（canvas-editor 的 isForceCompensation），
+                # 開頭的換行在格子裡是一行空白，不像正文會被吸收
                 cells.append('<td%s>%s</td>' % (
-                    attrs, self._elements_to_html(cell.get('value') or []),
+                    attrs, self._elements_to_html(cell.get('value') or [],
+                                                  in_cell=True),
                 ))
             if cells:
                 rows.append('<tr>%s</tr>' % ''.join(cells))
@@ -209,64 +216,145 @@ class RenderOutput:
             return ''
         # 區塊容器不是真的表格，不可印框線。class 讓四條輸出路徑各自關掉邊框，
         # 而不是在這裡寫 inline style——inline style 進不了 python-docx 的表格樣式。
-        cls = ' class="doc-block"' if self._element_block_kind(el) else ''
-        return '<table%s>%s</table>' % (cls, ''.join(rows))
+        kind = self._element_block_kind(el)
+        cls = ' class="doc-block"' if kind else ''
+        cols = ''
+        if kind == 'layout' and (el.get('extension') or {}).get('fixedCols'):
+            # 轉換器排的並排區塊（地址、資訊欄）要照編輯器的欄寬：自動排版
+            # 依內容分寬，左格空著時會被縮成 0，右格的地址就跑到最左邊。
+            # 其他表格維持自動排版（明細表照內容分寬比平均分好看；外框頁首
+            # 的 logo／公司資訊也一直是自動排，不在這裡改它的樣子）。
+            widths = [int((c or {}).get('width') or 0)
+                      for c in (el.get('colgroup') or [])]
+            total = sum(widths)
+            if total > 0 and all(w > 0 for w in widths):
+                cls = ' class="doc-block doc-layout"'
+                cols = '<colgroup>%s</colgroup>' % ''.join(
+                    '<col style="width:%.2f%%"/>' % (w * 100.0 / total)
+                    for w in widths)
+        return '<table%s>%s%s</table>' % (cls, cols, ''.join(rows))
 
-    def _elements_to_html(self, elements):
-        """元素串列 → HTML。
+    # canvas-editor 的換行：存檔時是 '\n'，載入後在記憶體裡是 ZERO（​），
+    # 兩種都會出現在 content_json 裡（快照產生的值就帶過 ​）。
+    _PARAGRAPH_BREAK_RE = re.compile('(\r\n|\n|​)')
+    # canvas-editor 載入時會逐字拆開的元素型別（它的 TEXT 類）
+    _SPLITTABLE_TYPES = ('text', 'subscript', 'superscript')
+    # 自成一列的元素：前面那一段到此結束，後面的元素自動另起一段
+    _BLOCK_ELEMENT_TYPES = ('table', 'htmlBlock', 'pageBreak')
 
-        canvas-editor 的元素串列是扁平的，用 value == '\\n' 標示換行；
-        換行元素身上的 rowFlex 決定該段落的對齊。
+    def _split_paragraph_breaks(self, elements):
+        """把值裡夾帶換行的文字元素拆開，每個換行變成獨立的 '\\n' 元素。
+
+        canvas-editor 載入時會把文字逐字拆開、每個換行都當成新段落的開頭，
+        存檔時又把屬性相同的相鄰元素併回一個（例如 '選項 \\n'、'\\n\\n'）。
+        要照它的段落模型算，就得先拆回來。拆出來的元素沿用原元素的屬性
+        （含 rowFlex），跟編輯器逐字拆開時一樣。
+
+        欄位值裡的換行（多行地址）不拆：它們在 _flatten_content_json 標了
+        _softBreak，照舊在同一段裡轉成 <br/>。
         """
         out = []
-        buf = []
-        # 這一段的頁面範圍（由段落內的 pageScope 元素設定）。每沖一次就清掉。
-        scope = {'value': ''}
+        for el in elements or []:
+            if (not isinstance(el, dict) or el.get('_softBreak')
+                    or (el.get('type') or 'text') not in self._SPLITTABLE_TYPES):
+                out.append(el)
+                continue
+            value = el.get('value') or ''
+            if value == '\n' or not self._PARAGRAPH_BREAK_RE.search(value):
+                out.append(el)
+                continue
+            for part in self._PARAGRAPH_BREAK_RE.split(value):
+                if part:
+                    out.append(dict(el, value=(
+                        '\n' if self._PARAGRAPH_BREAK_RE.fullmatch(part)
+                        else part)))
+        return out
 
-        def _flush(row_el=None):
-            cls = (' class="doc-page-%s"' % scope['value']) if scope['value'] else ''
-            scope['value'] = ''
-            if not buf:
+    def _elements_to_html(self, elements, in_cell=False):
+        """元素串列 → HTML。段落的切法與對齊一律照 canvas-editor 的畫法。
+
+        PDF 必須跟編輯器畫面一致，所以這裡照抄它排版時的規則
+        （canvas-editor computeRowList／formatElementList）：
+          * '\\n' 是**下一段的開頭**，不是上一段的結尾。
+          * 一段的對齊看開頭那個元素的 rowFlex，沒有就看它後面那一個。
+            編輯器設對齊時整段每個元素都會寫上，兩個都看才不會漏。
+          * 第一段沒有開頭的換行：編輯器載入時會在最前面補一個不帶屬性的
+            起點，所以第一段的對齊就是第一個元素的。正文若本身以換行開頭，
+            那個換行直接當起點（不多一行空白）；格子則一律補起點
+            （in_cell=True），開頭的換行是一行空白。
+          * 表格、htmlBlock、分頁自成一列；後面緊接的換行就是下一段的開頭，
+            不會多出一個空段落。
+        """
+        elements = [el for el in self._split_paragraph_breaks(elements)
+                    if isinstance(el, dict)]
+        if not elements:
+            return ''
+        out = []
+        para = None  # 目前這一段：{'head': [...], 'buf': [...], 'scope': str}
+
+        def _open(starter):
+            # head 收「開頭那個元素」與「它後面那一個」，對齊從這兩個取
+            return {'head': [starter], 'buf': [], 'scope': ''}
+
+        def _close():
+            cls = (' class="doc-page-%s"' % para['scope']) if para['scope'] else ''
+            if not para['buf']:
                 # 空段落也要保留，否則多個空行會被吃掉、版面走樣
                 out.append('<p%s><br/></p>' % cls)
                 return
-            align = self._ROW_FLEX_ALIGN.get((row_el or {}).get('rowFlex') or '')
+            flex = next((el.get('rowFlex') for el in para['head'][:2]
+                         if el.get('rowFlex')), '')
+            align = self._ROW_FLEX_ALIGN.get(flex or '')
             style = ' style="text-align:%s"' % align if align else ''
-            out.append('<p%s%s>%s</p>' % (cls, style, ''.join(buf)))
-            buf.clear()
+            out.append('<p%s%s>%s</p>' % (cls, style, ''.join(para['buf'])))
 
-        for el in (elements or []):
-            if not isinstance(el, dict):
-                continue
+        for idx, el in enumerate(elements):
+            is_break = (el.get('value') or '') == '\n' and (
+                (el.get('type') or 'text') in self._SPLITTABLE_TYPES)
+            if idx == 0:
+                if is_break and not in_cell:
+                    para = _open(el)
+                    continue
+                if in_cell and (el.get('type') or 'text') == 'table':
+                    # 格子以巢狀表格（條件區塊）開頭：編輯器把它畫在格子最上緣，
+                    # 上面沒有空行（實測）。補一個空段落的話這一格整個往下掉一行，
+                    # 跟旁邊的格子對不齊（外框地址左右兩格就是這樣）
+                    para = None
+                else:
+                    para = _open({})
+                    para['head'].append(el)
+            elif para is not None and len(para['head']) < 2:
+                para['head'].append(el)
+
             etype = el.get('type') or 'text'
-            if etype == 'table':
-                if buf:
-                    _flush()
-                out.append(self._table_to_html(el))
+            if etype in self._BLOCK_ELEMENT_TYPES:
+                if para is not None:
+                    _close()
+                para = None
+                if etype == 'table':
+                    out.append(self._table_to_html(el))
+                elif etype == 'htmlBlock':
+                    # 已在求值時消毒過（_html_field_value），原樣輸出
+                    out.append(el.get('value') or '')
+                else:
+                    out.append('<div class="doc-page-break"></div>')
                 continue
-            if etype == 'htmlBlock':
-                # 已在求值時消毒過（_html_field_value）。這裡原樣輸出，
-                # 與表格同樣是區塊級：先把行內緩衝沖掉再放。
-                if buf:
-                    _flush()
-                out.append(el.get('value') or '')
+            if is_break:
+                if para is not None:
+                    _close()
+                para = _open(el)
                 continue
+            if para is None:
+                # 區塊後面直接接內容：這個元素本身就是新一段的開頭
+                para = _open(el)
             if etype == 'pageScope':
                 # 標記本身不印字；它只決定所在段落的 class
                 if el.get('scope'):
-                    scope['value'] = el['scope']
+                    para['scope'] = el['scope']
                 continue
-            if etype == 'pageBreak':
-                if buf:
-                    _flush()
-                out.append('<div class="doc-page-break"></div>')
-                continue
-            if (el.get('value') or '') == '\n':
-                _flush(el)
-                continue
-            buf.append(self._inline_element_html(el))
-        if buf:
-            _flush()
+            para['buf'].append(self._inline_element_html(el))
+        if para is not None:
+            _close()
         return ''.join(out)
 
     # ─── HTML → content_json（_content_json_to_html 的反向）──────────
@@ -306,10 +394,15 @@ class RenderOutput:
         root = lhtml.fragment_fromstring(text, create_parent='div')
         main = []
         self._html_walk_blocks(root, main, notes)
-        return {'header': [], 'main': main, 'footer': []}
+        return self._paragraph_ends_to_starts(
+            {'header': [], 'main': main, 'footer': []})
 
     def _html_walk_blocks(self, parent, out, notes):
-        """走訪區塊層：每個區塊產生它的行內元素，再補一個 '\n'。"""
+        """走訪區塊層：每個區塊產生它的行內元素，再補一個 '\\n' 收尾。
+
+        內部用「收尾換行」的寫法（區塊結束時才知道對齊），出口由
+        _paragraph_ends_to_starts 統一轉成編輯器的寫法。
+        """
         for node in parent:
             if not isinstance(node.tag, str):
                 # ☠️ 註解（與 PI）的 .tag 不是字串而是一個 callable。不擋的話會
@@ -332,8 +425,15 @@ class RenderOutput:
                     for r in runs:
                         r.setdefault('size', size)
                         r.setdefault('bold', True)
+                end = self._html_newline(node)
+                if end.get('rowFlex'):
+                    # 區塊裡的 <br> 也是收尾換行（切出來的每一行都屬於這個
+                    # 區塊），不寫上對齊的話 <br> 之前那幾行會變成靠左
+                    for r in runs:
+                        if (r.get('value') or '') == '\n':
+                            r.setdefault('rowFlex', end['rowFlex'])
                 out.extend(runs)
-                out.append(self._html_newline(node))
+                out.append(end)
                 # div 可能自己包著區塊（出貨範本沒有，但容錯）
                 if tag == 'div':
                     self._html_walk_blocks(node, out, notes)
@@ -348,7 +448,7 @@ class RenderOutput:
             out.extend(runs)
 
     def _html_newline(self, node):
-        """區塊結尾的 '\n' 元素；對齊寫在它身上（與 _elements_to_html 相反方向）。"""
+        """區塊結尾的收尾 '\\n'；對齊先寫在它身上，出口再搬到段落本身。"""
         nl = {'value': '\n'}
         style = (node.get('style') or '')
         for css, flex in self._HTML_ALIGN_FLEX.items():

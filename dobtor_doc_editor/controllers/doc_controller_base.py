@@ -227,7 +227,11 @@ class DocControllerBase:
         刻意與文件模式維持同一組 key，讓前端 _applyLoadedPayload 只有一條路徑。
         範本沒有的東西（res_id、頁首頁尾、DOCX 模板、頁面邊距）一律給預設值，
         而不是省略 key——省略會讓前端讀到 undefined 再各自 fallback，容易漏。
+
+        紙張與邊距給「外框」的：列印時由外框決定（doc.report._paperformat_attrs），
+        編輯器要用同一份，畫面上的版面寬度才會跟印出來的一樣。
         """
+        frame = template.frame_template()
         return {
             'id': template.id,
             'name': template.name,
@@ -235,11 +239,11 @@ class DocControllerBase:
             'content_html': template.get_content_html(),
             'header_html': '',
             'footer_html': '',
-            'page_format': template.page_format or 'A4',
-            'margin_top': template.margin_top,
-            'margin_bottom': template.margin_bottom,
-            'margin_left': template.margin_left,
-            'margin_right': template.margin_right,
+            'page_format': frame.page_format or 'A4',
+            'margin_top': frame.margin_top,
+            'margin_bottom': frame.margin_bottom,
+            'margin_left': frame.margin_left,
+            'margin_right': frame.margin_right,
             'model_id': template.model_id.id if template.model_id else False,
             'model_name': template.model_id.model if template.model_id else False,
             # 範本不綁定單一記錄——設計期沒有 record 可取值，藥丸顯示標籤文字
@@ -274,6 +278,8 @@ class DocControllerBase:
         不重新求值（否則就不是「當時印出去的那一份」了）。
         """
         source = output._resolve_source()
+        # 紙張與邊距同範本模式：給列印時實際用的那一份（外框）
+        frame = output.template_id.frame_template() if output.template_id else output.template_id
         return {
             'id': output.id,
             'name': output.display_name or '',
@@ -281,11 +287,11 @@ class DocControllerBase:
             'content_html': '',
             'header_html': '',
             'footer_html': '',
-            'page_format': output.template_id.page_format or 'A4',
-            'margin_top': output.template_id.margin_top,
-            'margin_bottom': output.template_id.margin_bottom,
-            'margin_left': output.template_id.margin_left,
-            'margin_right': output.template_id.margin_right,
+            'page_format': frame.page_format or 'A4',
+            'margin_top': frame.margin_top,
+            'margin_bottom': frame.margin_bottom,
+            'margin_left': frame.margin_left,
+            'margin_right': frame.margin_right,
             'model_id': output.res_model_id.id if output.res_model_id else False,
             'model_name': output.res_model or False,
             'res_id': output.res_id or False,

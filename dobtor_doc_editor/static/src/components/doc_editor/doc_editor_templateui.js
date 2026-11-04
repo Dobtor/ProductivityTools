@@ -79,6 +79,9 @@ export const DocEditorTemplateUi = (Base) => class extends Base {
      *   3. window.open 開新分頁、寫入 HTML
      */
     async onPreviewClick() {
+        if (this._warnDocumentOnly("預覽")) {
+            return;
+        }
         if (!this.state.docId) {
             this.notification.add("請先儲存文件後再預覽。", { type: "warning" });
             return;
@@ -416,6 +419,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
         }
+        // 待填欄位掛在文件上（簽署人要填的格子），範本模式沒有
+        if (this._warnDocumentOnly(`新增${field.label}欄位`)) {
+            return;
+        }
         if (!this.state.docId) {
             this.notification.add("請先儲存文件後再新增欄位", { type: "warning" });
             return;
@@ -641,25 +648,49 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      * one2many 進文件只會印出 recordset 的 repr，而那看起來像系統壞了。
      */
     get filteredModelFields() {
-        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        const list = (this.state.modelFields || []).filter(
-            f => SCALAR_FIELD_TYPES.includes(f.type)
+        return (this.state.modelFields || []).filter(
+            f => SCALAR_FIELD_TYPES.includes(f.type) && this._fieldMatchesQuery(f)
         );
-        if (!q) return list;
-        return list.filter(f =>
-            (f.label || "").toLowerCase().includes(q) ||
-            (f.name || "").toLowerCase().includes(q)
+    }
+
+    /**
+     * 左欄篩選字（去頭尾空白、轉小寫）；空字串＝沒在篩選。
+     *
+     * 篩選中只列命中的欄位：條件、內建區塊、多語文字這些「工具」區塊先收起來，
+     * 沒命中的欄位區塊整區不顯示。以前只篩最下面的主記錄欄位，上面的工具區照樣
+     * 整排列出，命中的欄位被擠到最底下，看起來像搜尋沒反應。
+     */
+    get paletteQuery() {
+        return (this.state.modelFieldFilter || "").trim().toLowerCase();
+    }
+
+    _fieldMatchesQuery(field) {
+        const q = this.paletteQuery;
+        return !q
+            || (field.label || "").toLowerCase().includes(q)
+            || (field.name || "").toLowerCase().includes(q);
+    }
+
+    /** 左欄「明細（一對多）」區塊：篩選中只列命中的。 */
+    get paletteRepeatableFields() {
+        return this.repeatableFields.filter((f) => this._fieldMatchesQuery(f));
+    }
+
+    /** 篩選中有沒有任何區塊命中；全沒命中時左欄只顯示一句「沒有符合的欄位」。 */
+    get paletteHasHits() {
+        return Boolean(
+            this.filteredModelFields.length
+            || this.paletteRepeatableFields.length
+            || this.imageFields.length
+            || this.htmlFields.length
+            || (this.state.repeatContext && this.filteredLineFields.length)
         );
     }
 
     /** 圖片藥丸的來源：binary 欄位（客戶簽名、公司 logo…）。 */
     get imageFields() {
-        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        const list = (this.state.modelFields || []).filter(f => f.type === "binary");
-        if (!q) return list;
-        return list.filter(f =>
-            (f.label || "").toLowerCase().includes(q) ||
-            (f.name || "").toLowerCase().includes(q)
+        return (this.state.modelFields || []).filter(
+            f => f.type === "binary" && this._fieldMatchesQuery(f)
         );
     }
 

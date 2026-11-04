@@ -88,6 +88,9 @@
                         <group string="來源">
                             <field name="res_model_id" readonly="1"/>
                             <field name="res_name" readonly="1"/>
+                            <!-- res_id 是 Many2oneReference，前端元件要從同一張表單讀
+                                 res_model 才知道指向哪個模型；少了它表單一打開就報錯。 -->
+                            <field name="res_model" invisible="1"/>
                             <field name="res_id" readonly="1"/>
                             <field name="source_exists" readonly="1"/>
                         </group>

@@ -93,6 +93,17 @@ class TestI18nPill(TransactionCase):
         """空白在單據上看起來像資料掉了，而未翻譯的字串至少讀得懂。"""
         self.assertEqual(self._value({}, 'zh_TW'), '標籤')
 
+    def test_allow_empty_means_print_nothing(self):
+        """allowEmpty：空字串是「這個語言不印字」，不是「還沒翻譯」。"""
+        meta = {'texts': {'zh_TW': ' 頁', 'en_US': ''}, 'labelText': '頁',
+                'allowEmpty': True}
+        self.assertEqual(
+            self.Mixin._i18n_text(self.partner.with_context(lang='en_US'), meta), '')
+        meta.pop('allowEmpty')
+        self.assertEqual(
+            self.Mixin._i18n_text(self.partner.with_context(lang='en_US'), meta), ' 頁',
+            '沒標 allowEmpty 的照舊退回有值的那個')
+
     def test_short_lang_code_matches(self):
         """zh_TW 找不到時也試 zh——翻譯表常只填兩字母碼。"""
         self.assertEqual(self._value({'zh': '報價單'}, 'zh_TW'), '報價單')

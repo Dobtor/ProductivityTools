@@ -347,6 +347,34 @@ class TestSafeMethodRewrite(TestQwebConverterBase):
             parent, repeats[0])
         self.assertEqual(lines, [child], '來源要真的取得到明細')
 
+    def test_repeat_marker_carries_its_line_model(self):
+        """明細標記要記下明細是哪一張資料表——編輯器靠它列出左欄的明細欄位。
+
+        來源是算出來的（銷售訂單的 _get_order_lines_to_report）時沒有路徑
+        可查，以前就沒帶，轉換出來的範本重新打開後拖不出任何明細欄位。
+        """
+        self._allow(('res.partner', '_kids_to_report'))
+        self.startPatcher(patch.object(
+            type(self.env['res.partner']), '_kids_to_report',
+            lambda self: self.child_ids, create=True,
+        ))
+        parent = self.env['res.partner'].create({'name': '樣本母公司'})
+        self.env['res.partner'].create({
+            'name': '樣本子公司', 'parent_id': parent.id})
+        cases = {
+            '路徑': '<table><t t-foreach="o.child_ids" t-as="kid">'
+                    '<tr><td><span t-out="kid.name"/></td></tr></t></table>',
+            '算出來的來源': '<t t-set="kids" t-value="o._kids_to_report()"/>'
+                          '<table><t t-foreach="kids" t-as="kid">'
+                          '<tr><td><span t-out="kid.name"/></td></tr></t></table>',
+        }
+        for name, arch in cases.items():
+            with self.subTest(name):
+                res = self._convert(arch, validate_with=parent)
+                repeats = [m for m in self._metas(res['tree']['main'])
+                           if m.get('source') == 'repeat']
+                self.assertEqual(repeats[0].get('relation'), 'res.partner')
+
     def test_generate_qr_code_goes_through_public_method(self):
         """_generate_qr_code 會回寫 qr_code_method（印 PDF 就改資料）。
 
@@ -423,7 +451,7 @@ class TestValidationProbePerRow(TestQwebConverterBase):
         pairs = list(self.Conv._iter_validation_targets(
             res['tree'], self.parent))
         by_source = {}
-        for element, line, _loop in pairs:
+        for element, line, _loop, _group in pairs:
             meta = (element.get('extension') or {}).get('dobtorField')
             if meta:
                 by_source[meta.get('source')] = line
@@ -1261,7 +1289,10 @@ class TestClassFormatting(TestQwebConverterBase):
             '<table><tr><td class="text-end"><span t-out="o.name"/></td>'
             '</tr></table>')
         cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
-        self.assertEqual(cell['value'][-1].get('rowFlex'), 'right')
+        # 編輯器的寫法：對齊在格子內容上（格子第一段看第一個元素），
+        # 結尾不留換行（那會讓每格多一行空白）
+        self.assertEqual(cell['value'][0].get('rowFlex'), 'right')
+        self.assertNotEqual(cell['value'][-1].get('value'), '\n')
 
     def test_cell_alignment_from_the_inner_span(self):
         """原生也常把 text-end 放在裡面那個 span 上。"""
@@ -1269,7 +1300,16 @@ class TestClassFormatting(TestQwebConverterBase):
             '<table><tr><td><span class="text-center"'
             ' t-out="o.name"/></td></tr></table>')
         cell = list(self._tables(res['tree']['main']))[0]['trList'][0]['tdList'][0]
-        self.assertEqual(cell['value'][-1].get('rowFlex'), 'center')
+        self.assertEqual(cell['value'][0].get('rowFlex'), 'center')
+        self.assertNotEqual(cell['value'][-1].get('value'), '\n')
+
+    def test_block_alignment_survives_into_the_pdf(self):
+        """轉換完直接印：置中的區塊在 PDF 也要置中（編輯器同一套讀法）。"""
+        res = self._convert(
+            '<div>前一段</div><div class="text-center">置中</div>')
+        html = self.env['doc.render.mixin']._content_json_to_html(res['tree'])
+        self.assertIn('<p>前一段</p>', html)
+        self.assertIn('<p style="text-align:center">置中</p>', html)
 
     def test_grid_classes_are_ignored(self):
         """col-6 / mb-4 這種網格 class 不該變成任何文件屬性。"""
@@ -1462,6 +1502,47 @@ class TestAccumulatorToGroup(TestQwebConverterBase):
         self.assertTrue(any('累加器' in n and '分組' in n for n in res['notes']),
                         '%s' % res['notes'])
 
+    def test_footer_keeps_real_conditions_drops_boundary(self):
+        """原生小計列外層條件：邊界那段丟掉，「有章節」「不是訂金」要留。
+
+        sale 報價單的寫法是
+            current_section and (line_last or lines[line_index+1]…)
+            and not line.is_downpayment
+        以前整條丟掉，訂金那一節與第一個章節之前的明細都多印一行小計。
+        """
+        arch = (
+            '<t t-set="total" t-value="0"/>'
+            '<table><tbody>'
+            '<t t-foreach="o.child_ids" t-as="kid">'
+            '<t t-set="total" t-value="total + kid.credit_limit"/>'
+            '<t t-if="kid.type == \'invoice\'">'
+            '<tr><td><span t-out="kid.name"/></td></tr>'
+            '<t t-set="current_section" t-value="kid"/>'
+            '</t>'
+            '<t t-else=""><tr><td><span t-out="kid.name"/></td></tr></t>'
+            '<t t-if="current_section and (kid_last'
+            ' or o.child_ids[kid_index+1].type == \'invoice\')'
+            ' and not kid.is_company">'
+            '<t t-set="current_section" t-value="None"/>'
+            '<tr><td>小計<span t-out="total"/></td></tr>'
+            '</t>'
+            '</t></tbody></table>'
+        )
+        res = self._convert(arch)
+        footer = None
+        for table in self._tables(res['tree']['main']):
+            for row in table['trList']:
+                _el, _meta, role = self.env['doc.render.mixin']._row_group_meta(row)
+                if role == 'footer':
+                    footer = row
+        self.assertIsNotNone(footer, '要有分組小計列')
+        conds = [
+            m.get('expression')
+            for cell in footer['tdList'] for m in self._metas(cell['value'])
+            if m.get('source') == 'condition'
+        ]
+        self.assertEqual(conds, ['group.header', 'not line.is_company'])
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestNoteLevels(TestQwebConverterBase):
@@ -1548,3 +1629,77 @@ class TestNoteLevels(TestQwebConverterBase):
         self.assertIn('待辦', notes + '待辦')  # 區段標題存在就夠
         self.assertNotIn('── 待辦（請逐項確認）──', notes,
                          '還在用舊的平鋪格式')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestMultiLanguageStaticText(TestQwebConverterBase):
+    """原生報表的固定文字依各語言的翻譯轉成多語文字。
+
+    以前只用轉換當下的語言讀 arch，中文範本印給英文客戶時固定文字是中文、
+    值是英文，整張單據中英混雜。翻譯本來就跟著 arch 存在 Odoo 裡。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['res.lang']._activate_lang('fr_FR')
+        self.partner = self.env['res.partner'].create({
+            'name': '多語測試', 'is_company': True})
+
+    def _convert_translated(self, body, translations):
+        key = 'dobtor_doc_editor.conv_i18n_%d' % next(_SEQ)
+        view = self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        view.update_field_translations('arch_db', {'fr_FR': translations})
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        res = self.Conv.with_context(lang='en_US').convert_report(
+            report, validate_with=self.partner)
+        res['tree'] = json.loads(res['content_json'] or '{}')
+        return res
+
+    def test_static_text_becomes_i18n_pill_with_each_language(self):
+        res = self._convert_translated(
+            # 不包 <span>：行內標記會被 Odoo 當成翻譯字串的一部分，
+            # 那樣翻譯鍵就得寫成 '<span>Description</span>'
+            '<table><tr><th>Description</th><th>#</th></tr></table>',
+            {'Description': 'Désignation'},
+        )
+        pills = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'i18n']
+        self.assertEqual(len(pills), 1, '%s' % pills)
+        self.assertEqual(pills[0]['texts']['en_US'], 'Description')
+        self.assertEqual(pills[0]['texts']['fr_FR'], 'Désignation')
+        self.assertIn('#', self._texts(res['tree']['main']),
+                      '各語言都一樣的符號維持純文字')
+
+    def test_strings_inside_expressions_pick_by_language(self):
+        """依條件印不同字（報價單 # ／訂單 #）是一顆算式藥丸，字串寫在算式裡。"""
+        res = self._convert_translated(
+            '<h2><span t-if="o.is_company">Company # </span>'
+            '<span t-else="">Person # </span><span t-field="o.name"/></h2>',
+            {'Company #': 'Société #', 'Person #': 'Personne #'},
+        )
+        exprs = [m.get('expression') or '' for m in self._metas(res['tree']['main'])]
+        title = next((e for e in exprs if 'translated(' in e), '')
+        self.assertIn('Société #', title, '%s' % exprs)
+        Mixin = self.env['doc.render.mixin']
+        self.assertEqual(
+            Mixin._eval_for(self.partner.with_context(lang='fr_FR'))(title).strip(),
+            'Société #')
+        self.assertEqual(
+            Mixin._eval_for(self.partner.with_context(lang='en_US'))(title).strip(),
+            'Company #')
+
+    def test_translate_literals_only_touches_strings_that_differ(self):
+        expr = "\"A\" if object.state in ['draft'] else \"B\""
+        out = self.Conv._translate_literals(
+            expr, 'en_US', {'fr_FR': "\"甲\" if object.state in ['draft'] else \"乙\""})
+        self.assertIn("['draft']", out, '各語言一樣的字串不動')
+        self.assertIn('translated({"en_US": "A", "fr_FR": "甲"})', out)
+        self.assertEqual(
+            self.Conv._translate_literals(expr, 'en_US', {'fr_FR': '"甲"'}), expr,
+            '字串以外不一樣就對不上，原樣保留')

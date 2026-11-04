@@ -46,6 +46,13 @@ class IrActionsReport(models.Model):
                 args[args.index('--footer-spacing') + 1] = value
             else:
                 args.extend(['--footer-spacing', value])
+
+        # wkhtmltopdf 預設會「聰明縮小」：把整頁內容再縮一次（實測約 0.78 倍），
+        # 字級、圖片、列高都跟編輯器對不上。Odoo 只在紙張設定勾了
+        # disable_shrinking 才關，報表接管的頁面一律要關（見 doc.report._paperformat_attrs）。
+        if (specific_paperformat_args.get('data-report-disable-shrinking')
+                and '--disable-smart-shrinking' not in args):
+            args.append('--disable-smart-shrinking')
         return args
 
     # ══════════════════════════════════════════════════════════════════
@@ -68,10 +75,6 @@ class IrActionsReport(models.Model):
 
     def _render_qweb_html(self, report_ref, docids, data=None):
         report = self._get_report(report_ref)
-        doc_report = self.env['doc.report']._resolve_for_report(report)
-        if not doc_report:
-            return super()._render_qweb_html(report_ref, docids, data=data)
-
         if isinstance(docids, int):
             docids = [docids]
         if not docids or not report.model:
@@ -79,6 +82,11 @@ class IrActionsReport(models.Model):
             return super()._render_qweb_html(report_ref, docids, data=data)
 
         records = self.env[report.model].browse(docids)
+        # 接不接管看客戶語言（第一筆），不是操作者語言——見 doc.report._customer_lang
+        doc_report = self.env['doc.report']._resolve_for_records(report, records)
+        if not doc_report:
+            return super()._render_qweb_html(report_ref, docids, data=data)
+
         html, frozen_trees = doc_report._build_report_html(records)
 
         # 定案決策二：預設不留存。開啟時每筆記錄留一筆 doc.output。
@@ -92,8 +100,11 @@ class IrActionsReport(models.Model):
             Output = self.env['doc.output']
             for record in records:
                 try:
-                    Output._record_output(
-                        doc_report, record, frozen_trees.get(record.id),
+                    # 留存的定義與語言要是這一筆實際用的（客戶語言對應的那一筆），
+                    # 不是整批的代表——否則輸出紀錄會指向沒用到的範本
+                    binding, lang = doc_report._binding_for_record(record)
+                    Output.with_context(lang=lang)._record_output(
+                        binding, record, frozen_trees.get(record.id),
                     )
                 except Exception as e:
                     # 留存失敗不該讓列印失敗——使用者要的是那張單據
@@ -120,7 +131,11 @@ class IrActionsReport(models.Model):
 
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
         report = self._get_report(report_ref)
-        doc_report = self.env['doc.report']._resolve_for_report(report)
+        # 跟 _render_qweb_html 用同一個規則挑定義（第一筆的客戶語言），
+        # 不然內容用英文定義、附頁卻照中文定義的設定接
+        records = (self.env[report.model].browse(res_ids)
+                   if report.model and res_ids else None)
+        doc_report = self.env['doc.report']._resolve_for_records(report, records)
         # 要不要進這條路：綁定設了附頁，**或**這個模型自己會提供附頁。
         # 後者用 hasattr 問「模型」而不是逐筆問記錄——列印 80 張單據時
         # 光是為了決定要不要進來就呼叫 80 次業務方法太貴。

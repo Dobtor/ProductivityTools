@@ -20,6 +20,7 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
+import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { AutoSaveManager } from "../../core/auto_save_manager";
 import { LeaderElection } from "../../core/leader_election";
 import { OfflineManager } from "../../core/offline_manager";
@@ -356,12 +357,8 @@ export const DocEditorPills = (Base) => class extends Base {
     }
 
     get htmlFields() {
-        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        const list = (this.state.modelFields || []).filter(f => f.type === "html");
-        if (!q) return list;
-        return list.filter(f =>
-            (f.label || "").toLowerCase().includes(q) ||
-            (f.name || "").toLowerCase().includes(q)
+        return (this.state.modelFields || []).filter(
+            f => f.type === "html" && this._fieldMatchesQuery(f)
         );
     }
 
@@ -814,13 +811,7 @@ export const DocEditorPills = (Base) => class extends Base {
     }
 
     get filteredLineFields() {
-        const q = (this.state.modelFieldFilter || "").trim().toLowerCase();
-        const list = this.state.lineFields || [];
-        if (!q) return list;
-        return list.filter(f =>
-            (f.label || "").toLowerCase().includes(q) ||
-            (f.name || "").toLowerCase().includes(q)
-        );
+        return (this.state.lineFields || []).filter((f) => this._fieldMatchesQuery(f));
     }
 
     /** 明細欄位 → source='line' 的綁定定義（path 相對於當前明細）。 */
@@ -1920,6 +1911,44 @@ export const DocEditorPills = (Base) => class extends Base {
      *                          user 可在右側 inspector 改填寫者/必填/佔位符/字型大小、
      *                          以及最關鍵的「Odoo 欄位名稱」（XML 已有對應輸入框）。
      */
+    /**
+     * 只給文件用的功能，在範本模式下說清楚「不支援」，回傳 true 表示已擋下。
+     *
+     * 這些入口原本用「沒有 docId」判斷，訊息寫成「請先儲存文件」——範本模式
+     * 的 docId 一定是空的（存了也一樣），使用者會一直按儲存再重試。
+     */
+    _warnDocumentOnly(actionLabel) {
+        if (this.state.editTarget !== "template") {
+            return false;
+        }
+        this.notification.add(
+            `「${actionLabel}」只適用於文件，範本模式不支援。`,
+            { type: "info" }
+        );
+        return true;
+    }
+
+    /**
+     * 範本模式下按了「只給文件用的插入欄位入口」→ 改帶去左欄「欄位」分頁，回傳 true 表示已處理。
+     *
+     * 範本的欄位一律是左欄拖進來的藥丸。以前這些入口在範本模式下說「請先儲存文件」，
+     * 使用者會一直按儲存再重試；直接幫他打開該用的那一頁比較快。
+     */
+    _redirectTemplateToFieldPalette(actionLabel) {
+        if (this.state.editTarget !== "template") {
+            return false;
+        }
+        if (this.showFieldPalette) {
+            this.state.leftPanelCollapsed = false;
+            this.onLeftPanelTab("fields");
+        }
+        this.notification.add(
+            `範本請從左欄「欄位」分頁把欄位拖進內文；「${actionLabel}」只適用於文件。`,
+            { type: "info" }
+        );
+        return true;
+    }
+
     async onOdooFieldClick() {
         if (!this.dialog) {
             this.notification.add("Dialog service 未就緒", { type: "warning" });
@@ -1927,6 +1956,10 @@ export const DocEditorPills = (Base) => class extends Base {
         }
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        // 這個入口建的是「文件專屬的待填欄位」，範本本來就不支援
+        if (this._redirectTemplateToFieldPalette("Odoo 欄位")) {
             return;
         }
         if (!this.state.docId) {
@@ -2033,6 +2066,10 @@ export const DocEditorPills = (Base) => class extends Base {
         }
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        // 中文 token 寫進的是文件自己的對映，範本模式沒有這個東西（而且這個做法已在退場）
+        if (this._redirectTemplateToFieldPalette("插入 Odoo 欄位（中文 token）")) {
             return;
         }
         if (!this.state.docId) {
@@ -2161,6 +2198,14 @@ export const DocEditorPills = (Base) => class extends Base {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
         }
+        if (this.isOutputTarget) {
+            this.notification.add("輸出紀錄顯示的就是當時印出的值。", { type: "info" });
+            return;
+        }
+        if (this.state.editTarget === "template") {
+            await this._toggleTemplatePreview();
+            return;
+        }
         if (!this.state.docId) return;
         if (!this._loadedModelName || !this._loadedResId) {
             this.notification.add(
@@ -2179,8 +2224,10 @@ export const DocEditorPills = (Base) => class extends Base {
                     this._editModeSnapshot = null;
                 }
                 this.state.previewMode = false;
+                // 欄位藥丸與舊的《token》都可能有，訊息不提 token——藥丸做的文件
+                // 根本沒有 token，提了只會讓人以為少了什麼
                 this.notification.add(
-                    "已切到範本模式（顯示 《token》 原文）。在此模式下可調整 token 位置。",
+                    "已切回編輯模式，欄位恢復原本的顯示。",
                     { type: "info" }
                 );
             } catch (e) {
@@ -2234,6 +2281,88 @@ export const DocEditorPills = (Base) => class extends Base {
             console.error("[DocEditor] enter preview mode failed", e);
             this.notification.add(`進入預覽模式失敗：${e.message || e}`, { type: "danger" });
             this._editModeSnapshot = null;
+            this._suppressAutoSave = false;
+        }
+    }
+
+    /**
+     * 範本的「顯示實際值」：範本沒有綁定記錄，先讓使用者挑一筆，再用它把範本整份填好。
+     *
+     * 跟文件不同，預覽期間**完全不能編輯、也不能存**：預覽內容是展開後的結果
+     * （重複列逐筆複製、條件算掉、稅額彙總展開），存回去範本的結構就毀了。
+     * 所以自動儲存整段停掉、編輯器切成唯讀，直到再按一次切回編輯模式。
+     */
+    async _toggleTemplatePreview() {
+        const EditorMode = window["canvas-editor"]?.EditorMode;
+        if (this.state.previewMode) {
+            try {
+                this._suppressAutoSave = true;
+                if (this._editModeSnapshot) {
+                    this.editor.command.executeSetValue(this._editModeSnapshot);
+                    this._editModeSnapshot = null;
+                }
+                this.editor.command.executeMode(
+                    this._isReadonly ? EditorMode.READONLY : EditorMode.EDIT);
+                this.state.previewMode = false;
+                this.notification.add("已切回編輯模式，欄位恢復原本的顯示。", { type: "info" });
+            } finally {
+                // 讓 executeSetValue 觸發的 contentChange 跑完再恢復自動儲存
+                setTimeout(() => { this._suppressAutoSave = false; }, 200);
+            }
+            return;
+        }
+        if (!this._loadedModelName) {
+            this.notification.add(
+                "這張範本沒有設定適用模型，沒有記錄可以拿來顯示實際值。",
+                { type: "warning" }
+            );
+            return;
+        }
+        this.dialog.add(SelectCreateDialog, {
+            resModel: this._loadedModelName,
+            title: "挑一筆記錄來顯示實際值",
+            multiSelect: false,
+            noCreate: true,
+            onSelected: (resIds) => this._enterTemplatePreview(resIds && resIds[0]),
+        });
+    }
+
+    async _enterTemplatePreview(recordId) {
+        if (!recordId || !this.editor) return;
+        const EditorMode = window["canvas-editor"]?.EditorMode;
+        try {
+            // 預覽期間自動儲存會停掉，先把還沒存的修改存進去
+            await this._autoSave.flush();
+            const snapshot = this.editor.command.getValue().data;
+            const resp = await rpc("/dobtor_doc/template/preview_values", {
+                template_id: this.state.templateId,
+                record_id: recordId,
+                content_json: JSON.stringify(snapshot),
+            });
+            if (!resp || resp.error) {
+                this.notification.add(
+                    `顯示實際值失敗：${(resp && resp.error) || "沒有回應"}`,
+                    { type: "danger" }
+                );
+                return;
+            }
+            this._editModeSnapshot = JSON.parse(JSON.stringify(snapshot));
+            this._suppressAutoSave = true;
+            this.editor.command.executeSetValue(resp.content_json);
+            this.editor.command.executeMode(EditorMode.READONLY);
+            this.state.previewMode = true;
+            this.notification.add(
+                `以「${resp.record_name}」顯示實際值。預覽中不能編輯，再按一次回到編輯模式。`,
+                { type: "success" }
+            );
+        } catch (e) {
+            console.error("[DocEditor] enter template preview failed", e);
+            this.notification.add(`顯示實際值失敗：${e.message || e}`, { type: "danger" });
+            if (this._editModeSnapshot) {
+                this.editor.command.executeSetValue(this._editModeSnapshot);
+                this._editModeSnapshot = null;
+            }
+            this.state.previewMode = false;
             this._suppressAutoSave = false;
         }
     }
@@ -2344,6 +2473,9 @@ export const DocEditorPills = (Base) => class extends Base {
     async onScanVariablesClick() {
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (this._warnDocumentOnly("掃描變數")) {
             return;
         }
         if (!this.state.docId) {
@@ -2498,6 +2630,9 @@ export const DocEditorPills = (Base) => class extends Base {
     async onScanAndReplaceClick() {
         if (!this.editor) {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (this._warnDocumentOnly("掃描並替換變數")) {
             return;
         }
         if (!this.state.docId) {
@@ -3327,7 +3462,7 @@ export const DocEditorPills = (Base) => class extends Base {
      *
      * canvas-editor 沒有暴露 `editor.command.executePageNo`，但每頁渲染為獨立
      * `<canvas>` 元素於容器內。透過 `scrollIntoView` 把對應頁滾入視野，
-     * 隨後由 `intersectionPageNoChange` listener 回寫 state.pageNo。
+     * 隨後由工作區捲動事件（_syncVisiblePageNo）回寫 state.pageNo。
      */
     onPrevPage() {
         if (this.state.pageNo > 1) {
@@ -3353,8 +3488,8 @@ export const DocEditorPills = (Base) => class extends Base {
             return;
         }
         try {
-            // canvas-editor 每頁渲染為一個 <canvas>；用 nth-of-type 選第 N 個
-            const pageCanvases = this.canvasContainer.el.querySelectorAll("canvas");
+            // canvas-editor 每頁渲染為一個 <canvas>；選第 N 個
+            const pageCanvases = this._getPageCanvases();
             const idx = target - 1;
             if (idx < 0 || idx >= pageCanvases.length) {
                 this.notification.add(
@@ -3364,7 +3499,7 @@ export const DocEditorPills = (Base) => class extends Base {
                 return;
             }
             pageCanvases[idx].scrollIntoView({ behavior: "smooth", block: "start" });
-            // 樂觀更新 state.pageNo；intersectionPageNoChange listener 隨後會校正
+            // 樂觀更新 state.pageNo；捲動事件隨後會校正
             this.state.pageNo = target;
         } catch (e) {
             console.warn("[DocEditor] _scrollToPage failed", e);

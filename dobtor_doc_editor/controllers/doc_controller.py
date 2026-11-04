@@ -4,6 +4,7 @@
 Controller，外部可能以名稱引用。
 """
 import base64
+import copy
 import io
 import json
 import logging
@@ -401,10 +402,17 @@ class DocEditorController(DocControllerBase, http.Controller):
 
     @http.route('/dobtor_doc/preview_content_json', type='json', auth='user', methods=['POST'])
     def preview_content_json(self, doc_id, record_id=None, content_json=None, **kw):
-        """把 content_json 內所有 token / {{ var }} 替換成實際值，回傳新的 JSON。
+        """把 content_json 裡的欄位換成實際值，回傳新的 JSON（「顯示實際值」用）。
 
         編輯器「預覽模式」用：toggle 切到預覽時暫存原 content_json，呼叫本端點取代渲染後的版本，
         canvas-editor 直接 executeSetValue 上去，使用者可以看見實際值。
+
+        兩種做法的欄位都要換：
+          * 欄位藥丸（新做法，從左欄拖進來的）：跟匯出走同一條路，已凍結的維持原值、
+            還沒凍結的（快照之後才拖進來的）用綁定記錄求值——編輯器裡看到的
+            就是匯出會印出來的
+          * 舊的中文欄位對映（《token》／{{ var }} 文字）：照舊用 alias 換值
+        以前只認第二種，用藥丸做的文件一律回「尚無 alias 對映」。
 
         content_json：可選。給了就渲染「這份當前編輯器內容」（保留已建的 control chip，只把
         殘餘 token 文字換成值）；沒給則用 doc 儲存的 content_json。前端開檔升級 chip 後會把
@@ -422,13 +430,27 @@ class DocEditorController(DocControllerBase, http.Controller):
         except Exception as e:
             return {'error': f'記錄存取失敗：{e}'}
 
+        # 優先用前端傳入的當前內容（含 chip），否則用 doc 儲存的
+        cj = content_json if content_json is not None else doc.content_json
+        if isinstance(cj, str):
+            try:
+                cj = json.loads(cj)
+            except Exception:
+                return {'error': 'content_json 無法解析'}
+        if not cj:
+            return {'error': 'content_json 為空'}
+        # 深複製：求值會就地改寫，不可動到呼叫端的物件
+        cj = copy.deepcopy(cj)
+
+        has_pills = doc._fill_preview_pills(cj, record)
         # 合併 alias map（template + doc 自己）
         aliases = doc._collect_field_aliases()
+        if not has_pills and not aliases:
+            return {'error': '這份文件沒有欄位，也沒有中文欄位對映，沒有實際值可以顯示。'}
         if not aliases:
-            return {'error': '尚無 alias 對映'}
+            return {'success': True, 'content_json': cj}
 
         # 拆 token / varname
-        import re as _re
         token_alias = {}
         var_alias = {}
         for k, v in aliases.items():
@@ -436,7 +458,7 @@ class DocEditorController(DocControllerBase, http.Controller):
             vs = str(v).strip()
             if not ks or not vs:
                 continue
-            if _re.match(r'^[A-Za-z_]\w*$', ks):
+            if re.match(r'^[A-Za-z_]\w*$', ks):
                 var_alias[ks] = vs
             else:
                 token_alias[ks] = vs
@@ -459,8 +481,8 @@ class DocEditorController(DocControllerBase, http.Controller):
         token_to_value = {tk: _eval(expr) for tk, expr in token_alias.items()}
         var_to_value = {vn: _eval(expr) for vn, expr in var_alias.items()}
 
-        _token_pat = _re.compile(r'《([^》]+)》')
-        _var_pat = _re.compile(r'\{\{\s*([A-Za-z_]\w*)\s*\}\}')
+        _token_pat = re.compile(r'《([^》]+)》')
+        _var_pat = re.compile(r'\{\{\s*([A-Za-z_]\w*)\s*\}\}')
 
         def _replace_text(text):
             if not isinstance(text, str) or not text:
@@ -472,21 +494,7 @@ class DocEditorController(DocControllerBase, http.Controller):
                 return var_to_value.get(m.group(1).strip(), m.group(0))
             return _var_pat.sub(_rv, text)
 
-        # 遞迴掃 content_json：優先用前端傳入的當前內容（含 chip），否則用 doc 儲存的
-        import json as _json
-        cj = content_json if content_json is not None else doc.content_json
-        if isinstance(cj, str):
-            try:
-                cj = _json.loads(cj)
-            except Exception:
-                return {'error': 'content_json 無法解析'}
-        if not cj:
-            return {'error': 'content_json 為空'}
-
-        # 深複製避免改到 cache
-        import copy as _copy
-        cj = _copy.deepcopy(cj)
-
+        # 遞迴掃 content_json，把殘餘的 token 文字換成值
         def _walk(node):
             if isinstance(node, dict):
                 for k, v in node.items():
@@ -500,6 +508,42 @@ class DocEditorController(DocControllerBase, http.Controller):
 
         _walk(cj)
         return {'success': True, 'content_json': cj}
+
+    @http.route('/dobtor_doc/template/preview_values', type='json', auth='user', methods=['POST'])
+    def template_preview_values(self, template_id=None, record_id=None, content_json=None, **kw):
+        """範本的「顯示實際值」：用使用者挑的一筆記錄把範本整份填好，回傳元素樹（不存檔）。
+
+        範本沒有綁定記錄，所以要呼叫端（編輯器）先讓使用者挑一筆。
+        content_json：可選；給了就用編輯器當下的內容（還沒自動存檔的修改也看得到）。
+        """
+        template, _kind = self._resolve_edit_target(template_id=template_id, access='read')
+        if not template.model_id:
+            return {'error': '這張範本沒有設定適用模型，沒有記錄可以拿來顯示實際值。'}
+        if not record_id:
+            return {'error': '請先挑一筆記錄。'}
+        model = template.model_id.model
+        try:
+            record = request.env[model].browse(int(record_id))
+            record.check_access('read')
+            if not record.exists():
+                return {'error': f'記錄 {model}/{record_id} 不存在'}
+        except Exception as e:
+            return {'error': f'記錄存取失敗：{e}'}
+
+        cj = content_json if content_json is not None else template.content_json
+        if isinstance(cj, str):
+            try:
+                cj = json.loads(cj)
+            except Exception:
+                return {'error': 'content_json 無法解析'}
+        if not cj:
+            return {'error': '範本內容是空的'}
+        tree = template._preview_tree(copy.deepcopy(cj), record)
+        # 多行的值（地址）拆成一行一顆、圖片換成圖片，否則編輯器裡是一長串文字。
+        # 只有範本預覽可以這樣做：它是唯讀、存不回去的；文件的預覽可以直接
+        # 編輯並存檔，拆開的藥丸存回去之後重新帶值會印出好幾份
+        tree = template._preview_display_pills(tree)
+        return {'success': True, 'content_json': tree, 'record_name': record.display_name}
 
     @http.route('/dobtor_doc/preview/<int:doc_id>', type='http', auth='user', methods=['GET'])
     def preview_document(self, doc_id, record_id=None, **kw):

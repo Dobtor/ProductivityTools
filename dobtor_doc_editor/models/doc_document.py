@@ -882,6 +882,21 @@ class DocDocument(models.Model):
             },
         }
 
+    def _fill_preview_pills(self, tree, record):
+        """「顯示實際值」用：就地把欄位藥丸換成值，回傳這份內容有沒有欄位藥丸。
+
+        規則刻意與 _export_body_html 相同（only_pending）：已凍結的藥丸維持
+        凍結時的值，快照之後才拖進來的藥丸用綁定記錄求值。編輯器裡看到的
+        才會是匯出印出來的那一份——預覽顯示「現在的值」、匯出卻印「凍結的值」，
+        使用者會以為匯出壞了。
+        """
+        self.ensure_one()
+        has_pills = any(
+            self._element_field_meta(el) for el in self._iter_elements(tree))
+        if has_pills and record is not None:
+            self._snapshot_content_json(tree, record, only_pending=True)
+        return has_pills
+
     def _export_body_html(self, record=None):
         """匯出用的 body HTML。
 
@@ -1145,6 +1160,8 @@ table {{ border-collapse: collapse; width: 100%; }}
 td, th {{ border: 1px solid #ccc; padding: 6px; }}
 /* 區塊容器：條件區塊／稅額彙總用單格表格當可靠邊界，但輸出時不是表格 */
 .doc-block, .doc-block td {{ border: none; padding: 0; }}
+/* 並排區塊照編輯器的欄寬，空的那一格才不會被縮成 0 */
+.doc-layout {{ table-layout: fixed; width: 100%; }}
 </style>
 </head>
 <body>
@@ -1213,6 +1230,7 @@ table {{ border-collapse: collapse; }}
 td, th {{ border: 1px solid black; padding: 4px; word-break: break-word; }}
 /* 區塊容器：同 _build_full_html，兩條路徑要一致否則 PDF 與 DOCX 版面不同 */
 .doc-block, .doc-block td {{ border: none; padding: 0; }}
+.doc-layout {{ table-layout: fixed; width: 100%; }}
 img {{ max-width: 100%; height: auto; }}
 /* 手動分頁：_build_full_html（PDF 用）有這條，這裡原本漏了，
    導致同一份文件匯出 PDF 有分頁、匯出 DOCX 卻靜默少了分頁。 */

@@ -53,29 +53,33 @@ class RenderI18n:
             key = text.strip()
             if key not in wanted:
                 continue
-            # 保留第一個元素的字型樣式——轉成藥丸不該順手改掉字級與顏色
-            base = {
-                k: v for k, v in elements[start].items()
-                if k in ('font', 'size', 'bold', 'italic', 'color',
-                         'underline', 'strikeout', 'rowFlex')
-            }
-            pill = dict(base)
-            pill.update({
-                'type': 'label',
-                'value': key,
-                'label': {'backgroundColor': '#fff3e0', 'color': '#e65100'},
-                'extension': {self.DOBTOR_FIELD_KEY: {
-                    'source': self._I18N_SOURCE,
-                    'labelText': key,
-                    'texts': {lang: key},
-                }},
-            })
-            elements[start:end] = [pill]
+            elements[start:end] = [
+                self._i18n_pill(elements[start], key, {lang: key})]
             converted += 1
 
         if converted:
             self.content_json = json.dumps(tree, ensure_ascii=False)
         return {'converted': converted}
+
+    # 文字樣式（不含段落層級以外的東西）。轉成藥丸、拆出前後空白都照抄這幾個
+    _I18N_STYLE_KEYS = ('font', 'size', 'bold', 'italic', 'color',
+                        'underline', 'strikeout', 'rowFlex')
+
+    def _i18n_pill(self, base_element, text, texts):
+        """一顆多語文字藥丸，字型樣式照抄 base_element——轉成藥丸不該順手改掉字級與顏色。"""
+        pill = {k: v for k, v in base_element.items()
+                if k in self._I18N_STYLE_KEYS}
+        pill.update({
+            'type': 'label',
+            'value': text,
+            'label': {'backgroundColor': '#fff3e0', 'color': '#e65100'},
+            'extension': {self.DOBTOR_FIELD_KEY: {
+                'source': self._I18N_SOURCE,
+                'labelText': text,
+                'texts': texts,
+            }},
+        })
+        return pill
 
     def i18n_entries(self):
         """範本裡所有 i18n 藥丸的翻譯表：[{'key', 'texts'}]。"""
@@ -206,7 +210,10 @@ class RenderI18n:
         if record is None:
             return record
         lang = lang or self._render_lang(record)
-        if not lang or self.env.context.get('lang') == lang:
+        # 看「記錄自己」的語言，不是 self 的：呼叫端常把求值環境先換成渲染語言，
+        # 這時 self 已經是目標語言，記錄卻還是操作者語言——拿 self 判斷會跳過換語言，
+        # 結果國家、單位、稅額標籤照操作者語言印
+        if not lang or record.env.context.get('lang') == lang:
             return record
         try:
             return record.with_context(lang=lang)
@@ -219,15 +226,29 @@ class RenderI18n:
         Fallback 刻意不回空字串：空白在單據上看起來像資料掉了，而一個未翻譯
         的英文字串至少讀得懂。順序為 當前語言 → en_US → 第一個有值的 → 標籤文字。
         """
-        texts = meta.get('texts')
-        if not isinstance(texts, dict):
-            texts = {}
         lang = (record.env.context.get('lang')
                 if record is not None else None) or self.env.context.get('lang')
+        if meta.get('allowEmpty'):
+            return self._pick_lang_text(meta.get('texts'), lang, allow_empty=True)
+        return (self._pick_lang_text(meta.get('texts'), lang)
+                or meta.get('labelText') or '')
+
+    def _pick_lang_text(self, texts, lang, allow_empty=False):
+        """{語言: 文字} 依渲染語言挑一個：當前語言 → 同語系 → en_US → 第一個有值的。
+
+        多語文字藥丸與沙箱的 translated() 共用，兩邊挑字規則才會一樣。
+
+        allow_empty：空字串是「這個語言就是不印字」，不是「還沒翻譯」。
+        頁碼「第 1 / 1 頁」的「頁」在英文是空的，照一般規則會退回印出「頁」。
+        """
+        if not isinstance(texts, dict):
+            return ''
         for candidate in (lang, (lang or '').split('_')[0], 'en_US'):
-            if candidate and texts.get(candidate):
+            if not candidate:
+                continue
+            if texts.get(candidate) or (allow_empty and candidate in texts):
                 return texts[candidate]
         for value in texts.values():
             if value:
                 return value
-        return meta.get('labelText') or ''
+        return ''

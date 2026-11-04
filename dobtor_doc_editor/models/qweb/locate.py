@@ -348,6 +348,9 @@ class ConvLocate:
                 if name == 't-att-class' and self._known_class_shape(
                         el.get(name)):
                     continue  # 這一種我們轉得掉（條件式格式／固定格式）
+                if name == 't-attf-class' and not self._attf_dynamic_matters(
+                        el.get(name)):
+                    continue  # 寫死的部分照轉，動態的只是排版用的
                 for prefix, desc in self._UNCONVERTED_ATTRS:
                     if name == prefix:
                         counts[desc] = counts.get(desc, 0) + 1
@@ -382,6 +385,7 @@ class ConvLocate:
             return root, {}
         call = layout_calls[0]
         blocks = {}
+        conds = state.setdefault('layout_block_conds', {})
         # 往下找、不只看直接子節點：information_block 在銷售訂單裡是包在
         # <t t-if="partner_shipping == partner_invoice"> 裡面的，只看直接
         # 子節點會抓不到，那一格就是空的——而空白格在版面上看不出少了什麼。
@@ -390,14 +394,21 @@ class ConvLocate:
             if not name or name in blocks:
                 continue
             blocks[name] = node
-            # 包在條件裡的區塊：內容取進來，但條件取不進來（它決定的是
-            # 「要放哪一份內容」，而我們只能取第一份）
-            cond = self._enclosing_condition(node, call)
-            if cond:
+            # 包在條件裡的區塊＝「條件成立才有這一塊」（銷售訂單的發票／送貨
+            # 地址只在跟客戶地址不同時才印）。以前條件丟掉、內容照印，
+            # 單據上左右各一份客戶地址。
+            found, ok = self._enclosing_conditions(node, call)
+            if ok:
+                if found:
+                    conds[name] = ' and '.join(
+                        '(%s)' % ' '.join(c.split()) for c in found)
+            else:
+                # elif／else 的分支要跟前面的條件互斥，這裡還原不了
                 self._note(
                     state,
                     '「%s」區塊原本依條件而有不同內容（%s），已取第一份。'
-                    '需要兩種版本請用「若／否則區塊」。' % (name, cond[:60]),
+                    '需要兩種版本請用「若／否則區塊」。'
+                    % (name, (found[-1] if found else '')[:60]),
                 )
         body_holder = self._new_element('t')
         for child in list(call):
@@ -411,47 +422,91 @@ class ConvLocate:
             parent = node.getparent()
             if parent is not None:
                 parent.remove(node)
+                # 只清本文裡的空殼：直接掛在外框呼叫底下的區塊（address），
+                # 上一層就是外框呼叫本身，拿掉它之後判斷「要不要掛外框」會找不到
+                if any(a is body_holder for a in parent.iterancestors()):
+                    self._prune_empty_shells(parent, body_holder)
         return body_holder, blocks
 
-    def _enclosing_condition(self, node, stop_at):
-        """node 到 stop_at 之間最近的 t-if／t-elif 條件；沒有回 ''。"""
+    def _prune_empty_shells(self, node, stop_at):
+        """區塊搬走後只剩空殼的 <t t-if> 一路往上拿掉。
+
+        不拿掉的話空殼會轉成一顆「"" if 條件」的藥丸，在標題下面多一個
+        看不懂的空欄位。
+        """
+        while (node is not None and node is not stop_at
+               and node.tag == 't' and len(node) == 0
+               and not (node.text or '').strip()):
+            parent = node.getparent()
+            if parent is None:
+                return
+            parent.remove(node)
+            node = parent
+
+    def _enclosing_conditions(self, node, stop_at):
+        """node 到 stop_at 之間所有的 t-if（由外到內）。
+
+        回 (條件串列, 能不能還原)。路上有 t-elif／t-else 時回 False：那種
+        分支要跟前面的條件互斥，單看自己的條件會判錯。
+        """
+        found = []
         parent = node.getparent()
         while parent is not None and parent is not stop_at:
-            cond = parent.get('t-if') or parent.get('t-elif')
-            if cond:
-                return cond
+            if parent.get('t-elif') is not None:
+                found.insert(0, parent.get('t-elif'))
+                return found, False
             if parent.get('t-else') is not None:
-                return '（否則分支）'
+                found.insert(0, '（否則分支）')
+                return found, False
+            if parent.get('t-if'):
+                found.insert(0, parent.get('t-if'))
             parent = parent.getparent()
-        return ''
+        return found, True
 
     def _emit_layout_blocks(self, blocks, out, state):
         """把 address / information_block / 標題放到本文頂端。
 
-        address_layout 的排法是 information_block 左（col-6）、address 右
-        （col-5 ms-auto）。canvas-editor 沒有 CSS 格線概念，用無框線表格
-        做兩欄——就是條件區塊那個容器機制，零新增。
+        address_layout 的排法：有 information_block 時它在左（col-6）、
+        address 空一格後在右（col-5 offset-1）；沒有時 address 單獨靠右
+        （col-5 ms-auto）。兩種情況 address 都佔右邊 5/12、文字靠左，
+        所以固定切成 7/12 與 5/12 兩格，左格放 information_block（照原本的
+        條件包起來，不成立時左格空白）——跟原生一樣不論哪種都對得上。
+        canvas-editor 沒有 CSS 格線概念，用無框線表格做兩欄。
         """
         info = blocks.get('information_block')
         addr = blocks.get('address')
         if info is not None or addr is not None:
             inner = self._inner_width(state)
-            left_w = int(inner * 0.5)
+            left_w = int(inner * 7 / 12)
+            right_w = inner - left_w
+            conds = state.get('layout_block_conds') or {}
             left, right = [], []
             if info is not None:
-                self._emit_children(info, left, state)
+                info_cond = conds.get('information_block')
+                if info_cond:
+                    with self._in_width(
+                            state, left_w - 2 * self._CELL_PADDING):
+                        body = []
+                        self._emit_children(info, body, state)
+                    if not body or (body[-1].get('value') or '') != '\n':
+                        body.append(self._newline())
+                    with self._in_width(state, left_w - self._CELL_PADDING):
+                        left.append(self._condition_wrap(
+                            info_cond, body, state))
+                else:
+                    with self._in_width(state, left_w - self._CELL_PADDING):
+                        self._emit_children(info, left, state)
             if addr is not None:
-                self._emit_children(addr, right, state)
+                with self._in_width(state, right_w - self._CELL_PADDING):
+                    self._emit_children(addr, right, state)
             for cell in (left, right):
                 if not cell or (cell[-1].get('value') or '') != '\n':
                     cell.append(self._newline())
-            # address 靠右，與原生的 ms-auto 一致
-            right[-1]['rowFlex'] = 'right'
             out.append({
                 'type': 'table', 'value': '',
-                'extension': {'dobtorBlock': 'layout'},
+                'extension': {'dobtorBlock': 'layout', 'fixedCols': True},
                 'borderType': 'empty',
-                'colgroup': [{'width': left_w}, {'width': inner - left_w}],
+                'colgroup': [{'width': left_w}, {'width': right_w}],
                 'trList': [{'tdList': [
                     {'colspan': 1, 'rowspan': 1, 'value': left},
                     {'colspan': 1, 'rowspan': 1, 'value': right},

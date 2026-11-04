@@ -1,37 +1,60 @@
 """RenderSnapshot — 快照管線（pass 鏈）。
 
 「把藥丸換成值」的那條鏈：展開重複列 → 展開稅額彙總 → 條件（列／欄／
-段落）→ 條件式格式 → 清空表格 → 純量求值 → 收合空段落。
+段落）→ 條件式格式 → 清空表格 → 純量求值 → 收合空段落 → 拿掉只剩空白的條件區塊
+→ 並排區塊收掉空欄。
 
 **順序是這個模組唯一的硬約束**，權威寫在 _snapshot_content_json 的註解裡，
 並由 TestSnapshotPassOrder 斷言。加新的 pass 要同時改那段註解，
 否則測試會紅——那是故意的。
 """
 import base64
+import copy
+import html as html_mod
 
 
 from odoo import fields
 from odoo.tools.misc import format_amount
-from odoo.tools.image import FILETYPE_BASE64_MAGICWORD, image_data_uri
+from odoo.tools.image import (
+    FILETYPE_BASE64_MAGICWORD, base64_to_image, image_data_uri,
+)
 from odoo.tools.mail import html_sanitize
 
 
 class RenderSnapshot:
 
     def _drop_empty_tables(self, tree):
-        """移除 trList 已空的表格，連同其後的孤兒換行。
+        """移除 trList 已空的表格。
 
         會變成空表格的兩種情況：條件區塊整塊被移除、重複列零筆明細。
-        不一起吃掉後面那個換行的話，版面會留下一個空段落——使用者看到的是
-        「條件為假時多了一行空白」，而且完全看不出來那行空白是怎麼來的。
 
-        只吃「緊跟其後」的那一個換行：使用者自己在表格後面多按的 Enter
-        是他要的空行，不該被當成殘渣清掉。
+        canvas-editor 裡表格自成一列，換行是**下一段的開頭**（見
+        _elements_to_html）。所以「連同哪個換行一起拿掉」看的是表格前面：
+          * 前面是換行：那個換行自己是一列、而且是空的——就是表格上方那一行
+            空白（在空行上插入表格就是這個形狀）。一起拿掉，否則條件為假時
+            會多一行空白，使用者完全追不到原因。後面那個換行是下一段的開頭、
+            帶著它的對齊，留著。
+          * 表格在最前面：後面那個換行一起拿掉（格子裡它會變成開頭的空行），
+            它的對齊補到下一個元素上。
+          * 前後都直接是文字：原本是表格把兩段隔開，換成一個換行，
+            不然兩段會接成一段。
         """
+        def _is_newline(e):
+            return isinstance(e, dict) and (e.get('value') or '') == '\n'
+
+        def _is_break(e):
+            """這個位置本身就會斷開段落（換行或另一個區塊）。"""
+            return not isinstance(e, dict) or _is_newline(e) or (
+                e.get('type') in ('table', 'htmlBlock', 'pageBreak'))
+
         removed = 0
         for elements in self._iter_element_lists(tree):
             # 由後往前刪，避免索引位移
             for idx in range(len(elements) - 1, -1, -1):
+                # 連同前面的換行一起刪時一次少兩個，下一輪可能已超出結尾
+                # （超出的那些都已經處理過）
+                if idx >= len(elements):
+                    continue
                 el = elements[idx]
                 if not isinstance(el, dict) or el.get('type') != 'table':
                     continue
@@ -41,13 +64,185 @@ class RenderSnapshot:
                 if rows and any((r.get('tdList') or []) for r in rows
                                 if isinstance(r, dict)):
                     continue
-                stop = idx + 1
-                nxt = elements[stop] if stop < len(elements) else None
-                if isinstance(nxt, dict) and (nxt.get('value') or '') == '\n':
-                    stop += 1
-                del elements[idx:stop]
+                prev = elements[idx - 1] if idx > 0 else None
+                nxt = elements[idx + 1] if idx + 1 < len(elements) else None
+                if _is_newline(prev):
+                    del elements[idx - 1:idx + 1]
+                elif prev is None:
+                    stop = idx + 2 if _is_newline(nxt) else idx + 1
+                    flex = nxt.get('rowFlex') if stop == idx + 2 else None
+                    del elements[idx:stop]
+                    if flex and elements and isinstance(elements[0], dict):
+                        elements[0].setdefault('rowFlex', flex)
+                elif nxt is not None and not (_is_break(prev) or _is_break(nxt)):
+                    elements[idx] = {'value': '\n'}
+                else:
+                    del elements[idx]
                 removed += 1
         return removed
+
+    def _is_blank_element(self, el):
+        """這個元素印出來是不是什麼都沒有（只有換行／空白、空值藥丸、空表格）。"""
+        if not isinstance(el, dict):
+            return True
+        etype = el.get('type') or 'text'
+        if etype == 'table':
+            return not any((r.get('tdList') or []) for r in (el.get('trList') or [])
+                           if isinstance(r, dict))
+        if etype == 'label':
+            meta = self._element_field_meta(el) or {}
+            if meta.get('source') == 'page':
+                # 頁碼的值要到攤平時才變成 <span class="page">，這裡還是標籤文字
+                return False
+        elif etype not in ('text', 'image', 'hyperlink', 'subscript', 'superscript'):
+            # 分隔線、分頁、HTML 區塊等：放進條件區塊就是要它出現
+            return False
+        # ZERO（​）是編輯器的換行，Python 的 strip() 不會拿掉它
+        return not (el.get('value') or '').replace('​', '').strip()
+
+    def _drop_blank_condition_blocks(self, tree):
+        """條件成立、但留下來的內容全是空白的條件區塊 → 整塊拿掉。
+
+        轉換器把 QWeb 的 t-if／t-else 轉成條件區塊，原生報表常見「條件成立時
+        什麼都不印」的寫法（已經簽名就不印簽名欄、沒有選購項目就跳過那一段），
+        這時區塊裡只剩空行。留著的話單據結尾會多一大段空白，甚至多出一頁。
+
+        只看條件區塊：一般表格的格子空著是使用者刻意的（例如留白的簽名框）。
+        做法是把整塊的列清空，交給 _drop_empty_tables 連同前後換行一起收拾。
+        條件區塊可以巢狀，內層清空後外層才看得出是不是也空了，所以重複到沒有變化。
+        """
+        changed = True
+        while changed:
+            changed = False
+            for elements in self._iter_element_lists(tree):
+                for el in elements:
+                    if self._element_block_kind(el) != 'condition':
+                        continue
+                    rows = el.get('trList') or []
+                    cells = [td for tr in rows if isinstance(tr, dict)
+                             for td in (tr.get('tdList') or [])]
+                    if not cells:
+                        continue
+                    if all(self._is_blank_element(item)
+                           for td in cells for item in (td.get('value') or [])):
+                        el['trList'] = []
+                        changed = True
+        return self._drop_empty_tables(tree)
+
+    def _reflow_layout_columns(self, tree):
+        """並排區塊裡整欄都空白的欄拿掉，空出來的寬度分給彈性欄。
+
+        轉換器把原生的格線列（你的參考／報價日期／到期日／銷售人員）轉成一列
+        多格的無框表格，每一格各自帶條件。原生某一欄不印時其他欄會往左補滿；
+        表格的格子不會，沒有「你的參考」的單據左邊會空一大格。
+        只處理轉換器標了 reflowCols 的表格：使用者自己畫的表格空著一格是刻意的。
+        """
+        for elements in self._iter_element_lists(tree):
+            for el in elements:
+                if self._element_block_kind(el) != 'layout':
+                    continue
+                ext = el.get('extension') or {}
+                flags = ext.get('reflowCols')
+                rows = el.get('trList') or []
+                colgroup = el.get('colgroup') or []
+                if not isinstance(flags, list) or len(rows) != 1:
+                    continue
+                cells = rows[0].get('tdList') or []
+                if not (len(cells) == len(colgroup) == len(flags)):
+                    continue  # 使用者合併過格子，欄位對不上就不動
+                blank = [all(self._is_blank_element(item)
+                             for item in (cell.get('value') or []))
+                         for cell in cells]
+                if not any(blank):
+                    continue
+                if all(blank):
+                    el['trList'] = []
+                    continue
+                keep = [i for i, b in enumerate(blank) if not b]
+                widths = {i: int(colgroup[i].get('width') or 0) for i in keep}
+                freed = sum(int(colgroup[i].get('width') or 0)
+                            for i, b in enumerate(blank) if b)
+                flex = [i for i in keep if flags[i]]
+                if flex:
+                    share = freed // len(flex)
+                    for i in flex:
+                        widths[i] += share
+                    widths[flex[-1]] += freed - share * len(flex)
+                rows[0]['tdList'] = [cells[i] for i in keep]
+                el['colgroup'] = [dict(colgroup[i], width=widths[i])
+                                  for i in keep]
+                el['extension'] = dict(ext, reflowCols=[flags[i] for i in keep])
+        return self._drop_empty_tables(tree)
+
+    # 預覽時圖片最寬畫多少（px）。PDF 是 max-width:100%，A4 內文寬約 600
+    _PREVIEW_IMAGE_MAX_W = 600
+
+    def _preview_display_pills(self, tree):
+        """「顯示實際值」用：把藥丸的值換成編輯器畫得出來的樣子（就地改寫並回傳 tree）。
+
+        canvas-editor 的藥丸（label）只能畫成一行文字：
+          * 多行的值（地址）擠成一長串、超出右邊 → 拆成一行一顆
+          * 圖片（簽名、商品圖）印出一長串 data:image/png;base64,… → 換成圖片
+        PDF 不受影響（攤平時多行轉 <br/>、圖片轉 <img>）。
+        只給預覽用、不可存回：拆開後每一顆都帶同一個來源，重新帶值會變成
+        重複好幾份；換成圖片的則失去藥丸身分。
+        """
+        for elements in self._iter_element_lists(tree):
+            idx = 0
+            while idx < len(elements):
+                el = elements[idx]
+                value = el.get('value') if isinstance(el, dict) else None
+                if (not isinstance(el, dict) or el.get('type') != 'label'
+                        or not isinstance(value, str)):
+                    idx += 1
+                    continue
+                src = (self._element_field_meta(el) or {}).get('source') or ''
+                if src == self._IMAGE_SOURCE:
+                    if value.startswith('data:'):
+                        elements[idx] = self._preview_image_element(el, value)
+                    idx += 1
+                    continue
+                if src == self._HTML_SOURCE or '\n' not in value:
+                    idx += 1
+                    continue
+                pieces = []
+                for line in [ln for ln in value.split('\n') if ln.strip()]:
+                    if pieces:
+                        newline = {'value': '\n'}
+                        if el.get('rowFlex'):
+                            newline['rowFlex'] = el['rowFlex']
+                        pieces.append(newline)
+                    piece = copy.deepcopy(el)
+                    piece['value'] = line
+                    pieces.append(piece)
+                if not pieces:
+                    el['value'] = ''
+                    idx += 1
+                    continue
+                elements[idx:idx + 1] = pieces
+                idx += len(pieces)
+        return tree
+
+    def _preview_image_element(self, el, uri):
+        """圖片藥丸 → canvas-editor 的圖片元素（它一定要寬高才畫得出來）。
+
+        欄位設定沒給寬高時用圖片本身的大小，太寬的等比例縮小。
+        """
+        meta = self._element_field_meta(el) or {}
+        width, height = meta.get('width'), meta.get('height')
+        if not (width and height):
+            try:
+                width, height = base64_to_image(uri.split(',', 1)[1]).size
+            except Exception:
+                width, height = 120, 60
+        width, height = int(width), int(height)
+        if width > self._PREVIEW_IMAGE_MAX_W:
+            height = max(1, int(height * self._PREVIEW_IMAGE_MAX_W / width))
+            width = self._PREVIEW_IMAGE_MAX_W
+        image = {'type': 'image', 'value': uri, 'width': width, 'height': height}
+        if el.get('rowFlex'):
+            image['rowFlex'] = el['rowFlex']
+        return image
 
     def _image_data_uri(self, record, meta):
         """binary 欄位 → data: URI。取不到一律回空字串。
@@ -118,11 +313,35 @@ class RenderSnapshot:
         except Exception:
             return ''
         if not raw or raw in ('False', 'None'):
-            return ''
+            return self._company_details_fallback(record, meta)
         clean = html_sanitize(raw)
         if not self._html_has_content(clean):
-            return ''
+            return self._company_details_fallback(record, meta)
         return clean
+
+    def _company_details_fallback(self, record, meta):
+        """「公司資訊」沒填時，比照 Odoo 原生外框改印公司名稱與地址。
+
+        Odoo 的外框在 company_details 是空的時候改印公司聯絡人的名稱＋地址
+        （web 的 external_layout 用 is_company_details_empty 判斷）。內建外框的
+        「公司資訊」藥丸讀的就是 company_details，不比照的話，沒進「文件版面」
+        設定過的公司，頁首右邊整格空白，連公司名稱都沒有。
+        """
+        path = meta.get('path') or ''
+        if path != 'company_details' and not path.endswith('.company_details'):
+            return ''
+        prefix = path.rpartition('.')[0]
+        try:
+            company = record.mapped(prefix) if prefix else record
+        except (KeyError, AttributeError):
+            return ''
+        if company._name != 'res.company' or len(company) != 1:
+            return ''
+        partner = company.partner_id
+        address = partner._display_address(without_company=True) or ''
+        lines = [partner.name or ''] + address.split('\n')
+        return '<br/>'.join(
+            html_mod.escape(line.strip()) for line in lines if line.strip())
 
     # Odoo 自己的條碼 API 支援的型別（ir_actions_report.barcode()）。
     # 揀貨單用了 16 處條碼、發票有付款 QR——所以這不是發票專屬的需求。
@@ -224,6 +443,10 @@ class RenderSnapshot:
         #   4.   純量藥丸求值（下方既有迴圈，不是獨立方法）
         #   5.   _collapse_empty_paragraphs
         #        必須在求值後——要有值才知道是不是空的
+        #   6.   _drop_blank_condition_blocks（內部再呼叫一次 _drop_empty_tables）
+        #        排在 5 之後：段落收合完，條件區塊裡才看得出是不是只剩空行
+        #   7.   _reflow_layout_columns（內部再呼叫一次 _drop_empty_tables）
+        #        排在 6 之後：格子裡的條件區塊拿掉了，才看得出整欄是不是空的
         if not only_pending:
             self._expand_repeat_rows(tree, record)
             self._expand_tax_totals_rows(tree, record)
@@ -295,6 +518,10 @@ class RenderSnapshot:
         #    補值用的，那時版面早已定案，不該再動結構。
         if not only_pending:
             self._collapse_empty_paragraphs(tree)
+            # 6. 條件成立但內容全空的條件區塊整塊拿掉（同樣只在完整快照時做）
+            self._drop_blank_condition_blocks(tree)
+            # 7. 並排區塊裡整欄空白的欄拿掉，其他欄往左補滿
+            self._reflow_layout_columns(tree)
         return tree
 
     def _sort_lines(self, lines, sort_by, desc=False):
@@ -777,12 +1004,21 @@ class RenderSnapshot:
                         clone = _copy.deepcopy(ftr_tmpl)
                         clone.pop('id', None)
                         self._fill_group_row(clone, group, record, stamp)
-                        new_rows.append(clone)
+                        # 小計列的列條件以這一組最後一筆明細判斷——原生就是在
+                        # 章節最後一筆時決定印不印（訂金那一節不印）；帶上
+                        # group 讓條件問得到「這一組有沒有章節標題」
+                        last = len(group['lines']) - 1
+                        if self._resolve_line_row_conditions(
+                                clone, record, group['lines'][last],
+                                self._loop_context(last, last + 1),
+                                group=group):
+                            new_rows.append(clone)
             if changed:
                 table['trList'] = new_rows
         return total
 
-    def _resolve_line_row_conditions(self, row, record, line, loop=None):
+    def _resolve_line_row_conditions(self, row, record, line, loop=None,
+                                     group=None):
         """重複列內的條件標記：以該筆明細求值，不成立就整列不輸出。
 
         為什麼要在展開階段處理，而不是交給後面的 _apply_row_conditions：
@@ -793,6 +1029,8 @@ class RenderSnapshot:
 
         若／否則配對（groupId）不在這裡處理：它的另一半在別的列上，
         展開階段看不到，留給 _apply_row_conditions。
+
+        group：分組小計列用。條件可以寫 group.header（這一組有沒有章節標題）。
         """
         def _plain_markers(cell):
             out = []
@@ -815,6 +1053,8 @@ class RenderSnapshot:
             return True
         extra = dict(loop or {})
         extra['line'] = line
+        if group is not None:
+            extra['group'] = group
         for _el, meta in found:
             expr = meta.get('expression') or meta.get('path') or ''
             # _eval_condition 求值失敗回 True（寧可多印），所以只在明確為
@@ -1082,9 +1322,9 @@ class RenderSnapshot:
     def _apply_format_to(self, elements, meta, align_on=None):
         """把格式套到一串元素上（表格元素不碰，它自己的格子會各自處理）。
 
-        align_on 是「段落結尾的那個換行元素」——對齊掛在它身上
-        （_elements_to_html 讀它的 rowFlex）。段落區間不含那個換行，
-        所以要另外傳進來。
+        對齊寫在每個元素上，再加上 align_on——「段落**開頭**的那個換行」。
+        canvas-editor 一段的對齊看開頭的換行（見 _elements_to_html），
+        段落區間不含那個換行，所以要另外傳進來。
         """
         style = self._format_style(meta)
         align = (meta.get('align') or '').strip()
@@ -1097,7 +1337,7 @@ class RenderSnapshot:
                 continue
             if style:
                 el.update(style)
-            if align and (el.get('value') or '') == '\n':
+            if align:
                 el['rowFlex'] = align
         if align and isinstance(align_on, dict):
             align_on['rowFlex'] = align
@@ -1152,8 +1392,8 @@ class RenderSnapshot:
                            if self._element_format_meta(elements[i])]
                 if not markers:
                     continue
-                nl = elements[_nl] if _nl is not None and _nl < len(
-                    elements) else None
+                # 這一段的開頭換行＝上一段的結尾換行（第一段沒有）
+                nl = elements[start - 1] if start > 0 else None
                 for _el, meta in markers:
                     expression = (meta.get('expression') or '').strip()
                     if expression and self._try_eval_condition(
