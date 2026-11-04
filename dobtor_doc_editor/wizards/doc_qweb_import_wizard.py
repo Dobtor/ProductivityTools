@@ -95,16 +95,21 @@ class DocQwebImportWizard(models.TransientModel):
             # 公司資訊又散回 N 份，外框存在的意義就沒了
             layout = self.env['doc.template'].find_or_create_layout()
 
-        template = self.env['doc.template'].create({
-            'name': self.template_name or self.report_id.name,
-            'role': 'content',
-            'layout_id': layout.id or False,
-            'page_format': self.page_format,
-            'model_id': self.env['ir.model']._get(self.report_id.model).id,
-            'content_json': result['content_json'],
-            'description': '由原生報表「%s」轉換產生。請依待辦清單逐項確認。'
-                           % self.report_id.name,
-        })
+        Template = self.env['doc.template']
+        template = Template.create(dict(
+            {
+                'name': self.template_name or self.report_id.name,
+                'role': 'content',
+                'layout_id': layout.id or False,
+                'page_format': self.page_format,
+                'model_id': self.env['ir.model']._get(self.report_id.model).id,
+                'content_json': result['content_json'],
+                'description': '由原生報表「%s」轉換產生。請依待辦清單逐項確認。'
+                               % self.report_id.name,
+            },
+            # 轉換出來的範本要印得跟官方報表一樣：字型、字級、行距照官方
+            **Template._OFFICIAL_TEXT_STYLE,
+        ))
 
         stats = result.get('stats') or {}
         lines = [

@@ -543,10 +543,13 @@ class ConvStructure:
                 with self._in_width(state, self._block_body_width(state)):
                     grid = self._grid_table(columns, state)
                 out.append(self._condition_wrap(
-                    cond, [grid, self._newline()], state))
+                    cond, [grid, self._newline()]
+                    + self._spacer_rows(node, 'bottom'), state))
+                out.append(self._newline())
             else:
                 out.append(self._grid_table(columns, state))
-            out.append(self._newline())
+                out.append(self._newline())
+                out.extend(self._spacer_rows(node, 'bottom'))
             return
 
         # ── 區塊條件：t-if 掛在區塊元素上 → 條件區塊
@@ -575,6 +578,7 @@ class ConvStructure:
         if tag in _BLOCK_TAGS:
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
+            out.extend(self._spacer_rows(node, 'top'))
             start = len(out)
             block_markers, block_static = self._format_markers_for(node, state)
             out.extend(block_markers)
@@ -593,6 +597,7 @@ class ConvStructure:
                 # 段落的對齊掛在結尾那個換行元素上（_elements_to_html 就是
                 # 讀它的 rowFlex 決定 text-align）
                 out[-1]['rowFlex'] = align
+            out.extend(self._spacer_rows(node, 'bottom'))
             return
 
         # span / strong / t 等行內容器
@@ -777,9 +782,52 @@ class ConvStructure:
                 return True
         return False
 
+    # Bootstrap 的上下留白 class（mb-4 這類）：數字 → 幾倍 rem
+    _SPACING_CLASS_RE = re.compile(r'^(?P<prop>m[tby]?)-(?P<n>[0-5])$')
+    _SPACING_REM = {'0': 0, '1': 0.25, '2': 0.5, '3': 1, '4': 1.5, '5': 3}
+    # 官方報表 1rem 印出來約 12.8px（16px 縮到 0.8 倍，見 doc.template
+    # 的 _OFFICIAL_TEXT_STYLE），一列空白約 19.5px
+    _SPACING_REM_PX = 12.8
+    _SPACING_ROW_PX = 19.5
+
+    def _spacing_rows(self, node, side):
+        """節點上 mb-N／mt-N（含 my-N、m-N）的留白換算成幾列空白。
+
+        編輯器沒有「段落下方留多少 px」，只能用空白列表達；一列約 19.5px，
+        所以 mb-3（12.8px）、mb-4（19.2px）各一列，mb-5（38.4px）兩列，
+        mb-2 以下太小、不補。官方的地址區、資訊欄都是 mb-4——少了這一列，
+        地址、標題、資訊欄、明細表整張擠在一起。
+        """
+        wanted = 'b' if side == 'bottom' else 't'
+        px = 0.0
+        for token in self._class_tokens(node):
+            m = self._SPACING_CLASS_RE.match(token)
+            if not m:
+                continue
+            prop = m.group('prop')
+            if prop == 'm' or prop == 'my' or prop == 'm' + wanted:
+                px = max(px, self._SPACING_REM[m.group('n')] * self._SPACING_REM_PX)
+        return int(px / self._SPACING_ROW_PX + 0.5)
+
+    def _spacer_rows(self, node, side):
+        # _spacer：讓 _paragraph_ends_to_starts 知道這是空白列，不是收掉表格的換行
+        return [dict(self._newline(), _spacer=True)
+                for _ in range(self._spacing_rows(node, side))]
+
+    # 官方報表的標題字級是內文的幾倍（Bootstrap：h1 2.5、h2 2、h3 1.75…）。
+    # 粗細是 500，編輯器只有一般與粗體，取一般——印成粗體反而比官方重
+    _HEADING_SCALE = {'h1': 2.5, 'h2': 2, 'h3': 1.75, 'h4': 1.5,
+                      'h5': 1.25, 'h6': 1}
+
+    def _heading_size(self, tag):
+        base = self.env['doc.template']._OFFICIAL_TEXT_STYLE['text_size']
+        return int(round(base * self._HEADING_SCALE.get(tag, 1)))
+
     def _node_style(self, node, tag):
         """標籤與 class 一起決定的文字屬性。"""
         style = {}
+        if tag in self._HEADING_SCALE:
+            style['size'] = self._heading_size(tag)
         if tag in ('strong', 'b'):
             style['bold'] = True
         elif tag in ('em', 'i'):

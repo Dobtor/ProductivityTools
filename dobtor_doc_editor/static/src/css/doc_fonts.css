@@ -1,0 +1,31 @@
+/*
+ * 編輯器用的 Lato。
+ *
+ * 從原生報表轉換的範本預設用 Lato（Odoo 官方報表的字型），列印時 Odoo 的報表
+ * 資源包本來就有它；但後台沒有載入這個字型，編輯器（canvas）會退回替代字型，
+ * 畫面上的字寬與換行就跟 PDF 不一樣。字型檔直接用 Odoo 內建的那一份。
+ */
+@font-face {
+    font-family: 'Lato';
+    src: url('/web/static/fonts/lato/Lato-Reg-webfont.woff') format('woff');
+    font-weight: 400;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Lato';
+    src: url('/web/static/fonts/lato/Lato-RegIta-webfont.woff') format('woff');
+    font-weight: 400;
+    font-style: italic;
+}
+@font-face {
+    font-family: 'Lato';
+    src: url('/web/static/fonts/lato/Lato-Bol-webfont.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Lato';
+    src: url('/web/static/fonts/lato/Lato-BolIta-webfont.woff') format('woff');
+    font-weight: 700;
+    font-style: italic;
+}

@@ -1746,6 +1746,102 @@ class TestNoteLevels(TestQwebConverterBase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestOfficialTextStyle(TestQwebConverterBase):
+    """轉換出來的範本帶官方報表的字型、字級、行距；手做的範本不受影響。
+
+    以前轉出來照編輯器預設（16px 正黑體、每列上下 8px），整張字大一號、
+    行距鬆，中文看起來像粗體——是跟官方最不像的地方。
+    """
+
+    def _wizard_template(self, body):
+        key = 'dobtor_doc_editor.conv_style_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        wizard = self.env['doc.qweb.import.wizard'].create({
+            'report_id': report.id, 'attach_layout': False})
+        wizard.action_convert()
+        return wizard.template_id
+
+    def test_converted_template_gets_official_style(self):
+        tmpl = self._wizard_template('<p><span t-field="o.name"/></p>')
+        style = tmpl.text_style()
+        self.assertEqual(style['font'], 'Lato')
+        self.assertEqual(style['size'], 13)
+        self.assertAlmostEqual(style['row_margin'], 0.2)
+
+    def test_hand_made_template_keeps_module_default(self):
+        tmpl = self.env['doc.template'].create({'name': '手做'})
+        self.assertEqual(tmpl.text_style(),
+                         self.env['doc.template']._DEFAULT_TEXT_STYLE)
+
+    def test_heading_is_twice_the_body_and_not_bold(self):
+        """官方 h2 是內文的兩倍、粗細 500——以前轉成 24px 粗體，比官方重。"""
+        res = self._convert('<h2>Quotation</h2>')
+        el = next(e for e in res['tree']['main'] if e.get('value') == 'Quotation')
+        self.assertEqual(el.get('size'), 26)
+        self.assertFalse(el.get('bold'))
+
+    def _newlines_between(self, body, first, second):
+        values = [e.get('value') for e in self._convert(body)['tree']['main']]
+        i, j = values.index(first), values.index(second)
+        return values[i + 1:j].count('\n')
+
+    def test_margin_class_adds_blank_rows(self):
+        """官方的地址區、資訊欄是 mb-4：下方留一列空白，少了整張擠在一起。"""
+        plain = self._newlines_between(
+            '<div><span>A</span></div><div><span>B</span></div>', 'A', 'B')
+        spaced = self._newlines_between(
+            '<div class="mb-4"><span>A</span></div><div><span>B</span></div>',
+            'A', 'B')
+        self.assertEqual(spaced, plain + 1)
+        big = self._newlines_between(
+            '<div class="mb-5"><span>A</span></div><div><span>B</span></div>',
+            'A', 'B')
+        self.assertEqual(big, plain + 2, 'mb-5 是 3rem，兩列')
+        small = self._newlines_between(
+            '<div class="mb-2"><span>A</span></div><div><span>B</span></div>',
+            'A', 'B')
+        self.assertEqual(small, plain, 'mb-2 不到半列，不補')
+
+    def test_margin_class_on_grid_row(self):
+        """資訊欄是 div.row.mb-4 ＞ div.col…，轉成並排表格後一樣要留白。"""
+        res = self._convert(
+            '<div class="row mb-4"><div class="col"><span>甲</span></div>'
+            '<div class="col"><span>乙</span></div></div><p>丙</p>')
+        main = res['tree']['main']
+        idx = next(i for i, e in enumerate(main) if e.get('type') == 'table')
+        following = [e.get('value') for e in main[idx + 1:idx + 3]]
+        self.assertEqual(following, ['\n', '\n'], '表格後面要多一列空白')
+
+    def test_print_css_follows_template_style(self):
+        Report = self.env['doc.report']
+        official = Report._report_css({
+            'font': 'Lato', 'size': 13, 'row_margin': 0.2, 'color': '#212529'})
+        self.assertIn("font-family:'Lato',", official)
+        self.assertIn('font-size:13px', official)
+        # 留白算進行高：13 × 1.25 ＋ 2 × 1.6 → 1.496，跟官方的 1.5 差不多
+        self.assertIn('line-height:1.496', official)
+        self.assertIn('p{margin:0;padding:0}', official)
+        default = Report._report_css()
+        self.assertIn('font-size:16px', default)
+        self.assertIn('p{margin:0;padding:8px 0}', default, '手做範本的版面不動')
+
+    def test_header_estimate_uses_template_style(self):
+        Report = self.env['doc.report']
+        html = '<p>公司<br/>地址<br/>電話</p>'
+        small = Report._estimate_html_height(html, {
+            'font': 'Lato', 'size': 13, 'row_margin': 0.2, 'color': '#212529'})
+        big = Report._estimate_html_height(html)
+        self.assertLess(small, big, '字小、行距緊，頁首就沒那麼高')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestMultiLanguageStaticText(TestQwebConverterBase):
     """原生報表的固定文字依各語言的翻譯轉成多語文字。
 

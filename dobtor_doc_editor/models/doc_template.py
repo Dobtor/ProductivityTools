@@ -135,6 +135,22 @@ class DocTemplate(models.Model):
         string='頁尾上方分隔線',
         help='對應 LibreOffice 頁尾的「邊框」。',
     )
+    # ─── 預設文字樣式
+    #
+    # 沒設的元素用這組值；留空＝模組預設（16px、正黑體、每列上下各留 8px、黑字）。
+    # 編輯器與列印用同一組值，畫面才會跟印出來的一樣。
+    # 從原生報表轉換的範本會帶上官方報表的樣式（_OFFICIAL_TEXT_STYLE）；
+    # 使用者自己做的範本不受影響。
+    text_font = fields.Char(
+        string='預設字型',
+        help='例如 Lato（Odoo 官方報表用的字型）。中文字一律退回系統的中文字型。',
+    )
+    text_size = fields.Integer(string='預設字級 (px)')
+    text_row_margin = fields.Float(
+        string='每列上下留白倍數', digits=(3, 2),
+        help='1＝每一列上下各留 8px（編輯器預設）；0.2＝各留 1.6px，接近官方報表的行距。',
+    )
+    text_color = fields.Char(string='預設文字顏色', help='例如 #212529。')
 
     page_format = fields.Selection([
         ('A4', 'A4'),
@@ -441,6 +457,42 @@ class DocTemplate(models.Model):
         """
         self.ensure_one()
         return self.layout_id or self
+
+    # Odoo 官方報表的文字樣式，換算成本模組 1:1 的版面：
+    # 官方的 CSS 是 Lato 16px、行高 1.5、#212529，但 wkhtmltopdf 會把 1140px 寬的
+    # 版面縮到紙寬，實際印出來約 0.8 倍——字級 12.8px、行距 19.2px（實測官方 PDF
+    # 的中文字寬推回來）。本模組的 PDF 不縮放，所以直接用縮放後的值。
+    # 每列上下留白 0.2 倍（各 1.6px）：13px × 1.25 ＋ 3.2px ≈ 19.5px，接近官方行距。
+    _OFFICIAL_TEXT_STYLE = {
+        'text_font': 'Lato',
+        'text_size': 13,
+        'text_row_margin': 0.2,
+        'text_color': '#212529',
+    }
+    # 模組預設：與 canvas-editor 的預設值一致
+    _DEFAULT_TEXT_STYLE = {
+        'font': '', 'size': 16, 'row_margin': 1.0, 'color': '#000000',
+    }
+
+    def text_style(self):
+        """這張範本的預設文字樣式（沒設的取模組預設）→ {font, size, row_margin, color}。
+
+        編輯器（canvas-editor 的 defaultFont／defaultSize／defaultRowMargin／
+        defaultColor）與列印（doc.report._report_css）都讀這一份。
+        """
+        style = dict(self._DEFAULT_TEXT_STYLE)
+        if not self:
+            return style
+        self.ensure_one()
+        if self.text_font:
+            style['font'] = self.text_font.strip()
+        if self.text_size and self.text_size > 0:
+            style['size'] = self.text_size
+        if self.text_row_margin and self.text_row_margin > 0:
+            style['row_margin'] = self.text_row_margin
+        if self.text_color:
+            style['color'] = self.text_color.strip()
+        return style
 
     @api.model
     def action_new_and_open_editor(self):
