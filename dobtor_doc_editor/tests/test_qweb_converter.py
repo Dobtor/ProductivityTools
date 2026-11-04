@@ -1629,3 +1629,77 @@ class TestNoteLevels(TestQwebConverterBase):
         self.assertIn('待辦', notes + '待辦')  # 區段標題存在就夠
         self.assertNotIn('── 待辦（請逐項確認）──', notes,
                          '還在用舊的平鋪格式')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestMultiLanguageStaticText(TestQwebConverterBase):
+    """原生報表的固定文字依各語言的翻譯轉成多語文字。
+
+    以前只用轉換當下的語言讀 arch，中文範本印給英文客戶時固定文字是中文、
+    值是英文，整張單據中英混雜。翻譯本來就跟著 arch 存在 Odoo 裡。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['res.lang']._activate_lang('fr_FR')
+        self.partner = self.env['res.partner'].create({
+            'name': '多語測試', 'is_company': True})
+
+    def _convert_translated(self, body, translations):
+        key = 'dobtor_doc_editor.conv_i18n_%d' % next(_SEQ)
+        view = self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        view.update_field_translations('arch_db', {'fr_FR': translations})
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        res = self.Conv.with_context(lang='en_US').convert_report(
+            report, validate_with=self.partner)
+        res['tree'] = json.loads(res['content_json'] or '{}')
+        return res
+
+    def test_static_text_becomes_i18n_pill_with_each_language(self):
+        res = self._convert_translated(
+            # 不包 <span>：行內標記會被 Odoo 當成翻譯字串的一部分，
+            # 那樣翻譯鍵就得寫成 '<span>Description</span>'
+            '<table><tr><th>Description</th><th>#</th></tr></table>',
+            {'Description': 'Désignation'},
+        )
+        pills = [m for m in self._metas(res['tree']['main'])
+                 if m.get('source') == 'i18n']
+        self.assertEqual(len(pills), 1, '%s' % pills)
+        self.assertEqual(pills[0]['texts']['en_US'], 'Description')
+        self.assertEqual(pills[0]['texts']['fr_FR'], 'Désignation')
+        self.assertIn('#', self._texts(res['tree']['main']),
+                      '各語言都一樣的符號維持純文字')
+
+    def test_strings_inside_expressions_pick_by_language(self):
+        """依條件印不同字（報價單 # ／訂單 #）是一顆算式藥丸，字串寫在算式裡。"""
+        res = self._convert_translated(
+            '<h2><span t-if="o.is_company">Company # </span>'
+            '<span t-else="">Person # </span><span t-field="o.name"/></h2>',
+            {'Company #': 'Société #', 'Person #': 'Personne #'},
+        )
+        exprs = [m.get('expression') or '' for m in self._metas(res['tree']['main'])]
+        title = next((e for e in exprs if 'translated(' in e), '')
+        self.assertIn('Société #', title, '%s' % exprs)
+        Mixin = self.env['doc.render.mixin']
+        self.assertEqual(
+            Mixin._eval_for(self.partner.with_context(lang='fr_FR'))(title).strip(),
+            'Société #')
+        self.assertEqual(
+            Mixin._eval_for(self.partner.with_context(lang='en_US'))(title).strip(),
+            'Company #')
+
+    def test_translate_literals_only_touches_strings_that_differ(self):
+        expr = "\"A\" if object.state in ['draft'] else \"B\""
+        out = self.Conv._translate_literals(
+            expr, 'en_US', {'fr_FR': "\"甲\" if object.state in ['draft'] else \"乙\""})
+        self.assertIn("['draft']", out, '各語言一樣的字串不動')
+        self.assertIn('translated({"en_US": "A", "fr_FR": "甲"})', out)
+        self.assertEqual(
+            self.Conv._translate_literals(expr, 'en_US', {'fr_FR': '"甲"'}), expr,
+            '字串以外不一樣就對不上，原樣保留')

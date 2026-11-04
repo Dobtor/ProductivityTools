@@ -309,7 +309,20 @@ class RenderSandbox:
                 return ''
             return value
 
+        def translated(texts):
+            """{語言: 文字} → 依渲染語言挑字。
+
+            轉換器把原生報表寫在算式裡的字串（「報價單 #」if 草稿 else「訂單 #」）
+            換成這個，同一張範本才能依客戶語言印。挑字規則跟多語文字藥丸一樣。
+            """
+            # 明細可能是 dict（發票的付款列），沒有 env
+            record_env = getattr(record, 'env', None)
+            lang = ((record_env.context.get('lang') if record_env is not None else None)
+                    or self.env.context.get('lang'))
+            return self._pick_lang_text(texts, lang)
+
         return {
+            'translated': translated,
             'selection_label': selection_label,
             'names': names,
             'checkmark': checkmark,
