@@ -132,6 +132,7 @@ class ConvEntry:
         self._inline_calls(root, state)
         self._mark_company_color_nodes(root)
         self._rewrite_groups(root, state)
+        self._merge_cell_chains(root, state)
         self._note_unconverted_attrs(root, state)
         self._collect_symbols(root, state)
         body_node, blocks = self._split_layout(root, state)

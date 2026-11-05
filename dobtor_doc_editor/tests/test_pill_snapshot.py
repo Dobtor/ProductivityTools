@@ -6,6 +6,7 @@
 共用的 _text / _pill helper 在 test_pill_helpers.py。
 """
 from unittest.mock import patch
+import base64
 import json
 
 from odoo.tests.common import TransactionCase, tagged
@@ -140,6 +141,35 @@ class TestRepeatRows(TransactionCase):
         self.assertEqual(
             len(tree['main'][0]['trList']), 4, '表頭 1 + 明細 3',
         )
+
+    def test_barcode_in_row_uses_its_own_line(self):
+        """明細列裡的條碼（揀貨作業的批號條碼）要用那一列的值產生。
+
+        以前留給純量求值，拿主記錄去算：line.… 取不到值，條碼欄整欄空白。
+        """
+        tree = {'main': [{'type': 'table', 'trList': [{'tdList': [
+            self._cell(_pill('明細', source='repeat', path='child_ids'),
+                       _pill('條碼', source='image', barcodeType='QR',
+                             expression='line.city')),
+            self._cell(_pill('條碼', source='image', barcodeType='QR',
+                             path='name')),
+        ]}]}]}
+        self.Mixin._snapshot_content_json(tree, self.parent)
+        rows = tree['main'][0]['trList']
+        self.assertEqual(len(rows), 3)
+        report = self.env['ir.actions.report']
+        for row, name, city in zip(rows, ('品項A', '品項B', '品項C'),
+                                   ('台北', '台中', '高雄')):
+            by_expr = [e['value'] for e in row['tdList'][0]['value']
+                       if (e.get('extension') or {}).get('dobtorField')]
+            by_path = [e['value'] for e in row['tdList'][1]['value']
+                       if (e.get('extension') or {}).get('dobtorField')]
+            self.assertEqual(by_expr, ['data:image/png;base64,%s' % base64.b64encode(
+                report.barcode('QR', city, width=300, height=100,
+                               humanreadable=0)).decode()])
+            self.assertEqual(by_path, ['data:image/png;base64,%s' % base64.b64encode(
+                report.barcode('QR', name, width=300, height=100,
+                               humanreadable=0)).decode()])
 
     def test_each_row_binds_to_its_own_line(self):
         """每列的值必須對應各自的明細——這是整個功能的重點。"""

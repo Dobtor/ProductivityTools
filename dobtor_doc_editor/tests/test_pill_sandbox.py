@@ -309,6 +309,24 @@ class TestReportHelperWhitelist(TransactionCase):
         self.assertEqual(
             self._render("report_helper(object, '_zero_probe')"), '0.0')
 
+    def test_batch_method_gets_every_record(self):
+        """彙總類的方法要拿整批記錄去算，其餘的照舊只給第一筆。
+
+        出貨單的彙總明細（_get_aggregated_product_quantities）是把所有出貨
+        明細一起合併；只給第一筆的話，兩項商品只印出第一項（實測）。
+        """
+        self._allow(('res.partner', '_count_probe'))
+        self.startPatcher(patch.object(
+            type(self.env['res.partner']), '_count_probe',
+            lambda self: len(self), create=True,
+        ))
+        self.partner.child_ids = [(0, 0, {'name': '甲'}), (0, 0, {'name': '乙'})]
+        expr = "report_helper(object.child_ids, '_count_probe')"
+        self.assertEqual(self._render(expr), '1', '一般方法只給第一筆')
+        self.patch(type(self.Mixin), '_SAFE_REPORT_BATCH_METHODS',
+                   frozenset({('res.partner', '_count_probe')}))
+        self.assertEqual(self._render(expr), '2')
+
     def test_qr_code_generator_is_not_whitelisted(self):
         """account.move._generate_qr_code 會在回傳前回寫 qr_code_method。
 

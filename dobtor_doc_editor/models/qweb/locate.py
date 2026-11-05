@@ -322,6 +322,69 @@ class ConvLocate:
                 '有 %d 處 groups 掛在 t-else／t-elif 上，沒有改寫（併進去語意'
                 '就不是「否則」了）。那幾段會一直印，請自行加條件。' % skipped,
             )
+
+    _CELL_TAGS = ('td', 'th')
+
+    def _merge_cell_chains(self, root, state):
+        """同一個位置二選一的格子 → 一格，內容放分支。回傳合併的處數。
+
+        出貨單的表頭：
+            <th t-if="not has_serial_number">Ordered</th>
+            <th t-else="">Lot/Serial Number</th>
+        印出來永遠只有其中一格。不合併的話兩格都被當成欄，表頭比明細多一欄
+        （多印「Lot/Serial Number」、數量對到錯的欄）。
+        只合併以 t-else 收尾的鏈：沒有 t-else 時那一格可能整個不見，那是
+        欄條件，不是二選一。
+        """
+        count = 0
+        for first in root.xpath('//th[@t-if] | //td[@t-if]'):
+            if first.getparent() is None:
+                continue
+            chain = [first]
+            nxt = first.getnext()
+            closed = False
+            while nxt is not None:
+                if not isinstance(nxt.tag, str):
+                    nxt = nxt.getnext()
+                    continue
+                if nxt.tag.lower() not in self._CELL_TAGS:
+                    break
+                if nxt.get('t-elif') is not None:
+                    chain.append(nxt)
+                    nxt = nxt.getnext()
+                    continue
+                if nxt.get('t-else') is not None:
+                    chain.append(nxt)
+                    closed = True
+                break
+            if not closed or len({c.get('colspan') or '1' for c in chain}) > 1:
+                continue
+            merged = self._new_element(first.tag)
+            for key, value in first.attrib.items():
+                if key != 't-if':
+                    merged.set(key, value)
+            for branch in chain:
+                holder = self._new_element('t')
+                for attr in ('t-if', 't-elif', 't-else'):
+                    if branch.get(attr) is not None:
+                        holder.set(attr, branch.get(attr))
+                holder.text = branch.text
+                for child in list(branch):
+                    holder.append(child)
+                merged.append(holder)
+            merged.tail = chain[-1].tail
+            parent = first.getparent()
+            parent.replace(first, merged)
+            for branch in chain[1:]:
+                parent.remove(branch)
+            count += 1
+        if count:
+            self._note(
+                state,
+                '有 %d 處「同一格二選一」（<th t-if>…<th t-else>）已併成一格、'
+                '內容依條件切換；格子的對齊與樣式取第一個分支的。' % count,
+            )
+        return count
         return count
 
     # 會影響輸出、但本模組的文件模型表達不了的屬性——逐類留一條待辦，

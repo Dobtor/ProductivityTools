@@ -295,7 +295,9 @@ class RenderSandbox:
                 model = getattr(target, '_name', None)
                 if not model or (model, name) not in self._SAFE_REPORT_METHODS:
                     return ''
-                one = target[:1] if hasattr(target, 'ids') else target
+                batch = (model, name) in self._SAFE_REPORT_BATCH_METHODS
+                one = target[:1] if hasattr(target, 'ids') and not batch \
+                    else target
                 if not one:
                     return ''
                 value = getattr(one, name)(*args, **kwargs)
@@ -362,6 +364,12 @@ class RenderSandbox:
         ('stock.move.line', '_get_aggregated_product_quantities'),
         # 發票上要印的批號／序號明細（sale_stock 加的）。只讀 stock move
         ('account.move', '_get_invoiced_lot_values'),
+    })
+
+    # 白名單裡「拿整批記錄一起算」的方法：呼叫時不可以只取第一筆。
+    # 出貨單的彙總明細是對所有出貨明細一起合併，只給第一筆的話兩項商品只印一項
+    _SAFE_REPORT_BATCH_METHODS = frozenset({
+        ('stock.move.line', '_get_aggregated_product_quantities'),
     })
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')
