@@ -81,6 +81,8 @@ class DocEditorController(DocControllerBase, http.Controller):
             'margin_right': doc.margin_right,
             # 文件的 PDF 走 doc.document 自己的樣式（模組預設），編輯器也用模組預設
             'text_style': request.env['doc.template'].text_style(),
+            # 文件沒有外框的分隔線設定
+            'frame_rules': None,
             'model_id': doc.model_id.id if doc.model_id else False,
             'model_name': doc.model_id.model if doc.model_id else False,
             'res_id': doc.res_id or False,
