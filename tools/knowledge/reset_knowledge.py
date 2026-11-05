@@ -2,6 +2,7 @@
 
     python3 tools/knowledge/reset_knowledge.py 13 14          # 試跑：全部做一遍、印出筆數、最後回滾
     python3 tools/knowledge/reset_knowledge.py 13 14 --yes    # 真的清（含刪說明庫資料庫）
+        # 方案有進行中的說明書製作計畫時會擋下，要清加 --force-active-plans；清完會在方案留言
     python3 tools/knowledge/reset_knowledge.py 13 14 --outputs-only [--yes]
         # 只清產出（截圖腳本、截圖、文章、步驟、教學、缺口、已發佈手冊），保留已核准的盤點、情境、能力、流程
     python3 tools/knowledge/reset_knowledge.py 13 14 --code [--yes]
@@ -147,6 +148,35 @@ def setting(key):
     return _setting(key)
 
 
+ACTIVE_PLAN_STATES = ('ledger', 'readiness', 'blocked', 'draft', 'review', 'approved', 'expanding', 'canary',
+                      'running')
+
+
+def active_plans(pkgs):
+    """這些方案進行中的計畫：['方案 23：計畫 30（canary）']。讀不到就當沒有（不擋）。"""
+    sys.path.insert(0, HERE)
+    try:
+        from rpc import ro
+        rows = ro('corpaas.knowledge.plan', 'search_read',
+                  [('package_id', 'in', pkgs), ('state', 'in', list(ACTIVE_PLAN_STATES))],
+                  fields=['package_id', 'state', 'version'])
+    except Exception:  # noqa: BLE001
+        return []
+    return ['方案 %s：計畫 %s（v%s，%s）' % (r['package_id'][0], r['id'], r['version'], r['state']) for r in rows]
+
+
+def note_reset(pkgs, outputs_only, full):
+    """清除後在方案留言：誰、清了什麼（別的工作階段與使用者才看得到發生過）。"""
+    sys.path.insert(0, HERE)
+    try:
+        from rpc import rw
+        what = '全部清（含紀錄與設定）' if full else ('只清產出' if outputs_only else '清除方案知識與已發佈手冊')
+        rw('infrastructure.solution.package', 'message_post', pkgs, unsafe=True,
+           body='tools/knowledge/reset_knowledge.py 已執行：%s。若不是你要的，請找執行的人。' % what)
+    except Exception as e:  # noqa: BLE001
+        print('（留言失敗：%s）' % str(e)[:100])
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     dry = '--yes' not in sys.argv
@@ -158,6 +188,13 @@ def main():
     pkgs = [int(a) for a in args if a.isdigit()]
     if not pkgs:
         sys.exit(__doc__)
+    # ★ 護欄：方案有進行中的說明書製作計畫時，真的清除要加 --force-active-plans
+    #   ☠️ 實機（2026-11-05 方案 23）：計畫、盤點與執行紀錄被別的工作階段整批清掉，使用者與另一個工作階段都不知道
+    if not dry and not outputs_only and '--force-active-plans' not in sys.argv:
+        active = active_plans(pkgs)
+        if active:
+            sys.exit('這些方案有進行中的說明書製作計畫，清除會連計畫一起刪（--outputs-only 才會保留計畫）：\n  %s\n'
+                     '確定要清請加 --force-active-plans。' % '\n  '.join(active))
     script = SCRIPT % {'dry': dry, 'keep': keep + (CATALOG if outputs_only else []), 'pkgs': pkgs,
                        'reset': [] if outputs_only else PKG_RESET, 'mark': MARK,
                        'modules': ALL_MODULES if full else BASE_MODULES}
@@ -179,6 +216,8 @@ def main():
         print('刪除說明庫資料庫：', out['dropped'])
     if out['errors']:
         print('錯誤：', out['errors'])
+    if not dry:
+        note_reset(pkgs, outputs_only, full)
 
 
 if __name__ == '__main__':
