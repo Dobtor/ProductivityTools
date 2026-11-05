@@ -778,7 +778,7 @@ class TestLayoutTemplate(TransactionCase):
         tree = json.loads(layout.content_json)
         header = tree['header']
         # 開頭那一列空行壓到最小字級，logo 才不會比官方低
-        self.assertEqual(header[0], {'value': '\n', 'size': 5})
+        self.assertEqual(header[0], {'value': '\n', 'size': 3})
         self.assertEqual(header[1]['type'], 'table', '第一列：logo 與公司標語')
         self.assertEqual(
             self.Mixin._element_field_meta(header[-1]).get('path'),

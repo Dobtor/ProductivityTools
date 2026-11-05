@@ -331,6 +331,8 @@ class DocTemplate(models.Model):
     # 官方頁尾離紙底約 100px，本模組的頁尾畫到離底 30px（doc.report
     # 的 _FOOTER_BOTTOM_PX），差的那一段用頁碼下面的空白列補（一列約 19.5px）
     _OFFICIAL_FOOTER_BLANK_ROWS = 3
+    # 整列補完還差 6px（頁尾線比官方低一截）：最後再補一列小字級的空白
+    _OFFICIAL_FOOTER_TAIL_SIZE = 4
 
     def _build_odoo_layout_tree(self, inner):
         """「Odoo 標準」外框：照 web.external_layout_standard 的樣子。
@@ -338,12 +340,14 @@ class DocTemplate(models.Model):
         頁首第一列 logo 在左、公司標語（report_header，粗體）在右；
         第二列公司資訊在 logo 下方。頁尾上方一條線（footer_rule）、
         公司頁尾文字，頁碼靠左、灰字，字照官方外框的翻譯（繁中「頁：1 / 1」）。
-        logo 高 48px：照官方 PDF 量的 logo 大小（與本文同樣換算成 1:1）。
+        位置照官方 PDF 實測（與本文同樣換算成 1:1）：logo 高 51px；logo 與標語
+        上下置中（官方是 align-items-center，標語不是貼頂）；logo 下方留一小段
+        （官方 mb-2）再接公司資訊。
         """
         pill = self._layout_pill
         cell = self._layout_cell
         logo = pill('公司 logo', source='image', path='company_id.logo_web',
-                    height=48)
+                    height=51)
         tagline = pill('公司標語', source='html', path='company_id.report_header')
         tagline['rowFlex'] = 'right'
         tagline['bold'] = True
@@ -353,14 +357,17 @@ class DocTemplate(models.Model):
         header = [
             # 頁首以表格開頭時編輯器會在上面補一列空行（PDF 照印）；字級壓到
             # 最小，logo 才不會比官方低一截
-            {'value': '\n', 'size': 5},
+            {'value': '\n', 'size': 3},
             {
                 'type': 'table', 'value': '',
                 'extension': {'dobtorBlock': 'layout', 'fixedCols': True},
                 'borderType': 'empty',
                 'colgroup': [{'width': half}, {'width': inner - half}],
-                'trList': [{'tdList': [cell(logo), cell(tagline)]}],
+                'trList': [{'tdList': [cell(logo, verticalAlign='middle'),
+                                       cell(tagline, verticalAlign='middle')]}],
             },
+            # logo 與公司資訊之間的留白（官方 mb-2）
+            {'value': '\n', 'size': 4},
             {'value': '\n'},
             pill('公司資訊', source='html', path='company_id.company_details'),
         ]
@@ -369,6 +376,7 @@ class DocTemplate(models.Model):
             + self._page_line_elements(
                 align='left', color=self._OFFICIAL_MUTED_COLOR, official=True)
             + [{'value': '\n'} for _ in range(self._OFFICIAL_FOOTER_BLANK_ROWS)]
+            + [{'value': '\n', 'size': self._OFFICIAL_FOOTER_TAIL_SIZE}]
         )
         return {'header': header, 'main': [], 'footer': footer}
 

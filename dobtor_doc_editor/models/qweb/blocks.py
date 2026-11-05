@@ -129,7 +129,7 @@ class ConvBlocks:
         return {
             'type': 'table', 'value': '',
             'extension': {'dobtorBlock': 'taxTotals', 'fixedCols': True,
-                          'cellPadding': [pad, pad, pad, pad]},
+                          'cellPadding': list(self._REPORT_CELL_PADDING)},
             'borderType': 'empty',
             'borderColor': self._REPORT_BORDER_COLOR,
             'colgroup': [{'width': w} for w in widths],
@@ -512,10 +512,12 @@ class ConvBlocks:
         return table
 
     # 官方報表（o_table_standard）的表格：沒有框線，只有表頭下方一條深色線；
-    # Bootstrap 的 .table 每格上下左右留 .5rem，印出來約 6px（見
-    # doc.template._OFFICIAL_TEXT_STYLE 的 0.8 倍換算）
+    # Bootstrap 的 .table 每格上下左右留 .5rem，照官方 PDF 實測每列上下合計
+    # 13px（各 6px 的話每列矮 1px，明細多幾列合計區就整段偏高）。
+    # 上 7 下 6 而不是各 6.5：wkhtmltopdf 的版面只算整數 px，6.5 會被捨成 6
     _REPORT_BORDER_COLOR = '#212529'
     _REPORT_CELL_PAD = 6
+    _REPORT_CELL_PADDING = [7, 6, 6, 6]
 
     def _report_row_height(self):
         """一列文字加上下格內距的高度——編輯器的列最小高度用它。
@@ -526,7 +528,8 @@ class ConvBlocks:
         """
         style = self.env['doc.template']._OFFICIAL_TEXT_STYLE
         line = style['text_size'] * 1.25 + 2 * 8 * style['text_row_margin']
-        return int(round(line + 2 * self._REPORT_CELL_PAD))
+        top, _right, bottom, _left = self._REPORT_CELL_PADDING
+        return int(round(line + top + bottom))
 
     def _apply_report_table_style(self, table, classes, head_rows):
         """轉換出來的表格照官方的線條與留白。
@@ -546,8 +549,7 @@ class ConvBlocks:
                 for cell in table['trList'][idx].get('tdList') or []:
                     cell['borderTypes'] = ['bottom']
         if 'table' in classes:
-            pad = self._REPORT_CELL_PAD
-            table['extension']['cellPadding'] = [pad, pad, pad, pad]
+            table['extension']['cellPadding'] = list(self._REPORT_CELL_PADDING)
             height = self._report_row_height()
             for row in table['trList']:
                 row['minHeight'] = height

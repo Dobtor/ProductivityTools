@@ -548,6 +548,9 @@ class ConvLocate:
             out.extend(piece)
             if not out or (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
+            # 原生是 <h2>：行高與下方留白照 Bootstrap 的標題（見 _heading_paragraph）
+            self._heading_paragraph(piece + [out[-1]])
+            out.extend(self._spacer_rows_px(self._HEADING_GAP_PX))
 
     def _new_element(self, tag):
         from lxml import etree
