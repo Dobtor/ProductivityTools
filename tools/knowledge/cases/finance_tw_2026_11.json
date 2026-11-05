@@ -8321,7 +8321,7 @@
   },
   {
    "code": "unreviewed_voucher_blocks_close",
-   "name": "本期有未複核傳票：關帳檢查紅燈",
+   "name": "本期有未複核傳票：關帳檢查黃燈（警告，不擋關帳）",
    "module": "dobtor_account_close",
    "role": "accountant",
    "narrative": "已過帳的分錄自動產生待複核傳票；複核人還沒複核前，關帳檢查「傳票未複核」亮紅燈。",
@@ -8500,7 +8500,7 @@
      "ref": "ln",
      "field": "state",
      "op": "=",
-     "value": "fail"
+     "value": "warn"
     },
     {
      "ref": "m1",
