@@ -1,0 +1,323 @@
+[
+ {
+  "xmlid": "sp_j_bank",
+  "model": "account.journal",
+  "find": [
+   [
+    "code",
+    "=",
+    "BNK1"
+   ]
+  ]
+ },
+ {
+  "xmlid": "sp_j_cash",
+  "model": "account.journal",
+  "find": [
+   [
+    "code",
+    "=",
+    "CSH1"
+   ]
+  ]
+ },
+ {
+  "xmlid": "sp_stmt_bank",
+  "model": "account.bank.statement",
+  "values": {
+   "name": "2026 年 11 月 銀行對帳單",
+   "date": "__today__",
+   "line_ids": [
+    [
+     0,
+     0,
+     {
+      "journal_id": "__ref__:sp_j_bank",
+      "date": "__today__",
+      "payment_ref": "客戶匯款 INV/2026/00088",
+      "amount": 52500
+     }
+    ],
+    [
+     0,
+     0,
+     {
+      "journal_id": "__ref__:sp_j_bank",
+      "date": "__today__",
+      "payment_ref": "支付廠商貨款",
+      "amount": -31500
+     }
+    ],
+    [
+     0,
+     0,
+     {
+      "journal_id": "__ref__:sp_j_bank",
+      "date": "__today__",
+      "payment_ref": "銀行手續費",
+      "amount": -30
+     }
+    ]
+   ]
+  }
+ },
+ {
+  "xmlid": "sp_stmt_cash",
+  "model": "account.bank.statement",
+  "values": {
+   "name": "2026 年 11 月 現金出納",
+   "date": "__today__",
+   "line_ids": [
+    [
+     0,
+     0,
+     {
+      "journal_id": "__ref__:sp_j_cash",
+      "date": "__today__",
+      "payment_ref": "零用金撥補",
+      "amount": 10000
+     }
+    ],
+    [
+     0,
+     0,
+     {
+      "journal_id": "__ref__:sp_j_cash",
+      "date": "__today__",
+      "payment_ref": "文具採購",
+      "amount": -860
+     }
+    ]
+   ]
+  }
+ },
+ {
+  "xmlid": "sp_alert_gm",
+  "model": "dobtor.report.alert.rule",
+  "values": {
+   "name": "毛利率低於 30%",
+   "report_id": "__ref__:dobtor_finance_reports.tw_profit_loss",
+   "kpi_code": "gross_margin",
+   "column_key": "current",
+   "operator": "lt",
+   "threshold": 30.0,
+   "severity": "warning",
+   "cooldown_minutes": 60,
+   "notify_emails": "cfo@example.com"
+  }
+ },
+ {
+  "xmlid": "sp_sub_pl",
+  "model": "dobtor.report.subscription",
+  "values": {
+   "name": "每月損益月報",
+   "report_id": "__ref__:dobtor_finance_reports.tw_profit_loss",
+   "frequency": "monthly",
+   "run_hour": 9,
+   "run_minute": 0,
+   "day_of_month": 5,
+   "recipient_emails": "cfo@example.com",
+   "include_pdf": true
+  }
+ },
+ {
+  "xmlid": "sp_cls_ca",
+  "model": "dobtor.report.classification",
+  "values": {
+   "report_id": "__ref__:dobtor_finance_reports.tw_trial_balance",
+   "code": "SP_CA",
+   "name": "流動資產",
+   "type_prefixes": "asset_current,asset_cash,asset_receivable"
+  }
+ },
+ {
+  "xmlid": "sp_matrix_eq",
+  "model": "dobtor.report.matrix",
+  "values": {
+   "name": "權益變動表矩陣（股本／保留盈餘）",
+   "report_id": "__ref__:dobtor_finance_reports.tw_equity_change"
+  }
+ },
+ {
+  "xmlid": "sp_budget_2027",
+  "model": "dobtor.budget",
+  "find": [
+   [
+    "state",
+    "=",
+    "confirmed"
+   ]
+  ]
+ },
+ {
+  "xmlid": "sp_budget_lock",
+  "model": "dobtor.budget",
+  "call": "action_lock",
+  "ref": "sp_budget_2027"
+ },
+ {
+  "xmlid": "sp_inv_draft",
+  "model": "account.asset.inventory",
+  "values": {
+   "name": "2026 年底資產盤點（準備中）",
+   "date": "__today__"
+  }
+ },
+ {
+  "xmlid": "sp_inv_counting",
+  "model": "account.asset.inventory",
+  "values": {
+   "name": "2026 年第四季資產盤點",
+   "date": "__today__"
+  }
+ },
+ {
+  "xmlid": "sp_inv_start",
+  "model": "account.asset.inventory",
+  "call": "action_start",
+  "ref": "sp_inv_counting"
+ },
+ {
+  "xmlid": "sp_prov_test",
+  "model": "tw.einvoice.provider",
+  "values": {
+   "name": "本機字軌（測試）",
+   "code": "offline",
+   "state": "test"
+  }
+ },
+ {
+  "xmlid": "sp_prov_live",
+  "model": "tw.einvoice.provider",
+  "values": {
+   "name": "本機字軌（正式）",
+   "code": "offline",
+   "state": "enabled"
+  }
+ },
+ {
+  "xmlid": "sp_track_draft",
+  "model": "tw.uniform.invoice.track",
+  "values": {
+   "prefix": "XY",
+   "number_from": "12345001",
+   "number_to": "12345050",
+   "provider_id": "__ref__:sp_prov_test"
+  }
+ },
+ {
+  "xmlid": "sp_cust",
+  "model": "res.partner",
+  "find": [
+   [
+    "name",
+    "=",
+    "請款客戶丙"
+   ]
+  ]
+ },
+ {
+  "xmlid": "sp_uinv_draft",
+  "model": "tw.uniform.invoice",
+  "values": {
+   "direction": "out",
+   "partner_id": "__ref__:sp_cust",
+   "invoice_date": "__today__",
+   "line_ids": [
+    [
+     0,
+     0,
+     {
+      "name": "財務顧問服務費"
+     }
+    ]
+   ]
+  }
+ },
+ {
+  "xmlid": "sp_ureq_pending",
+  "model": "tw.uniform.invoice.request",
+  "values": {
+   "partner_id": "__ref__:sp_cust",
+   "provider_id": "__ref__:sp_prov_test",
+   "line_ids": [
+    [
+     0,
+     0,
+     {
+      "name": "年度記帳服務"
+     }
+    ]
+   ]
+  }
+ },
+ {
+  "xmlid": "sp_offset_draft",
+  "model": "tw.offset.note",
+  "find": [
+   [
+    "state",
+    "=",
+    "draft"
+   ],
+   [
+    "method_id.code",
+    "in",
+    [
+     "BANK",
+     "CASH"
+    ]
+   ]
+  ]
+ },
+ {
+  "xmlid": "sp_offset_confirm",
+  "model": "tw.offset.note",
+  "call": "action_confirm",
+  "ref": "sp_offset_draft"
+ },
+ {
+  "xmlid": "sp_vbook",
+  "model": "tw.voucher.book",
+  "values": {
+   "date_from": "2026-01-01",
+   "date_to": "2026-12-31",
+   "volume": 1
+  }
+ },
+ {
+  "xmlid": "sp_vbook_print",
+  "model": "tw.voucher.book",
+  "call": "action_print",
+  "ref": "sp_vbook"
+ },
+ {
+  "xmlid": "sp_vbook_bind",
+  "model": "tw.voucher.book",
+  "call": "action_bind",
+  "ref": "sp_vbook"
+ },
+ {
+  "xmlid": "sp_bank_line",
+  "model": "account.bank.statement.line",
+  "find": [
+   [
+    "journal_id.code",
+    "=",
+    "BNK1"
+   ],
+   [
+    "is_reconciled",
+    "=",
+    false
+   ]
+  ]
+ },
+ {
+  "xmlid": "sp_rec_draft",
+  "model": "tw.reconcile.draft.line",
+  "values": {
+   "statement_line_id": "__ref__:sp_bank_line"
+  }
+ }
+]
