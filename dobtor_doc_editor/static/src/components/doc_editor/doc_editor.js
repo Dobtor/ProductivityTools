@@ -778,6 +778,7 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
                 this.editor.listener.contentChange = null;
             }
             this._workspaceEl?.removeEventListener("scroll", this._onWorkspaceScroll);
+            clearTimeout(this._frameRulesTimer);
             if (this._pageNoFrame) {
                 cancelAnimationFrame(this._pageNoFrame);
             }

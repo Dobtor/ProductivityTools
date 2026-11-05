@@ -53,6 +53,7 @@ class ConvEntry:
         tree, state, root = built
         # 固定文字照各語言的翻譯轉成多語文字（見 _merge_languages）
         self._merge_languages(tree, view, report, page_format, validate_with, state)
+        self._mark_contact_lines(tree)
         # 藥丸上的名稱比所在的格子寬時縮短，編輯器裡才不會蓋到隔壁欄
         self.env['doc.render.mixin']._fit_pill_labels(
             tree, self._inner_width(state),
@@ -81,6 +82,20 @@ class ConvEntry:
             'stats': state['stats'],
             'needs_layout': needs_layout,
         }
+
+    def _mark_contact_lines(self, tree):
+        """地址藥丸（contact widget → format_address）記下「從第幾行起行高收緊」。
+
+        官方 contact widget 的名稱是一般行高，名稱以下的地址行是 lh-sm（1.25 倍）。
+        整段照內文行距印的話，四行地址下來比官方低 7pt，標題也跟著往下掉。
+        帶名稱時第一行是名稱、從第二行起收緊；不帶名稱時整段收緊。
+        """
+        Mixin = self.env['doc.render.mixin']
+        for el in Mixin._iter_elements(tree):
+            meta = Mixin._element_field_meta(el)
+            expr = (meta or {}).get('expression') or ''
+            if 'format_address(' in expr:
+                meta['tightFrom'] = 1 if 'with_name=True' in expr else 0
 
     def _build_tree(self, view, report, page_format, validate_with):
         """原生範本 → 元素樹（用目前 context 的語言讀 arch）。回 (tree, state, root) 或 None。
@@ -115,6 +130,7 @@ class ConvEntry:
         # 先把子範本併進來再收符號表：子範本自己的 t-set 要被看到，
         # 而且併入後整棵樹就是 QWeb 實際渲染的那一棵。
         self._inline_calls(root, state)
+        self._mark_company_color_nodes(root)
         self._rewrite_groups(root, state)
         self._note_unconverted_attrs(root, state)
         self._collect_symbols(root, state)

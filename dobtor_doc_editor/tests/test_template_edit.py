@@ -231,7 +231,7 @@ class TestEditTargetResolution(HttpCase):
         expected_keys = {
             'id', 'name', 'content_json', 'content_html', 'header_html',
             'footer_html', 'page_format', 'margin_top', 'margin_bottom',
-            'margin_left', 'margin_right', 'text_style',
+            'margin_left', 'margin_right', 'text_style', 'frame_rules',
             'model_id', 'model_name', 'res_id',
             'field_aliases', 'template_field_aliases', 'template_name',
             'has_template', 'template_filename', 'template_variables',
@@ -240,3 +240,19 @@ class TestEditTargetResolution(HttpCase):
             'snapshot_date', 'snapshot_is_stale',
         }
         self.assertEqual(set(tmpl_payload), expected_keys)
+
+    def test_frame_rules_only_when_editor_shows_the_printed_header(self):
+        """分隔線只在編輯器顯示的頁首頁尾就是印出來那一份時給（範本自己是外框）。"""
+        self.authenticate('admin', 'admin')
+        ctrl = self._controller()
+        frame = self.env['doc.template'].create({
+            'name': '外框', 'role': 'layout', 'footer_rule': True,
+            'text_color': '#212529'})
+        self.assertEqual(ctrl._load_template_payload(frame)['frame_rules'],
+                         {'header': False, 'footer': True, 'color': '#212529'})
+        # 內容範本掛著外框：編輯器不顯示外框的頁首頁尾，只畫一條線看不懂
+        self.template.layout_id = frame
+        self.assertIsNone(ctrl._load_template_payload(self.template)['frame_rules'])
+        frame.footer_rule = False
+        self.assertIsNone(ctrl._load_template_payload(frame)['frame_rules'],
+                          '沒勾分隔線就不畫')

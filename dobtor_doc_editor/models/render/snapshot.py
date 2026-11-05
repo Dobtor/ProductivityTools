@@ -538,6 +538,9 @@ class RenderSnapshot:
         # 一定要同時改這裡——「順序約束只存在於某人腦袋裡」是這個管線最容易
         # 壞掉的方式（實測發生過一次：條件式格式加進去但沒寫進來）。
         #
+        #   0.   _apply_company_colors
+        #        排第一：展開重複列、稅額彙總時是整列複製，顏色要先上好
+        #        才會跟著複製過去
         #   1.   _expand_repeat_rows
         #        要在純量求值前：展開產生的列裡 source='line' 藥丸必須以
         #        各自的明細記錄求值，不是主記錄。
@@ -569,6 +572,7 @@ class RenderSnapshot:
         #   7.   _reflow_layout_columns（內部再呼叫一次 _drop_empty_tables）
         #        排在 6 之後：格子裡的條件區塊拿掉了，才看得出整欄是不是空的
         if not only_pending:
+            self._apply_company_colors(tree, record)
             self._expand_repeat_rows(tree, record)
             self._expand_tax_totals_rows(tree, record)
             # if/else 群組先一次求完值再傳下去：兩個 pass 共用同一份結果，
@@ -645,6 +649,38 @@ class RenderSnapshot:
             self._drop_blank_condition_blocks(tree)
             # 7. 並排區塊裡整欄空白的欄拿掉，其他欄往左補滿
             self._reflow_layout_columns(tree)
+        return tree
+
+    # ─── 公司設定的顏色 ─────────────────────────────────────────────
+    #
+    # 官方報表的標題、合計的 Total、頁首標語用公司主色，資訊欄的粗體標籤用
+    # 副色（web.styles_company_report，印的時候照公司設定套上去，不是寫在
+    # 報表範本裡）。轉換器在這幾個元素的 extension 記下要用哪一種
+    # （COMPANY_COLOR_KEY），這裡照單據所屬公司「當下」的設定上色——
+    # 公司改顏色後不必重新轉換。沒設顏色時官方用 #212529。
+    COMPANY_COLOR_KEY = 'companyColor'
+    _COMPANY_COLOR_DEFAULT = '#212529'
+
+    def _company_for(self, record):
+        """單據所屬公司；沒有公司欄位（或沒填）時用目前公司。"""
+        company = None
+        if record is not None and 'company_id' in getattr(record, '_fields', {}):
+            company = record[:1].company_id
+        if not company or company._name != 'res.company':
+            company = self.env.company
+        return company
+
+    def _apply_company_colors(self, tree, record=None, company=None):
+        """有記號的元素照公司的主色／副色上色（就地改寫並回傳 tree）。"""
+        company = company or self._company_for(record)
+        colors = {
+            'primary': company.primary_color or self._COMPANY_COLOR_DEFAULT,
+            'secondary': company.secondary_color or self._COMPANY_COLOR_DEFAULT,
+        }
+        for el in self._iter_elements(tree):
+            role = (el.get('extension') or {}).get(self.COMPANY_COLOR_KEY)
+            if role in colors:
+                el['color'] = colors[role]
         return tree
 
     def _empty_text(self, record, meta):

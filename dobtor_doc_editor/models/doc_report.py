@@ -410,7 +410,10 @@ class DocReport(models.Model):
         self.ensure_one()
         template = self.template_id
         frame = template.frame_template()
-        Mixin = self.env['doc.render.mixin']
+        # 範本的預設字級：段落自己設了行距時，沒有字級的元素照它換算行高
+        # （_row_margin_line_height）
+        Mixin = self.env['doc.render.mixin'].with_context(
+            doc_text_size=template.text_style()['size'])
         base_tree = Mixin._parse_content_json(template.content_json)
         frame_tree = (
             base_tree if frame == template
@@ -577,7 +580,10 @@ class DocReport(models.Model):
             bits.append('padding-left:%dpx;padding-right:%dpx' % (pad, pad))
         if rule:
             side = 'bottom' if zone == 'header' else 'top'
-            bits.append('border-%s:1px solid #000;padding-%s:4px' % (side, side))
+            # 線跟外框的文字同色：「Odoo 標準」外框是官方的 #212529，
+            # 其他外框沒設文字顏色時是 #000000（跟以前一樣）
+            color = frame.text_style()['color'] or '#000'
+            bits.append('border-%s:1px solid %s;padding-%s:4px' % (side, color, side))
         if not bits:
             return ''
         return '<style>div.%s{%s}</style>' % (zone, ';'.join(bits))

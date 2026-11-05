@@ -246,6 +246,7 @@ class DocControllerBase:
             'margin_right': frame.margin_right,
             # 預設字型／字級／行距：編輯器與列印用同一份（doc.template.text_style）
             'text_style': template.text_style(),
+            'frame_rules': self._frame_rules(template, frame),
             'model_id': template.model_id.id if template.model_id else False,
             'model_name': template.model_id.model if template.model_id else False,
             # 範本不綁定單一記錄——設計期沒有 record 可取值，藥丸顯示標籤文字
@@ -267,6 +268,21 @@ class DocControllerBase:
             # 範本沒有綁定記錄，永遠不會有快照——藥丸一律顯示標籤文字
             'snapshot_date': None,
             'snapshot_is_stale': False,
+        }
+
+    def _frame_rules(self, template, frame):
+        """頁首下方／頁尾上方的分隔線（編輯器照 PDF 畫出來）；沒有就回 None。
+
+        只在編輯器顯示的頁首頁尾就是印出來那一份時給（範本自己就是外框）。
+        內容範本的頁首頁尾在另一張外框裡，編輯器不顯示，只畫一條線反而看不懂。
+        顏色同 PDF：外框的文字顏色（doc.report._zone_style）。
+        """
+        if frame != template or not (frame.header_rule or frame.footer_rule):
+            return None
+        return {
+            'header': bool(frame.header_rule),
+            'footer': bool(frame.footer_rule),
+            'color': frame.text_style()['color'] or '#000',
         }
 
     def _load_output_payload(self, output):
@@ -295,6 +311,8 @@ class DocControllerBase:
             'margin_left': frame.margin_left,
             'margin_right': frame.margin_right,
             'text_style': output.template_id.text_style(),
+            # 輸出紀錄是凍結的本文，不顯示外框的頁首頁尾
+            'frame_rules': None,
             'model_id': output.res_model_id.id if output.res_model_id else False,
             'model_name': output.res_model or False,
             'res_id': output.res_id or False,

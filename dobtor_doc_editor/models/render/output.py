@@ -62,6 +62,9 @@ class RenderOutput:
                     # 欄位值自己的換行（多行地址）是同一段裡的斷行，
                     # 不是段落邊界——見 _split_paragraph_breaks
                     plain['_softBreak'] = True
+                    if meta.get('tightFrom') is not None:
+                        # 地址從第幾行起行高收緊（轉換器記的，見 _mark_contact_lines）
+                        plain['_tightFrom'] = int(meta['tightFrom'])
                 if src == self._IMAGE_SOURCE:
                     if (plain['value'] or '').startswith('data:'):
                         plain['type'] = 'image'
@@ -184,7 +187,15 @@ class RenderOutput:
             # 攤平時標了 _softBreak）——一般文字裡的換行在 _elements_to_html
             # 已經拆成段落了。轉成 <br/> 讓多行地址留在同一段，
             # 不轉的話會塌成一行，而 HTML 裡看起來只是少了換行。
-            text = text.replace('\n', '<br/>')
+            lines = text.split('\n')
+            tight = el.get('_tightFrom')
+            if tight is not None and 0 <= tight < len(lines):
+                # 官方地址名稱以下是 lh-sm（行高 1.25）：那幾行包成一塊收緊
+                head = '<br/>'.join(lines[:tight])
+                text = '%s<span style="display:block;line-height:1.25">%s</span>' % (
+                    head, '<br/>'.join(lines[tight:]))
+            else:
+                text = '<br/>'.join(lines)
         if not text:
             return ''
         style = self._element_style(el)
@@ -214,6 +225,14 @@ class RenderOutput:
             prop = self._TD_BORDER_SIDES.get(side)
             if prop:
                 parts.append('%s:1px solid %s' % (prop, border_color))
+        # 格子的垂直對齊（canvas-editor 的 td.verticalAlign）：編輯器裡置中的
+        # 格子以前印出來一律靠上
+        if cell.get('verticalAlign') in ('middle', 'bottom'):
+            parts.append('vertical-align:%s' % cell['verticalAlign'])
+        # 轉換器記在格子上的上方留白（浮動合計區旁邊那一格，見 _float_end_table）
+        pad_top = (cell.get('extension') or {}).get('paddingTop')
+        if isinstance(pad_top, (int, float)) and pad_top > 0:
+            parts.append('padding-top:%spx' % pad_top)
         return ' style="%s"' % ';'.join(parts) if parts else ''
 
     def _table_to_html(self, el):
@@ -337,7 +356,20 @@ class RenderOutput:
 
         def _open(starter):
             # head 收「開頭那個元素」與「它後面那一個」，對齊從這兩個取
-            return {'head': [starter], 'buf': [], 'scope': ''}
+            return {'head': [starter], 'buf': [], 'scope': '', 'sizes': []}
+
+        def _line_height(sizes):
+            # 段落自己設了行距（編輯器的「行距」、轉換出來的標題）→ 行高。
+            # head 的第二個元素若是換行，那是下一段的開頭（空段落才會這樣），
+            # 不算這一段的——標題前那列空白以前就被套上標題的行距
+            own = [el for i, el in enumerate(para['head'][:2])
+                   if i == 0 or (el.get('value') or '') != '\n']
+            margin = next((el.get('rowMargin') for el in own
+                           if el.get('rowMargin') is not None), None)
+            if margin is None:
+                return ''
+            return 'line-height:%s;padding:0' % self._row_margin_line_height(
+                margin, max(sizes) if sizes else None)
 
         def _close():
             cls = (' class="doc-page-%s"' % para['scope']) if para['scope'] else ''
@@ -347,13 +379,21 @@ class RenderOutput:
                 # 印成 <p></p> 會是 0 高
                 # 空行多高看開頭那個換行的字級（編輯器就是這樣畫的）
                 size = (para['head'][0] or {}).get('size')
-                style = ' style="font-size:%spx"' % size if size else ''
+                parts = ['font-size:%spx' % size] if size else []
+                lh = _line_height([size] if size else [])
+                if lh:
+                    parts.append(lh)
+                style = ' style="%s"' % ';'.join(parts) if parts else ''
                 out.append('<p%s%s><br/></p>' % (cls, style))
                 return
             flex = next((el.get('rowFlex') for el in para['head'][:2]
                          if el.get('rowFlex')), '')
             align = self._ROW_FLEX_ALIGN.get(flex or '')
-            style = ' style="text-align:%s"' % align if align else ''
+            parts = ['text-align:%s' % align] if align else []
+            lh = _line_height(para['sizes'])
+            if lh:
+                parts.append(lh)
+            style = ' style="%s"' % ';'.join(parts) if parts else ''
             out.append('<p%s%s>%s</p>' % (cls, style, ''.join(para['buf'])))
 
         for idx, el in enumerate(elements):
@@ -388,8 +428,16 @@ class RenderOutput:
                 if etype == 'table':
                     out.append(self._table_to_html(el))
                 elif etype == 'htmlBlock':
-                    # 已在求值時消毒過（_html_field_value），原樣輸出
-                    out.append(el.get('value') or '')
+                    # 已在求值時消毒過（_html_field_value），原樣輸出。
+                    # 藥丸身上的字色、粗體、對齊（頁首標語是公司主色、粗體、
+                    # 靠右）包一層套上——編輯器裡看得到，PDF 以前全丟掉
+                    html = el.get('value') or ''
+                    style = self._element_style(el)
+                    align = self._ROW_FLEX_ALIGN.get(el.get('rowFlex') or '')
+                    if align:
+                        style = '%s%stext-align:%s' % (style, ';' if style else '', align)
+                    out.append('<div style="%s">%s</div>' % (style, html)
+                               if style and html else html)
                 else:
                     out.append('<div class="doc-page-break"></div>')
                 continue
@@ -407,9 +455,23 @@ class RenderOutput:
                     para['scope'] = el['scope']
                 continue
             para['buf'].append(self._inline_element_html(el))
+            if el.get('size'):
+                para['sizes'].append(el['size'])
         if para is not None:
             _close()
         return ''.join(out)
+
+    def _row_margin_line_height(self, row_margin, size=None):
+        """canvas-editor 的段落行距 → CSS 行高（倍數）。
+
+        canvas-editor 每個元素的高度是「字高＋上下各 8px × 字級係數 × 行距」
+        （getElementRowMargin；字級 <12 時係數是 字級/12，>30 時是
+        1＋(字級−30)/30），字高照 1.25 倍估（同 doc.report._report_text_css）。
+        沒有字級的元素用範本的預設字級（列印時由 doc.report 帶進 context）。
+        """
+        size = float(size or self.env.context.get('doc_text_size') or 16)
+        factor = size / 12 if size < 12 else (1 + (size - 30) / 30 if size > 30 else 1)
+        return round(1.25 + 2 * 8 * factor * float(row_margin) / size, 3)
 
     # ─── HTML → content_json（_content_json_to_html 的反向）──────────
     #

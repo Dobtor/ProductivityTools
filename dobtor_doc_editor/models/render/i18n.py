@@ -69,15 +69,20 @@ class RenderI18n:
         """一顆多語文字藥丸，字型樣式照抄 base_element——轉成藥丸不該順手改掉字級與顏色。"""
         pill = {k: v for k, v in base_element.items()
                 if k in self._I18N_STYLE_KEYS}
+        extension = {self.DOBTOR_FIELD_KEY: {
+            'source': self._I18N_SOURCE,
+            'labelText': text,
+            'texts': texts,
+        }}
+        # 照公司顏色上色的記號（標題、資訊欄標籤）也要跟著過來
+        role = (base_element.get('extension') or {}).get(self.COMPANY_COLOR_KEY)
+        if role:
+            extension[self.COMPANY_COLOR_KEY] = role
         pill.update({
             'type': 'label',
             'value': text,
             'label': {'backgroundColor': '#fff3e0', 'color': '#e65100'},
-            'extension': {self.DOBTOR_FIELD_KEY: {
-                'source': self._I18N_SOURCE,
-                'labelText': text,
-                'texts': texts,
-            }},
+            'extension': extension,
         })
         return pill
 

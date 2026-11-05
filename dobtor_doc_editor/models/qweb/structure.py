@@ -258,7 +258,23 @@ class ConvStructure:
         styles = [self._branch_style(node) for _cond, node in chain]
         if styles[0] and all(s == styles[0] for s in styles):
             pill.update(styles[0])
+        # 公司顏色（資訊欄的「Order Date／Invoice Date」是 #informations 裡的 strong）
+        roles = {self._branch_color_role(node) for _cond, node in chain}
+        if len(roles) == 1 and None not in roles:
+            self._mark_company_color(pill, roles.pop())
         return pill
+
+    def _branch_color_role(self, node):
+        """分支的公司顏色；分支是 <t> 包一個節點時看裡面那個（同 _branch_style）。"""
+        if not isinstance(node.tag, str):
+            return None
+        tag = node.tag.lower()
+        if tag == 't':
+            children = [c for c in node if isinstance(c.tag, str)]
+            if len(children) == 1:
+                return self._branch_color_role(children[0])
+            return None
+        return self._company_color_role(node, tag)
 
     def _branch_style(self, node):
         """分支的文字樣式：分支節點自己的；分支是 <t> 包一個節點時看裡面那個。
@@ -437,6 +453,14 @@ class ConvStructure:
         for cell in (left, right):
             if not cell or (cell[-1].get('value') or '') != '\n':
                 cell.append(self._newline())
+        left_td = {'colspan': 1, 'rowspan': 1, 'value': left}
+        lift = self._negative_top_px(node)
+        if lift:
+            # 官方的合計區被第一個子元素的負上邊距（發票 #total 的 mt-n3）往上拉，
+            # 左邊的付款說明不跟著上去；兩格同高起排時左格要往下補回這一段。
+            # 格子開頭放不了小字級的空白列（canvas-editor 載入格子時一律在最前面
+            # 補一個預設字級的段落起點），所以記在格子上，印的時候當上內距
+            left_td['extension'] = {'paddingTop': round(lift, 1)}
         state['stats']['table'] += 1
         return {
             'type': 'table', 'value': '',
@@ -444,10 +468,24 @@ class ConvStructure:
             'borderType': 'empty',
             'colgroup': [{'width': left_w}, {'width': right_w}],
             'trList': [{'tdList': [
-                {'colspan': 1, 'rowspan': 1, 'value': left},
+                left_td,
                 {'colspan': 1, 'rowspan': 1, 'value': right},
             ]}],
         }
+
+    _NEGATIVE_TOP_RE = re.compile(r'^m[ty]?-n(?P<n>[1-5])$')
+
+    def _negative_top_px(self, node):
+        """節點第一個子元素的負上邊距（mt-nN／my-nN／m-nN，px，正值）。"""
+        child = next((c for c in node if isinstance(c.tag, str)), None)
+        if child is None:
+            return 0.0
+        px = 0.0
+        for token in self._class_tokens(child):
+            m = self._NEGATIVE_TOP_RE.match(token)
+            if m:
+                px = max(px, self._SPACING_REM[m.group('n')] * self._SPACING_REM_PX)
+        return px
 
     _COL_CLASS_RE = re.compile(
         r'^col(?:-(?P<bp>sm|md|lg|xl|xxl))?(?:-(?P<n>\d{1,2}|auto))?$')
@@ -583,6 +621,9 @@ class ConvStructure:
                 own_style = self._node_style(node, tag)
                 if own_style and self._takes_style(pill):
                     pill.update(own_style)
+                role = self._company_color_role(node, tag)
+                if role and self._takes_style(pill):
+                    self._mark_company_color(pill, role)
                 self._append_value(node, tag, pill, out)
                 return
 
@@ -698,6 +739,11 @@ class ConvStructure:
                 for el in out[start:]:
                     if self._takes_style(el):
                         el.update(style)
+            role = self._company_color_role(node, tag)
+            if role:
+                for el in out[start:]:
+                    if self._takes_style(el):
+                        self._mark_company_color(el, role)
             align = self._node_align(node)
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
@@ -705,6 +751,11 @@ class ConvStructure:
                 # 段落的對齊掛在結尾那個換行元素上（_elements_to_html 就是
                 # 讀它的 rowFlex 決定 text-align）
                 out[-1]['rowFlex'] = align
+            if tag in self._HEADING_SCALE and len(out) > start:
+                self._heading_paragraph(out[start:])
+                if not self._spacing_px(node, 'bottom'):
+                    # 標題自己寫了 mb-N 時照它（Bootstrap 是取代，不是疊加）
+                    out.extend(self._spacer_rows_px(self._HEADING_GAP_PX))
             out.extend(self._spacer_rows(node, 'bottom'))
             return
 
@@ -712,11 +763,14 @@ class ConvStructure:
         inline = []
         self._emit_children(node, inline, state)
         style = self._node_style(node, tag)
+        role = self._company_color_role(node, tag)
         for el in inline:
             # 欄位藥丸也要套（規則同 _takes_style）：<strong> 包著的
             # 「發票地址／發票及送貨地址」三元式藥丸以前不會變粗
             if style and self._takes_style(el):
                 el.update(style)
+            if role and self._takes_style(el):
+                self._mark_company_color(el, role)
         out.extend(inline)
 
     # Bootstrap class → 文件屬性。只收「表達得出來又看得出來」的那幾個：
@@ -934,7 +988,10 @@ class ConvStructure:
         不必撐成一整行 19.5px。
         _spacer：讓 _paragraph_ends_to_starts 知道這是空白列，不是收掉表格的換行。
         """
-        px = self._spacing_px(node, side)
+        return self._spacer_rows_px(self._spacing_px(node, side))
+
+    def _spacer_rows_px(self, px):
+        """px 的留白 → 空白列（規則同 _spacer_rows）。"""
         rows = []
         while px >= self._SPACING_ROW_PX:
             rows.append(dict(self._newline(), _spacer=True))
@@ -952,6 +1009,22 @@ class ConvStructure:
     def _heading_size(self, tag):
         base = self.env['doc.template']._OFFICIAL_TEXT_STYLE['text_size']
         return int(round(base * self._HEADING_SCALE.get(tag, 1)))
+
+    # 標題下方的留白（px）：Bootstrap h1–h6 是 margin-bottom .5rem，照官方
+    # PDF 實測標題到下一段要 9px 位置才對（.5rem 只有 6.4px，字型字身的差補在這裡）
+    _HEADING_GAP_PX = 9
+
+    def _heading_paragraph(self, elements):
+        """標題段落照 Bootstrap 的行高（1.2 倍，比內文緊）。
+
+        canvas-editor 的段落行距是逐元素算的（每個元素「字高＋上下各
+        8px × 行距」，整列取最高），所以字和結尾換行（轉成編輯器格式後是
+        段落開頭）都要設行距 0；PDF 照段落開頭的行距印行高 1.25 倍。
+        以前沿用內文行距，26px 的標題上下各多 4px，標題整個往下掉一截。
+        """
+        for el in elements:
+            if isinstance(el, dict) and el.get('type') not in ('table', 'image'):
+                el['rowMargin'] = 0
 
     def _node_style(self, node, tag):
         """標籤與 class 一起決定的文字屬性。"""

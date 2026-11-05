@@ -1905,10 +1905,10 @@ class TestOfficialTableStyle(TestQwebConverterBase):
     def test_bootstrap_table_gets_cell_padding_and_row_height(self):
         """.table 每格上下留白：編輯器用列高、PDF 用格內距，單行的列兩邊一樣高。"""
         table = self._table(self._LINES)
-        self.assertEqual(table['extension'].get('cellPadding'), [6, 6, 6, 6])
-        # 一列字（13 × 1.25 ＋ 上下各 1.6）＋ 上下格內距各 6 ≈ 31
-        self.assertEqual(self.Conv._report_row_height(), 31)
-        self.assertTrue(all(r.get('minHeight') == 31 for r in table['trList']))
+        self.assertEqual(table['extension'].get('cellPadding'), [7, 6, 6, 6])
+        # 一列字（13 × 1.25 ＋ 上下各 1.6）＋ 上下格內距合計 13 ≈ 32
+        self.assertEqual(self.Conv._report_row_height(), 32)
+        self.assertTrue(all(r.get('minHeight') == 32 for r in table['trList']))
 
     def test_plain_table_has_no_padding(self):
         table = self._table('<table><tr><td>甲</td><td>乙</td></tr></table>')
@@ -1959,6 +1959,186 @@ class TestOfficialTableStyle(TestQwebConverterBase):
         self.assertIn('doc-noborder', html)
         self.assertIn('padding:6px 6px 6px 0px;border-bottom:1px solid #212529', html)
         self.assertIn('padding:6px 0px 6px 6px;border-bottom:1px solid #212529', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestCompanyColors(TestQwebConverterBase):
+    """官方報表的標題、Total 用公司主色，資訊欄標籤用副色（web.styles_company_report）。
+
+    轉換時只做記號，印的時候照單據所屬公司當下的設定上色——公司改顏色
+    後不必重新轉換。以前轉出來一律黑色。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.key = self.Mixin.COMPANY_COLOR_KEY
+
+    def _role(self, el):
+        return (el.get('extension') or {}).get(self.key)
+
+    def test_heading_and_informations_labels_are_marked(self):
+        res = self._convert(
+            '<h2>Title</h2>'
+            '<div id="informations"><div><strong>Your Reference</strong>'
+            '<div t-field="o.ref"/></div>'
+            '<div><t t-if="o.is_company"><strong>Invoice Date</strong></t>'
+            '<t t-else=""><strong>Date</strong></t></div></div>'
+            '<p><strong>Elsewhere</strong></p>')
+        main = res['tree']['main']
+        roles = {(el.get('value') or '').strip(): self._role(el) for el in main
+                 if (el.get('value') or '').strip()}
+        self.assertEqual(roles.get('Title'), 'primary')
+        self.assertEqual(roles.get('Your Reference'), 'secondary')
+        self.assertIsNone(roles.get('Elsewhere'), '資訊欄以外的粗體不用副色')
+        chain = next(el for el in main
+                     if 'Invoice Date' in ((el.get('extension') or {}).get(
+                         'dobtorField') or {}).get('expression', ''))
+        self.assertEqual(self._role(chain), 'secondary')
+
+    def test_total_row_is_marked_primary(self):
+        res = self._convert(
+            '<table class="o_total_table table">'
+            '<t t-call="account.document_tax_totals"/></table>')
+        block = next(t for t in self._tables(res['tree']['main'])
+                     if (t.get('extension') or {}).get('dobtorBlock') == 'taxTotals')
+        total = block['trList'][-1]
+        marked = [self._role(el) for c in total['tdList'] for el in c['value']
+                  if el.get('value') != '\n']
+        self.assertTrue(marked and all(r == 'primary' for r in marked), marked)
+
+    def test_colors_follow_company_at_print_time(self):
+        company = self.env.company
+        tree = {'main': [{'value': 'Title', 'extension': {self.key: 'primary'}},
+                         {'value': 'Label', 'extension': {self.key: 'secondary'}},
+                         {'value': 'Plain'}]}
+        company.write({'primary_color': '#5e4766', 'secondary_color': '#010101'})
+        self.Mixin._apply_company_colors(tree, company=company)
+        self.assertEqual([el.get('color') for el in tree['main']],
+                         ['#5e4766', '#010101', None])
+        company.write({'primary_color': False, 'secondary_color': False})
+        self.Mixin._apply_company_colors(tree, company=company)
+        self.assertEqual(tree['main'][0]['color'], '#212529', '沒設顏色時跟官方一樣')
+
+    def test_i18n_pill_keeps_the_mark(self):
+        pill = self.Mixin._i18n_pill(
+            {'value': 'Title', 'extension': {self.key: 'primary'}},
+            'Title', {'en_US': 'Title', 'zh_TW': '標題'})
+        self.assertEqual(self._role(pill), 'primary')
+
+    def test_html_block_keeps_its_style_in_pdf(self):
+        html = self.Mixin._elements_to_html([
+            {'type': 'htmlBlock', 'value': '<p>Tagline</p>', 'bold': True,
+             'color': '#5e4766', 'rowFlex': 'right'}])
+        self.assertIn('<div style="font-weight:bold;color:#5e4766;text-align:right">'
+                      '<p>Tagline</p></div>', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestOfficialSpacing(TestQwebConverterBase):
+    """轉換出來的範本，地址、標題、合計區、頁首頁尾的位置照官方 PDF 實測。
+
+    以前地址整段用內文行距（官方名稱以下是 lh-sm）、標題沿用內文行距，
+    標題比官方低 10pt；明細每列矮 1px；發票付款說明比官方高 6pt。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+
+    def _main_metas(self, res):
+        return list(self._metas(res['tree']['main']))
+
+    def test_contact_address_marks_tight_lines(self):
+        res = self._convert(
+            '<div t-field="o.parent_id" t-options=\'{"widget": "contact", '
+            '"fields": ["address", "name"]}\'/>'
+            '<div t-field="o.commercial_partner_id" t-options=\'{"widget": "contact", '
+            '"fields": ["address"]}\'/>'
+            '<div t-field="o.ref"/>')
+        tight = [m.get('tightFrom') for m in self._main_metas(res)]
+        self.assertEqual(tight, [1, 0, None], '帶名稱從第二行收緊、不帶名稱整段收緊、一般欄位不動')
+
+    def test_heading_is_tight_and_followed_by_gap(self):
+        # 前面放一段：正文第一段沒有開頭的換行（canvas-editor 的起點是隱含的）
+        res = self._convert('<p>Before</p><h2>Title</h2><p>Body</p>')
+        main = res['tree']['main']
+        title = [el for el in main if (el.get('value') or '').strip() == 'Title']
+        self.assertTrue(title and all(el.get('rowMargin') == 0 for el in title))
+        starter = main[main.index(title[0]) - 1]
+        self.assertEqual((starter.get('value'), starter.get('rowMargin')), ('\n', 0),
+                         '段落開頭的換行也要行距 0，不然編輯器整列被它撐高')
+        sizes = [el.get('size') for el in main if el.get('value') == '\n']
+        self.assertIn(6, sizes, '標題下方留 9px（6px 字級的空白列）')
+
+    def test_heading_with_own_margin_uses_it(self):
+        res = self._convert('<h2 class="mb-4">Title</h2><p>Body</p>')
+        sizes = [el.get('size') for el in res['tree']['main'] if el.get('value') == '\n']
+        self.assertNotIn(6, sizes, 'mb-N 取代標題預設的留白，不是疊加')
+
+    def test_float_end_lift_pads_the_left_cell(self):
+        res = self._convert(
+            '<div><div class="col-5 float-end"><div class="row mt-n3">'
+            '<span>RIGHT</span></div></div><p>LEFT</p></div>')
+        table = next(self._tables(res['tree']['main']))
+        left, right = table['trList'][0]['tdList']
+        self.assertEqual((left.get('extension') or {}).get('paddingTop'), 12.8)
+        self.assertNotIn('extension', right)
+
+    def test_report_table_cell_padding(self):
+        res = self._convert(
+            '<table class="table"><thead><tr><th>A</th></tr></thead>'
+            '<tbody><tr><td>1</td></tr></tbody></table>')
+        table = next(self._tables(res['tree']['main']))
+        self.assertEqual(table['extension']['cellPadding'], [7, 6, 6, 6],
+                         '上下合計 13px（wkhtmltopdf 只算整數 px，不能寫 6.5）')
+
+    def test_tight_lines_in_pdf(self):
+        html = self.Mixin._inline_element_html(
+            {'value': 'Name\nStreet\nCity', '_tightFrom': 1})
+        self.assertEqual(
+            html, 'Name<span style="display:block;line-height:1.25">Street<br/>City</span>')
+        self.assertEqual(self.Mixin._inline_element_html({'value': 'A\nB'}), 'A<br/>B')
+
+    def test_paragraph_row_margin_in_pdf(self):
+        html = self.Mixin._elements_to_html([
+            {'value': '\n', 'size': 13},
+            {'value': '\n', 'rowMargin': 0},
+            {'value': 'Title', 'size': 26, 'rowMargin': 0},
+        ])
+        self.assertIn('<p style="font-size:13px"><br/></p>', html,
+                      '前面的空白列不吃下一段的行距')
+        self.assertIn('<p style="line-height:1.25;padding:0">', html)
+        self.assertEqual(self.Mixin._row_margin_line_height(1, 16), 2.25,
+                         '行距 1、16px：字高 1.25 倍＋上下各 8px')
+
+    def test_cell_vertical_align_and_padding_top_in_pdf(self):
+        html = self.Mixin._table_to_html({
+            'type': 'table', 'colgroup': [{'width': 100}],
+            'trList': [{'tdList': [{'value': [{'value': 'A'}],
+                                    'verticalAlign': 'middle',
+                                    'extension': {'paddingTop': 12.8}}]}]})
+        self.assertIn('vertical-align:middle', html)
+        self.assertIn('padding-top:12.8px', html)
+
+    def test_odoo_layout_positions(self):
+        T = self.env['doc.template']
+        tree = T._build_odoo_layout_tree(700)
+        header, footer = tree['header'], tree['footer']
+        self.assertEqual(header[0].get('size'), 3)
+        row = header[1]['trList'][0]['tdList']
+        self.assertEqual([c.get('verticalAlign') for c in row], ['middle', 'middle'])
+        logo = row[0]['value'][0]
+        self.assertEqual(logo['extension']['dobtorField'].get('height'), 51)
+        self.assertEqual(header[2].get('size'), 4, 'logo 與公司資訊之間的留白')
+        self.assertEqual(footer[-1].get('size'), T._OFFICIAL_FOOTER_TAIL_SIZE)
+
+    def test_rule_follows_frame_text_color(self):
+        frame = self.env['doc.template'].create({
+            'name': 'rule', 'role': 'layout', 'footer_rule': True,
+            'text_color': '#212529'})
+        self.assertIn('border-top:1px solid #212529',
+                      self.env['doc.report']._zone_style(frame, 'footer'))
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')

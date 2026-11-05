@@ -267,6 +267,8 @@ export const DocEditorShell = (Base) => class extends Base {
 
         // 監聽內容變更 → 觸發 AutoSave（使用引擎正式 API）
         this.editor.listener.contentChange = () => {
+            // 頁首頁尾內容變了，分隔線跟著移（預覽模式灌值也要，所以排在最前面）
+            this._scheduleFrameRules();
             // L2-v2：「自動進預覽模式」會 executeSetValue 灌入渲染後 content，
             // 這會觸發 contentChange 但屬於程式注入、不是 user 編輯，不該寫回 DB。
             if (this._suppressAutoSave) {
@@ -385,6 +387,8 @@ export const DocEditorShell = (Base) => class extends Base {
             }
             // Sprint C：分頁數變更時必更新縮圖
             this._scheduleRebuildThumbnails(600);
+            // 多出來（或少掉）的頁也要有分隔線
+            this._scheduleFrameRules(0);
         };
         this.editor.listener.pageScaleChange = (scale) => {
             try {
@@ -394,9 +398,13 @@ export const DocEditorShell = (Base) => class extends Base {
             } catch (e) {
                 // 容錯
             }
+            // 縮放後頁面大小變了，分隔線重新定位
+            this._scheduleFrameRules(0);
         };
         // 初始化時讀一次總頁數（建構時第一次排版已建好每頁的 canvas，listener 掛上前就排完了）
         this.state.totalPages = this._getPageCanvases().length || 1;
+        // 第一次排版已完成：畫外框的分隔線
+        this._syncFrameRules();
         this.state.pageNo = 1;
         this._workspaceEl = this.canvasContainer.el.closest(".doc-workspace");
         this._onWorkspaceScroll = () => {
@@ -438,6 +446,81 @@ export const DocEditorShell = (Base) => class extends Base {
     /** 每頁一個 canvas（cursor、選取框等都是 div，不會混進來）。 */
     _getPageCanvases() {
         return [...(this.canvasContainer?.el?.querySelectorAll(".ce-page-container > canvas") || [])];
+    }
+
+    /**
+     * 外框的頁首下方／頁尾上方分隔線：PDF 有（doc.report._zone_style），編輯器以前沒畫。
+     *
+     * canvas-editor 沒有這個選項，每次重畫也會清掉直接畫在畫布上的東西，
+     * 所以在每一頁上疊一條 HTML 線（不擋滑鼠）。位置照 PDF 的算法：
+     *   頁首從頂端 header.top 開始畫，內容下面留 4px 再畫線；
+     *   頁尾畫到離底 footer.bottom，線在頁尾內容上方 4px（加上線本身 1px）。
+     * 頁首頁尾的高度用 canvas-editor 自己的排版算，改了內容線會跟著移動。
+     */
+    _syncFrameRules() {
+        for (const el of this._frameRuleEls || []) {
+            el.remove();
+        }
+        this._frameRuleEls = [];
+        const rules = this._frameRules;
+        if (!this.editor || !rules || (!rules.header && !rules.footer)) {
+            return;
+        }
+        try {
+            const cmd = this.editor.command;
+            const opts = cmd.getOptions();
+            const scale = opts.scale || 1;
+            const [, right, , left] = cmd.getPaperMargin();
+            const data = cmd.getValue().data || {};
+            // 頁首頁尾實際的高度。canvas-editor 載入時會在每一區最前面強制補一個
+            // 段落起點（isForceCompensation，getValue 拿不到它）；以換行開頭的頁首
+            // 因此多一列，單獨算的話少了這一列，線會穿過頁首的內容。
+            // 回傳的是縮放後的高度
+            const zoneHeight = (elements) => cmd.executeComputeElementListHeight(
+                [{ value: "​" }, ...(elements || [])]);
+            const tops = [];
+            if (rules.header && !opts.header?.disabled) {
+                tops.push(Math.floor((opts.header?.top || 0) * scale)
+                    + zoneHeight(data.header) + 4 * scale);
+            }
+            if (rules.footer && !opts.footer?.disabled) {
+                tops.push(opts.height * scale - Math.floor((opts.footer?.bottom || 0) * scale)
+                    - zoneHeight(data.footer) - 5 * scale);
+            }
+            for (const canvas of this._getPageCanvases()) {
+                const host = canvas.offsetParent;
+                if (!host) {
+                    continue;
+                }
+                for (const top of tops) {
+                    const line = document.createElement("div");
+                    line.className = "doc-frame-rule";
+                    Object.assign(line.style, {
+                        position: "absolute",
+                        left: `${canvas.offsetLeft + left * scale}px`,
+                        top: `${canvas.offsetTop + top}px`,
+                        width: `${(opts.width - left - right) * scale}px`,
+                        height: "0",
+                        borderTop: `${Math.max(1, scale)}px solid ${rules.color || "#000"}`,
+                        pointerEvents: "none",
+                        zIndex: "1",
+                    });
+                    host.appendChild(line);
+                    this._frameRuleEls.push(line);
+                }
+            }
+        } catch (e) {
+            console.warn("[DocEditor] 頁首頁尾分隔線位置計算失敗：", e);
+        }
+    }
+
+    /** 內容一改就重算分隔線位置（逐字輸入時合併成一次）。 */
+    _scheduleFrameRules(delayMs = 150) {
+        if (!this._frameRules) {
+            return;
+        }
+        clearTimeout(this._frameRulesTimer);
+        this._frameRulesTimer = setTimeout(() => this._syncFrameRules(), delayMs);
     }
 
     /**
@@ -616,6 +699,8 @@ export const DocEditorShell = (Base) => class extends Base {
             // 預設文字樣式（範本自帶；轉換出來的範本是官方報表的 Lato 13px）。
             // 列印照同一份算（doc.report._report_css），畫面才會跟 PDF 一樣
             this._loadedTextStyle = data.text_style || null;
+            // 外框的頁首／頁尾分隔線（_syncFrameRules 畫）
+            this._frameRules = data.frame_rules || null;
             // 工具列的字級框一開始就顯示範本的預設字級，不是寫死的 16
             this.state.activeFontSize = String(this._defaultFontSize());
 
