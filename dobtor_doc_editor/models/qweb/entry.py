@@ -115,6 +115,7 @@ class ConvEntry:
         # 先把子範本併進來再收符號表：子範本自己的 t-set 要被看到，
         # 而且併入後整棵樹就是 QWeb 實際渲染的那一棵。
         self._inline_calls(root, state)
+        self._mark_company_color_nodes(root)
         self._rewrite_groups(root, state)
         self._note_unconverted_attrs(root, state)
         self._collect_symbols(root, state)

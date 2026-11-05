@@ -1962,6 +1962,79 @@ class TestOfficialTableStyle(TestQwebConverterBase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestCompanyColors(TestQwebConverterBase):
+    """官方報表的標題、Total 用公司主色，資訊欄標籤用副色（web.styles_company_report）。
+
+    轉換時只做記號，印的時候照單據所屬公司當下的設定上色——公司改顏色
+    後不必重新轉換。以前轉出來一律黑色。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.key = self.Mixin.COMPANY_COLOR_KEY
+
+    def _role(self, el):
+        return (el.get('extension') or {}).get(self.key)
+
+    def test_heading_and_informations_labels_are_marked(self):
+        res = self._convert(
+            '<h2>Title</h2>'
+            '<div id="informations"><div><strong>Your Reference</strong>'
+            '<div t-field="o.ref"/></div>'
+            '<div><t t-if="o.is_company"><strong>Invoice Date</strong></t>'
+            '<t t-else=""><strong>Date</strong></t></div></div>'
+            '<p><strong>Elsewhere</strong></p>')
+        main = res['tree']['main']
+        roles = {(el.get('value') or '').strip(): self._role(el) for el in main
+                 if (el.get('value') or '').strip()}
+        self.assertEqual(roles.get('Title'), 'primary')
+        self.assertEqual(roles.get('Your Reference'), 'secondary')
+        self.assertIsNone(roles.get('Elsewhere'), '資訊欄以外的粗體不用副色')
+        chain = next(el for el in main
+                     if 'Invoice Date' in ((el.get('extension') or {}).get(
+                         'dobtorField') or {}).get('expression', ''))
+        self.assertEqual(self._role(chain), 'secondary')
+
+    def test_total_row_is_marked_primary(self):
+        res = self._convert(
+            '<table class="o_total_table table">'
+            '<t t-call="account.document_tax_totals"/></table>')
+        block = next(t for t in self._tables(res['tree']['main'])
+                     if (t.get('extension') or {}).get('dobtorBlock') == 'taxTotals')
+        total = block['trList'][-1]
+        marked = [self._role(el) for c in total['tdList'] for el in c['value']
+                  if el.get('value') != '\n']
+        self.assertTrue(marked and all(r == 'primary' for r in marked), marked)
+
+    def test_colors_follow_company_at_print_time(self):
+        company = self.env.company
+        tree = {'main': [{'value': 'Title', 'extension': {self.key: 'primary'}},
+                         {'value': 'Label', 'extension': {self.key: 'secondary'}},
+                         {'value': 'Plain'}]}
+        company.write({'primary_color': '#5e4766', 'secondary_color': '#010101'})
+        self.Mixin._apply_company_colors(tree, company=company)
+        self.assertEqual([el.get('color') for el in tree['main']],
+                         ['#5e4766', '#010101', None])
+        company.write({'primary_color': False, 'secondary_color': False})
+        self.Mixin._apply_company_colors(tree, company=company)
+        self.assertEqual(tree['main'][0]['color'], '#212529', '沒設顏色時跟官方一樣')
+
+    def test_i18n_pill_keeps_the_mark(self):
+        pill = self.Mixin._i18n_pill(
+            {'value': 'Title', 'extension': {self.key: 'primary'}},
+            'Title', {'en_US': 'Title', 'zh_TW': '標題'})
+        self.assertEqual(self._role(pill), 'primary')
+
+    def test_html_block_keeps_its_style_in_pdf(self):
+        html = self.Mixin._elements_to_html([
+            {'type': 'htmlBlock', 'value': '<p>Tagline</p>', 'bold': True,
+             'color': '#5e4766', 'rowFlex': 'right'}])
+        self.assertIn('<div style="font-weight:bold;color:#5e4766;text-align:right">'
+                      '<p>Tagline</p></div>', html)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestInvoiceLayout(TestQwebConverterBase):
     """官方發票的寫法：地址分在三個分支、合計區浮動靠右、粗體寫在取值節點上。"""
 

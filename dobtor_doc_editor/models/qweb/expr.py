@@ -60,6 +60,37 @@ class ConvExpr:
         if out and (out[-1].get('value') or '') != '\n':
             out.append(self._newline())
 
+    def _mark_company_color(self, el, role):
+        """元素印的時候照公司的主色（primary）或副色（secondary）上色。
+
+        記在 extension 上（canvas-editor 存檔會保留 extension）；上色在快照時
+        做（doc.render.mixin._apply_company_colors），公司改顏色後不必重轉。
+        """
+        if not isinstance(el, dict) or el.get('value') == '\n' \
+                or el.get('type') == 'table':
+            return
+        key = self.env['doc.render.mixin'].COMPANY_COLOR_KEY
+        el.setdefault('extension', {})[key] = role
+
+    # 轉換前先標在原生範本節點上的屬性（_mark_company_color_nodes）
+    _COLOR_ATTR = 'data-doc-company-color'
+
+    def _mark_company_color_nodes(self, root):
+        """官方用公司顏色的節點，轉換前先在 arch 上標好（web.styles_company_report）。
+
+        h2（單據標題）用主色；#informations 裡的 strong（資訊欄標籤）用副色。
+        要先標：轉換有條件的欄位時，節點會被搬進暫存容器
+        （_conditional_body），到時候往上已經找不到 #informations。
+        """
+        for node in root.xpath('//h2'):
+            node.set(self._COLOR_ATTR, 'primary')
+        for node in root.xpath('//*[@id="informations"]//*[self::strong or self::b]'):
+            node.set(self._COLOR_ATTR, 'secondary')
+
+    def _company_color_role(self, node, tag):
+        """這個節點在官方報表裡用公司的哪一種顏色（見 _mark_company_color_nodes）。"""
+        return node.get(self._COLOR_ATTR) if isinstance(node.tag, str) else None
+
     def _pill(self, label, state, **meta):
         payload = dict(meta)
         payload['labelText'] = label

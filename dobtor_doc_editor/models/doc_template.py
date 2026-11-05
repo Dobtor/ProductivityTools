@@ -347,6 +347,8 @@ class DocTemplate(models.Model):
         tagline = pill('公司標語', source='html', path='company_id.report_header')
         tagline['rowFlex'] = 'right'
         tagline['bold'] = True
+        # 官方的 .o_company_tagline 是公司主色（印的時候照公司設定上色）
+        tagline['extension'][self.COMPANY_COLOR_KEY] = 'primary'
         half = inner // 2
         header = [
             # 頁首以表格開頭時編輯器會在上面補一列空行（PDF 照印）；字級壓到

@@ -258,7 +258,23 @@ class ConvStructure:
         styles = [self._branch_style(node) for _cond, node in chain]
         if styles[0] and all(s == styles[0] for s in styles):
             pill.update(styles[0])
+        # 公司顏色（資訊欄的「Order Date／Invoice Date」是 #informations 裡的 strong）
+        roles = {self._branch_color_role(node) for _cond, node in chain}
+        if len(roles) == 1 and None not in roles:
+            self._mark_company_color(pill, roles.pop())
         return pill
+
+    def _branch_color_role(self, node):
+        """分支的公司顏色；分支是 <t> 包一個節點時看裡面那個（同 _branch_style）。"""
+        if not isinstance(node.tag, str):
+            return None
+        tag = node.tag.lower()
+        if tag == 't':
+            children = [c for c in node if isinstance(c.tag, str)]
+            if len(children) == 1:
+                return self._branch_color_role(children[0])
+            return None
+        return self._company_color_role(node, tag)
 
     def _branch_style(self, node):
         """分支的文字樣式：分支節點自己的；分支是 <t> 包一個節點時看裡面那個。
@@ -583,6 +599,9 @@ class ConvStructure:
                 own_style = self._node_style(node, tag)
                 if own_style and self._takes_style(pill):
                     pill.update(own_style)
+                role = self._company_color_role(node, tag)
+                if role and self._takes_style(pill):
+                    self._mark_company_color(pill, role)
                 self._append_value(node, tag, pill, out)
                 return
 
@@ -698,6 +717,11 @@ class ConvStructure:
                 for el in out[start:]:
                     if self._takes_style(el):
                         el.update(style)
+            role = self._company_color_role(node, tag)
+            if role:
+                for el in out[start:]:
+                    if self._takes_style(el):
+                        self._mark_company_color(el, role)
             align = self._node_align(node)
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
@@ -712,11 +736,14 @@ class ConvStructure:
         inline = []
         self._emit_children(node, inline, state)
         style = self._node_style(node, tag)
+        role = self._company_color_role(node, tag)
         for el in inline:
             # 欄位藥丸也要套（規則同 _takes_style）：<strong> 包著的
             # 「發票地址／發票及送貨地址」三元式藥丸以前不會變粗
             if style and self._takes_style(el):
                 el.update(style)
+            if role and self._takes_style(el):
+                self._mark_company_color(el, role)
         out.extend(inline)
 
     # Bootstrap class → 文件屬性。只收「表達得出來又看得出來」的那幾個：

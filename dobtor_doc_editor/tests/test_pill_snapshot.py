@@ -2130,6 +2130,7 @@ class TestSnapshotPassOrder(TransactionCase):
 
     # 依 _snapshot_content_json 註解裡的 1 → 5
     EXPECTED = [
+        '_apply_company_colors',        # 0（展開會複製整列，顏色要先上）
         '_expand_repeat_rows',          # 1
         '_expand_tax_totals_rows',      # 1.5
         '_condition_group_results',     # 2 的前置（兩關共用同一份結果）

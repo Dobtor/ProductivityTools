@@ -540,9 +540,11 @@ class ConvLocate:
             piece = []
             self._emit_children(title, piece, state)
             for el in piece:
-                # 單據標題：原生是 <h2>（內文兩倍、不是粗體），照官方的字級
+                # 單據標題：原生是 <h2>（內文兩倍、不是粗體），照官方的字級；
+                # 顏色是公司主色（印的時候上）
                 if el.get('value') != '\n':
                     el.setdefault('size', self._heading_size('h2'))
+                    self._mark_company_color(el, 'primary')
             out.extend(piece)
             if not out or (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())

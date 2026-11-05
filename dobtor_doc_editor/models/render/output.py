@@ -388,8 +388,16 @@ class RenderOutput:
                 if etype == 'table':
                     out.append(self._table_to_html(el))
                 elif etype == 'htmlBlock':
-                    # 已在求值時消毒過（_html_field_value），原樣輸出
-                    out.append(el.get('value') or '')
+                    # 已在求值時消毒過（_html_field_value），原樣輸出。
+                    # 藥丸身上的字色、粗體、對齊（頁首標語是公司主色、粗體、
+                    # 靠右）包一層套上——編輯器裡看得到，PDF 以前全丟掉
+                    html = el.get('value') or ''
+                    style = self._element_style(el)
+                    align = self._ROW_FLEX_ALIGN.get(el.get('rowFlex') or '')
+                    if align:
+                        style = '%s%stext-align:%s' % (style, ';' if style else '', align)
+                    out.append('<div style="%s">%s</div>' % (style, html)
+                               if style and html else html)
                 else:
                     out.append('<div class="doc-page-break"></div>')
                 continue

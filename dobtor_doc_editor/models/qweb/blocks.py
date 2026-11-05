@@ -104,9 +104,11 @@ class ConvBlocks:
             return c
 
         def bold(c):
+            # 官方的 Total 是 .o_total strong：粗體、公司主色（印的時候上色）
             for el in c['value']:
                 if el.get('value') != '\n':
                     el['bold'] = True
+                    self._mark_company_color(el, 'primary')
             return c
 
         # 官方的合計區在右半邊（div#total ＞ div.col-6.ms-auto），左半邊空著。
