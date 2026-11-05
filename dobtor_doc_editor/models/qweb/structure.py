@@ -337,6 +337,26 @@ class ConvStructure:
             return [block, self._newline(), self._emit_table(node, state)]
         return [self._emit_table(node, state), self._newline(), block]
 
+    def _keep_line_before_break(self, out):
+        """<br/> 前面這一段只有取值時，空值也要留一行（藥丸標 keepEmpty）。
+
+        原生的 <span t-if="…note" t-field="…note"/><br/>：值是空的，<br/> 照樣
+        撐出一行空白（發票付款條件那一行）。本模組的「空段落自動收合」會把
+        整段拿掉，付款說明就比官方高一行。有固定文字的段落本來就不會收合，不用標。
+        """
+        Mixin = self.env['doc.render.mixin']
+        pills = []
+        for el in reversed(out):
+            if (el.get('value') or '') == '\n':
+                break
+            meta = Mixin._element_field_meta(el)
+            if not meta:
+                return
+            if not Mixin._is_marker_element(el):
+                pills.append(meta)
+        for meta in pills:
+            meta['keepEmpty'] = True
+
     def _append_value(self, node, tag, pill, out):
         """取值節點 → 藥丸；節點是區塊元素（<div t-field>）時自成一段。
 
@@ -355,6 +375,8 @@ class ConvStructure:
         align = self._node_align(node)
         if align:
             out[-1]['rowFlex'] = align
+        # 區塊取值節點下方的留白（mb-3；address 見 _spacing_px）
+        out.extend(self._spacer_rows(node, 'bottom'))
 
     def _at_paragraph_start(self, out):
         """out 現在是不是在段落開頭（空的、剛換行、或前面只有標記藥丸）。
@@ -572,6 +594,7 @@ class ConvStructure:
 
         # ── 換行與分頁
         if tag == 'br':
+            self._keep_line_before_break(out)
             out.append(self._newline())
             return
 
@@ -875,16 +898,19 @@ class ConvStructure:
     _SPACING_REM_PX = 12.8
     _SPACING_ROW_PX = 19.5
 
-    def _spacing_rows(self, node, side):
-        """節點上 mb-N／mt-N（含 my-N、m-N）的留白換算成幾列空白。
+    def _spacing_px(self, node, side):
+        """節點上 mb-N／mt-N（含 my-N、m-N）的留白（px，已換算成官方印出來的大小）。
 
-        編輯器沒有「段落下方留多少 px」，只能用空白列表達；一列約 19.5px，
-        所以 mb-3（12.8px）、mb-4（19.2px）各一列，mb-5（38.4px）兩列，
-        mb-2 以下太小、不補。官方的地址區、資訊欄都是 mb-4——少了這一列，
-        地址、標題、資訊欄、明細表整張擠在一起。
+        官方的地址區、資訊欄都是 mb-4——少了這段留白，地址、標題、資訊欄、
+        明細表整張擠在一起。
         """
         wanted = 'b' if side == 'bottom' else 't'
         px = 0.0
+        if side == 'bottom' and isinstance(node.tag, str) and node.tag.lower() == 'address':
+            # 實測官方發票：<address class="mb-0" t-field="o.partner_id"> 下方仍留
+            # 1rem（瀏覽器量到 margin-bottom 16px，mb-0 沒有生效），統編那一行
+            # 跟地址之間空一段。訂單的地址用 <div t-field>，沒有這段留白
+            px = self._SPACING_REM['3'] * self._SPACING_REM_PX
         for token in self._class_tokens(node):
             m = self._SPACING_CLASS_RE.match(token)
             if not m:
@@ -892,12 +918,31 @@ class ConvStructure:
             prop = m.group('prop')
             if prop == 'm' or prop == 'my' or prop == 'm' + wanted:
                 px = max(px, self._SPACING_REM[m.group('n')] * self._SPACING_REM_PX)
-        return int(px / self._SPACING_ROW_PX + 0.5)
+        return px
+
+    # 空白列的行高是字級的幾倍：官方樣式 13px、每列上下各 1.6px（見
+    # doc.report._report_text_css），1.25 ＋ 3.2 ÷ 13 ≈ 1.5
+    _SPACER_LINE_FACTOR = 1.5
+    # 不到這麼多的留白不補（mb-2 是 6.4px，補了反而比官方鬆）
+    _SPACER_MIN_PX = 8
 
     def _spacer_rows(self, node, side):
-        # _spacer：讓 _paragraph_ends_to_starts 知道這是空白列，不是收掉表格的換行
-        return [dict(self._newline(), _spacer=True)
-                for _ in range(self._spacing_rows(node, side))]
+        """留白 → 空白列。整行的用一般字級，剩下的一截用小字級的空白列補。
+
+        編輯器沒有「段落下方留多少 px」，只能用空白列表達；空白列有多高看
+        開頭那個換行的字級，所以 12.8px 的留白（mb-3、address）用 9px 的空白列，
+        不必撐成一整行 19.5px。
+        _spacer：讓 _paragraph_ends_to_starts 知道這是空白列，不是收掉表格的換行。
+        """
+        px = self._spacing_px(node, side)
+        rows = []
+        while px >= self._SPACING_ROW_PX:
+            rows.append(dict(self._newline(), _spacer=True))
+            px -= self._SPACING_ROW_PX
+        if px >= self._SPACER_MIN_PX:
+            size = max(5, int(round(px / self._SPACER_LINE_FACTOR)))
+            rows.append(dict(self._newline(), _spacer=True, size=size))
+        return rows
 
     # 官方報表的標題字級是內文的幾倍（Bootstrap：h1 2.5、h2 2、h3 1.75…）。
     # 粗細是 500，編輯器只有一般與粗體，取一般——印成粗體反而比官方重

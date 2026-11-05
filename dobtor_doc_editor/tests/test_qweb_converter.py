@@ -1998,6 +1998,37 @@ class TestInvoiceLayout(TestQwebConverterBase):
                     if (el.get('extension') or {}).get('dobtorField'))
         self.assertTrue(pill.get('bold'), '單號是粗體（發票付款說明）')
 
+    def test_break_keeps_line_of_empty_value(self):
+        """<span t-if t-field/><br/>：值是空的，<br/> 照樣撐出一行（發票付款條件）。
+
+        以前「空段落自動收合」把這一行拿掉，付款說明比官方高一行。
+        """
+        res = self._convert(
+            '<div class="mb-3"><span t-if="o.ref" t-field="o.ref">X</span><br/>'
+            '</div><p>Payment</p>')
+        metas = [m for m in self._metas(res['tree']['main'])
+                 if 'ref' in (m.get('expression') or m.get('path') or '')]
+        self.assertTrue(metas and all(m.get('keepEmpty') for m in metas), metas)
+
+    def test_address_block_leaves_space_below(self):
+        """<address t-field> 是區塊、下方留 1rem（官方發票的地址與統編之間）。"""
+        res = self._convert('<div><address class="mb-0" t-field="o.name"/>'
+                            '<div>Tax ID</div></div>')
+        main = res['tree']['main']
+        idx = next(i for i, e in enumerate(main)
+                   if (e.get('extension') or {}).get('dobtorField'))
+        spacers = [e for e in main[idx + 1:] if e.get('value') == '\n' and e.get('size')]
+        self.assertTrue(spacers, '地址下面要有一列小字級的空白')
+        self.assertLess(spacers[0]['size'], 13, '12.8px 的留白不必撐成一整行')
+
+    def test_empty_pill_paragraph_prints_a_line(self):
+        """只剩空值藥丸的段落：編輯器裡佔一行，PDF 也要一行，不是 0 高的 <p></p>。"""
+        Mixin = self.env['doc.render.mixin']
+        html = Mixin._elements_to_html([
+            {'value': '甲'}, {'value': '\n'}, {'value': ''}, {'value': '\n'},
+            {'value': '乙'}])
+        self.assertIn('<p><br/></p>', html)
+
     def test_bold_inside_branch_wrapper(self):
         """<t t-if><strong>Invoice Date</strong></t>：粗體在分支裡面一層。"""
         res = self._convert(

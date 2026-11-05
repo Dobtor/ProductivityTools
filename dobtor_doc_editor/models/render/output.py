@@ -341,8 +341,10 @@ class RenderOutput:
 
         def _close():
             cls = (' class="doc-page-%s"' % para['scope']) if para['scope'] else ''
-            if not para['buf']:
+            if not ''.join(para['buf']).strip():
                 # 空段落也要保留，否則多個空行會被吃掉、版面走樣。
+                # 只剩空值藥丸的段落（keepEmpty）也算：編輯器裡它佔一行，
+                # 印成 <p></p> 會是 0 高
                 # 空行多高看開頭那個換行的字級（編輯器就是這樣畫的）
                 size = (para['head'][0] or {}).get('size')
                 style = ' style="font-size:%spx"' % size if size else ''

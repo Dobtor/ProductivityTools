@@ -48,6 +48,8 @@ _WIDGET_WRAPPERS = {
 _BLOCK_TAGS = frozenset({
     'div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li',
     'section', 'header', 'footer', 'article', 'blockquote', 'pre',
+    # 發票的客戶地址是 <address t-field>：區塊元素，自成一段、下方有留白
+    'address',
 })
 _SKIP_TAGS = frozenset({'script', 'style', 'link', 'meta'})
 
