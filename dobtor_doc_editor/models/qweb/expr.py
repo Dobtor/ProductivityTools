@@ -144,9 +144,16 @@ def _any_to_jinja(m):
     """
     body, var, target = m.group(1), m.group(2), m.group(3)
     try:
-        terms = _any_terms(ast.parse(body.strip(), mode='eval').body, var)
+        node = ast.parse(body.strip(), mode='eval').body
     except SyntaxError:
-        terms = None
+        return m.group(0)
+    # any(u._is_portal() for u in …)：每一筆呼叫一個不帶參數的方法 → report_any，
+    # 方法要在白名單上才會真的被呼叫（渲染時再查一次）
+    if (isinstance(node, ast.Call) and not node.args and not node.keywords
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == var):
+        return "report_any(%s, '%s')" % (target, node.func.attr)
+    terms = _any_terms(node, var)
     if not terms:
         return m.group(0)
     pieces = []
@@ -368,10 +375,12 @@ class ConvExpr:
          '排序鍵不是單純欄位時排序會被拿掉，請在重複列的「排序欄位」自己設定'),
         # 集合只收成對的括號：any(…) 外面還包著括號時（帶條件的 t-set 展開後
         # 是 (any(…)) if (…) else …），收到不成對的右括號會把整句弄壞
-        (r"any\(\s*([^()]*?)\s+for\s+(\w+)\s+in\s+"
+        # 條件裡只收不帶參數的呼叫（u._is_portal()）
+        (r"any\(\s*((?:[^()]|\(\))*?)\s+for\s+(\w+)\s+in\s+"
          r"((?:[\w\.\|\']|\([^()]*\))+)\s*\)",
          _any_to_jinja,
-         'any(… for … in …) 已改寫成 selectattr'),
+         'any(… for … in …) 已改寫成 selectattr（每一筆呼叫方法的改成 report_any，'
+         '方法要在白名單上）'),
         # 取 or 鏈的**最後**一個屬性當欄位：原生寫法是
         # (tax.invoice_label or tax.name)，最後那個才是一定有值的備援。
         # 取第一個會在備援生效的資料上印出空白——實測 invoice_label 多半是空的。
@@ -740,10 +749,17 @@ class ConvExpr:
             args = []
             if ('name' in opt) if opt else True:
                 args.append('with_name=True')
+            else:
+                # 原生的地址是 display_name 去掉第一行（名稱），一律不含公司名；
+                # 不帶的話採購單的送貨地址（倉庫名稱＋倉庫地址）公司名印兩次
+                args.append('without_company=True')
             # 原生 contact widget 的 fields 常含 phone（採購單、出貨單都有），
             # 不帶的話單據上少一行電話
             if 'phone' in opt or 'mobile' in opt:
                 args.append('with_phone=True')
+            # 採購單的供應商地址含統編（fields 有 vat）
+            if 'vat' in opt:
+                args.append('with_vat=True')
             return 'format_address(%s%s)' % (
                 base, (', ' + ', '.join(args)) if args else '')
         if widget in _WIDGET_WRAPPERS:

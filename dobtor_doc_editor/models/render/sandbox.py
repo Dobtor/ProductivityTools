@@ -21,6 +21,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from odoo.tools.misc import format_amount
 from odoo.tools.misc import format_date as odoo_format_date
 from odoo.tools.misc import format_datetime as odoo_format_datetime
+from odoo.tools.translate import code_translations
 
 _logger = logging.getLogger(__name__)
 
@@ -155,7 +156,10 @@ class RenderSandbox:
             if fmt in ('lang', 'lang_datetime'):
                 try:
                     if fmt == 'lang_datetime':
-                        out = odoo_format_datetime(self.env, value)
+                        # dt_format=False：語言設定的「日期格式 時間格式」，
+                        # 跟原生 t-field 的 datetime 一樣（11/05/2026 04:16:20）。
+                        # 預設的 'medium' 是 babel 的格式（Nov 5, 2026, 4:16:20 AM）
+                        out = odoo_format_datetime(self.env, value, dt_format=False)
                     else:
                         out = odoo_format_date(self.env, value)
                 except Exception:
@@ -169,7 +173,7 @@ class RenderSandbox:
             return str(value)
 
         def format_address(partner, without_company=False, with_name=False,
-                           with_phone=False):
+                           with_phone=False, with_vat=False):
             """依國別格式排版的地址（對應原生的 t-options widget="contact"）。
 
             委派給 res.partner._display_address()——那支就是 Odoo 自己用的，
@@ -204,6 +208,16 @@ class RenderSandbox:
                     phone = str(target.phone or target.mobile or '').strip()
                     if phone:
                         body = '%s\n%s' % (body, phone)
+                if with_vat and target.vat:
+                    # 原生 contact widget 的 fields 含 vat 時（採購單的供應商）
+                    # 最後一行印「統編名稱: 號碼」，名稱取國家設定的，沒設定時
+                    # 是 base 模組裡「VAT」照單據語言的翻譯（中文是「統一編號」）
+                    lang = (target.env.context.get('lang')
+                            or self.env.context.get('lang') or 'en_US')
+                    label = (target.country_id.vat_label
+                             or code_translations.get_python_translations(
+                                 'base', lang).get('VAT') or 'VAT')
+                    body = '%s\n%s: %s' % (body, label, target.vat)
                 # 空欄位（沒填地址第二行之類）會留下空行與行尾空白，原生的
                 # display_name 用同一條規則收掉；不收的話單據上地址中間空一行
                 return re.sub(r'\s+\n', '\n', body).strip()
@@ -311,6 +325,19 @@ class RenderSandbox:
                 return ''
             return value
 
+        def report_any(targets, name):
+            """有沒有任何一筆的白名單方法回傳真值（對應原生的 any(x._m() for x in …)）。
+
+            採購單的「Connect your software」只在供應商有入口網站帳號時印：
+            any(u._is_portal() for u in o.partner_id.user_ids)。Jinja 沒有生成式，
+            以前求值失敗、當成成立，每張都印。逐筆走 report_helper，同一份白名單。
+            """
+            try:
+                items = list(targets or [])
+            except TypeError:
+                return False
+            return any(bool(report_helper(item, name)) for item in items)
+
         def translated(texts):
             """{語言: 文字} → 依渲染語言挑字。
 
@@ -334,6 +361,7 @@ class RenderSandbox:
             'format_money': format_money,
             'format_address': format_address,
             'report_helper': report_helper,
+            'report_any': report_any,
             'has_group': has_group,
             # Jinja 沒有 len()（它只有 |length），而 QWeb 條件到處寫
             # len(x) > 1。沒有這個 helper，那種條件會以 UndefinedError 收場
@@ -364,6 +392,9 @@ class RenderSandbox:
         ('stock.move.line', '_get_aggregated_product_quantities'),
         # 發票上要印的批號／序號明細（sale_stock 加的）。只讀 stock move
         ('account.move', '_get_invoiced_lot_values'),
+        # 這個使用者是不是入口網站使用者（採購單的「Connect your software」）。
+        # 只有 has_group
+        ('res.users', '_is_portal'),
     })
 
     # 白名單裡「拿整批記錄一起算」的方法：呼叫時不可以只取第一筆。

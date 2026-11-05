@@ -190,13 +190,21 @@ class ConvEntry:
             self._merge_fit_widths(tree, built[0])
             mismatched = 0
             for li, (base, other) in enumerate(zip(base_lists, other_lists)):
-                if not self._same_shape(base, other):
-                    mismatched += 1
-                    continue
-                for start, end in self._style_runs(base):
-                    text_tr.setdefault((li, start, end), {})[code] = ''.join(
-                        other[i].get('value') or '' for i in range(start, end))
-                for ei, (b_el, o_el) in enumerate(zip(base, other)):
+                if self._same_shape(base, other):
+                    runs = [(start, end, ''.join(
+                        other[i].get('value') or '' for i in range(start, end)))
+                        for start, end in self._style_runs(base)]
+                    pairs = [(ei, b_el, o_el)
+                             for ei, (b_el, o_el) in enumerate(zip(base, other))]
+                else:
+                    aligned = self._align_segments(base, other)
+                    if aligned is None:
+                        mismatched += 1
+                        continue
+                    runs, pairs = aligned
+                for start, end, text in runs:
+                    text_tr.setdefault((li, start, end), {})[code] = text
+                for ei, b_el, o_el in pairs:
                     b_meta = Mixin._element_field_meta(b_el) or {}
                     o_meta = Mixin._element_field_meta(o_el) or {}
                     b_expr = b_meta.get('expression')
@@ -226,14 +234,23 @@ class ConvEntry:
         converted = 0
         for li, runs in by_list.items():
             elements = base_lists[li]
+            # 逐段對齊時各語言切的範圍可能不同（一個語言整段併成一顆、另一個
+            # 逐串對上），範圍重疊的只取大的那個，不然換的時候索引會錯開
+            chosen = []
+            for run in sorted(runs, key=lambda r: r[1] - r[0], reverse=True):
+                if not any(run[0] < end and start < run[1]
+                           for start, end, _t in chosen):
+                    chosen.append(run)
             # 由後往前換：前面的索引才不會位移
-            for start, end, by_lang in sorted(runs, key=lambda r: r[0], reverse=True):
+            for start, end, by_lang in sorted(chosen, key=lambda r: r[0], reverse=True):
                 text = ''.join(elements[i].get('value') or ''
                                for i in range(start, end))
                 core = text.strip()
                 texts = {base_lang: core}
-                texts.update({code: value.strip()
-                              for code, value in by_lang.items() if value.strip()})
+                # 空字串也收：那個語言在這裡就是沒有字。官方把「Expected
+                # Arrival:」譯成「<strong>預計到達</strong>：」，中文的「：」對到
+                # 英文的空白；以前空的就不算翻譯，英文單據多印一個「：」
+                texts.update({code: value.strip() for code, value in by_lang.items()})
                 if len(set(texts.values())) <= 1:
                     # 各語言都一樣（符號、數字、專有名詞）→ 維持純文字
                     continue
@@ -242,7 +259,10 @@ class ConvEntry:
                 replacement = []
                 if lead:
                     replacement.append(dict(elements[start], value=lead))
-                replacement.append(Mixin._i18n_pill(elements[start], core, texts))
+                pill = Mixin._i18n_pill(elements[start], core, texts)
+                if not all(texts.values()):
+                    pill['extension'][Mixin.DOBTOR_FIELD_KEY]['allowEmpty'] = True
+                replacement.append(pill)
                 if trail:
                     replacement.append(dict(elements[end - 1], value=trail))
                 elements[start:end] = replacement
@@ -308,6 +328,58 @@ class ConvEntry:
                 if self._style_of(b_el) != self._style_of(o_el):
                     return False
         return True
+
+    def _is_text_piece(self, element):
+        return (isinstance(element, dict)
+                and (element.get('type') or 'text') == 'text'
+                and element.get('value') != '\n')
+
+    def _align_segments(self, base, other):
+        """形狀不同時退一步：藥丸、表格、換行的骨架相同，就逐段對齊中間的文字。
+
+        回 (文字串 [(起, 迄, 另一語言的字)], 對應的非文字元素 [(序, 原, 另一語言)])；
+        骨架不同回 None。
+        官方的翻譯有時連標記一起改：「<strong>Payment Terms: </strong>」譯成
+        「<strong>付款條件</strong>：」（冒號移到粗體外）、「<strong>Scheduled
+        Date</strong>」譯成尾巴多一個空白。元素數不同就整串對不上，那一串的
+        固定文字全部只有一種語言——英文單據上印出中文標籤。
+        一段裡兩邊的文字串數相同就逐串對；不同就整段併成一顆多語藥丸，樣式取
+        第一串的（中文的冒號會跟著變粗體，但語言對了）。
+        """
+        b_anchor = [i for i, el in enumerate(base) if not self._is_text_piece(el)]
+        o_anchor = [i for i, el in enumerate(other) if not self._is_text_piece(el)]
+        if len(b_anchor) != len(o_anchor):
+            return None
+        for bi, oi in zip(b_anchor, o_anchor):
+            b_el, o_el = base[bi], other[oi]
+            if not (isinstance(b_el, dict) and isinstance(o_el, dict)):
+                return None
+            if (b_el.get('type') or 'text') != (o_el.get('type') or 'text'):
+                return None
+
+        def text_of(elements, start, end):
+            return ''.join(elements[i].get('value') or '' for i in range(start, end))
+
+        runs = []
+        b_bounds = [-1] + b_anchor + [len(base)]
+        o_bounds = [-1] + o_anchor + [len(other)]
+        for k in range(len(b_bounds) - 1):
+            b_start, b_end = b_bounds[k] + 1, b_bounds[k + 1]
+            o_start, o_end = o_bounds[k] + 1, o_bounds[k + 1]
+            b_runs = [(b_start + s, b_start + e)
+                      for s, e in self._style_runs(base[b_start:b_end])]
+            if not b_runs:
+                continue
+            o_runs = [(o_start + s, o_start + e)
+                      for s, e in self._style_runs(other[o_start:o_end])]
+            if len(b_runs) == len(o_runs):
+                runs.extend((s, e, text_of(other, os_, oe))
+                            for (s, e), (os_, oe) in zip(b_runs, o_runs))
+            else:
+                runs.append((b_runs[0][0], b_runs[-1][1],
+                             text_of(other, o_start, o_end)))
+        pairs = [(bi, base[bi], other[oi]) for bi, oi in zip(b_anchor, o_anchor)]
+        return runs, pairs
 
     def _style_of(self, element):
         return {k: v for k, v in element.items() if k != 'value'}

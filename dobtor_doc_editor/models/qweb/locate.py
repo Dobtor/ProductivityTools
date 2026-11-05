@@ -448,14 +448,28 @@ class ConvLocate:
             return root, {}
         call = layout_calls[0]
         blocks = {}
-        # 同名的其他份（發票的地址在三個條件分支裡各寫一份）：只用第一份，
-        # 其餘也要從本文拆掉——它們只是「記下地址給外框印」，本身不印東西，
-        # 留著的話標題下面又印一次客戶地址
+        # 同名的其他份（發票的地址在三個條件分支裡各寫一份）：內容一樣就只用
+        # 第一份，其餘也要從本文拆掉——它們只是「記下地址給外框印」，本身不印
+        # 東西，留著的話標題下面又印一次客戶地址
         duplicates = []
         conds = state.setdefault('layout_block_conds', {})
         # 往下找、不只看直接子節點：information_block 在銷售訂單裡是包在
         # <t t-if="partner_shipping == partner_invoice"> 裡面的，只看直接
         # 子節點會抓不到，那一格就是空的——而空白格在版面上看不出少了什麼。
+        found_nodes = {}
+        for node in call.xpath('.//t[@t-set][not(@t-value)]'):
+            if node.get('t-set'):
+                found_nodes.setdefault(node.get('t-set'), []).append(node)
+        # 同名但內容不同的幾份＝依條件印不同內容（採購單：有指定送貨地址印那個，
+        # 否則印收貨倉庫的地址）。以前只取第一份，「否則」那份整段不見
+        variants = state.setdefault('layout_block_variants', {})
+        for name, nodes in found_nodes.items():
+            if len(nodes) < 2 or len({self._block_signature(n)
+                                      for n in nodes}) < 2:
+                continue
+            branch = [(n, self._branch_condition(n, call)) for n in nodes]
+            if all(cond is not None for _n, cond in branch):
+                variants[name] = branch
         for node in call.xpath('.//t[@t-set][not(@t-value)]'):
             name = node.get('t-set')
             if not name:
@@ -464,6 +478,8 @@ class ConvLocate:
                 duplicates.append(node)
                 continue
             blocks[name] = node
+            if name in variants:
+                continue
             # 包在條件裡的區塊＝「條件成立才有這一塊」（銷售訂單的發票／送貨
             # 地址只在跟客戶地址不同時才印）。以前條件丟掉、內容照印，
             # 單據上左右各一份客戶地址。
@@ -497,6 +513,35 @@ class ConvLocate:
                 if any(a is body_holder for a in parent.iterancestors()):
                     self._prune_empty_shells(parent, body_holder)
         return body_holder, blocks
+
+    def _block_signature(self, node):
+        """區塊內容的比對用字串：id／name 不算（發票三份地址只差在 id）。"""
+        from lxml import etree
+        raw = etree.tostring(node, encoding='unicode', with_tail=False)
+        return re.sub(r'\s(?:id|name)="[^"]*"', '', ' '.join(raw.split()))
+
+    def _branch_condition(self, node, stop_at):
+        """node 到 stop_at 之間的條件合成一句（t-elif／t-else 帶上前面分支不成立）。
+
+        沒有條件回空字串；t-else 前面找不到 t-if 時回 None（還原不了）。
+        """
+        conds = []
+        parent = node.getparent()
+        while parent is not None and parent is not stop_at:
+            if isinstance(parent.tag, str):
+                negation = self._chain_negation(parent)
+                if parent.get('t-if'):
+                    conds.insert(0, parent.get('t-if'))
+                elif parent.get('t-elif') is not None:
+                    cond = parent.get('t-elif')
+                    conds.insert(0, '(%s) and %s' % (cond, negation)
+                                 if negation else cond)
+                elif parent.get('t-else') is not None:
+                    if not negation:
+                        return None
+                    conds.insert(0, negation)
+            parent = parent.getparent()
+        return ' and '.join('(%s)' % ' '.join(c.split()) for c in conds)
 
     def _prune_empty_shells(self, node, stop_at):
         """區塊搬走後只剩空殼的 <t t-if> 一路往上拿掉。
@@ -559,10 +604,14 @@ class ConvLocate:
             left_w = int(inner * 7 / 12)
             right_w = inner - left_w
             conds = state.get('layout_block_conds') or {}
+            variants = state.get('layout_block_variants') or {}
             left, right = [], []
             if info is not None:
                 info_cond = conds.get('information_block')
-                if info_cond:
+                if variants.get('information_block'):
+                    left.extend(self._block_variant_elements(
+                        variants['information_block'], left_w, state))
+                elif info_cond:
                     with self._in_width(
                             state, left_w - 2 * self._CELL_PADDING):
                         body = []
@@ -575,7 +624,10 @@ class ConvLocate:
                 else:
                     with self._in_width(state, left_w - self._CELL_PADDING):
                         self._emit_children(info, left, state)
-            if addr is not None:
+            if addr is not None and variants.get('address'):
+                right.extend(self._block_variant_elements(
+                    variants['address'], right_w, state))
+            elif addr is not None:
                 with self._in_width(state, right_w - self._CELL_PADDING):
                     self._emit_children(addr, right, state)
             for cell in (left, right):
@@ -614,6 +666,22 @@ class ConvLocate:
             # 原生是 <h2>：行高與下方留白照 Bootstrap 的標題（見 _heading_paragraph）
             self._heading_paragraph(piece + [out[-1]])
             out.extend(self._spacer_rows_px(self._HEADING_GAP_PX))
+
+    def _block_variant_elements(self, branch, cell_w, state):
+        """同名區塊的每一份各包一個條件區塊（條件互斥，印出來只有一份）。"""
+        out = []
+        for node, cond in branch:
+            body = []
+            with self._in_width(state, cell_w - 2 * self._CELL_PADDING):
+                self._emit_children(node, body, state)
+            if not body or (body[-1].get('value') or '') != '\n':
+                body.append(self._newline())
+            if not cond:
+                out.extend(body)
+                continue
+            with self._in_width(state, cell_w - self._CELL_PADDING):
+                out.append(self._condition_wrap(cond, body, state))
+        return out
 
     def _new_element(self, tag):
         from lxml import etree

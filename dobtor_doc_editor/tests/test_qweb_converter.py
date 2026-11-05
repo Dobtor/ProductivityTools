@@ -2544,3 +2544,123 @@ class TestPurchaseStockLineRows(TestQwebConverterBase):
         self.assertIn('個人', pill['expression'])
         self.assertEqual(head[1]['value'][-1].get('rowFlex'), 'center',
                          '格子的對齊取第一個分支的')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPurchaseStockContent(TestQwebConverterBase):
+    """採購、庫存報表的內容：送貨地址兩種版本、統編、只在條件成立時才印的字。"""
+
+    def _conds(self, res):
+        return [m.get('expression') or '' for m in self._metas(res['tree']['main'])
+                if m.get('source') == 'condition']
+
+    def test_layout_block_with_else_branch_keeps_both(self):
+        """採購單的送貨地址：有指定送貨地址印那個，否則印收貨倉庫的地址。
+
+        以前同名區塊只取第一份，「否則」那份整段不見。
+        """
+        res = self._convert(
+            '<t t-call="web.external_layout">'
+            '<t t-if="o.parent_id"><t t-set="information_block">'
+            '<strong>SHIP-A</strong></t></t>'
+            '<t t-else=""><t t-set="information_block">'
+            '<strong>SHIP-B</strong></t></t>'
+            '<p>BODY</p></t>')
+        texts = self._texts(res['tree']['main'])
+        self.assertEqual(texts.count('SHIP-A'), 1, texts)
+        self.assertEqual(texts.count('SHIP-B'), 1, texts)
+        conds = self._conds(res)
+        self.assertIn('(object.parent_id)', conds)
+        self.assertIn('(not (object.parent_id))', conds)
+
+    def test_same_layout_block_in_every_branch_stays_single(self):
+        """內容一樣、只差 id 的幾份（發票的地址）照舊只印一份、不包條件。"""
+        res = self._convert(
+            '<t t-call="web.external_layout">'
+            '<t t-if="o.is_company"><t t-set="address">'
+            '<span id="a1">ADDR</span></t></t>'
+            '<t t-else=""><t t-set="address"><span id="a2">ADDR</span></t></t>'
+            '<p>BODY</p></t>')
+        texts = self._texts(res['tree']['main'])
+        self.assertEqual(texts.count('ADDR'), 1, texts)
+        self.assertFalse([c for c in self._conds(res) if 'is_company' in c])
+
+    def test_contact_vat_and_no_company_line(self):
+        """fields 有 vat 就印統編；沒有 name 時地址不帶公司名（官方一律不帶）。"""
+        res = self._convert(
+            '<div t-field="o.parent_id" t-options=\'{"widget": "contact",'
+            ' "fields": ["address", "phone", "vat"]}\'/>')
+        expression = next(m for m in self._metas(res['tree']['main'])
+                          if m.get('source') == 'record')['expression']
+        self.assertIn('with_vat=True', expression)
+        self.assertIn('without_company=True', expression)
+
+    def test_any_method_call_becomes_report_any(self):
+        """「Connect your software」：any(u._is_portal() for u in …)。"""
+        res = self._convert(
+            '<div t-if="any(u._is_portal() for u in o.user_ids)">'
+            '<span>CONNECT</span><span t-out="o.name"/></div>')
+        self.assertIn("report_any(object.user_ids, '_is_portal')", self._conds(res))
+        self.assertFalse(any('生成式' in n for n in res['notes']), res['notes'])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestTranslationMovesMarkup(TestQwebConverterBase):
+    """官方翻譯連標記一起改時，固定文字仍要帶各語言的字。
+
+    「<strong>Payment Terms: </strong>」譯成「<strong>付款條件</strong>：」：
+    兩個語言的元素數不同，以前整串對不上、只剩一種語言，英文單據印出中文標籤。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['res.lang']._activate_lang('fr_FR')
+        self.partner = self.env['res.partner'].create({'name': '標記測試'})
+
+    def _convert_translated(self, body, translations):
+        key = 'dobtor_doc_editor.conv_mk_%d' % next(_SEQ)
+        view = self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        view.update_field_translations('arch_db', {'fr_FR': translations})
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        res = self.Conv.with_context(lang='en_US').convert_report(
+            report, validate_with=self.partner)
+        res['tree'] = json.loads(res['content_json'] or '{}')
+        return res
+
+    def _i18n(self, res):
+        return [m for m in self._metas(res['tree']['main']) if m.get('source') == 'i18n']
+
+    def test_colon_moved_outside_bold(self):
+        res = self._convert_translated(
+            '<div><strong>Payment Terms: </strong><span t-field="o.ref"/></div>',
+            {'<strong>Payment Terms: </strong>': '<strong>Conditions</strong> : '})
+        pills = self._i18n(res)
+        self.assertEqual(len(pills), 1, pills)
+        self.assertEqual(pills[0]['texts'],
+                         {'en_US': 'Payment Terms:', 'fr_FR': 'Conditions :'})
+
+    def test_space_moved_inside_bold(self):
+        res = self._convert_translated(
+            '<div><strong>Scheduled Date</strong> <span t-field="o.ref"/></div>',
+            {'<strong>Scheduled Date</strong>': '<strong>Date prévue </strong>'})
+        pills = self._i18n(res)
+        self.assertEqual([p['texts'] for p in pills],
+                         [{'en_US': 'Scheduled Date', 'fr_FR': 'Date prévue'}])
+
+    def test_text_only_in_one_language_prints_nothing_in_the_other(self):
+        """英文的「Expected Arrival:」中文是「<strong>預計到達</strong>：」，
+        中文的「：」對到英文的空白：英文那邊要不印字，不是退回印「：」。"""
+        res = self._convert_translated(
+            '<div><strong>Arrival</strong>:<span t-field="o.ref"/></div>',
+            {'<strong>Arrival</strong>:': '<strong>Arrivée :</strong> '})
+        colon = next(p for p in self._i18n(res) if p['texts'].get('en_US') == ':')
+        self.assertEqual(colon['texts']['fr_FR'], '')
+        self.assertTrue(colon.get('allowEmpty'))
+        self.assertEqual(self.env['doc.render.mixin'].with_context(
+            lang='fr_FR')._i18n_text(None, colon), '')
