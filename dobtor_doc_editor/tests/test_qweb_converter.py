@@ -2386,3 +2386,281 @@ class TestMultiLanguageStaticText(TestQwebConverterBase):
         self.assertEqual(
             self.Conv._translate_literals(expr, 'en_US', {'fr_FR': '"甲"'}), expr,
             '字串以外不一樣就對不上，原樣保留')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPurchaseStockLineRows(TestQwebConverterBase):
+    """採購、庫存報表的明細列：迴圈變數不叫 line、排序、any(…)、二選一的表頭。
+
+    這幾種寫法訂單與發票剛好沒用到，轉出來的明細不是空白就是錯欄：
+    詢價單只印品名、揀貨作業一列都沒有、出貨單多一欄批號且數量對錯欄。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.Mixin = self.env['doc.render.mixin']
+        self.parent = self.env['res.partner'].create({'name': 'PS 母公司'})
+        Partner = self.env['res.partner']
+        self.kid_b = Partner.create({'name': 'PS 乙', 'parent_id': self.parent.id,
+                                     'city': '台中'})
+        self.kid_a = Partner.create({'name': 'PS 甲', 'parent_id': self.parent.id,
+                                     'city': '台北', 'phone': '02-1234'})
+
+    def _repeats(self, res):
+        return [m for m in self._metas(res['tree']['main'])
+                if m.get('source') == 'repeat']
+
+    def _conds(self, res):
+        return [m.get('expression') or '' for m in self._metas(res['tree']['main'])
+                if m.get('source') in ('condition', 'column')]
+
+    def test_row_type_filter_maps_loop_var_not_named_line(self):
+        """詢價單的迴圈變數是 order_line：列型條件也要換成 line。"""
+        res = self._convert(
+            '<table><t t-foreach="o.child_ids" t-as="kid"><tr>'
+            '<t t-if="not kid.is_company"><td><span t-out="kid.name"/></td>'
+            '<td><span t-out="kid.phone"/></td></t>'
+            '<t t-else=""><td colspan="99"><span t-out="kid.name"/></td></t>'
+            '</tr></t></table>')
+        filters = [m.get('rowFilter') for m in self._repeats(res)]
+        self.assertIn('not line.is_company', filters)
+        self.assertFalse(any('kid' in (f or '') for f in filters), filters)
+
+    def test_sorted_lambda_becomes_jinja_sort(self):
+        """揀貨作業的明細來源是 sorted(lambda ml: (…, …))，留著 lambda 就一列都印不出來。"""
+        res = self._convert(
+            '<table><tr t-foreach="o.child_ids.sorted(lambda c: (c.city, c.name))"'
+            ' t-as="kid"><td><span t-out="kid.name"/></td></tr></table>')
+        meta = self._repeats(res)[0]
+        self.assertIn("|sort(attribute='city,name')", meta.get('sourceExpression'))
+        lines = self.Mixin._resolve_repeat_records(self.parent, meta)
+        self.assertEqual(lines, [self.kid_b, self.kid_a], '台中排在台北前面')
+
+    def test_sorted_key_and_reverse(self):
+        res = self._convert(
+            '<table><tr t-foreach="o.child_ids.sorted(key=lambda c: c.name, reverse=True)"'
+            ' t-as="kid"><td><span t-out="kid.name"/></td></tr></table>')
+        meta = self._repeats(res)[0]
+        self.assertIn("|sort(attribute='name', reverse=True)",
+                      meta.get('sourceExpression'))
+        lines = self.Mixin._resolve_repeat_records(self.parent, meta)
+        self.assertEqual(lines, [self.kid_a, self.kid_b], '「乙」排在「甲」前面，反過來')
+
+    def test_sorted_on_computed_key_drops_the_sort(self):
+        """排序鍵是算式時只能拿掉排序——明細照印，順序交給使用者設定。"""
+        res = self._convert(
+            '<table><tr t-foreach="o.child_ids.sorted(lambda c: -c.id)" t-as="kid">'
+            '<td><span t-out="kid.name"/></td></tr></table>')
+        meta = self._repeats(res)[0]
+        self.assertEqual(meta.get('path'), 'child_ids')
+        self.assertTrue(any('排序' in n for n in res['notes']))
+
+    def test_any_keeps_the_whole_condition(self):
+        """any(甲 and 甲.乙 or 丙 …) 不可以只剩第一個欄位。
+
+        揀貨作業的「有沒有商品條碼」被改成「有沒有商品」，沒有條碼也多印一欄條碼。
+        """
+        res = self._convert(
+            '<t t-set="has_mail" t-value="any(c.parent_id and c.parent_id.email'
+            ' or c.phone for c in o.child_ids)"/>'
+            '<div t-if="has_mail"><span>有聯絡方式</span><span t-out="o.name"/></div>')
+        expr = next(c for c in self._conds(res) if 'selectattr' in c)
+        self.assertIn("selectattr('parent_id.email')", expr)
+        self.assertIn("selectattr('phone')", expr)
+        self.assertNotIn("selectattr('parent_id')|", expr, '只是「先確認有」的那段不用留')
+        self.assertTrue(self.Mixin._eval_raw(expr, self.parent), '甲有電話')
+        self.kid_a.phone = False
+        self.assertFalse(self.Mixin._eval_raw(expr, self.parent))
+        self.parent.email = 'ps@example.com'
+        self.assertTrue(self.Mixin._eval_raw(expr, self.parent), '母公司有 email')
+
+    def test_any_and_not_become_select_and_reject(self):
+        res = self._convert(
+            '<t t-set="flag" t-value="any(c.phone and not c.email for c in o.child_ids)"/>'
+            '<div t-if="flag"><span>有</span><span t-out="o.name"/></div>')
+        expr = next(c for c in self._conds(res) if 'selectattr' in c)
+        self.assertIn("selectattr('phone')|rejectattr('email')", expr)
+        self.assertTrue(self.Mixin._eval_raw(expr, self.parent))
+        self.kid_a.email = 'a@example.com'
+        self.assertFalse(self.Mixin._eval_raw(expr, self.parent))
+
+    def test_any_with_comparison(self):
+        """訂單選購商品：any(option.discount != 0.0 for …)。"""
+        res = self._convert(
+            '<t t-set="flag" t-value="any(c.color != 0 for c in o.child_ids)"/>'
+            '<div t-if="flag"><span>有</span><span t-out="o.name"/></div>')
+        expr = next(c for c in self._conds(res) if 'selectattr' in c)
+        self.assertIn("selectattr('color', '!=', 0)", expr)
+        self.assertFalse(self.Mixin._eval_raw(expr, self.parent))
+        self.kid_b.color = 3
+        self.assertTrue(self.Mixin._eval_raw(expr, self.parent))
+
+    def test_conditional_tset_wraps_value(self):
+        """帶 groups 的 t-set（揀貨作業的 has_serial_number）：沒有群組時是 False。
+
+        展開後 any(…) 外面多一層括號，以前改寫時會吃進不成對的右括號，整句壞掉。
+        """
+        res = self._convert(
+            '<t t-set="has_phone" t-value="any(c.phone for c in o.child_ids)"'
+            ' groups="base.group_user"/>'
+            '<div t-if="has_phone"><span>有</span><span t-out="o.name"/></div>')
+        expr = next(c for c in self._conds(res) if 'selectattr' in c)
+        self.assertIn("has_group('base.group_user')", expr)
+        self.assertTrue(self.Mixin._eval_raw(expr, self.parent))
+        self.kid_a.phone = False
+        self.assertFalse(self.Mixin._eval_raw(expr, self.parent))
+
+    def test_default_then_override_is_not_an_accumulator(self):
+        """出貨單的 has_serial_number：先設 False、再依群組覆蓋。
+
+        以前被當成累加器、不展開，「有沒有批號」永遠是空的。
+        """
+        res = self._convert(
+            '<t t-set="flag" t-value="False"/>'
+            '<t t-set="flag" t-value="o.child_ids" groups="base.group_user"/>'
+            '<div t-if="flag"><span>有子聯絡人</span><span t-out="o.name"/></div>')
+        expr = next(c for c in self._conds(res) if 'child_ids' in c)
+        self.assertIn("has_group('base.group_user')", expr)
+        self.assertNotIn('flag', expr)
+        self.assertFalse(any('累加器' in n for n in res['notes']), res['notes'])
+        self.assertTrue(self.Mixin._eval_raw(expr, self.parent))
+
+    def test_either_or_header_cells_become_one_column(self):
+        """<th t-if>…<th t-else> 印出來只有一格：表頭不能比明細多一欄。"""
+        res = self._convert(
+            '<table><thead><tr><th>名稱</th>'
+            '<th t-if="o.is_company" class="text-center">公司</th>'
+            '<th t-else="">個人</th><th>電話</th></tr></thead>'
+            '<tbody><tr t-foreach="o.child_ids" t-as="kid">'
+            '<td><span t-out="kid.name"/></td><td><span t-out="kid.city"/></td>'
+            '<td><span t-out="kid.phone"/></td></tr></tbody></table>')
+        table = next(self._tables(res['tree']['main']))
+        self.assertEqual(len(table['colgroup']), 3)
+        head = table['trList'][0]['tdList']
+        self.assertEqual(len(head), 3)
+        pill = next(m for m in self._metas(head[1]['value']))
+        self.assertIn('object.is_company', pill.get('expression') or '')
+        self.assertIn('公司', pill['expression'])
+        self.assertIn('個人', pill['expression'])
+        self.assertEqual(head[1]['value'][-1].get('rowFlex'), 'center',
+                         '格子的對齊取第一個分支的')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPurchaseStockContent(TestQwebConverterBase):
+    """採購、庫存報表的內容：送貨地址兩種版本、統編、只在條件成立時才印的字。"""
+
+    def _conds(self, res):
+        return [m.get('expression') or '' for m in self._metas(res['tree']['main'])
+                if m.get('source') == 'condition']
+
+    def test_layout_block_with_else_branch_keeps_both(self):
+        """採購單的送貨地址：有指定送貨地址印那個，否則印收貨倉庫的地址。
+
+        以前同名區塊只取第一份，「否則」那份整段不見。
+        """
+        res = self._convert(
+            '<t t-call="web.external_layout">'
+            '<t t-if="o.parent_id"><t t-set="information_block">'
+            '<strong>SHIP-A</strong></t></t>'
+            '<t t-else=""><t t-set="information_block">'
+            '<strong>SHIP-B</strong></t></t>'
+            '<p>BODY</p></t>')
+        texts = self._texts(res['tree']['main'])
+        self.assertEqual(texts.count('SHIP-A'), 1, texts)
+        self.assertEqual(texts.count('SHIP-B'), 1, texts)
+        conds = self._conds(res)
+        self.assertIn('(object.parent_id)', conds)
+        self.assertIn('(not (object.parent_id))', conds)
+
+    def test_same_layout_block_in_every_branch_stays_single(self):
+        """內容一樣、只差 id 的幾份（發票的地址）照舊只印一份、不包條件。"""
+        res = self._convert(
+            '<t t-call="web.external_layout">'
+            '<t t-if="o.is_company"><t t-set="address">'
+            '<span id="a1">ADDR</span></t></t>'
+            '<t t-else=""><t t-set="address"><span id="a2">ADDR</span></t></t>'
+            '<p>BODY</p></t>')
+        texts = self._texts(res['tree']['main'])
+        self.assertEqual(texts.count('ADDR'), 1, texts)
+        self.assertFalse([c for c in self._conds(res) if 'is_company' in c])
+
+    def test_contact_vat_and_no_company_line(self):
+        """fields 有 vat 就印統編；沒有 name 時地址不帶公司名（官方一律不帶）。"""
+        res = self._convert(
+            '<div t-field="o.parent_id" t-options=\'{"widget": "contact",'
+            ' "fields": ["address", "phone", "vat"]}\'/>')
+        expression = next(m for m in self._metas(res['tree']['main'])
+                          if m.get('source') == 'record')['expression']
+        self.assertIn('with_vat=True', expression)
+        self.assertIn('without_company=True', expression)
+
+    def test_any_method_call_becomes_report_any(self):
+        """「Connect your software」：any(u._is_portal() for u in …)。"""
+        res = self._convert(
+            '<div t-if="any(u._is_portal() for u in o.user_ids)">'
+            '<span>CONNECT</span><span t-out="o.name"/></div>')
+        self.assertIn("report_any(object.user_ids, '_is_portal')", self._conds(res))
+        self.assertFalse(any('生成式' in n for n in res['notes']), res['notes'])
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestTranslationMovesMarkup(TestQwebConverterBase):
+    """官方翻譯連標記一起改時，固定文字仍要帶各語言的字。
+
+    「<strong>Payment Terms: </strong>」譯成「<strong>付款條件</strong>：」：
+    兩個語言的元素數不同，以前整串對不上、只剩一種語言，英文單據印出中文標籤。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.env['res.lang']._activate_lang('fr_FR')
+        self.partner = self.env['res.partner'].create({'name': '標記測試'})
+
+    def _convert_translated(self, body, translations):
+        key = 'dobtor_doc_editor.conv_mk_%d' % next(_SEQ)
+        view = self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s">%s</t>' % (key, body),
+        })
+        view.update_field_translations('arch_db', {'fr_FR': translations})
+        report = self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+        res = self.Conv.with_context(lang='en_US').convert_report(
+            report, validate_with=self.partner)
+        res['tree'] = json.loads(res['content_json'] or '{}')
+        return res
+
+    def _i18n(self, res):
+        return [m for m in self._metas(res['tree']['main']) if m.get('source') == 'i18n']
+
+    def test_colon_moved_outside_bold(self):
+        res = self._convert_translated(
+            '<div><strong>Payment Terms: </strong><span t-field="o.ref"/></div>',
+            {'<strong>Payment Terms: </strong>': '<strong>Conditions</strong> : '})
+        pills = self._i18n(res)
+        self.assertEqual(len(pills), 1, pills)
+        self.assertEqual(pills[0]['texts'],
+                         {'en_US': 'Payment Terms:', 'fr_FR': 'Conditions :'})
+
+    def test_space_moved_inside_bold(self):
+        res = self._convert_translated(
+            '<div><strong>Scheduled Date</strong> <span t-field="o.ref"/></div>',
+            {'<strong>Scheduled Date</strong>': '<strong>Date prévue </strong>'})
+        pills = self._i18n(res)
+        self.assertEqual([p['texts'] for p in pills],
+                         [{'en_US': 'Scheduled Date', 'fr_FR': 'Date prévue'}])
+
+    def test_text_only_in_one_language_prints_nothing_in_the_other(self):
+        """英文的「Expected Arrival:」中文是「<strong>預計到達</strong>：」，
+        中文的「：」對到英文的空白：英文那邊要不印字，不是退回印「：」。"""
+        res = self._convert_translated(
+            '<div><strong>Arrival</strong>:<span t-field="o.ref"/></div>',
+            {'<strong>Arrival</strong>:': '<strong>Arrivée :</strong> '})
+        colon = next(p for p in self._i18n(res) if p['texts'].get('en_US') == ':')
+        self.assertEqual(colon['texts']['fr_FR'], '')
+        self.assertTrue(colon.get('allowEmpty'))
+        self.assertEqual(self.env['doc.render.mixin'].with_context(
+            lang='fr_FR')._i18n_text(None, colon), '')

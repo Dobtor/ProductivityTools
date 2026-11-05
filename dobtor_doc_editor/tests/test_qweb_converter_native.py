@@ -309,19 +309,21 @@ class TestNativePurchaseReport(NativeReportCase):
                             'purchase.action_report_purchase_order')
         order = self._purchase()
         res, html = self._convert_and_render(report, order)
-        # 已知且已說明的一項：any(u._is_portal() for u in …) 是 Python 生成式，
-        # Jinja 沒有，而裡面是方法呼叫所以改寫不了（待辦有寫清楚）。
-        self._assert_only_known_failures(res, allowed=('for u in',))
+        self._assert_only_known_failures(res)
         for probe in ('NAT 供應商', 'NAT 採購明細'):
             self.assertIn(probe, html, '單據上少了「%s」' % probe)
         self._assert_no_leftovers(html)
 
-    def test_generator_expression_is_explained(self):
-        """改寫不了的生成式要留一條說得清楚的待辦，不是只有語法錯誤。"""
+    def test_portal_generator_is_rewritten(self):
+        """any(u._is_portal() for u in …)：改寫成 report_any，供應商沒有入口網站帳號就不印。
+
+        以前改寫不了、求值失敗當成立，每張採購單都多印「Connect your software」。
+        """
         report = self._need('purchase.order',
                             'purchase.action_report_purchase_order')
-        res = self.Conv.convert_report(report)
-        self.assertTrue(
-            any('生成式' in n for n in res['notes']),
-            '待辦裡要講清楚為什麼沒改寫：%s' % res['notes'],
-        )
+        order = self._purchase()
+        res, html = self._convert_and_render(report, order)
+        self.assertIn("report_any(object.partner_id.user_ids, '_is_portal')",
+                      res['content_json'])
+        self.assertFalse(any('生成式' in n for n in res['notes']), res['notes'])
+        self.assertNotIn('Connect your software', html)

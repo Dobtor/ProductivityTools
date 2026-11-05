@@ -193,6 +193,23 @@ class TestFormatAddress(TransactionCase):
         self.assertTrue(named.startswith('測試公司'))
         self.assertIn(plain, named)
 
+    def test_with_vat_appends_label_and_number(self):
+        """採購單的供應商地址（fields 含 vat）最後一行是「統編名稱: 號碼」。
+
+        名稱取國家設定的；沒設定時是 base 的「VAT」照單據語言翻譯。
+        """
+        self.assertNotIn('VAT', self._render('format_address(object, with_vat=True)'),
+                         '沒有統編就不印那一行')
+        self.partner.vat = '87654321'
+        out = self._render('format_address(object, with_vat=True)')
+        self.assertTrue(out.endswith('\nVAT: 87654321'), out)
+        self.assertNotIn('87654321', self._render('format_address(object)'))
+        country = self.env['res.country'].create({
+            'name': '統編國', 'code': 'QV', 'vat_label': 'GST'})
+        self.partner.country_id = country
+        self.assertTrue(self._render('format_address(object, with_vat=True)')
+                        .endswith('\nGST: 87654321'))
+
     def test_multiline_address_becomes_br_in_html(self):
         """多行地址不可塌成一行——在 HTML 裡只是少了換行，很難看出來。"""
         tree = {'main': [
@@ -309,6 +326,44 @@ class TestReportHelperWhitelist(TransactionCase):
         self.assertEqual(
             self._render("report_helper(object, '_zero_probe')"), '0.0')
 
+    def test_batch_method_gets_every_record(self):
+        """彙總類的方法要拿整批記錄去算，其餘的照舊只給第一筆。
+
+        出貨單的彙總明細（_get_aggregated_product_quantities）是把所有出貨
+        明細一起合併；只給第一筆的話，兩項商品只印出第一項（實測）。
+        """
+        self._allow(('res.partner', '_count_probe'))
+        self.startPatcher(patch.object(
+            type(self.env['res.partner']), '_count_probe',
+            lambda self: len(self), create=True,
+        ))
+        self.partner.child_ids = [(0, 0, {'name': '甲'}), (0, 0, {'name': '乙'})]
+        expr = "report_helper(object.child_ids, '_count_probe')"
+        self.assertEqual(self._render(expr), '1', '一般方法只給第一筆')
+        self.patch(type(self.Mixin), '_SAFE_REPORT_BATCH_METHODS',
+                   frozenset({('res.partner', '_count_probe')}))
+        self.assertEqual(self._render(expr), '2')
+
+    def test_report_any_walks_every_record_through_the_whitelist(self):
+        """any(u._is_portal() for u in …)：有一筆是入口網站使用者才成立。
+
+        採購單的「Connect your software」以前改寫不了、求值失敗當成立，每張都印。
+        """
+        self._allow(('res.users', '_is_portal'))
+        expr = "report_any(object.user_ids, '_is_portal')"
+        self.assertEqual(self._render(expr), 'False', '沒有帳號')
+        self.env['res.users'].create({
+            'name': '內部', 'login': 'ra_internal', 'partner_id': self.partner.id,
+            'groups_id': [(6, 0, [self.env.ref('base.group_user').id])]})
+        self.assertEqual(self._render(expr), 'False', '只有內部使用者')
+        self.env['res.users'].create({
+            'name': '入口', 'login': 'ra_portal', 'partner_id': self.partner.id,
+            'groups_id': [(6, 0, [self.env.ref('base.group_portal').id])]})
+        self.partner.invalidate_recordset(['user_ids'])
+        self.assertEqual(self._render(expr), 'True')
+        self._allow(('res.users', '_is_internal'))
+        self.assertEqual(self._render(expr), 'False', '不在白名單上就不呼叫')
+
     def test_qr_code_generator_is_not_whitelisted(self):
         """account.move._generate_qr_code 會在回傳前回寫 qr_code_method。
 
@@ -423,11 +478,24 @@ class TestLocaleDateFormat(TransactionCase):
         )
 
     def test_lang_datetime_includes_the_time(self):
+        """跟原生 t-field 的 datetime 一樣用語言的日期＋時間格式。
+
+        以前是 babel 的 medium 格式：英文單據印「Nov 5, 2026, 4:16:20 AM」，
+        官方是「11/05/2026 04:16:20」。
+        """
         from odoo.tools.misc import format_datetime
-        self.assertEqual(
-            self._render("format_date(object.create_date, 'lang_datetime')"),
-            format_datetime(self.env, self.partner.create_date),
-        )
+        self.env['res.lang']._activate_lang('en_US')
+        lang = self.env['res.lang']._lang_get('en_US')
+        lang.write({'date_format': '%m/%d/%Y', 'time_format': '%H:%M:%S'})
+        partner = self.partner.with_context(lang='en_US')
+        self.partner.invalidate_recordset()
+        out = self.Mixin.with_context(lang='en_US')._get_sandbox_env(partner) \
+            .from_string("{{ format_date(object.create_date, 'lang_datetime') }}") \
+            .render(object=partner, user=self.env.user)
+        self.assertEqual(out, format_datetime(
+            self.env(context=dict(self.env.context, lang='en_US')),
+            self.partner.create_date, dt_format=False))
+        self.assertRegex(out, r'^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$')
 
     def test_empty_value_is_still_empty(self):
         self.assertEqual(self._render("format_date(False, 'lang')"), '')

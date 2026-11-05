@@ -4,6 +4,7 @@
 這一層是「會猜」的那一層——所有改寫都要能被 entry 的試算驗證，
 認不出來的寫法原樣保留並標成待確認，**不猜**。
 """
+import ast
 import json
 import logging
 import re
@@ -23,6 +24,151 @@ from .constants import (
     _ROOT_TOKEN_RE,
     _LINE_TOKEN_RE,
 )
+
+
+def _attr_path(node, var):
+    """v.a.b（v 是 lambda／生成式的變數）→ 'a.b'；不是這個形狀回 None。"""
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not parts or not isinstance(node, ast.Name) or node.id != var:
+        return None
+    return '.'.join(reversed(parts))
+
+
+def _sorted_to_jinja(m):
+    """X.sorted(lambda v: (v.a, v.b.c)) → X|sort(attribute='a,b.c')。
+
+    Jinja 的 sort 過濾器收逗號分隔的多個欄位、也收點路徑，跟 Odoo 的
+    sorted(key=…) 排出來一樣。排序鍵不是單純欄位（算式、方法）時只能
+    拿掉排序——留著 lambda 整段求值失敗，明細一列都印不出來（揀貨作業實測）。
+    """
+    target, args = m.group(1), m.group(2)
+    try:
+        call = ast.parse('f(%s)' % args, mode='eval').body
+    except SyntaxError:
+        return target
+    kwargs = {k.arg: k.value for k in call.keywords}
+    key = call.args[0] if call.args else kwargs.get('key')
+    paths = None
+    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+        paths = [key.value]
+    elif isinstance(key, ast.Lambda) and len(key.args.args) == 1:
+        var = key.args.args[0].arg
+        items = key.body.elts if isinstance(key.body, ast.Tuple) else [key.body]
+        paths = [_attr_path(item, var) for item in items]
+    if not paths or not all(paths):
+        return target
+    opts = "attribute='%s'" % ','.join(paths)
+    reverse = kwargs.get('reverse')
+    if isinstance(reverse, ast.Constant) and reverse.value:
+        opts += ', reverse=True'
+    out = '%s|sort(%s)' % (target, opts)
+    # 後面還接著取屬性時要包括號（Jinja 的過濾器後面不能直接 .x）；
+    # 前面是過濾器鏈（…|list.sorted(…)）時不能包，接在鏈上就對了
+    before = m.string[m.start() - 1:m.start()]
+    after = m.string[m.end():m.end() + 1]
+    if after in ('.', '[') and before != '|':
+        out = '(%s)' % out
+    return out
+
+
+# Python 比較 → Jinja 的 selectattr 測試名（Jinja 認得這些符號當測試名）
+_ANY_COMPARE_TESTS = {
+    ast.Eq: '==', ast.NotEq: '!=', ast.Gt: '>', ast.GtE: '>=',
+    ast.Lt: '<', ast.LtE: '<=', ast.In: 'in',
+}
+
+
+def _constant_literal(node):
+    """常數（數字、字串、True/False/None，或它們組成的 tuple/list）→ 原樣字串；不是回 None。"""
+    if isinstance(node, ast.Constant):
+        return repr(node.value)
+    if isinstance(node, (ast.Tuple, ast.List)) and all(
+            isinstance(e, ast.Constant) for e in node.elts):
+        return ast.unparse(node)
+    return None
+
+
+def _any_terms(node, var):
+    """any(…) 的條件 → 「或」連起來的「且」組：[[(欄位, 為真?, 比較), …], …]。
+
+    比較是 selectattr 的第二、三個參數（「, '!=', 0.0」），單純判斷有沒有值時
+    是空字串。看不懂的形狀回 None。「且」裡面再包「或」的不展開（會變成乘開，
+    改寫結果看不懂，不如留給使用者）。
+    """
+    if isinstance(node, ast.Compare) and len(node.ops) == 1:
+        path = _attr_path(node.left, var)
+        value = _constant_literal(node.comparators[0])
+        op = node.ops[0]
+        if not path or value is None:
+            return None
+        if isinstance(op, ast.NotIn):
+            return [[(path, False, ", 'in', %s" % value)]]
+        test = _ANY_COMPARE_TESTS.get(type(op))
+        if not test:
+            return None
+        return [[(path, True, ", '%s', %s" % (test, value))]]
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+        out = []
+        for value in node.values:
+            sub = _any_terms(value, var)
+            if sub is None:
+                return None
+            out.extend(sub)
+        return out
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+        term = []
+        for value in node.values:
+            sub = _any_terms(value, var)
+            if sub is None or len(sub) != 1:
+                return None
+            term.extend(sub[0])
+        return [term]
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        path = _attr_path(node.operand, var)
+        return [[(path, False, '')]] if path else None
+    path = _attr_path(node, var)
+    return [[(path, True, '')]] if path else None
+
+
+def _any_to_jinja(m):
+    """any(v.a and v.a.b or v.c for v in X) → 每一組「且」各自 selectattr 串起來。
+
+    any(甲 or 乙) 等於 any(甲) or any(乙)；「且」用 selectattr 一層一層濾，
+    「不」用 rejectattr——兩者都是逐筆判斷，跟原式完全等價。
+    v.a and v.a.b 這種「先確認有再取」的寫法只留後面那段：空記錄取欄位本來
+    就是空的。以前只取第一個欄位，揀貨作業的「有沒有商品條碼」變成
+    「有沒有商品」，沒有條碼也多印一欄條碼。
+    """
+    body, var, target = m.group(1), m.group(2), m.group(3)
+    try:
+        node = ast.parse(body.strip(), mode='eval').body
+    except SyntaxError:
+        return m.group(0)
+    # any(u._is_portal() for u in …)：每一筆呼叫一個不帶參數的方法 → report_any，
+    # 方法要在白名單上才會真的被呼叫（渲染時再查一次）
+    if (isinstance(node, ast.Call) and not node.args and not node.keywords
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == var):
+        return "report_any(%s, '%s')" % (target, node.func.attr)
+    terms = _any_terms(node, var)
+    if not terms:
+        return m.group(0)
+    pieces = []
+    for term in terms:
+        positive = [p for p, ok, test in term if ok and not test]
+        chain = []
+        for path, ok, test in term:
+            if ok and not test and any(o.startswith(path + '.') for o in positive):
+                continue
+            chain.append("%s('%s'%s)" % (
+                'selectattr' if ok else 'rejectattr', path, test))
+        pieces.append('%s|%s|list|length > 0' % (target, '|'.join(chain)))
+    if len(pieces) == 1:
+        return '(%s)' % pieces[0]
+    return '(%s)' % ' or '.join('(%s)' % p for p in pieces)
 
 
 class ConvExpr:
@@ -222,13 +368,19 @@ class ConvExpr:
         (r"([\w\.]+)\.filtered\(\s*lambda\s+(\w+)\s*:\s*\2\.(\w+)\s*\)",
          r"\1|selectattr('\3')|list",
          'filtered(lambda … : …) 已改寫成 selectattr'),
-        (r'([\w\.]+)\.sorted\(\s*key\s*=\s*lambda.*?\)\s*(?:,\s*reverse\s*=\s*\w+\s*)?\)',
-         r'\1',
-         'sorted(key=lambda …) 在 Jinja 不存在，排序已移除。'
-         '請在重複列的「排序欄位」設定，或用 |sort 鏈接多鍵'),
-        (r"any\(\s*(\w+)\.(\w+)[^)]*?\s+for\s+\1\s+in\s+([\w\.\|\'\(\)]+)\s*\)",
-         r"\3|selectattr('\2')|list|length > 0",
-         'any(… for … in …) 已改寫成 selectattr'),
+        # 括號只吃一層巢狀：sorted(lambda ml: (ml.a, ml.b)) 的 tuple 那一層
+        (r'([\w\.]+)\.sorted\(((?:[^()]|\([^()]*\))*)\)',
+         _sorted_to_jinja,
+         'sorted(…) 在 Jinja 沒有（lambda 不能用），已改寫成 |sort(attribute=…)；'
+         '排序鍵不是單純欄位時排序會被拿掉，請在重複列的「排序欄位」自己設定'),
+        # 集合只收成對的括號：any(…) 外面還包著括號時（帶條件的 t-set 展開後
+        # 是 (any(…)) if (…) else …），收到不成對的右括號會把整句弄壞
+        # 條件裡只收不帶參數的呼叫（u._is_portal()）
+        (r"any\(\s*((?:[^()]|\(\))*?)\s+for\s+(\w+)\s+in\s+"
+         r"((?:[\w\.\|\']|\([^()]*\))+)\s*\)",
+         _any_to_jinja,
+         'any(… for … in …) 已改寫成 selectattr（每一筆呼叫方法的改成 report_any，'
+         '方法要在白名單上）'),
         # 取 or 鏈的**最後**一個屬性當欄位：原生寫法是
         # (tax.invoice_label or tax.name)，最後那個才是一定有值的備援。
         # 取第一個會在備援生效的資料上印出空白——實測 invoice_label 多半是空的。
@@ -243,9 +395,9 @@ class ConvExpr:
          '若原式還有其他邏輯請自行確認'),
         # 擺在最後：走到這裡還留著生成式，表示上面的規則都沒認出來
         #（例如 any(u._is_portal() for u in …) 裡面是方法呼叫）。
-        # 取代成自己＝不改內容，只為了留下一條說得清楚的待辦。
+        # 取代成 None＝不改內容，只為了留下一條說得清楚的待辦。
         (r'\bfor\s+\w+\s+in\b',
-         lambda m: m.group(0),
+         None,
          'Jinja 沒有 Python 的生成式（any(… for … in …) 這種），而這一段'
          '無法自動改寫（裡面可能是方法呼叫）。已原樣保留：條件求值會失敗，'
          '而失敗時的策略是「當真」，所以那一段會照印。'
@@ -255,12 +407,12 @@ class ConvExpr:
     def _collect_symbols(self, root, state):
         """掃出所有 t-set 的值；多次賦值的記成累加器。"""
         symbols = {}
-        counts = {}
+        nodes_by_name = {}
         for node in root.xpath('//t[@t-set]'):
             name = (node.get('t-set') or '').strip()
             if not name:
                 continue
-            counts[name] = counts.get(name, 0) + 1
+            nodes_by_name.setdefault(name, []).append(node)
             value = node.get('t-value')
             if value is None:
                 # 區塊型 t-set（address / information_block / 標題）——
@@ -268,12 +420,60 @@ class ConvExpr:
                 symbols.setdefault(name, None)
                 continue
             symbols[name] = value.strip()
-        state['accumulators'] = {n for n, c in counts.items() if c > 1}
-        # 根變數的 with_context 重新賦值不算累加器，也不必內聯
-        state['accumulators'] -= set(_ROOT_VARS)
+        accumulators = set()
+        for name, nodes in nodes_by_name.items():
+            # 根變數的 with_context 重新賦值不算累加器，也不必內聯
+            if name in _ROOT_VARS:
+                continue
+            combined = self._override_chain_value(name, nodes)
+            if combined is not None:
+                symbols[name] = combined
+            elif len(nodes) > 1:
+                accumulators.add(name)
+        state['accumulators'] = accumulators
         state['symbols'] = symbols
         state['accumulator_meta'] = self._accumulator_meta(root, state)
         return symbols
+
+    def _override_chain_value(self, name, nodes):
+        """「先給預設值、再依條件覆蓋」的 t-set → 一句條件式；不是這種寫法回 None。
+
+        出貨單的寫法：
+            <t t-set="has_serial_number" t-value="False"/>
+            <t t-set="has_serial_number" t-value="o.move_line_ids.mapped('lot_id')"
+               groups="stock.group_lot_on_delivery_slip"/>
+        （groups 已經被 _rewrite_groups 改成 t-if）。這不是累加器——以前被當成
+        累加器、不展開，「有沒有批號」永遠是空的，批號欄與數量欄錯位。
+        只認「緊鄰的兄弟節點、值裡沒有自己」的寫法；在迴圈裡累加的（值裡有
+        自己、或散在不同位置）仍是累加器。單獨一個帶條件的 t-set 也走這裡：
+        條件不成立時變數不存在，當成 False。
+        """
+        if any(node.get('t-value') is None for node in nodes):
+            return None
+        if any(node.get(attr) is not None for node in nodes
+               for attr in ('t-elif', 't-else')):
+            return None
+        own = re.compile(r'(?<![\w.])%s\b' % re.escape(name))
+        if any(own.search(node.get('t-value') or '')
+               or own.search(node.get('t-if') or '') for node in nodes):
+            return None
+        for prev, node in zip(nodes, nodes[1:]):
+            sib = node.getprevious()
+            # 中間只能隔著別的 t-set（不輸出東西）或註解
+            while sib is not None and sib is not prev and (
+                    not isinstance(sib.tag, str)
+                    or (sib.tag == 't' and sib.get('t-set') and len(sib) == 0)):
+                sib = sib.getprevious()
+            if sib is not prev:
+                return None
+        if len(nodes) == 1 and not nodes[0].get('t-if'):
+            return None
+        value = 'False'
+        for node in nodes:
+            new = node.get('t-value').strip()
+            cond = (node.get('t-if') or '').strip()
+            value = '(%s) if (%s) else (%s)' % (new, cond, value) if cond else new
+        return value
 
     def _accumulator_meta(self, root, state):
         """累加器的「加什麼」與「什麼時候歸零」。
@@ -354,10 +554,17 @@ class ConvExpr:
         """套用慣用寫法改寫表。回 (改寫後, 是否命中)。"""
         used = False
         for pattern, replace, hint in self._REWRITE_RULES:
-            if re.search(pattern, expr, re.S):
-                expr = re.sub(pattern, replace, expr, flags=re.S)
-                self._note(state, hint)
-                used = True
+            if not re.search(pattern, expr, re.S):
+                continue
+            if replace is not None:
+                new = re.sub(pattern, replace, expr, flags=re.S)
+                # 改寫函式認不出形狀時原樣奉還，那就不是這一條的事
+                #（說明交給最後那條「生成式改寫不了」）
+                if new == expr:
+                    continue
+                expr = new
+            self._note(state, hint)
+            used = True
         expr, used_safe = self._apply_safe_methods(expr, state)
         return expr, used or used_safe
 
@@ -542,10 +749,17 @@ class ConvExpr:
             args = []
             if ('name' in opt) if opt else True:
                 args.append('with_name=True')
+            else:
+                # 原生的地址是 display_name 去掉第一行（名稱），一律不含公司名；
+                # 不帶的話採購單的送貨地址（倉庫名稱＋倉庫地址）公司名印兩次
+                args.append('without_company=True')
             # 原生 contact widget 的 fields 常含 phone（採購單、出貨單都有），
             # 不帶的話單據上少一行電話
             if 'phone' in opt or 'mobile' in opt:
                 args.append('with_phone=True')
+            # 採購單的供應商地址含統編（fields 有 vat）
+            if 'vat' in opt:
+                args.append('with_vat=True')
             return 'format_address(%s%s)' % (
                 base, (', ' + ', '.join(args)) if args else '')
         if widget in _WIDGET_WRAPPERS:

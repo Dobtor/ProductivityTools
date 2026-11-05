@@ -473,10 +473,15 @@ class ConvBlocks:
                 # 迴圈內的 t-if / t-elif / t-else 包住不同的格子組合
                 # ——那就是「列型分派」：一筆明細依型別挑一種版面。
                 for b_idx, (cond, holder) in enumerate(branches):
+                    # 條件要在迴圈裡換算，迴圈變數才會換成 line：以前在外面換，
+                    # 迴圈變數不叫 line 的（詢價單的 order_line）條件求值失敗，
+                    # 每一筆都落到最後一種列型（章節列），只印出品名
+                    with self._loop_scope(state, repeat):
+                        row_filter = (self._map_condition(cond, state, expand=True)
+                                      if cond else '')
                     row = self._table_row(
                         holder, state, repeat, th_conds, max_cols,
-                        row_filter=self._map_condition(
-                            cond, state, expand=True) if cond else '',
+                        row_filter=row_filter,
                         with_marker=True, wrapper_conds=wrapper_conds,
                         col_widths=col_widths,
                     )
@@ -886,20 +891,31 @@ class ConvBlocks:
             return None
         return ' and '.join('not (%s)' % c for c in reversed(conds))
 
+    @contextlib.contextmanager
+    def _loop_scope(self, state, repeat):
+        """在 (來源, 迴圈變數) 這個迴圈裡面：期間換算的表達式，迴圈變數會換成 line。"""
+        if not repeat:
+            yield
+            return
+        expr, as_var = repeat
+        state['loop_vars'].append(as_var)
+        state.setdefault('loop_sources', []).append((expr or '').strip())
+        state.setdefault('loop_models', []).append(self._loop_model(state, expr))
+        try:
+            yield
+        finally:
+            state['loop_vars'].pop()
+            if state.get('loop_sources'):
+                state['loop_sources'].pop()
+            if state.get('loop_models'):
+                state['loop_models'].pop()
+
     def _table_row(self, tr, state, repeat, th_conds, max_cols,
                    row_filter='', with_marker=None, wrapper_conds=(),
                    group_role='', col_widths=None):
-        pushed = False
         col_widths = list(col_widths or [])
         col_pos = 0
-        if repeat:
-            expr, as_var = repeat
-            state['loop_vars'].append(as_var)
-            state.setdefault('loop_sources', []).append((expr or '').strip())
-            state.setdefault('loop_models', []).append(
-                self._loop_model(state, expr))
-            pushed = True
-        try:
+        with self._loop_scope(state, repeat):
             # 分支容器（<t t-if>）本身不是 tr，所以 _row_cells 的 closest_row
             # 比對會失敗——那種情況直接取它的直接子格子
             tag = tr.tag if isinstance(tr.tag, str) else ''
@@ -1043,13 +1059,6 @@ class ConvBlocks:
                         if align and (el.get('value') or '') == '\n':
                             el['rowFlex'] = align
             return {'tdList': td_list}
-        finally:
-            if pushed:
-                state['loop_vars'].pop()
-                if state.get('loop_sources'):
-                    state['loop_sources'].pop()
-                if state.get('loop_models'):
-                    state['loop_models'].pop()
 
     def _loop_model(self, state, expr):
         """這個迴圈跑的是哪個模型（查不出來回 None，那時就不自動補格式）。

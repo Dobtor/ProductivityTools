@@ -365,7 +365,7 @@ class RenderSnapshot:
             image['rowFlex'] = el['rowFlex']
         return image
 
-    def _image_data_uri(self, record, meta):
+    def _image_data_uri(self, record, meta, extra=None):
         """binary 欄位 → data: URI。取不到一律回空字串。
 
         用 path 走欄位而不是求 expression：binary 欄位的值是 base64 bytes，
@@ -379,7 +379,7 @@ class RenderSnapshot:
         if record is None:
             return ''
         if (meta.get('barcodeType') or '').strip():
-            return self._barcode_data_uri(record, meta)
+            return self._barcode_data_uri(record, meta, extra)
         path = (meta.get('path') or '').strip()
         expression = (meta.get('expression') or '').strip()
         if path:
@@ -389,7 +389,7 @@ class RenderSnapshot:
             # partner_bank_id.build_qr_code_base64(...) 算出來的 data URI，
             # 不是某個 binary 欄位。一樣用 compile_expression 取真值——
             # from_string 會把 bytes 變成 "b'iVBOR...'" 的 repr。
-            value = self._eval_raw(expression, record)
+            value = self._eval_raw(expression, record, extra)
         else:
             return ''
         if not value:
@@ -468,7 +468,7 @@ class RenderSnapshot:
     # 揀貨單用了 16 處條碼、發票有付款 QR——所以這不是發票專屬的需求。
     _BARCODE_TYPES = ('QR', 'Code128', 'Code39', 'EAN13', 'EAN8', 'UPCA')
 
-    def _barcode_data_uri(self, record, meta):
+    def _barcode_data_uri(self, record, meta, extra=None):
         """條碼／QR → data: URI。委派 ir.actions.report.barcode()。
 
         原生報表用 o._generate_qr_code()，但底線開頭的方法被沙箱擋死（刻意的）。
@@ -488,7 +488,7 @@ class RenderSnapshot:
         env_j = self._get_sandbox_env(record)
         try:
             value = env_j.from_string('{{ %s }}' % expression).render(
-                object=record, user=self.env.user,
+                object=record, user=self.env.user, **(extra or {}),
             )
         except Exception:
             return ''
@@ -624,6 +624,8 @@ class RenderSnapshot:
                 #   2. 使用者把 line / running / 分組藥丸放在重複列之外——設定錯誤
                 # 第 2 種刻意保留標籤文字不動，讓錯誤在文件上看得見而不是變空白。
                 continue
+            if src == self._IMAGE_SOURCE and meta.get('lineFrozen'):
+                continue  # 明細列裡的圖片在展開重複列時已用那一列求過值
             if src == 'static':
                 element['value'] = meta.get('static') or ''
             elif src == self._IMAGE_SOURCE:
@@ -997,6 +999,13 @@ class RenderSnapshot:
                 if not el['value']:
                     el['value'] = self._empty_text(line, meta)
                 meta['frozenAt'] = stamp
+            elif src == self._IMAGE_SOURCE:
+                # 明細列裡的圖片／條碼（揀貨作業的批號條碼、商品條碼）要用這一列
+                # 求值。留給後面的純量求值的話是拿主記錄去算，line.… 取不到值、
+                # 欄位路徑也找錯記錄，條碼欄整欄空白
+                el['value'] = self._image_data_uri(line, meta, extra={'line': line})
+                meta['frozenAt'] = stamp
+                meta['lineFrozen'] = True
             elif src == self._RUNNING_SOURCE and state_bank is not None:
                 el['value'] = self._running_value(
                     meta, line, state_bank, path + (pos,), eval_line,
