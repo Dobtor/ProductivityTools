@@ -711,6 +711,9 @@ class ConvExpr:
 
         source = 'line' if kind == 'line' else 'record'
         base = ('line.%s' % path) if kind == 'line' else ('object.%s' % path)
+        # 藥丸上顯示欄位的名稱（「數量」），不是技術名稱（product_uom_qty）：
+        # 技術名稱比值長，在明細表的窄欄裡會蓋到隔壁欄，也比較難看懂
+        label = self._field_display_label(state, kind, path) or label
 
         wrapped = self._widget_expr(widget, node, base) if widget else None
         if wrapped is None and not widget:
@@ -722,6 +725,14 @@ class ConvExpr:
             self._note(state, '未支援的 widget「%s」，已改為直接輸出欄位值。'
                               % widget)
         return self._pill(label, state, source=source, path=path)
+
+    def _field_display_label(self, state, kind, path):
+        """欄位在目前語言的名稱（ir.model.fields 的 field_description）；查不到回 None。"""
+        field = self._resolve_field(self._path_model(state, kind), path)
+        if field is None:
+            return None
+        imf = self.env['ir.model.fields']._get(field.model_name, field.name)
+        return (imf.field_description or '').strip() or None
 
     def _loop_index_pill(self, expr, state):
         """QWeb 的 <迴圈變數>_index → 流水序號藥丸（op='index'）。

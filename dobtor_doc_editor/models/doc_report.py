@@ -426,7 +426,7 @@ class DocReport(models.Model):
         # web.minimal_layout 交給 wkhtmltopdf，原本的 <head> 整個不要了。
         # 少了這份樣式，表格縮成內容寬度、條件區塊的格線被印出來、
         # 頁首還會被 Odoo 報表版面自己的內距往下推，壓到本文。
-        style = '<style>%s</style>' % self._report_css()
+        style = '<style>%s</style>' % self._report_css(template.text_style())
         articles = []
         frozen_trees = {}
         langs = {}
@@ -509,11 +509,11 @@ class DocReport(models.Model):
             if head.strip() and head != '<p><br/></p>':
                 header_footer += '<div class="header">%s%s%s%s</div>' % (
                     style, self._zone_style(frame, 'header'), scope_js, head)
-                head_px = self._estimate_html_height(head)
+                head_px = self._estimate_html_height(head, template.text_style())
             if foot.strip() and foot != '<p><br/></p>':
                 header_footer += '<div class="footer">%s%s%s%s</div>' % (
                     style, self._zone_style(frame, 'footer'), scope_js, foot)
-                foot_px = self._estimate_html_height(foot)
+                foot_px = self._estimate_html_height(foot, template.text_style())
 
         html = (
             '<html %s><head><meta charset="utf-8"/></head>'
@@ -653,7 +653,7 @@ class DocReport(models.Model):
     _EST_FONT_RE = re.compile(r'font-size\s*:\s*(\d+(?:\.\d+)?)px')
     _EST_HEIGHT_RE = re.compile(r'(?:^|;)\s*height\s*:\s*(\d+(?:\.\d+)?)px')
 
-    def _estimate_html_height(self, html):
+    def _estimate_html_height(self, html, style=None):
         """估計一段頁首／頁尾 HTML 印出來有多高（px）。
 
         wkhtmltopdf 不會依頁首內容留空間（見 _paperformat_attrs），只好在這裡估。
@@ -667,7 +667,8 @@ class DocReport(models.Model):
             root = lxml.html.fragment_fromstring(html, create_parent='div')
         except (etree.ParserError, ValueError):
             return 0
-        return int(round(self._est_node_height(root, self._EST_FONT_PX)))
+        metrics = self._est_metrics(style)
+        return int(round(self._est_node_height(root, metrics['font'], metrics)))
 
     def _est_font(self, node, font):
         match = self._EST_FONT_RE.search(node.get('style') or '')
@@ -693,7 +694,20 @@ class DocReport(models.Model):
             return height * float(attr_w) / width
         return float(height)
 
-    def _est_node_height(self, node, font):
+    def _est_metrics(self, style):
+        """估計用的字級、行高倍數、<p> 上下內距——跟 _report_text_css 同一套算法。"""
+        style = style or self.env['doc.template']._DEFAULT_TEXT_STYLE
+        size = style.get('size') or self._EST_FONT_PX
+        row_margin = style.get('row_margin') or 1.0
+        if row_margin == 1.0:
+            return {'font': size, 'line_height': self._EST_LINE_HEIGHT,
+                    'p_padding': self._EST_P_PADDING_PX}
+        return {'font': size,
+                'line_height': self._EST_LINE_HEIGHT + 16 * row_margin / size,
+                'p_padding': 0}
+
+    def _est_node_height(self, node, font, metrics=None):
+        metrics = metrics or self._est_metrics(None)
         tag = node.tag if isinstance(node.tag, str) else ''
         if tag in ('style', 'script'):
             return 0.0
@@ -706,7 +720,8 @@ class DocReport(models.Model):
             for row in node.xpath('./tr|./*/tr'):
                 cells = row.xpath('./td|./th')
                 total += max(
-                    [self._est_node_height(cell, font) + pad for cell in cells] or [0.0])
+                    [self._est_node_height(cell, font, metrics) + pad
+                     for cell in cells] or [0.0])
             return total
 
         height = 0.0
@@ -722,10 +737,12 @@ class DocReport(models.Model):
                 height += line
             line = None
 
+        line_height = metrics['line_height']
+
         def walk(el, el_font):
             nonlocal height
             if (el.text or '').strip():
-                add_to_line(el_font * self._EST_LINE_HEIGHT)
+                add_to_line(el_font * line_height)
             for child in el:
                 child_tag = child.tag if isinstance(child.tag, str) else ''
                 child_font = self._est_font(child, el_font)
@@ -734,26 +751,57 @@ class DocReport(models.Model):
                 elif child_tag == 'br':
                     # <br> 收掉目前這一列；接連兩個 <br> 中間是一列空白
                     if line is None:
-                        add_to_line(child_font * self._EST_LINE_HEIGHT)
+                        add_to_line(child_font * line_height)
                     end_line()
                 elif child_tag == 'img':
                     # 圖片坐在文字基線上，下面還有一截字的下緣
                     add_to_line(self._est_img_height(child) + 4)
                 elif child_tag in self._EST_BLOCK_TAGS:
                     end_line()
-                    height += self._est_node_height(child, child_font)
+                    height += self._est_node_height(child, child_font, metrics)
                 else:
                     walk(child, child_font)
                 if (child.tail or '').strip():
-                    add_to_line(el_font * self._EST_LINE_HEIGHT)
+                    add_to_line(el_font * line_height)
 
         walk(node, font)
         end_line()
         if tag == 'p':
-            height += self._EST_P_PADDING_PX
+            height += metrics['p_padding']
         return height
 
-    def _report_css(self):
+    # 模組預設的字型。範本指定的字型（Lato）沒有中文字，排在它後面的這幾個
+    # 接住中文——跟官方報表一樣，最後落在系統的 Noto Sans CJK
+    _REPORT_FONT_STACK = "'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif"
+
+    def _report_text_css(self, style):
+        """文字的字型、字級、行距、顏色 → CSS（照編輯器的列高算）。
+
+        canvas-editor 每一列的高度是「字高 ＋ 上下各一份留白」，留白＝
+        8px × 每列留白倍數（字級 12～30px 時不隨字級放大）。
+          * 留白倍數是預設的 1（上下各 8px）：用 <p> 的上下內距表達——一直以來
+            的寫法，手做範本的版面不動
+          * 範本指定了留白倍數（轉換出來的範本）：留白算進行高，自動換行的
+            每一列也有留白，跟編輯器一列一列畫的結果一樣；13px、0.2 倍時
+            行高約 1.5，與官方報表相同
+        """
+        size = style.get('size') or 16
+        row_margin = style.get('row_margin') or 1.0
+        font = style.get('font') or ''
+        family = ("'%s',%s" % (font.replace("'", ''), self._REPORT_FONT_STACK)
+                  if font else self._REPORT_FONT_STACK)
+        color = style.get('color') or '#000'
+        if row_margin == 1.0:
+            return ("body{font-family:%s;font-size:%spx;line-height:1.25;"
+                    "color:%s;margin:0}p{margin:0;padding:8px 0}"
+                    % (family, size, color))
+        margin = 8 * row_margin
+        line_height = 1.25 + 2 * margin / size
+        return ("body{font-family:%s;font-size:%spx;line-height:%.3f;"
+                "color:%s;margin:0}p{margin:0;padding:0}"
+                % (family, size, line_height, color))
+
+    def _report_css(self, style=None):
         """列印用的最小樣式。
 
         刻意不帶藥丸網底——定案決策四：匯出只輸出值，網底屬編輯輔助。
@@ -763,7 +811,9 @@ class DocReport(models.Model):
         預設字級 16px；每一列上下各留 8px（字級 12～30px 時固定 8px，
         不隨字級放大，所以用 padding 而不是 line-height 倍數）；
         表格格線黑色、格內距上 0、右下左 5px。
+        範本有自己的文字樣式時照範本（style＝doc.template.text_style()）。
         """
+        style = style or self.env['doc.template']._DEFAULT_TEXT_STYLE
         return (
             # 先抵銷 Odoo 報表版面（web.minimal_layout）自帶的樣式：
             #   * <body> 是 Bootstrap 的 .container，有最大寬度與左右內距；
@@ -774,9 +824,7 @@ class DocReport(models.Model):
             # 選擇器要比 Odoo 的 .o_body_pdf.o_css_margins 更具體才蓋得過
             "body.o_body_pdf.container{padding:0;margin:0;max-width:none}"
             "body.o_body_pdf.container .header{padding-top:0}"
-            "body{font-family:'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif;"
-            "font-size:16px;line-height:1.25;color:#000;margin:0}"
-            "p{margin:0;padding:8px 0}"
+            + self._report_text_css(style) +
             "table{border-collapse:collapse;width:100%}"
             "td,th{border:1px solid #000;padding:0 5px 5px 5px;vertical-align:top}"
             # 區塊容器（條件區塊／稅額彙總）用單格表格當邊界，但它不是表格，
@@ -785,6 +833,10 @@ class DocReport(models.Model):
             # wkhtmltopdf 在 collapse 模式下，沒有框線的表格仍會畫出淡灰色細線
             # （實測），區塊容器改用 separate 才真的看不到
             ".doc-block{border-collapse:separate;border-spacing:0}"
+            # 編輯器裡設成無框線的表格：只印格子自己的線（inline 的 border-*），
+            # 同樣用 separate 避開 wkhtmltopdf 的淡灰色細線
+            ".doc-noborder{border-collapse:separate;border-spacing:0}"
+            ".doc-noborder td{border:none}"
             # 並排區塊（外框地址、資訊欄）照編輯器的欄寬：自動排版會把空的
             # 那一格縮成 0，右邊的地址跟著跑到最左邊
             ".doc-layout{table-layout:fixed;width:100%}"

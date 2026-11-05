@@ -685,6 +685,8 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
             }
 
             // 2. 初始化 Canvas 編輯器（資料已暫存於 this._loadedContentJson）
+            //    範本指定的字型要先載好，canvas-editor 開檔就量字寬
+            await this._loadTextStyleFont();
             this._initCanvasEditor();
             // 對外的穩定介面（外部整合用，見 doc_editor_bridge.js）；unmount 時移除
             this._editorBridge = registerEditorBridge(this);

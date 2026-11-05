@@ -1248,13 +1248,21 @@ class TestColumnConditions(TransactionCase):
         cg = tree['main'][0]['colgroup']
         self.assertEqual(len(cg), 3)
 
-    def test_removed_width_goes_to_last_column(self):
+    def test_removed_width_keeps_table_width(self):
         """表格總寬要維持不變，否則刪一欄整張表就縮一截。"""
         tree = self._tree('object.name == "不存在"')
         before = sum(c['width'] for c in tree['main'][0]['colgroup'])
         self.Mixin._snapshot_content_json(tree, self.partner)
         after = sum(c['width'] for c in tree['main'][0]['colgroup'])
         self.assertEqual(before, after)
+
+    def test_removed_width_goes_to_widest_column(self):
+        """給最寬的那一欄（品名），不是最後一欄（金額）：金額欄多出來的
+        只是空白，品名欄卻還在換行。"""
+        tree = self._tree('object.name == "不存在"')
+        self.Mixin._snapshot_content_json(tree, self.partner)
+        widths = [c['width'] for c in tree['main'][0]['colgroup']]
+        self.assertEqual(widths, [160, 60, 80])
 
     def test_colspan_cell_is_narrowed_not_deleted(self):
         """跨欄的格子整格刪掉會讓該列少一欄，表格對不齊——要改 colspan。"""

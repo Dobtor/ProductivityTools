@@ -142,8 +142,11 @@ class RenderOutput:
             # ir_actions_report.py:441），那支範本內的 subst() JS 會填滿所有
             # class="page" / "topage" 的元素。輸出這個 span 就夠了。
             kind = el.get('pageKind') or 'number'
-            return '<span class="%s"></span>' % (
-                'topage' if kind == 'count' else 'page'
+            # 字色跟著藥丸：官方外框的頁碼是灰字，數字也要灰
+            style = self._element_style(el)
+            return '<span class="%s"%s></span>' % (
+                'topage' if kind == 'count' else 'page',
+                ' style="%s"' % style if style else '',
             )
         if etype == 'image':
             src = el.get('value') or ''
@@ -190,12 +193,42 @@ class RenderOutput:
             return text
         return '<span style="%s">%s</span>' % (style, text) if style else text
 
+    # canvas-editor 的逐格框線（td.borderTypes）→ CSS 屬性
+    _TD_BORDER_SIDES = {'top': 'border-top', 'right': 'border-right',
+                        'bottom': 'border-bottom', 'left': 'border-left'}
+
+    def _cell_style(self, cell, col, last_col, padding, border_color):
+        """格子的 inline style：逐格框線、轉換器指定的格內距。
+
+        padding（表格 extension 的 cellPadding，上右下左 px）照官方報表的
+        規則：第一欄不留左內距、最後一欄不留右內距（report_tables.scss 的
+        th:first-child／td:last-child）。
+        """
+        parts = []
+        if padding:
+            top, right, bottom, left = padding
+            parts.append('padding:%spx %spx %spx %spx' % (
+                top, 0 if col + int(cell.get('colspan') or 1) > last_col else right,
+                bottom, 0 if col == 0 else left))
+        for side in cell.get('borderTypes') or []:
+            prop = self._TD_BORDER_SIDES.get(side)
+            if prop:
+                parts.append('%s:1px solid %s' % (prop, border_color))
+        return ' style="%s"' % ';'.join(parts) if parts else ''
+
     def _table_to_html(self, el):
+        ext = el.get('extension') or {}
+        padding = ext.get('cellPadding')
+        if not (isinstance(padding, list) and len(padding) == 4):
+            padding = None
+        border_color = el.get('borderColor') or '#000'
+        last_col = max(len(el.get('colgroup') or []), 1) - 1
         rows = []
         for row in (el.get('trList') or []):
             if not isinstance(row, dict):
                 continue
             cells = []
+            col = 0
             for cell in (row.get('tdList') or []):
                 if not isinstance(cell, dict):
                     continue
@@ -204,6 +237,8 @@ class RenderOutput:
                     attrs += ' colspan="%d"' % int(cell['colspan'])
                 if (cell.get('rowspan') or 1) > 1:
                     attrs += ' rowspan="%d"' % int(cell['rowspan'])
+                attrs += self._cell_style(cell, col, last_col, padding, border_color)
+                col += max(1, int(cell.get('colspan') or 1))
                 # 格子一律有隱含的段落起點（canvas-editor 的 isForceCompensation），
                 # 開頭的換行在格子裡是一行空白，不像正文會被吸收
                 cells.append('<td%s>%s</td>' % (
@@ -217,18 +252,26 @@ class RenderOutput:
         # 區塊容器不是真的表格，不可印框線。class 讓四條輸出路徑各自關掉邊框，
         # 而不是在這裡寫 inline style——inline style 進不了 python-docx 的表格樣式。
         kind = self._element_block_kind(el)
-        cls = ' class="doc-block"' if kind else ''
+        classes = ['doc-block'] if kind else []
+        if not kind and el.get('borderType') == 'empty':
+            # 編輯器裡設成「無框線」的表格（轉換出來的明細表照官方只畫表頭
+            # 下一條線，那條線寫在格子的 borderTypes 上）
+            classes.append('doc-noborder')
+        cls = ' class="%s"' % ' '.join(classes) if classes else ''
         cols = ''
-        if kind == 'layout' and (el.get('extension') or {}).get('fixedCols'):
-            # 轉換器排的並排區塊（地址、資訊欄）要照編輯器的欄寬：自動排版
-            # 依內容分寬，左格空著時會被縮成 0，右格的地址就跑到最左邊。
-            # 其他表格維持自動排版（明細表照內容分寬比平均分好看；外框頁首
-            # 的 logo／公司資訊也一直是自動排，不在這裡改它的樣子）。
+        if kind != 'condition' and ext.get('fixedCols'):
+            # 轉換器排的表格要照編輯器的欄寬：
+            #   * 並排區塊（地址、資訊欄）：自動排版依內容分寬，左格空著時會被
+            #     縮成 0，右格的地址就跑到最左邊
+            #   * 明細表：轉換器照原生的內容估好了欄寬（數字欄剛好放得下），
+            #     自動排版會被長品名撐開，「3.00 Units」又擠成兩行
+            # 其他表格維持自動排版（使用者自己畫的表格、外框頁首的 logo／
+            # 公司資訊一直是自動排，不在這裡改它們的樣子）。
             widths = [int((c or {}).get('width') or 0)
                       for c in (el.get('colgroup') or [])]
             total = sum(widths)
             if total > 0 and all(w > 0 for w in widths):
-                cls = ' class="doc-block doc-layout"'
+                cls = ' class="%s"' % ' '.join(classes + ['doc-layout'])
                 cols = '<colgroup>%s</colgroup>' % ''.join(
                     '<col style="width:%.2f%%"/>' % (w * 100.0 / total)
                     for w in widths)
@@ -298,9 +341,14 @@ class RenderOutput:
 
         def _close():
             cls = (' class="doc-page-%s"' % para['scope']) if para['scope'] else ''
-            if not para['buf']:
-                # 空段落也要保留，否則多個空行會被吃掉、版面走樣
-                out.append('<p%s><br/></p>' % cls)
+            if not ''.join(para['buf']).strip():
+                # 空段落也要保留，否則多個空行會被吃掉、版面走樣。
+                # 只剩空值藥丸的段落（keepEmpty）也算：編輯器裡它佔一行，
+                # 印成 <p></p> 會是 0 高
+                # 空行多高看開頭那個換行的字級（編輯器就是這樣畫的）
+                size = (para['head'][0] or {}).get('size')
+                style = ' style="font-size:%spx"' % size if size else ''
+                out.append('<p%s%s><br/></p>' % (cls, style))
                 return
             flex = next((el.get('rowFlex') for el in para['head'][:2]
                          if el.get('rowFlex')), '')
@@ -328,6 +376,12 @@ class RenderOutput:
 
             etype = el.get('type') or 'text'
             if etype in self._BLOCK_ELEMENT_TYPES:
+                if (etype == 'htmlBlock' and para is not None and not para['buf']
+                        and not para['scope']):
+                    # Html 欄位在編輯器裡是一顆行內藥丸，就畫在這一段的那一列上；
+                    # 攤平後才變成區塊。前面那個只有開頭換行的段落不是空行，
+                    # 印成 <p><br/></p> 會比編輯器多一行（外框的公司資訊、備註）
+                    para = None
                 if para is not None:
                     _close()
                 para = None

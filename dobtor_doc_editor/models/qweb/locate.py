@@ -385,13 +385,20 @@ class ConvLocate:
             return root, {}
         call = layout_calls[0]
         blocks = {}
+        # 同名的其他份（發票的地址在三個條件分支裡各寫一份）：只用第一份，
+        # 其餘也要從本文拆掉——它們只是「記下地址給外框印」，本身不印東西，
+        # 留著的話標題下面又印一次客戶地址
+        duplicates = []
         conds = state.setdefault('layout_block_conds', {})
         # 往下找、不只看直接子節點：information_block 在銷售訂單裡是包在
         # <t t-if="partner_shipping == partner_invoice"> 裡面的，只看直接
         # 子節點會抓不到，那一格就是空的——而空白格在版面上看不出少了什麼。
         for node in call.xpath('.//t[@t-set][not(@t-value)]'):
             name = node.get('t-set')
-            if not name or name in blocks:
+            if not name:
+                continue
+            if name in blocks:
+                duplicates.append(node)
                 continue
             blocks[name] = node
             # 包在條件裡的區塊＝「條件成立才有這一塊」（銷售訂單的發票／送貨
@@ -418,7 +425,7 @@ class ConvLocate:
             body_holder.append(child)
         # 被條件包住的區塊仍留在 body_holder 裡（它們的祖先被搬進去了），
         # 必須拆掉，否則同一段內容會在本文中出現兩次
-        for name, node in blocks.items():
+        for node in list(blocks.values()) + duplicates:
             parent = node.getparent()
             if parent is not None:
                 parent.remove(node)
@@ -432,16 +439,25 @@ class ConvLocate:
         """區塊搬走後只剩空殼的 <t t-if> 一路往上拿掉。
 
         不拿掉的話空殼會轉成一顆「"" if 條件」的藥丸，在標題下面多一個
-        看不懂的空欄位。
+        看不懂的空欄位。<div class="col-6"> 這種純排版的空容器也算空殼
+        （發票的地址分支），身上有取值或呼叫的不算。
         """
         while (node is not None and node is not stop_at
-               and node.tag == 't' and len(node) == 0
-               and not (node.text or '').strip()):
+               and self._is_empty_shell(node)):
             parent = node.getparent()
             if parent is None:
                 return
             parent.remove(node)
             node = parent
+
+    _SHELL_ATTRS = frozenset({'t-if', 't-elif', 't-else', 'class', 'name', 'id',
+                              'style', 'groups'})
+
+    def _is_empty_shell(self, node):
+        tag = node.tag.lower() if isinstance(node.tag, str) else ''
+        return (tag in ('t', 'div') and len(node) == 0
+                and not (node.text or '').strip()
+                and set(node.attrib) <= self._SHELL_ATTRS)
 
     def _enclosing_conditions(self, node, stop_at):
         """node 到 stop_at 之間所有的 t-if（由外到內）。
@@ -513,6 +529,10 @@ class ConvLocate:
                 ]}],
             })
             out.append(self._newline())
+            # web.address_layout 的外層是寫死的「address row mb-4」：地址區下方
+            # 留一列空白再接標題
+            out.extend(self._spacer_rows(
+                self._new_element_with_class('div', 'mb-4'), 'bottom'))
             state['stats']['table'] += 1
 
         title = blocks.get('layout_document_title')
@@ -520,10 +540,9 @@ class ConvLocate:
             piece = []
             self._emit_children(title, piece, state)
             for el in piece:
-                # 單據標題：原生是 <h2>，這裡用字級與粗體表達
+                # 單據標題：原生是 <h2>（內文兩倍、不是粗體），照官方的字級
                 if el.get('value') != '\n':
-                    el.setdefault('size', 24)
-                    el.setdefault('bold', True)
+                    el.setdefault('size', self._heading_size('h2'))
             out.extend(piece)
             if not out or (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
@@ -531,4 +550,9 @@ class ConvLocate:
     def _new_element(self, tag):
         from lxml import etree
         return etree.Element(tag)
+
+    def _new_element_with_class(self, tag, cls):
+        node = self._new_element(tag)
+        node.set('class', cls)
+        return node
 

@@ -79,6 +79,8 @@ class DocEditorController(DocControllerBase, http.Controller):
             'margin_bottom': doc.margin_bottom,
             'margin_left': doc.margin_left,
             'margin_right': doc.margin_right,
+            # 文件的 PDF 走 doc.document 自己的樣式（模組預設），編輯器也用模組預設
+            'text_style': request.env['doc.template'].text_style(),
             'model_id': doc.model_id.id if doc.model_id else False,
             'model_name': doc.model_id.model if doc.model_id else False,
             'res_id': doc.res_id or False,
@@ -543,6 +545,13 @@ class DocEditorController(DocControllerBase, http.Controller):
         # 只有範本預覽可以這樣做：它是唯讀、存不回去的；文件的預覽可以直接
         # 編輯並存檔，拆開的藥丸存回去之後重新帶值會印出好幾份
         tree = template._preview_display_pills(tree)
+        # 比格子寬的值（長品名）切成幾顆，編輯器才會換行、不蓋到隔壁欄
+        frame = template.frame_template()
+        page_w = 1123 if frame.page_format == 'A4_landscape' else 794
+        style = template.text_style()
+        tree = template._preview_wrap_pills(
+            tree, page_w - (frame.margin_left or 96) - (frame.margin_right or 96),
+            style['size'], style['font'])
         return {'success': True, 'content_json': tree, 'record_name': record.display_name}
 
     @http.route('/dobtor_doc/preview/<int:doc_id>', type='http', auth='user', methods=['GET'])

@@ -460,7 +460,10 @@ class RenderTree:
                 items.append(('b', el, None))
                 continue
             if (el.get('value') or '') == '\n':
-                if not buf and items and items[-1][0] == 'b':
+                # 轉換器照 mb-4 這類 class 補的空白列（_spacer）是真的空行，
+                # 不是收掉表格的那個換行。標記只在這裡用，用完拿掉
+                spacer = el.pop('_spacer', False)
+                if not buf and items and items[-1][0] == 'b' and not spacer:
                     # 只是收掉前面那個表格，不是一行空白
                     continue
                 items.append(('p', buf, el))

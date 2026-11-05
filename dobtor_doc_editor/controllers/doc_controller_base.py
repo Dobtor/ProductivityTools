@@ -244,6 +244,8 @@ class DocControllerBase:
             'margin_bottom': frame.margin_bottom,
             'margin_left': frame.margin_left,
             'margin_right': frame.margin_right,
+            # 預設字型／字級／行距：編輯器與列印用同一份（doc.template.text_style）
+            'text_style': template.text_style(),
             'model_id': template.model_id.id if template.model_id else False,
             'model_name': template.model_id.model if template.model_id else False,
             # 範本不綁定單一記錄——設計期沒有 record 可取值，藥丸顯示標籤文字
@@ -292,6 +294,7 @@ class DocControllerBase:
             'margin_bottom': frame.margin_bottom,
             'margin_left': frame.margin_left,
             'margin_right': frame.margin_right,
+            'text_style': output.template_id.text_style(),
             'model_id': output.res_model_id.id if output.res_model_id else False,
             'model_name': output.res_model or False,
             'res_id': output.res_id or False,

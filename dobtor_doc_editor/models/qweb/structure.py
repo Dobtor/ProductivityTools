@@ -59,6 +59,11 @@ class ConvStructure:
         idx = 0
         while idx < len(children):
             child = children[idx]
+            if self._is_float_end(child):
+                # 浮動靠右的區塊：後面的兄弟節點都繞在它左邊排（見 _float_end_table）
+                out.append(self._float_end_table(child, children[idx + 1:], state))
+                out.append(self._newline())
+                return
             chain = self._collect_chain(children, idx)
             if chain:
                 self._emit_chain(chain, out, state)
@@ -153,6 +158,23 @@ class ConvStructure:
             )
         return None
 
+    def _set_empty_text(self, node, pill):
+        """t-field 節點裡的字 → 藥丸的「空值時印的字」（emptyText）。
+
+        QWeb 的 t-field 在欄位沒有值時，改印節點裡的字：訂金那一列沒有單位，
+        原生的 <span t-field="line.product_uom">units</span> 就印出「units」，
+        數量欄是「0.00 units」。有值時那些字會被值取代，所以平常看不到。
+        只收純文字（裡面還有取值節點的不是範例值），而且只收簡單欄位路徑
+        ——空不空要看欄位本身，算式的結果分不出「沒值」與「值是空字串」。
+        各語言的字由 _merge_languages 補上（中文是「單位」）。
+        """
+        meta = (pill.get('extension') or {}).get('dobtorField') or {}
+        if not meta.get('path') or len(node):
+            return
+        text = ' '.join(''.join(node.itertext()).split())
+        if text:
+            meta['emptyText'] = {self.env.lang or 'en_US': text}
+
     def _branch_extra_text(self, node, value_node):
         """分支裡除了那個取值節點，還有沒有其他可見文字。
 
@@ -217,14 +239,43 @@ class ConvStructure:
             )
         label = ' '.join((''.join(chain[0][1].itertext()) or '').split())
         if not label:
-            # 取值型分支沒有文字可當標籤，用第一個分支的欄位名
-            label = (exprs[0][1] or '').split('.')[-1].strip('()')
+            # 取值型分支沒有文字可當標籤，用第一個分支的欄位名稱（查不到才用
+            # 技術名稱——那比值還長，窄欄裡會蓋到隔壁欄）
+            found = re.findall(r'\b(object|line)\.([\w.]+)', exprs[0][1] or '')
+            label = ((self._field_display_label(
+                state, 'line' if found[0][0] == 'line' else 'record', found[0][1])
+                if found else None)
+                or (exprs[0][1] or '').split('.')[-1].strip('()'))
         state['stats']['condition'] += 1
         # 在重複列內要用 line 來源，否則會以主記錄求值、每列同一個值
         source = 'line' if _LINE_TOKEN_RE.search(expr) else 'record'
-        return self._pill(label[:20] or '多重分支', state,
+        pill = self._pill(label[:20] or '多重分支', state,
                           source=source, expression=expr,
                           unbound=bool(state.get('chain_unsure')))
+        # 分支節點自己的樣式要跟著藥丸走：原生的
+        # <strong t-if>Quotation Date</strong><strong t-else>Order Date</strong>
+        # 收成藥丸後，粗體是寫在分支節點上的，不套就印成一般字
+        styles = [self._branch_style(node) for _cond, node in chain]
+        if styles[0] and all(s == styles[0] for s in styles):
+            pill.update(styles[0])
+        return pill
+
+    def _branch_style(self, node):
+        """分支的文字樣式：分支節點自己的；分支是 <t> 包一個節點時看裡面那個。
+
+        發票寫成 <t t-if=…><strong>Invoice Date</strong></t>：粗體在裡面一層，
+        只看分支節點（<t>）的話是一般字。
+        """
+        if not isinstance(node.tag, str):
+            return None
+        tag = node.tag.lower()
+        if tag == 't':
+            children = [c for c in node if isinstance(c.tag, str)]
+            if len(children) == 1 and not (node.text or '').strip() \
+                    and not (children[0].tail or '').strip():
+                return self._branch_style(children[0])
+            return None
+        return self._node_style(node, tag)
 
     def _chain_blocks(self, chain, state):
         """複雜分支 → 巢狀的若／否則區塊（實測三擇一可行）。"""
@@ -286,6 +337,26 @@ class ConvStructure:
             return [block, self._newline(), self._emit_table(node, state)]
         return [self._emit_table(node, state), self._newline(), block]
 
+    def _keep_line_before_break(self, out):
+        """<br/> 前面這一段只有取值時，空值也要留一行（藥丸標 keepEmpty）。
+
+        原生的 <span t-if="…note" t-field="…note"/><br/>：值是空的，<br/> 照樣
+        撐出一行空白（發票付款條件那一行）。本模組的「空段落自動收合」會把
+        整段拿掉，付款說明就比官方高一行。有固定文字的段落本來就不會收合，不用標。
+        """
+        Mixin = self.env['doc.render.mixin']
+        pills = []
+        for el in reversed(out):
+            if (el.get('value') or '') == '\n':
+                break
+            meta = Mixin._element_field_meta(el)
+            if not meta:
+                return
+            if not Mixin._is_marker_element(el):
+                pills.append(meta)
+        for meta in pills:
+            meta['keepEmpty'] = True
+
     def _append_value(self, node, tag, pill, out):
         """取值節點 → 藥丸；節點是區塊元素（<div t-field>）時自成一段。
 
@@ -304,6 +375,8 @@ class ConvStructure:
         align = self._node_align(node)
         if align:
             out[-1]['rowFlex'] = align
+        # 區塊取值節點下方的留白（mb-3；address 見 _spacing_px）
+        out.extend(self._spacer_rows(node, 'bottom'))
 
     def _at_paragraph_start(self, out):
         """out 現在是不是在段落開頭（空的、剛換行、或前面只有標記藥丸）。
@@ -321,6 +394,61 @@ class ConvStructure:
         return True
 
     # col / col-6 / col-sm-7 / col-auto
+    def _is_float_end(self, node):
+        """沒有條件的 div.float-end（發票的合計區 #right-elements）。"""
+        if not isinstance(node.tag, str) or node.tag.lower() != 'div':
+            return False
+        if any(node.get(a) is not None for a in ('t-if', 't-elif', 't-else', 't-foreach')):
+            return False
+        return 'float-end' in self._class_tokens(node)
+
+    # 浮動區塊沒寫 col-N 時佔幾份（發票寫 col-5）
+    _FLOAT_DEFAULT_SPAN = 5
+
+    def _float_end_table(self, node, following, state):
+        """浮動靠右的區塊 → 兩格無框表格：左格是後面的內容、右格是浮動區塊。
+
+        官方發票把合計區寫成 div.col-5.float-end，後面的付款條件、付款說明、
+        QR code、備註都繞在它左邊排。編輯器沒有浮動排版，以前合計區印完
+        才接著印付款說明，整段掉到合計區下面。
+        """
+        span = self._FLOAT_DEFAULT_SPAN
+        for token in self._class_tokens(node):
+            m = self._COL_CLASS_RE.match(token)
+            if m and (m.group('n') or '').isdigit() and not m.group('bp'):
+                span = int(m.group('n'))
+        inner = self._inner_width(state)
+        right_w = int(inner * span / 12)
+        left_w = inner - right_w
+        holder = self._new_element('t')
+        holder.text = node.tail
+        for sibling in following:
+            holder.append(sibling)
+        left, right = [], []
+        with self._in_width(state, left_w - self._CELL_PADDING):
+            self._emit_children(holder, left, state)
+        # 右格裡的稅額合計不再自己留左半邊空白（它已經在右邊了）
+        state['in_float_end'] = state.get('in_float_end', 0) + 1
+        try:
+            with self._in_width(state, right_w - self._CELL_PADDING):
+                self._emit_children(node, right, state)
+        finally:
+            state['in_float_end'] -= 1
+        for cell in (left, right):
+            if not cell or (cell[-1].get('value') or '') != '\n':
+                cell.append(self._newline())
+        state['stats']['table'] += 1
+        return {
+            'type': 'table', 'value': '',
+            'extension': {'dobtorBlock': 'layout', 'fixedCols': True},
+            'borderType': 'empty',
+            'colgroup': [{'width': left_w}, {'width': right_w}],
+            'trList': [{'tdList': [
+                {'colspan': 1, 'rowspan': 1, 'value': left},
+                {'colspan': 1, 'rowspan': 1, 'value': right},
+            ]}],
+        }
+
     _COL_CLASS_RE = re.compile(
         r'^col(?:-(?P<bp>sm|md|lg|xl|xxl))?(?:-(?P<n>\d{1,2}|auto))?$')
 
@@ -448,6 +576,13 @@ class ConvStructure:
                         )
                     else:
                         pill = self._value_pill(node, expr, state)
+                        if attr == 't-field':
+                            self._set_empty_text(node, pill)
+                # 取值節點自己的樣式：<span class="fw-bold" t-field="o.payment_reference">
+                # 以前只看外層容器，發票付款說明裡的單號印成一般字
+                own_style = self._node_style(node, tag)
+                if own_style and self._takes_style(pill):
+                    pill.update(own_style)
                 self._append_value(node, tag, pill, out)
                 return
 
@@ -459,6 +594,7 @@ class ConvStructure:
 
         # ── 換行與分頁
         if tag == 'br':
+            self._keep_line_before_break(out)
             out.append(self._newline())
             return
 
@@ -515,10 +651,13 @@ class ConvStructure:
                 with self._in_width(state, self._block_body_width(state)):
                     grid = self._grid_table(columns, state)
                 out.append(self._condition_wrap(
-                    cond, [grid, self._newline()], state))
+                    cond, [grid, self._newline()]
+                    + self._spacer_rows(node, 'bottom'), state))
+                out.append(self._newline())
             else:
                 out.append(self._grid_table(columns, state))
-            out.append(self._newline())
+                out.append(self._newline())
+                out.extend(self._spacer_rows(node, 'bottom'))
             return
 
         # ── 區塊條件：t-if 掛在區塊元素上 → 條件區塊
@@ -547,6 +686,7 @@ class ConvStructure:
         if tag in _BLOCK_TAGS:
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
+            out.extend(self._spacer_rows(node, 'top'))
             start = len(out)
             block_markers, block_static = self._format_markers_for(node, state)
             out.extend(block_markers)
@@ -565,6 +705,7 @@ class ConvStructure:
                 # 段落的對齊掛在結尾那個換行元素上（_elements_to_html 就是
                 # 讀它的 rowFlex 決定 text-align）
                 out[-1]['rowFlex'] = align
+            out.extend(self._spacer_rows(node, 'bottom'))
             return
 
         # span / strong / t 等行內容器
@@ -749,9 +890,74 @@ class ConvStructure:
                 return True
         return False
 
+    # Bootstrap 的上下留白 class（mb-4 這類）：數字 → 幾倍 rem
+    _SPACING_CLASS_RE = re.compile(r'^(?P<prop>m[tby]?)-(?P<n>[0-5])$')
+    _SPACING_REM = {'0': 0, '1': 0.25, '2': 0.5, '3': 1, '4': 1.5, '5': 3}
+    # 官方報表 1rem 印出來約 12.8px（16px 縮到 0.8 倍，見 doc.template
+    # 的 _OFFICIAL_TEXT_STYLE），一列空白約 19.5px
+    _SPACING_REM_PX = 12.8
+    _SPACING_ROW_PX = 19.5
+
+    def _spacing_px(self, node, side):
+        """節點上 mb-N／mt-N（含 my-N、m-N）的留白（px，已換算成官方印出來的大小）。
+
+        官方的地址區、資訊欄都是 mb-4——少了這段留白，地址、標題、資訊欄、
+        明細表整張擠在一起。
+        """
+        wanted = 'b' if side == 'bottom' else 't'
+        px = 0.0
+        if side == 'bottom' and isinstance(node.tag, str) and node.tag.lower() == 'address':
+            # 實測官方發票：<address class="mb-0" t-field="o.partner_id"> 下方仍留
+            # 1rem（瀏覽器量到 margin-bottom 16px，mb-0 沒有生效），統編那一行
+            # 跟地址之間空一段。訂單的地址用 <div t-field>，沒有這段留白
+            px = self._SPACING_REM['3'] * self._SPACING_REM_PX
+        for token in self._class_tokens(node):
+            m = self._SPACING_CLASS_RE.match(token)
+            if not m:
+                continue
+            prop = m.group('prop')
+            if prop == 'm' or prop == 'my' or prop == 'm' + wanted:
+                px = max(px, self._SPACING_REM[m.group('n')] * self._SPACING_REM_PX)
+        return px
+
+    # 空白列的行高是字級的幾倍：官方樣式 13px、每列上下各 1.6px（見
+    # doc.report._report_text_css），1.25 ＋ 3.2 ÷ 13 ≈ 1.5
+    _SPACER_LINE_FACTOR = 1.5
+    # 不到這麼多的留白不補（mb-2 是 6.4px，補了反而比官方鬆）
+    _SPACER_MIN_PX = 8
+
+    def _spacer_rows(self, node, side):
+        """留白 → 空白列。整行的用一般字級，剩下的一截用小字級的空白列補。
+
+        編輯器沒有「段落下方留多少 px」，只能用空白列表達；空白列有多高看
+        開頭那個換行的字級，所以 12.8px 的留白（mb-3、address）用 9px 的空白列，
+        不必撐成一整行 19.5px。
+        _spacer：讓 _paragraph_ends_to_starts 知道這是空白列，不是收掉表格的換行。
+        """
+        px = self._spacing_px(node, side)
+        rows = []
+        while px >= self._SPACING_ROW_PX:
+            rows.append(dict(self._newline(), _spacer=True))
+            px -= self._SPACING_ROW_PX
+        if px >= self._SPACER_MIN_PX:
+            size = max(5, int(round(px / self._SPACER_LINE_FACTOR)))
+            rows.append(dict(self._newline(), _spacer=True, size=size))
+        return rows
+
+    # 官方報表的標題字級是內文的幾倍（Bootstrap：h1 2.5、h2 2、h3 1.75…）。
+    # 粗細是 500，編輯器只有一般與粗體，取一般——印成粗體反而比官方重
+    _HEADING_SCALE = {'h1': 2.5, 'h2': 2, 'h3': 1.75, 'h4': 1.5,
+                      'h5': 1.25, 'h6': 1}
+
+    def _heading_size(self, tag):
+        base = self.env['doc.template']._OFFICIAL_TEXT_STYLE['text_size']
+        return int(round(base * self._HEADING_SCALE.get(tag, 1)))
+
     def _node_style(self, node, tag):
         """標籤與 class 一起決定的文字屬性。"""
         style = {}
+        if tag in self._HEADING_SCALE:
+            style['size'] = self._heading_size(tag)
         if tag in ('strong', 'b'):
             style['bold'] = True
         elif tag in ('em', 'i'):

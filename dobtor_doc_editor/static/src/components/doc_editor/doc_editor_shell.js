@@ -61,6 +61,64 @@ const PAGE_SIZES = {
 
 export const DocEditorShell = (Base) => class extends Base {
 
+    // ─── 預設文字樣式 ───────────────────────────────────────────────
+
+    /**
+     * 範本的預設文字樣式 → canvas-editor 選項。沒有就不給，用 canvas-editor 的預設值。
+     * 字型後面接中文字型：Lato 沒有中文字，跟列印一樣交給系統的中文字型。
+     */
+    _textStyleOptions() {
+        const style = this._loadedTextStyle;
+        if (!style) {
+            return {};
+        }
+        const options = {};
+        if (style.font) {
+            options.defaultFont = `${style.font}, "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+        }
+        if (Number(style.size) > 0) {
+            options.defaultSize = Number(style.size);
+        }
+        if (Number(style.row_margin) > 0) {
+            options.defaultRowMargin = Number(style.row_margin);
+        }
+        if (Number(style.row_margin) > 0 && Number(style.row_margin) !== 1) {
+            // canvas-editor 預設每列至少 42px，PDF 的表格列沒有最小高度——
+            // 條件區塊、並排區塊在編輯器裡會比印出來高一截。照官方樣式的範本
+            // 把下限拿掉，需要列高的明細表由轉換器自己寫 minHeight
+            options.table = { defaultTrMinHeight: 10 };
+        }
+        if (style.color) {
+            options.defaultColor = style.color;
+        }
+        return options;
+    }
+
+    /** 沒有自己字級的字用多大（範本的預設字級；沒設就是 canvas-editor 的 16）。 */
+    _defaultFontSize() {
+        return Number(this._loadedTextStyle?.size) || 16;
+    }
+
+    /**
+     * 先把範本指定的字型載進來再開編輯器。
+     * canvas-editor 開檔時就量好每個字的寬度，字型還沒到就用替代字型量，
+     * 之後字型到了也不會重排——換行位置會跟 PDF 對不上。
+     */
+    async _loadTextStyleFont() {
+        const font = this._loadedTextStyle?.font;
+        const size = Number(this._loadedTextStyle?.size) || 16;
+        if (!font || !document.fonts?.load) {
+            return;
+        }
+        try {
+            await Promise.all(["", "bold ", "italic ", "italic bold "].map(
+                (variant) => document.fonts.load(`${variant}${size}px "${font}"`)
+            ));
+        } catch (e) {
+            console.warn("[DocEditor] 字型載入失敗，改用替代字型：", font, e);
+        }
+    }
+
     // ─── Canvas 編輯器初始化 ────────────────────────────────────────
 
     _initCanvasEditor() {
@@ -109,6 +167,7 @@ export const DocEditorShell = (Base) => class extends Base {
             width: paperWidth,
             height: paperHeight,
             ...(this._loadedMargins ? { margins: this._loadedMargins } : {}),
+            ...this._textStyleOptions(),
             // Phase 4：模型變數藥丸的預設外觀（每個元素可用 element.label 覆寫）
             label: {
                 defaultBackgroundColor: PILL_STYLE.backgroundColor,
@@ -294,7 +353,7 @@ export const DocEditorShell = (Base) => class extends Base {
 
                     // Sprint Y8：font/size/color/highlight/rowFlex 也同步反映 caret 狀態
                     const font = el.font || '';
-                    const sizeStr = el.size != null ? String(el.size) : '16';
+                    const sizeStr = el.size != null ? String(el.size) : String(this._defaultFontSize());
                     if (this.state.activeFontFamily !== font) this.state.activeFontFamily = font;
                     if (this.state.activeFontSize !== sizeStr) this.state.activeFontSize = sizeStr;
                     // 字色 / 背景色：caret 文字真實顏色 → swatch + picker 預設值
@@ -554,6 +613,11 @@ export const DocEditorShell = (Base) => class extends Base {
             // 暫存邊距（px，canvas-editor 的順序是上右下左），供 _initCanvasEditor 使用
             const margins = [data.margin_top, data.margin_right, data.margin_bottom, data.margin_left];
             this._loadedMargins = margins.every((v) => Number(v) > 0) ? margins.map(Number) : null;
+            // 預設文字樣式（範本自帶；轉換出來的範本是官方報表的 Lato 13px）。
+            // 列印照同一份算（doc.report._report_css），畫面才會跟 PDF 一樣
+            this._loadedTextStyle = data.text_style || null;
+            // 工具列的字級框一開始就顯示範本的預設字級，不是寫死的 16
+            this.state.activeFontSize = String(this._defaultFontSize());
 
             // 暫存 content_json，供 _initCanvasEditor 使用
             this._loadedContentJson = data.content_json || null;
@@ -1613,7 +1677,7 @@ export const DocEditorShell = (Base) => class extends Base {
         let text = '';
         try { text = this.editor?.command?.getRangeText?.() || ''; } catch (e) { /* ignore */ }
         if (!text) text = url;
-        const size = Number(this.state.activeFontSize) || 16;
+        const size = Number(this.state.activeFontSize) || this._defaultFontSize();
         this._executeCmd('executeHyperlink', {
             type: 'hyperlink',
             value: '',

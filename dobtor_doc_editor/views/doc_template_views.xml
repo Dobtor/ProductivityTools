@@ -128,6 +128,12 @@
                         </group>
                         <group>
                             <field name="description" string="說明" widget="text"/>
+                            <!-- 留空＝模組預設；從原生報表轉換的範本會帶官方報表的樣式 -->
+                            <separator string="預設文字樣式" colspan="2"/>
+                            <field name="text_font" placeholder="模組預設（正黑體）"/>
+                            <field name="text_size" placeholder="16"/>
+                            <field name="text_row_margin" placeholder="1"/>
+                            <field name="text_color" placeholder="#000000"/>
                         </group>
                     </group>
                     <div class="alert alert-info mb-2" role="alert"

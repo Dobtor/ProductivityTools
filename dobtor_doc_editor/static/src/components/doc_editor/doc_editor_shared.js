@@ -21,7 +21,8 @@ export const FONT_OPTIONS = [
     { value: "Helvetica",        label: "Helvetica" },
     { value: "Georgia",          label: "Georgia" },
 ];
-export const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
+// 13、26 是官方報表樣式的內文與標題（轉換出來的範本），沒有的話工具列的字級框是空的
+export const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 26, 28, 32, 36, 48, 60, 72];
 
 // ─── Sprint Y25：localStorage helper（統一 try/catch + 可選 JSON parse/stringify）
 // Y9 / Y13 / Y19 / Y23 各自寫過 4 次 boilerplate；Y25 抽成一致 API。
