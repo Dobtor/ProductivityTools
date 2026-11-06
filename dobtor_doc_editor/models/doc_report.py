@@ -77,6 +77,21 @@ class DocReport(models.Model):
              '留空＝所有語言的後備值。範本裡打好的固定文字只有一種語言，'
              '要給不同語言的客戶不同文字，可以各綁一張範本，或在範本裡改用多語文字。',
     )
+    # 官方每張報表自己決定用誰的語言印：訂單、發票、出貨單、採購單在範本裡
+    # 指定客戶的語言（t-lang）；揀貨作業沒有指定，用列印的人的語言（倉庫人員
+    # 看的單子）。轉換時照官方設好（見 doc.qweb.converter._report_lang_source）
+    lang_source = fields.Selection(
+        [('customer', "Customer's language"),
+         ('user', "Printing user's language")],
+        string='Print Language',
+        default='customer',
+        required=True,
+        help="Customer's language: follow the customer on the document "
+             "(quotations, invoices, delivery slips).\n"
+             "Printing user's language: follow whoever prints it "
+             "(internal documents such as picking operations).\n"
+             "Converted templates follow the original report.",
+    )
     company_id = fields.Many2one(
         'res.company',
         string='公司',
@@ -370,19 +385,44 @@ class DocReport(models.Model):
         每一筆實際用哪張範本，_build_report_html 會再照各自的客戶語言挑
         （_binding_for_record）；這裡只決定「接不接管」與頁首頁尾、紙張用誰的。
         """
-        lang = self._customer_lang(records[:1]) if records else None
-        return self._resolve_for_report(report, lang=lang)
+        return self._resolve_with_lang(report, records[:1])[0]
+
+    @api.model
+    def _user_lang(self):
+        """列印的人的語言（操作者介面的語言）。"""
+        return self.env.context.get('lang') or self.env.user.lang or 'en_US'
+
+    @api.model
+    def _resolve_with_lang(self, report, record):
+        """(定義, 語言)：先照客戶語言挑；挑到的定義設成「跟列印的人」時，
+        改用操作者的語言再挑一次。
+
+        官方的揀貨作業用列印的人的語言印，以前一律照客戶語言：中文介面的
+        倉庫人員印英文客戶的揀貨單，拿到英文的。
+        """
+        lang = self._customer_lang(record) if record else None
+        binding = self._resolve_for_report(report, lang=lang)
+        if binding and binding.lang_source == 'user':
+            user_lang = self._user_lang()
+            if user_lang != lang:
+                lang = user_lang
+                binding = self._resolve_for_report(report, lang=lang) or binding
+        return binding, lang
 
     def _binding_for_record(self, record):
         """這一筆該用哪一筆定義、用什麼語言印。回傳 (定義, 語言)。
 
-        定義照客戶語言挑：有該語言專屬的就用它，沒有就用後備（語言留空）的；
+        定義照客戶語言挑（定義設成「跟列印的人」時照操作者語言，見
+        _resolve_with_lang）：有該語言專屬的就用它，沒有就用後備（語言留空）的；
         兩者都沒有就沿用 self（整批被選中的那一筆）——這時範本裡打好的固定文字
         是那張範本的語言，只有從單據帶出來的值照客戶語言。
         """
         self.ensure_one()
-        lang = self._customer_lang(record)
-        binding = self._resolve_for_report(self.report_id, lang=lang) or self
+        binding, lang = self._resolve_with_lang(self.report_id, record)
+        if not binding:
+            binding = self
+            if self.lang_source == 'user':
+                lang = self._user_lang()
         return binding, lang
 
     # ─── HTML 組裝 ───────────────────────────────────────────────────

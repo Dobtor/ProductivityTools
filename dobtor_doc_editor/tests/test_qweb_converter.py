@@ -2813,3 +2813,48 @@ class TestPurchaseStockLayout(TestQwebConverterBase):
         plain = gap('<t t-set="layout_document_title">TITLE</t>')
         held = gap('<div class="mt-4"><t t-set="layout_document_title">TITLE</t></div>')
         self.assertGreater(held, plain)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportLanguageSource(TestQwebConverterBase):
+    """原生報表用客戶還是列印的人的語言印：看入口到內容範本之間有沒有 t-lang。"""
+
+    def _report(self, wrapper):
+        doc_key = 'dobtor_doc_editor.lang_src_doc_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': doc_key, 'type': 'qweb', 'key': doc_key,
+            'arch': '<t t-name="%s"><div><span t-field="o.name"/></div></t>' % doc_key,
+        })
+        key = 'dobtor_doc_editor.lang_src_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s"><t t-call="web.html_container">'
+                    '<t t-foreach="docs" t-as="o">%s</t></t></t>'
+                    % (key, wrapper % doc_key),
+        })
+        return self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+
+    def test_t_lang_means_customer_language(self):
+        """訂單、出貨單：入口呼叫內容範本時帶 t-lang。"""
+        report = self._report('<t t-call="%s" t-lang="o.lang"/>')
+        self.assertEqual(self.Conv._report_lang_source(report), 'customer')
+        self.assertEqual(self.Conv.convert_report(report)['lang_source'], 'customer')
+
+    def test_no_t_lang_means_printing_user_language(self):
+        """揀貨作業：一路都沒有 t-lang＝照列印的人的語言。"""
+        report = self._report('<t t-call="%s"/>')
+        self.assertEqual(self.Conv._report_lang_source(report), 'user')
+
+    def test_wizard_binding_follows_the_original(self):
+        report = self._report('<t t-call="%s"/>')
+        partner = self.env['res.partner'].create({'name': '語言來源樣本'})
+        wizard = self.env['doc.qweb.import.wizard'].create({
+            'report_id': report.id, 'sample_res_id': partner.id,
+            'template_name': '語言來源', 'create_binding': True})
+        wizard.action_convert()
+        binding = self.env['doc.report'].with_context(active_test=False).search(
+            [('report_id', '=', report.id)])
+        self.assertEqual(binding.lang_source, 'user')

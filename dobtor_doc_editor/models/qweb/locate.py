@@ -73,6 +73,36 @@ class ConvLocate:
             view = nxt
         return view
 
+    def _report_lang_source(self, report):
+        """原生報表用誰的語言印：'customer'（範本指定 t-lang）或 'user'（沒指定）。
+
+        語言寫在報表入口到內容範本之間某一層的 t-call 上
+        （sale：t-lang="doc.partner_id.lang"；出貨單：o._get_report_lang()；
+        發票寫在入口呼叫內容範本那一層）。一路都沒有＝照列印的人的語言
+        （揀貨作業）。路線跟 _resolve_document_view 一樣。
+        """
+        view = self._view_by_key(report.report_name)
+        seen = set()
+        for _depth in range(5):
+            if view is None or view.id in seen:
+                break
+            seen.add(view.id)
+            root = self._parse_arch(view)
+            if root is None:
+                break
+            if root.xpath('//*[@t-lang]'):
+                return 'customer'
+            targets = [
+                t for t in root.xpath('//t[@t-call]/@t-call')
+                if t and t not in _WRAPPER_TEMPLATES
+                and t not in _LAYOUT_TEMPLATES
+                and t not in _TAX_TOTALS_TEMPLATES
+            ]
+            if not targets:
+                break
+            view = self._view_by_key(targets[0])
+        return 'user'
+
     def _parse_arch(self, view):
         """範本的 arch（**含所有繼承進來的修改**）。
 

@@ -81,6 +81,8 @@ class ConvEntry:
             'notes_by_level': by_level,
             'stats': state['stats'],
             'needs_layout': needs_layout,
+            # 原生用客戶還是列印的人的語言印（建綁定時照它設）
+            'lang_source': self._report_lang_source(report),
         }
 
     def _mark_contact_lines(self, tree):

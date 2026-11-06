@@ -536,7 +536,11 @@ class DocTemplate(models.Model):
         印給這筆記錄時會長的樣子。tree 會被就地改寫，呼叫端要給一份副本。
         """
         self.ensure_one()
-        lang = self.env['doc.report']._customer_lang(record)
+        Report = self.env['doc.report']
+        # 綁定設成「跟列印的人」（揀貨作業）時，預覽也照操作者的語言
+        binding = Report.sudo().search([('template_id', '=', self.id)], limit=1)
+        lang = (Report._user_lang() if binding.lang_source == 'user'
+                else Report._customer_lang(record))
         # 語言要套在求值環境上，不只記錄——不然日期格式照操作者語言
         in_lang = self.with_context(lang=lang)
         return in_lang._snapshot_content_json(tree, in_lang._record_in_lang(record, lang))
