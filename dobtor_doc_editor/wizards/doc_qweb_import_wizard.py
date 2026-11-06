@@ -190,6 +190,8 @@ class DocQwebImportWizard(models.TransientModel):
                 'template_id': template.id,
                 'report_id': self.report_id.id,
                 'active': False,
+                # 用客戶還是列印的人的語言印，照原生報表
+                'lang_source': result.get('lang_source') or 'customer',
             })
             lines += [
                 '',

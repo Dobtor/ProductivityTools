@@ -1324,6 +1324,26 @@ class TestReportCustomerLanguage(TransactionCase):
                 self.report, self.zh_account),
             self.fallback, '英文介面的人印中文客戶的單據，不該挑到英文的定義')
 
+    def test_printing_user_language(self):
+        """綁定設成「跟列印的人」（官方的揀貨作業）：照操作者的語言挑、照操作者的語言印。"""
+        (self.fallback + self.english).write({'lang_source': 'user'})
+        zh = self.fallback.with_context(lang='zh_TW')
+        binding, lang = zh._binding_for_record(self.en_account)
+        self.assertEqual((binding, lang), (self.fallback, 'zh_TW'),
+                         '中文介面的人印英文客戶的單據，要印中文')
+        en = self.fallback.with_context(lang='en_US')
+        self.assertEqual(en._binding_for_record(self.zh_account),
+                         (self.english, 'en_US'))
+        self.assertEqual(
+            self.env['doc.report'].with_context(lang='zh_TW')._resolve_for_records(
+                self.report, self.en_account), self.fallback)
+
+    def test_customer_language_is_still_the_default(self):
+        self.assertEqual(self.fallback.lang_source, 'customer')
+        binding, lang = self.fallback.with_context(lang='zh_TW')._binding_for_record(
+            self.en_account)
+        self.assertEqual((binding, lang), (self.english, 'en_US'))
+
     def test_each_record_uses_its_customers_template(self):
         """一次印兩筆不同語言的客戶，各自用自己語言的範本。"""
         html, _ = self.fallback.with_context(lang='zh_TW')._build_report_html(

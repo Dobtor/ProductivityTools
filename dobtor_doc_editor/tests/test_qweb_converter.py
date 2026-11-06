@@ -2664,3 +2664,371 @@ class TestTranslationMovesMarkup(TestQwebConverterBase):
         self.assertTrue(colon.get('allowEmpty'))
         self.assertEqual(self.env['doc.render.mixin'].with_context(
             lang='fr_FR')._i18n_text(None, colon), '')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPurchaseStockLayout(TestQwebConverterBase):
+    """採購、庫存報表的版面：標題、二選一的欄、並排的浮動區塊、條碼大小、留白。"""
+
+    _BARCODE = ('<div t-field="o.barcode" t-options="{\'widget\': \'barcode\', '
+                '\'width\': %d, \'height\': 100, \'img_style\': \'%s\'}"/>')
+
+    def _main(self, res):
+        return res['tree']['main']
+
+    def test_text_and_one_value_branch_is_one_pill(self):
+        """採購單的標題：<t t-if>Purchase Order #<span t-field="o.name"/></t>。
+
+        以前包成條件區塊，標題字級只套在最外層，標題印成內文大小。
+        """
+        res = self._convert(
+            '<div><t t-if="o.is_company">Company #<span t-field="o.name"/></t></div>')
+        self.assertFalse(list(self._tables(self._main(res))), '不該包條件區塊')
+        expr = next(m['expression'] for m in self._metas(self._main(res))
+                    if m.get('expression'))
+        self.assertIn('"Company #" ~ ((object.name) or "")', expr)
+        self.assertIn('if (object.is_company)', expr)
+
+    def test_label_and_block_value_is_not_concatenated(self):
+        res = self._convert(
+            '<div t-if="o.ref"><strong>Ref</strong><div t-field="o.ref"/></div>')
+        self.assertTrue(list(self._tables(self._main(res))), '標籤＋區塊值照舊包區塊')
+
+    def test_grid_keeps_either_or_column(self):
+        """採購單資訊欄的 Order Date／Order Deadline 是同一欄二選一。
+
+        以前遇到 t-elif 整列放棄，資訊欄一欄一欄往下排。
+        """
+        res = self._convert(
+            '<div class="row">'
+            '<div class="col"><strong>A</strong><div t-field="o.name"/></div>'
+            '<div t-if="o.ref" class="col-3"><strong>R</strong><div t-field="o.ref"/></div>'
+            '<div t-elif="o.phone" class="col-2"><strong>P</strong>'
+            '<div t-field="o.phone"/></div></div>')
+        grid = next(self._tables(self._main(res)))
+        self.assertEqual(len(grid['colgroup']), 2)
+        branch = [el for el in grid['trList'][0]['tdList'][1]['value']
+                  if el.get('type') == 'table']
+        roles = [m.get('role') for m in self._metas(branch) if m.get('role')]
+        self.assertEqual(roles[:2], ['if', 'else'], 'if／elif 是巢狀的若／否則')
+        texts = self._texts(branch)
+        self.assertIn('R', texts)
+        self.assertIn('P', texts)
+
+    def test_block_branch_value_gets_its_own_line(self):
+        """出貨單的 Shipping Date：<div t-if t-field> / <div t-else t-field>。"""
+        res = self._convert(
+            '<div><strong>Date</strong>'
+            '<div t-if="o.active" t-field="o.name"/><div t-else="" t-field="o.ref"/></div>')
+        main = self._main(res)
+        label = next(i for i, el in enumerate(main) if el.get('value') == 'Date')
+        pill = next(i for i, el in enumerate(main)
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertIn('\n', [el.get('value') for el in main[label:pill]],
+                      '值要另起一行')
+
+    def test_float_start_blocks_sit_side_by_side(self):
+        """揀貨作業：單號標題與條碼各是一個 float-start，官方並排。"""
+        res = self._convert(
+            '<div><div class="float-start"><h1 t-field="o.name">WH/OUT/00001</h1></div>'
+            '<div class="float-start">%s</div></div>'
+            % (self._BARCODE % (600, 'width:300px;height:50px;')))
+        table = next(self._tables(self._main(res)))
+        self.assertEqual(len(table['colgroup']), 2)
+        bar = next(m for m in self._metas(table['trList'][0]['tdList'][1]['value'])
+                   if m.get('barcodeType'))
+        self.assertEqual((bar['width'], bar['height']), (300, 50), '印出來的大小照 img_style')
+        self.assertEqual((bar['barcodeWidth'], bar['barcodeHeight']), (600, 100),
+                         '產生條碼圖用 options 的大小')
+
+    def test_barcode_height_only_keeps_ratio(self):
+        """批號條碼 img_style 是 width:100%;height:35px：寬照產生的比例算。"""
+        res = self._convert(self._BARCODE % (400, 'width:100%;height:35px;'))
+        bar = next(m for m in self._metas(self._main(res)) if m.get('barcodeType'))
+        self.assertEqual((bar['width'], bar['height']), (140, 35))
+
+    def test_value_node_sample_alignment_is_ignored(self):
+        """揀貨作業的收件地址裡有一塊 text-center 的示範框，地址不可以因此置中。"""
+        res = self._convert(
+            '<div t-field="o.parent_id" t-options=\'{"widget": "contact"}\'>'
+            '<div class="text-center">sample</div></div>')
+        self.assertFalse([el for el in self._main(res) if el.get('rowFlex') == 'center'])
+
+    def test_phone_icon_follows_the_options(self):
+        def expr(options):
+            res = self._convert(
+                '<div t-field="o.parent_id" t-options=\'{"widget": "contact", '
+                '"fields": ["address", "phone"]%s}\'/>' % options)
+            return next(m['expression'] for m in self._metas(self._main(res))
+                        if m.get('expression'))
+        self.assertIn('phone_icon=True', expr(', "no_marker": True, "phone_icons": True'))
+        self.assertIn('phone_icon=True', expr(''), '沒寫 no_marker＝預設有圖示')
+        self.assertNotIn('phone_icon', expr(', "no_marker": True'))
+
+    def test_legacy_spacing_and_collapse(self):
+        """Odoo 舊式留白（mt48）認得；上邊距跟前面的下邊距合併取大的。"""
+        from lxml import etree
+        table = etree.fromstring('<table class="table mt48"/>')
+        self.assertAlmostEqual(self.Conv._spacing_px(table, 'top'), 38.4)
+        state = {}
+        after_mb4 = self.Conv._spacer_rows_px(19.2)
+        rows = self.Conv._top_spacer_rows(table, after_mb4, state)
+        px = self.Conv._trailing_spacer_px(after_mb4 + rows)
+        self.assertLess(abs(px - 38.4), 2, '合併後是 48px（印出來 38.4），不是相加')
+
+    def test_spacer_at_the_start_of_a_branch_becomes_cell_padding(self):
+        """出貨單的明細表（table.mt48）在若／否則區塊裡：格子開頭放不了空白列。"""
+        res = self._convert(
+            '<div class="mb-4"><p>A</p></div>'
+            '<table t-if="o.ref" class="table"><tr><td>a</td></tr></table>'
+            '<table t-elif="o.phone" class="table mt48"><tr><td>b</td></tr></table>')
+        pads = [cell.get('extension', {}).get('paddingTop')
+                for t in self._tables(self._main(res))
+                for row in t.get('trList') or [] for cell in row.get('tdList') or []
+                if cell.get('extension', {}).get('paddingTop')]
+        self.assertTrue(pads, '上邊距要記成格子的上內距')
+        self.assertLess(abs(pads[0] - 19.5), 2)
+
+    def test_grid_column_margin_becomes_cell_padding(self):
+        """出貨單資訊欄的 col mb-2：欄自己的下邊距算在這一列的高度裡。"""
+        res = self._convert(
+            '<div class="row"><div class="col mb-2"><span>A</span></div>'
+            '<div class="col mb-2"><span>B</span></div></div>')
+        grid = next(self._tables(self._main(res)))
+        self.assertEqual([c.get('extension', {}).get('paddingBottom')
+                          for c in grid['trList'][0]['tdList']], [6.4, 6.4])
+
+    def test_title_holder_margin_widens_the_gap(self):
+        """採購單的標題包在 div.mt-4 裡：官方標題到資訊欄比只有標題時遠。"""
+        def gap(body):
+            res = self._convert(
+                '<t t-call="web.external_layout"><t t-set="address"><span>X</span></t>'
+                '%s<p>NEXT</p></t>' % body)
+            main = self._main(res)
+            title = next(i for i, el in enumerate(main) if el.get('value') == 'TITLE')
+            nxt = next(i for i, el in enumerate(main) if el.get('value') == 'NEXT')
+            # 空白列有整列的也有小字級的：比高度，不比列數
+            return sum(el['size'] * 1.5 if el.get('size') else 19.5
+                       for el in main[title:nxt] if el.get('value') == '\n')
+        plain = gap('<t t-set="layout_document_title">TITLE</t>')
+        held = gap('<div class="mt-4"><t t-set="layout_document_title">TITLE</t></div>')
+        self.assertGreater(held, plain)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestReportLanguageSource(TestQwebConverterBase):
+    """原生報表用客戶還是列印的人的語言印：看入口到內容範本之間有沒有 t-lang。"""
+
+    def _report(self, wrapper):
+        doc_key = 'dobtor_doc_editor.lang_src_doc_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': doc_key, 'type': 'qweb', 'key': doc_key,
+            'arch': '<t t-name="%s"><div><span t-field="o.name"/></div></t>' % doc_key,
+        })
+        key = 'dobtor_doc_editor.lang_src_%d' % next(_SEQ)
+        self.env['ir.ui.view'].create({
+            'name': key, 'type': 'qweb', 'key': key,
+            'arch': '<t t-name="%s"><t t-call="web.html_container">'
+                    '<t t-foreach="docs" t-as="o">%s</t></t></t>'
+                    % (key, wrapper % doc_key),
+        })
+        return self.env['ir.actions.report'].create({
+            'name': key, 'model': 'res.partner', 'report_type': 'qweb-pdf',
+            'report_name': key,
+        })
+
+    def test_t_lang_means_customer_language(self):
+        """訂單、出貨單：入口呼叫內容範本時帶 t-lang。"""
+        report = self._report('<t t-call="%s" t-lang="o.lang"/>')
+        self.assertEqual(self.Conv._report_lang_source(report), 'customer')
+        self.assertEqual(self.Conv.convert_report(report)['lang_source'], 'customer')
+
+    def test_no_t_lang_means_printing_user_language(self):
+        """揀貨作業：一路都沒有 t-lang＝照列印的人的語言。"""
+        report = self._report('<t t-call="%s"/>')
+        self.assertEqual(self.Conv._report_lang_source(report), 'user')
+
+    def test_wizard_binding_follows_the_original(self):
+        report = self._report('<t t-call="%s"/>')
+        partner = self.env['res.partner'].create({'name': '語言來源樣本'})
+        wizard = self.env['doc.qweb.import.wizard'].create({
+            'report_id': report.id, 'sample_res_id': partner.id,
+            'template_name': '語言來源', 'create_binding': True})
+        wizard.action_convert()
+        binding = self.env['doc.report'].with_context(active_test=False).search(
+            [('report_id', '=', report.id)])
+        self.assertEqual(binding.lang_source, 'user')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAddressTopSpace(TestQwebConverterBase):
+    """官方地址區塊上方的留白（信封窗格）放在範本裡，不算在外框上邊距。
+
+    以前「Odoo 標準」外框的上邊距含了這段，沒有地址區塊的揀貨作業整頁比官方低。
+    """
+
+    def test_address_block_gets_the_space_on_top(self):
+        res = self._convert(
+            '<t t-call="web.external_layout"><t t-set="address"><span>ADDR</span></t>'
+            '<p>BODY</p></t>')
+        Template = self.env['doc.template']
+        main = res['tree']['main']
+        self.assertEqual(main[:3], Template._address_top_rows())
+        self.assertTrue(Template._starts_with_address_block({'main': main[3:]}))
+
+    def test_no_address_block_no_space(self):
+        """揀貨作業：address 設成 None，沒有外框的地址區塊、官方上方也沒有留白。"""
+        res = self._convert(
+            '<t t-call="web.external_layout"><t t-set="address" t-value="None"/>'
+            '<div class="row"><div class="col-6"><span>A</span></div>'
+            '<div class="col-5 offset-1"><span>B</span></div></div></t>')
+        main = res['tree']['main']
+        self.assertEqual(main[0].get('type'), 'table', '開頭不補留白')
+        self.assertFalse(self.env['doc.template']._starts_with_address_block(res['tree']),
+                         '6/12＋5/12 的格線列不是外框的地址區塊')
+
+    def test_space_rows_add_up(self):
+        """第一個換行只佔本文第一列（PDF 不佔高度），後面合計就是那段留白。"""
+        Template = self.env['doc.template']
+        rows = Template._address_top_rows()
+        height = sum(r['size'] * Template._SPACER_LINE_FACTOR if r.get('size')
+                     else Template._SPACER_ROW_PX for r in rows[1:])
+        self.assertLess(abs(height - Template._ADDRESS_TOP_PX), 1)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAddressTopMigration(TransactionCase):
+    """18.0.15.10.0：舊「Odoo 標準」外框上邊距 212→176，地址開頭的範本補留白。"""
+
+    def _migrate(self):
+        import importlib.util
+        import os
+        path = os.path.join(os.path.dirname(__file__), '..', 'migrations',
+                            '18.0.15.10.0', 'post-migrate.py')
+        spec = importlib.util.spec_from_file_location('doc_editor_mig_15_10', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.env.flush_all()
+        module.migrate(self.env.cr, '18.0.15.9.0')
+        self.env.invalidate_all()
+
+    def setUp(self):
+        super().setUp()
+        Template = self.env['doc.template']
+        self.Template = Template
+        name = '外框：%s' % Template._LAYOUT_VARIANTS['odoo']
+        # 測試資料庫裡可能已經有新版的同名外框：測舊的就自己建一張
+        self.frame = Template.create({'name': name, 'role': 'layout', 'margin_top': 212})
+        self.custom = Template.create({'name': name, 'role': 'layout', 'margin_top': 200})
+
+        def layout_table(widths):
+            return {'type': 'table', 'value': '', 'extension': {'dobtorBlock': 'layout'},
+                    'colgroup': [{'width': w} for w in widths],
+                    'trList': [{'tdList': [{'value': []} for _w in widths]}]}
+
+        def content(frame, widths):
+            return Template.create({
+                'name': '範本', 'role': 'content', 'layout_id': frame.id,
+                'content_json': json.dumps({'main': [layout_table(widths), {'value': '\n'}]}),
+            })
+
+        self.order = content(self.frame, [422, 302])
+        self.picking = content(self.frame, [362, 301])
+        self.custom_order = content(self.custom, [422, 302])
+
+    def test_frame_and_address_templates_are_adjusted(self):
+        self._migrate()
+        self.assertEqual(self.frame.margin_top,
+                         self.Template._LAYOUT_VARIANT_VALS['odoo']['margin_top'])
+        main = json.loads(self.order.content_json)['main']
+        self.assertEqual(main[:3], self.Template._address_top_rows())
+        self.assertEqual(main[3]['type'], 'table')
+
+    def test_picking_moves_up_and_custom_frame_is_left_alone(self):
+        self._migrate()
+        self.assertEqual(json.loads(self.picking.content_json)['main'][0]['type'], 'table',
+                         '沒有地址區塊的不補，跟著外框往上')
+        self.assertEqual(self.custom.margin_top, 200, '使用者改過上邊距的外框不碰')
+        self.assertEqual(json.loads(self.custom_order.content_json)['main'][0]['type'], 'table')
+
+    def test_running_twice_does_not_add_twice(self):
+        self._migrate()
+        self.frame.margin_top = 212  # 模擬再跑一次（外框條件又成立）
+        self._migrate()
+        main = json.loads(self.order.content_json)['main']
+        self.assertEqual(main[3]['type'], 'table', '已補過的不重補')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestColumnWidthsFromSample(TestQwebConverterBase):
+    """明細表欄寬照試算記錄的內容分（#1248，官方是瀏覽器照內容自動排）。"""
+
+    # 數字、日期欄靠右＝窄欄，品名是文字欄：這種表才是轉換器照內容估寬的
+    TABLE = ('<table class="table"><thead><tr><th>Name</th>'
+             '<th class="text-end">Color</th><th t-if="o.ref" class="text-end">Created</th>'
+             '</tr></thead><tbody><tr t-foreach="o.child_ids" t-as="c">'
+             '<td><span t-field="c.name"/></td>'
+             '<td class="text-end"><span t-field="c.color"/></td>'
+             '<td t-if="o.ref" class="text-end"><span t-field="c.create_date"/></td>'
+             '</tr></tbody></table>')
+
+    def _widths(self, child_name, ref=False):
+        parent = self.env['res.partner'].create({'name': '欄寬樣本', 'ref': ref})
+        self.env['res.partner'].create({'name': child_name, 'parent_id': parent.id,
+                                        'phone': '02-1234-5678', 'type': 'other'})
+        res = self._convert(self.TABLE, validate_with=parent)
+        table = next(self._tables(res['tree']['main']))
+        return [c['width'] for c in table['colgroup']], res
+
+    def test_short_names_spread_long_names_take_more(self):
+        """品名短：各欄照內容比例散開；品名長：品名欄分得多。總寬不變。"""
+        short, res = self._widths('甲', ref='R1')
+        long_, _res = self._widths('一個很長很長的品名' * 3, ref='R1')
+        self.assertEqual(sum(short), sum(long_))
+        self.assertLess(short[0], sum(short) / 2, '品名短時不再吃掉大半')
+        self.assertGreater(long_[0], short[0])
+        self.assertTrue(any('試算記錄' in n for n in res['notes']))
+
+    def test_hidden_column_keeps_its_width(self):
+        """試算記錄沒印的欄（這裡是 Ref）維持原寬，印的時候拿掉、寬度補給最寬的欄。"""
+        shown, _res = self._widths('甲', ref='R1')
+        hidden, _res = self._widths('甲')
+        self.assertEqual(sum(shown), sum(hidden))
+        self.assertGreater(hidden[2], 0)
+
+    def test_measuring_follows_the_browser(self):
+        """頭尾空白不算、連續空白併成一個；粗體比較寬；中文一個字寬（再放大 5%）。"""
+        Conv = self.Conv
+        self.assertAlmostEqual(
+            Conv._content_px([{'value': ' '}, {'value': 'Amount'}, {'value': '  '}])[0],
+            Conv._text_px('Amount'))
+        self.assertGreater(Conv._text_px('Taxes', bold=True), Conv._text_px('Taxes'))
+        self.assertAlmostEqual(Conv._text_px('中'), 13 * 1.05)
+        self.assertAlmostEqual(Conv._min_px('Unit Price'), Conv._text_px('Price'))
+
+    def test_cell_alignment_reaches_condition_blocks(self):
+        """出貨單「已送貨」欄的數量包在條件區塊裡：格子置中也要套進去。"""
+        res = self._convert(
+            '<table><tr t-foreach="o.child_ids" t-as="c"><td><span t-field="c.name"/></td>'
+            '<td class="text-center"><t t-if="c.color"><span t-field="c.color"/> '
+            '<span t-field="c.name"/></t></td></tr></table>')
+        table = next(self._tables(res['tree']['main']))
+        cell = table['trList'][0]['tdList'][1]['value']
+        block = next(el for el in cell if el.get('type') == 'table')
+        inner = block['trList'][0]['tdList'][0]['value']
+        self.assertTrue([el for el in inner if el.get('rowFlex') == 'center'], inner)
+
+    def test_totals_block_follows_its_column(self):
+        """採購單的合計區在 div.col-4 裡：只佔右邊 4/12（以前一律右半邊）。"""
+        from lxml import etree
+        node = etree.fromstring(
+            '<div class="row justify-content-end"><div class="col-4">'
+            '<table class="table"/></div></div>')
+        table = node.find('.//table')
+        self.assertEqual(self.Conv._ancestor_col_span(table), 4)
+        state = {'stats': {'pill': 0, 'unbound': 0}, 'notes': []}
+        block = self.Conv._tax_totals_block(state, 'document', span=4)
+        widths = [c['width'] for c in block['colgroup']]
+        inner = self.Conv._inner_width(state)
+        self.assertEqual(sum(widths), inner)
+        self.assertEqual(inner - widths[0], int(inner * 4 / 12) + self.Conv._REPORT_CELL_PAD)

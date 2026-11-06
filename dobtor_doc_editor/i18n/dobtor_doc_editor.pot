@@ -151,3 +151,28 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:dobtor_doc_editor.portal_document_view
 msgid "Loading editor..."
 msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,field_description:dobtor_doc_editor.field_doc_report__lang_source
+msgid "Print Language"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields,help:dobtor_doc_editor.field_doc_report__lang_source
+msgid ""
+"Customer's language: follow the customer on the document (quotations, "
+"invoices, delivery slips).\n"
+"Printing user's language: follow whoever prints it (internal documents such "
+"as picking operations).\n"
+"Converted templates follow the original report."
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields.selection,name:dobtor_doc_editor.selection__doc_report__lang_source__customer
+msgid "Customer's language"
+msgstr ""
+
+#. module: dobtor_doc_editor
+#: model:ir.model.fields.selection,name:dobtor_doc_editor.selection__doc_report__lang_source__user
+msgid "Printing user's language"
+msgstr ""

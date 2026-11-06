@@ -79,7 +79,7 @@ class ConvBlocks:
                      {'zh_TW': '現金捨入', 'en_US': 'Rounding'}),
     }
 
-    def _tax_totals_block(self, state, mode='document'):
+    def _tax_totals_block(self, state, mode='document', span=None):
         def val(part, field, label):
             return self._pill(label, state, source='taxTotals', part=part,
                               field=field, currencyMode=mode)
@@ -113,12 +113,14 @@ class ConvBlocks:
 
         # 官方的合計區在右半邊（div#total ＞ div.col-6.ms-auto），左半邊空著。
         # 編輯器沒有「靠右半版」，用一個空欄撐出左半邊；空欄少算一份格內距，
-        # 說明欄的字才會剛好從頁面中線開始（官方第一欄不留左內距）
+        # 說明欄的字才會剛好從頁面中線開始（官方第一欄不留左內距）。
+        # 外層寫了別的 col-N 時照它（採購單是 col-4，只佔右邊三分之一）
         pad = self._REPORT_CELL_PAD
         inner = self._inner_width(state)
         # 發票的合計區本身就在浮動靠右的那一欄裡（_float_end_table），不必再留空欄
         with_blank = not state.get('in_float_end')
-        half = inner // 2 if with_blank else inner
+        span = span if span and 0 < span < 12 else 6
+        half = int(inner * span / 12) if with_blank else inner
         label_w = int(half * 0.6) + (pad if with_blank else 0)
         blank_w = inner - half - pad if with_blank else 0
         blank = lambda: {'colspan': 1, 'rowspan': 1, 'value': []}
@@ -578,6 +580,13 @@ class ConvBlocks:
         for el in elements:
             if el.get('type') != 'table' and not el.get('rowFlex'):
                 el['rowFlex'] = align
+            elif (el.get('type') == 'table'
+                  and (el.get('extension') or {}).get('dobtorBlock') == 'condition'):
+                # 格子裡的條件區塊（出貨單「已送貨」欄：<t t-if="…quantity">）也照
+                # 格子的對齊；以前只對齊外層，欄寬照內容分開之後數量靠在欄的左邊
+                for row in el.get('trList') or []:
+                    for cell in row.get('tdList') or []:
+                        self._align_cell(cell.get('value') or [], align)
         if elements:
             elements[-1]['rowFlex'] = align
 
@@ -627,8 +636,10 @@ class ConvBlocks:
     # 單位「Units」），不是上限——估多了品名欄就被壓窄。
     _EST_CHAR_PX = 8
     _EST_TYPE_CHARS = {
+        # datetime：語言格式的「11/05/2026 04:15:56」19 個字（少估的話詢價單的
+        # 預計日期擠成兩行）
         'monetary': 11, 'float': 6, 'integer': 4, 'date': 10,
-        'datetime': 16, 'many2one': 5, 'selection': 6, 'many2many': 6,
+        'datetime': 19, 'many2one': 5, 'selection': 6, 'many2many': 6,
         'boolean': 1,
     }
     # 這幾種型別的值會換行、長短不定，所在的欄要留給「吃剩下寬度」的那一邊
@@ -1293,12 +1304,28 @@ class ConvBlocks:
             'extension': {'dobtorBlock': 'condition'},
             'borderType': 'dash',
             'colgroup': [{'width': self._inner_width(state)}],
-            'trList': [{'tdList': [{
-                'colspan': 1, 'rowspan': 1,
-                'value': [self._pill(
-                    '條件', state, source='condition',
-                    expression=self._map_condition(
-                        cond, state, expand=True),
-                )] + list(inner),
-            }]}],
+            'trList': [{'tdList': [self._condition_cell(self._pill(
+                '條件', state, source='condition',
+                expression=self._map_condition(cond, state, expand=True),
+            ), inner)]}],
         }
+
+    def _condition_cell(self, marker, inner):
+        """條件區塊的格子：開頭的空白列改記成格子的上內距。
+
+        格子開頭放不了空白列（canvas-editor 載入格子時一律在最前面補一個
+        預設字級的段落起點，那一列會被吃掉）。出貨單的明細表是 table.mt48、
+        又在若／否則區塊裡，那段上邊距以前整個不見，明細表比官方高 23pt。
+        """
+        lead = 0
+        px = 0.0
+        for el in inner:
+            if not el.get('_spacer'):
+                break
+            px += (el['size'] * self._SPACER_LINE_FACTOR if el.get('size')
+                   else self._SPACING_ROW_PX)
+            lead += 1
+        cell = {'colspan': 1, 'rowspan': 1, 'value': [marker] + list(inner[lead:])}
+        if px:
+            cell['extension'] = {'paddingTop': round(px, 1)}
+        return cell

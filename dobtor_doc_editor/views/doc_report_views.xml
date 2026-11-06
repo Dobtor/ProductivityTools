@@ -76,6 +76,7 @@
                             <field name="active"/>
                         </group>
                         <group string="適用範圍">
+                            <field name="lang_source"/>
                             <field name="lang"
                                    placeholder="留空＝所有語言的後備值"/>
                             <field name="company_id"

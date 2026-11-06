@@ -241,17 +241,62 @@ class DocTemplate(models.Model):
         'odoo': 'Odoo 標準（與官方報表相同）',
     }
     # 「Odoo 標準」外框的紙張設定（px @96dpi）：
-    #   左右 35px＝官方內容離紙邊的距離；上 212px 讓本文（地址）從約 235px 開始；
+    #   左右 35px＝官方內容離紙邊的距離；上 176px＝官方本文（article）開始的位置；
     #   下 130px 讓本文停在頁尾那條線（約 1003px）上面。
     #   頁首頁尾的左右內距留 0：實測頁首頁尾已經跟著左右邊距內縮，再加內距
     #   會比本文多縮一段
+    #   以前上邊距是 212px，把官方地址區塊上方的留白（信封窗格）也算進去了；
+    #   沒有地址區塊的單據（揀貨作業）因此整頁比官方低。現在那段留白由轉換器
+    #   補在地址區塊前面（_ADDRESS_TOP_PX），舊的外框與範本由 18.0.15.10.0 的
+    #   migration 調整
     _LAYOUT_VARIANT_VALS = {
         'odoo': dict({
-            'margin_top': 212, 'margin_bottom': 130,
+            'margin_top': 176, 'margin_bottom': 130,
             'margin_left': 35, 'margin_right': 35,
             'footer_rule': True,
         }, **_OFFICIAL_TEXT_STYLE),
     }
+    # 官方地址區塊上方的留白：article 有 o_snail_mail 時 .address 的
+    # padding-top（web/static/src/webclient/actions/reports/report.scss 寫 42px），
+    # 給信封窗格對位用。只有用外框地址區塊的單據才有。印出來實測約 35px：
+    # 揀貨作業（沒有地址區塊）跟出貨單、採購單的地址位置差 26.9pt；外框上邊距
+    # 少掉的是 36px，這裡補 35（換成空白列是 19.5＋15＝34.5px），實測地址跟
+    # 官方差 0.2pt
+    _ADDRESS_TOP_PX = 35
+    # 空白列一列多高、小字級空白列的行高倍數（同轉換器的 _SPACING_ROW_PX／
+    # _SPACER_LINE_FACTOR）
+    _SPACER_ROW_PX = 19.5
+    _SPACER_LINE_FACTOR = 1.5
+
+    @api.model
+    def _address_top_rows(self):
+        """地址區塊上方那 42px 的空白列（存檔格式：換行在段落開頭）。
+
+        轉換器與 migration 共用，兩邊插進去的才會一模一樣。
+        第一個換行只是佔住本文第一列：編輯器的本文一律從一列段落起點開始，
+        PDF 的本文第一列不佔高度（實測放空白、放零寬字元都一樣），所以從
+        第二列起才算數——一列一般空白列＋一列小字級的補足剩下的高度。
+        """
+        rest = self._ADDRESS_TOP_PX - self._SPACER_ROW_PX
+        return [{'value': '\n'}, {'value': '\n'},
+                {'value': '\n', 'size': int(round(rest / self._SPACER_LINE_FACTOR))}]
+
+    @api.model
+    def _starts_with_address_block(self, tree):
+        """內容一開頭就是轉換器排的地址區塊（左 7/12、右 5/12 的並排區塊）。
+
+        外框的地址區塊是轉換器固定切成 7/12 與 5/12 兩格（見
+        _emit_layout_blocks）；揀貨作業開頭是自己的格線列（6/12＋5/12），
+        不是外框的地址區塊、官方上方也沒有那 42px。
+        """
+        main = (tree or {}).get('main') if isinstance(tree, dict) else None
+        first = main[0] if main else None
+        if not isinstance(first, dict) or first.get('type') != 'table':
+            return False
+        if (first.get('extension') or {}).get('dobtorBlock') != 'layout':
+            return False
+        widths = [int((c or {}).get('width') or 0) for c in first.get('colgroup') or []]
+        return len(widths) == 2 and abs(widths[0] - int(sum(widths) * 7 / 12)) <= 1
 
     @staticmethod
     def _layout_cell(*elements, **kw):
@@ -536,7 +581,11 @@ class DocTemplate(models.Model):
         印給這筆記錄時會長的樣子。tree 會被就地改寫，呼叫端要給一份副本。
         """
         self.ensure_one()
-        lang = self.env['doc.report']._customer_lang(record)
+        Report = self.env['doc.report']
+        # 綁定設成「跟列印的人」（揀貨作業）時，預覽也照操作者的語言
+        binding = Report.sudo().search([('template_id', '=', self.id)], limit=1)
+        lang = (Report._user_lang() if binding.lang_source == 'user'
+                else Report._customer_lang(record))
         # 語言要套在求值環境上，不只記錄——不然日期格式照操作者語言
         in_lang = self.with_context(lang=lang)
         return in_lang._snapshot_content_json(tree, in_lang._record_in_lang(record, lang))
