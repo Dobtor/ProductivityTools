@@ -1590,30 +1590,27 @@ export const DocEditorPills = (Base) => class extends Base {
     updateSelectedPill(patch) {
         const current = this.state.selectedVariable;
         if (!current || !this.editor) return;
-        const merged = { ...current, ...patch };
+        // 設定是從 state 來的（OWL 響應式 Proxy，巢狀的 texts、emptyText 也是）。
+        // canvas-editor 的 setValue／executeUpdateElementById 內部用 structuredClone
+        // 複製，Proxy 會直接丟錯——有巢狀設定的藥丸（轉換出來的多半有）改不動
+        const merged = JSON.parse(JSON.stringify({ ...current, ...patch }));
         delete merged._elementValue;
-        if (patch.labelText !== undefined) {
-            merged.labelText = patch.labelText;
-        }
         const nested = this._nestedPill;
         if (nested && this.editor.command.getElementById({ id: nested.id }).length) {
-            // 設定是從 state 來的（OWL 響應式 Proxy，巢狀的 texts 等也是），
-            // executeUpdateElementById 內部用 structuredClone 複製，Proxy 會直接丟錯
-            const plain = JSON.parse(JSON.stringify(merged));
-            const value = plain.labelText || nested.value;
+            const value = merged.labelText || nested.value;
             // 先更新記下來的設定：改完重排會觸發 rangeStyleChange，
             // 它拿記下來的設定重設右欄，不能是改之前的
-            this._nestedPill = { ...nested, meta: plain, value };
+            this._nestedPill = { ...nested, meta: merged, value };
             try {
                 this.editor.command.executeUpdateElementById({
                     id: nested.id,
                     properties: {
                         value,
-                        extension: { [DOBTOR_FIELD_KEY]: plain },
-                        label: { ...PILL_STYLE, ...(plain.style || {}) },
+                        extension: { [DOBTOR_FIELD_KEY]: merged },
+                        label: { ...PILL_STYLE, ...(merged.style || {}) },
                     },
                 });
-                this.state.selectedVariable = { ...plain };
+                this.state.selectedVariable = { ...merged };
             } catch (e) {
                 // 沒改成：記下來的設定退回原本的，跟文件上的一致
                 this._nestedPill = nested;
@@ -1669,7 +1666,17 @@ export const DocEditorPills = (Base) => class extends Base {
 
     /** inspector 事件：改綁定定義的單一鍵。 */
     onVariablePropertyChange(key, value) {
-        this.updateSelectedPill({ [key]: value });
+        const patch = { [key]: value };
+        const current = this.state.selectedVariable || {};
+        // 改了欄位就清掉表達式：後端取值時表達式優先（_field_meta_expression），
+        // 而轉換出來的藥丸多半兩個都有、表達式寫的是舊欄位
+        // （format_number(line.product_uom_qty, …)）。不清的話印出來還是舊欄位，
+        // 等於白改。清掉後照新欄位的型別自動格式化
+        if (key === "path" && value !== (current.path || "") && current.expression
+                && ["record", "line"].includes(current.source || "record")) {
+            patch.expression = "";
+        }
+        this.updateSelectedPill(patch);
     }
 
     /**
