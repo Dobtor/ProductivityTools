@@ -2957,3 +2957,78 @@ class TestAddressTopMigration(TransactionCase):
         self._migrate()
         main = json.loads(self.order.content_json)['main']
         self.assertEqual(main[3]['type'], 'table', '已補過的不重補')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestColumnWidthsFromSample(TestQwebConverterBase):
+    """明細表欄寬照試算記錄的內容分（#1248，官方是瀏覽器照內容自動排）。"""
+
+    # 數字、日期欄靠右＝窄欄，品名是文字欄：這種表才是轉換器照內容估寬的
+    TABLE = ('<table class="table"><thead><tr><th>Name</th>'
+             '<th class="text-end">Color</th><th t-if="o.ref" class="text-end">Created</th>'
+             '</tr></thead><tbody><tr t-foreach="o.child_ids" t-as="c">'
+             '<td><span t-field="c.name"/></td>'
+             '<td class="text-end"><span t-field="c.color"/></td>'
+             '<td t-if="o.ref" class="text-end"><span t-field="c.create_date"/></td>'
+             '</tr></tbody></table>')
+
+    def _widths(self, child_name, ref=False):
+        parent = self.env['res.partner'].create({'name': '欄寬樣本', 'ref': ref})
+        self.env['res.partner'].create({'name': child_name, 'parent_id': parent.id,
+                                        'phone': '02-1234-5678', 'type': 'other'})
+        res = self._convert(self.TABLE, validate_with=parent)
+        table = next(self._tables(res['tree']['main']))
+        return [c['width'] for c in table['colgroup']], res
+
+    def test_short_names_spread_long_names_take_more(self):
+        """品名短：各欄照內容比例散開；品名長：品名欄分得多。總寬不變。"""
+        short, res = self._widths('甲', ref='R1')
+        long_, _res = self._widths('一個很長很長的品名' * 3, ref='R1')
+        self.assertEqual(sum(short), sum(long_))
+        self.assertLess(short[0], sum(short) / 2, '品名短時不再吃掉大半')
+        self.assertGreater(long_[0], short[0])
+        self.assertTrue(any('試算記錄' in n for n in res['notes']))
+
+    def test_hidden_column_keeps_its_width(self):
+        """試算記錄沒印的欄（這裡是 Ref）維持原寬，印的時候拿掉、寬度補給最寬的欄。"""
+        shown, _res = self._widths('甲', ref='R1')
+        hidden, _res = self._widths('甲')
+        self.assertEqual(sum(shown), sum(hidden))
+        self.assertGreater(hidden[2], 0)
+
+    def test_measuring_follows_the_browser(self):
+        """頭尾空白不算、連續空白併成一個；粗體比較寬；中文一個字寬（再放大 5%）。"""
+        Conv = self.Conv
+        self.assertAlmostEqual(
+            Conv._content_px([{'value': ' '}, {'value': 'Amount'}, {'value': '  '}])[0],
+            Conv._text_px('Amount'))
+        self.assertGreater(Conv._text_px('Taxes', bold=True), Conv._text_px('Taxes'))
+        self.assertAlmostEqual(Conv._text_px('中'), 13 * 1.05)
+        self.assertAlmostEqual(Conv._min_px('Unit Price'), Conv._text_px('Price'))
+
+    def test_cell_alignment_reaches_condition_blocks(self):
+        """出貨單「已送貨」欄的數量包在條件區塊裡：格子置中也要套進去。"""
+        res = self._convert(
+            '<table><tr t-foreach="o.child_ids" t-as="c"><td><span t-field="c.name"/></td>'
+            '<td class="text-center"><t t-if="c.color"><span t-field="c.color"/> '
+            '<span t-field="c.name"/></t></td></tr></table>')
+        table = next(self._tables(res['tree']['main']))
+        cell = table['trList'][0]['tdList'][1]['value']
+        block = next(el for el in cell if el.get('type') == 'table')
+        inner = block['trList'][0]['tdList'][0]['value']
+        self.assertTrue([el for el in inner if el.get('rowFlex') == 'center'], inner)
+
+    def test_totals_block_follows_its_column(self):
+        """採購單的合計區在 div.col-4 裡：只佔右邊 4/12（以前一律右半邊）。"""
+        from lxml import etree
+        node = etree.fromstring(
+            '<div class="row justify-content-end"><div class="col-4">'
+            '<table class="table"/></div></div>')
+        table = node.find('.//table')
+        self.assertEqual(self.Conv._ancestor_col_span(table), 4)
+        state = {'stats': {'pill': 0, 'unbound': 0}, 'notes': []}
+        block = self.Conv._tax_totals_block(state, 'document', span=4)
+        widths = [c['width'] for c in block['colgroup']]
+        inner = self.Conv._inner_width(state)
+        self.assertEqual(sum(widths), inner)
+        self.assertEqual(inner - widths[0], int(inner * 4 / 12) + self.Conv._REPORT_CELL_PAD)

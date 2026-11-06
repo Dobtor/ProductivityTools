@@ -5,10 +5,16 @@ convert_report() 是唯一的對外入口；試算那一段是「轉完立刻拿
 猜錯的在待辦裡會變成 blocker。
 """
 import ast
+import copy
 import json
 import logging
 import re
+import unicodedata
+
+from PIL import ImageFont
+
 from odoo import models
+from odoo.tools.misc import file_path
 from .constants import (
     _logger,
     _ROOT_VARS,
@@ -25,6 +31,9 @@ from .constants import (
     _LINE_TOKEN_RE,
     _GROUP_TOKEN_RE,
 )
+
+# 量欄寬用的字型（粗體與否各一個），載入一次就好
+_AUTO_FONT_CACHE = {}
 
 
 class ConvEntry:
@@ -54,6 +63,9 @@ class ConvEntry:
         # 固定文字照各語言的翻譯轉成多語文字（見 _merge_languages）
         self._merge_languages(tree, view, report, page_format, validate_with, state)
         self._mark_contact_lines(tree)
+        if validate_with:
+            # 明細表的欄寬照試算記錄的實際內容分（官方是瀏覽器照內容自動排）
+            self._fit_columns_to_sample(tree, validate_with[:1], state)
         # 藥丸上的名稱比所在的格子寬時縮短，編輯器裡才不會蓋到隔壁欄
         self.env['doc.render.mixin']._fit_pill_labels(
             tree, self._inner_width(state),
@@ -84,6 +96,241 @@ class ConvEntry:
             # 原生用客戶還是列印的人的語言印（建綁定時照它設）
             'lang_source': self._report_lang_source(report),
         }
+
+    # ─── 明細表欄寬照試算記錄 ───────────────────────────────────────
+    #
+    # 官方明細表沒寫欄寬，是瀏覽器照每張單的實際內容自動分：品名短的出貨單
+    # 各欄平均散開、有長說明的訂單品名欄吃掉大半。範本只能有一組固定欄寬，
+    # 使用者決定以「試算記錄」為準（#1248）：拿它跑一次完整快照、量每一欄的
+    # 實際文字，照瀏覽器的規則分。印那一張時跟官方一樣；其他單據品名長短
+    # 不同時會有差，要換基準就換一張記錄重新轉換，或在編輯器拉欄寬。
+
+    # 量字用官方的字型與字級（Lato 13px，粗體用 Lato Bold）：數字、標點比字母窄，
+    # 用平均字寬估的話金額欄寬了、品名欄窄了（實測差到 12pt）。
+    # 中日韓字 Lato 沒有，照一個字寬；字型載不到時退回平均字寬（官方 PDF 實測 7.15px）
+    _AUTO_FONT_PX = 13
+    _AUTO_FONT_FILES = {
+        False: 'web/static/fonts/lato/Lato-Reg-webfont.ttf',
+        True: 'web/static/fonts/lato/Lato-Bol-webfont.ttf',
+    }
+    _AUTO_LATIN_PX = 7.15
+    _AUTO_WIDE_PX = 13.0
+    # 官方 PDF 上的字一律比 Lato 13px 寬 5%（英數字、中文字都是，實測 28 個字）
+    _AUTO_FONT_SCALE = 1.05
+    # 一格左右內距合計（官方 .table 的格子左右各 6.5px；用官方 PDF 的欄寬反推）
+    _AUTO_CELL_PAD = 13
+
+    def _auto_font(self, bold):
+        key = bool(bold)
+        if key not in _AUTO_FONT_CACHE:
+            try:
+                _AUTO_FONT_CACHE[key] = ImageFont.truetype(
+                    file_path(self._AUTO_FONT_FILES[key]), self._AUTO_FONT_PX)
+            except Exception:
+                _AUTO_FONT_CACHE[key] = None
+        return _AUTO_FONT_CACHE[key]
+
+    def _text_px(self, text, bold=False):
+        """一段字在官方字型、13px 字級下多寬（px）。
+
+        逐字量再加總：Pillow 整段量會套字距微調（「Ta」靠在一起），官方用的
+        wkhtmltopdf 不會，「Taxes」量起來少 10%。
+        """
+        font = self._auto_font(bold)
+        total = 0.0
+        for ch in text or '':
+            if unicodedata.east_asian_width(ch) in ('W', 'F'):
+                total += self._AUTO_WIDE_PX
+            else:
+                total += font.getlength(ch) if font else self._AUTO_LATIN_PX / self._AUTO_FONT_SCALE
+        return total * self._AUTO_FONT_SCALE
+
+    def _fit_columns_to_sample(self, tree, sample, state):
+        """轉換器照內容估寬的明細表（extension.fitCols）→ 改成照試算記錄的內容分。"""
+        Mixin = self.env['doc.render.mixin']
+        tables = [t for t in Mixin._iter_tables(tree)
+                  if (t.get('extension') or {}).get('fitCols')]
+        if not tables or not sample:
+            return
+        # 快照會刪掉條件不成立的欄、展開重複列，做記號才對得回原本的表格與欄
+        for idx, table in enumerate(tables):
+            table['extension']['fitId'] = idx
+            for col, entry in enumerate(table.get('colgroup') or []):
+                entry['_fitCol'] = col
+        probe = copy.deepcopy(tree)
+        for table in tables:
+            table['extension'].pop('fitId', None)
+            for entry in table.get('colgroup') or []:
+                entry.pop('_fitCol', None)
+        lang = self.env['doc.report']._customer_lang(sample)
+        try:
+            in_lang = Mixin.with_context(lang=lang)
+            in_lang._snapshot_content_json(probe, in_lang._record_in_lang(sample, lang))
+        except Exception as e:
+            _logger.info('[qweb-import] 欄寬試算失敗，照內容估的欄寬：%s', e)
+            return
+        snaps = {}
+        for snap in Mixin._iter_tables(probe):
+            fid = (snap.get('extension') or {}).get('fitId')
+            if fid is not None:
+                snaps.setdefault(fid, snap)
+        fitted = 0
+        for idx, table in enumerate(tables):
+            widths = self._sample_column_widths(table, snaps.get(idx))
+            if widths:
+                for entry, width in zip(table['colgroup'], widths):
+                    entry['width'] = width
+                fitted += 1
+        if fitted:
+            self._note(state, '%d 張明細表的欄寬照試算記錄的內容分配（官方是照每張單的'
+                              '內容自動排）；品名長短差很多的單據可在編輯器調整欄寬。'
+                       % fitted, level='info')
+
+    def _sample_column_widths(self, table, snap):
+        """一張表照試算結果的欄寬（跟原本的 colgroup 同欄數、總寬不變）；算不出來回 None。"""
+        colgroup = table.get('colgroup') or []
+        flags = (table.get('extension') or {}).get('fitCols') or []
+        if snap is None or len(flags) != len(colgroup):
+            return None
+        visible = [entry.get('_fitCol') for entry in snap.get('colgroup') or []]
+        if None in visible or len(set(visible)) != len(visible):
+            return None
+        total = sum(int(c.get('width') or 0) for c in colgroup)
+        maxw = {col: 0.0 for col in visible}
+        minw = {col: 0.0 for col in visible}
+        data = False
+        for row in snap.get('trList') or []:
+            pos = 0
+            for cell in row.get('tdList') or []:
+                span = max(1, int(cell.get('colspan') or 1))
+                if span == 1 and pos < len(visible):
+                    most, least = self._content_px(cell.get('value') or [])
+                    col = visible[pos]
+                    maxw[col] = max(maxw[col], most)
+                    minw[col] = max(minw[col], least)
+                    data = data or most > 0
+                pos += span
+        if not data:
+            return None
+        # 表頭每種語言的字都算：英文的「Unit Price」比中文的「單價」寬
+        Mixin = self.env['doc.render.mixin']
+        for row in table.get('trList') or []:
+            pos = 0
+            for cell in row.get('tdList') or []:
+                span = max(1, int(cell.get('colspan') or 1))
+                if span == 1 and pos in maxw:
+                    for el in cell.get('value') or []:
+                        meta = Mixin._element_field_meta(el) or {}
+                        if meta.get('source') == 'i18n':
+                            bold = el.get('bold')
+                            for text in (meta.get('texts') or {}).values():
+                                text = ' '.join((text or '').split())
+                                maxw[pos] = max(maxw[pos], self._text_px(text, bold))
+                                minw[pos] = max(minw[pos], self._min_px(text, bold))
+                pos += span
+        cols = list(maxw)
+        for col in cols:
+            if flags[col]:
+                minw[col] = maxw[col]  # 靠右／置中的數字欄不換行
+            # 官方第一欄不留左內距、最後一欄不留右內距（o_table_standard），
+            # 只算半份；整份算的話最後一欄（金額）分得太多
+            pad = self._AUTO_CELL_PAD / (2 if col in (cols[0], cols[-1]) else 1)
+            maxw[col] += pad
+            minw[col] += pad
+        smax = sum(maxw.values())
+        smin = sum(minw.values())
+        if smax <= total:
+            # 放得下：多出來的寬度照各欄內容長短按比例分（瀏覽器的自動排表格）
+            share = {c: maxw[c] + (total - smax) * maxw[c] / smax for c in cols}
+        elif smin <= total:
+            flex = {c: maxw[c] - minw[c] for c in cols}
+            room = sum(flex.values()) or 1
+            share = {c: minw[c] + (total - smin) * flex[c] / room for c in cols}
+        else:
+            share = {c: minw[c] * total / smin for c in cols}
+        # 這張單沒印的欄（訂單沒有折扣時的折扣欄）維持原本的寬度；印的時候那欄
+        # 拿掉、寬度補給最寬的一欄（_drop_column），所以先從最寬的那欄扣掉
+        hidden = sum(int(colgroup[c].get('width') or 0)
+                     for c in range(len(colgroup)) if c not in share)
+        widest = max(cols, key=lambda c: share[c])
+        share[widest] -= hidden
+        if share[widest] < 20:
+            return None
+        widths = [int(colgroup[c].get('width') or 0) if c not in share
+                  else max(20, int(round(share[c]))) for c in range(len(colgroup))]
+        widths[widest] += total - sum(widths)
+        return widths
+
+    def _content_px(self, elements):
+        """格子內容最寬那一行與最長那個不可斷的字（px）。巢狀的條件區塊也量。"""
+        most = least = 0.0
+        line = []  # 這一行的 (字, 粗體)
+
+        def close(pieces):
+            nonlocal most, least
+            # 照瀏覽器排版：頭尾空白去掉、連續空白併成一個（不斷行空白照算）。
+            # 不去的話藥丸之間的空格也算進去，品名、數量欄被量寬
+            out = []
+            last_space = True
+            for text, bold in pieces:
+                buf = ''
+                for ch in text:
+                    if ch != '\xa0' and ch.isspace():
+                        if not last_space:
+                            buf += ' '
+                        last_space = True
+                    else:
+                        buf += ch
+                        last_space = False
+                if buf:
+                    out.append((buf, bold))
+            if out and out[-1][0].endswith(' '):
+                out[-1] = (out[-1][0][:-1], out[-1][1])
+            most = max(most, sum(self._text_px(t, b) for t, b in out))
+            least = max([least] + [self._min_px(t, b) for t, b in out])
+
+        for el in elements:
+            if not isinstance(el, dict):
+                continue
+            if el.get('type') == 'table':
+                close(line)
+                line = []
+                for row in el.get('trList') or []:
+                    for cell in row.get('tdList') or []:
+                        inner_most, inner_least = self._content_px(cell.get('value') or [])
+                        most = max(most, inner_most)
+                        least = max(least, inner_least)
+                continue
+            if el.get('type') == 'image':
+                close(line)
+                line = []
+                most = max(most, float(el.get('width') or 0))
+                least = max(least, float(el.get('width') or 0))
+                continue
+            value = el.get('value') or ''
+            if not isinstance(value, str) or value.startswith('data:'):
+                continue
+            parts = value.split('\n')
+            line.append((parts[0], el.get('bold')))
+            for part in parts[1:]:
+                close(line)
+                line = [(part, el.get('bold'))]
+        close(line)
+        return most, least
+
+    def _min_px(self, text, bold=False):
+        """最長那個不能斷行的片段多寬（px）：空白可斷，中日韓字每個字都可斷。"""
+        best = 0.0
+        run = ''
+        for ch in (text or '') + ' ':
+            if (ch != '\xa0' and ch.isspace()) or unicodedata.east_asian_width(ch) in ('W', 'F'):
+                best = max(best, self._text_px(run, bold))
+                run = ''
+                if not ch.isspace():
+                    best = max(best, self._AUTO_WIDE_PX)
+            else:
+                run += ch
+        return best
 
     def _mark_contact_lines(self, tree):
         """地址藥丸（contact widget → format_address）記下「從第幾行起行高收緊」。

@@ -79,7 +79,7 @@ class ConvBlocks:
                      {'zh_TW': '現金捨入', 'en_US': 'Rounding'}),
     }
 
-    def _tax_totals_block(self, state, mode='document'):
+    def _tax_totals_block(self, state, mode='document', span=None):
         def val(part, field, label):
             return self._pill(label, state, source='taxTotals', part=part,
                               field=field, currencyMode=mode)
@@ -113,12 +113,14 @@ class ConvBlocks:
 
         # 官方的合計區在右半邊（div#total ＞ div.col-6.ms-auto），左半邊空著。
         # 編輯器沒有「靠右半版」，用一個空欄撐出左半邊；空欄少算一份格內距，
-        # 說明欄的字才會剛好從頁面中線開始（官方第一欄不留左內距）
+        # 說明欄的字才會剛好從頁面中線開始（官方第一欄不留左內距）。
+        # 外層寫了別的 col-N 時照它（採購單是 col-4，只佔右邊三分之一）
         pad = self._REPORT_CELL_PAD
         inner = self._inner_width(state)
         # 發票的合計區本身就在浮動靠右的那一欄裡（_float_end_table），不必再留空欄
         with_blank = not state.get('in_float_end')
-        half = inner // 2 if with_blank else inner
+        span = span if span and 0 < span < 12 else 6
+        half = int(inner * span / 12) if with_blank else inner
         label_w = int(half * 0.6) + (pad if with_blank else 0)
         blank_w = inner - half - pad if with_blank else 0
         blank = lambda: {'colspan': 1, 'rowspan': 1, 'value': []}
@@ -578,6 +580,13 @@ class ConvBlocks:
         for el in elements:
             if el.get('type') != 'table' and not el.get('rowFlex'):
                 el['rowFlex'] = align
+            elif (el.get('type') == 'table'
+                  and (el.get('extension') or {}).get('dobtorBlock') == 'condition'):
+                # 格子裡的條件區塊（出貨單「已送貨」欄：<t t-if="…quantity">）也照
+                # 格子的對齊；以前只對齊外層，欄寬照內容分開之後數量靠在欄的左邊
+                for row in el.get('trList') or []:
+                    for cell in row.get('tdList') or []:
+                        self._align_cell(cell.get('value') or [], align)
         if elements:
             elements[-1]['rowFlex'] = align
 

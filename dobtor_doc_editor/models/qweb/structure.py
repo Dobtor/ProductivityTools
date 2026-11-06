@@ -412,7 +412,8 @@ class ConvStructure:
         if not totals_mode:
             state['stats']['table'] += 1
             return [self._emit_table(node, state)]
-        block = self._tax_totals_block(state, totals_mode)
+        block = self._tax_totals_block(state, totals_mode,
+                                       span=self._ancestor_col_span(node))
         state['stats']['taxTotals'] += 1
         if not rows:
             # 這張表格本身就是稅額彙總表（內容全在子範本裡）
@@ -658,6 +659,24 @@ class ConvStructure:
             columns.append((chain or members[0], spans[0]))
             idx += len(members)
         return columns if len(columns) >= 2 else None
+
+    def _ancestor_col_span(self, node):
+        """表格外層最近一個寫了 col-N 的 div 佔 12 等分的幾份；沒有回 None。
+
+        採購單的合計區寫成 <div class="row justify-content-end"><div class="col-4">
+        <table>…，官方只佔右邊 4/12；以前一律排成右半邊。
+        """
+        parent = node.getparent()
+        while parent is not None:
+            tag = parent.tag.lower() if isinstance(parent.tag, str) else ''
+            if tag in ('table', 'td', 'th'):
+                return None
+            if tag == 'div':
+                span = self._col_span(parent)
+                if span:
+                    return span
+            parent = parent.getparent()
+        return None
 
     def _col_span(self, node):
         """div.col… 佔 12 等分的幾份；col／col-auto 回 None；不是欄回 False。"""
