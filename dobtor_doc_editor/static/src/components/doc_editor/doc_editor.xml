@@ -2442,7 +2442,13 @@
 
                         <div class="doc-inspector-field">
                             <label>值來源</label>
-                            <select t-on-change="(ev) => this.onVariablePropertyChange('source', ev.target.value)">
+                            <!-- 明細藥丸不給切換：換成其他來源就改用整張單據取值，
+                                 每一列都印出同一個值，而且不會有任何提示 -->
+                            <t t-if="state.selectedVariable.source === 'line'">
+                                <input type="text" value="明細（每一列各取一次）" disabled="disabled"/>
+                            </t>
+                            <select t-else=""
+                                    t-on-change="(ev) => this.onVariablePropertyChange('source', ev.target.value)">
                                 <t t-foreach="VALUE_SOURCES" t-as="vs" t-key="vs.key">
                                     <option t-att-value="vs.key"
                                             t-att-selected="(state.selectedVariable.source or 'record') === vs.key ? 'selected' : ''"
@@ -2450,6 +2456,30 @@
                                 </t>
                             </select>
                         </div>
+
+                        <t t-if="state.selectedVariable.source === 'line'">
+                            <div class="doc-inspector-field">
+                                <label>明細欄位</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.path or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('path', ev.target.value)"
+                                       placeholder="如 product_id.name"/>
+                                <p class="doc-inspector-hint">
+                                    每一列各自取這一列的欄位值。從左欄「明細欄位」點選或拖曳可自動填入正確路徑。
+                                </p>
+                            </div>
+                            <div class="doc-inspector-field">
+                                <label>表達式（選填）</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('expression', ev.target.value)"
+                                       placeholder="如 format_number(line.price_unit, ',.2f')"/>
+                                <p class="doc-inspector-hint">
+                                    有填時以表達式為準，<code>line</code> 代表這一列；
+                                    留空就照欄位型別自動格式化。改了明細欄位會清掉這裡。
+                                </p>
+                            </div>
+                        </t>
 
                         <t t-if="(state.selectedVariable.source or 'record') === 'record'">
                             <div class="doc-inspector-field">
@@ -2468,6 +2498,19 @@
                                        t-att-value="state.selectedVariable.format or ''"
                                        t-on-change="(ev) => this.onVariablePropertyChange('format', ev.target.value)"
                                        placeholder="如 %Y年%m月%d日"/>
+                            </div>
+                            <!-- 轉換出來的藥丸多半同時有欄位與表達式（表達式是原報表的
+                                 格式寫法）。以前這裡看不到表達式，改了欄位卻印不出來 -->
+                            <div class="doc-inspector-field">
+                                <label>表達式（選填）</label>
+                                <input type="text"
+                                       t-att-value="state.selectedVariable.expression or ''"
+                                       t-on-change="(ev) => this.onVariablePropertyChange('expression', ev.target.value)"
+                                       placeholder="如 format_date(object.date_order, 'lang')"/>
+                                <p class="doc-inspector-hint">
+                                    有填時以表達式為準（欄位與日期格式都不看）；
+                                    留空就照欄位型別自動格式化。改了 Odoo 欄位會清掉這裡。
+                                </p>
                             </div>
                         </t>
 

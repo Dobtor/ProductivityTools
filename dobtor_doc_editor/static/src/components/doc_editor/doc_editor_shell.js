@@ -269,6 +269,8 @@ export const DocEditorShell = (Base) => class extends Base {
         this.editor.listener.contentChange = () => {
             // 頁首頁尾內容變了，分隔線跟著移（預覽模式灌值也要，所以排在最前面）
             this._scheduleFrameRules();
+            // 選到的內層藥丸：選取框跟著重新排版後的位置走
+            this._refreshNestedMarks();
             // L2-v2：「自動進預覽模式」會 executeSetValue 灌入渲染後 content，
             // 這會觸發 contentChange 但屬於程式注入、不是 user 編輯，不該寫回 DB。
             if (this._suppressAutoSave) {
@@ -330,9 +332,14 @@ export const DocEditorShell = (Base) => class extends Base {
 
                 // Phase 4：模型變數藥丸 → selectedVariable。
                 // 定義直接從元素身上讀（自描述），不需要任何 RPC。
-                const meta = this._elementFieldMeta(el);
+                // 點到內層表格裡的藥丸時，canvas-editor 回報的是整張內層表格；
+                // 改用滑鼠按下時自己找到的那顆（見 DocEditorPills._onEditorMouseDown）
+                const nested = el?.type === "table" ? this._nestedPill : null;
+                const meta = nested ? nested.meta : this._elementFieldMeta(el);
                 if (meta) {
-                    this.state.selectedVariable = { ...meta, _elementValue: el.value || "" };
+                    this.state.selectedVariable = {
+                        ...meta, _elementValue: (nested ? nested.value : el.value) || "",
+                    };
                     this.state.selectedFieldId = null;
                 } else if (this.state.selectedVariable) {
                     // 游標離開藥丸就收起面板——與 control 不同，這裡沒有
@@ -400,6 +407,7 @@ export const DocEditorShell = (Base) => class extends Base {
             }
             // 縮放後頁面大小變了，分隔線重新定位
             this._scheduleFrameRules(0);
+            this._refreshNestedMarks();
         };
         // 初始化時讀一次總頁數（建構時第一次排版已建好每頁的 canvas，listener 掛上前就排完了）
         this.state.totalPages = this._getPageCanvases().length || 1;
@@ -418,6 +426,15 @@ export const DocEditorShell = (Base) => class extends Base {
             });
         };
         this._workspaceEl?.addEventListener("scroll", this._onWorkspaceScroll, { passive: true });
+
+        // 內層表格裡的藥丸 canvas-editor 點不到，自己處理（見 DocEditorPills）。
+        // capture：要比 canvas-editor 自己的 mousedown／keydown 先跑——
+        // 它接著觸發的 rangeStyleChange 才拿得到結果、Backspace 才攔得下來
+        this._editorContainerEl = this.canvasContainer.el;
+        this._onEditorMouseDownCapture = (ev) => this._onEditorMouseDown(ev);
+        this._onEditorKeyDownCapture = (ev) => this._onEditorKeyDown(ev);
+        this._editorContainerEl.addEventListener("mousedown", this._onEditorMouseDownCapture, true);
+        this._editorContainerEl.addEventListener("keydown", this._onEditorKeyDownCapture, true);
 
         // Sprint C：縮圖 panel 初始化 + 後續變更時 debounce 重生
         this._scheduleRebuildThumbnails(50);  // 初次延遲 50ms 等 canvas 真渲染
