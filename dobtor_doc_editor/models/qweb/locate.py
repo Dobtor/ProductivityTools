@@ -478,6 +478,14 @@ class ConvLocate:
                 duplicates.append(node)
                 continue
             blocks[name] = node
+            if name == 'layout_document_title':
+                # 採購單把標題包在 <div class="mt-4"> 裡：標題搬走後那個 div 是空的，
+                # 但官方照樣佔 1.5rem 的上邊距（跟標題的下邊距併成一段），
+                # 標題到資訊欄比只有標題時遠。拆空殼前先記下來
+                holder = node.getparent()
+                if (holder is not None and holder is not call
+                        and [c for c in holder if isinstance(c.tag, str)] == [node]):
+                    state['title_gap_px'] = self._spacing_px(holder, 'top')
             if name in variants:
                 continue
             # 包在條件裡的區塊＝「條件成立才有這一塊」（銷售訂單的發票／送貨
@@ -665,7 +673,11 @@ class ConvLocate:
                 out.append(self._newline())
             # 原生是 <h2>：行高與下方留白照 Bootstrap 的標題（見 _heading_paragraph）
             self._heading_paragraph(piece + [out[-1]])
-            out.extend(self._spacer_rows_px(self._HEADING_GAP_PX))
+            # 標題外面的空 div 有上邊距（mt-4）時，跟標題的下邊距（.5rem）併成
+            # 較大的那一個
+            extra = max(0.0, (state.get('title_gap_px') or 0)
+                        - self._HEADING_MARGIN_PX)
+            out.extend(self._spacer_rows_px(self._HEADING_GAP_PX + extra))
 
     def _block_variant_elements(self, branch, cell_w, state):
         """同名區塊的每一份各包一個條件區塊（條件互斥，印出來只有一份）。"""

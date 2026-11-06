@@ -757,6 +757,12 @@ class ConvExpr:
             # 不帶的話單據上少一行電話
             if 'phone' in opt or 'mobile' in opt:
                 args.append('with_phone=True')
+                # 官方的電話圖示：沒寫 no_marker（預設有圖示）或明寫 phone_icons
+                raw = node.get('t-options') or ''
+                flag = r'["\']%s["\']\s*:\s*(?:True|true|1)\b'
+                if (re.search(flag % 'phone_icons', raw)
+                        or not re.search(flag % 'no_marker', raw)):
+                    args.append('phone_icon=True')
             # 採購單的供應商地址含統編（fields 有 vat）
             if 'vat' in opt:
                 args.append('with_vat=True')
@@ -855,10 +861,30 @@ class ConvExpr:
             )
             kind = 'Code128'
         meta = {'source': 'image', 'barcodeType': kind}
+        # options 的 width／height 是產生條碼圖的像素；印出來多大看 img_style。
+        # 以前把產生的大小當成印的大小：揀貨作業的單號條碼官方印 300×50，
+        # 我們印成 600×100、整條擠到標題下面
+        size = {}
         for key in ('width', 'height'):
             num = re.search(r'["\']%s["\']\s*:\s*(\d+)' % key, opts)
             if num:
-                meta[key] = int(num.group(1))
+                size[key] = int(num.group(1))
+                meta['barcode' + key.capitalize()] = size[key]
+        shown = {}
+        img_style = re.search(r'["\']img_style["\']\s*:\s*["\']([^"\']*)["\']', opts)
+        for key in ('width', 'height'):
+            px = re.search(r'(?<![\w-])%s\s*:\s*(\d+)px' % key,
+                           img_style.group(1) if img_style else '')
+            if px:
+                shown[key] = int(px.group(1))
+        if size.get('width') and size.get('height'):
+            ratio = size['width'] / size['height']
+            # 只寫了一邊（批號條碼是 width:100%;height:35px）→ 照產生的比例算另一邊
+            if shown.get('height') and not shown.get('width'):
+                shown['width'] = int(round(shown['height'] * ratio))
+            elif shown.get('width') and not shown.get('height'):
+                shown['height'] = int(round(shown['width'] / ratio))
+        meta.update(shown or size)
         if re.search(r'["\']humanreadable["\']\s*:\s*(1|[\'"]?[Tt]rue)', opts):
             meta['barcodeText'] = True
         path, kind_of = self._strip_root(expr, state)

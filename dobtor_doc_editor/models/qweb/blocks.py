@@ -627,8 +627,10 @@ class ConvBlocks:
     # 單位「Units」），不是上限——估多了品名欄就被壓窄。
     _EST_CHAR_PX = 8
     _EST_TYPE_CHARS = {
+        # datetime：語言格式的「11/05/2026 04:15:56」19 個字（少估的話詢價單的
+        # 預計日期擠成兩行）
         'monetary': 11, 'float': 6, 'integer': 4, 'date': 10,
-        'datetime': 16, 'many2one': 5, 'selection': 6, 'many2many': 6,
+        'datetime': 19, 'many2one': 5, 'selection': 6, 'many2many': 6,
         'boolean': 1,
     }
     # 這幾種型別的值會換行、長短不定，所在的欄要留給「吃剩下寬度」的那一邊
@@ -1293,12 +1295,28 @@ class ConvBlocks:
             'extension': {'dobtorBlock': 'condition'},
             'borderType': 'dash',
             'colgroup': [{'width': self._inner_width(state)}],
-            'trList': [{'tdList': [{
-                'colspan': 1, 'rowspan': 1,
-                'value': [self._pill(
-                    '條件', state, source='condition',
-                    expression=self._map_condition(
-                        cond, state, expand=True),
-                )] + list(inner),
-            }]}],
+            'trList': [{'tdList': [self._condition_cell(self._pill(
+                '條件', state, source='condition',
+                expression=self._map_condition(cond, state, expand=True),
+            ), inner)]}],
         }
+
+    def _condition_cell(self, marker, inner):
+        """條件區塊的格子：開頭的空白列改記成格子的上內距。
+
+        格子開頭放不了空白列（canvas-editor 載入格子時一律在最前面補一個
+        預設字級的段落起點，那一列會被吃掉）。出貨單的明細表是 table.mt48、
+        又在若／否則區塊裡，那段上邊距以前整個不見，明細表比官方高 23pt。
+        """
+        lead = 0
+        px = 0.0
+        for el in inner:
+            if not el.get('_spacer'):
+                break
+            px += (el['size'] * self._SPACER_LINE_FACTOR if el.get('size')
+                   else self._SPACING_ROW_PX)
+            lead += 1
+        cell = {'colspan': 1, 'rowspan': 1, 'value': [marker] + list(inner[lead:])}
+        if px:
+            cell['extension'] = {'paddingTop': round(px, 1)}
+        return cell

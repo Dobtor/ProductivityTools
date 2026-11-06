@@ -2664,3 +2664,152 @@ class TestTranslationMovesMarkup(TestQwebConverterBase):
         self.assertTrue(colon.get('allowEmpty'))
         self.assertEqual(self.env['doc.render.mixin'].with_context(
             lang='fr_FR')._i18n_text(None, colon), '')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestPurchaseStockLayout(TestQwebConverterBase):
+    """採購、庫存報表的版面：標題、二選一的欄、並排的浮動區塊、條碼大小、留白。"""
+
+    _BARCODE = ('<div t-field="o.barcode" t-options="{\'widget\': \'barcode\', '
+                '\'width\': %d, \'height\': 100, \'img_style\': \'%s\'}"/>')
+
+    def _main(self, res):
+        return res['tree']['main']
+
+    def test_text_and_one_value_branch_is_one_pill(self):
+        """採購單的標題：<t t-if>Purchase Order #<span t-field="o.name"/></t>。
+
+        以前包成條件區塊，標題字級只套在最外層，標題印成內文大小。
+        """
+        res = self._convert(
+            '<div><t t-if="o.is_company">Company #<span t-field="o.name"/></t></div>')
+        self.assertFalse(list(self._tables(self._main(res))), '不該包條件區塊')
+        expr = next(m['expression'] for m in self._metas(self._main(res))
+                    if m.get('expression'))
+        self.assertIn('"Company #" ~ ((object.name) or "")', expr)
+        self.assertIn('if (object.is_company)', expr)
+
+    def test_label_and_block_value_is_not_concatenated(self):
+        res = self._convert(
+            '<div t-if="o.ref"><strong>Ref</strong><div t-field="o.ref"/></div>')
+        self.assertTrue(list(self._tables(self._main(res))), '標籤＋區塊值照舊包區塊')
+
+    def test_grid_keeps_either_or_column(self):
+        """採購單資訊欄的 Order Date／Order Deadline 是同一欄二選一。
+
+        以前遇到 t-elif 整列放棄，資訊欄一欄一欄往下排。
+        """
+        res = self._convert(
+            '<div class="row">'
+            '<div class="col"><strong>A</strong><div t-field="o.name"/></div>'
+            '<div t-if="o.ref" class="col-3"><strong>R</strong><div t-field="o.ref"/></div>'
+            '<div t-elif="o.phone" class="col-2"><strong>P</strong>'
+            '<div t-field="o.phone"/></div></div>')
+        grid = next(self._tables(self._main(res)))
+        self.assertEqual(len(grid['colgroup']), 2)
+        branch = [el for el in grid['trList'][0]['tdList'][1]['value']
+                  if el.get('type') == 'table']
+        roles = [m.get('role') for m in self._metas(branch) if m.get('role')]
+        self.assertEqual(roles[:2], ['if', 'else'], 'if／elif 是巢狀的若／否則')
+        texts = self._texts(branch)
+        self.assertIn('R', texts)
+        self.assertIn('P', texts)
+
+    def test_block_branch_value_gets_its_own_line(self):
+        """出貨單的 Shipping Date：<div t-if t-field> / <div t-else t-field>。"""
+        res = self._convert(
+            '<div><strong>Date</strong>'
+            '<div t-if="o.active" t-field="o.name"/><div t-else="" t-field="o.ref"/></div>')
+        main = self._main(res)
+        label = next(i for i, el in enumerate(main) if el.get('value') == 'Date')
+        pill = next(i for i, el in enumerate(main)
+                    if (el.get('extension') or {}).get('dobtorField'))
+        self.assertIn('\n', [el.get('value') for el in main[label:pill]],
+                      '值要另起一行')
+
+    def test_float_start_blocks_sit_side_by_side(self):
+        """揀貨作業：單號標題與條碼各是一個 float-start，官方並排。"""
+        res = self._convert(
+            '<div><div class="float-start"><h1 t-field="o.name">WH/OUT/00001</h1></div>'
+            '<div class="float-start">%s</div></div>'
+            % (self._BARCODE % (600, 'width:300px;height:50px;')))
+        table = next(self._tables(self._main(res)))
+        self.assertEqual(len(table['colgroup']), 2)
+        bar = next(m for m in self._metas(table['trList'][0]['tdList'][1]['value'])
+                   if m.get('barcodeType'))
+        self.assertEqual((bar['width'], bar['height']), (300, 50), '印出來的大小照 img_style')
+        self.assertEqual((bar['barcodeWidth'], bar['barcodeHeight']), (600, 100),
+                         '產生條碼圖用 options 的大小')
+
+    def test_barcode_height_only_keeps_ratio(self):
+        """批號條碼 img_style 是 width:100%;height:35px：寬照產生的比例算。"""
+        res = self._convert(self._BARCODE % (400, 'width:100%;height:35px;'))
+        bar = next(m for m in self._metas(self._main(res)) if m.get('barcodeType'))
+        self.assertEqual((bar['width'], bar['height']), (140, 35))
+
+    def test_value_node_sample_alignment_is_ignored(self):
+        """揀貨作業的收件地址裡有一塊 text-center 的示範框，地址不可以因此置中。"""
+        res = self._convert(
+            '<div t-field="o.parent_id" t-options=\'{"widget": "contact"}\'>'
+            '<div class="text-center">sample</div></div>')
+        self.assertFalse([el for el in self._main(res) if el.get('rowFlex') == 'center'])
+
+    def test_phone_icon_follows_the_options(self):
+        def expr(options):
+            res = self._convert(
+                '<div t-field="o.parent_id" t-options=\'{"widget": "contact", '
+                '"fields": ["address", "phone"]%s}\'/>' % options)
+            return next(m['expression'] for m in self._metas(self._main(res))
+                        if m.get('expression'))
+        self.assertIn('phone_icon=True', expr(', "no_marker": True, "phone_icons": True'))
+        self.assertIn('phone_icon=True', expr(''), '沒寫 no_marker＝預設有圖示')
+        self.assertNotIn('phone_icon', expr(', "no_marker": True'))
+
+    def test_legacy_spacing_and_collapse(self):
+        """Odoo 舊式留白（mt48）認得；上邊距跟前面的下邊距合併取大的。"""
+        from lxml import etree
+        table = etree.fromstring('<table class="table mt48"/>')
+        self.assertAlmostEqual(self.Conv._spacing_px(table, 'top'), 38.4)
+        state = {}
+        after_mb4 = self.Conv._spacer_rows_px(19.2)
+        rows = self.Conv._top_spacer_rows(table, after_mb4, state)
+        px = self.Conv._trailing_spacer_px(after_mb4 + rows)
+        self.assertLess(abs(px - 38.4), 2, '合併後是 48px（印出來 38.4），不是相加')
+
+    def test_spacer_at_the_start_of_a_branch_becomes_cell_padding(self):
+        """出貨單的明細表（table.mt48）在若／否則區塊裡：格子開頭放不了空白列。"""
+        res = self._convert(
+            '<div class="mb-4"><p>A</p></div>'
+            '<table t-if="o.ref" class="table"><tr><td>a</td></tr></table>'
+            '<table t-elif="o.phone" class="table mt48"><tr><td>b</td></tr></table>')
+        pads = [cell.get('extension', {}).get('paddingTop')
+                for t in self._tables(self._main(res))
+                for row in t.get('trList') or [] for cell in row.get('tdList') or []
+                if cell.get('extension', {}).get('paddingTop')]
+        self.assertTrue(pads, '上邊距要記成格子的上內距')
+        self.assertLess(abs(pads[0] - 19.5), 2)
+
+    def test_grid_column_margin_becomes_cell_padding(self):
+        """出貨單資訊欄的 col mb-2：欄自己的下邊距算在這一列的高度裡。"""
+        res = self._convert(
+            '<div class="row"><div class="col mb-2"><span>A</span></div>'
+            '<div class="col mb-2"><span>B</span></div></div>')
+        grid = next(self._tables(self._main(res)))
+        self.assertEqual([c.get('extension', {}).get('paddingBottom')
+                          for c in grid['trList'][0]['tdList']], [6.4, 6.4])
+
+    def test_title_holder_margin_widens_the_gap(self):
+        """採購單的標題包在 div.mt-4 裡：官方標題到資訊欄比只有標題時遠。"""
+        def gap(body):
+            res = self._convert(
+                '<t t-call="web.external_layout"><t t-set="address"><span>X</span></t>'
+                '%s<p>NEXT</p></t>' % body)
+            main = self._main(res)
+            title = next(i for i, el in enumerate(main) if el.get('value') == 'TITLE')
+            nxt = next(i for i, el in enumerate(main) if el.get('value') == 'NEXT')
+            # 空白列有整列的也有小字級的：比高度，不比列數
+            return sum(el['size'] * 1.5 if el.get('size') else 19.5
+                       for el in main[title:nxt] if el.get('value') == '\n')
+        plain = gap('<t t-set="layout_document_title">TITLE</t>')
+        held = gap('<div class="mt-4"><t t-set="layout_document_title">TITLE</t></div>')
+        self.assertGreater(held, plain)

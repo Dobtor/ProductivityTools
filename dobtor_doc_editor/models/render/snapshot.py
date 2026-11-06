@@ -164,11 +164,19 @@ class RenderSnapshot:
                 freed = sum(int(colgroup[i].get('width') or 0)
                             for i, b in enumerate(blank) if b)
                 flex = [i for i in keep if flags[i]]
-                if flex:
-                    share = freed // len(flex)
-                    for i in flex:
-                        widths[i] += share
-                    widths[flex[-1]] += freed - share * len(flex)
+                if not flex:
+                    # 沒有彈性欄（出貨單的資訊欄都是 col-3）：原生是其他欄往左靠、
+                    # 右邊留白，欄不放大。空欄搬到最後、不拿掉——PDF 的欄寬是照
+                    # 總寬的比例印的，拿掉的話剩下的欄會被等比放大
+                    order = keep + [i for i, b in enumerate(blank) if b]
+                    rows[0]['tdList'] = [cells[i] for i in order]
+                    el['colgroup'] = [colgroup[i] for i in order]
+                    el['extension'] = dict(ext, reflowCols=[flags[i] for i in order])
+                    continue
+                share = freed // len(flex)
+                for i in flex:
+                    widths[i] += share
+                widths[flex[-1]] += freed - share * len(flex)
                 rows[0]['tdList'] = [cells[i] for i in keep]
                 el['colgroup'] = [dict(colgroup[i], width=widths[i])
                                   for i in keep]

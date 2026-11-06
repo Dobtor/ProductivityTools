@@ -173,7 +173,7 @@ class RenderSandbox:
             return str(value)
 
         def format_address(partner, without_company=False, with_name=False,
-                           with_phone=False, with_vat=False):
+                           with_phone=False, with_vat=False, phone_icon=False):
             """依國別格式排版的地址（對應原生的 t-options widget="contact"）。
 
             委派給 res.partner._display_address()——那支就是 Odoo 自己用的，
@@ -207,7 +207,11 @@ class RenderSandbox:
                     # 都有）。不帶的話單據上少一行電話。
                     phone = str(target.phone or target.mobile or '').strip()
                     if phone:
-                        body = '%s\n%s' % (body, phone)
+                        # 官方 phone_icons 會在電話前畫電話圖示；這裡放 ☎ 當記號，
+                        # PDF 換成同一個圖示（見 _inline_element_html），編輯器就顯示 ☎
+                        body = '%s\n%s%s%s' % (
+                            body, self._LOOSE_LINE_MARK,
+                            self._PHONE_MARK if phone_icon else '', phone)
                 if with_vat and target.vat:
                     # 原生 contact widget 的 fields 含 vat 時（採購單的供應商）
                     # 最後一行印「統編名稱: 號碼」，名稱取國家設定的，沒設定時
@@ -217,7 +221,8 @@ class RenderSandbox:
                     label = (target.country_id.vat_label
                              or code_translations.get_python_translations(
                                  'base', lang).get('VAT') or 'VAT')
-                    body = '%s\n%s: %s' % (body, label, target.vat)
+                    body = '%s\n%s%s: %s' % (
+                        body, self._LOOSE_LINE_MARK, label, target.vat)
                 # 空欄位（沒填地址第二行之類）會留下空行與行尾空白，原生的
                 # display_name 用同一條規則收掉；不收的話單據上地址中間空一行
                 return re.sub(r'\s+\n', '\n', body).strip()
@@ -402,6 +407,12 @@ class RenderSandbox:
     _SAFE_REPORT_BATCH_METHODS = frozenset({
         ('stock.move.line', '_get_aggregated_product_quantities'),
     })
+
+    # format_address(phone_icon=True) 放在電話前面的記號
+    _PHONE_MARK = '☎ '
+    # format_address 的電話、統編行前面的隱形記號：官方這兩行各自一個 div、
+    # 一般行高，不在地址的緊行高（lh-sm）裡（PDF 照它分開，見 _inline_element_html）
+    _LOOSE_LINE_MARK = '⁣'
 
     _CURRENCY_PATHS = ('currency_id', 'company_currency_id')
 

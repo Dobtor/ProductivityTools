@@ -201,14 +201,36 @@ class TestFormatAddress(TransactionCase):
         self.assertNotIn('VAT', self._render('format_address(object, with_vat=True)'),
                          '沒有統編就不印那一行')
         self.partner.vat = '87654321'
+        # 統編行前面有隱形記號：官方那一行不在地址的緊行高裡（PDF 照它分開）
+        mark = self.Mixin._LOOSE_LINE_MARK
         out = self._render('format_address(object, with_vat=True)')
-        self.assertTrue(out.endswith('\nVAT: 87654321'), out)
+        self.assertTrue(out.endswith('\n%sVAT: 87654321' % mark), out)
         self.assertNotIn('87654321', self._render('format_address(object)'))
         country = self.env['res.country'].create({
             'name': '統編國', 'code': 'QV', 'vat_label': 'GST'})
         self.partner.country_id = country
         self.assertTrue(self._render('format_address(object, with_vat=True)')
-                        .endswith('\nGST: 87654321'))
+                        .endswith('\n%sGST: 87654321' % mark))
+
+    def test_phone_icon_mark(self):
+        """phone_icon=True：電話前面放 ☎ 記號，PDF 換成官方的電話圖示。"""
+        self.partner.phone = '02-1234'
+        plain = self._render('format_address(object, with_phone=True)')
+        icon = self._render('format_address(object, with_phone=True, phone_icon=True)')
+        mark = self.Mixin._LOOSE_LINE_MARK
+        self.assertTrue(plain.endswith('\n%s02-1234' % mark), plain)
+        self.assertTrue(icon.endswith('\n%s☎ 02-1234' % mark), icon)
+
+    def test_loose_lines_stay_out_of_the_tight_block(self):
+        """官方地址名稱以下是緊行高（lh-sm），電話與統編各自一個 div、一般行高。"""
+        mark = self.Mixin._LOOSE_LINE_MARK
+        el = {'value': '公司\n路\n城\n%s☎ 02\n%sVAT: 1' % (mark, mark),
+              '_tightFrom': 1}
+        html = self.Mixin._inline_element_html(el)
+        self.assertEqual(
+            html, '公司<span style="display:block;line-height:1.25">路<br/>城</span>'
+            '<i class="fa fa-phone fa-fw"></i> 02<br/>VAT: 1')
+        self.assertNotIn(mark, html)
 
     def test_multiline_address_becomes_br_in_html(self):
         """多行地址不可塌成一行——在 HTML 裡只是少了換行，很難看出來。"""

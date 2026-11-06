@@ -152,8 +152,10 @@ class TestNestedBlockWidth(TestConverterLayoutBase):
     def test_condition_inside_cell_fits_the_cell(self):
         res = self._convert(
             '<table><tr>'
+            # 兩個取值才收不成一句（一個取值的會串成三元式藥丸，不包區塊）
             '<td style="width: 20%"><span t-field="o.name"/>'
-            '<span t-if="o.ref">(<span t-field="o.ref"/>)</span></td>'
+            '<span t-if="o.ref">(<span t-field="o.ref"/> <span t-field="o.phone"/>)'
+            '</span></td>'
             '<td>乙</td></tr></table>')
         table = next(self._tables(res['tree']['main']))
         nested = [el for el in table['trList'][0]['tdList'][0]['value']
@@ -331,11 +333,19 @@ class TestReflowLayoutColumns(TransactionCase):
         self.assertEqual(table['extension']['reflowCols'], [True, False])
 
     def test_fixed_columns_do_not_grow(self):
+        """全是固定寬度欄（出貨單的 col-3）：其他欄往左靠、空欄搬到最後。
+
+        不能直接拿掉：PDF 的欄寬是照總寬的比例印的，拿掉一欄剩下的會被
+        等比放大（三欄變三等分，「Customer Reference」跑到右邊）。
+        """
         table = _layout([_cell(_text('甲')), _cell(_text('')), _cell(_text('丙'))],
                         [150, 150, 150], [False, False, False])
         tree = {'main': [table, _text('\n')]}
         self.Mixin._reflow_layout_columns(tree)
-        self.assertEqual(self._widths(table), [150, 150])
+        self.assertEqual(self._widths(table), [150, 150, 150])
+        values = [[e.get('value') for e in c['value']]
+                  for c in table['trList'][0]['tdList']]
+        self.assertEqual([v[0] for v in values], ['甲', '丙', ''])
 
     def test_all_blank_drops_the_table(self):
         table = _layout([_cell(_text('')), _cell(_text(' '))],

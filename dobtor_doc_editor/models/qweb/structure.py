@@ -64,6 +64,14 @@ class ConvStructure:
                 out.append(self._float_end_table(child, children[idx + 1:], state))
                 out.append(self._newline())
                 return
+            run = self._float_start_run(children, idx)
+            if run:
+                # 連續幾個靠左浮動的區塊並排（揀貨作業的單號標題＋條碼）
+                out.append(self._float_start_table(run, state))
+                out.append(self._newline())
+                self._append_text(out, run[-1].tail)
+                idx += len(run)
+                continue
             chain = self._collect_chain(children, idx)
             if chain:
                 self._emit_chain(chain, out, state)
@@ -151,12 +159,58 @@ class ConvStructure:
             for attr in ('t-field', 't-out', 't-esc'):
                 if v.get(attr):
                     return self._branch_value(v, v.get(attr), state)
+        concat = self._branch_concat(node, values, state)
+        if concat is not None:
+            return concat
         if self._branch_is_text_only(node):
             return json.dumps(
                 ' '.join((''.join(node.itertext()) or '').split()),
                 ensure_ascii=False,
             )
         return None
+
+    # 可以跟前後文字串成一句的取值節點（行內、沒有自己的樣式）
+    _CONCAT_VALUE_TAGS = frozenset({'span', 't'})
+
+    def _branch_concat(self, node, values, state):
+        """「文字＋一個行內取值＋文字」的分支 → 串起來的表達式；不是這個形狀回 None。
+
+        採購單的標題寫成三個獨立的 t-if：
+            <t t-if="o.state in ['purchase', 'done']">Purchase Order #<span t-field="o.name"/></t>
+        以前收不成一句，包成條件區塊；標題的字級只套在最外層，條件區塊裡的字
+        印成內文大小。串成 "Purchase Order #" ~ 值 之後就是一顆藥丸，字級、
+        顏色照標題套；字串照各語言翻譯（_translate_literals）。
+        取值節點有自己的樣式（粗體、class）或是區塊元素時不串：那是「標籤＋值」
+        各自一段，串起來會把換行與粗體弄丟。
+        """
+        if len(values) != 1 or self._is_content_tag(node):
+            return None
+        tag = (node.tag if isinstance(node.tag, str) else '').lower()
+        if tag in _BLOCK_TAGS:
+            return None
+        value = values[0]
+        children = [c for c in node if isinstance(c.tag, str)]
+        v_tag = (value.tag if isinstance(value.tag, str) else '').lower()
+        if children != [value] or v_tag not in self._CONCAT_VALUE_TAGS:
+            return None
+        if (len(value) or value.get('class') or value.get('style')
+                or any(value.get(a) is not None
+                       for a in ('t-if', 't-elif', 't-else', 't-foreach'))
+                or self._parse_options(value) == 'barcode'):
+            return None
+        lead = re.sub(r'\s+', ' ', node.text or '').lstrip()
+        trail = re.sub(r'\s+', ' ', value.tail or '').rstrip()
+        if not lead.strip() and not trail.strip():
+            return None
+        attr = next(a for a in ('t-field', 't-out', 't-esc') if value.get(a))
+        piece = self._branch_value(value, value.get(attr), state)
+        parts = []
+        if lead:
+            parts.append(json.dumps(lead, ensure_ascii=False))
+        parts.append('((%s) or "")' % piece)
+        if trail:
+            parts.append(json.dumps(trail, ensure_ascii=False))
+        return '(%s)' % ' ~ '.join(parts)
 
     def _set_empty_text(self, node, pill):
         """t-field 節點裡的字 → 藥丸的「空值時印的字」（emptyText）。
@@ -217,13 +271,29 @@ class ConvStructure:
         exprs = [(cond, self._branch_expr(node, state))
                  for cond, node in chain]
         if all(e is not None for _c, e in exprs):
-            out.append(self._chain_value_pill(chain, exprs, state))
+            pill = self._chain_value_pill(chain, exprs, state)
+            tags = {node.tag.lower() for _c, node in chain
+                    if isinstance(node.tag, str)}
+            if len(tags) == 1 and tags <= _BLOCK_TAGS:
+                # 分支本身是區塊（出貨單的 <div t-if t-field> / <div t-else
+                # t-field>）：收成藥丸後也要自成一段，不然值擠到標籤同一行
+                self._append_value(chain[0][1], tags.pop(), pill, out)
+            else:
+                out.append(pill)
             return
         state['notes'].append(
             '多重分支已轉成巢狀「若／否則」區塊（會自成段落）：%s'
             % (chain[0][0] or '')[:70]
         )
-        out.append(self._chain_blocks(chain, state))
+        # 分支裡第一個區塊的上邊距要跟外面前一段的下邊距合併（見 _top_spacer_rows）
+        outer = state.get('outer_tail_px')
+        Mixin = self.env['doc.render.mixin']
+        state['outer_tail_px'] = self._trailing_spacer_px(
+            [el for el in out if not Mixin._is_marker_element(el)])
+        try:
+            out.append(self._chain_blocks(chain, state))
+        finally:
+            state['outer_tail_px'] = outer
         out.append(self._newline())
 
     def _chain_value_pill(self, chain, exprs, state):
@@ -319,22 +389,21 @@ class ConvStructure:
             else_inner.append(self._newline())
 
         state['stats']['condition'] += 1
-        cell = lambda *els: {'colspan': 1, 'rowspan': 1, 'value': list(els)}
         return {
             'type': 'table', 'value': '',
             'extension': {'dobtorBlock': 'condition'},
             'borderType': 'dash',
             'colgroup': [{'width': block_w}],
             'trList': [
-                {'tdList': [cell(*([self._pill(
+                {'tdList': [self._condition_cell(self._pill(
                     '若', state, source='condition', groupId=gid, role='if',
                     expression=self._map_condition(
                         cond, state, expand=True),
-                )] + if_inner))]},
-                {'tdList': [cell(*([self._pill(
+                ), if_inner)]},
+                {'tdList': [self._condition_cell(self._pill(
                     '否則', state, source='condition', groupId=gid,
                     role='else',
-                )] + else_inner))]},
+                ), else_inner)]},
             ],
         }
 
@@ -418,6 +487,67 @@ class ConvStructure:
             return False
         return 'float-end' in self._class_tokens(node)
 
+    def _float_start_run(self, children, idx):
+        """從 idx 起連續、沒有條件的 div.float-start（至少兩個）；沒有回 None。"""
+        run = []
+        for child in children[idx:]:
+            if (not isinstance(child.tag, str) or child.tag.lower() != 'div'
+                    or 'float-start' not in self._class_tokens(child)
+                    or any(child.get(a) is not None for a in
+                           ('t-if', 't-elif', 't-else', 't-foreach'))):
+                break
+            run.append(child)
+            if (child.tail or '').strip():
+                break
+        return run if len(run) >= 2 else None
+
+    # 估字寬：單號這類大寫英數字平均約 0.65 個字級寬（0.55 的話「WH/OUT/00001」
+    # 放不下、折成兩行）
+    _FLOAT_CHAR_EM = 0.65
+
+    def _float_start_table(self, run, state):
+        """並排的靠左浮動區塊 → 一列無框表格：前面幾格照內容估寬，最後一格吃剩下的。
+
+        揀貨作業寫成 <div class="float-start"><h1 t-field="o.name"/></div>
+        <div class="float-start">條碼</div>，官方條碼緊接在單號右邊。
+        以前一個一個往下排，條碼掉到單號下面。
+        浮動區塊的寬度是內容撐出來的；編輯器只有固定欄寬，所以用字數乘字級
+        估（單號用範例值 WH/OUT/00001 的長度）。
+        """
+        inner = self._inner_width(state)
+        widths = []
+        for node in run[:-1]:
+            heading = next((el for el in node.iter()
+                            if isinstance(el.tag, str)
+                            and re.match(r'^h[1-6]$', el.tag.lower())), None)
+            size = self._heading_size(heading.tag.lower() if heading is not None
+                                      else 'p')
+            text = ' '.join(''.join(node.itertext()).split())
+            widths.append(int(self._text_units(text) * size * self._FLOAT_CHAR_EM)
+                          + 2 * self._CELL_PADDING)
+        rest = inner - sum(widths)
+        if rest < inner // 4:
+            # 估出來太寬（範例值很長）就平分，至少不要把最後一格擠沒
+            widths = [inner // len(run)] * (len(run) - 1)
+            rest = inner - sum(widths)
+        widths.append(rest)
+        cells = []
+        for node, width in zip(run, widths):
+            value = []
+            with self._in_width(state, width - self._CELL_PADDING):
+                self._emit_children(node, value, state)
+            if not value or (value[-1].get('value') or '') != '\n':
+                value.append(self._newline())
+            cells.append({'colspan': 1, 'rowspan': 1, 'value': value})
+        state['stats']['table'] += 1
+        return {
+            'type': 'table', 'value': '',
+            'extension': {'dobtorBlock': 'layout', 'fixedCols': True},
+            'borderType': 'empty',
+            'colgroup': [{'width': w} for w in widths],
+            'trList': [{'tdList': cells}],
+        }
+
     # 浮動區塊沒寫 col-N 時佔幾份（發票寫 col-5）
     _FLOAT_DEFAULT_SPAN = 5
 
@@ -491,7 +621,7 @@ class ConvStructure:
         r'^col(?:-(?P<bp>sm|md|lg|xl|xxl))?(?:-(?P<n>\d{1,2}|auto))?$')
 
     def _grid_columns(self, node):
-        """div.row 的欄 → [(欄節點, 份數 or None)]；不是格線列回 None。
+        """div.row 的欄 → [(欄節點或二選一的分支鏈, 份數 or None)]；不是格線列回 None。
 
         份數是 Bootstrap 的 12 等分；None 是 col／col-auto（平分剩下的寬度）。
         只認「每個子節點都是 div.col…」的列，混了其他東西就照舊一段一段轉
@@ -502,31 +632,46 @@ class ConvStructure:
             return None
         if (node.text or '').strip():
             return None
+        children = [c for c in node if isinstance(c.tag, str)]  # 略過註解
         columns = []
-        for child in node:
-            if not isinstance(child.tag, str):
-                continue  # 註解
-            if (child.tail or '').strip() or child.tag.lower() != 'div':
-                return None
-            # elif／else 的互斥關係與迴圈都表達不了，交給原本的路
-            if (child.get('t-elif') is not None
-                    or child.get('t-else') is not None
-                    or child.get('t-foreach')):
-                return None
-            span, is_col = None, False
-            for token in self._class_tokens(child):
-                m = self._COL_CLASS_RE.match(token)
-                if not m:
-                    continue
-                is_col = True
-                n = m.group('n')
-                # PDF 用的是不帶斷點的寫法（col-6）；只有斷點版時退而求其次
-                if n and n.isdigit() and (span is None or not m.group('bp')):
-                    span = int(n)
-            if not is_col:
-                return None
-            columns.append((child, span))
+        idx = 0
+        while idx < len(children):
+            # t-if → t-elif → t-else 的幾欄是同一個位置二選一（採購單的
+            # 「Order Date」／「Order Deadline」）：當成一欄，內容是若／否則。
+            # 以前遇到 t-elif 就整列放棄，資訊欄變成一欄一欄往下排
+            chain = self._collect_chain(children, idx)
+            members = [n for _c, n in chain] if chain else [children[idx]]
+            spans = []
+            for child in members:
+                if (child.tail or '').strip() or child.tag.lower() != 'div':
+                    return None
+                # 迴圈表達不了；落單的 elif／else（前面不是 t-if）也是
+                if child.get('t-foreach') or (not chain and (
+                        child.get('t-elif') is not None
+                        or child.get('t-else') is not None)):
+                    return None
+                span = self._col_span(child)
+                if span is False:
+                    return None
+                spans.append(span)
+            # 二選一的欄寬取第一個分支的（最常見的那種狀態）
+            columns.append((chain or members[0], spans[0]))
+            idx += len(members)
         return columns if len(columns) >= 2 else None
+
+    def _col_span(self, node):
+        """div.col… 佔 12 等分的幾份；col／col-auto 回 None；不是欄回 False。"""
+        span, is_col = None, False
+        for token in self._class_tokens(node):
+            m = self._COL_CLASS_RE.match(token)
+            if not m:
+                continue
+            is_col = True
+            n = m.group('n')
+            # PDF 用的是不帶斷點的寫法（col-6）；只有斷點版時退而求其次
+            if n and n.isdigit() and (span is None or not m.group('bp')):
+                span = int(n)
+        return span if is_col else False
 
     def _grid_table(self, columns, state):
         """格線列 → 一列多格的無框表格（外框的地址區塊也是這個容器）。
@@ -551,10 +696,20 @@ class ConvStructure:
         for (child, _span), width in zip(columns, widths):
             value = []
             with self._in_width(state, width - self._CELL_PADDING):
-                self._emit(child, value, state)
+                if isinstance(child, list):
+                    self._emit_chain(child, value, state)  # 二選一的欄
+                else:
+                    self._emit(child, value, state)
             if not value or (value[-1].get('value') or '') != '\n':
                 value.append(self._newline())
-            cells.append({'colspan': 1, 'rowspan': 1, 'value': value})
+            cell = {'colspan': 1, 'rowspan': 1, 'value': value}
+            # 欄自己的下邊距（出貨單資訊欄的 col mb-2）不會跟外面合併，官方算在
+            # 這一列的高度裡；不到一列空白列的高度補不出來，記成格子的下內距
+            first = child[0][1] if isinstance(child, list) else child
+            col_mb = self._spacing_px(first, 'bottom')
+            if 0 < col_mb < self._SPACER_MIN_PX:
+                cell['extension'] = {'paddingBottom': round(col_mb, 1)}
+            cells.append(cell)
         state['stats']['table'] += 1
         return {
             'type': 'table', 'value': '',
@@ -649,11 +804,15 @@ class ConvStructure:
             rows = [tr for tr in node.xpath('.//tr')
                     if self._closest_table(tr) is node]
             table_cond = node.get('t-if')
+            # 表格的上邊距（出貨單的 table.mt48）：有條件時跟著表格進條件區塊
+            top = self._top_spacer_rows(node, out, state)
+            if top and out and (out[-1].get('value') or '') != '\n':
+                out.append(self._newline())
             # 有條件時表格會放進條件區塊裡，寬度要扣掉區塊的內距
             with self._in_width(state, self._block_body_width(state)
                                 if table_cond else self._inner_width(state)):
-                pieces = self._table_pieces(node, rows, totals_mode,
-                                            totals_first, state)
+                pieces = top + self._table_pieces(node, rows, totals_mode,
+                                                  totals_first, state)
             # <table t-if="…"> 的條件原本被丟掉（表格分支排在條件分支前面）。
             # 出貨單的兩張明細表就是這個形狀。
             if table_cond:
@@ -688,14 +847,18 @@ class ConvStructure:
         cond = node.get('t-if')
         columns = self._grid_columns(node)
         if columns:
+            top = self._top_spacer_rows(node, out, state)
+            if top and out and (out[-1].get('value') or '') != '\n':
+                out.append(self._newline())
             if cond:
                 with self._in_width(state, self._block_body_width(state)):
                     grid = self._grid_table(columns, state)
                 out.append(self._condition_wrap(
-                    cond, [grid, self._newline()]
+                    cond, top + [grid, self._newline()]
                     + self._spacer_rows(node, 'bottom'), state))
                 out.append(self._newline())
             else:
+                out.extend(top)
                 out.append(self._grid_table(columns, state))
                 out.append(self._newline())
                 out.extend(self._spacer_rows(node, 'bottom'))
@@ -727,7 +890,7 @@ class ConvStructure:
         if tag in _BLOCK_TAGS:
             if out and (out[-1].get('value') or '') != '\n':
                 out.append(self._newline())
-            out.extend(self._spacer_rows(node, 'top'))
+            out.extend(self._top_spacer_rows(node, out, state))
             start = len(out)
             block_markers, block_static = self._format_markers_for(node, state)
             out.extend(block_markers)
@@ -966,6 +1129,11 @@ class ConvStructure:
             # 跟地址之間空一段。訂單的地址用 <div t-field>，沒有這段留白
             px = self._SPACING_REM['3'] * self._SPACING_REM_PX
         for token in self._class_tokens(node):
+            legacy = self._LEGACY_SPACING_RE.match(token)
+            if legacy and legacy.group('side') == wanted:
+                # Odoo 舊寫法 mt16／mb48：直接是 px，印出來一樣縮到 0.8 倍
+                px = max(px, int(legacy.group('px')) * self._SPACING_REM_PX / 16)
+                continue
             m = self._SPACING_CLASS_RE.match(token)
             if not m:
                 continue
@@ -973,6 +1141,31 @@ class ConvStructure:
             if prop == 'm' or prop == 'my' or prop == 'm' + wanted:
                 px = max(px, self._SPACING_REM[m.group('n')] * self._SPACING_REM_PX)
         return px
+
+    # Odoo 自己的舊式留白 class（web 的 utils：mt8／mt16／mt32／mt48…，單位 px）
+    _LEGACY_SPACING_RE = re.compile(r'^m(?P<side>[tb])(?P<px>\d{1,3})$')
+
+    def _trailing_spacer_px(self, out):
+        """out 結尾那幾列空白列合起來多高（px）。"""
+        px = 0.0
+        for el in reversed(out):
+            if not el.get('_spacer'):
+                break
+            px += (el['size'] * self._SPACER_LINE_FACTOR if el.get('size')
+                   else self._SPACING_ROW_PX)
+        return px
+
+    def _top_spacer_rows(self, node, out, state):
+        """上邊距的空白列，扣掉前面已經留的下邊距（瀏覽器的上下邊距會合併取大的）。
+
+        出貨單的明細表是 table.mt48，前面的資訊欄是 mb-4：官方兩段併成 48px，
+        不是相加。前面是條件區塊的開頭（out 裡只有標記）時，看進區塊前外面的。
+        """
+        Mixin = self.env['doc.render.mixin']
+        content = [el for el in out if not Mixin._is_marker_element(el)]
+        tail = (self._trailing_spacer_px(content) if content
+                else state.get('outer_tail_px') or 0.0)
+        return self._spacer_rows_px(max(0.0, self._spacing_px(node, 'top') - tail))
 
     # 空白列的行高是字級的幾倍：官方樣式 13px、每列上下各 1.6px（見
     # doc.report._report_text_css），1.25 ＋ 3.2 ÷ 13 ≈ 1.5
@@ -1013,6 +1206,8 @@ class ConvStructure:
     # 標題下方的留白（px）：Bootstrap h1–h6 是 margin-bottom .5rem，照官方
     # PDF 實測標題到下一段要 9px 位置才對（.5rem 只有 6.4px，字型字身的差補在這裡）
     _HEADING_GAP_PX = 9
+    # 標題本身的下邊距（.5rem）；外面包的空 div 上邊距比它大時才要多留
+    _HEADING_MARGIN_PX = 6.4
 
     def _heading_paragraph(self, elements):
         """標題段落照 Bootstrap 的行高（1.2 倍，比內文緊）。
@@ -1045,8 +1240,12 @@ class ConvStructure:
         """節點（或它的第一個子節點）的對齊 class。
 
         原生常把 text-end 放在 <td> 上，也常放在裡面那個 <span> 上。
+        取值節點（t-field／t-out）的子節點是官方放的示範內容，印的時候會被值
+        取代，不看：揀貨作業的收件地址裡放了一塊 text-center 的示範框，
+        以前地址整段被印成置中。
         """
-        for candidate in [node] + list(node)[:1]:
+        is_value = any(node.get(a) for a in ('t-field', 't-out', 't-esc'))
+        for candidate in [node] + ([] if is_value else list(node)[:1]):
             if not isinstance(candidate.tag, str):
                 continue
             for token in self._class_tokens(candidate):

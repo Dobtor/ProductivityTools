@@ -181,19 +181,32 @@ class RenderOutput:
             url = html_mod.escape(el.get('url') or '', quote=True)
             return '<a href="%s">%s</a>' % (url, inner)
 
-        text = html_mod.escape(el.get('value') or '')
-        if '\n' in text:
+        lines = html_mod.escape(el.get('value') or '').split('\n')
+        # format_address 的電話、統編行（前面有隱形記號）：官方各自一個 div、
+        # 一般行高，不跟地址一起收緊
+        loose_mark = self._LOOSE_LINE_MARK
+        loose = [line.startswith(loose_mark) for line in lines]
+        lines = [line[len(loose_mark):] if is_loose else line
+                 for line, is_loose in zip(lines, loose)]
+        # format_address(phone_icon=True) 的電話記號 → 官方同一個圖示
+        mark = self._PHONE_MARK
+        lines = ['<i class="fa fa-phone fa-fw"></i> ' + line[len(mark):]
+                 if line.startswith(mark) else line for line in lines]
+        text = lines[0]
+        if len(lines) > 1:
             # 走到這裡的換行只剩欄位值內部的（format_address、多行文字欄位，
             # 攤平時標了 _softBreak）——一般文字裡的換行在 _elements_to_html
             # 已經拆成段落了。轉成 <br/> 讓多行地址留在同一段，
             # 不轉的話會塌成一行，而 HTML 裡看起來只是少了換行。
-            lines = text.split('\n')
             tight = el.get('_tightFrom')
-            if tight is not None and 0 <= tight < len(lines):
-                # 官方地址名稱以下是 lh-sm（行高 1.25）：那幾行包成一塊收緊
-                head = '<br/>'.join(lines[:tight])
-                text = '%s<span style="display:block;line-height:1.25">%s</span>' % (
-                    head, '<br/>'.join(lines[tight:]))
+            end = next((i for i in range(len(lines)) if loose[i]
+                        and (tight is None or i >= tight)), len(lines))
+            if tight is not None and 0 <= tight < end:
+                # 官方地址名稱以下是 lh-sm（行高 1.25）：那幾行包成一塊收緊，
+                # 塊是 display:block，後面的電話、統編自然另起一行
+                text = '%s<span style="display:block;line-height:1.25">%s</span>%s' % (
+                    '<br/>'.join(lines[:tight]), '<br/>'.join(lines[tight:end]),
+                    '<br/>'.join(lines[end:]))
             else:
                 text = '<br/>'.join(lines)
         if not text:
@@ -233,6 +246,10 @@ class RenderOutput:
         pad_top = (cell.get('extension') or {}).get('paddingTop')
         if isinstance(pad_top, (int, float)) and pad_top > 0:
             parts.append('padding-top:%spx' % pad_top)
+        # 下方留白（格線欄自己的 mb-2，見 _grid_table）
+        pad_bottom = (cell.get('extension') or {}).get('paddingBottom')
+        if isinstance(pad_bottom, (int, float)) and pad_bottom > 0:
+            parts.append('padding-bottom:%spx' % pad_bottom)
         return ' style="%s"' % ';'.join(parts) if parts else ''
 
     def _table_to_html(self, el):
