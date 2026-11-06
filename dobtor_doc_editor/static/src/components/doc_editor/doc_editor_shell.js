@@ -270,7 +270,7 @@ export const DocEditorShell = (Base) => class extends Base {
             // 頁首頁尾內容變了，分隔線跟著移（預覽模式灌值也要，所以排在最前面）
             this._scheduleFrameRules();
             // 選到的內層藥丸：選取框跟著重新排版後的位置走
-            this._refreshNestedPillMark();
+            this._refreshNestedMarks();
             // L2-v2：「自動進預覽模式」會 executeSetValue 灌入渲染後 content，
             // 這會觸發 contentChange 但屬於程式注入、不是 user 編輯，不該寫回 DB。
             if (this._suppressAutoSave) {
@@ -407,7 +407,7 @@ export const DocEditorShell = (Base) => class extends Base {
             }
             // 縮放後頁面大小變了，分隔線重新定位
             this._scheduleFrameRules(0);
-            this._refreshNestedPillMark();
+            this._refreshNestedMarks();
         };
         // 初始化時讀一次總頁數（建構時第一次排版已建好每頁的 canvas，listener 掛上前就排完了）
         this.state.totalPages = this._getPageCanvases().length || 1;

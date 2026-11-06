@@ -1377,6 +1377,11 @@ export const DocEditorPills = (Base) => class extends Base {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return false;
         }
+        // 點過內層表格的格子：canvas-editor 的游標在外層格子，交給它會插到
+        // 內層區塊外面，所以放進我們自己記的插入點（見「巢狀表格裡的藥丸」）
+        if (this._nestedCaret && this._nestedAlive()) {
+            return this._insertIntoNestedCell(this._buildPillElement(meta));
+        }
         try {
             this.editor.command.executeInsertElementList([this._buildPillElement(meta)]);
             return true;
@@ -1392,60 +1397,68 @@ export const DocEditorPills = (Base) => class extends Base {
     // canvas-editor（0.9.128）的游標位置只記得「一層表格」。點到格子裡的
     // 另一張表格（轉換出來的並排區塊裡包條件區塊、條件區塊裡再包條件區塊、
     // 明細格裡的條件區塊）時，它把整張內層表格當成點到的東西，游標停在
-    // 外層格子裡那張表格上——右欄拿到的是表格不是藥丸，什麼都不能改。
+    // 外層格子裡那張表格上——右欄拿到的是表格不是藥丸，左欄插入的欄位也會
+    // 跑到內層區塊外面。
     //
     // 要讓游標真的進到內層格子，得改它整套位置記錄（第三方程式），所以這裡
-    // 只補「選取」：滑鼠按下時自己往內層找點到的藥丸，給右欄用，並在它身上
-    // 畫框讓使用者知道選到哪一顆。改與刪靠 canvas-editor 的
+    // 自己補一個「內層插入點」：滑鼠按下時往內層找點到哪裡——
+    //   點到藥丸 → 選取它（右欄可改），插入點在它後面，藥丸外面畫框；
+    //   點到別處 → 插入點放在點到的位置，畫一條直線。
+    // 從左欄插入欄位（點或拖）就放進插入點。改、刪、插入靠 canvas-editor 的
     // executeUpdateElementById／executeDeleteElementById——這兩個會往內層表格找。
-    // 內層格子裡仍然不能打字。
+    // 內層格子裡仍然不能直接打字：打的字會照 canvas-editor 的游標落在外層格子。
 
     /**
      * 滑鼠按下（capture，比 canvas-editor 自己的處理先跑）：
-     * 點到內層表格裡的藥丸就記下來並選取，沒點到就清掉上一次的。
+     * 點到內層表格就記下插入點（點到藥丸再加上選取），沒點到就清掉上一次的。
      */
     _onEditorMouseDown(ev) {
         this._clearNestedPill();
         if (ev.button !== 0) return;
-        const hit = this._nestedPillHit(ev);
-        const meta = hit && this._elementFieldMeta(hit.element);
-        if (!meta) return;
-        // 補一個臨時 id，之後改或刪都靠它找到「這一顆」：照設定比對的話，
-        // 設定相同的藥丸（同一個條件、同一個標題）會改到文件裡的第一顆。
-        // getValue 不輸出 id，存檔資料不會帶著它
-        if (!hit.element.id) {
-            this._nestedPillSeq = (this._nestedPillSeq || 0) + 1;
-            hit.element.id = `dobtor-nested-pill-${this._nestedPillSeq}`;
+        const hit = this._nestedHit(ev);
+        if (!hit) return;
+        this._nestedCaret = { td: hit.td, index: hit.index, table: hit.table };
+        const meta = hit.element && this._elementFieldMeta(hit.element);
+        if (meta) {
+            this._nestedPill = {
+                id: this._nestedElementId(hit.element),
+                meta: { ...meta },
+                value: hit.element.value || "",
+            };
+            this.state.selectedVariable = { ...meta, _elementValue: this._nestedPill.value };
+            this.state.selectedFieldId = null;
         }
-        this._nestedPill = {
-            id: hit.element.id,
-            meta: { ...meta },
-            value: hit.element.value || "",
-            // 外層表格（canvas-editor 內部的那一份）：重畫選取框時從這裡往下找位置
-            table: hit.table,
-        };
-        this.state.selectedVariable = { ...meta, _elementValue: this._nestedPill.value };
-        this.state.selectedFieldId = null;
-        this._drawNestedPillMark(hit.position);
+        this._drawNestedMarks();
     }
 
     /**
-     * 選到內層藥丸時按 Backspace／Delete：只刪這一顆。
+     * 有內層插入點時按 Backspace／Delete：選到藥丸就刪那一顆；只有插入點時
+     * Backspace 刪前一個、Delete 刪後一個。
      * 不攔的話 canvas-editor 會刪掉游標所在的「整張內層表格」——整個條件區塊不見。
-     * 其他按鍵照原本的行為走（游標在外層格子），選取改跟著游標。
+     * 其他按鍵照原本的行為走（游標在外層格子），插入點與選取放掉。
      */
     _onEditorKeyDown(ev) {
-        if (!this._nestedPill) return;
+        const caret = this._nestedCaret;
+        if (!caret) return;
         if (ev.key === "Backspace" || ev.key === "Delete") {
             ev.preventDefault();
             ev.stopPropagation();
-            // 唯讀（輸出紀錄、表單、列印模式）不能刪：deleteElementById 不看唯讀
-            const mode = this.editor?.command.getOptions().mode;
-            if (!["edit", "clean", "design"].includes(mode)) return;
-            const id = this._nestedPill.id;
-            this._clearNestedPill();
+            if (!this._nestedEditable()) return;
+            const values = caret.td.value || [];
+            let index;
+            if (this._nestedPill) {
+                index = values.findIndex((el) => el.id === this._nestedPill.id);
+            } else {
+                index = ev.key === "Backspace" ? caret.index - 1 : caret.index;
+            }
+            // 第 0 個是 canvas-editor 補在格子開頭的起點，不能刪
+            if (index < 1 || index >= values.length) return;
+            const id = this._nestedElementId(values[index]);
+            this._nestedPill = null;
             this.state.selectedVariable = null;
-            this.editor?.command.executeDeleteElementById({ id });
+            caret.index = index;
+            this.editor.command.executeDeleteElementById({ id });
+            this._drawNestedMarks();
             return;
         }
         // 組合鍵（Cmd／Ctrl／Option＋某鍵）是快捷鍵——開開發者工具、截圖、
@@ -1457,8 +1470,95 @@ export const DocEditorPills = (Base) => class extends Base {
         this._clearNestedPill();
     }
 
-    /** 點到內層表格裡的哪個元素：{ element, position, table }；不是內層就回 null。 */
-    _nestedPillHit(ev) {
+    /**
+     * 把欄位插進內層插入點。插入後選取它、插入點移到它後面——跟一般插入後
+     * 游標停在藥丸後面一樣，可以接著插下一個。
+     *
+     * 作法：先把元素放進內層格子（canvas-editor 內部那一份）再請
+     * executeUpdateElementById 整理它——它會補齊格式、重新排版、記進復原
+     * 紀錄並觸發自動存檔，跟編輯器自己插入的元素一樣。
+     */
+    _insertIntoNestedCell(element) {
+        const caret = this._nestedCaret;
+        if (!this._nestedEditable()) return false;
+        const values = caret.td.value;
+        // 段落屬性（對齊、行距）跟著前一個元素，不然新藥丸會自成一種對齊
+        const anchor = values[caret.index - 1] || values[0] || {};
+        const raw = { ...element };
+        for (const key of ["rowFlex", "rowMargin", "tdId", "trId", "tableId"]) {
+            if (anchor[key] !== undefined) raw[key] = anchor[key];
+        }
+        const id = this._nestedElementId(raw);
+        values.splice(caret.index, 0, raw);
+        try {
+            this.editor.command.executeUpdateElementById({ id, properties: {} });
+        } catch (e) {
+            values.splice(caret.index, 1);
+            console.error("[DocEditor] 插入內層格子失敗", e);
+            this.notification.add(`插入變數失敗：${e.message || e}`, { type: "danger" });
+            return false;
+        }
+        caret.index += 1;
+        const meta = this._elementFieldMeta(element);
+        if (meta) {
+            this._nestedPill = { id, meta: { ...meta }, value: element.value || "" };
+            this.state.selectedVariable = { ...meta, _elementValue: element.value || "" };
+            this.state.selectedFieldId = null;
+        }
+        this._drawNestedMarks();
+        return true;
+    }
+
+    /**
+     * 元素的臨時 id（沒有就補一個）。改、刪、重畫框都靠它找到「這一個」：
+     * 照設定比對的話，設定相同的藥丸（同一個條件、同一個標題）會改到文件裡的
+     * 第一顆。getValue 不輸出 id，存檔資料不會帶著它。
+     */
+    _nestedElementId(element) {
+        if (!element.id) {
+            this._nestedPillSeq = (this._nestedPillSeq || 0) + 1;
+            element.id = `dobtor-nested-pill-${this._nestedPillSeq}`;
+        }
+        return element.id;
+    }
+
+    /**
+     * 內層插入點還在畫面上嗎：外層表格還在文件裡、格子還在那張表格裡。
+     * 整份重設過（executeSetValue）或表格增刪列欄之後，記下來的格子就不是
+     * 畫面上那一格了，往裡面放東西等於丟掉。
+     */
+    _nestedAlive() {
+        const caret = this._nestedCaret;
+        const command = this.editor?.command;
+        return !!(caret && command && caret.table.id
+            && command.getElementById({ id: caret.table.id }).length
+            && this._tableHasCell(caret.table, caret.td));
+    }
+
+    /** 可以在內層插入點改東西嗎：唯讀（輸出紀錄、表單、列印模式）不行——update／deleteElementById 不看唯讀。 */
+    _nestedEditable() {
+        return this._nestedAlive()
+            && ["edit", "clean", "design"].includes(this.editor.command.getOptions().mode);
+    }
+
+    _tableHasCell(table, cell) {
+        for (const tr of table.trList || []) {
+            for (const td of tr.tdList || []) {
+                if (td === cell) return true;
+                for (const el of td.value || []) {
+                    if (el.type === "table" && this._tableHasCell(el, cell)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 點到內層表格的哪裡：{ table, td, index, element? }——table 是外層表格
+     * （canvas-editor 內部那一份），td 是點到的內層格子，index 是插入點。
+     * 不是點在內層表格就回 null。
+     */
+    _nestedHit(ev) {
         const command = this.editor?.command;
         if (!command?.getPositionContextByEvent || !ev.target?.dataset?.index) return null;
         let res;
@@ -1480,9 +1580,13 @@ export const DocEditorPills = (Base) => class extends Base {
     }
 
     /**
-     * 在一張表格裡找 (x, y) 點到的元素，遇到表格再往下一層。
+     * 在一張表格裡找 (x, y) 點到的格子與位置，遇到表格再往下一層。
      * 判斷方式照 canvas-editor 的 getPositionByXY：格子用 td.x/y/width/height
      * （相對表格、未縮放），格子內容用 td.positionList（相對頁面、已縮放）。
+     *
+     * 插入點：點到藥丸 → 它後面；點到其他元素 → 點在左半放前面、右半放後面；
+     * 點到空白 → 同一行裡點的位置左邊最後一個元素後面（空行就是行首）。
+     * 第 0 個元素是 canvas-editor 補的格子起點，插入點不會在它前面。
      */
     _hitInTable(table, tablePosition, x, y, scale) {
         const [left, top] = tablePosition.coordinate.leftTop;
@@ -1496,87 +1600,121 @@ export const DocEditorPills = (Base) => class extends Base {
                 }
                 const values = td.value || [];
                 const positions = td.positionList || [];
+                let before = -1;
+                let above = -1;
                 for (let i = 0; i < values.length; i++) {
                     const position = positions[i];
                     if (!position) continue;
                     const { leftTop, rightTop, leftBottom } = position.coordinate;
-                    if (leftTop[0] - (position.left || 0) <= x && x <= rightTop[0]
-                            && leftTop[1] <= y && y <= leftBottom[1]) {
+                    const sameRow = leftTop[1] <= y && y <= leftBottom[1];
+                    if (sameRow && leftTop[0] - (position.left || 0) <= x && x <= rightTop[0]) {
                         const element = values[i];
-                        return element.type === "table"
-                            ? this._hitInTable(element, position, x, y, scale)
-                            : { element, position };
+                        if (element.type === "table") {
+                            return this._hitInTable(element, position, x, y, scale);
+                        }
+                        const after = this._elementFieldMeta(element)
+                            || x >= (leftTop[0] + rightTop[0]) / 2;
+                        return { element, td, index: Math.max(1, after ? i + 1 : i) };
                     }
+                    if (sameRow && leftTop[0] <= x) before = i;
+                    if (leftTop[1] <= y) above = i;
                 }
-                return null;
+                const anchor = before >= 0 ? before : Math.max(above, 0);
+                return { td, index: anchor + 1 };
             }
         }
         return null;
     }
 
-    /** 從外層表格往下找某個 id 的元素目前的位置（重新排版後位置會變）。 */
-    _positionInTable(table, id) {
-        for (const tr of table.trList || []) {
-            for (const td of tr.tdList || []) {
-                const values = td.value || [];
-                for (let i = 0; i < values.length; i++) {
-                    if (values[i].id === id) return td.positionList?.[i] || null;
-                    if (values[i].type === "table") {
-                        const found = this._positionInTable(values[i], id);
-                        if (found) return found;
-                    }
-                }
-            }
+    /**
+     * 畫內層的選取標示（疊在頁面上的 HTML，不擋滑鼠）：選到藥丸就框住它，
+     * 否則在插入點畫一條直線。有內層插入點時把 canvas-editor 自己的游標藏起來——
+     * 它停在外層格子，兩個游標同時閃會讓人不知道東西會放到哪。
+     */
+    _drawNestedMarks() {
+        this._removeNestedMarks();
+        const caret = this._nestedCaret;
+        if (!caret) return;
+        const nativeCaret = this.canvasContainer?.el?.querySelector(".ce-cursor");
+        if (nativeCaret) nativeCaret.style.visibility = "hidden";
+        const values = caret.td.value || [];
+        const positions = caret.td.positionList || [];
+        const pillIndex = this._nestedPill
+            ? values.findIndex((el) => el.id === this._nestedPill.id) : -1;
+        if (pillIndex >= 0 && positions[pillIndex]) {
+            const { leftTop, rightTop, leftBottom } = positions[pillIndex].coordinate;
+            this._appendNestedMark(positions[pillIndex].pageNo, {
+                left: leftTop[0] - 2,
+                top: leftTop[1] - 2,
+                width: rightTop[0] - leftTop[0] + 4,
+                height: leftBottom[1] - leftTop[1] + 4,
+                border: "2px solid #1976d2",
+                borderRadius: "3px",
+            });
+            return;
         }
-        return null;
+        const anchor = positions[caret.index - 1] || positions[0];
+        if (!anchor) return;
+        const { leftTop, rightTop, leftBottom } = anchor.coordinate;
+        this._appendNestedMark(anchor.pageNo, {
+            left: rightTop[0],
+            top: leftTop[1],
+            width: 2,
+            height: leftBottom[1] - leftTop[1],
+            background: "#1976d2",
+        });
     }
 
-    /** 在選到的內層藥丸身上畫框（疊在頁面上的 HTML，不擋滑鼠）。 */
-    _drawNestedPillMark(position) {
-        this._nestedPillMarkEl?.remove();
-        this._nestedPillMarkEl = null;
-        const canvas = this._getPageCanvases()[position?.pageNo || 0];
+    _appendNestedMark(pageNo, box) {
+        const canvas = this._getPageCanvases()[pageNo || 0];
         const host = canvas?.offsetParent;
         if (!host) return;
-        const { leftTop, rightTop, leftBottom } = position.coordinate;
         const mark = document.createElement("div");
         mark.className = "doc-nested-pill-mark";
         Object.assign(mark.style, {
             position: "absolute",
-            left: `${canvas.offsetLeft + leftTop[0] - 2}px`,
-            top: `${canvas.offsetTop + leftTop[1] - 2}px`,
-            width: `${rightTop[0] - leftTop[0] + 4}px`,
-            height: `${leftBottom[1] - leftTop[1] + 4}px`,
-            border: "2px solid #1976d2",
-            borderRadius: "3px",
+            left: `${canvas.offsetLeft + box.left}px`,
+            top: `${canvas.offsetTop + box.top}px`,
+            width: `${box.width}px`,
+            height: `${box.height}px`,
+            border: box.border || "",
+            borderRadius: box.borderRadius || "",
+            background: box.background || "",
             pointerEvents: "none",
             zIndex: "2",
         });
         host.appendChild(mark);
-        this._nestedPillMarkEl = mark;
+        this._nestedMarkEl = mark;
+    }
+
+    _removeNestedMarks() {
+        this._nestedMarkEl?.remove();
+        this._nestedMarkEl = null;
     }
 
     /**
-     * 內容或縮放變了：選取框跟著藥丸的新位置重畫。
-     * 藥丸已經不在（整份重設過、被刪了）就放掉這次選取。
+     * 內容或縮放變了：標示跟著新位置重畫。
+     * 插入點已經不能用（整份重設過、格子被拿掉）或選到的藥丸不在了，就放掉。
      */
-    _refreshNestedPillMark() {
-        const pill = this._nestedPill;
-        if (!pill) return;
-        const position = this.editor?.command.getElementById({ id: pill.id }).length
-            ? this._positionInTable(pill.table, pill.id)
-            : null;
-        if (position) {
-            this._drawNestedPillMark(position);
-        } else {
+    _refreshNestedMarks() {
+        if (!this._nestedCaret) return;
+        if (!this._nestedAlive()) {
             this._clearNestedPill();
+            return;
         }
+        if (this._nestedPill
+                && !(this._nestedCaret.td.value || []).some((el) => el.id === this._nestedPill.id)) {
+            this._nestedPill = null;
+        }
+        this._drawNestedMarks();
     }
 
     _clearNestedPill() {
         this._nestedPill = null;
-        this._nestedPillMarkEl?.remove();
-        this._nestedPillMarkEl = null;
+        this._nestedCaret = null;
+        this._removeNestedMarks();
+        const nativeCaret = this.canvasContainer?.el?.querySelector(".ce-cursor");
+        if (nativeCaret) nativeCaret.style.visibility = "";
     }
 
     /**
