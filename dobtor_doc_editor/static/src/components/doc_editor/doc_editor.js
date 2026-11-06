@@ -778,6 +778,10 @@ export class DocEditor extends DocEditorShell(DocEditorIo(
                 this.editor.listener.contentChange = null;
             }
             this._workspaceEl?.removeEventListener("scroll", this._onWorkspaceScroll);
+            this._editorContainerEl?.removeEventListener("mousedown", this._onEditorMouseDownCapture, true);
+            this._editorContainerEl?.removeEventListener("keydown", this._onEditorKeyDownCapture, true);
+            this._editorContainerEl = null;
+            this._clearNestedPill();
             clearTimeout(this._frameRulesTimer);
             if (this._pageNoFrame) {
                 cancelAnimationFrame(this._pageNoFrame);

@@ -1387,11 +1387,204 @@ export const DocEditorPills = (Base) => class extends Base {
         }
     }
 
+    // ═══ 巢狀表格裡的藥丸 ═════════════════════════════════════════════
+    //
+    // canvas-editor（0.9.128）的游標位置只記得「一層表格」。點到格子裡的
+    // 另一張表格（轉換出來的並排區塊裡包條件區塊、條件區塊裡再包條件區塊、
+    // 明細格裡的條件區塊）時，它把整張內層表格當成點到的東西，游標停在
+    // 外層格子裡那張表格上——右欄拿到的是表格不是藥丸，什麼都不能改。
+    //
+    // 要讓游標真的進到內層格子，得改它整套位置記錄（第三方程式），所以這裡
+    // 只補「選取」：滑鼠按下時自己往內層找點到的藥丸，給右欄用，並在它身上
+    // 畫框讓使用者知道選到哪一顆。改與刪靠 canvas-editor 的
+    // executeUpdateElementById／executeDeleteElementById——這兩個會往內層表格找。
+    // 內層格子裡仍然不能打字。
+
+    /**
+     * 滑鼠按下（capture，比 canvas-editor 自己的處理先跑）：
+     * 點到內層表格裡的藥丸就記下來並選取，沒點到就清掉上一次的。
+     */
+    _onEditorMouseDown(ev) {
+        this._clearNestedPill();
+        if (ev.button !== 0) return;
+        const hit = this._nestedPillHit(ev);
+        const meta = hit && this._elementFieldMeta(hit.element);
+        if (!meta) return;
+        // 補一個臨時 id，之後改或刪都靠它找到「這一顆」：照設定比對的話，
+        // 設定相同的藥丸（同一個條件、同一個標題）會改到文件裡的第一顆。
+        // getValue 不輸出 id，存檔資料不會帶著它
+        if (!hit.element.id) {
+            this._nestedPillSeq = (this._nestedPillSeq || 0) + 1;
+            hit.element.id = `dobtor-nested-pill-${this._nestedPillSeq}`;
+        }
+        this._nestedPill = {
+            id: hit.element.id,
+            meta: { ...meta },
+            value: hit.element.value || "",
+            // 外層表格（canvas-editor 內部的那一份）：重畫選取框時從這裡往下找位置
+            table: hit.table,
+        };
+        this.state.selectedVariable = { ...meta, _elementValue: this._nestedPill.value };
+        this.state.selectedFieldId = null;
+        this._drawNestedPillMark(hit.position);
+    }
+
+    /**
+     * 選到內層藥丸時按 Backspace／Delete：只刪這一顆。
+     * 不攔的話 canvas-editor 會刪掉游標所在的「整張內層表格」——整個條件區塊不見。
+     * 其他按鍵照原本的行為走（游標在外層格子），選取改跟著游標。
+     */
+    _onEditorKeyDown(ev) {
+        if (!this._nestedPill) return;
+        if (ev.key === "Backspace" || ev.key === "Delete") {
+            ev.preventDefault();
+            ev.stopPropagation();
+            // 唯讀（輸出紀錄、表單、列印模式）不能刪：deleteElementById 不看唯讀
+            const mode = this.editor?.command.getOptions().mode;
+            if (!["edit", "clean", "design"].includes(mode)) return;
+            const id = this._nestedPill.id;
+            this._clearNestedPill();
+            this.state.selectedVariable = null;
+            this.editor?.command.executeDeleteElementById({ id });
+            return;
+        }
+        // 組合鍵（Cmd／Ctrl／Option＋某鍵）是快捷鍵——開開發者工具、截圖、
+        // 存檔——不會打字也不移動游標，選取要留著；單按修飾鍵本身也一樣
+        if (ev.metaKey || ev.ctrlKey || ev.altKey
+                || ["Shift", "Control", "Alt", "Meta"].includes(ev.key)) {
+            return;
+        }
+        this._clearNestedPill();
+    }
+
+    /** 點到內層表格裡的哪個元素：{ element, position, table }；不是內層就回 null。 */
+    _nestedPillHit(ev) {
+        const command = this.editor?.command;
+        if (!command?.getPositionContextByEvent || !ev.target?.dataset?.index) return null;
+        let res;
+        try {
+            res = command.getPositionContextByEvent(ev, { isMustDirectHit: false });
+        } catch {
+            return null;
+        }
+        // 只處理「點到的是外層格子裡的一張表格」：其他情況 canvas-editor 自己找得到
+        const inner = res?.element;
+        const outer = res?.tableInfo?.element;
+        if (!outer || inner?.type !== "table") return null;
+        const td = outer.trList?.[res.tableInfo.trIndex]?.tdList?.[res.tableInfo.tdIndex];
+        const position = td?.positionList?.[(td.value || []).indexOf(inner)];
+        if (!position) return null;
+        const scale = command.getOptions().scale || 1;
+        const found = this._hitInTable(inner, position, ev.offsetX, ev.offsetY, scale);
+        return found && { ...found, table: outer };
+    }
+
+    /**
+     * 在一張表格裡找 (x, y) 點到的元素，遇到表格再往下一層。
+     * 判斷方式照 canvas-editor 的 getPositionByXY：格子用 td.x/y/width/height
+     * （相對表格、未縮放），格子內容用 td.positionList（相對頁面、已縮放）。
+     */
+    _hitInTable(table, tablePosition, x, y, scale) {
+        const [left, top] = tablePosition.coordinate.leftTop;
+        for (const tr of table.trList || []) {
+            for (const td of tr.tdList || []) {
+                const tdLeft = td.x * scale + left;
+                const tdTop = td.y * scale + top;
+                if (!(tdLeft < x && x < tdLeft + td.width * scale
+                        && tdTop < y && y < tdTop + td.height * scale)) {
+                    continue;
+                }
+                const values = td.value || [];
+                const positions = td.positionList || [];
+                for (let i = 0; i < values.length; i++) {
+                    const position = positions[i];
+                    if (!position) continue;
+                    const { leftTop, rightTop, leftBottom } = position.coordinate;
+                    if (leftTop[0] - (position.left || 0) <= x && x <= rightTop[0]
+                            && leftTop[1] <= y && y <= leftBottom[1]) {
+                        const element = values[i];
+                        return element.type === "table"
+                            ? this._hitInTable(element, position, x, y, scale)
+                            : { element, position };
+                    }
+                }
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** 從外層表格往下找某個 id 的元素目前的位置（重新排版後位置會變）。 */
+    _positionInTable(table, id) {
+        for (const tr of table.trList || []) {
+            for (const td of tr.tdList || []) {
+                const values = td.value || [];
+                for (let i = 0; i < values.length; i++) {
+                    if (values[i].id === id) return td.positionList?.[i] || null;
+                    if (values[i].type === "table") {
+                        const found = this._positionInTable(values[i], id);
+                        if (found) return found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 在選到的內層藥丸身上畫框（疊在頁面上的 HTML，不擋滑鼠）。 */
+    _drawNestedPillMark(position) {
+        this._nestedPillMarkEl?.remove();
+        this._nestedPillMarkEl = null;
+        const canvas = this._getPageCanvases()[position?.pageNo || 0];
+        const host = canvas?.offsetParent;
+        if (!host) return;
+        const { leftTop, rightTop, leftBottom } = position.coordinate;
+        const mark = document.createElement("div");
+        mark.className = "doc-nested-pill-mark";
+        Object.assign(mark.style, {
+            position: "absolute",
+            left: `${canvas.offsetLeft + leftTop[0] - 2}px`,
+            top: `${canvas.offsetTop + leftTop[1] - 2}px`,
+            width: `${rightTop[0] - leftTop[0] + 4}px`,
+            height: `${leftBottom[1] - leftTop[1] + 4}px`,
+            border: "2px solid #1976d2",
+            borderRadius: "3px",
+            pointerEvents: "none",
+            zIndex: "2",
+        });
+        host.appendChild(mark);
+        this._nestedPillMarkEl = mark;
+    }
+
+    /**
+     * 內容或縮放變了：選取框跟著藥丸的新位置重畫。
+     * 藥丸已經不在（整份重設過、被刪了）就放掉這次選取。
+     */
+    _refreshNestedPillMark() {
+        const pill = this._nestedPill;
+        if (!pill) return;
+        const position = this.editor?.command.getElementById({ id: pill.id }).length
+            ? this._positionInTable(pill.table, pill.id)
+            : null;
+        if (position) {
+            this._drawNestedPillMark(position);
+        } else {
+            this._clearNestedPill();
+        }
+    }
+
+    _clearNestedPill() {
+        this._nestedPill = null;
+        this._nestedPillMarkEl?.remove();
+        this._nestedPillMarkEl = null;
+    }
+
     /**
      * 更新目前選中藥丸的綁定定義（inspector 用）。
      *
-     * canvas-editor 沒有「就地改單一元素屬性」的公開 API，故走
-     * 取整份 value → 依 extension 找到該元素 → 改寫 → setValue 回去。
+     * 一般藥丸走「取整份 value → 依 extension 找到該元素 → 改寫 → setValue 回去」。
+     * 內層表格裡的藥丸改用 executeUpdateElementById 依臨時 id 就地改（見上面
+     * 「巢狀表格裡的藥丸」）：照設定比對會改到設定相同的第一顆。
      * 為避免把 caret 位置弄丟，改寫後不重設選區（canvas-editor 自行處理）。
      */
     updateSelectedPill(patch) {
@@ -1401,6 +1594,32 @@ export const DocEditorPills = (Base) => class extends Base {
         delete merged._elementValue;
         if (patch.labelText !== undefined) {
             merged.labelText = patch.labelText;
+        }
+        const nested = this._nestedPill;
+        if (nested && this.editor.command.getElementById({ id: nested.id }).length) {
+            // 設定是從 state 來的（OWL 響應式 Proxy，巢狀的 texts 等也是），
+            // executeUpdateElementById 內部用 structuredClone 複製，Proxy 會直接丟錯
+            const plain = JSON.parse(JSON.stringify(merged));
+            const value = plain.labelText || nested.value;
+            // 先更新記下來的設定：改完重排會觸發 rangeStyleChange，
+            // 它拿記下來的設定重設右欄，不能是改之前的
+            this._nestedPill = { ...nested, meta: plain, value };
+            try {
+                this.editor.command.executeUpdateElementById({
+                    id: nested.id,
+                    properties: {
+                        value,
+                        extension: { [DOBTOR_FIELD_KEY]: plain },
+                        label: { ...PILL_STYLE, ...(plain.style || {}) },
+                    },
+                });
+                this.state.selectedVariable = { ...plain };
+            } catch (e) {
+                // 沒改成：記下來的設定退回原本的，跟文件上的一致
+                this._nestedPill = nested;
+                console.error("[DocEditor] 更新變數定義失敗", e);
+            }
+            return;
         }
         let data;
         try {
