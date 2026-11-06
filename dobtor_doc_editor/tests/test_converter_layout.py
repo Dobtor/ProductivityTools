@@ -236,9 +236,13 @@ class TestAddressBlock(TestConverterLayoutBase):
         '</t>'
     )
 
+    def _address_table(self, res):
+        """地址區塊（前面是官方信封窗格那段留白的空白列）。"""
+        return next(el for el in res['tree']['main'] if el.get('type') == 'table')
+
     def test_information_block_keeps_its_condition(self):
         res = self._convert(self.ARCH)
-        table = res['tree']['main'][0]
+        table = self._address_table(res)
         left = table['trList'][0]['tdList'][0]['value']
         blocks = [el for el in left if el.get('type') == 'table']
         self.assertEqual(len(blocks), 1, '左格應該包在條件裡：%s' % left)
@@ -253,7 +257,7 @@ class TestAddressBlock(TestConverterLayoutBase):
     def test_address_column_is_five_twelfths_and_left_aligned(self):
         """有沒有 information_block，原生的 address 都在右邊 5/12、文字靠左。"""
         res = self._convert(self.ARCH)
-        table = res['tree']['main'][0]
+        table = self._address_table(res)
         widths = self._cell_widths(table)
         self.assertAlmostEqual(widths[1], 602 * 5 / 12, delta=2)
         right = table['trList'][0]['tdList'][1]['value']

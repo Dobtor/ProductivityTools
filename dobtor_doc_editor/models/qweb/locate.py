@@ -662,6 +662,8 @@ class ConvLocate:
                 else:
                     with self._in_width(state, left_w - self._CELL_PADDING):
                         self._emit_children(info, left, state)
+            # 官方的地址區塊上方有 42px（信封窗格），轉完再補在最前面（見 _build_tree）
+            state['address_top'] = addr is not None
             if addr is not None and variants.get('address'):
                 right.extend(self._block_variant_elements(
                     variants['address'], right_w, state))

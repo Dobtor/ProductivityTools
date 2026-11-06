@@ -151,6 +151,11 @@ class ConvEntry:
         # 交出去之前轉成編輯器的寫法（換行是下一段的開頭）。試算要用轉好的樹，
         # 才會跟使用者之後在編輯器與 PDF 看到的一樣。
         self.env['doc.render.mixin']._paragraph_ends_to_starts(tree)
+        Template = self.env['doc.template']
+        if state.get('address_top') and Template._starts_with_address_block(tree):
+            # 官方地址區塊上方的 42px（信封窗格）。轉完才插：轉換途中開頭的
+            # 換行會被 _trim 收掉；跟 migration 補舊範本的是同一份
+            main[:0] = Template._address_top_rows()
         return tree, state, root
 
 

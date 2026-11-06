@@ -2858,3 +2858,102 @@ class TestReportLanguageSource(TestQwebConverterBase):
         binding = self.env['doc.report'].with_context(active_test=False).search(
             [('report_id', '=', report.id)])
         self.assertEqual(binding.lang_source, 'user')
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAddressTopSpace(TestQwebConverterBase):
+    """官方地址區塊上方的留白（信封窗格）放在範本裡，不算在外框上邊距。
+
+    以前「Odoo 標準」外框的上邊距含了這段，沒有地址區塊的揀貨作業整頁比官方低。
+    """
+
+    def test_address_block_gets_the_space_on_top(self):
+        res = self._convert(
+            '<t t-call="web.external_layout"><t t-set="address"><span>ADDR</span></t>'
+            '<p>BODY</p></t>')
+        Template = self.env['doc.template']
+        main = res['tree']['main']
+        self.assertEqual(main[:3], Template._address_top_rows())
+        self.assertTrue(Template._starts_with_address_block({'main': main[3:]}))
+
+    def test_no_address_block_no_space(self):
+        """揀貨作業：address 設成 None，沒有外框的地址區塊、官方上方也沒有留白。"""
+        res = self._convert(
+            '<t t-call="web.external_layout"><t t-set="address" t-value="None"/>'
+            '<div class="row"><div class="col-6"><span>A</span></div>'
+            '<div class="col-5 offset-1"><span>B</span></div></div></t>')
+        main = res['tree']['main']
+        self.assertEqual(main[0].get('type'), 'table', '開頭不補留白')
+        self.assertFalse(self.env['doc.template']._starts_with_address_block(res['tree']),
+                         '6/12＋5/12 的格線列不是外框的地址區塊')
+
+    def test_space_rows_add_up(self):
+        """第一個換行只佔本文第一列（PDF 不佔高度），後面合計就是那段留白。"""
+        Template = self.env['doc.template']
+        rows = Template._address_top_rows()
+        height = sum(r['size'] * Template._SPACER_LINE_FACTOR if r.get('size')
+                     else Template._SPACER_ROW_PX for r in rows[1:])
+        self.assertLess(abs(height - Template._ADDRESS_TOP_PX), 1)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestAddressTopMigration(TransactionCase):
+    """18.0.15.10.0：舊「Odoo 標準」外框上邊距 212→176，地址開頭的範本補留白。"""
+
+    def _migrate(self):
+        import importlib.util
+        import os
+        path = os.path.join(os.path.dirname(__file__), '..', 'migrations',
+                            '18.0.15.10.0', 'post-migrate.py')
+        spec = importlib.util.spec_from_file_location('doc_editor_mig_15_10', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.env.flush_all()
+        module.migrate(self.env.cr, '18.0.15.9.0')
+        self.env.invalidate_all()
+
+    def setUp(self):
+        super().setUp()
+        Template = self.env['doc.template']
+        self.Template = Template
+        name = '外框：%s' % Template._LAYOUT_VARIANTS['odoo']
+        # 測試資料庫裡可能已經有新版的同名外框：測舊的就自己建一張
+        self.frame = Template.create({'name': name, 'role': 'layout', 'margin_top': 212})
+        self.custom = Template.create({'name': name, 'role': 'layout', 'margin_top': 200})
+
+        def layout_table(widths):
+            return {'type': 'table', 'value': '', 'extension': {'dobtorBlock': 'layout'},
+                    'colgroup': [{'width': w} for w in widths],
+                    'trList': [{'tdList': [{'value': []} for _w in widths]}]}
+
+        def content(frame, widths):
+            return Template.create({
+                'name': '範本', 'role': 'content', 'layout_id': frame.id,
+                'content_json': json.dumps({'main': [layout_table(widths), {'value': '\n'}]}),
+            })
+
+        self.order = content(self.frame, [422, 302])
+        self.picking = content(self.frame, [362, 301])
+        self.custom_order = content(self.custom, [422, 302])
+
+    def test_frame_and_address_templates_are_adjusted(self):
+        self._migrate()
+        self.assertEqual(self.frame.margin_top,
+                         self.Template._LAYOUT_VARIANT_VALS['odoo']['margin_top'])
+        main = json.loads(self.order.content_json)['main']
+        self.assertEqual(main[:3], self.Template._address_top_rows())
+        self.assertEqual(main[3]['type'], 'table')
+
+    def test_picking_moves_up_and_custom_frame_is_left_alone(self):
+        self._migrate()
+        self.assertEqual(json.loads(self.picking.content_json)['main'][0]['type'], 'table',
+                         '沒有地址區塊的不補，跟著外框往上')
+        self.assertEqual(self.custom.margin_top, 200, '使用者改過上邊距的外框不碰')
+        self.assertEqual(json.loads(self.custom_order.content_json)['main'][0]['type'], 'table')
+
+    def test_running_twice_does_not_add_twice(self):
+        self._migrate()
+        self.frame.margin_top = 212  # 模擬再跑一次（外框條件又成立）
+        self._migrate()
+        main = json.loads(self.order.content_json)['main']
+        self.assertEqual(main[3]['type'], 'table', '已補過的不重補')
