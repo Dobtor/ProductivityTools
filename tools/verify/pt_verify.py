@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 
 LEVELS = ('V0', 'V1', 'V2', 'V3', 'V4')
 SERIES = '18.0'
@@ -1668,6 +1669,19 @@ def _tar_dir(src_dir, mods, out_path):
                    filter=lambda ti: None if '__pycache__' in ti.name or ti.name.endswith('.pyc') else ti)
 
 
+def refresh_snapshot(target):
+    """deploy-plan 比對漂移前先重抓快照（同 `pt-verify snapshot`，唯讀）；失敗就停，不退回舊快照。"""
+    log('▶ 部署前先重抓 %s 的快照（不想重抓加 --no-refresh-snapshot，或用 --snapshot-dir 指定）' % target)
+    try:
+        cmd_snapshot(SimpleNamespace(target=target))
+    except SystemExit as e:
+        raise SystemExit('重抓快照失敗，部署計畫未產生（不會退回舊快照）：%s\n'
+                         '離線時可加 --no-refresh-snapshot 改用最新的既有快照' % e)
+    except Exception as e:  # tar／json／網路等非預期錯誤也要明確停下
+        raise SystemExit('重抓快照失敗，部署計畫未產生（不會退回舊快照）：%s: %s\n'
+                         '離線時可加 --no-refresh-snapshot 改用最新的既有快照' % (type(e).__name__, e))
+
+
 def cmd_deploy_plan(args):
     t = get_target(args.target)
     mods = sorted({m.strip() for m in args.mods.split(',') if m.strip()})
@@ -1686,12 +1700,14 @@ def cmd_deploy_plan(args):
               % (t.get('control_panel_database_id', '?'), t.get('db', '?'), ','.join(mods)))
         print('  3. 完成後跑：pt-verify post-check %s --mods %s' % (t['name'], ','.join(mods)))
         return 0
-    snap = load_snapshot(t['name'], args.snapshot_dir, args.installed)
-    if not snap:
-        raise SystemExit('目標 %s 沒有快照：先跑 pt-verify snapshot %s' % (t['name'], t['name']))
     for k in ('ssh_host', 'sources_path', 'container', 'db'):
         if not t.get(k):
             raise SystemExit('目標 %s 的 %s 尚未設定（待確認）' % (t['name'], k))
+    if not (args.snapshot_dir or args.installed or getattr(args, 'no_refresh_snapshot', False)):
+        refresh_snapshot(t['name'])
+    snap = load_snapshot(t['name'], args.snapshot_dir, args.installed)
+    if not snap:
+        raise SystemExit('目標 %s 沒有快照：先跑 pt-verify snapshot %s' % (t['name'], t['name']))
     # 本機來源
     local = {}
     if args.repo:
@@ -1886,8 +1902,10 @@ def build_parser():
     d.add_argument('--install-new', action='store_true', help='正式機未安裝的模組也 -i 安裝')
     d.add_argument('--allow-dirty', action='store_true')
     d.add_argument('--label')
-    d.add_argument('--snapshot-dir')
-    d.add_argument('--installed')
+    d.add_argument('--snapshot-dir', help='指定快照目錄（不重抓）')
+    d.add_argument('--installed', help='已安裝模組清單檔（不重抓）')
+    d.add_argument('--no-refresh-snapshot', action='store_true',
+                   help='不先重抓快照，改用最新的既有快照（例如離線時）')
     p = sp.add_parser('post-check', help='（唯讀）部署後檢查登入頁與模組版本')
     p.add_argument('target')
     p.add_argument('--mods', default='')

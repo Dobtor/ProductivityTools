@@ -541,7 +541,8 @@ class TestDeployPlan(Sandbox):
         try:
             def plan(**kw):
                 a = dict(target='fake', mods='p_old', repo=None, ref='HEAD', dest=None, install_new=False,
-                         allow_dirty=False, label=None, snapshot_dir=None, installed=None)
+                         allow_dirty=False, label=None, snapshot_dir=None, installed=None,
+                         no_refresh_snapshot=True)
                 a.update(kw)
                 buf = io.StringIO()
                 with redirect_stdout(buf):
@@ -582,6 +583,87 @@ class TestDeployPlan(Sandbox):
         finally:
             os.environ.pop('PT_VERIFY_TARGETS')
 
+
+    def test_deploy_plan_refreshes_snapshot_first(self):
+        """預設先重抓快照（mock 掉 cmd_snapshot，不連線）；--snapshot-dir／--installed 不重抓；重抓失敗就停。"""
+        repo = os.path.join(self.gh, 'PAAS')
+        mkmod(repo, 'p_old', extra={'a.py': 'new\n'})
+        git(repo, 'init', '-q')
+        git(repo, 'add', '-A')
+        git(repo, 'commit', '-qm', 'x')
+        day = dt.datetime.now().strftime('%Y%m%d')
+        old_snap = os.path.join(self.kb, 'prod', 'fake', '20200101')
+        mkmod(os.path.join(old_snap, 'src', 'PAAS'), 'p_old', extra={'a.py': 'stale\n'})
+        write(os.path.join(old_snap, 'installed.json'), json.dumps({'installed': {'p_old': '18.0.1.0.0'}}))
+        targets = os.path.join(self.tmp, 'targets.toml')
+        write(targets, '[[target]]\nname = "fake"\ndeploy_mode = "host"\nssh_host = "root@h"\nssh_key = "~/k"\n'
+                       'container = "c"\ndb = "d"\nsources_path = "/opt/src"\n')
+        calls = []
+
+        def fake_snapshot(a):
+            calls.append(a.target)
+            out = os.path.join(self.kb, 'prod', a.target, day)
+            mkmod(os.path.join(out, 'src', 'PAAS'), 'p_old', extra={'a.py': 'fresh\n'})
+            write(os.path.join(out, 'installed.json'), json.dumps({'installed': {'p_old': '18.0.1.0.0'}}))
+            return 0
+
+        def boom(a):
+            calls.append(a.target)
+            raise SystemExit('下載原碼失敗（ssh 結束碼 255）')
+
+        orig = pv.cmd_snapshot
+        os.environ['PT_VERIFY_TARGETS'] = targets
+        try:
+            def plan(**kw):
+                a = dict(target='fake', mods='p_old', repo=None, ref='HEAD', dest=None, install_new=False,
+                         allow_dirty=False, label=None, snapshot_dir=None, installed=None, no_refresh_snapshot=False)
+                a.update(kw)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = pv.cmd_deploy_plan(SimpleNamespace(**a))
+                return rc, buf.getvalue()
+
+            def plan_dir(out):
+                return os.path.dirname(out.strip().splitlines()[-1][len('! bash '):])
+            pv.cmd_snapshot = fake_snapshot
+            # 預設：先重抓，用今天的新快照比對
+            rc, out = plan()
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, ['fake'])
+            d = plan_dir(out)
+            self.assertEqual(json.load(open(os.path.join(d, 'plan.json')))['snapshot'],
+                             os.path.join(self.kb, 'prod', 'fake', day))
+            self.assertNotIn('不是今天的快照', out)
+            # --snapshot-dir：不重抓
+            rc, out = plan(snapshot_dir=old_snap)
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, ['fake'])
+            self.assertIn('不是今天的快照', out)
+            # --installed：不重抓
+            rc, out = plan(installed=os.path.join(old_snap, 'installed.json'))
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, ['fake'])
+            # --no-refresh-snapshot：不重抓，用最新既有快照
+            shutil.rmtree(os.path.join(self.kb, 'prod', 'fake', day))
+            rc, out = plan(no_refresh_snapshot=True)
+            self.assertEqual(rc, 0, out)
+            self.assertEqual(calls, ['fake'])
+            self.assertEqual(json.load(open(os.path.join(plan_dir(out), 'plan.json')))['snapshot'], old_snap)
+            self.assertIn('不是今天的快照', out)
+            # 重抓失敗：明確停下，不退回舊快照
+            pv.cmd_snapshot = boom
+            with self.assertRaises(SystemExit) as cm:
+                plan()
+            self.assertIn('重抓快照失敗', str(cm.exception))
+            self.assertIn('ssh 結束碼 255', str(cm.exception))
+            self.assertEqual(calls, ['fake', 'fake'])
+            # CLI 旗標
+            ns = pv.build_parser().parse_args(['deploy-plan', 'fake', '--mods', 'p_old', '--no-refresh-snapshot'])
+            self.assertTrue(ns.no_refresh_snapshot)
+            self.assertFalse(pv.build_parser().parse_args(['deploy-plan', 'fake', '--mods', 'x']).no_refresh_snapshot)
+        finally:
+            pv.cmd_snapshot = orig
+            os.environ.pop('PT_VERIFY_TARGETS')
 
 # ---------------------------------------------------------------- post-check（本機假站台）
 class TestPostCheck(Sandbox):
