@@ -17,7 +17,8 @@ release：取回並版紀錄凍結的匯出內容 → 逐筆重查（已停用�
         → 開 opt/release-<日期> → 寫進源碼並版表
         dobtor_corpaas_knowledge/services/rule_merged.json、核心版號最後一碼加一、docs/decisions.tsv 加一列
         → commit、存 diff → pt-verify V1、V2 → 寫回 → 通過就推 opt/release-<日期>。
-merged：確認分支已併進 origin/dev-18.0、分支有升版號、正式機模組版本已到分支的版本 → 提案轉「已並版」／並版紀錄檢查退役。
+merged：確認分支已併進 origin/dev-18.0、分支有升版號、正式機模組版本已到分支的版本，
+        而且正式機快照（先跑 pt-verify snapshot，唯讀）裡該 commit 改動的檔案內容全部一致 → 提案轉「已並版」／並版紀錄檢查退役。
         （squash 合併時 commit 不會是祖先，人確認過可加 --force 跳過祖先檢查；正式機版本仍要到。）
 
 ★ 會寫正式機（admin.corpaas.com，rpc.rw，只限白名單方法 action_kb_patch_verified／action_kb_patch_pushed／
@@ -38,6 +39,7 @@ GH = os.environ.get('PT_VERIFY_GH', os.path.expanduser('~/Documents/GitHub'))
 KNOWLEDGE = os.environ.get('OPT_KNOWLEDGE_REPO', os.path.join(GH, 'Knowledge'))
 WORKTREES = os.environ.get('OPT_WORKTREES', os.path.join(GH, 'Knowledge-worktrees'))
 PT_VERIFY = os.environ.get('OPT_PT_VERIFY', os.path.join(os.path.dirname(HERE), 'verify', 'pt-verify'))
+SNAP_ROOT = os.environ.get('OPT_SNAP_ROOT', os.path.expanduser('~/Library/Caches/corpaas-kb/prod'))
 CACHE = os.environ.get('OPT_CACHE', os.path.expanduser('~/Library/Caches/corpaas-kb/opt'))
 TARGET = os.environ.get('OPT_TARGET', 'admin.corpaas.com')
 BASE_REF = 'origin/dev-18.0'
@@ -106,11 +108,14 @@ def git(sh, repo, *args, check=True):
     return sh.run(['git', '-C', repo] + list(args), check=check)
 
 
-def push_branch(sh, repo, branch):
-    """★ 只推 opt/ 開頭的分支：明確 refspec、不 --force、不推其他 ref。"""
+def push_branch(sh, repo, branch, sha):
+    """★ 只推 opt/ 開頭的分支：明確 refspec「<驗證過的 sha>:refs/heads/<分支>」（審查 G3：推的就是驗證的那個 commit，
+    不是本機分支 ref 當下指到的東西）、不 --force、不推其他 ref。"""
     if not valid_branch(branch):
         raise ToolError('拒絕推送：只推 opt/ 開頭的分支（%s）' % branch)
-    git(sh, repo, 'push', 'origin', '%s:refs/heads/%s' % (branch, branch))
+    if not re.fullmatch(r'[0-9a-f]{7,64}', sha or ''):
+        raise ToolError('拒絕推送：沒有驗證過的 commit sha（%s）' % (sha or '—'))
+    git(sh, repo, 'push', 'origin', '%s:refs/heads/%s' % (sha, branch))
 
 
 def open_worktree(sh, branch, path):
@@ -259,7 +264,7 @@ def cmd_verify(prod, sh, pid, push=True):
     if prod.dry_run:
         print('  [dry-run] 不推 %s' % branch)
         return 'passed'
-    push_branch(sh, path, branch)
+    push_branch(sh, path, branch, head)
     prod.rw(PROPOSAL, 'action_kb_patch_pushed', [pid], {'branch': branch, 'commit': head})
     print('已推 %s（%s）：提案轉待合併。合併與部署由人決定。' % (branch, head[:12]))
     return 'pushed'
@@ -286,9 +291,9 @@ def cmd_push(prod, sh, pid):
     if prod.dry_run:
         print('  [dry-run] 不推 %s' % branch)
         return 'passed'
-    push_branch(sh, path, branch)
-    prod.rw(PROPOSAL, 'action_kb_patch_pushed', [pid], {'branch': branch, 'commit': head})
-    print('已推 %s（%s）：提案轉待合併' % (branch, head[:12]))
+    push_branch(sh, path, branch, rec['verify_sha'])
+    prod.rw(PROPOSAL, 'action_kb_patch_pushed', [pid], {'branch': branch, 'commit': rec['verify_sha']})
+    print('已推 %s（%s）：提案轉待合併' % (branch, rec['verify_sha'][:12]))
     return 'pushed'
 
 
@@ -370,7 +375,34 @@ def recheck_rules(prod, export):
             dropped.append({'override_id': r.get('override_id'), 'reason': why})
         else:
             kept.append(r)
+    # ★ 審查 G2：並進源碼的條目排在同範圍資料庫覆寫的最前面；同代碼還有沒並版的覆寫（重查拿掉的、凍結後新開的）
+    #   時，並版會改變兩者的先後（參數後蓋前），判定跟著變——這種條目這次也不並，寫進說明。
+    kept, dropped = _drop_order_conflicts(prod, kept, dropped)
     return dict(export, rules=kept), dropped
+
+
+def _drop_order_conflicts(prod, kept, dropped):
+    live = prod.ro(OVERRIDE, 'search_read', [('enabled', '=', True), ('retired', '=', False)],
+                   fields=['id', 'hook', 'group', 'rule_key', 'scope', 'package_id'])
+    while True:
+        ids = {r.get('override_id') for r in kept}
+        out, moved = [], False
+        for r in kept:
+            pkg = r.get('package_id') if r.get('scope') == 'package' else None
+            clash = [o['id'] for o in live if o['id'] not in ids and o.get('hook') == r.get('hook')
+                     and (not (o.get('group') or '').strip() or o['group'] == r.get('group'))
+                     and (o.get('rule_key') or '').strip() == r.get('key')
+                     and (o.get('scope') or 'global') == (r.get('scope') or 'global')
+                     and ((o.get('package_id') or [None])[0] if o.get('package_id') else None) == pkg]
+            if clash:
+                dropped.append({'override_id': r.get('override_id'), 'reason': '同代碼還有未並版的覆寫 %s'
+                                '（並進源碼會改變先後、判定跟著變）' % '、'.join('#%s' % c for c in clash)})
+                moved = True
+            else:
+                out.append(r)
+        kept = out
+        if not moved:
+            return kept, dropped
 
 
 def bump_version(text):
@@ -469,7 +501,7 @@ def cmd_release(prod, sh, rid, verify=True, push=True, today=None):
     res = verify_levels(sh, path, head) if verify else {}
     pushed = False
     if verify and _both_pass(res) and push and not prod.dry_run:
-        push_branch(sh, path, branch)
+        push_branch(sh, path, branch, head)
         pushed = True
     prod.rw(RELEASE, 'action_kb_release_exported', [rid], {
         'branch': branch, 'commit': head, 'diff_path': diff_path, 'v1': res.get('v1') or {},
@@ -490,7 +522,59 @@ def _ver(v):
     return tuple(out)
 
 
-def cmd_merged(prod, sh, ref, force=False):
+def take_snapshot(sh, snapshot_dir=None):
+    """審查 G1：正式機實際部署的原碼樹。沒指定就先跑 pt-verify snapshot（唯讀），取最新一份的 src/。"""
+    if snapshot_dir:
+        src = os.path.join(snapshot_dir, 'src')
+        return src if os.path.isdir(src) else snapshot_dir
+    code, out = sh.run([PT_VERIFY, 'snapshot', TARGET], check=False)
+    if code != 0:
+        raise ToolError('pt-verify snapshot %s 失敗：%s' % (TARGET, (out or '')[-500:]))
+    base = os.path.join(SNAP_ROOT, TARGET)
+    days = sorted(d for d in (os.listdir(base) if os.path.isdir(base) else []) if os.path.isdir(os.path.join(base, d, 'src')))
+    if not days:
+        raise ToolError('找不到 %s 的快照原碼樹（%s）' % (TARGET, base))
+    return os.path.join(base, days[-1], 'src')
+
+
+def _prod_path(src, rel):
+    """repo 內的相對路徑（<模組>/…）→ 快照裡的檔案路徑（模組在哪個子目錄就用哪個）；找不到模組回 None。"""
+    mod = rel.split('/', 1)[0]
+    for sub in sorted(os.listdir(src)):
+        if os.path.isdir(os.path.join(src, sub, mod)):
+            return os.path.join(src, sub, rel)
+    return None
+
+
+def deployed_mismatches(sh, src, commit):
+    """該 commit 改動的模組檔案，和正式機快照逐檔比對內容；回不一致的清單（空＝全部一致）。"""
+    _c, out = git(sh, KNOWLEDGE, 'diff', '--name-only', '%s^' % commit, commit)
+    files = [x for x in out.splitlines() if '/' in x and x.startswith('dobtor_')]
+    if not files:
+        return ['沒有改到模組檔案']
+    bad = []
+    for rel in files:
+        path = _prod_path(src, rel)
+        if path is None:
+            bad.append('%s：正式機沒有這個模組' % rel)
+            continue
+        code, text = git(sh, KNOWLEDGE, 'show', '%s:%s' % (commit, rel), check=False)
+        if code != 0:   # 這個 commit 刪掉的檔案
+            if os.path.exists(path):
+                bad.append('%s：應已刪除，正式機還在' % rel)
+            continue
+        try:
+            with open(path, encoding='utf-8', errors='replace', newline='') as fh:
+                live = fh.read()
+        except OSError:
+            bad.append('%s：正式機沒有這個檔案' % rel)
+            continue
+        if live != text:
+            bad.append('%s：內容和正式機不同' % rel)
+    return bad
+
+
+def cmd_merged(prod, sh, ref, force=False, snapshot_dir=None):
     if str(ref).startswith('release:'):
         rid = int(str(ref).split(':', 1)[1])
         rec = (prod.ro(RELEASE, 'read', [rid], fields=['state', 'branch', 'commit_sha']) or [None])[0]
@@ -526,6 +610,12 @@ def cmd_merged(prod, sh, ref, force=False):
               if _ver(have.get(m)) < _ver(v)]
     if behind:
         print('還沒部署：%s' % '；'.join(behind))
+        return 'not_deployed'
+    # ★ 審查 G1：版號相同不代表部署的是這個分支（兩分支可能升到同版號）——比對正式機實際的程式
+    src = take_snapshot(sh, snapshot_dir)
+    bad = deployed_mismatches(sh, src, commit)
+    if bad:
+        print('尚未部署（正式機的程式和 %s 不一致）：%s' % (commit[:12], '；'.join(bad[:10])))
         return 'not_deployed'
     version = '、'.join('%s %s' % (m, v) for m, v in sorted(want.items()))
     state = prod.rw(model, method, [rec_id], {'commit': commit, 'version': version}) \
@@ -570,6 +660,7 @@ def main(argv=None, prod=None, sh=None):
     m.add_argument('ref', help='<提案編號> 或 release:<並版編號>')
     m.add_argument('--force', action='store_true', help='squash 合併時跳過祖先檢查（正式機版本仍要到）')
     m.add_argument('--dry-run', action='store_true')
+    m.add_argument('--snapshot-dir', help='用這份正式機快照（預設先跑 pt-verify snapshot 取最新）')
     a = ap.parse_args(argv)
     prod = prod or Prod(dry_run=getattr(a, 'dry_run', False))
     sh = sh or Shell()
@@ -586,7 +677,7 @@ def main(argv=None, prod=None, sh=None):
         if a.cmd == 'push':
             return 0 if cmd_push(prod, sh, a.proposal) == 'pushed' else 1
         if a.cmd == 'merged':
-            return 0 if cmd_merged(prod, sh, a.ref, force=a.force) == 'merged' else 1
+            return 0 if cmd_merged(prod, sh, a.ref, force=a.force, snapshot_dir=a.snapshot_dir) == 'merged' else 1
     except ToolError as e:
         print('錯誤：%s' % e, file=sys.stderr)
         return 2

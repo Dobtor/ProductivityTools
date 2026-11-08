@@ -27,6 +27,9 @@ class FakeProd:
         if method == 'search_read' and model == 'ir.module.module':
             names = args[0][0][2]
             return [{'name': n, 'latest_version': self.modules[n]} for n in names if n in self.modules]
+        if method == 'search_read' and model == T.OVERRIDE:
+            return [dict(v) for (m, _i), v in sorted(self.records.items()) if m == T.OVERRIDE
+                    and v.get('enabled') and not v.get('retired')]
         if method == 'search_read':
             return []
         raise AssertionError('不該呼叫 %s.%s' % (model, method))
@@ -48,6 +51,7 @@ class FakeShell:
         self.ancestor, self.manifest_version, self.base_version = ancestor, manifest_version, base_version
         self.changed = changed or ['dobtor_corpaas_knowledge/models/x.py', 'docs/decisions.tsv']
         self.stderr_tail = stderr_tail
+        self.files = {'dobtor_corpaas_knowledge/models/x.py': 'a = 2\n'}
         self.calls = []
 
     def run(self, cmd, cwd=None, check=True, timeout=None):
@@ -70,12 +74,16 @@ class FakeShell:
             if sub == 'diff' and '--name-only' in cmd:
                 return 0, '\n'.join(self.changed) + '\n'
             if sub == 'show':
-                ref = cmd[4].split(':', 1)[0]
+                ref, path = cmd[4].split(':', 1)
+                if not path.endswith('__manifest__.py'):
+                    return (0, self.files[path]) if path in self.files else (128, 'fatal: path does not exist')
                 ver = self.base_version if (ref == T.BASE_REF or ref.endswith('^')) else self.manifest_version
                 return 0, "{'name': 'x', 'version': '%s'}" % ver
             if sub == 'diff':
                 return 0, 'diff --git a/x b/x\n'
             return 0, ''
+        if cmd[0] == T.PT_VERIFY and cmd[1] == 'snapshot':
+            return 0, '快照完成'
         if cmd[0] == T.PT_VERIFY:
             lvl = cmd[cmd.index('--level') + 1]
             verdict = self.verdicts.pop(0)
@@ -111,10 +119,19 @@ class Base(unittest.TestCase):
             fh.write('id\tdate\n D\nD-KN-088\t2026-11-09\tx\n')
         self.patches = [mock.patch.object(T, 'WORKTREES', os.path.join(self.tmp, 'wt')),
                         mock.patch.object(T, 'CACHE', os.path.join(self.tmp, 'cache')),
-                        mock.patch.object(T, 'KNOWLEDGE', repo)]
+                        mock.patch.object(T, 'KNOWLEDGE', repo),
+                        mock.patch.object(T, 'SNAP_ROOT', os.path.join(self.tmp, 'prod'))]
+        self.snap = os.path.join(self.tmp, 'prod', T.TARGET, '20261109', 'src', 'ProductivityTools')
+        self.prod_file('dobtor_corpaas_knowledge/models/x.py', 'a = 2\n')
         for p in self.patches:
             p.start()
         os.makedirs(os.path.join(self.tmp, 'wt'))
+
+    def prod_file(self, rel, text):
+        path = os.path.join(self.snap, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as fh:
+            fh.write(text)
 
     def tearDown(self):
         for p in self.patches:
@@ -137,7 +154,7 @@ class TestVerify(Base):
         add = [c for c in sh.calls if c[3] == 'worktree'][0]
         self.assertEqual(add[-3:], ['-b', 'opt/5', T.BASE_REF])
         self.assertEqual(sh.pushes(), [['git', '-C', os.path.join(self.tmp, 'wt', 'opt-5'), 'push', 'origin',
-                                        'opt/5:refs/heads/opt/5']])
+                                        'abc1234def:refs/heads/opt/5']])
         self.assertEqual([w[1] for w in prod.writes], ['action_kb_patch_verified', 'action_kb_patch_pushed'])
         payload = prod.writes[0][2][1]
         self.assertEqual((payload['v1']['verdict'], payload['v2']['verdict']), ('PASS', 'PASS'))
@@ -216,7 +233,7 @@ class TestVerify(Base):
         rec = prod.records[(T.PROPOSAL, 5)]
         rec.update(verify_v1_verdict='PASS', verify_v2_verdict='PASS', verify_sha='abc1234def')
         self.assertEqual(T.cmd_push(prod, sh, 5), 'pushed')
-        self.assertEqual(sh.pushes()[0][-1], 'opt/5:refs/heads/opt/5')
+        self.assertEqual(sh.pushes()[0][-1], 'abc1234def:refs/heads/opt/5')
         self.assertEqual(prod.writes[-1][1], 'action_kb_patch_pushed')
         rec['verify_sha'] = 'ffff999'
         with self.assertRaises(T.ToolError):
@@ -239,8 +256,20 @@ class TestVerify(Base):
         sh = FakeShell(self.tmp)
         for bad in ('dev-18.0', 'main', 'opt/../dev-18.0', 'refs/heads/opt/1', 'opt/', 'feat/x'):
             with self.assertRaises(T.ToolError, msg=bad):
-                T.push_branch(sh, '/r', bad)
+                T.push_branch(sh, '/r', bad, 'abc1234')
+        with self.assertRaises(T.ToolError):
+            T.push_branch(sh, '/r', 'opt/5', '')
         self.assertEqual(sh.pushes(), [])
+
+    def test_g3_push_uses_verified_sha(self):
+        """審查 G3：push 子指令推的是驗證過的 sha（refspec <verify_sha>:refs/heads/opt/N），不是本機分支 ref。"""
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        T.cmd_verify(prod, sh, 5, push=False)
+        prod.records[(T.PROPOSAL, 5)].update(verify_v1_verdict='PASS', verify_v2_verdict='PASS',
+                                             verify_sha='abc1234def')
+        T.cmd_push(prod, sh, 5)
+        self.assertEqual(sh.pushes()[-1][-1], 'abc1234def:refs/heads/opt/5')
+        self.assertEqual(prod.writes[-1][2][1]['commit'], 'abc1234def')
 
 
 class TestRelease(Base):
@@ -288,7 +317,7 @@ class TestRelease(Base):
         with open(os.path.join(wt, T.DECISIONS)) as fh:
             last = fh.read().splitlines()[-1].split('\t')
         self.assertEqual((last[0], len(last), last[8]), ('D-KN-089', 11, 'active'))
-        self.assertEqual(sh.pushes()[0][-1], 'opt/release-20261109:refs/heads/opt/release-20261109')
+        self.assertEqual(sh.pushes()[0][-1], 'abc1234def:refs/heads/opt/release-20261109')
         w = prod.writes[-1]
         self.assertEqual((w[1], w[2][1]['branch'], w[2][1]['pushed']), ('action_kb_release_exported',
                                                                          'opt/release-20261109', True))
@@ -315,6 +344,36 @@ class TestRelease(Base):
         self.assertEqual(T.cmd_release(prod, sh, 3, today='2026-11-09'), 'cancelled')
         self.assertEqual({d['reason'] for d in prod.writes[-1][2][1]['dropped']}, {'已刪除'})
         self.assertEqual(sh.calls, [], '沒開 worktree、沒推')
+
+    def test_g2_same_key_unmerged_override_blocks(self):
+        """審查 G2：參數後蓋前。全站 A＝0.3（順序 10）與 B＝0.5（順序 20）同代碼，原本結果是 0.5；若 B 凍結後改過
+        內容被拿掉、A 照並，部署後 A 變成並版表條目排到最前，B 反而蓋過 A——先後跟著變。同代碼還有未並版覆寫時
+        A 這次也不並、寫進說明；凍結後才開的同代碼覆寫也一樣擋。"""
+        exp = {'release_id': 3, 'db_uuid': 'u', 'rules': [
+            {'override_id': 11, 'hook': 'review.auto_approve', 'group': 'param', 'action': 'add',
+             'key': 'minor_budget_ratio', 'value': 0.3, 'scope': 'global'},
+            {'override_id': 12, 'hook': 'review.auto_approve', 'group': 'param', 'action': 'add',
+             'key': 'minor_budget_ratio', 'value': 0.5, 'scope': 'global'},
+            {'override_id': 13, 'hook': 'review.auto_approve', 'group': 'param', 'action': 'add',
+             'key': 'block_auto_approve', 'value': False, 'scope': 'global'}]}
+        base = {'enabled': True, 'retired': False, 'hook': 'review.auto_approve', 'group': 'param', 'action': 'add',
+                'scope': 'global', 'package_id': False}
+        ovs = {11: dict(base, id=11, rule_key='minor_budget_ratio', value='0.3'),
+               12: dict(base, id=12, rule_key='minor_budget_ratio', value='0.7'),   # 凍結後改過
+               13: dict(base, id=13, rule_key='block_auto_approve', value='false')}
+        prod = FakeProd({(T.OVERRIDE, k): v for k, v in ovs.items()})
+        kept, dropped = T.recheck_rules(prod, exp)
+        self.assertEqual([r['override_id'] for r in kept['rules']], [13])
+        why = {d['override_id']: d['reason'] for d in dropped}
+        self.assertEqual(why[12], '內容和凍結時不同')
+        self.assertIn('同代碼還有未並版的覆寫 #12', why[11])
+        # 凍結後新開的同代碼覆寫（不在匯出裡）
+        ovs[12]['value'] = '0.5'
+        ovs[14] = dict(base, id=14, rule_key='block_auto_approve', value='true')
+        prod = FakeProd({(T.OVERRIDE, k): v for k, v in ovs.items()})
+        kept, dropped = T.recheck_rules(prod, exp)
+        self.assertEqual([r['override_id'] for r in kept['rules']], [11, 12])
+        self.assertIn('#14', dropped[0]['reason'])
 
     def test_recheck_same_content_kept(self):
         kept, dropped = T.recheck_rules(self._prod(), self.EXPORT)
@@ -361,6 +420,24 @@ class TestMerged(Base):
         self.assertEqual(T.cmd_merged(prod, sh, '5'), 'no_bump')
         self.assertEqual(prod.writes, [])
 
+    def test_g1_same_version_other_branch_deployed(self):
+        """審查 G1：兩條分支升到同版號，正式機部署的是另一條 → 版號一樣但程式不同，不標已並版。"""
+        prod, sh = self._prod('18.0.3.36.1'), FakeShell(self.tmp)
+        sh.files['dobtor_corpaas_knowledge/models/x.py'] = 'a = 3  # 這條分支的修法\n'
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'not_deployed')
+        self.assertEqual(prod.writes, [])
+        self.assertIn([T.PT_VERIFY, 'snapshot', T.TARGET], sh.calls, '先跑 pt-verify snapshot')
+        # 這條分支刪掉的檔案，正式機還在 → 也算沒部署
+        sh = FakeShell(self.tmp, changed=['dobtor_corpaas_knowledge/models/x.py', 'dobtor_corpaas_knowledge/old.py'])
+        self.prod_file('dobtor_corpaas_knowledge/old.py', 'x = 1\n')
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'not_deployed')
+        # 正式機沒有這個模組
+        sh = FakeShell(self.tmp, changed=['dobtor_corpaas_knowledge_marketing/a.py'])
+        sh.files = {'dobtor_corpaas_knowledge_marketing/a.py': 'y\n'}
+        prod.modules['dobtor_corpaas_knowledge_marketing'] = '18.0.3.36.1'
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'not_deployed')
+        self.assertEqual(prod.writes, [])
+
     def test_f10_release_already_merged(self):
         prod = self._prod('18.0.3.36.1')
         prod.records[(T.RELEASE, 3)]['state'] = 'merged'
@@ -371,6 +448,9 @@ class TestMerged(Base):
         prod = self._prod('18.0.3.36.1')
         prod.modules['dobtor_corpaas_knowledge_manual'] = '18.0.3.36.1'
         sh = FakeShell(self.tmp, changed=['dobtor_corpaas_knowledge/a.py', 'dobtor_corpaas_knowledge_manual/b.py'])
+        sh.files = {'dobtor_corpaas_knowledge/a.py': 'a\n', 'dobtor_corpaas_knowledge_manual/b.py': 'b\n'}
+        self.prod_file('dobtor_corpaas_knowledge/a.py', 'a\n')
+        self.prod_file('dobtor_corpaas_knowledge_manual/b.py', 'b\n')
         T.cmd_merged(prod, sh, '5')
         ver = prod.writes[0][2][1]['version']
         self.assertEqual(ver, 'dobtor_corpaas_knowledge 18.0.3.36.1、dobtor_corpaas_knowledge_manual 18.0.3.36.1')
