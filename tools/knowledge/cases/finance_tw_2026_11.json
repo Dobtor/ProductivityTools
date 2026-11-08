@@ -7718,12 +7718,6 @@
      "field": "check_todo",
      "op": "=",
      "value": 0
-    },
-    {
-     "ref": "p",
-     "field": "check_fail",
-     "op": "=",
-     "value": 0
     }
    ]
   },
@@ -7754,20 +7748,6 @@
      ]
     },
     {
-     "ref": "setup",
-     "model": "tw.close.setup",
-     "values": {
-      "company_id": "ref:co",
-      "frequency": "month",
-      "year": 2026
-     },
-     "via": [
-      {
-       "method": "action_apply"
-      }
-     ]
-    },
-    {
      "ref": "p",
      "model": "tw.close.period",
      "domain": [
@@ -7784,7 +7764,7 @@
       [
        "date_start",
        "=",
-       "2026-01-01"
+       "2027-01-01"
       ]
      ],
      "via": [
@@ -7812,13 +7792,13 @@
      "ref": "p",
      "field": "lock_date_applied",
      "op": "=",
-     "value": "2026-01-31"
+     "value": "2027-01-31"
     },
     {
      "ref": "co",
      "field": "fiscalyear_lock_date",
      "op": "=",
-     "value": "2026-01-31"
+     "value": "2027-01-31"
     },
     {
      "ref": "p",
@@ -8008,7 +7988,7 @@
     {
      "ref": "ln",
      "field": "count",
-     "op": "=",
+     "op": ">=",
      "value": 1
     },
     {
