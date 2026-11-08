@@ -13,6 +13,7 @@ tools/verify/pt-verify run <repo 路徑> --level V0|V1|V2|V3|V4 [--mods a,b] [--
                            [--target <目標>] [--snapshot-dir <目錄>] [--installed <檔案>] [--no-cache] [--timeout 分鐘]
 tools/verify/pt-verify snapshot <目標>
 tools/verify/pt-verify deploy-plan <目標> --mods a,b [--repo <本機 repo>] [--ref HEAD] [--install-new] [--dest mod=子目錄]
+                                      [--snapshot-dir <目錄>|--installed <檔案>|--no-refresh-snapshot]
 tools/verify/pt-verify post-check <目標> --mods a,b
 ```
 
@@ -98,8 +99,9 @@ V4 整套原碼樹裡要換成本機版本的 repo（每筆寫原因、登記日
 
 ### deploy-plan（只產生，不執行）
 
-- `host` 模式：輸出到 `~/Library/Caches/corpaas-kb/deploy/<目標>/<時間>/`：
-  `bundle_<i>.tgz`（`git archive <ref>` 指定模組）、`expect_<i>.md5`（來自最新快照，整行 `LC_ALL=C` 排序）、
+- `host` 模式：**預設先重抓快照**（同 `pt-verify snapshot <目標>`，唯讀），再用這份當下快照產生漂移比對，避免舊快照誤報漂移；重抓失敗就報錯停下，不會默默退回舊快照。給了 `--snapshot-dir`／`--installed` 就沿用指定的、不重抓；`--no-refresh-snapshot`（例如離線時）改用最新的既有快照，不是今天的會印提醒。
+  輸出到 `~/Library/Caches/corpaas-kb/deploy/<目標>/<時間>/`：
+  `bundle_<i>.tgz`（`git archive <ref>` 指定模組）、`expect_<i>.md5`（來自上述快照，整行 `LC_ALL=C` 排序）、
   `remote.sh`（漂移比對 → 暫停排程 → 等佇列 → 備份 → 換碼 → `-u`（鎖類錯誤重試）→ 失敗還原 → 重啟 → 恢復排程）、`deploy.sh`、`plan.json`，
   最後一行印 `! bash …/deploy.sh` 給使用者執行。
   - 分組＝「正式機原碼子目錄 → 模組清單」：已在正式機的模組放回原位（例：知識模組在正式機是 `ProductivityTools/`），新模組放 `--dest` 或本機 repo 同名子目錄。
@@ -127,5 +129,5 @@ GET `<url>/web/login` 的 HTTP 狀態；有 `PT_VERIFY_RPC_KEY_<目標名大寫�
 cd tools/verify && python3 -m unittest discover -s tests -v
 ```
 
-涵蓋路徑推導、V0 各規則、報告欄位、差集、port、庫名、TOML、snapshot（假 ssh／docker）、deploy-plan（空清單防護、排序、
+涵蓋路徑推導、V0 各規則、報告欄位、差集、port、庫名、TOML、snapshot（假 ssh／docker）、deploy-plan（預設先重抓快照／指定快照不重抓／重抓失敗停下、空清單防護、排序、
 remote.sh 在本機用假 docker 實跑：漂移擋下、空分組不掃整個目錄、換碼、`-u`）。
