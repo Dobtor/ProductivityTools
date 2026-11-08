@@ -1,0 +1,301 @@
+"""opt_patch.py 單元測試：正式機連線、git、pt-verify 一律用假的——測試裡不會真的 apply 到 repo、不會跑驗證、不會推送。
+
+執行：cd tools/knowledge && python3 -m unittest discover -s tests -v
+"""
+import json
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import opt_patch as T  # noqa: E402
+
+
+class FakeProd:
+    def __init__(self, records=None, modules=None, dry_run=False):
+        self.records = records or {}
+        self.modules = modules or {}
+        self.writes = []
+        self.dry_run = dry_run
+
+    def ro(self, model, method, *args, **kw):
+        if method == 'read':
+            return [self.records[(model, i)] for i in args[0] if (model, i) in self.records]
+        if method == 'search_read' and model == 'ir.module.module':
+            names = args[0][0][2]
+            return [{'name': n, 'latest_version': self.modules[n]} for n in names if n in self.modules]
+        if method == 'search_read':
+            return []
+        raise AssertionError('不該呼叫 %s.%s' % (model, method))
+
+    def rw(self, model, method, *args, **kw):
+        assert method in WHITELIST, method
+        self.writes.append((model, method, args))
+        if self.dry_run:
+            return None
+        return 'ok'
+
+
+class FakeShell:
+    """記下每個指令；git apply／commit 等照設定回應；pt-verify 照 verdicts 回報告行。★ push 只記錄，不執行。"""
+
+    def __init__(self, tmp, verdicts=('PASS', 'PASS'), apply_ok=True, sha='abc1234def', ancestor=True,
+                 manifest_version='18.0.3.36.1'):
+        self.tmp, self.verdicts, self.apply_ok, self.sha = tmp, list(verdicts), apply_ok, sha
+        self.ancestor, self.manifest_version = ancestor, manifest_version
+        self.calls = []
+
+    def run(self, cmd, cwd=None, check=True, timeout=None):
+        self.calls.append(cmd)
+        if cmd[0] == 'git':
+            sub = cmd[3]
+            if sub == 'worktree':
+                path = cmd[cmd.index('--no-track') + 1]
+                src = os.path.join(self.tmp, 'repo')
+                shutil.copytree(src, path)
+                return 0, ''
+            if sub == 'rev-parse' and '--verify' in cmd:
+                return 1, ''
+            if sub == 'rev-parse':
+                return 0, self.sha + '\n'
+            if sub == 'apply':
+                return (0, '') if self.apply_ok else (1, 'error: patch failed')
+            if sub == 'merge-base':
+                return (0, '') if self.ancestor else (1, '')
+            if sub == 'diff' and '--name-only' in cmd:
+                return 0, 'dobtor_corpaas_knowledge/models/x.py\ndocs/decisions.tsv\n'
+            if sub == 'show':
+                return 0, "{'name': 'x', 'version': '%s'}" % self.manifest_version
+            if sub == 'diff':
+                return 0, 'diff --git a/x b/x\n'
+            return 0, ''
+        if cmd[0] == T.PT_VERIFY:
+            lvl = cmd[cmd.index('--level') + 1]
+            verdict = self.verdicts.pop(0)
+            rep = os.path.join(self.tmp, '%s.md' % lvl)
+            with open(rep[:-3] + '.json', 'w') as fh:
+                json.dump({'sha': self.sha, 'verdict': verdict}, fh)
+            return (0 if verdict == 'PASS' else 1), 'log...\n%s %s\n' % (rep, verdict)
+        raise AssertionError('不認得的指令：%s' % cmd)
+
+    def pushes(self):
+        return [c for c in self.calls if c[0] == 'git' and c[3] == 'push']
+
+    def levels(self):
+        return [c[c.index('--level') + 1] for c in self.calls if c[0] == T.PT_VERIFY]
+
+
+WHITELIST = {'action_kb_patch_verified', 'action_kb_patch_pushed', 'action_kb_patch_merged',
+             'action_kb_release_exported', 'action_kb_release_check'}
+
+
+class Base(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        repo = os.path.join(self.tmp, 'repo')
+        os.makedirs(os.path.join(repo, T.CORE, 'services'))
+        os.makedirs(os.path.join(repo, 'docs'))
+        with open(os.path.join(repo, T.MERGED_JSON), 'w') as fh:
+            json.dump({'note': 'x', 'rules': []}, fh)
+        with open(os.path.join(repo, T.CORE, '__manifest__.py'), 'w') as fh:
+            fh.write("{\n    'name': 'k',\n    'version': '18.0.3.36.0',\n}\n")
+        with open(os.path.join(repo, T.DECISIONS), 'w') as fh:
+            fh.write('id\tdate\n D\nD-KN-088\t2026-11-09\tx\n')
+        self.patches = [mock.patch.object(T, 'WORKTREES', os.path.join(self.tmp, 'wt')),
+                        mock.patch.object(T, 'CACHE', os.path.join(self.tmp, 'cache')),
+                        mock.patch.object(T, 'KNOWLEDGE', repo)]
+        for p in self.patches:
+            p.start()
+        os.makedirs(os.path.join(self.tmp, 'wt'))
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class TestVerify(Base):
+
+    def _prod(self, state='to_verify'):
+        return FakeProd({(T.PROPOSAL, 5): {'id': 5, 'state': state, 'layer': '3', 'name': '提案 #5',
+                                           'patch_diff': 'diff --git a/x b/x', 'patch_base_commit': '242f56d'}})
+
+    def test_happy_path_push_only_opt_branch(self):
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'pushed')
+        self.assertEqual(sh.levels(), ['V1', 'V2'])
+        v2 = [c for c in sh.calls if c[0] == T.PT_VERIFY][1]
+        self.assertIn('--target', v2, 'V2 帶正式機目標取整組')
+        add = [c for c in sh.calls if c[3] == 'worktree'][0]
+        self.assertEqual(add[-3:], ['-b', 'opt/5', T.BASE_REF])
+        self.assertEqual(sh.pushes(), [['git', '-C', os.path.join(self.tmp, 'wt', 'opt-5'), 'push', 'origin',
+                                        'opt/5:refs/heads/opt/5']])
+        self.assertEqual([w[1] for w in prod.writes], ['action_kb_patch_verified', 'action_kb_patch_pushed'])
+        payload = prod.writes[0][2][1]
+        self.assertEqual((payload['v1']['verdict'], payload['v2']['verdict']), ('PASS', 'PASS'))
+        self.assertTrue(payload['v1']['report'].endswith('V1.md'))
+        self.assertEqual(prod.writes[1][2][1], {'branch': 'opt/5', 'commit': 'abc1234def'})
+        commit = [c for c in sh.calls if c[3] == 'commit'][0]
+        self.assertNotIn('Co-Authored-By', commit[-1])
+
+    def test_v1_fail_no_v2_no_push(self):
+        prod, sh = self._prod(), FakeShell(self.tmp, verdicts=['FAIL'])
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual(sh.levels(), ['V1'])
+        self.assertEqual(sh.pushes(), [])
+        self.assertEqual([w[1] for w in prod.writes], ['action_kb_patch_verified'])
+        self.assertEqual(prod.writes[0][2][1]['v2']['verdict'], 'BLOCKED')
+
+    def test_v2_fail_no_push(self):
+        prod, sh = self._prod(), FakeShell(self.tmp, verdicts=['PASS', 'FAIL'])
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual(sh.pushes(), [])
+
+    def test_sha_mismatch_is_fail(self):
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        real = sh.run
+
+        def run(cmd, **kw):
+            code, out = real(cmd, **kw)
+            if cmd[0] == T.PT_VERIFY:
+                rep = out.strip().splitlines()[-1].rsplit(' ', 1)[0]
+                with open(rep[:-3] + '.json', 'w') as fh:
+                    json.dump({'sha': 'ffff000'}, fh)
+            return code, out
+        sh.run = run
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertIn('不等於 HEAD', prod.writes[0][2][1]['note'])
+        self.assertEqual(sh.pushes(), [])
+
+    def test_apply_fail_blocked_writeback(self):
+        prod, sh = self._prod(), FakeShell(self.tmp, apply_ok=False)
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'apply_failed')
+        self.assertEqual(sh.levels(), [])
+        self.assertEqual(sh.pushes(), [])
+        self.assertIn('git apply 失敗', prod.writes[0][2][1]['note'])
+
+    def test_no_push_and_dry_run(self):
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_verify(prod, sh, 5, push=False), 'passed')
+        self.assertEqual(sh.pushes(), [])
+        self.assertEqual([w[1] for w in prod.writes], ['action_kb_patch_verified'])
+        shutil.rmtree(os.path.join(self.tmp, 'wt', 'opt-5'))
+        prod, sh = FakeProd(self._prod().records, dry_run=True), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'passed')
+        self.assertEqual(sh.pushes(), [], 'dry-run 不推')
+
+    def test_wrong_state_refused(self):
+        with self.assertRaises(T.ToolError):
+            T.cmd_verify(self._prod('patching'), FakeShell(self.tmp), 5)
+
+    def test_existing_worktree_refused(self):
+        os.makedirs(os.path.join(self.tmp, 'wt', 'opt-5'))
+        with self.assertRaises(T.ToolError):
+            T.cmd_verify(self._prod(), FakeShell(self.tmp), 5)
+
+    def test_push_guard(self):
+        sh = FakeShell(self.tmp)
+        for bad in ('dev-18.0', 'main', 'opt/../dev-18.0', 'refs/heads/opt/1', 'opt/', 'feat/x'):
+            with self.assertRaises(T.ToolError, msg=bad):
+                T.push_branch(sh, '/r', bad)
+        self.assertEqual(sh.pushes(), [])
+
+
+class TestRelease(Base):
+
+    EXPORT = {'release_id': 3, 'db_uuid': 'uuid-1', 'rules': [
+        {'override_id': 1, 'hook': 'text.tech_label', 'group': 'map', 'action': 'add', 'key': 'lbl_waived',
+         'value': {'value': 'waived', 'label': '已略過'}, 'scope': 'package', 'package_id': 19,
+         'package_name': '財務會計', 'examples_pos': [], 'examples_neg': [], 'proposal_id': 7, 'note': ''},
+        {'override_id': 2, 'hook': 'claim.negation_words', 'group': 'except', 'action': 'add', 'key': 'x',
+         'value': '類別', 'scope': 'global', 'package_id': None, 'examples_pos': ['類別'], 'examples_neg': ['別']},
+        {'override_id': 3, 'hook': 'claim.not_a_rule', 'group': 'screen', 'action': 'disable', 'key': 'screen_3',
+         'value': None, 'scope': 'global'},
+    ]}
+
+    def _prod(self):
+        return FakeProd({(T.RELEASE, 3): {'id': 3, 'state': 'draft', 'name': '並版',
+                                          'export_json': json.dumps(self.EXPORT, ensure_ascii=False)}})
+
+    def test_release_writes_table_version_decision_and_pushes(self):
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_release(prod, sh, 3, today='2026-11-09'), 'pushed')
+        wt = os.path.join(self.tmp, 'wt', 'opt-release-20261109')
+        with open(os.path.join(wt, T.MERGED_JSON)) as fh:
+            table = json.load(fh)
+        self.assertEqual(len(table['rules']), 3)
+        pkg = table['rules'][0]
+        self.assertEqual((pkg['scope'], pkg['package_id'], pkg['db_uuid'], pkg['release_id']), ('package', 19, 'uuid-1', 3))
+        self.assertNotIn('db_uuid', table['rules'][1], '全站條目不帶資料庫識別')
+        self.assertNotIn('value', table['rules'][2], '停用不帶值')
+        with open(os.path.join(wt, T.CORE, '__manifest__.py')) as fh:
+            self.assertIn("'version': '18.0.3.36.1'", fh.read())
+        with open(os.path.join(wt, T.DECISIONS)) as fh:
+            last = fh.read().splitlines()[-1].split('\t')
+        self.assertEqual((last[0], len(last), last[8]), ('D-KN-089', 11, 'active'))
+        self.assertEqual(sh.pushes()[0][-1], 'opt/release-20261109:refs/heads/opt/release-20261109')
+        w = prod.writes[-1]
+        self.assertEqual((w[1], w[2][1]['branch'], w[2][1]['pushed']), ('action_kb_release_exported',
+                                                                         'opt/release-20261109', True))
+
+    def test_merge_rules_dedupes(self):
+        cur, n = T.merge_rules({'rules': []}, self.EXPORT)
+        cur2, n2 = T.merge_rules(cur, self.EXPORT)
+        self.assertEqual((n, n2, len(cur2['rules'])), (3, 0, 3))
+
+    def test_release_no_verify_no_push(self):
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_release(prod, sh, 3, verify=False, today='2026-11-09'), 'exported')
+        self.assertEqual((sh.levels(), sh.pushes()), ([], []))
+        self.assertFalse(prod.writes[-1][2][1]['pushed'])
+
+    def test_bump_and_decision_id(self):
+        self.assertEqual(T.bump_version("'version': '18.0.3.36.9',")[1:], ('18.0.3.36.9', '18.0.3.36.10'))
+        self.assertEqual(T.next_decision_id('D-KN-007\tx\nD-KN-120\ty\n'), 'D-KN-121')
+
+
+class TestMerged(Base):
+
+    def _prod(self, prod_version):
+        return FakeProd({(T.PROPOSAL, 5): {'id': 5, 'state': 'to_merge', 'patch_branch': 'opt/5',
+                                           'patch_commit': 'abc1234'},
+                         (T.RELEASE, 3): {'id': 3, 'state': 'to_merge', 'branch': 'opt/release-1',
+                                          'commit_sha': 'r1'}},
+                        modules={'dobtor_corpaas_knowledge': prod_version})
+
+    def test_merged_and_deployed(self):
+        prod, sh = self._prod('18.0.3.36.1'), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'merged')
+        self.assertEqual(prod.writes[0][1], 'action_kb_patch_merged')
+        self.assertEqual(sh.pushes(), [])
+        self.assertEqual(T.cmd_merged(prod, sh, 'release:3'), 'merged')
+        self.assertEqual(prod.writes[1][1], 'action_kb_release_check')
+
+    def test_not_deployed_or_not_merged(self):
+        prod, sh = self._prod('18.0.3.36.0'), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'not_deployed')
+        prod, sh = self._prod('18.0.3.36.1'), FakeShell(self.tmp, ancestor=False)
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'not_merged')
+        self.assertEqual(prod.writes, [])
+        self.assertEqual(T.cmd_merged(prod, sh, '5', force=True), 'merged', 'squash 合併：人確認後 --force')
+
+
+class TestNoSecrets(unittest.TestCase):
+
+    def test_tool_never_reads_keys(self):
+        src = open(T.__file__, encoding='utf-8').read()
+        for word in ('find-generic-password', 'CORPAAS_RPC_PASSWORD', 'hub_key', 'X-AI-Hub-Key', 'GITHUB_TOKEN'):
+            self.assertNotIn(word, src)
+
+    def test_rpc_whitelist_has_tool_methods(self):
+        rpc_src = open(os.path.join(os.path.dirname(T.__file__), 'rpc.py'), encoding='utf-8').read()
+        for m in WHITELIST:
+            self.assertIn("'%s'" % m, rpc_src)
+
+
+if __name__ == '__main__':
+    unittest.main()

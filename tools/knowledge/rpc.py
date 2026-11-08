@@ -41,7 +41,10 @@ KEYCHAIN_SERVICE = 'corpaas-knowledge-rpc'
 READ_METHODS = {'search_read', 'search_count', 'read_group', 'fields_get', 'read', 'search'}
 #: rw() 允許的寫入方法（營運工具實際用到的）；其他方法要明確 unsafe=True
 WRITE_METHODS = {'action_approve', 'action_knowledge_ai_select', 'action_knowledge_refresh',
-                 'knowledge_enqueue_refresh'}
+                 'knowledge_enqueue_refresh',
+                 # opt_patch.py（Knowledge 自我優化第 4 期）：修補驗證／推送／並版的寫回、並版檢查退役
+                 'action_kb_patch_verified', 'action_kb_patch_pushed', 'action_kb_patch_merged',
+                 'action_kb_release_exported', 'action_kb_release_check'}
 
 
 class RpcError(Exception):
