@@ -5,17 +5,19 @@
 用法（在 ProductivityTools 根目錄）：
   python3 tools/knowledge/opt_patch.py list
   python3 tools/knowledge/opt_patch.py verify <提案編號> [--no-push] [--dry-run]
+  python3 tools/knowledge/opt_patch.py push <提案編號>            （verify 用了 --no-push 之後再推）
   python3 tools/knowledge/opt_patch.py release <並版編號> [--no-verify] [--no-push] [--dry-run]
   python3 tools/knowledge/opt_patch.py merged <提案編號> [--force]
   python3 tools/knowledge/opt_patch.py merged release:<並版編號> [--force]
 
 verify：取回待驗證提案的修補檔 → 在 Knowledge 開 worktree（分支 opt/<提案編號>，從 origin/dev-18.0）→ git apply
-        → commit → pt-verify V1、V2（V2 帶 --target）→ 結果與報告路徑寫回提案 → 兩級都 PASS 且報告的 sha 等於 HEAD
+        → commit → 改到的模組都要升版號 → pt-verify V1、V2（V2 帶 --target）→ 結果與報告路徑寫回提案 → 兩級都 PASS 且報告的 sha 等於 HEAD
         就推 opt/<提案編號> → 提案轉「待合併」。審查小組精簡版不在工具內，由人另外跑。
-release：取回並版紀錄凍結的匯出內容 → 開 opt/release-<日期> → 寫進源碼並版表
+release：取回並版紀錄凍結的匯出內容 → 逐筆重查（已停用、刪除、退役、內容改過的拿掉，只少不多，D-KN-092）
+        → 開 opt/release-<日期> → 寫進源碼並版表
         dobtor_corpaas_knowledge/services/rule_merged.json、核心版號最後一碼加一、docs/decisions.tsv 加一列
         → commit、存 diff → pt-verify V1、V2 → 寫回 → 通過就推 opt/release-<日期>。
-merged：確認分支已併進 origin/dev-18.0、正式機模組版本已到分支的版本 → 提案轉「已並版」／並版紀錄檢查退役。
+merged：確認分支已併進 origin/dev-18.0、分支有升版號、正式機模組版本已到分支的版本 → 提案轉「已並版」／並版紀錄檢查退役。
         （squash 合併時 commit 不會是祖先，人確認過可加 --force 跳過祖先檢查；正式機版本仍要到。）
 
 ★ 會寫正式機（admin.corpaas.com，rpc.rw，只限白名單方法 action_kb_patch_verified／action_kb_patch_pushed／
@@ -44,7 +46,9 @@ MERGED_JSON = os.path.join(CORE, 'services', 'rule_merged.json')
 DECISIONS = os.path.join('docs', 'decisions.tsv')
 PROPOSAL = 'corpaas.knowledge.opt_proposal'
 RELEASE = 'corpaas.knowledge.opt_release'
+REPORT_LINE = re.compile(r'^(\S.*\.md) (PASS|FAIL|BLOCKED)$')
 BRANCH_RE = re.compile(r'opt/[A-Za-z0-9][A-Za-z0-9._-]{0,80}')
+OVERRIDE = 'corpaas.knowledge.rule_override'
 MERGED_KEYS = ('hook', 'group', 'action', 'key', 'value', 'scope', 'package_id', 'db_uuid', 'package_name',
                'examples_pos', 'examples_neg', 'override_id', 'proposal_id', 'release_id', 'note')
 
@@ -130,11 +134,16 @@ def run_verify(sh, repo, level, target=None):
     if target:
         cmd += ['--target', target]
     _code, out = sh.run(cmd, check=False)
-    last = [x for x in (out or '').strip().splitlines() if x.strip()][-1:] or ['']
-    parts = last[0].rsplit(' ', 1)
-    if len(parts) != 2 or parts[1] not in ('PASS', 'FAIL', 'BLOCKED'):
-        return {'report': '', 'verdict': 'BLOCKED', 'sha': '', 'note': 'pt-verify 沒有印出報告行：%s' % last[0][:300]}
-    report, verdict = parts
+    # ★ 審查 F9：失敗時輸出後面會接 stderr，報告行不一定是最後一行——從後往前找第一個報告行
+    hit = None
+    for line in reversed((out or '').splitlines()):
+        hit = REPORT_LINE.match(line.strip())
+        if hit:
+            break
+    if not hit:
+        tail = [x for x in (out or '').strip().splitlines() if x.strip()][-1:] or ['']
+        return {'report': '', 'verdict': 'BLOCKED', 'sha': '', 'note': 'pt-verify 沒有印出報告行：%s' % tail[0][:300]}
+    report, verdict = hit.group(1), hit.group(2)
     sha = ''
     try:
         with open(report[:-3] + '.json', encoding='utf-8') as fh:
@@ -157,6 +166,38 @@ def verify_levels(sh, repo, head):
         if r['verdict'] != 'PASS':
             break   # V1 沒過就不跑 V2（省時間）
     return out
+
+
+def manifest_version(sh, repo, ref, mod):
+    code, text = git(sh, repo, 'show', '%s:%s/__manifest__.py' % (ref, mod), check=False)
+    if code != 0:
+        return None
+    m = re.search(r"['\"]version['\"]\s*:\s*['\"]([\d.]+)['\"]", text or '')
+    return m.group(1) if m else None
+
+
+def changed_modules(sh, repo, base, head):
+    _c, out = git(sh, repo, 'diff', '--name-only', base, head)
+    return sorted({x.split('/', 1)[0] for x in out.splitlines() if '/' in x and x.startswith('dobtor_')})
+
+
+def version_bumps(sh, repo, base, head):
+    """審查 F7：改到的每個模組版號都要比基準高（新模組不比）。回 ({模組: 新版號}, [問題])；沒有改到模組也是問題。"""
+    mods = changed_modules(sh, repo, base, head)
+    want, problems = {}, []
+    if not mods:
+        problems.append('沒有改到任何模組')
+    for mod in mods:
+        new = manifest_version(sh, repo, head, mod)
+        if not new:
+            continue   # 模組被刪掉或沒有 manifest
+        old = manifest_version(sh, repo, base, mod)
+        want[mod] = new
+        if old and _ver(new) <= _ver(old):
+            problems.append('%s 版號沒有升（%s → %s）' % (mod, old, new))
+    if mods and not want:
+        problems.append('改到的模組都沒有 manifest 版號')
+    return want, problems
 
 
 def _both_pass(res):
@@ -198,6 +239,13 @@ def cmd_verify(prod, sh, pid, push=True):
     git(sh, path, 'commit', '-m', 'opt(#%s)：%s\n\nAI Hub 源碼修補（提案 #%s，Hub 基準 %s）。修補報告見提案。' % (
         pid, rec.get('name') or '', pid, rec.get('patch_base_commit') or '—'))
     head = head_sha(sh, path)
+    _want, problems = version_bumps(sh, path, BASE_REF, 'HEAD')
+    if problems:
+        prod.rw(PROPOSAL, 'action_kb_patch_verified', [pid], {
+            'v1': {'verdict': 'FAIL', 'report': '', 'sha': head}, 'v2': {'verdict': 'BLOCKED', 'report': ''},
+            'note': '修補沒有升版號（部署後無法確認已並版）：%s' % '；'.join(problems)})
+        print('版號檢查沒過：%s——已寫回（提案轉修補失敗）' % '；'.join(problems))
+        return 'failed'
     res = verify_levels(sh, path, head)
     payload = {'v1': res.get('v1') or {}, 'v2': res.get('v2') or {'verdict': 'BLOCKED', 'report': '',
                                                                    'note': 'V1 沒過，沒跑 V2'}, 'note': _notes(res)}
@@ -206,7 +254,7 @@ def cmd_verify(prod, sh, pid, push=True):
         print('驗證沒有通過：已寫回（提案轉修補失敗）；worktree 留著給人看：%s' % path)
         return 'failed'
     if not push:
-        print('V1、V2 通過；--no-push：沒有推分支，提案留在待驗證')
+        print('V1、V2 通過；--no-push：沒有推分支，提案留在待驗證（之後可用 push %s 推）' % pid)
         return 'passed'
     if prod.dry_run:
         print('  [dry-run] 不推 %s' % branch)
@@ -214,6 +262,33 @@ def cmd_verify(prod, sh, pid, push=True):
     push_branch(sh, path, branch)
     prod.rw(PROPOSAL, 'action_kb_patch_pushed', [pid], {'branch': branch, 'commit': head})
     print('已推 %s（%s）：提案轉待合併。合併與部署由人決定。' % (branch, head[:12]))
+    return 'pushed'
+
+
+def cmd_push(prod, sh, pid):
+    """審查 F13：verify 用了 --no-push（或推送失敗）之後再推：提案要在待驗證、V1 V2 都 PASS，
+    worktree 的 HEAD 要等於寫回的驗證 commit（驗證後沒有再改過）。"""
+    rec = (prod.ro(PROPOSAL, 'read', [pid], fields=['state', 'verify_v1_verdict', 'verify_v2_verdict',
+                                                     'verify_sha']) or [None])[0]
+    if not rec:
+        raise ToolError('找不到提案 #%s' % pid)
+    if rec['state'] != 'to_verify' or rec.get('verify_v1_verdict') != 'PASS' \
+            or rec.get('verify_v2_verdict') != 'PASS' or not rec.get('verify_sha'):
+        raise ToolError('提案 #%s 不在待驗證或 V1／V2 沒有都通過（%s）' % (pid, rec['state']))
+    branch = 'opt/%s' % int(pid)
+    path = os.path.join(WORKTREES, 'opt-%s' % int(pid))
+    if not os.path.isdir(path):
+        raise ToolError('找不到 worktree %s：請重新 verify' % path)
+    head = head_sha(sh, path)
+    if not (head.startswith(rec['verify_sha']) or rec['verify_sha'].startswith(head)):
+        raise ToolError('worktree HEAD（%s）不等於驗證的 commit（%s）：驗證後改過，請重新 verify' % (
+            head[:12], rec['verify_sha'][:12]))
+    if prod.dry_run:
+        print('  [dry-run] 不推 %s' % branch)
+        return 'passed'
+    push_branch(sh, path, branch)
+    prod.rw(PROPOSAL, 'action_kb_patch_pushed', [pid], {'branch': branch, 'commit': head})
+    print('已推 %s（%s）：提案轉待合併' % (branch, head[:12]))
     return 'pushed'
 
 
@@ -254,6 +329,50 @@ def merge_rules(current, export):
     return dict(current, rules=rules), added
 
 
+def _ov_value(raw, frozen):
+    if not isinstance(frozen, str):
+        try:
+            return json.loads(raw or 'null')
+        except ValueError:
+            return raw
+    return raw or ''
+
+
+def recheck_rules(prod, export):
+    """D-KN-092（使用者決定 F8）：凍結的每條覆寫逐筆重查目前狀態——已刪除、已停用、已退役、內容改過的拿掉。
+    凍結內容是上限：只會少不會多。回 (保留的 export, [{override_id, reason}])。"""
+    rules = export.get('rules') or []
+    ids = [r['override_id'] for r in rules if r.get('override_id')]
+    cur = {o['id']: o for o in prod.ro(OVERRIDE, 'read', ids, fields=[
+        'enabled', 'retired', 'hook', 'group', 'action', 'rule_key', 'value', 'scope', 'package_id'])} if ids else {}
+    kept, dropped = [], []
+    for r in rules:
+        o = cur.get(r.get('override_id'))
+        why = None
+        if not o:
+            why = '已刪除'
+        elif o.get('retired'):
+            why = '已退役'
+        elif not o.get('enabled'):
+            why = '已停用'
+        else:
+            pkg = (o.get('package_id') or [None])[0] if o.get('package_id') else None
+            group = (o.get('group') or '').strip()
+            same = (o.get('hook') == r.get('hook') and (not group or group == r.get('group'))
+                    and o.get('action') == r.get('action') and (o.get('rule_key') or '').strip() == r.get('key')
+                    and (o.get('scope') or 'global') == (r.get('scope') or 'global')
+                    and (r.get('scope') != 'package' or pkg == r.get('package_id')))
+            if same and r.get('action') == 'add':
+                same = _norm(_ov_value(o.get('value'), r.get('value'))) == _norm(r.get('value'))
+            if not same:
+                why = '內容和凍結時不同'
+        if why:
+            dropped.append({'override_id': r.get('override_id'), 'reason': why})
+        else:
+            kept.append(r)
+    return dict(export, rules=kept), dropped
+
+
 def bump_version(text):
     """__manifest__.py 的版號最後一碼加一。回 (新內容, 舊版, 新版)。"""
     m = re.search(r"(['\"]version['\"]\s*:\s*['\"])(\d+(?:\.\d+)+)(['\"])", text)
@@ -282,7 +401,10 @@ def decision_row(did, rel_id, export, branch, today):
     cols = [did, today, 'dobtor_corpaas_knowledge（並版 #%s）' % rel_id,
             clean('並版紀錄 #%s：%s 條規則覆寫並進源碼並版表 services/rule_merged.json：%s；來源提案 %s。部署後對應覆寫自動退役'
                   % (rel_id, len(items), '；'.join(items), '、'.join('#%s' % p for p in props) or '—')),
-            '設計書並版流程：生效中的覆寫定期並進源碼，資料庫保持乾淨', '覆寫一直留在資料庫（規則堆積）',
+            '設計書並版流程：生效中的覆寫定期並進源碼，資料庫保持乾淨%s' % (
+                clean('；匯出前重查拿掉 %s（D-KN-092）' % '、'.join('#%s %s' % (d['override_id'], d['reason'])
+                                                         for d in export['dropped']))
+                if export.get('dropped') else ''), '覆寫一直留在資料庫（規則堆積）',
             '並進的規則造成誤判時（從並版表拿掉、升版）', '分支 %s；opt_release #%s' % (branch, rel_id), 'active', '',
             '待人合併確認（並版 #%s）' % rel_id]
     assert not any('\t' in c or '\n' in c for c in cols)
@@ -298,6 +420,14 @@ def cmd_release(prod, sh, rid, verify=True, push=True, today=None):
         raise ToolError('並版紀錄 #%s 不能匯出（%s）' % (rid, rec['state']))
     export = json.loads(rec['export_json'])
     export.setdefault('release_id', rid)
+    export, dropped = recheck_rules(prod, export)
+    export['dropped'] = dropped
+    for d in dropped:
+        print('  重查拿掉覆寫 #%s：%s' % (d['override_id'], d['reason']))
+    if not export['rules']:
+        prod.rw(RELEASE, 'action_kb_release_exported', [rid], {'dropped': dropped})
+        print('重查後沒有可並版的覆寫：並版紀錄取消')
+        return 'cancelled'
     today = today or datetime.date.today().isoformat()
     branch = 'opt/release-%s' % today.replace('-', '')
     path = os.path.join(WORKTREES, 'opt-release-%s' % today.replace('-', ''))
@@ -343,7 +473,7 @@ def cmd_release(prod, sh, rid, verify=True, push=True, today=None):
         pushed = True
     prod.rw(RELEASE, 'action_kb_release_exported', [rid], {
         'branch': branch, 'commit': head, 'diff_path': diff_path, 'v1': res.get('v1') or {},
-        'v2': res.get('v2') or {}, 'pushed': pushed})
+        'v2': res.get('v2') or {}, 'pushed': pushed, 'dropped': dropped})
     print('已推 %s：待人合併、部署' % branch if pushed else '沒有推分支（驗證沒全過、--no-verify 或 --no-push）')
     return 'pushed' if pushed else 'exported'
 
@@ -360,11 +490,6 @@ def _ver(v):
     return tuple(out)
 
 
-def changed_modules(sh, commit):
-    _c, out = git(sh, KNOWLEDGE, 'diff', '--name-only', '%s^' % commit, commit)
-    return sorted({p.split('/', 1)[0] for p in out.splitlines() if '/' in p and p.startswith('dobtor_')})
-
-
 def cmd_merged(prod, sh, ref, force=False):
     if str(ref).startswith('release:'):
         rid = int(str(ref).split(':', 1)[1])
@@ -378,6 +503,10 @@ def cmd_merged(prod, sh, ref, force=False):
         rec_id, commit, ok_state = pid, (rec or {}).get('patch_commit'), 'to_merge'
     if not rec:
         raise ToolError('找不到%s' % what)
+    if model == RELEASE and rec['state'] == 'merged':
+        # 審查 F10：升級時已自動退役、轉已並版——不是錯誤
+        print('%s 已經是已並版（升級時已自動退役）' % what)
+        return 'merged'
     if rec['state'] != ok_state or not commit:
         raise ToolError('%s不在待合併（%s）或沒有分支 commit' % (what, rec['state']))
     git(sh, KNOWLEDGE, 'fetch', 'origin')
@@ -385,13 +514,11 @@ def cmd_merged(prod, sh, ref, force=False):
     if code != 0 and not force:
         print('%s 的 %s 還沒併進 %s（squash 合併的話確認後加 --force）' % (what, commit[:12], BASE_REF))
         return 'not_merged'
-    mods = changed_modules(sh, commit)
-    want = {}
-    for mod in mods:
-        _c, text = git(sh, KNOWLEDGE, 'show', '%s:%s/__manifest__.py' % (commit, mod))
-        m = re.search(r"['\"]version['\"]\s*:\s*['\"]([\d.]+)['\"]", text)
-        if m:
-            want[mod] = m.group(1)
+    # ★ 審查 F7：分支 commit 要真的升了改到的模組版號，否則「正式機版本已到」永遠成立、未部署就標已並版
+    want, problems = version_bumps(sh, KNOWLEDGE, '%s^' % commit, commit)
+    if problems or not want:
+        print('%s 的 %s 沒有升版號，無法確認已部署：%s' % (what, commit[:12], '；'.join(problems) or '沒有模組'))
+        return 'no_bump'
     have = {r['name']: r['latest_version'] for r in prod.ro(
         'ir.module.module', 'search_read', [('name', 'in', list(want))], fields=['name', 'latest_version'])} \
         if want else {}
@@ -401,7 +528,7 @@ def cmd_merged(prod, sh, ref, force=False):
         print('還沒部署：%s' % '；'.join(behind))
         return 'not_deployed'
     version = '、'.join('%s %s' % (m, v) for m, v in sorted(want.items()))
-    state = prod.rw(model, method, [rec_id], {'commit': commit, 'version': version[:32]}) \
+    state = prod.rw(model, method, [rec_id], {'commit': commit, 'version': version}) \
         if method == 'action_kb_patch_merged' else prod.rw(model, method, [rec_id])
     print('%s：已確認合併與部署（%s）→ %s' % (what, version or '—', state))
     return 'merged'
@@ -436,6 +563,9 @@ def main(argv=None, prod=None, sh=None):
     r.add_argument('--no-verify', action='store_true')
     r.add_argument('--no-push', action='store_true')
     r.add_argument('--dry-run', action='store_true')
+    pu = sub.add_parser('push')
+    pu.add_argument('proposal', type=int)
+    pu.add_argument('--dry-run', action='store_true')
     m = sub.add_parser('merged')
     m.add_argument('ref', help='<提案編號> 或 release:<並版編號>')
     m.add_argument('--force', action='store_true', help='squash 合併時跳過祖先檢查（正式機版本仍要到）')
@@ -453,6 +583,8 @@ def main(argv=None, prod=None, sh=None):
         if a.cmd == 'release':
             res = cmd_release(prod, sh, a.release, verify=not a.no_verify, push=not a.no_push)
             return 0 if res == 'pushed' else 1
+        if a.cmd == 'push':
+            return 0 if cmd_push(prod, sh, a.proposal) == 'pushed' else 1
         if a.cmd == 'merged':
             return 0 if cmd_merged(prod, sh, a.ref, force=a.force) == 'merged' else 1
     except ToolError as e:

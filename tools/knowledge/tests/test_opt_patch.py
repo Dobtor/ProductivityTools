@@ -43,9 +43,11 @@ class FakeShell:
     """記下每個指令；git apply／commit 等照設定回應；pt-verify 照 verdicts 回報告行。★ push 只記錄，不執行。"""
 
     def __init__(self, tmp, verdicts=('PASS', 'PASS'), apply_ok=True, sha='abc1234def', ancestor=True,
-                 manifest_version='18.0.3.36.1'):
+                 manifest_version='18.0.3.36.1', base_version='18.0.3.36.0', changed=None, stderr_tail=''):
         self.tmp, self.verdicts, self.apply_ok, self.sha = tmp, list(verdicts), apply_ok, sha
-        self.ancestor, self.manifest_version = ancestor, manifest_version
+        self.ancestor, self.manifest_version, self.base_version = ancestor, manifest_version, base_version
+        self.changed = changed or ['dobtor_corpaas_knowledge/models/x.py', 'docs/decisions.tsv']
+        self.stderr_tail = stderr_tail
         self.calls = []
 
     def run(self, cmd, cwd=None, check=True, timeout=None):
@@ -66,9 +68,11 @@ class FakeShell:
             if sub == 'merge-base':
                 return (0, '') if self.ancestor else (1, '')
             if sub == 'diff' and '--name-only' in cmd:
-                return 0, 'dobtor_corpaas_knowledge/models/x.py\ndocs/decisions.tsv\n'
+                return 0, '\n'.join(self.changed) + '\n'
             if sub == 'show':
-                return 0, "{'name': 'x', 'version': '%s'}" % self.manifest_version
+                ref = cmd[4].split(':', 1)[0]
+                ver = self.base_version if (ref == T.BASE_REF or ref.endswith('^')) else self.manifest_version
+                return 0, "{'name': 'x', 'version': '%s'}" % ver
             if sub == 'diff':
                 return 0, 'diff --git a/x b/x\n'
             return 0, ''
@@ -78,7 +82,7 @@ class FakeShell:
             rep = os.path.join(self.tmp, '%s.md' % lvl)
             with open(rep[:-3] + '.json', 'w') as fh:
                 json.dump({'sha': self.sha, 'verdict': verdict}, fh)
-            return (0 if verdict == 'PASS' else 1), 'log...\n%s %s\n' % (rep, verdict)
+            return (0 if verdict == 'PASS' else 1), 'log...\n%s %s\n%s' % (rep, verdict, self.stderr_tail)
         raise AssertionError('不認得的指令：%s' % cmd)
 
     def pushes(self):
@@ -188,6 +192,40 @@ class TestVerify(Base):
         self.assertEqual(T.cmd_verify(prod, sh, 5), 'passed')
         self.assertEqual(sh.pushes(), [], 'dry-run 不推')
 
+    def test_f9_fail_with_stderr_tail(self):
+        """審查 F9：FAIL 時輸出後面接 stderr，仍要認出 FAIL 與報告路徑（不能記成 BLOCKED）。"""
+        prod = self._prod()
+        sh = FakeShell(self.tmp, verdicts=['FAIL'], stderr_tail='Traceback...\nsome stderr line\n')
+        T.cmd_verify(prod, sh, 5)
+        v1 = prod.writes[0][2][1]['v1']
+        self.assertEqual(v1['verdict'], 'FAIL')
+        self.assertTrue(v1['report'].endswith('V1.md'))
+
+    def test_f7_verify_requires_version_bump(self):
+        """審查 F7：修補沒有升改到模組的版號 → 不跑驗證、寫回 FAIL、不推。"""
+        prod, sh = self._prod(), FakeShell(self.tmp, manifest_version='18.0.3.36.0')
+        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual((sh.levels(), sh.pushes()), ([], []))
+        self.assertIn('版號', prod.writes[0][2][1]['note'])
+        self.assertEqual(prod.writes[0][2][1]['v1']['verdict'], 'FAIL')
+
+    def test_f13_push_after_no_push(self):
+        """審查 F13：--no-push 之後可用 push 子指令再推（HEAD 要等於驗證的 commit）。"""
+        prod, sh = self._prod(), FakeShell(self.tmp)
+        T.cmd_verify(prod, sh, 5, push=False)
+        rec = prod.records[(T.PROPOSAL, 5)]
+        rec.update(verify_v1_verdict='PASS', verify_v2_verdict='PASS', verify_sha='abc1234def')
+        self.assertEqual(T.cmd_push(prod, sh, 5), 'pushed')
+        self.assertEqual(sh.pushes()[0][-1], 'opt/5:refs/heads/opt/5')
+        self.assertEqual(prod.writes[-1][1], 'action_kb_patch_pushed')
+        rec['verify_sha'] = 'ffff999'
+        with self.assertRaises(T.ToolError):
+            T.cmd_push(prod, sh, 5)
+        rec.update(verify_sha='abc1234def', verify_v2_verdict='FAIL')
+        with self.assertRaises(T.ToolError):
+            T.cmd_push(prod, sh, 5)
+        self.assertEqual(len(sh.pushes()), 1)
+
     def test_wrong_state_refused(self):
         with self.assertRaises(T.ToolError):
             T.cmd_verify(self._prod('patching'), FakeShell(self.tmp), 5)
@@ -217,9 +255,22 @@ class TestRelease(Base):
          'value': None, 'scope': 'global'},
     ]}
 
-    def _prod(self):
-        return FakeProd({(T.RELEASE, 3): {'id': 3, 'state': 'draft', 'name': '並版',
-                                          'export_json': json.dumps(self.EXPORT, ensure_ascii=False)}})
+    OVERRIDES = {
+        1: {'id': 1, 'enabled': True, 'retired': False, 'hook': 'text.tech_label', 'group': 'map', 'action': 'add',
+            'rule_key': 'lbl_waived', 'value': '{"label": "已略過", "value": "waived"}', 'scope': 'package',
+            'package_id': [19, '財務會計']},
+        2: {'id': 2, 'enabled': True, 'retired': False, 'hook': 'claim.negation_words', 'group': 'except',
+            'action': 'add', 'rule_key': 'x', 'value': '類別', 'scope': 'global', 'package_id': False},
+        3: {'id': 3, 'enabled': True, 'retired': False, 'hook': 'claim.not_a_rule', 'group': False,
+            'action': 'disable', 'rule_key': 'screen_3', 'value': False, 'scope': 'global', 'package_id': False},
+    }
+
+    def _prod(self, overrides=None):
+        recs = {(T.RELEASE, 3): {'id': 3, 'state': 'draft', 'name': '並版',
+                                 'export_json': json.dumps(self.EXPORT, ensure_ascii=False)}}
+        for k, v in (self.OVERRIDES if overrides is None else overrides).items():
+            recs[(T.OVERRIDE, k)] = dict(v)
+        return FakeProd(recs)
 
     def test_release_writes_table_version_decision_and_pushes(self):
         prod, sh = self._prod(), FakeShell(self.tmp)
@@ -241,6 +292,33 @@ class TestRelease(Base):
         w = prod.writes[-1]
         self.assertEqual((w[1], w[2][1]['branch'], w[2][1]['pushed']), ('action_kb_release_exported',
                                                                          'opt/release-20261109', True))
+
+    def test_f8_recheck_drops_disabled_deleted_changed(self):
+        """D-KN-092（使用者決定 F8）：凍結後被停用、刪除或內容改過的覆寫從這次並版拿掉；只少不多。"""
+        ovs = {k: dict(v) for k, v in self.OVERRIDES.items()}
+        ovs[1]['enabled'] = False
+        ovs[2]['value'] = '類別們'
+        prod, sh = self._prod(ovs), FakeShell(self.tmp)
+        T.cmd_release(prod, sh, 3, today='2026-11-09')
+        wt = os.path.join(self.tmp, 'wt', 'opt-release-20261109')
+        with open(os.path.join(wt, T.MERGED_JSON)) as fh:
+            table = json.load(fh)
+        self.assertEqual([r['key'] for r in table['rules']], ['screen_3'])
+        dropped = prod.writes[-1][2][1]['dropped']
+        self.assertEqual({d['override_id']: d['reason'] for d in dropped}, {1: '已停用', 2: '內容和凍結時不同'})
+        with open(os.path.join(wt, T.DECISIONS)) as fh:
+            self.assertIn('重查拿掉', fh.read().splitlines()[-1])
+        # 全部拿掉（含刪除）：不開分支，寫回取消
+        shutil.rmtree(os.path.join(self.tmp, 'wt'))
+        os.makedirs(os.path.join(self.tmp, 'wt'))
+        prod, sh = self._prod({}), FakeShell(self.tmp)
+        self.assertEqual(T.cmd_release(prod, sh, 3, today='2026-11-09'), 'cancelled')
+        self.assertEqual({d['reason'] for d in prod.writes[-1][2][1]['dropped']}, {'已刪除'})
+        self.assertEqual(sh.calls, [], '沒開 worktree、沒推')
+
+    def test_recheck_same_content_kept(self):
+        kept, dropped = T.recheck_rules(self._prod(), self.EXPORT)
+        self.assertEqual((len(kept['rules']), dropped), (3, []))
 
     def test_merge_rules_dedupes(self):
         cur, n = T.merge_rules({'rules': []}, self.EXPORT)
@@ -274,6 +352,28 @@ class TestMerged(Base):
         self.assertEqual(sh.pushes(), [])
         self.assertEqual(T.cmd_merged(prod, sh, 'release:3'), 'merged')
         self.assertEqual(prod.writes[1][1], 'action_kb_release_check')
+
+    def test_f7_merged_requires_bump(self):
+        """審查 F7：分支沒有升版號 → 無法確認部署，不標已並版。"""
+        prod, sh = self._prod('18.0.3.36.1'), FakeShell(self.tmp, manifest_version='18.0.3.36.0')
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'no_bump')
+        prod, sh = self._prod('18.0.3.36.1'), FakeShell(self.tmp, changed=['docs/decisions.tsv'])
+        self.assertEqual(T.cmd_merged(prod, sh, '5'), 'no_bump')
+        self.assertEqual(prod.writes, [])
+
+    def test_f10_release_already_merged(self):
+        prod = self._prod('18.0.3.36.1')
+        prod.records[(T.RELEASE, 3)]['state'] = 'merged'
+        self.assertEqual(T.cmd_merged(prod, FakeShell(self.tmp), 'release:3'), 'merged')
+        self.assertEqual(prod.writes, [])
+
+    def test_f12_full_version_string(self):
+        prod = self._prod('18.0.3.36.1')
+        prod.modules['dobtor_corpaas_knowledge_manual'] = '18.0.3.36.1'
+        sh = FakeShell(self.tmp, changed=['dobtor_corpaas_knowledge/a.py', 'dobtor_corpaas_knowledge_manual/b.py'])
+        T.cmd_merged(prod, sh, '5')
+        ver = prod.writes[0][2][1]['version']
+        self.assertEqual(ver, 'dobtor_corpaas_knowledge 18.0.3.36.1、dobtor_corpaas_knowledge_manual 18.0.3.36.1')
 
     def test_not_deployed_or_not_merged(self):
         prod, sh = self._prod('18.0.3.36.0'), FakeShell(self.tmp)
