@@ -809,6 +809,41 @@ def port_free(port):
         s.close()
 
 
+def free_port():
+    """作業系統配一個現在空著的 port（bind 0）。多個 session 同時跑 pt-verify 時，從固定範圍由小往大挑
+    會挑到同一個（先檢查、後綁定之間被別人搶走）；交給作業系統配，彼此拿到的不同。"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('', 0))
+        return s.getsockname()[1]
+    finally:
+        s.close()
+
+
+PORT_CONFLICT_RE = re.compile(r'Address already in use|Port \d+ is in use')
+
+
+def port_conflict(log_path):
+    try:
+        with open(log_path, encoding='utf-8', errors='replace') as f:
+            return bool(PORT_CONFLICT_RE.search(f.read()))
+    except OSError:
+        return False
+
+
+def run_odoo_free_port(make_cmd, log_path, timeout_min, tries=3, get_port=free_port):
+    """每次執行前重新要一個空的 port；Odoo 起來時 port 仍被搶（Address already in use）就換 port 重跑。
+    回 (結束碼, port, cmd)。"""
+    for i in range(tries):
+        port = get_port()
+        cmd = make_cmd(port)
+        rc = run_odoo(cmd, log_path, timeout_min)
+        if rc != 0 and i < tries - 1 and port_conflict(log_path):
+            log('  port %s 被其他程式占用，換 port 重跑' % port)
+            continue
+        return rc, port, cmd
+
+
 def pick_port(lo=PORT_RANGE[0], hi=PORT_RANGE[1], is_free=port_free):
     for p in range(lo, hi + 1):
         if is_free(p):
@@ -894,13 +929,24 @@ def show_cmd(cmd):
     return ' '.join(shlex.quote(c) for c in out)
 
 
+#: Odoo（受測模組與測試）只拿這些環境變數：正式機密碼（CORPAAS_RPC_PASSWORD）、ANTHROPIC_API_KEY、
+#: CLAUDE_CODE_OAUTH_TOKEN、GitHub 權杖等不帶。★ 這只減少意外外洩，**不是保護**——受測程式以同一個帳號執行，
+#: 照樣讀得到鑰匙圈與 ~/.ssh。受測的是 AI 寫的修補時，唯一的屏障是人先看過 diff（Knowledge D-KN-104）。
+ODOO_ENV_KEEP = ('HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'USER', 'LOGNAME', 'TZ', 'SHELL')
+
+
+def odoo_env():
+    env = {k: os.environ[k] for k in ODOO_ENV_KEEP if os.environ.get(k)}
+    # corpaas-kb/bin 放 cloc 等外部相依（github_connector 的 external_dependencies）
+    env['PATH'] = os.path.join(kb_home(), 'bin') + os.pathsep + (os.environ.get('PATH') or '/usr/bin:/bin')
+    return env
+
+
 def run_odoo(cmd, log_path, timeout_min):
     log('▶ %s\n  log：%s' % (' '.join(cmd[2:6]) + ' …', log_path))
     with open(log_path, 'w') as lf:
         try:
-            env = dict(os.environ)
-            # corpaas-kb/bin 放 cloc 等外部相依（github_connector 的 external_dependencies）
-            env['PATH'] = os.path.join(kb_home(), 'bin') + os.pathsep + env.get('PATH', '')
+            env = odoo_env()
             r = subprocess.run(cmd, cwd=odoo_root(), stdout=lf, stderr=subprocess.STDOUT, env=env,
                                timeout=timeout_min * 60)
             return r.returncode
@@ -1244,9 +1290,7 @@ class Runner:
                 raise Blocked('找不到 venv：%s' % venv_python())
             self.pg = Pg()
             self.pg.start()
-            self.port = pick_port()
-            if not self.port:
-                raise Blocked('8150–8199 沒有空的 port')
+            self.port = free_port()
         return self.pg
 
     def new_db(self, suffix=''):
@@ -1268,11 +1312,11 @@ class Runner:
         return r
 
     def step(self, name, db, addons, install=(), update=(), test_mods=()):
-        cmd = odoo_cmd(db, addons, self.port, self.pg, install=install, update=update, test_mods=test_mods,
-                       log_level='test' if test_mods else 'info')
         lp = os.path.join(self.out_dir, '%s-%s-%s.log' % (self.stamp, self.level, name))
         os.makedirs(self.out_dir, exist_ok=True)
-        rc = run_odoo(cmd, lp, self.args.timeout)
+        rc, self.port, cmd = run_odoo_free_port(
+            lambda port: odoo_cmd(db, addons, port, self.pg, install=install, update=update, test_mods=test_mods,
+                                  log_level='test' if test_mods else 'info'), lp, self.args.timeout)
         res = parse_log(lp)
         res.update({'rc': rc, 'log': lp, 'command': show_cmd(cmd)})
         self.rep['logs'].append(lp)

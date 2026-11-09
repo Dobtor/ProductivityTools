@@ -15,6 +15,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 from contextlib import redirect_stdout
 from types import SimpleNamespace
 
@@ -352,6 +353,49 @@ class TestPortAndDbName(unittest.TestCase):
         finally:
             s.close()
         self.assertTrue(8150 <= (pv.pick_port() or 8150) <= 8199)
+
+    def test_free_port_is_bindable_and_distinct(self):
+        ports = {pv.free_port() for _ in range(5)}
+        self.assertTrue(all(0 < p < 65536 for p in ports))
+        self.assertGreater(len(ports), 1, '作業系統配的 port 不會每次都同一個（不像固定範圍由小往大挑）')
+        p = pv.free_port()
+        self.assertTrue(pv.port_free(p))
+
+    def test_run_odoo_retries_on_port_conflict(self):
+        tmp = tempfile.mkdtemp()
+        lp = os.path.join(tmp, 'x.log')
+        calls = []
+
+        def fake_run(cmd, log_path, timeout_min):
+            calls.append(cmd)
+            with open(log_path, 'w') as f:
+                f.write('Address already in use\nPort %s is in use by another program.\n' % cmd[-1]
+                        if len(calls) == 1 else 'ok\n')
+            return 1 if len(calls) == 1 else 0
+        ports = iter([8150, 51234])
+        try:
+            with mock.patch.object(pv, 'run_odoo', side_effect=fake_run), redirect_stdout(io.StringIO()):
+                rc, port, cmd = pv.run_odoo_free_port(lambda p: ['odoo-bin', '--http-port', str(p)], lp, 1,
+                                                      get_port=lambda: next(ports))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertEqual((rc, port, cmd[-1]), (0, 51234, '51234'), '被占用就換 port 重跑')
+        self.assertEqual(len(calls), 2)
+
+    def test_run_odoo_other_failure_not_retried(self):
+        tmp = tempfile.mkdtemp()
+        lp = os.path.join(tmp, 'x.log')
+
+        def fake_run(cmd, log_path, timeout_min):
+            with open(log_path, 'w') as f:
+                f.write('ParseError\n')
+            return 1
+        try:
+            with mock.patch.object(pv, 'run_odoo', side_effect=fake_run) as run:
+                rc, _port, _cmd = pv.run_odoo_free_port(lambda p: ['x', str(p)], lp, 1)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertEqual((rc, run.call_count), (1, 1))
 
     def test_db_name(self):
         when = dt.datetime(2026, 11, 3, 9, 5)
@@ -764,6 +808,35 @@ class TestCliV0(Sandbox):
         rc, last = self.run_cli('run', self.repo, '--level', 'V4', '--mods', 'm_a')
         data = json.load(open(last.rsplit(' ', 1)[0][:-3] + '.json', encoding='utf-8'))
         self.assertIn('V4 需要正式機快照', data['blocked_reasons'][0])
+
+
+class TestOdooEnv(unittest.TestCase):
+    """受測的可能是 AI 寫的修補（Knowledge D-KN-104）：Odoo 只拿精簡的環境變數，金鑰一律不帶。"""
+
+    SECRETS = {'CORPAAS_RPC_PASSWORD': 'pw', 'ANTHROPIC_API_KEY': 'k', 'CLAUDE_CODE_OAUTH_TOKEN': 't',
+               'GITHUB_TOKEN': 'g', 'GH_TOKEN': 'g', 'PT_VERIFY_DB_PASSWORD': 'd', 'AWS_SECRET_ACCESS_KEY': 'a',
+               'PYTHONPATH': '/evil', 'PYTHONSTARTUP': '/evil.py'}
+
+    def test_odoo_env_is_minimal(self):
+        with mock.patch.dict(os.environ, dict(self.SECRETS, PATH='/usr/bin', HOME='/h', LANG='zh_TW.UTF-8'),
+                             clear=True):
+            env = pv.odoo_env()
+            kb_bin = os.path.join(pv.kb_home(), 'bin')
+        self.assertEqual(set(env), {'PATH', 'HOME', 'LANG'})
+        self.assertEqual(env['PATH'], kb_bin + os.pathsep + '/usr/bin')
+
+    def test_run_odoo_passes_minimal_env(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            with mock.patch.dict(os.environ, dict(self.SECRETS, PATH='/usr/bin', HOME='/h'), clear=True), \
+                    mock.patch.object(pv.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run, \
+                    mock.patch.object(pv, 'odoo_root', return_value=tmp), redirect_stdout(io.StringIO()):
+                self.assertEqual(pv.run_odoo(['python', 'odoo-bin', '-d', 'x', '--a', 'b'],
+                                             os.path.join(tmp, 'x.log'), 1), 0)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        env = run.call_args[1]['env']
+        self.assertFalse(set(self.SECRETS) & set(env), '金鑰、密碼、PYTHON* 不進 Odoo 的環境')
 
 
 if __name__ == '__main__':
