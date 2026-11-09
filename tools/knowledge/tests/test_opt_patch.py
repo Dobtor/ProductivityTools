@@ -596,7 +596,7 @@ class GenBase(Base):
 class TestGenerate(GenBase):
 
     def test_generate_stops_before_running_ai_code(self):
-        """D-KN-103（審查 A2）：產生修補、commit、寫回待驗證就停——不跑 pt-verify、不推。"""
+        """D-KN-104（審查 A2）：產生修補、commit、寫回待驗證就停——不跑 pt-verify、不推。"""
         prod, sh, cl = self._prod(), GenShell(self.tmp), FakeClaude()
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -717,7 +717,7 @@ class TestGenerate(GenBase):
 
 
 class TestReviewedGate(GenBase):
-    """D-KN-103（審查 A2）：verify 沒有 --reviewed 只印 diff 摘要，不開 worktree、不跑 pt-verify、不寫正式機。"""
+    """D-KN-104（審查 A2）：verify 沒有 --reviewed 只印 diff 摘要，不開 worktree、不跑 pt-verify、不寫正式機。"""
 
     def test_verify_without_reviewed_runs_nothing(self):
         prod, sh = self._prod(), GenShell(self.tmp)

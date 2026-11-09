@@ -17,7 +17,7 @@ generate（D-KN-102，使用者 2026-11-09 決定先不開沙盒 Runner）：不
         worktree opt-<編號>／分支 opt/<編號> → 在 worktree 裡跑 claude -p --restricted 寫修補（只能動 worktree、
         Bash 只放行 git diff／git status、限輪數與逾時、環境變數白名單）→ 只收 dobtor_ 模組的改動、主機端
         python3 -I 語法檢查（只 compile 不 import）→ commit → 寫回修補檔（待驗證）→ **停下**印 diff 摘要。
-        D-KN-103：AI 寫的程式在人看過 diff 之前不在這台 Mac 上執行——看過後 verify <編號> --reviewed 才跑 V1、V2。
+        D-KN-104：AI 寫的程式在人看過 diff 之前不在這台 Mac 上執行——看過後 verify <編號> --reviewed 才跑 V1、V2。
         失敗（含 Ctrl-C）一律寫回修補失敗與原因、清掉 worktree。--dry-run 只讀：提示詞存到
         ~/Library/Caches/corpaas-kb/opt/<編號>/prompt.md。
 verify：（沒有 --reviewed 只存 diff、印摘要，不執行任何東西）取回待驗證提案的修補檔 → 在 Knowledge 開 worktree（分支 opt/<提案編號>，從 origin/dev-18.0）→ git apply
@@ -229,7 +229,7 @@ def _notes(res):
 # verify
 # ----------------------------------------------------------------------
 def cmd_verify(prod, sh, pid, push=True, reviewed=False):
-    """D-KN-103（審查 A2）：修補是 AI 寫的，跑 pt-verify＝在這台 Mac 上執行它。沒有 --reviewed 只存 diff、印摘要，
+    """D-KN-104（審查 A2）：修補是 AI 寫的，跑 pt-verify＝在這台 Mac 上執行它。沒有 --reviewed 只存 diff、印摘要，
     不開 worktree、不執行任何東西；人看過 diff 後加 --reviewed 才驗證。"""
     recs = prod.ro(PROPOSAL, 'read', [pid], fields=['state', 'layer', 'name', 'patch_diff', 'patch_base_commit'])
     if not recs:
@@ -337,7 +337,7 @@ def cmd_push(prod, sh, pid):
 
 
 # ----------------------------------------------------------------------
-# generate（D-KN-102：本機產生修補，不開沙盒 Runner；D-KN-103：人看過 diff 才執行驗證）
+# generate（D-KN-102：本機產生修補，不開沙盒 Runner；D-KN-104：人看過 diff 才執行驗證）
 # ----------------------------------------------------------------------
 #: 可以本機修補的狀態（Knowledge patch_lib 的 PATCHABLE）
 GEN_STATES = ('recorded', 'runner_wait', 'patch_failed')
@@ -509,7 +509,7 @@ def clear_previous(sh, path, branch):
 
 def cmd_generate(prod, sh, claude, pid, model=None, max_turns=CLAUDE_MAX_TURNS, timeout=CLAUDE_TIMEOUT):
     """一筆：取備料 → 標本機修補中 → worktree opt-<編號>／opt/<編號> → claude -p 修 → 主機端語法檢查 → commit
-    → 寫回待驗證 → **停下**，印 diff 摘要與下一步（D-KN-103：人看過 diff 才 verify <編號> --reviewed）。
+    → 寫回待驗證 → **停下**，印 diff 摘要與下一步（D-KN-104：人看過 diff 才 verify <編號> --reviewed）。
     回 'generated'／'failed'／'skipped'／'dry_run'。"""
     import socket
     timeout = min(int(timeout), CLAUDE_TIMEOUT_MAX)
@@ -565,7 +565,7 @@ def cmd_generate(prod, sh, claude, pid, model=None, max_turns=CLAUDE_MAX_TURNS, 
     dfile = os.path.join(cache, 'changes.diff')
     print('  已 commit（%s 個檔案）→ 提案 %s。修補範圍：' % (nfiles, state))
     print('\n'.join(diff_summary(diff)))
-    print('  ★ 還沒執行任何 AI 寫的程式（D-KN-103）。先看 diff：%s（或 git -C %s show）、報告：%s\n'
+    print('  ★ 還沒執行任何 AI 寫的程式（D-KN-104）。先看 diff：%s（或 git -C %s show）、報告：%s\n'
           '    看過沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed' % (
               dfile, path, os.path.join(cache, REPORT_NAME), pid))
     return 'generated'
@@ -978,7 +978,7 @@ def main(argv=None, prod=None, sh=None, claude=None):
     v.add_argument('--no-push', action='store_true')
     v.add_argument('--dry-run', action='store_true')
     v.add_argument('--reviewed', action='store_true',
-                   help='人已看過修補 diff（D-KN-103）：沒有這個旗標只印摘要、不執行驗證')
+                   help='人已看過修補 diff（D-KN-104）：沒有這個旗標只印摘要、不執行驗證')
     r = sub.add_parser('release')
     r.add_argument('release', type=int)
     r.add_argument('--no-verify', action='store_true')
