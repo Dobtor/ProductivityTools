@@ -5,7 +5,7 @@
 用法（在 ProductivityTools 根目錄）：
   python3 tools/knowledge/opt_patch.py list
   python3 tools/knowledge/opt_patch.py generate [<提案編號>...] [--dry-run] [--model M] [--max-turns N] [--timeout-min N]
-  python3 tools/knowledge/opt_patch.py verify <提案編號> [--reviewed] [--no-push] [--dry-run]
+  python3 tools/knowledge/opt_patch.py verify <提案編號> [--reviewed [--allow-risky]] [--no-push] [--dry-run]
   python3 tools/knowledge/opt_patch.py push <提案編號>            （verify 用了 --no-push 之後再推）
   python3 tools/knowledge/opt_patch.py release <並版編號> [--no-verify] [--no-push] [--dry-run]
   python3 tools/knowledge/opt_patch.py merged <提案編號> [--force]
@@ -18,9 +18,12 @@ generate（D-KN-102，使用者 2026-11-09 決定先不開沙盒 Runner）：不
         Bash 只放行 git diff／git status、限輪數與逾時、環境變數白名單）→ 只收 dobtor_ 模組的改動、主機端
         python3 -I 語法檢查（只 compile 不 import）→ commit → 寫回修補檔（待驗證）→ **停下**印 diff 摘要。
         D-KN-104：AI 寫的程式在人看過 diff 之前不在這台 Mac 上執行——看過後 verify <編號> --reviewed 才跑 V1、V2。
+        ★ 照實說：在 Mac 上執行之前，**唯一的屏障是人看過 diff**。同一個帳號執行的程式讀得到鑰匙圈與 ~/.ssh；
+        pt-verify 給 Odoo 精簡環境變數只是減少意外外洩，不是保護。工具只幫人看：完整 diff、危險寫法標出
+        （命中要另加 --allow-risky）、git 設定檔／symlink／gitlink／二進位一律不收（diff 一律 --text 產生）。
         失敗（含 Ctrl-C）一律寫回修補失敗與原因、清掉 worktree。--dry-run 只讀：提示詞存到
         ~/Library/Caches/corpaas-kb/opt/<編號>/prompt.md。
-verify：（沒有 --reviewed 只存 diff、印摘要，不執行任何東西）取回待驗證提案的修補檔 → 在 Knowledge 開 worktree（分支 opt/<提案編號>，從 origin/dev-18.0）→ git apply
+verify：（先印完整 diff 與危險寫法；沒有 --reviewed 不執行任何東西）取回待驗證提案的修補檔 → 在 Knowledge 開 worktree（分支 opt/<提案編號>，從 origin/dev-18.0）→ git apply
         → commit → 改到的模組都要升版號 → pt-verify V1、V2（V2 帶 --target）→ 結果與報告路徑寫回提案 → 兩級都 PASS 且報告的 sha 等於 HEAD
         就推 opt/<提案編號> → 提案轉「待合併」。審查小組精簡版不在工具內，由人另外跑。
 release：取回並版紀錄凍結的匯出內容 → 逐筆重查（已停用、刪除、退役、內容改過的拿掉，只少不多，D-KN-092）
@@ -103,7 +106,10 @@ class Shell:
     """執行外部指令（git、pt-verify）。回 (結束碼, 標準輸出)。"""
 
     def run(self, cmd, cwd=None, check=True, timeout=None):
-        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        try:
+            p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise ToolError('指令超過 %s 秒沒結束：%s' % (timeout, ' '.join(cmd))) from None
         if check and p.returncode != 0:
             raise ToolError('指令失敗（%s）：%s\n%s' % (p.returncode, ' '.join(cmd), (p.stderr or p.stdout)[-2000:]))
         return p.returncode, (p.stdout or '') + (p.stderr or '' if p.returncode else '')
@@ -116,8 +122,25 @@ def valid_branch(name):
     return bool(BRANCH_RE.fullmatch(name or '')) and '..' not in name
 
 
-def git(sh, repo, *args, check=True):
-    return sh.run(['git', '-C', repo] + list(args), check=check)
+#: git fetch 的逾時（秒；審查 B3：網路卡住時不無限等）
+FETCH_TIMEOUT = 180
+#: 主機端產生／比對修補 diff 一律用這組（審查 B2）：不吃全域屬性檔、強制文字（.gitattributes 的 -diff 不會讓程式
+#: 變成「Binary files differ」）、不跑外部 diff 與 textconv
+SAFE_DIFF = ('-c', 'core.attributesFile=/dev/null', 'diff', '--text', '--no-ext-diff', '--no-textconv')
+
+
+def git(sh, repo, *args, check=True, timeout=None):
+    if timeout is None:
+        return sh.run(['git', '-C', repo] + list(args), check=check)
+    return sh.run(['git', '-C', repo] + list(args), check=check, timeout=timeout)
+
+
+def git_diff(sh, repo, *args, check=True):
+    return git(sh, repo, *(SAFE_DIFF + args), check=check)
+
+
+def git_fetch(sh, repo):
+    return git(sh, repo, 'fetch', 'origin', timeout=FETCH_TIMEOUT)
 
 
 def push_branch(sh, repo, branch, sha):
@@ -133,7 +156,7 @@ def push_branch(sh, repo, branch, sha):
 def open_worktree(sh, branch, path):
     if os.path.exists(path):
         raise ToolError('worktree 已存在：%s（先確認沒人在用，再 git -C %s worktree remove %s）' % (path, KNOWLEDGE, path))
-    git(sh, KNOWLEDGE, 'fetch', 'origin')
+    git_fetch(sh, KNOWLEDGE)
     code, _out = git(sh, KNOWLEDGE, 'rev-parse', '--verify', '--quiet', 'refs/heads/%s' % branch, check=False)
     if code == 0:
         raise ToolError('本機已有分支 %s：先確認是否舊的嘗試（git -C %s branch -D %s）' % (branch, KNOWLEDGE, branch))
@@ -228,9 +251,11 @@ def _notes(res):
 # ----------------------------------------------------------------------
 # verify
 # ----------------------------------------------------------------------
-def cmd_verify(prod, sh, pid, push=True, reviewed=False):
-    """D-KN-104（審查 A2）：修補是 AI 寫的，跑 pt-verify＝在這台 Mac 上執行它。沒有 --reviewed 只存 diff、印摘要，
-    不開 worktree、不執行任何東西；人看過 diff 後加 --reviewed 才驗證。"""
+def cmd_verify(prod, sh, pid, push=True, reviewed=False, allow_risky=False):
+    """D-KN-104（審查 A2、B1）：修補是 AI 寫的，跑 pt-verify＝在這台 Mac 上以你的帳號執行它（讀得到鑰匙圈、~/.ssh；
+    精簡環境變數只減少意外外洩、不是保護）——**唯一的屏障是人看過 diff**。所以一律先印完整 diff、範圍、危險寫法；
+    沒有 --reviewed 不執行任何東西；新增行有危險寫法還要另加 --allow-risky；有不允許的變更（git 設定檔、
+    symlink、gitlink、二進位）一律不跑。"""
     recs = prod.ro(PROPOSAL, 'read', [pid], fields=['state', 'layer', 'name', 'patch_diff', 'patch_base_commit'])
     if not recs:
         raise ToolError('找不到提案 #%s' % pid)
@@ -243,12 +268,19 @@ def cmd_verify(prod, sh, pid, push=True, reviewed=False):
     diff_file = os.path.join(CACHE, str(pid), 'changes.diff')
     with open(diff_file, 'w', encoding='utf-8') as fh:
         fh.write(rec['patch_diff'] if rec['patch_diff'].endswith('\n') else rec['patch_diff'] + '\n')
-    print('提案 #%s 的修補範圍：' % pid)
-    print('\n'.join(diff_summary(rec['patch_diff'])))
+    print('提案 #%s 的修補（%s）：' % (pid, diff_file))
+    problems, hits = print_review(rec['patch_diff'])
+    if problems:
+        print('✗ 修補含不允許的變更，不驗證（要人處理）')
+        return 'rejected'
     if not reviewed:
-        print('★ 還沒執行任何東西：先看 %s（AI 寫的程式，跑驗證＝在這台機器上執行它）。\n'
-              '  看過沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed' % (diff_file, pid))
+        print('★ 還沒執行任何東西。AI 寫的程式，跑驗證＝在這台機器上以你的帳號執行它（讀得到鑰匙圈、~/.ssh）。\n'
+              '  看完上面完整的 diff 沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed%s'
+              % (pid, ' --allow-risky' if hits else ''))
         return 'needs_review'
+    if hits and not allow_risky:
+        print('✗ 新增行有 %s 處危險寫法：逐行確認後要另加 --allow-risky 才執行' % len(hits))
+        return 'risky'
     if os.path.isdir(path) and _generated_worktree(sh, path, branch, rec['patch_diff']):
         print('沿用 generate 留下的 worktree %s（%s，內容和提案的修補檔相同）' % (path, branch))
         return verify_and_push(prod, sh, pid, path, branch, push)
@@ -305,7 +337,7 @@ def _generated_worktree(sh, path, branch, patch_diff):
         return False
     if git(sh, path, 'status', '--porcelain', check=False)[1].strip():
         return False
-    code, diff = git(sh, path, 'diff', 'HEAD~1..HEAD', check=False)
+    code, diff = git_diff(sh, path, 'HEAD~1..HEAD', check=False)
     return code == 0 and bool(diff.strip()) and diff.strip() == (patch_diff or '').strip()
 
 
@@ -472,6 +504,82 @@ def diff_summary(diff):
     return out or ['  （沒有檔案改動）']
 
 
+#: 審查 B2：修補不能新增或修改的 git 設定檔（會改變 diff 的呈現、子模組、LFS）
+GIT_CONFIG_FILES = ('.gitattributes', '.gitmodules', '.lfsconfig')
+#: 審查 B1：新增行裡的危險寫法——命中就要人另外加 --allow-risky 才能 --reviewed（不是保護，只是幫人看 diff 時不漏看）
+RISK_PATTERNS = (
+    (r'\bsubprocess\b|\bos\.system\b|\bpopen\b|\bPopen\b|\bos\.exec\w*|\bos\.spawn\w*|\bpty\b', '執行外部指令'),
+    (r'[\'"]security[\'"]|\bsecurity\s+(find|dump|export|unlock|add)-|find-generic-password|find-internet-password|'
+     r'keychain|\bkeyring\b', '鑰匙圈'),
+    (r'\bos\.environ\b|\bgetenv\b|\benviron\b', '環境變數'),
+    (r'expanduser|Path\.home|[\'"]~|\bHOME\b|/Users/|\.ssh\b|id_rsa|id_ed25519|\.aws\b|\.config/|\.netrc', '家目錄／金鑰檔'),
+    (r'\bsocket\b|\brequests\b|\burllib\b|\bhttp\.client\b|\bhttplib\b|\bhttpx\b|\baiohttp\b|https?://|\bsmtplib\b|'
+     r'\bftplib\b', '網路'),
+    (r'\bctypes\b|\bcffi\b', '原生呼叫'),
+    (r'\beval\s*\(|\bexec\s*\(|\bcompile\s*\(|\bimportlib\b|__import__|\bpickle\b|\bmarshal\b|\bcodecs\.decode\b',
+     '動態執行'),
+    (r'\bbase64\b|b64decode|\bzlib\b|\bbytes\.fromhex\b|\\x[0-9a-fA-F]{2}', '編碼後的內容（可能解碼後執行）'),
+)
+
+
+def diff_problems(diff):
+    """審查 B2：修補不允許的變更——git 設定檔、gitlink、symlink、二進位。回問題清單（空＝沒問題）。"""
+    out = []
+    for line in (diff or '').splitlines():
+        if line.startswith('diff --git '):
+            name = line.split(' b/', 1)[-1]
+            if os.path.basename(name) in GIT_CONFIG_FILES:
+                out.append('改到 git 設定檔 %s' % name)
+        elif re.match(r'^(new file mode|new mode|old mode|deleted file mode) (120000|160000)$', line) or \
+                re.match(r'^index [0-9a-f]+\.\.[0-9a-f]+ (120000|160000)$', line):
+            out.append('symlink／gitlink（%s）' % line)
+        elif line.startswith('Binary files ') or line.startswith('GIT binary patch'):
+            out.append('二進位內容（%s）' % line[:200])
+    return out
+
+
+def risk_scan(diff):
+    """審查 B1：只掃新增行。回 [(檔案, 新檔行號, 類別, 該行)]。"""
+    hits, cur, ln = [], None, 0
+    for line in (diff or '').splitlines():
+        if line.startswith('diff --git '):
+            cur, ln = line.split(' b/', 1)[-1], 0
+            continue
+        m = re.match(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@', line)
+        if m:
+            ln = int(m.group(1))
+            continue
+        if cur is None or line.startswith(('+++', '---')):
+            continue
+        if line.startswith('+'):
+            for rx, label in RISK_PATTERNS:
+                if re.search(rx, line[1:]):
+                    hits.append((cur, ln, label, line[1:].strip()[:200]))
+                    break
+            ln += 1
+        elif not line.startswith('-') and not line.startswith('\\'):
+            ln += 1
+    return hits
+
+
+def print_review(diff, show_full=True):
+    """給人審的內容：完整 diff（審查 B1：不能只看行數）、範圍摘要、不允許的變更、危險寫法命中行。回 (問題, 命中)。"""
+    if show_full:
+        print('===== 完整 diff（新增行裡的危險寫法在最後列出）=====')
+        print(diff if diff.endswith('\n') else diff + '\n', end='')
+        print('===== diff 結束 =====')
+    print('修補範圍：')
+    print('\n'.join(diff_summary(diff)))
+    problems, hits = diff_problems(diff), risk_scan(diff)
+    for p in problems:
+        print('  ✗ 不允許：%s' % p)
+    if hits:
+        print('  ★ 危險寫法 %s 處（要人逐行確認；確認沒問題才加 --reviewed --allow-risky）：' % len(hits))
+        for f, n, label, text in hits:
+            print('    %s:%s［%s］%s' % (f, n, label, text))
+    return problems, hits
+
+
 def gen_candidates(prod):
     """審查 A8：比照 Hub 的自動挑選——可修補的狀態、沒被拒、事件還開著（或沒有事件）、本機修補次數沒到上限。"""
     return [r['id'] for r in prod.ro(PROPOSAL, 'search_read', [
@@ -533,26 +641,29 @@ def cmd_generate(prod, sh, claude, pid, model=None, max_turns=CLAUDE_MAX_TURNS, 
             fh.write(local_prompt(brief['prompt'], branch, (base or '').strip()))
         print('  [dry-run] 不標本機修補中、不開 worktree、不跑 claude；提示詞存在 %s' % pfile)
         return 'dry_run'
-    clear_previous(sh, path, branch)
+    # 審查 B3：先拿到本機修補中（權杖）才動本機的 worktree／分支——兩台同時跑時，沒拿到的那台不會清掉別人的
     started = prod.rw(PROPOSAL, 'action_kb_patch_local_start', [pid], {'host': socket.gethostname()}) or {}
     token = started.get('token')
-    out = {'report': '', 'meta': {}}
+    out = {'report': '', 'meta': {}, 'created': False}
 
     def fail(note):
+        """先寫回（伺服器比對權杖）；寫回成功、而且 worktree 是這次自己建的才清（審查 B3：被接手的舊執行不清掉新的）。"""
         print('  失敗：%s' % note)
-        discard_attempt(sh, path, branch)
-        prod.rw(PROPOSAL, 'action_kb_patch_local_result', [pid], {
-            'token': token, 'ok': False, 'note': note, 'meta': out['meta'], 'report': out['report']})
+        try:
+            prod.rw(PROPOSAL, 'action_kb_patch_local_result', [pid], {
+                'token': token, 'ok': False, 'note': note, 'meta': out['meta'], 'report': out['report']})
+        except Exception as e:  # noqa: BLE001 — 權杖不符（被接手）或連不上：不清（伺服器 2 小時後自己轉修補失敗）
+            print('  寫回失敗，worktree 留著不清：%s' % e, file=sys.stderr)
+            return 'failed'
+        if out['created']:
+            discard_attempt(sh, path, branch)
         return 'failed'
     try:
         res = _generate_body(sh, claude, pid, brief, started.get('prompt') or brief['prompt'], branch, path, cache,
                              model, max_turns, timeout, out)
     except BaseException as e:  # noqa: BLE001 — 審查 A3：含 Ctrl-C，一律先寫回修補失敗，不留在本機修補中
         note = '主機端中斷：%s' % ((str(e) or e.__class__.__name__)[:1500])
-        try:
-            fail(note)
-        except Exception as e2:  # noqa: BLE001
-            print('  寫回失敗也失敗（伺服器 2 小時後會自己轉修補失敗）：%s' % e2, file=sys.stderr)
+        fail(note)
         if not isinstance(e, Exception):
             raise
         return 'failed'
@@ -563,17 +674,20 @@ def cmd_generate(prod, sh, claude, pid, model=None, max_turns=CLAUDE_MAX_TURNS, 
         'token': token, 'ok': True, 'diff': diff, 'report': out['report'], 'base_commit': base, 'meta': out['meta'],
         'note': '%s，%s 輪、%s 秒' % (branch, out['meta'].get('turns') or '—', out['meta'].get('duration_s') or '—')})
     dfile = os.path.join(cache, 'changes.diff')
-    print('  已 commit（%s 個檔案）→ 提案 %s。修補範圍：' % (nfiles, state))
-    print('\n'.join(diff_summary(diff)))
-    print('  ★ 還沒執行任何 AI 寫的程式（D-KN-104）。先看 diff：%s（或 git -C %s show）、報告：%s\n'
-          '    看過沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed' % (
-              dfile, path, os.path.join(cache, REPORT_NAME), pid))
+    print('  已 commit（%s 個檔案）→ 提案 %s。' % (nfiles, state))
+    _p, hits = print_review(diff, show_full=False)
+    print('  ★ 還沒執行任何 AI 寫的程式（D-KN-104：在這台 Mac 上執行它之前，唯一的屏障是人看過 diff）。\n'
+          '    看完整 diff：%s（或 python3 tools/knowledge/opt_patch.py verify %s，只印不執行）、報告：%s\n'
+          '    看過沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed%s' % (
+              dfile, pid, os.path.join(cache, REPORT_NAME), pid, ' --allow-risky' if hits else ''))
     return 'generated'
 
 
 def _generate_body(sh, claude, pid, brief, prompt, branch, path, cache, model, max_turns, timeout, out):
     """回 (diff, 基準, 檔案數)；失敗回原因字串。report／meta 寫進 out（失敗也一起寫回，審查 A6）。"""
+    clear_previous(sh, path, branch)
     open_worktree(sh, branch, path)
+    out['created'] = True
     base = head_sha(sh, path)
     text = local_prompt(prompt, branch, base)
     with open(os.path.join(cache, 'prompt.md'), 'w', encoding='utf-8') as fh:
@@ -603,7 +717,10 @@ def _generate_body(sh, claude, pid, brief, prompt, branch, path, cache, model, m
     git(sh, path, 'add', '-A', '--', *keep)
     git(sh, path, 'commit', '-m', 'opt(#%s)：%s\n\n本機源碼修補（opt_patch.py generate，D-KN-102；提案 #%s，基準 %s）。'
         '修補報告見提案。' % (pid, brief.get('name') or '', pid, base[:12]))
-    _c, diff = git(sh, path, 'diff', '%s..HEAD' % base)
+    _c, diff = git_diff(sh, path, '%s..HEAD' % base)
+    problems = diff_problems(diff)
+    if problems:
+        return '修補含不允許的變更（審查 B2）：%s' % '；'.join(problems)
     with open(os.path.join(cache, 'changes.diff'), 'w', encoding='utf-8') as fh:
         fh.write(diff)
     return diff, base, len(keep)
@@ -922,7 +1039,7 @@ def cmd_merged(prod, sh, ref, force=False, snapshot_dir=None):
         return 'merged'
     if rec['state'] != ok_state or not commit:
         raise ToolError('%s不在待合併（%s）或沒有分支 commit' % (what, rec['state']))
-    git(sh, KNOWLEDGE, 'fetch', 'origin')
+    git_fetch(sh, KNOWLEDGE)
     code, _o = git(sh, KNOWLEDGE, 'merge-base', '--is-ancestor', commit, BASE_REF, check=False)
     if code != 0 and not force:
         print('%s 的 %s 還沒併進 %s（squash 合併的話確認後加 --force）' % (what, commit[:12], BASE_REF))
@@ -978,7 +1095,9 @@ def main(argv=None, prod=None, sh=None, claude=None):
     v.add_argument('--no-push', action='store_true')
     v.add_argument('--dry-run', action='store_true')
     v.add_argument('--reviewed', action='store_true',
-                   help='人已看過修補 diff（D-KN-104）：沒有這個旗標只印摘要、不執行驗證')
+                   help='人已看過完整 diff（D-KN-104）：沒有這個旗標只印 diff、不執行驗證')
+    v.add_argument('--allow-risky', action='store_true',
+                   help='新增行有危險寫法（subprocess、鑰匙圈、環境變數、家目錄、網路…）時，人逐行確認過才加')
     r = sub.add_parser('release')
     r.add_argument('release', type=int)
     r.add_argument('--no-verify', action='store_true')
@@ -1007,7 +1126,7 @@ def main(argv=None, prod=None, sh=None, claude=None):
             cmd_list(prod)
             return 0
         if a.cmd == 'verify':
-            res = cmd_verify(prod, sh, a.proposal, push=not a.no_push, reviewed=a.reviewed)
+            res = cmd_verify(prod, sh, a.proposal, push=not a.no_push, reviewed=a.reviewed, allow_risky=a.allow_risky)
             return 0 if res in ('pushed', 'passed') else 1
         if a.cmd == 'release':
             res = cmd_release(prod, sh, a.release, verify=not a.no_verify, push=not a.no_push)

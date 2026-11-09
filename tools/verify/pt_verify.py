@@ -929,8 +929,9 @@ def show_cmd(cmd):
     return ' '.join(shlex.quote(c) for c in out)
 
 
-#: Odoo（受測模組與測試）只拿這些環境變數——受測的可能是 AI 寫的修補（Knowledge D-KN-104），
-#: 正式機密碼（CORPAAS_RPC_PASSWORD）、ANTHROPIC_API_KEY、CLAUDE_CODE_OAUTH_TOKEN、GitHub 權杖等一律不帶
+#: Odoo（受測模組與測試）只拿這些環境變數：正式機密碼（CORPAAS_RPC_PASSWORD）、ANTHROPIC_API_KEY、
+#: CLAUDE_CODE_OAUTH_TOKEN、GitHub 權杖等不帶。★ 這只減少意外外洩，**不是保護**——受測程式以同一個帳號執行，
+#: 照樣讀得到鑰匙圈與 ~/.ssh。受測的是 AI 寫的修補時，唯一的屏障是人先看過 diff（Knowledge D-KN-104）。
 ODOO_ENV_KEEP = ('HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'USER', 'LOGNAME', 'TZ', 'SHELL')
 
 
