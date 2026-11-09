@@ -4,21 +4,23 @@
 
 用法（在 ProductivityTools 根目錄）：
   python3 tools/knowledge/opt_patch.py list
-  python3 tools/knowledge/opt_patch.py generate [<提案編號>...] [--dry-run] [--no-verify] [--no-push] [--model M]
-                                                [--max-turns N] [--timeout-min N]
-  python3 tools/knowledge/opt_patch.py verify <提案編號> [--no-push] [--dry-run]
+  python3 tools/knowledge/opt_patch.py generate [<提案編號>...] [--dry-run] [--model M] [--max-turns N] [--timeout-min N]
+  python3 tools/knowledge/opt_patch.py verify <提案編號> [--reviewed] [--no-push] [--dry-run]
   python3 tools/knowledge/opt_patch.py push <提案編號>            （verify 用了 --no-push 之後再推）
   python3 tools/knowledge/opt_patch.py release <並版編號> [--no-verify] [--no-push] [--dry-run]
   python3 tools/knowledge/opt_patch.py merged <提案編號> [--force]
   python3 tools/knowledge/opt_patch.py merged release:<並版編號> [--force]
 
-generate（D-KN-102，使用者 2026-11-09 決定先不開沙盒 Runner）：不指定提案＝所有可修補的第 3 層提案（只記錄、
-        Runner 未就緒、修補失敗；專案知識跳過）。每筆：唯讀取備料（kb_patch_brief）→ 標「本機修補中」（Hub 不會同時送）
-        → 從 origin/dev-18.0 開 worktree opt-<編號>／分支 opt/<編號> → 在 worktree 裡跑 claude -p --restricted 寫修補
-        （只能動 worktree、Bash 只放行 py_compile／git diff／git status、限輪數與逾時、環境變數白名單）
-        → 只收 dobtor_ 模組的改動、py_compile → commit → 寫回修補檔（待驗證）→ 接 verify 的 V1、V2、推 opt/ 分支。
-        失敗一律寫回修補失敗與原因。--dry-run 只讀：提示詞存到 ~/Library/Caches/corpaas-kb/opt/<編號>/prompt.md。
-verify：取回待驗證提案的修補檔 → 在 Knowledge 開 worktree（分支 opt/<提案編號>，從 origin/dev-18.0）→ git apply
+generate（D-KN-102，使用者 2026-11-09 決定先不開沙盒 Runner）：不指定提案＝可修補的第 3 層提案（只記錄、Runner 未就緒、
+        修補失敗；沒被拒、事件還開著、本機試不到 3 次；專案知識跳過）。每筆：唯讀取備料（kb_patch_brief，正式機要
+        18.0.3.37.1）→ 標「本機修補中」（Hub 不會同時送）→ 清掉上次失敗留下的 worktree → 從 origin/dev-18.0 開
+        worktree opt-<編號>／分支 opt/<編號> → 在 worktree 裡跑 claude -p --restricted 寫修補（只能動 worktree、
+        Bash 只放行 git diff／git status、限輪數與逾時、環境變數白名單）→ 只收 dobtor_ 模組的改動、主機端
+        python3 -I 語法檢查（只 compile 不 import）→ commit → 寫回修補檔（待驗證）→ **停下**印 diff 摘要。
+        D-KN-103：AI 寫的程式在人看過 diff 之前不在這台 Mac 上執行——看過後 verify <編號> --reviewed 才跑 V1、V2。
+        失敗（含 Ctrl-C）一律寫回修補失敗與原因、清掉 worktree。--dry-run 只讀：提示詞存到
+        ~/Library/Caches/corpaas-kb/opt/<編號>/prompt.md。
+verify：（沒有 --reviewed 只存 diff、印摘要，不執行任何東西）取回待驗證提案的修補檔 → 在 Knowledge 開 worktree（分支 opt/<提案編號>，從 origin/dev-18.0）→ git apply
         → commit → 改到的模組都要升版號 → pt-verify V1、V2（V2 帶 --target）→ 結果與報告路徑寫回提案 → 兩級都 PASS 且報告的 sha 等於 HEAD
         就推 opt/<提案編號> → 提案轉「待合併」。審查小組精簡版不在工具內，由人另外跑。
 release：取回並版紀錄凍結的匯出內容 → 逐筆重查（已停用、刪除、退役、內容改過的拿掉，只少不多，D-KN-092）
@@ -226,7 +228,9 @@ def _notes(res):
 # ----------------------------------------------------------------------
 # verify
 # ----------------------------------------------------------------------
-def cmd_verify(prod, sh, pid, push=True):
+def cmd_verify(prod, sh, pid, push=True, reviewed=False):
+    """D-KN-103（審查 A2）：修補是 AI 寫的，跑 pt-verify＝在這台 Mac 上執行它。沒有 --reviewed 只存 diff、印摘要，
+    不開 worktree、不執行任何東西；人看過 diff 後加 --reviewed 才驗證。"""
     recs = prod.ro(PROPOSAL, 'read', [pid], fields=['state', 'layer', 'name', 'patch_diff', 'patch_base_commit'])
     if not recs:
         raise ToolError('找不到提案 #%s' % pid)
@@ -239,6 +243,12 @@ def cmd_verify(prod, sh, pid, push=True):
     diff_file = os.path.join(CACHE, str(pid), 'changes.diff')
     with open(diff_file, 'w', encoding='utf-8') as fh:
         fh.write(rec['patch_diff'] if rec['patch_diff'].endswith('\n') else rec['patch_diff'] + '\n')
+    print('提案 #%s 的修補範圍：' % pid)
+    print('\n'.join(diff_summary(rec['patch_diff'])))
+    if not reviewed:
+        print('★ 還沒執行任何東西：先看 %s（AI 寫的程式，跑驗證＝在這台機器上執行它）。\n'
+              '  看過沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed' % (diff_file, pid))
+        return 'needs_review'
     if os.path.isdir(path) and _generated_worktree(sh, path, branch, rec['patch_diff']):
         print('沿用 generate 留下的 worktree %s（%s，內容和提案的修補檔相同）' % (path, branch))
         return verify_and_push(prod, sh, pid, path, branch, push)
@@ -290,7 +300,7 @@ def verify_and_push(prod, sh, pid, path, branch, push=True):
 
 
 def _generated_worktree(sh, path, branch, patch_diff):
-    """generate --no-verify 留下的 worktree：在 opt/<編號>、沒有未 commit 的改動、最後一個 commit 的 diff 就是提案的修補檔。"""
+    """generate 留下的 worktree：在 opt/<編號>、沒有未 commit 的改動、最後一個 commit 的 diff 就是提案的修補檔。"""
     if git(sh, path, 'rev-parse', '--abbrev-ref', 'HEAD', check=False)[1].strip() != branch:
         return False
     if git(sh, path, 'status', '--porcelain', check=False)[1].strip():
@@ -327,44 +337,42 @@ def cmd_push(prod, sh, pid):
 
 
 # ----------------------------------------------------------------------
-# generate（D-KN-102：本機產生修補，不開沙盒 Runner）
+# generate（D-KN-102：本機產生修補，不開沙盒 Runner；D-KN-103：人看過 diff 才執行驗證）
 # ----------------------------------------------------------------------
 #: 可以本機修補的狀態（Knowledge patch_lib 的 PATCHABLE）
 GEN_STATES = ('recorded', 'runner_wait', 'patch_failed')
-PATCH_LIB = os.path.join(CORE, 'services', 'patch_lib.py')
+#: 自動挑候選時，本機修補最多試幾次（指定編號不受限：人決定）
+GEN_MAX_ATTEMPTS = 3
 CLAUDE = os.environ.get('OPT_CLAUDE', 'claude')
-CLAUDE_TIMEOUT = int(os.environ.get('OPT_CLAUDE_TIMEOUT', 45 * 60))
+#: claude 逾時上限要比伺服器的本機修補中斷時限（patch_lib.LOCAL_STALE_HOURS＝2 小時）短（審查 A5）
+CLAUDE_TIMEOUT_MAX = 90 * 60
+CLAUDE_TIMEOUT = min(int(os.environ.get('OPT_CLAUDE_TIMEOUT', 45 * 60)), CLAUDE_TIMEOUT_MAX)
 CLAUDE_MAX_TURNS = int(os.environ.get('OPT_CLAUDE_MAX_TURNS', 80))
 #: claude 子程序只拿這些環境變數（其他一律不帶：正式機密碼、各種金鑰、API key 都不會進去）
 CLAUDE_ENV = ('PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'TMPDIR', 'SHELL', 'TERM',
               'CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN')
 CLAUDE_TOOLS = 'Read,Edit,Write,Glob,Grep,Bash'
-#: Bash 只放行驗證會用到的指令（相對路徑）；--permission-prompts none：其他一律自動拒絕
-CLAUDE_ALLOW = ('Bash(python3 -m py_compile *)', 'Bash(git diff)', 'Bash(git diff --stat)', 'Bash(git diff -- *)',
-                'Bash(git status)', 'Bash(git status --short)')
-#: 擋絕對路徑、家目錄、上層目錄、推送與改設定（deny 優先於 allow）
+#: ★ 審查 A1：提示詞來自正式機＝不受信任。Bash 只放行看改動的 git 指令，**不放任何 python**
+#:   （python3 -m py_compile 會先 import worktree 根目錄的 py_compile.py＝任意程式執行）；其他一律自動拒絕
+CLAUDE_ALLOW = ('Bash(git diff)', 'Bash(git diff --stat)', 'Bash(git status)', 'Bash(git status --short)')
+#: 擋絕對路徑、家目錄、上層目錄、推送與改設定（deny 優先於 allow；多一層保險）
 CLAUDE_DENY = ('Bash(* /*)', 'Bash(*~*)', 'Bash(*..*)', 'Bash(git push*)', 'Bash(git commit*)', 'Bash(git config*)',
-               'Bash(git remote*)', 'WebFetch', 'WebSearch')
+               'Bash(git remote*)', 'Bash(python*)', 'WebFetch', 'WebSearch')
 REPORT_NAME = 'report.md'
-LOCAL_RULES = """
-
-## 本機修補的規則（主機端 opt_patch.py generate；D-KN-102）
-- 你的工作目錄是 Knowledge repo 的 worktree（分支 {branch}，基準 {base_ref} {base}）。上面說「工作目錄的改動會被收成
-  changes.diff」：在這裡由主機端工具 commit、跑 pt-verify V1、V2，通過才推分支。你不要 git add／commit／push（也做不到）。
-- 只能讀寫這個工作目錄；不要讀工作目錄以外的檔案，不要讀或印出任何金鑰、密碼、權杖、設定檔。
-- 只改 dobtor_ 開頭的模組目錄；其他路徑的改動會讓這次修補整筆失敗。
-- 能用的指令只有：python3 -m py_compile <相對路徑>、git diff、git diff -- <相對路徑>、git status（路徑一律相對）。
-  完整的 Odoo 測試由主機端 pt-verify 跑。
-- 一定要：改到的模組 __manifest__.py 版號最後一碼加一（沒升版號驗證一律不過），並補能重現缺陷的單元測試。
-- report.md 寫在工作目錄根目錄（主機端會收走，不進 commit）。
-"""
+#: 主機端的語法檢查：只 compile、不 import 任何東西（python3 -I、檔案用絕對路徑、cwd 不在 worktree）
+COMPILE_SRC = ("import sys\n"
+               "for f in sys.argv[1:]:\n"
+               "    with open(f, 'rb') as fh:\n"
+               "        compile(fh.read(), f, 'exec')\n")
+#: 伺服器的提示詞（patch_lib.LOCAL_PATCH_GUIDE＋證據）後面再附分支與基準
+LOCAL_TAIL = "\n工作目錄：Knowledge repo 的 worktree，分支 {branch}，基準 {base_ref} {base}。\n"
 
 
 class Claude:
     """在 worktree 裡用無頭模式跑本機 Claude Code（測試換成假的）。
 
     安全邊界：--restricted（不讀使用者／專案的設定檔、檔案工具只能動工作目錄、拒絕 bypassPermissions）、
-    --tools 只給檔案工具＋Bash、Bash 只放行 CLAUDE_ALLOW、--permission-prompts none（要問的一律拒絕）、
+    --tools 只給檔案工具＋Bash、Bash 只放行 CLAUDE_ALLOW（只有 git diff／git status，不能執行任何程式，審查 A1）、--permission-prompts none（要問的一律拒絕）、
     --strict-mcp-config（不載 MCP）、不留 session、限輪數與逾時、環境變數白名單。"""
 
     def run(self, prompt, cwd, out_path, timeout=CLAUDE_TIMEOUT, max_turns=CLAUDE_MAX_TURNS, model=None):
@@ -398,124 +406,23 @@ class Claude:
         return info
 
 
-def load_patch_lib(sh):
-    """Knowledge 的 patch_lib（純函式）：舊版正式機沒有 kb_patch_brief 時，唯讀組備料用。"""
-    import types
-    _c, src = git(sh, KNOWLEDGE, 'show', '%s:%s' % (BASE_REF, PATCH_LIB))
-    mod = types.ModuleType('kb_patch_lib')
-    exec(compile(src, PATCH_LIB, 'exec'), mod.__dict__)  # noqa: S102 — 自家 repo 的純函式模組
-    return mod
-
-
-def _m2o(v):
-    return v[0] if isinstance(v, (list, tuple)) and v else (v or False)
-
-
-def _fields_present(prod, model, names):
-    try:
-        have = prod.ro(model, 'fields_get', attributes=['type'])
-    except Exception:  # noqa: BLE001 — 模型不存在等
-        return None
-    return [n for n in names if n in have]
-
-
-def client_payload(prod, rec):
-    """伺服器沒有 kb_patch_brief（還沒部署 18.0.3.37.1）時，用唯讀呼叫照 _kb_patch_payload 組同樣的備料。"""
-    inc = {}
-    if rec.get('incident_id'):
-        inc = (prod.ro('corpaas.knowledge.opt_incident', 'read', [_m2o(rec['incident_id'])], fields=[
-            'source', 'summary', 'hook', 'cause_message', 'cause_target', 'count', 'first_seen', 'last_seen',
-            'detail', 'diagnose_note', 'res_model', 'res_id', 'gap_ids', 'gap_id']) or [{}])[0]
-    gap_ids = list(inc.get('gap_ids') or [])
-    if _m2o(inc.get('gap_id')) and _m2o(inc.get('gap_id')) not in gap_ids:
-        gap_ids.append(_m2o(inc['gap_id']))
-    gaps = prod.ro('corpaas.knowledge.gap_item', 'read', gap_ids[:15], fields=[
-        'kind', 'state', 'root_cause', 'evidence', 'fix_note', 'attempts', 'res_model', 'res_id']) if gap_ids else []
-    affected = []
-
-    def one(model, rid, extra):
-        fl = _fields_present(prod, model, ['state', 'error', 'error_message', 'last_error', 'log', 'note', 'method'])
-        if fl is None:
-            return None
-        r = (prod.ro(model, 'read', [rid], fields=['display_name'] + fl) or [None])[0]
-        if not r:
-            return None
-        item = {'model': model, 'id': rid, 'name': r.get('display_name')}
-        item.update({f: str(r[f])[:1500] for f in fl if r.get(f) and not extra})
-        item.update(extra)
-        return item
-    if inc.get('res_model') and inc.get('res_id'):
-        it = one(inc['res_model'], inc['res_id'], {})
-        if it:
-            affected.append(it)
-    for g in gaps:
-        if g.get('res_model') and g.get('res_id'):
-            it = one(g['res_model'], g['res_id'], {'via_gap': g['id']})
-            if it:
-                affected.append(it)
-    texts = [rec.get('suggestion'), rec.get('reason'), rec.get('evidence'), inc.get('detail'), inc.get('summary')]
-    texts += [g.get('fix_note') for g in gaps]
-    return inc, gaps, affected, [t or '' for t in texts]
-
-
-def fetch_brief(prod, sh, pid):
-    """備料與提示詞（唯讀）。優先用伺服器的 kb_patch_brief（和送 Hub 同一套）；伺服器還沒有這個方法時：
-    提案上存過的備料（送過 Hub 的）→ 沒有就用唯讀呼叫在本機組。回 {id, state, blocker, prompt, decisions, evidence, source}。"""
+def fetch_brief(prod, pid):
+    """備料與提示詞（唯讀，伺服器 kb_patch_brief：備料和送 Hub 同一套、指示是本機版）。
+    審查 A10：正式機要先部署 Knowledge 18.0.3.37.1，舊版不退回本機組備料。"""
     try:
         got = prod.ro(PROPOSAL, 'kb_patch_brief', [pid])
-        if got:
-            return dict(got[0], source='server')
-        raise ToolError('找不到提案 #%s' % pid)
-    except ToolError:
-        raise
     except Exception as e:  # noqa: BLE001
-        if 'kb_patch_brief' not in str(e) or 'not exist' not in str(e):
-            raise
-    rec = (prod.ro(PROPOSAL, 'read', [pid], fields=[
-        'name', 'state', 'layer', 'package_id', 'incident_id', 'suggestion', 'reason', 'evidence', 'content_json',
-        'patch_prompt', 'patch_decisions']) or [None])[0]
-    if not rec:
+        if 'kb_patch_brief' in str(e) and 'not exist' in str(e):
+            raise ToolError('正式機的 Knowledge 還沒有 kb_patch_brief：先部署 dobtor_corpaas_knowledge 18.0.3.37.1') \
+                from None
+        raise
+    if not got:
         raise ToolError('找不到提案 #%s' % pid)
-    blocker = ''
-    if rec['layer'] != '3':
-        blocker = '不是第 3 層（源碼修補）提案'
-    elif rec['state'] not in GEN_STATES:
-        blocker = '目前不能修補（%s）' % rec['state']
-    elif rec.get('package_id'):
-        pk = prod.ro('infrastructure.solution.package', 'read', [_m2o(rec['package_id'])], fields=['knowledge_kind'])
-        if pk and pk[0].get('knowledge_kind') == 'project':
-            blocker = '專案知識（客戶的方案）的證據可能含客戶資料，不送修補'
-    inc, gaps, affected, texts = client_payload(prod, rec)
-    lib = load_patch_lib(sh)
-    decisions = lib.decision_refs(inc.get('hook') or None, inc.get('source') or None, texts)
-    out = {'id': pid, 'name': rec['name'], 'state': rec['state'], 'blocker': blocker, 'decisions': decisions,
-           'evidence': {'incident': bool(inc), 'gaps': len(gaps), 'affected': len(affected)}}
-    if rec.get('patch_prompt'):
-        return dict(out, prompt=rec['patch_prompt'], source='stored', decisions=[
-            d for d in (rec.get('patch_decisions') or '').split('、') if d] or decisions)
-    payload = {
-        'proposal': {'id': pid, 'layer': rec['layer'], 'suggestion': rec.get('suggestion') or '',
-                     'reason': rec.get('reason') or '', 'evidence': rec.get('evidence') or '',
-                     'ai_raw': (rec.get('content_json') or '')[:3000]},
-        'incident': {'id': inc['id'], 'source': inc.get('source'), 'summary': inc.get('summary'),
-                     'hook': inc.get('hook') or '', 'cause': inc.get('cause_message') or '',
-                     'target': inc.get('cause_target') or '', 'count': inc.get('count'),
-                     'first_seen': inc.get('first_seen'), 'last_seen': inc.get('last_seen'),
-                     'detail': (inc.get('detail') or '')[:4000], 'diagnose': (inc.get('diagnose_note') or '')[:1500]}
-        if inc else {},
-        'gaps': [{'id': g['id'], 'kind': g.get('kind'), 'state': g.get('state'), 'root_cause': g.get('root_cause') or '',
-                  'evidence': (g.get('evidence') or '')[:1500], 'history': (g.get('fix_note') or '')[-1500:],
-                  'attempts': g.get('attempts')} for g in gaps],
-        'affected': affected[:20], 'decisions': decisions,
-        'module_versions': {m['name']: m['latest_version'] for m in prod.ro(
-            'ir.module.module', 'search_read', [('name', 'like', 'dobtor_corpaas_knowledge%'),
-                                                ('state', '=', 'installed')], fields=['name', 'latest_version'])},
-    }
-    return dict(out, prompt=lib.patch_prompt(payload), source='client')
+    return got[0]
 
 
 def local_prompt(prompt, branch, base):
-    return prompt + LOCAL_RULES.format(branch=branch, base_ref=BASE_REF, base=base[:12])
+    return prompt + LOCAL_TAIL.format(branch=branch, base_ref=BASE_REF, base=(base or '—')[:12])
 
 
 def _changed_paths(sh, path):
@@ -534,33 +441,88 @@ def _changed_paths(sh, path):
 
 
 def _py_compile(sh, path, files):
-    bad = []
-    for rel in files:
-        if rel.endswith('.py') and os.path.exists(os.path.join(path, rel)):
-            code, out = sh.run([sys.executable, '-m', 'py_compile', rel], cwd=path, check=False)
-            if code != 0:
-                bad.append('%s：%s' % (rel, (out or '').strip().splitlines()[-1:] or ['語法錯誤']))
-    return bad
+    """審查 A1：主機端語法檢查。python3 -I（不吃 PYTHON* 環境變數、sys.path 不含目前目錄）、cwd 在快取目錄、
+    檔案用絕對路徑、只 compile() 不 import——worktree 裡的 py_compile.py、sitecustomize.py 都不會被執行。"""
+    files = [os.path.join(path, rel) for rel in files if rel.endswith('.py') and os.path.exists(os.path.join(path, rel))]
+    if not files:
+        return []
+    os.makedirs(CACHE, exist_ok=True)
+    code, out = sh.run([sys.executable, '-I', '-c', COMPILE_SRC] + files, cwd=CACHE, check=False)
+    if code == 0:
+        return []
+    tail = [x for x in (out or '').strip().splitlines() if x.strip()]
+    return [' '.join(tail[-3:])[:500] or '語法錯誤']
+
+
+def diff_summary(diff):
+    """修補檔的摘要（給人看 diff 前先看範圍）：每個檔案的增刪行數。"""
+    files, cur = [], None
+    for line in (diff or '').splitlines():
+        if line.startswith('diff --git '):
+            cur = [line.split(' b/', 1)[-1], 0, 0]
+            files.append(cur)
+        elif cur and line.startswith('+') and not line.startswith('+++'):
+            cur[1] += 1
+        elif cur and line.startswith('-') and not line.startswith('---'):
+            cur[2] += 1
+    out = ['  %s（+%s −%s）' % (f, a, d) for f, a, d in files]
+    outside = [f for f, _a, _d in files if not f.startswith('dobtor_')]
+    if outside:
+        out.append('  ★ 改到 dobtor_ 模組以外：%s' % '、'.join(outside))
+    return out or ['  （沒有檔案改動）']
 
 
 def gen_candidates(prod):
-    return [r['id'] for r in prod.ro(PROPOSAL, 'search_read', [('layer', '=', '3'), ('state', 'in', GEN_STATES)],
-                                     fields=['id'], order='id')]
+    """審查 A8：比照 Hub 的自動挑選——可修補的狀態、沒被拒、事件還開著（或沒有事件）、本機修補次數沒到上限。"""
+    return [r['id'] for r in prod.ro(PROPOSAL, 'search_read', [
+        ('layer', '=', '3'), ('state', 'in', GEN_STATES), ('rejected_at', '=', False),
+        ('patch_local_attempts', '<', GEN_MAX_ATTEMPTS),
+        '|', ('incident_id', '=', False), ('incident_id.state', '=', 'open')], fields=['id'], order='id')]
 
 
-def cmd_generate(prod, sh, claude, pid, verify=True, push=True, model=None, max_turns=CLAUDE_MAX_TURNS,
-                 timeout=CLAUDE_TIMEOUT):
-    """一筆：取備料 → 標本機修補中 → worktree opt-<編號>／opt/<編號> → claude -p 修 → commit → 寫回待驗證 → V1、V2 → 推。"""
+def _remote_has(sh, branch):
+    _c, out = git(sh, KNOWLEDGE, 'ls-remote', '--heads', 'origin', 'refs/heads/%s' % branch, check=False)
+    return bool((out or '').strip())
+
+
+def discard_attempt(sh, path, branch):
+    """審查 A4：清掉這次嘗試的 worktree 與本機分支（沒推過的才會走到這裡）。"""
+    if os.path.isdir(path):
+        git(sh, KNOWLEDGE, 'worktree', 'remove', '--force', path, check=False)
+    git(sh, KNOWLEDGE, 'branch', '-D', branch, check=False)
+
+
+def clear_previous(sh, path, branch):
+    """審查 A4：上一次失敗留下的 worktree／分支自動清掉；但已推到 origin、或 worktree 有沒 commit 的改動（可能有人在看）就停。"""
+    has_branch = git(sh, KNOWLEDGE, 'rev-parse', '--verify', '--quiet', 'refs/heads/%s' % branch, check=False)[0] == 0
+    if not os.path.exists(path) and not has_branch:
+        return False
+    if _remote_has(sh, branch):
+        raise ToolError('origin 已有 %s：之前的修補推過了，請人先處理（不自動刪）' % branch)
+    if os.path.isdir(path) and git(sh, path, 'status', '--porcelain', check=False)[1].strip():
+        raise ToolError('worktree %s 有沒 commit 的改動（可能有人在看）：確認後再 git -C %s worktree remove --force %s'
+                        % (path, KNOWLEDGE, path))
+    print('  清掉上一次留下的 worktree／分支 %s' % branch)
+    discard_attempt(sh, path, branch)
+    return True
+
+
+def cmd_generate(prod, sh, claude, pid, model=None, max_turns=CLAUDE_MAX_TURNS, timeout=CLAUDE_TIMEOUT):
+    """一筆：取備料 → 標本機修補中 → worktree opt-<編號>／opt/<編號> → claude -p 修 → 主機端語法檢查 → commit
+    → 寫回待驗證 → **停下**，印 diff 摘要與下一步（D-KN-103：人看過 diff 才 verify <編號> --reviewed）。
+    回 'generated'／'failed'／'skipped'／'dry_run'。"""
     import socket
+    timeout = min(int(timeout), CLAUDE_TIMEOUT_MAX)
     cache = os.path.join(CACHE, str(pid))
     os.makedirs(cache, exist_ok=True)
-    brief = fetch_brief(prod, sh, pid)
+    brief = fetch_brief(prod, pid)
     branch = 'opt/%s' % int(pid)
     path = os.path.join(WORKTREES, 'opt-%s' % int(pid))
     ev = brief.get('evidence') or {}
-    print('#%s %s（%s）備料來源 %s：事件 %s、缺口 %s、受影響記錄 %s、決策 %s；提示詞 %s 字' % (
-        pid, brief.get('name') or '', brief.get('state'), brief['source'], '有' if ev.get('incident') else '沒有',
-        ev.get('gaps', 0), ev.get('affected', 0), len(brief.get('decisions') or []), len(brief.get('prompt') or '')))
+    print('#%s %s（%s，本機已試 %s 次）：事件 %s、缺口 %s、受影響記錄 %s、決策 %s；提示詞 %s 字' % (
+        pid, brief.get('name') or '', brief.get('state'), brief.get('local_attempts') or 0,
+        '有' if ev.get('incident') else '沒有', ev.get('gaps', 0), ev.get('affected', 0),
+        len(brief.get('decisions') or []), len(brief.get('prompt') or '')))
     if brief.get('blocker'):
         print('  跳過：%s' % brief['blocker'])
         return 'skipped'
@@ -568,78 +530,96 @@ def cmd_generate(prod, sh, claude, pid, verify=True, push=True, model=None, max_
         _c, base = git(sh, KNOWLEDGE, 'rev-parse', BASE_REF, check=False)
         pfile = os.path.join(cache, 'prompt.md')
         with open(pfile, 'w', encoding='utf-8') as fh:
-            fh.write(local_prompt(brief['prompt'], branch, (base or '').strip() or '—'))
+            fh.write(local_prompt(brief['prompt'], branch, (base or '').strip()))
         print('  [dry-run] 不標本機修補中、不開 worktree、不跑 claude；提示詞存在 %s' % pfile)
         return 'dry_run'
-    # 開始前先確認 worktree／分支沒被占用（標了本機修補中才發現就白白轉失敗）
-    if os.path.exists(path):
-        raise ToolError('worktree 已存在：%s（先確認沒人在用，再 git -C %s worktree remove %s）' % (path, KNOWLEDGE, path))
-    if git(sh, KNOWLEDGE, 'rev-parse', '--verify', '--quiet', 'refs/heads/%s' % branch, check=False)[0] == 0:
-        raise ToolError('本機已有分支 %s：先確認是否舊的嘗試（git -C %s branch -D %s）' % (branch, KNOWLEDGE, branch))
-    started = prod.rw(PROPOSAL, 'action_kb_patch_local_start', [pid], {'host': socket.gethostname()})
-    prompt = (started or {}).get('prompt') or brief['prompt']
+    clear_previous(sh, path, branch)
+    started = prod.rw(PROPOSAL, 'action_kb_patch_local_start', [pid], {'host': socket.gethostname()}) or {}
+    token = started.get('token')
+    out = {'report': '', 'meta': {}}
 
-    def fail(note, **meta):
+    def fail(note):
         print('  失敗：%s' % note)
-        prod.rw(PROPOSAL, 'action_kb_patch_local_result', [pid], {'ok': False, 'note': note, 'meta': meta})
+        discard_attempt(sh, path, branch)
+        prod.rw(PROPOSAL, 'action_kb_patch_local_result', [pid], {
+            'token': token, 'ok': False, 'note': note, 'meta': out['meta'], 'report': out['report']})
         return 'failed'
     try:
-        open_worktree(sh, branch, path)
-        base = head_sha(sh, path)
-        print('  worktree %s（%s，基準 %s）；claude 執行中（上限 %s 輪、%s 分鐘）…' % (
-            path, branch, base[:12], max_turns, timeout // 60))
-        with open(os.path.join(cache, 'prompt.md'), 'w', encoding='utf-8') as fh:
-            fh.write(local_prompt(prompt, branch, base))
-        info = claude.run(local_prompt(prompt, branch, base), path, os.path.join(cache, 'claude.json'),
-                          timeout=timeout, max_turns=max_turns, model=model)
-        meta = {k: info.get(k) for k in ('turns', 'cost_usd', 'duration_s', 'subtype', 'denials') if k in info}
-        meta.update(base_commit=base, mode='local', model=model or 'default')
-        report = ''
-        rpath = os.path.join(path, REPORT_NAME)
-        if os.path.exists(rpath):
-            with open(rpath, encoding='utf-8', errors='replace') as fh:
-                report = fh.read()
-            shutil.move(rpath, os.path.join(cache, REPORT_NAME))
-        if not info.get('ok'):
-            return fail(info.get('note') or 'claude 失敗', **meta)
-        if head_sha(sh, path) != base:
-            return fail('claude 動了 git 歷史（HEAD 不是基準 %s）' % base[:12], **meta)
-        keep, bad = _changed_paths(sh, path)
-        if bad:
-            return fail('改到 dobtor_ 模組以外的路徑：%s' % '、'.join(bad[:10]), **meta)
-        if not keep:
-            return fail('claude 沒有改任何模組檔案', **meta)
-        broken = _py_compile(sh, path, keep)
-        if broken:
-            return fail('py_compile 沒過：%s' % '；'.join(broken[:5]), **meta)
-        git(sh, path, 'add', '-A', '--', *keep)
-        git(sh, path, 'commit', '-m', 'opt(#%s)：%s\n\n本機源碼修補（opt_patch.py generate，D-KN-102；提案 #%s，基準 %s）。'
-            '修補報告見提案。' % (pid, brief.get('name') or '', pid, base[:12]))
-        _c, diff = git(sh, path, 'diff', '%s..HEAD' % base)
-        with open(os.path.join(cache, 'changes.diff'), 'w', encoding='utf-8') as fh:
-            fh.write(diff)
-    except (ToolError, OSError, subprocess.SubprocessError) as e:
-        return fail(str(e)[:1500] or e.__class__.__name__)
+        res = _generate_body(sh, claude, pid, brief, started.get('prompt') or brief['prompt'], branch, path, cache,
+                             model, max_turns, timeout, out)
+    except BaseException as e:  # noqa: BLE001 — 審查 A3：含 Ctrl-C，一律先寫回修補失敗，不留在本機修補中
+        note = '主機端中斷：%s' % ((str(e) or e.__class__.__name__)[:1500])
+        try:
+            fail(note)
+        except Exception as e2:  # noqa: BLE001
+            print('  寫回失敗也失敗（伺服器 2 小時後會自己轉修補失敗）：%s' % e2, file=sys.stderr)
+        if not isinstance(e, Exception):
+            raise
+        return 'failed'
+    if isinstance(res, str):
+        return fail(res)
+    diff, base, nfiles = res
     state = prod.rw(PROPOSAL, 'action_kb_patch_local_result', [pid], {
-        'ok': True, 'diff': diff, 'report': report, 'base_commit': base, 'meta': meta,
-        'note': '%s，%s 輪、%s 秒' % (branch, meta.get('turns') or '—', meta.get('duration_s') or '—')})
-    print('  已 commit（%s 個檔案）→ 提案 %s；修補檔 %s' % (len(keep), state, os.path.join(cache, 'changes.diff')))
-    if not verify:
-        print('  --no-verify：停在待驗證；之後跑 opt_patch.py verify %s（會沿用這個 worktree）' % pid)
-        return 'generated'
-    return verify_and_push(prod, sh, pid, path, branch, push)
+        'token': token, 'ok': True, 'diff': diff, 'report': out['report'], 'base_commit': base, 'meta': out['meta'],
+        'note': '%s，%s 輪、%s 秒' % (branch, out['meta'].get('turns') or '—', out['meta'].get('duration_s') or '—')})
+    dfile = os.path.join(cache, 'changes.diff')
+    print('  已 commit（%s 個檔案）→ 提案 %s。修補範圍：' % (nfiles, state))
+    print('\n'.join(diff_summary(diff)))
+    print('  ★ 還沒執行任何 AI 寫的程式（D-KN-103）。先看 diff：%s（或 git -C %s show）、報告：%s\n'
+          '    看過沒問題再跑：python3 tools/knowledge/opt_patch.py verify %s --reviewed' % (
+              dfile, path, os.path.join(cache, REPORT_NAME), pid))
+    return 'generated'
+
+
+def _generate_body(sh, claude, pid, brief, prompt, branch, path, cache, model, max_turns, timeout, out):
+    """回 (diff, 基準, 檔案數)；失敗回原因字串。report／meta 寫進 out（失敗也一起寫回，審查 A6）。"""
+    open_worktree(sh, branch, path)
+    base = head_sha(sh, path)
+    text = local_prompt(prompt, branch, base)
+    with open(os.path.join(cache, 'prompt.md'), 'w', encoding='utf-8') as fh:
+        fh.write(text)
+    print('  worktree %s（%s，基準 %s）；claude 執行中（上限 %s 輪、%s 分鐘）…' % (
+        path, branch, base[:12], max_turns, timeout // 60))
+    info = claude.run(text, path, os.path.join(cache, 'claude.json'), timeout=timeout, max_turns=max_turns, model=model)
+    out['meta'] = {k: info.get(k) for k in ('turns', 'cost_usd', 'duration_s', 'subtype', 'denials') if k in info}
+    out['meta'].update(base_commit=base, mode='local', model=model or 'default')
+    rpath = os.path.join(path, REPORT_NAME)
+    if os.path.exists(rpath):
+        with open(rpath, encoding='utf-8', errors='replace') as fh:
+            out['report'] = fh.read()
+        shutil.move(rpath, os.path.join(cache, REPORT_NAME))
+    if not info.get('ok'):
+        return info.get('note') or 'claude 失敗'
+    if head_sha(sh, path) != base:
+        return 'claude 動了 git 歷史（HEAD 不是基準 %s）' % base[:12]
+    keep, bad = _changed_paths(sh, path)
+    if bad:
+        return '改到 dobtor_ 模組以外的路徑：%s' % '、'.join(bad[:10])
+    if not keep:
+        return 'claude 沒有改任何模組檔案'
+    broken = _py_compile(sh, path, keep)
+    if broken:
+        return '語法檢查沒過：%s' % '；'.join(broken)
+    git(sh, path, 'add', '-A', '--', *keep)
+    git(sh, path, 'commit', '-m', 'opt(#%s)：%s\n\n本機源碼修補（opt_patch.py generate，D-KN-102；提案 #%s，基準 %s）。'
+        '修補報告見提案。' % (pid, brief.get('name') or '', pid, base[:12]))
+    _c, diff = git(sh, path, 'diff', '%s..HEAD' % base)
+    with open(os.path.join(cache, 'changes.diff'), 'w', encoding='utf-8') as fh:
+        fh.write(diff)
+    return diff, base, len(keep)
 
 
 def cmd_generate_all(prod, sh, claude, pids=None, **kw):
     pids = list(pids or []) or gen_candidates(prod)
     if not pids:
-        print('沒有可修補的第 3 層提案（只記錄、Runner 未就緒、修補失敗）')
+        print('沒有可修補的第 3 層提案（只記錄、Runner 未就緒、修補失敗；沒被拒、事件還開著、本機試不到 %s 次）'
+              % GEN_MAX_ATTEMPTS)
         return {}
     out = {}
     for pid in pids:
         try:
             out[pid] = cmd_generate(prod, sh, claude, pid, **kw)
-        except ToolError as e:
+        except Exception as e:  # noqa: BLE001 — 審查 A3：一筆出錯（含 RPC）不中止整批
             print('#%s 錯誤：%s' % (pid, e), file=sys.stderr)
             out[pid] = 'error'
     print('結果：%s' % '、'.join('#%s %s' % (k, v) for k, v in out.items()))
@@ -997,6 +977,8 @@ def main(argv=None, prod=None, sh=None, claude=None):
     v.add_argument('proposal', type=int)
     v.add_argument('--no-push', action='store_true')
     v.add_argument('--dry-run', action='store_true')
+    v.add_argument('--reviewed', action='store_true',
+                   help='人已看過修補 diff（D-KN-103）：沒有這個旗標只印摘要、不執行驗證')
     r = sub.add_parser('release')
     r.add_argument('release', type=int)
     r.add_argument('--no-verify', action='store_true')
@@ -1005,11 +987,10 @@ def main(argv=None, prod=None, sh=None, claude=None):
     g = sub.add_parser('generate', help='本機產生修補（D-KN-102）：不指定提案＝所有可修補的第 3 層提案')
     g.add_argument('proposals', type=int, nargs='*')
     g.add_argument('--dry-run', action='store_true', help='只讀：組備料與提示詞存到快取，不標狀態、不開 worktree、不跑 claude')
-    g.add_argument('--no-verify', action='store_true', help='commit 後停在待驗證（之後 verify <提案> 會沿用 worktree）')
-    g.add_argument('--no-push', action='store_true')
     g.add_argument('--model', help='claude 的模型（預設用 claude 自己的預設）')
     g.add_argument('--max-turns', type=int, default=CLAUDE_MAX_TURNS)
-    g.add_argument('--timeout-min', type=int, default=CLAUDE_TIMEOUT // 60)
+    g.add_argument('--timeout-min', type=int, default=CLAUDE_TIMEOUT // 60,
+                   help='claude 逾時（分鐘，上限 %s）' % (CLAUDE_TIMEOUT_MAX // 60))
     pu = sub.add_parser('push')
     pu.add_argument('proposal', type=int)
     pu.add_argument('--dry-run', action='store_true')
@@ -1026,17 +1007,16 @@ def main(argv=None, prod=None, sh=None, claude=None):
             cmd_list(prod)
             return 0
         if a.cmd == 'verify':
-            res = cmd_verify(prod, sh, a.proposal, push=not a.no_push)
+            res = cmd_verify(prod, sh, a.proposal, push=not a.no_push, reviewed=a.reviewed)
             return 0 if res in ('pushed', 'passed') else 1
         if a.cmd == 'release':
             res = cmd_release(prod, sh, a.release, verify=not a.no_verify, push=not a.no_push)
             return 0 if res == 'pushed' else 1
         if a.cmd == 'generate':
-            res = cmd_generate_all(prod, sh, claude or Claude(), a.proposals, verify=not a.no_verify,
-                                   push=not a.no_push, model=a.model, max_turns=a.max_turns,
+            res = cmd_generate_all(prod, sh, claude or Claude(), a.proposals, model=a.model, max_turns=a.max_turns,
                                    timeout=a.timeout_min * 60)
-            ok = ('dry_run', 'skipped', 'pushed', 'passed', 'generated')
-            return 0 if res and all(v in ok for v in res.values()) else 1
+            # 審查 A10：沒有候選不是錯誤
+            return 0 if all(v in ('dry_run', 'skipped', 'generated') for v in res.values()) else 1
         if a.cmd == 'push':
             return 0 if cmd_push(prod, sh, a.proposal) == 'pushed' else 1
         if a.cmd == 'merged':

@@ -894,13 +894,23 @@ def show_cmd(cmd):
     return ' '.join(shlex.quote(c) for c in out)
 
 
+#: Odoo（受測模組與測試）只拿這些環境變數——受測的可能是 AI 寫的修補（Knowledge D-KN-103），
+#: 正式機密碼（CORPAAS_RPC_PASSWORD）、ANTHROPIC_API_KEY、CLAUDE_CODE_OAUTH_TOKEN、GitHub 權杖等一律不帶
+ODOO_ENV_KEEP = ('HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TMPDIR', 'USER', 'LOGNAME', 'TZ', 'SHELL')
+
+
+def odoo_env():
+    env = {k: os.environ[k] for k in ODOO_ENV_KEEP if os.environ.get(k)}
+    # corpaas-kb/bin 放 cloc 等外部相依（github_connector 的 external_dependencies）
+    env['PATH'] = os.path.join(kb_home(), 'bin') + os.pathsep + (os.environ.get('PATH') or '/usr/bin:/bin')
+    return env
+
+
 def run_odoo(cmd, log_path, timeout_min):
     log('▶ %s\n  log：%s' % (' '.join(cmd[2:6]) + ' …', log_path))
     with open(log_path, 'w') as lf:
         try:
-            env = dict(os.environ)
-            # corpaas-kb/bin 放 cloc 等外部相依（github_connector 的 external_dependencies）
-            env['PATH'] = os.path.join(kb_home(), 'bin') + os.pathsep + env.get('PATH', '')
+            env = odoo_env()
             r = subprocess.run(cmd, cwd=odoo_root(), stdout=lf, stderr=subprocess.STDOUT, env=env,
                                timeout=timeout_min * 60)
             return r.returncode

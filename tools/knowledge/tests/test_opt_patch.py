@@ -3,11 +3,14 @@
 執行：cd tools/knowledge && python3 -m unittest discover -s tests -v
 """
 import json
+import io
 import os
 import shutil
 import sys
+import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -148,7 +151,7 @@ class TestVerify(Base):
 
     def test_happy_path_push_only_opt_branch(self):
         prod, sh = self._prod(), FakeShell(self.tmp)
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'pushed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'pushed')
         self.assertEqual(sh.levels(), ['V1', 'V2'])
         v2 = [c for c in sh.calls if c[0] == T.PT_VERIFY][1]
         self.assertIn('--target', v2, 'V2 帶正式機目標取整組')
@@ -166,7 +169,7 @@ class TestVerify(Base):
 
     def test_v1_fail_no_v2_no_push(self):
         prod, sh = self._prod(), FakeShell(self.tmp, verdicts=['FAIL'])
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'failed')
         self.assertEqual(sh.levels(), ['V1'])
         self.assertEqual(sh.pushes(), [])
         self.assertEqual([w[1] for w in prod.writes], ['action_kb_patch_verified'])
@@ -174,7 +177,7 @@ class TestVerify(Base):
 
     def test_v2_fail_no_push(self):
         prod, sh = self._prod(), FakeShell(self.tmp, verdicts=['PASS', 'FAIL'])
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'failed')
         self.assertEqual(sh.pushes(), [])
 
     def test_sha_mismatch_is_fail(self):
@@ -189,32 +192,32 @@ class TestVerify(Base):
                     json.dump({'sha': 'ffff000'}, fh)
             return code, out
         sh.run = run
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'failed')
         self.assertIn('不等於 HEAD', prod.writes[0][2][1]['note'])
         self.assertEqual(sh.pushes(), [])
 
     def test_apply_fail_blocked_writeback(self):
         prod, sh = self._prod(), FakeShell(self.tmp, apply_ok=False)
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'apply_failed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'apply_failed')
         self.assertEqual(sh.levels(), [])
         self.assertEqual(sh.pushes(), [])
         self.assertIn('git apply 失敗', prod.writes[0][2][1]['note'])
 
     def test_no_push_and_dry_run(self):
         prod, sh = self._prod(), FakeShell(self.tmp)
-        self.assertEqual(T.cmd_verify(prod, sh, 5, push=False), 'passed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, push=False, reviewed=True), 'passed')
         self.assertEqual(sh.pushes(), [])
         self.assertEqual([w[1] for w in prod.writes], ['action_kb_patch_verified'])
         shutil.rmtree(os.path.join(self.tmp, 'wt', 'opt-5'))
         prod, sh = FakeProd(self._prod().records, dry_run=True), FakeShell(self.tmp)
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'passed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'passed')
         self.assertEqual(sh.pushes(), [], 'dry-run 不推')
 
     def test_f9_fail_with_stderr_tail(self):
         """審查 F9：FAIL 時輸出後面接 stderr，仍要認出 FAIL 與報告路徑（不能記成 BLOCKED）。"""
         prod = self._prod()
         sh = FakeShell(self.tmp, verdicts=['FAIL'], stderr_tail='Traceback...\nsome stderr line\n')
-        T.cmd_verify(prod, sh, 5)
+        T.cmd_verify(prod, sh, 5, reviewed=True)
         v1 = prod.writes[0][2][1]['v1']
         self.assertEqual(v1['verdict'], 'FAIL')
         self.assertTrue(v1['report'].endswith('V1.md'))
@@ -222,7 +225,7 @@ class TestVerify(Base):
     def test_f7_verify_requires_version_bump(self):
         """審查 F7：修補沒有升改到模組的版號 → 不跑驗證、寫回 FAIL、不推。"""
         prod, sh = self._prod(), FakeShell(self.tmp, manifest_version='18.0.3.36.0')
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'failed')
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'failed')
         self.assertEqual((sh.levels(), sh.pushes()), ([], []))
         self.assertIn('版號', prod.writes[0][2][1]['note'])
         self.assertEqual(prod.writes[0][2][1]['v1']['verdict'], 'FAIL')
@@ -230,7 +233,7 @@ class TestVerify(Base):
     def test_f13_push_after_no_push(self):
         """審查 F13：--no-push 之後可用 push 子指令再推（HEAD 要等於驗證的 commit）。"""
         prod, sh = self._prod(), FakeShell(self.tmp)
-        T.cmd_verify(prod, sh, 5, push=False)
+        T.cmd_verify(prod, sh, 5, push=False, reviewed=True)
         rec = prod.records[(T.PROPOSAL, 5)]
         rec.update(verify_v1_verdict='PASS', verify_v2_verdict='PASS', verify_sha='abc1234def')
         self.assertEqual(T.cmd_push(prod, sh, 5), 'pushed')
@@ -251,7 +254,7 @@ class TestVerify(Base):
     def test_existing_worktree_refused(self):
         os.makedirs(os.path.join(self.tmp, 'wt', 'opt-5'))
         with self.assertRaises(T.ToolError):
-            T.cmd_verify(self._prod(), FakeShell(self.tmp), 5)
+            T.cmd_verify(self._prod(), FakeShell(self.tmp), 5, reviewed=True)
 
     def test_push_guard(self):
         sh = FakeShell(self.tmp)
@@ -265,7 +268,7 @@ class TestVerify(Base):
     def test_g3_push_uses_verified_sha(self):
         """審查 G3：push 子指令推的是驗證過的 sha（refspec <verify_sha>:refs/heads/opt/N），不是本機分支 ref。"""
         prod, sh = self._prod(), FakeShell(self.tmp)
-        T.cmd_verify(prod, sh, 5, push=False)
+        T.cmd_verify(prod, sh, 5, push=False, reviewed=True)
         prod.records[(T.PROPOSAL, 5)].update(verify_v1_verdict='PASS', verify_v2_verdict='PASS',
                                              verify_sha='abc1234def')
         T.cmd_push(prod, sh, 5)
@@ -466,13 +469,15 @@ class TestMerged(Base):
 
 
 class GenProd(FakeProd):
-    """generate 用：kb_patch_brief（或舊伺服器沒有這個方法）、候選查詢、本機修補的寫回。"""
+    """generate 用：kb_patch_brief、候選查詢、本機修補的寫回（含權杖）。"""
 
-    def __init__(self, briefs=None, server_brief=True, candidates=(), **kw):
+    def __init__(self, briefs=None, server_brief=True, candidates=(), start_error=None, **kw):
         super().__init__(**kw)
         self.briefs = briefs or {}
         self.server_brief = server_brief
         self.candidates = list(candidates)
+        self.domains = []
+        self.start_error = start_error
 
     def ro(self, model, method, *args, **kw):
         if method == 'kb_patch_brief':
@@ -480,23 +485,19 @@ class GenProd(FakeProd):
                 raise RuntimeError("AttributeError: The method 'kb_patch_brief' does not exist on the model")
             return [self.briefs[i] for i in args[0] if i in self.briefs]
         if method == 'search_read' and model == T.PROPOSAL:
+            self.domains.append(args[0])
             return [{'id': i} for i in self.candidates]
-        if method == 'fields_get':
-            return {'state': {}, 'note': {}}
-        if method == 'read' and model == 'infrastructure.solution.package':
-            return [{'id': args[0][0], 'knowledge_kind': 'solution'}]
-        if method == 'read' and model in ('corpaas.knowledge.opt_incident', 'corpaas.knowledge.gap_item'):
-            return [self.records[(model, i)] for i in args[0] if (model, i) in self.records]
-        if method == 'read' and model == 'corpaas.knowledge.article':
-            return [{'id': args[0][0], 'display_name': '文章', 'state': 'draft'}]
         return super().ro(model, method, *args, **kw)
 
     def rw(self, model, method, *args, **kw):
+        if method == 'action_kb_patch_local_start' and self.start_error:
+            raise self.start_error
         super().rw(model, method, *args, **kw)
         if self.dry_run:
             return None
         if method == 'action_kb_patch_local_start':
-            return {'state': 'patch_local', 'prompt': '伺服器重組的備料 #%s' % args[0][0], 'decisions': ['D-KN-008']}
+            return {'state': 'patch_local', 'prompt': '伺服器重組的備料 #%s' % args[0][0], 'decisions': ['D-KN-008'],
+                    'token': 4}
         if method == 'action_kb_patch_local_result':
             return 'to_verify' if args[1].get('ok') else 'patch_failed'
         return 'ok'
@@ -504,21 +505,46 @@ class GenProd(FakeProd):
     def methods(self):
         return [w[1] for w in self.writes]
 
+    def result(self):
+        return [w[2][1] for w in self.writes if w[1] == 'action_kb_patch_local_result'][-1]
+
 
 class GenShell(FakeShell):
-    def __init__(self, tmp, status=None, **kw):
+    """status 依路徑回應；worktree remove／branch -D／ls-remote 照設定；python 子程序只記錄。"""
+
+    def __init__(self, tmp, status=None, pre_status='', has_branch=False, remote_has=False, **kw):
         super().__init__(tmp, **kw)
         self.status = status if status is not None else (
             ' M dobtor_corpaas_knowledge/models/x.py\n?? dobtor_corpaas_knowledge/tests/test_x.py\n'
             '?? report.md\n?? dobtor_corpaas_knowledge/__pycache__/x.cpython-39.pyc\n')
+        self.pre_status, self.has_branch, self.remote_has = pre_status, has_branch, remote_has
+        self.opened = False
 
     def run(self, cmd, cwd=None, check=True, timeout=None):
         if cmd[0] == sys.executable:
             self.calls.append(cmd)
             return 0, ''
-        if cmd[0] == 'git' and cmd[3] == 'status':
-            self.calls.append(cmd)
-            return 0, self.status
+        if cmd[0] == 'git':
+            sub = cmd[3]
+            if sub == 'status':
+                self.calls.append(cmd)
+                return 0, self.status if self.opened else self.pre_status
+            if sub == 'worktree' and cmd[4] == 'remove':
+                self.calls.append(cmd)
+                shutil.rmtree(cmd[-1], ignore_errors=True)
+                return 0, ''
+            if sub == 'worktree':
+                self.opened = True
+            if sub == 'rev-parse' and '--verify' in cmd:
+                self.calls.append(cmd)
+                return (0, '') if self.has_branch else (1, '')
+            if sub == 'branch':
+                self.calls.append(cmd)
+                self.has_branch = False
+                return 0, ''
+            if sub == 'ls-remote':
+                self.calls.append(cmd)
+                return 0, ('abc\trefs/heads/opt/5\n' if self.remote_has else '')
         return super().run(cmd, cwd=cwd, check=check, timeout=timeout)
 
     def git_sub(self, sub):
@@ -528,8 +554,8 @@ class GenShell(FakeShell):
 class FakeClaude:
     """★ 不真的跑 claude：記下呼叫、在 worktree 寫幾個檔案。"""
 
-    def __init__(self, ok=True, files=None, report='# 根因\n'):
-        self.ok, self.report = ok, report
+    def __init__(self, ok=True, files=None, report='# 根因\n', raises=None):
+        self.ok, self.report, self.raises = ok, report, raises
         self.files = files if files is not None else {'dobtor_corpaas_knowledge/models/x.py': 'a = 2\n',
                                                       'dobtor_corpaas_knowledge/tests/test_x.py': 'b = 1\n'}
         self.calls = []
@@ -543,15 +569,17 @@ class FakeClaude:
         if self.report:
             with open(os.path.join(cwd, 'report.md'), 'w') as fh:
                 fh.write(self.report)
+        if self.raises:
+            raise self.raises
         if not self.ok:
             return {'ok': False, 'note': 'claude 沒有正常結束（error_max_turns）', 'turns': 80}
         return {'ok': True, 'note': '', 'turns': 12, 'cost_usd': 1.5, 'duration_s': 600, 'subtype': 'success'}
 
 
-class TestGenerate(Base):
+class GenBase(Base):
 
     def _brief(self, pid=5, blocker=''):
-        return {'id': pid, 'name': '提案 #%s' % pid, 'state': 'runner_wait', 'blocker': blocker,
+        return {'id': pid, 'name': '提案 #%s' % pid, 'state': 'runner_wait', 'blocker': blocker, 'local_attempts': 0,
                 'prompt': '修補指示 #%s' % pid, 'decisions': ['D-KN-008'],
                 'evidence': {'incident': True, 'gaps': 1, 'affected': 2}}
 
@@ -561,56 +589,63 @@ class TestGenerate(Base):
                                          'patch_diff': 'diff --git a/x b/x', 'patch_base_commit': 'abc'}
         return prod
 
-    def test_happy_path_generate_verify_push(self):
+    def wt(self, pid=5):
+        return os.path.join(self.tmp, 'wt', 'opt-%s' % pid)
+
+
+class TestGenerate(GenBase):
+
+    def test_generate_stops_before_running_ai_code(self):
+        """D-KN-103（審查 A2）：產生修補、commit、寫回待驗證就停——不跑 pt-verify、不推。"""
         prod, sh, cl = self._prod(), GenShell(self.tmp), FakeClaude()
-        self.assertEqual(T.cmd_generate(prod, sh, cl, 5), 'pushed')
-        self.assertEqual(prod.methods(), ['action_kb_patch_local_start', 'action_kb_patch_local_result',
-                                          'action_kb_patch_verified', 'action_kb_patch_pushed'])
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(T.cmd_generate(prod, sh, cl, 5), 'generated')
+        self.assertEqual(prod.methods(), ['action_kb_patch_local_start', 'action_kb_patch_local_result'])
+        self.assertEqual((sh.levels(), sh.pushes()), ([], []), '沒執行 AI 寫的程式、沒推')
+        self.assertIn('verify 5 --reviewed', buf.getvalue())
+        self.assertIn('還沒執行任何 AI 寫的程式', buf.getvalue())
         call = cl.calls[0]
-        self.assertEqual(call['cwd'], os.path.join(self.tmp, 'wt', 'opt-5'), 'claude 只在 worktree 裡跑')
+        self.assertEqual(call['cwd'], self.wt(), 'claude 只在 worktree 裡跑')
         self.assertIn('伺服器重組的備料 #5', call['prompt'], '用開始時伺服器重組的備料')
-        self.assertIn('本機修補的規則', call['prompt'])
-        self.assertIn('opt/5', call['prompt'])
-        res = prod.writes[1][2][1]
+        self.assertIn('分支 opt/5', call['prompt'])
+        res = prod.result()
         self.assertTrue(res['ok'])
+        self.assertEqual(res['token'], 4, '審查 A5：寫回帶開始時的權杖')
         self.assertEqual(res['report'], '# 根因\n', 'report.md 收走寫回')
         self.assertEqual(res['meta']['turns'], 12)
         add = sh.git_sub('add')[0]
         self.assertNotIn('report.md', add, 'report.md 不進 commit')
         self.assertFalse([x for x in add if 'pycache' in x])
         self.assertIn('dobtor_corpaas_knowledge/tests/test_x.py', add)
-        self.assertFalse(os.path.exists(os.path.join(self.tmp, 'wt', 'opt-5', 'report.md')))
+        self.assertFalse(os.path.exists(os.path.join(self.wt(), 'report.md')))
         self.assertTrue(os.path.exists(os.path.join(self.tmp, 'cache', '5', 'report.md')))
-        self.assertEqual(sh.pushes(), [['git', '-C', os.path.join(self.tmp, 'wt', 'opt-5'), 'push', 'origin',
-                                        'abc1234def:refs/heads/opt/5']])
-        self.assertEqual(sh.levels(), ['V1', 'V2'])
 
-    def test_claude_fail_writes_failed_no_commit_no_push(self):
+    def test_claude_fail_writes_failed_with_report_and_cleans(self):
         prod, sh = self._prod(), GenShell(self.tmp)
-        self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(ok=False), 5), 'failed')
+        self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(ok=False, report='# 和 D-KN-088 衝突'), 5), 'failed')
         self.assertEqual(prod.methods(), ['action_kb_patch_local_start', 'action_kb_patch_local_result'])
-        self.assertFalse(prod.writes[1][2][1]['ok'])
-        self.assertIn('error_max_turns', prod.writes[1][2][1]['note'])
+        res = prod.result()
+        self.assertFalse(res['ok'])
+        self.assertIn('error_max_turns', res['note'])
+        self.assertEqual((res['token'], res['report']), (4, '# 和 D-KN-088 衝突'), '審查 A6：失敗也帶 report')
         self.assertEqual((sh.git_sub('commit'), sh.pushes(), sh.levels()), ([], [], []))
+        # 審查 A4：清掉這次的 worktree 與分支
+        self.assertFalse(os.path.exists(self.wt()))
+        self.assertTrue(sh.git_sub('branch'))
 
     def test_changes_outside_modules_rejected(self):
         prod = self._prod()
         sh = GenShell(self.tmp, status=' M dobtor_corpaas_knowledge/models/x.py\n M docs/decisions.tsv\n'
                                        '?? .github/workflows/ci.yml\n')
         self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(), 5), 'failed')
-        self.assertIn('docs/decisions.tsv', prod.writes[-1][2][1]['note'])
+        self.assertIn('docs/decisions.tsv', prod.result()['note'])
         self.assertEqual((sh.git_sub('commit'), sh.pushes()), ([], []))
 
     def test_no_changes_rejected(self):
         prod, sh = self._prod(), GenShell(self.tmp, status='?? report.md\n')
         self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(files={}), 5), 'failed')
-        self.assertIn('沒有改任何模組檔案', prod.writes[-1][2][1]['note'])
-
-    def test_no_verify_stops_at_to_verify(self):
-        prod, sh = self._prod(), GenShell(self.tmp)
-        self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(), 5, verify=False), 'generated')
-        self.assertEqual(prod.methods(), ['action_kb_patch_local_start', 'action_kb_patch_local_result'])
-        self.assertEqual((sh.levels(), sh.pushes()), ([], []))
+        self.assertIn('沒有改任何模組檔案', prod.result()['note'])
 
     def test_dry_run_reads_only(self):
         prod, sh, cl = self._prod(dry_run=True), GenShell(self.tmp), FakeClaude()
@@ -619,62 +654,99 @@ class TestGenerate(Base):
         with open(os.path.join(self.tmp, 'cache', '5', 'prompt.md')) as fh:
             text = fh.read()
         self.assertIn('修補指示 #5', text)
-        self.assertIn('本機修補的規則', text)
+        self.assertIn('分支 opt/5', text)
 
     def test_blocker_skipped(self):
         prod = GenProd(briefs={5: self._brief(blocker='目前不能修補（to_merge）')})
         self.assertEqual(T.cmd_generate(prod, GenShell(self.tmp), FakeClaude(), 5), 'skipped')
         self.assertEqual(prod.writes, [])
 
-    def test_existing_worktree_refused_before_marking(self):
-        os.makedirs(os.path.join(self.tmp, 'wt', 'opt-5'))
+    def test_a3_interrupt_writes_failed_then_reraises(self):
+        prod, sh = self._prod(), GenShell(self.tmp)
+        with self.assertRaises(KeyboardInterrupt):
+            T.cmd_generate(prod, sh, FakeClaude(raises=KeyboardInterrupt()), 5)
+        res = prod.result()
+        self.assertFalse(res['ok'])
+        self.assertIn('中斷', res['note'])
+        self.assertFalse(os.path.exists(self.wt()), '中斷也清掉 worktree')
+
+    def test_a3_batch_continues_after_rpc_error(self):
+        prod = GenProd(briefs={5: self._brief(5), 7: self._brief(7)}, candidates=[5, 7],
+                       start_error=RuntimeError('RPC 連線中斷'))
+        out = T.cmd_generate_all(prod, GenShell(self.tmp), FakeClaude())
+        self.assertEqual(out, {5: 'error', 7: 'error'}, '每筆都試、不整批中止')
+
+    def test_a4_retry_cleans_previous_attempt(self):
+        os.makedirs(self.wt())
+        prod, sh = self._prod(), GenShell(self.tmp, has_branch=True)
+        self.assertEqual(T.cmd_generate(prod, sh, FakeClaude(), 5), 'generated')
+        self.assertEqual(sh.git_sub('worktree')[0][4], 'remove', '先清掉上次留下的（乾淨、沒推過）')
+
+    def test_a4_dirty_or_pushed_previous_refused_before_marking(self):
+        os.makedirs(self.wt())
         prod, cl = self._prod(), FakeClaude()
         with self.assertRaises(T.ToolError):
-            T.cmd_generate(prod, GenShell(self.tmp), cl, 5)
+            T.cmd_generate(prod, GenShell(self.tmp, pre_status=' M dobtor_x/a.py\n'), cl, 5)
+        with self.assertRaises(T.ToolError):
+            T.cmd_generate(prod, GenShell(self.tmp, remote_has=True), cl, 5)
         self.assertEqual((prod.writes, cl.calls), ([], []), '沒標本機修補中、沒跑 claude')
+        self.assertTrue(os.path.isdir(self.wt()), '有人在看的不刪')
 
-    def test_all_candidates_and_continue_after_error(self):
-        os.makedirs(os.path.join(self.tmp, 'wt', 'opt-5'))
-        prod = GenProd(briefs={5: self._brief(5), 7: self._brief(7)}, candidates=[5, 7], dry_run=True)
-        out = T.cmd_generate_all(prod, GenShell(self.tmp), FakeClaude())
-        self.assertEqual(out, {5: 'dry_run', 7: 'dry_run'})
-        prod = GenProd(briefs={5: self._brief(5), 7: self._brief(7)}, candidates=[5, 7])
-        prod.records[(T.PROPOSAL, 7)] = {'id': 7, 'state': 'to_verify'}
-        out = T.cmd_generate_all(prod, GenShell(self.tmp), FakeClaude(), verify=False)
-        self.assertEqual(out, {5: 'error', 7: 'generated'}, '一筆出錯不影響下一筆')
+    def test_a5_timeout_capped_below_stale(self):
+        prod, cl = self._prod(), FakeClaude()
+        T.cmd_generate(prod, GenShell(self.tmp), cl, 5, timeout=5 * 3600)
+        self.assertEqual(cl.calls[0]['timeout'], T.CLAUDE_TIMEOUT_MAX)
+        self.assertLess(T.CLAUDE_TIMEOUT_MAX, 2 * 3600, '比伺服器的本機修補中斷時限（2 小時）短')
 
-    def test_old_server_falls_back_to_stored_or_client_brief(self):
-        prod = GenProd(server_brief=False, dry_run=True)
-        prod.records[(T.PROPOSAL, 5)] = {'id': 5, 'name': '提案 #5', 'state': 'runner_wait', 'layer': '3',
-                                         'package_id': [19, '財會'], 'incident_id': [9, 'x'], 'suggestion': '改 x',
-                                         'reason': '', 'evidence': '', 'content_json': '', 'patch_prompt': '存過的備料',
-                                         'patch_decisions': 'D-KN-008、D-KN-073'}
-        prod.records[('corpaas.knowledge.opt_incident', 9)] = {
-            'id': 9, 'source': 'gap_defect', 'summary': '盤點讀不到', 'hook': 'claim', 'detail': 'Traceback',
-            'res_model': 'corpaas.knowledge.article', 'res_id': 3, 'gap_ids': [4], 'gap_id': False}
-        prod.records[('corpaas.knowledge.gap_item', 4)] = {'id': 4, 'kind': 'text', 'fix_note': '見 D-KN-064',
-                                                            'res_model': 'corpaas.knowledge.article', 'res_id': 3}
-        lib = mock.MagicMock()
-        lib.decision_refs.return_value = ['D-KN-008', 'D-KN-064']
-        lib.patch_prompt.side_effect = lambda payload: 'CLIENT ' + json.dumps(payload, default=str)
-        with mock.patch.object(T, 'load_patch_lib', return_value=lib):
-            b = T.fetch_brief(prod, GenShell(self.tmp), 5)
-            self.assertEqual((b['source'], b['prompt'], b['decisions']), ('stored', '存過的備料',
-                                                                          ['D-KN-008', 'D-KN-073']))
-            self.assertEqual(b['evidence'], {'incident': True, 'gaps': 1, 'affected': 2})
-            prod.records[(T.PROPOSAL, 5)]['patch_prompt'] = False
-            b = T.fetch_brief(prod, GenShell(self.tmp), 5)
-        self.assertEqual(b['source'], 'client')
-        self.assertIn('Traceback', b['prompt'])
-        self.assertIn('"via_gap": 4', b['prompt'])
-        args = lib.decision_refs.call_args[0]
-        self.assertEqual(args[:2], ('claim', 'gap_defect'))
-        self.assertIn('見 D-KN-064', args[2])
+    def test_a8_candidates_filter(self):
+        prod = GenProd(candidates=[])
+        self.assertEqual(T.gen_candidates(prod), [])
+        dom = prod.domains[0]
+        for term in (('rejected_at', '=', False), ('patch_local_attempts', '<', T.GEN_MAX_ATTEMPTS),
+                     ('incident_id.state', '=', 'open'), ('state', 'in', T.GEN_STATES)):
+            self.assertIn(term, dom)
+
+    def test_a10_old_server_and_no_candidates(self):
+        with self.assertRaises(T.ToolError) as cm:
+            T.fetch_brief(GenProd(server_brief=False), 5)
+        self.assertIn('18.0.3.37.1', str(cm.exception))
+        self.assertFalse(hasattr(T, 'client_payload'), '舊伺服器退回本機組備料的程式已刪')
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(T.main(['generate'], prod=GenProd(candidates=[]), sh=GenShell(self.tmp),
+                                    claude=FakeClaude()), 0, '沒有候選不是錯誤')
+
+
+class TestReviewedGate(GenBase):
+    """D-KN-103（審查 A2）：verify 沒有 --reviewed 只印 diff 摘要，不開 worktree、不跑 pt-verify、不寫正式機。"""
+
+    def test_verify_without_reviewed_runs_nothing(self):
+        prod, sh = self._prod(), GenShell(self.tmp)
+        prod.records[(T.PROPOSAL, 5)]['patch_diff'] = ('diff --git a/dobtor_x/a.py b/dobtor_x/a.py\n--- a/dobtor_x/a.py\n'
+                                                       '+++ b/dobtor_x/a.py\n@@ -1 +1,2 @@\n-a\n+b\n+c\n')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(T.cmd_verify(prod, sh, 5), 'needs_review')
+        self.assertEqual((prod.writes, sh.levels(), sh.git_sub('worktree'), sh.git_sub('apply')), ([], [], [], []))
+        self.assertIn('dobtor_x/a.py（+2 −1）', buf.getvalue())
+        self.assertIn('--reviewed', buf.getvalue())
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, 'cache', '5', 'changes.diff')), '存 diff 給人看')
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(T.main(['verify', '5'], prod=prod, sh=sh), 1)
+        self.assertEqual(sh.levels(), [])
+
+    def test_verify_reviewed_runs(self):
+        prod, sh = self._prod(), GenShell(self.tmp)
+        self.assertEqual(T.cmd_verify(prod, sh, 5, reviewed=True), 'pushed')
+        self.assertEqual(sh.levels(), ['V1', 'V2'])
+
+    def test_diff_summary_flags_outside(self):
+        out = '\n'.join(T.diff_summary('diff --git a/docs/x b/docs/x\n+a\n'))
+        self.assertIn('dobtor_ 模組以外', out)
 
     def test_verify_reuses_generated_worktree(self):
-        path = os.path.join(self.tmp, 'wt', 'opt-5')
-        os.makedirs(path)
+        os.makedirs(self.wt())
         sh = GenShell(self.tmp, status='')
+        sh.opened = True
         orig = sh.run
 
         def run(cmd, cwd=None, check=True, timeout=None):
@@ -684,9 +756,53 @@ class TestGenerate(Base):
                 return 0, 'diff --git a/x b/x\n'
             return orig(cmd, cwd=cwd, check=check, timeout=timeout)
         sh.run = run
-        prod = self._prod()
-        self.assertEqual(T.cmd_verify(prod, sh, 5), 'pushed')
-        self.assertEqual((sh.git_sub('apply'), sh.git_sub('worktree')), ([], []), '沿用、不重開不重套')
+        self.assertEqual(T.cmd_verify(self._prod(), sh, 5, reviewed=True), 'pushed')
+        self.assertEqual((sh.git_sub('apply'), [c for c in sh.git_sub('worktree') if c[4] == 'add']), ([], []),
+                         '沿用、不重開不重套')
+
+
+class TestA1NoCodeExecution(unittest.TestCase):
+    """審查 A1：提示詞來自正式機（不受信任）——claude 不能執行任何程式；主機端語法檢查也不會執行 worktree 裡的東西。"""
+
+    def test_claude_bash_has_no_python(self):
+        for rule in T.CLAUDE_ALLOW:
+            self.assertTrue(rule.startswith('Bash(git diff') or rule.startswith('Bash(git status'), rule)
+            self.assertNotIn('python', rule)
+        self.assertIn('Bash(python*)', T.CLAUDE_DENY)
+
+    def test_host_compile_does_not_import_worktree_files(self):
+        """真的跑一次（不是 mock）：worktree 根目錄放 py_compile.py／sitecustomize.py／compile.py，都不能被執行。"""
+        wt = tempfile.mkdtemp()
+        cache = tempfile.mkdtemp()
+        marker = os.path.join(cache, 'PWNED')
+        try:
+            evil = 'open(%r, "w").write("x")\n' % marker
+            for name in ('py_compile.py', 'sitecustomize.py', 'compile.py', 'usercustomize.py'):
+                with open(os.path.join(wt, name), 'w') as fh:
+                    fh.write(evil)
+            os.makedirs(os.path.join(wt, 'dobtor_x'))
+            with open(os.path.join(wt, 'dobtor_x', 'ok.py'), 'w') as fh:
+                fh.write('import py_compile\na = 1\n')
+            with open(os.path.join(wt, 'dobtor_x', 'bad.py'), 'w') as fh:
+                fh.write('def f(:\n')
+            with mock.patch.object(T, 'CACHE', cache), \
+                    mock.patch.dict(os.environ, {'PYTHONPATH': wt, 'PYTHONSTARTUP': os.path.join(wt, 'py_compile.py')}):
+                self.assertEqual(T._py_compile(T.Shell(), wt, ['dobtor_x/ok.py']), [])
+                bad = T._py_compile(T.Shell(), wt, ['dobtor_x/ok.py', 'dobtor_x/bad.py'])
+                # 對照組：舊做法（python3 -m py_compile，cwd 在 worktree）會執行 worktree 的 py_compile.py
+                subprocess.run([sys.executable, '-m', 'py_compile', 'dobtor_x/ok.py'], cwd=wt, capture_output=True,
+                               env={'PATH': os.environ.get('PATH', '')})
+                hijacked = os.path.exists(marker)
+                if hijacked:
+                    os.remove(marker)
+                self.assertEqual(T._py_compile(T.Shell(), wt, ['dobtor_x/ok.py']), [])
+            self.assertTrue(bad and 'SyntaxError' in bad[0], bad)
+            self.assertTrue(hijacked, '對照組：舊做法確實會被劫持（證明這個測試抓得到）')
+            self.assertFalse(os.path.exists(marker), 'worktree 裡的 py_compile.py 等沒有被執行')
+            self.assertFalse(os.path.exists(os.path.join(wt, 'dobtor_x', '__pycache__')), '只 compile、不寫快取')
+        finally:
+            shutil.rmtree(wt, ignore_errors=True)
+            shutil.rmtree(cache, ignore_errors=True)
 
 
 class TestClaudeCommand(unittest.TestCase):
@@ -714,7 +830,7 @@ class TestClaudeCommand(unittest.TestCase):
         self.assertNotIn('bypassPermissions', cmd)
         self.assertNotIn('--dangerously-skip-permissions', cmd)
         self.assertIn('Bash(git push*)', cmd)
-        self.assertFalse([c for c in cmd if c.startswith('Bash(') and c.endswith(':*)')])
+        self.assertFalse([c for c in cmd if 'python' in c and c.startswith('Bash(') and c in T.CLAUDE_ALLOW])
         self.assertEqual((kw['cwd'], kw['timeout'], kw['input']), ('/wt/opt-5', 60, '提示'))
         self.assertEqual(set(kw['env']), {'PATH', 'HOME'}, '金鑰、密碼、API key 不進 claude 的環境')
 
@@ -731,7 +847,6 @@ class TestClaudeCommand(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
         self.assertFalse(info['ok'])
         self.assertIn('error_max_turns', info['note'])
-
 
 class TestNoSecrets(unittest.TestCase):
 
