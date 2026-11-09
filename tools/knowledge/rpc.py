@@ -38,13 +38,17 @@ URL = _setting('CORPAAS_RPC_URL')
 DB = _setting('CORPAAS_RPC_DB')
 LOGIN = _setting('CORPAAS_RPC_LOGIN')
 KEYCHAIN_SERVICE = 'corpaas-knowledge-rpc'
-READ_METHODS = {'search_read', 'search_count', 'read_group', 'fields_get', 'read', 'search'}
+READ_METHODS = {'search_read', 'search_count', 'read_group', 'fields_get', 'read', 'search',
+                # opt_patch.py generate 取修補備料（唯讀，Knowledge 18.0.3.37.1）
+                'kb_patch_brief'}
 #: rw() 允許的寫入方法（營運工具實際用到的）；其他方法要明確 unsafe=True
 WRITE_METHODS = {'action_approve', 'action_knowledge_ai_select', 'action_knowledge_refresh',
                  'knowledge_enqueue_refresh',
                  # opt_patch.py（Knowledge 自我優化第 4 期）：修補驗證／推送／並版的寫回、並版檢查退役
                  'action_kb_patch_verified', 'action_kb_patch_pushed', 'action_kb_patch_merged',
-                 'action_kb_release_exported', 'action_kb_release_check'}
+                 'action_kb_release_exported', 'action_kb_release_check',
+                 # opt_patch.py generate（D-KN-102 本機修補）：標本機修補中、寫回修補結果
+                 'action_kb_patch_local_start', 'action_kb_patch_local_result'}
 
 
 class RpcError(Exception):
