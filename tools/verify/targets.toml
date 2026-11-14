@@ -66,3 +66,107 @@ url = "https://demo-accounting.corpaas.com"
 rpc_login = "admin"
 odoo_conf = "/etc/odoo/odoo.conf"
 container_log_dir = "/var/lib/odoo"
+
+[[target]]
+name = "demo-membership"
+deploy_mode = "control_panel"
+control_panel_instance_id = 263
+db = "demo_demo-membership"
+# 由控制台 infrastructure.instance #263 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-demo-prod_demo-membership"
+sources_path = "/opt/odoo/env00000175/Prod_demo-membership/sources/Dobtor"
+url = "https://demo-membership.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "demo-course"
+deploy_mode = "control_panel"
+control_panel_instance_id = 255
+db = "demo_demo-course"
+# 由控制台 infrastructure.instance #255 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-demo-prod_demo-course"
+sources_path = "/opt/odoo/env00000175/Prod_demo-course/sources/Dobtor"
+url = "https://demo-course.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "gideons"
+deploy_mode = "control_panel"
+control_panel_instance_id = 172
+db = "gideons_gideons"
+# 由控制台 infrastructure.instance #172 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-gideons-prod_gideons"
+sources_path = "/opt/odoo/env00000165/Prod_gideons/sources/Dobtor"
+url = "https://gideons.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "rainbowkids"
+deploy_mode = "control_panel"
+control_panel_instance_id = 170
+db = "rainbowkids_rainbowkids"
+# 由控制台 infrastructure.instance #170 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-rainbowkids-prod_rainbowkids"
+sources_path = "/opt/odoo/env00000164/Prod_rainbowkids/sources/Dobtor"
+url = "https://rainbowkids.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "eastgate"
+deploy_mode = "control_panel"
+control_panel_instance_id = 163
+db = "eastgate_eastgate"
+# 由控制台 infrastructure.instance #163 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-eastgate-prod_eastgate"
+sources_path = "/opt/odoo/env00000156/Prod_eastgate/sources/Dobtor"
+url = "https://eastgate.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "nymph"
+deploy_mode = "control_panel"
+control_panel_instance_id = 164
+db = "nymph_nymph"
+# 由控制台 infrastructure.instance #164 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-nymph-prod_nymph"
+sources_path = "/opt/odoo/env00000157/Prod_nymph/sources/Dobtor"
+url = "https://nymph.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "kooidea"
+deploy_mode = "control_panel"
+control_panel_instance_id = 165
+db = "kooidea_kooidea"
+# 由控制台 infrastructure.instance #165 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-kooidea-prod_kooidea"
+sources_path = "/opt/odoo/env00000158/Prod_kooidea/sources/Dobtor"
+url = "https://kooidea.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
+name = "lumicul"
+deploy_mode = "control_panel"
+control_panel_instance_id = 168
+db = "Lumicul_lumicul"
+# 由控制台 infrastructure.instance #168 唯讀 RPC 查得（2026-11-14，教會改版部署前 V4）
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-lumicul-prod_lumicul"
+sources_path = "/opt/odoo/env00000161/Prod_lumicul/sources/Dobtor"
+url = "https://lumicul.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
