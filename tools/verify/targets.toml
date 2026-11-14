@@ -81,6 +81,19 @@ url = "https://demo-membership.corpaas.com"
 odoo_conf = "/etc/odoo/odoo.conf"
 
 [[target]]
+name = "demo-church-followup"
+deploy_mode = "control_panel"
+control_panel_instance_id = 238
+db = "demo_demo-church-followup"
+# 教會關懷示範站（2026-11-14，教會活動 × 新朋友漏斗部署前 V4）；sources 由 docker inspect 查得
+ssh_host = "root@corpaas01.corpaas.com"
+ssh_key = "~/dobtor-odoo18-cloudsql18"
+container = "odoo-demo-prod_demo-church-followup"
+sources_path = "/opt/odoo/env00000175/Prod_demo-church-followup/sources/Dobtor"
+url = "https://demo-church-followup.corpaas.com"
+odoo_conf = "/etc/odoo/odoo.conf"
+
+[[target]]
 name = "demo-course"
 deploy_mode = "control_panel"
 control_panel_instance_id = 255
