@@ -580,7 +580,8 @@ def module_xmlids(mod_dir):
 
 
 REF_EVAL_RE = re.compile(r'''ref\(\s*['"]([\w.]+)['"]\s*\)''')
-AUTO_PREFIXES = ('field_', 'selection__', 'module_category_', 'module_')
+# model_：Odoo 為每個定義或擴充模型的模組自動建 <模組>.model_<模型>（例：dobtor_team.model_res_partner）
+AUTO_PREFIXES = ('field_', 'selection__', 'module_category_', 'module_', 'model_')
 
 
 def check_xml_refs(repo, mods, repo_mods):
