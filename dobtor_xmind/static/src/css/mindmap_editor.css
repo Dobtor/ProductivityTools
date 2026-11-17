@@ -9,6 +9,10 @@
     height: calc(100vh - 46px);
     background: #f5f5f5;
     position: relative;
+    /* 不可以把 .o_action_manager 撐出水平捲軸（工具列內容再寬也一樣） */
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 /* Toolbar */
@@ -86,19 +90,101 @@
     flex-shrink: 0;
 }
 
+/* 按鈕群組：一律橫排、不換行、不被壓縮。少了這條，群組在空間不足時被 flex
+   壓窄，裡面的 icon 按鈕就一顆顆往下疊成直條。 */
+.o_mindmap_toolbar .o_mindmap_tb_group {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 1px;
+    flex-shrink: 0;
+}
+.o_mindmap_toolbar .o_mindmap_breadcrumb {
+    flex-shrink: 1;
+    min-width: 100px;
+}
+.o_mindmap_toolbar .o_mindmap_layout_select,
+.o_mindmap_toolbar .o_mindmap_theme_select {
+    width: auto;
+    max-width: 150px;
+}
+/* 「更多」：只在窄螢幕出現，收納較少用的群組（見下方 media query） */
+.o_mindmap_toolbar .o_mindmap_tb_more {
+    display: none;
+}
+
 /* 中央搜尋區：兩側各一個彈性空白，把它推到正中間 */
 .o_mindmap_toolbar .o_mindmap_tb_spacer {
     flex: 1 1 0;
     min-width: 8px;
 }
 
-/* 右側客戶/專案（原本在工具列下方獨立一列，改成同列靠右） */
+/* 右側客戶/專案（原本在工具列下方獨立一列，改成同列靠右）。
+   可以被壓縮（min-width:0），輸入框跟著變窄，而不是把整頁撐出水平捲軸。 */
 .o_mindmap_toolbar .o_mindmap_tb_right {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
 }
+.o_mindmap_toolbar .o_mindmap_project_bar_inner {
+    flex-wrap: nowrap !important;
+    flex-shrink: 0;
+    gap: 0.75rem !important;
+}
+.o_mindmap_toolbar .o_mindmap_project_bar_inner > div {
+    min-width: 0;
+}
+.o_mindmap_toolbar .o_mindmap_tb_right .o_mindmap_view_switcher,
+.o_mindmap_toolbar .o_mindmap_tb_right .o_pager {
+    flex-shrink: 0;
+}
+
+/* 窄螢幕（含 1440px 筆電）：收起文字標籤，次要群組（關聯線／外框／總結）
+   收進「更多」選單，整條工具列維持單列、不出現水平捲軸。 */
+@media (max-width: 1600px) {
+    .o_mindmap_toolbar .o_mindmap_pb_label,
+    .o_mindmap_toolbar .o_mindmap_pb_hint {
+        display: none;
+    }
+    .o_mindmap_toolbar .o_mindmap_search {
+        min-width: 120px;
+        flex-basis: 200px;
+    }
+    .o_mindmap_toolbar .o_mindmap_pb_ac input.o_input {
+        width: 110px;
+    }
+    .o_mindmap_toolbar .o_mindmap_tb_collapsible {
+        display: none;
+    }
+    .o_mindmap_toolbar .o_mindmap_tb_more {
+        display: flex;
+    }
+}
+@media (max-width: 1366px) {
+    .o_mindmap_toolbar .o_mindmap_search {
+        min-width: 100px;
+        flex-basis: 160px;
+    }
+    .o_mindmap_toolbar .o_mindmap_layout_select,
+    .o_mindmap_toolbar .o_mindmap_theme_select {
+        max-width: 115px;
+    }
+    .o_mindmap_toolbar .o_mindmap_tb_spacer {
+        min-width: 2px;
+    }
+    /* 客戶可由齒輪開表單編輯（有專案時本來就由專案帶入），窄螢幕先收起 */
+    .o_mindmap_toolbar .o_mindmap_pb_partner {
+        display: none !important;
+    }
+}
+@media (max-width: 1280px) {
+    /* 清單／表單也可從左側麵包屑與齒輪進入 */
+    .o_mindmap_toolbar .o_mindmap_view_switcher {
+        display: none !important;
+    }
+}
+
 
 /* 工具列內的下拉選單：按鈕本身沒有 .btn-group 包覆了，定位交給 Bootstrap */
 .o_mindmap_toolbar .dropdown-menu {
@@ -121,19 +207,19 @@
     max-width: 210px;
 }
 /* 專案列可編輯的客戶/專案 AutoComplete 輸入框（子元件 MindmapProjectBar） */
-.o_mindmap_project_bar .o_mindmap_pb_ac input {
+.o_mindmap_toolbar .o_mindmap_pb_ac input {
     border: 1px solid transparent;
     background: transparent;
     border-radius: 4px;
     padding: 1px 6px;
-    min-width: 120px;
+    width: 160px;
     max-width: 200px;
     font-size: 0.85rem;
 }
-.o_mindmap_project_bar .o_mindmap_pb_ac input:hover {
+.o_mindmap_toolbar .o_mindmap_pb_ac input:hover {
     border-color: #dee2e6;
 }
-.o_mindmap_project_bar .o_mindmap_pb_ac input:focus {
+.o_mindmap_toolbar .o_mindmap_pb_ac input:focus {
     outline: none;
     border-color: #714b67;
     background: #fff;

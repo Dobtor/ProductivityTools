@@ -47,6 +47,13 @@ export class MindmapContextMenu {
                 return;
             }
 
+            // 右鍵標註（callout）→ 刪除
+            const calloutEl = e.target.closest('.xmind-callout');
+            if (calloutEl && calloutEl.dataset.calloutId) {
+                this.editor._showCalloutContextMenu(e, calloutEl.dataset.calloutId);
+                return;
+            }
+
             // Fix #8: Right-click on marker badge → show replace/remove menu
             const markerBadge = e.target.closest('.xmind-marker-badge');
             if (markerBadge) {

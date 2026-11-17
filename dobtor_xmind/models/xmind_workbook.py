@@ -119,7 +119,8 @@ class XMindWorkbook(models.Model):
         res = super().write(vals)
         if 'name' in vals and not self.env.context.get('_syncing_name'):
             for record in self:
-                first_sheet = record.sheet_ids[:1]
+                # 反向同步（工作簿名稱 → 中心主題）同樣只動第一張分頁
+                first_sheet = record.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]
                 if first_sheet:
                     root_topic = first_sheet.topic_ids.filtered(
                         lambda t: not t.parent_id
@@ -519,9 +520,12 @@ class XMindWorkbook(models.Model):
         # Import from jsMind format
         if 'data' in data:
             self._sync_jsmind_tree(data['data'], sheet)
-            # Sync root topic title → workbook name
+            # Sync root topic title → workbook name —— 只有第一張分頁（sequence
+            # 最小）的中心主題代表整本工作簿；存第二張以後的分頁不可改名，
+            # 否則每切一次分頁存檔，工作簿名稱就被換成那張的中心主題。
             root_title = data['data'].get('topic', '')
-            if root_title and root_title != self.name:
+            if (root_title and root_title != self.name
+                    and sheet == self.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]):
                 self.with_context(_syncing_name=True).write({'name': root_title})
 
         # Restore feature layers atomically in the SAME transaction as the tree
