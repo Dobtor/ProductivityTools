@@ -101,6 +101,22 @@ class TestXmindExport(TransactionCase):
         self.assertTrue(attachment)
         self.assertIn(str(attachment.id), action['url'])
 
+    def test_export_svg_does_not_touch_source(self):
+        """表單的「匯出 SVG」同樣存成附件，不可覆蓋 xmind_file（匯入來源）。"""
+        source = base64.b64encode(b'original-upload')
+        self.workbook.write({'xmind_file': source, 'xmind_filename': 'src.xmind'})
+        action = self.workbook.export_svg()
+        self.assertEqual(self.workbook.xmind_file, source)
+        self.assertEqual(self.workbook.xmind_filename, 'src.xmind')
+        attachment = self.env['ir.attachment'].search([
+            ('res_model', '=', 'xmind.workbook'),
+            ('res_id', '=', self.workbook.id),
+            ('name', '=', 'Export Book.svg'),
+        ], limit=1)
+        self.assertTrue(attachment)
+        self.assertEqual(attachment.mimetype, 'image/svg+xml')
+        self.assertIn(str(attachment.id), action['url'])
+
     def test_export_twice_reuses_one_attachment(self):
         """重複匯出只留一份 —— 附件掛在工作簿上，每次新建會塞滿附件區。"""
         def count():

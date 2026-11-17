@@ -111,17 +111,22 @@ class ProjectProject(models.Model):
                 'project_managed': True,
                 'note': html2plaintext(task.description) if task.description else '',
                 'task_assignee': ', '.join(task.user_ids.mapped('name')) if task.user_ids else '',
-                'task_progress': 100 if task.state == '1_done' else 0,
+                # dobtor_project 的進度欄位（0–100）；已完成的任務一律視為 100%
+                'task_progress': 100 if task.state == '1_done' else int(round(task.progress or 0)),
             }
-            # Deadline → date + time-of-day, converted from UTC to the user's tz.
-            if task.date_deadline:
-                tz = pytz.timezone(self.env.user.tz or 'UTC')
-                local = pytz.UTC.localize(task.date_deadline).astimezone(tz)
-                vals['task_end_date'] = local.date()
-                vals['task_deadline_time'] = local.strftime('%H:%M')
-            else:
-                vals['task_end_date'] = False
-                vals['task_deadline_time'] = ''
+            # 開始／結束取 dobtor_project 的排程日期（date_start/date_end），
+            # 從 UTC 轉成使用者時區的日期；以前只看 date_deadline，開始日永遠是空的。
+            tz = pytz.timezone(self.env.user.tz or 'UTC')
+
+            def local(dt):
+                return pytz.UTC.localize(dt).astimezone(tz) if dt else None
+
+            start, end, deadline = local(task.date_start), local(task.date_end), local(task.date_deadline)
+            vals['task_start_date'] = start.date() if start else False
+            # 截止時間只在任務真的有截止日時帶入（endTime）；沒有排程結束日時
+            # 結束日退回用截止日。
+            vals['task_end_date'] = (end or deadline).date() if (end or deadline) else False
+            vals['task_deadline_time'] = deadline.strftime('%H:%M') if deadline else ''
             topic = task.xmind_topic_id
             if topic and topic.exists() and topic.sheet_id.id == sheet.id:
                 topic.write(vals)

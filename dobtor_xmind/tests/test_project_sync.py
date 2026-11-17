@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from datetime import date, datetime
+
 from odoo.tests import TransactionCase, tagged
 
 
@@ -12,6 +14,8 @@ class TestProjectSync(TransactionCase):
         self.Topic = self.env['xmind.topic']
         self.Project = self.env['project.project']
         self.Task = self.env['project.task']
+        # 日期換算以使用者時區為準（台北 = UTC+8）
+        self.env.user.tz = 'Asia/Taipei'
 
     def _make_workbook(self):
         wb = self.Workbook.create({'name': 'WB'})
@@ -111,3 +115,89 @@ class TestProjectSync(TransactionCase):
         wb.project_id.privacy_visibility = 'followers'
         wb.invalidate_recordset(['privacy_visibility'])
         self.assertEqual(wb.privacy_visibility, 'followers')
+
+    # ----- 任務資訊：日期／進度／狀態 -----
+    def test_forward_writes_schedule_dates_and_progress(self):
+        wb, sheet, root, a, b, a1 = self._make_workbook()
+        a.write({
+            'task_start_date': date(2026, 3, 2),
+            'task_end_date': date(2026, 3, 6),
+            'task_progress': 40,
+        })
+        wb._sync_to_project(create_if_missing=True)
+        task = a.task_id
+        # 台北 09:00 / 17:00 → UTC 01:00 / 09:00
+        self.assertEqual(task.date_start, datetime(2026, 3, 2, 1, 0))
+        self.assertEqual(task.date_end, datetime(2026, 3, 6, 9, 0))
+        self.assertEqual(round(task.progress), 40)
+        self.assertEqual(task.state, '01_in_progress')
+
+    def test_forward_keeps_time_when_date_unchanged(self):
+        wb, sheet, root, a, b, a1 = self._make_workbook()
+        a.write({'task_start_date': date(2026, 3, 2), 'task_end_date': date(2026, 3, 6)})
+        wb._sync_to_project(create_if_missing=True)
+        # 專案端調整了時間（同一天）→ 再同步不可以被重設回 09:00/17:00
+        a.task_id.write({'date_start': datetime(2026, 3, 2, 3, 30),
+                         'date_end': datetime(2026, 3, 6, 6, 0)})
+        wb._sync_to_project()
+        self.assertEqual(a.task_id.date_start, datetime(2026, 3, 2, 3, 30))
+        self.assertEqual(a.task_id.date_end, datetime(2026, 3, 6, 6, 0))
+
+    def test_forward_does_not_overwrite_task_state(self):
+        wb, sheet, root, a, b, a1 = self._make_workbook()
+        a.task_progress = 50
+        wb._sync_to_project(create_if_missing=True)
+        a.task_id.state = '03_approved'
+        b.task_id.state = '1_canceled'
+        wb._sync_to_project()
+        self.assertEqual(a.task_id.state, '03_approved', "同步不可以把已核准改回進行中")
+        self.assertEqual(b.task_id.state, '1_canceled')
+        # 進度達 100% → 完成；已取消的不動
+        a.task_progress = 100
+        b.task_progress = 100
+        wb._sync_to_project()
+        self.assertEqual(a.task_id.state, '1_done')
+        self.assertEqual(b.task_id.state, '1_canceled')
+
+    def test_summary_and_floating_topics_never_become_tasks(self):
+        wb, sheet, root, a, b, a1 = self._make_workbook()
+        summary = self.Topic.create({
+            'sheet_id': sheet.id, 'parent_id': a.id, 'title': 'Summary text',
+            'is_summary_node': True, 'component_id': 'sum-1'})
+        floating = self.Topic.create({
+            'sheet_id': sheet.id, 'parent_id': root.id, 'title': 'Floating',
+            'component_id': 'ft-1'})
+        floating_child = self.Topic.create({
+            'sheet_id': sheet.id, 'parent_id': floating.id, 'title': 'Floating child'})
+        self.env['xmind.floating.topic'].create({
+            'sheet_id': sheet.id, 'component_id': 'ft-1', 'title': 'Floating'})
+        wb._sync_to_project(create_if_missing=True)
+        self.assertFalse(summary.task_id)
+        self.assertFalse(floating.task_id)
+        self.assertFalse(floating_child.task_id)
+        names = self.Task.search([('project_id', '=', wb.project_id.id)]).mapped('name')
+        self.assertNotIn('Summary text', names)
+        self.assertNotIn('Floating', names)
+
+    def test_reverse_maps_schedule_dates_and_progress(self):
+        project = self.Project.create({'name': 'Proj'})
+        task = self.Task.create({
+            'name': 'T1', 'project_id': project.id,
+            'date_start': datetime(2026, 5, 3, 16, 30),   # 台北 5/4 00:30
+            'date_end': datetime(2026, 5, 8, 9, 0),       # 台北 5/8 17:00
+        })
+        task.progress = 35
+        project._sync_to_mindmap(create_if_missing=True)
+        topic = task.xmind_topic_id
+        self.assertEqual(topic.task_start_date, date(2026, 5, 4))
+        self.assertEqual(topic.task_end_date, date(2026, 5, 8))
+        self.assertEqual(topic.task_progress, 35)
+        self.assertFalse(topic.task_deadline_time, "沒有截止日時不帶截止時間")
+        # 有截止日 → 帶入截止時間
+        task.date_deadline = datetime(2026, 5, 8, 10, 0)   # 台北 18:00
+        project._sync_to_mindmap()
+        self.assertEqual(topic.task_deadline_time, '18:00')
+        # 已完成 → 100%
+        task.state = '1_done'
+        project._sync_to_mindmap()
+        self.assertEqual(topic.task_progress, 100)

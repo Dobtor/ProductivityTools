@@ -157,7 +157,8 @@ registry.category("web_tour.tours").add("dobtor_xmind_sheet_switch_tour", {
             // 新分頁的根主題用分頁名建立（見 controllers/main.py create_sheet）；
             // 前兩張分頁的節點都不可以跟著過來。
             content: "新分頁上看不到別張分頁的節點",
-            trigger: ".o_xmind_sheet_tabs .o_xmind_sheet_tab.active:contains('Sheet C')",
+            // 等新分頁的根主題畫出來（分頁高亮在載入完成前就會切換，用它當觸發會搶在畫布換掉之前）
+            trigger: topicVisible("Sheet C"),
             run: expectTopicGone(SHEET_A_TOPIC),
         },
         {
