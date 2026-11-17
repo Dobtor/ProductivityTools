@@ -14,5 +14,10 @@
             <field name="comment">Manage external messaging accounts, conversations and bindings.</field>
         </record>
 
+        <!-- 管理員（設定／存取權限）自動具備訊息管理者，免得新庫 admin 無法綁定聯絡人。 -->
+        <record id="base.group_erp_manager" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_messaging_manager'))]"/>
+        </record>
+
     </data>
 </odoo>
