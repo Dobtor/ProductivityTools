@@ -145,6 +145,7 @@
                         <h1>
                             <field name="name" placeholder="Note title..."/>
                         </h1>
+                        <field name="name_manual" invisible="1"/>
                     </div>
 
                     <group>

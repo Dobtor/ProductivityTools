@@ -122,7 +122,9 @@ class NoteRecording(models.Model):
     def _compute_name(self):
         for rec in self:
             if rec.record_start:
-                rec.name = _('Recording %s', rec.record_start.strftime('%Y-%m-%d %H:%M'))
+                # record_start 存 UTC；名稱以使用者時區顯示
+                local_start = fields.Datetime.context_timestamp(rec, rec.record_start)
+                rec.name = _('Recording %s', local_start.strftime('%Y-%m-%d %H:%M'))
             else:
                 rec.name = _('Recording #%s', rec.id or 'new')
 
@@ -214,7 +216,11 @@ class NoteRecording(models.Model):
         file_format = vals.get('file_format', 'webm')
 
         attachment = self.env['ir.attachment'].create({
-            'name': f"recording_{record_start or fields.Datetime.now()}.{file_format}",
+            'name': "recording_%s.%s" % (
+                fields.Datetime.context_timestamp(
+                    self, record_start or fields.Datetime.now()
+                ).strftime('%Y-%m-%d_%H%M%S'),
+                file_format),
             'type': 'binary',
             'datas': audio_b64,
             'res_model': 'note.note',
@@ -268,19 +274,23 @@ class NoteRecording(models.Model):
         for note in self.mapped('note_id'):
             note.write({'transcript_state': 'processing'})
 
-        # 先 commit job + state，確保重啟也能被 cron 接手
-        self.env.cr.commit()
-
+        # job + state 隨本次交易 commit 後才啟動 thread（postcommit）：
+        # 不在請求中途 cr.commit()（會把請求切成兩半、失敗時無法整體 rollback），
+        # 而 thread 一定看得到已 commit 的 job。交易若 rollback，job 也不存在、
+        # thread 不會啟動；已 commit 但 thread 沒跑起來的 job 由 cron 接手。
         db_name = self.env.cr.dbname
         recording_ids = self.ids
         uid = self.env.uid
+        worker = self._async_transcribe_worker
 
-        thread = threading.Thread(
-            target=self._async_transcribe_worker,
-            args=(db_name, uid, recording_ids),
-            daemon=True,
-        )
-        thread.start()
+        def _start_worker():
+            threading.Thread(
+                target=worker,
+                args=(db_name, uid, recording_ids),
+                daemon=True,
+            ).start()
+
+        self.env.cr.postcommit.add(_start_worker)
 
         return {
             'type': 'ir.actions.client',
@@ -348,12 +358,14 @@ class NoteRecording(models.Model):
                 )
                 if job:
                     # Atomic transition pending → running
-                    self.env.cr.execute("""
+                    # ★ 用 thread 自己的 cr；self.env.cr 是發起請求的 cursor，
+                    #   postcommit 後即關閉，且本就不能跨 thread 共用。
+                    cr.execute("""
                         UPDATE note_transcribe_job
                         SET state='running', picked_at=NOW(), worker_pid=%s
                         WHERE id=%s AND state='pending'
                     """, (os.getpid(), job.id))
-                    if self.env.cr.rowcount == 0:
+                    if cr.rowcount == 0:
                         job = Job.browse()  # someone else claimed; just process rec
                     cr.commit()
 

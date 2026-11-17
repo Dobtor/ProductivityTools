@@ -308,17 +308,7 @@ class MeetingPortal(CustomerPortal):
             subtype_xmlid='mail.mt_comment',
         )
 
-        # 如果全部簽名完成，生成最終 PDF
-        if note_sudo.all_signed:
-            pdf = request.env['ir.actions.report'].sudo()._render_qweb_pdf(
-                'dobtor_meeting_minutes.action_report_meeting_minutes',
-                [note_sudo.id]
-            )[0]
-            note_sudo.message_post(
-                attachments=[(f'{note_sudo.name} - Signed.pdf', pdf)],
-                body=_('All signers have signed. Final signed document attached.'),
-                message_type='notification',
-            )
+        # 全部簽完時的最終 PDF 由 action_sign → _check_all_signed 產生（後台同路徑）
 
         # 建構重導向 URL
         query_params = f'?access_token={note_sudo.access_token}'
