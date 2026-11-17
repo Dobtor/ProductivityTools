@@ -14,6 +14,7 @@
  * 護欄 —— 那屬於另一次有 UI 測試打底的改版。
  */
 import { _t } from "@web/core/l10n/translation";
+import { escape } from "@web/core/utils/strings";
 
 export class MindmapContextMenu {
     /** @param {import("@dobtor_xmind/js/mindmap_editor").MindmapEditor} editor */
@@ -198,7 +199,7 @@ export class MindmapContextMenu {
             const item = document.createElement('a');
             item.className = 'dropdown-item' + (marker.code === markerCode ? ' active' : '');
             item.href = '#';
-            item.innerHTML = `<i class="${marker.icon}" style="color:${marker.color}"></i> ${marker.name}`;
+            item.innerHTML = `<i class="${escape(marker.icon)}" style="color:${escape(marker.color)}"></i> ${escape(marker.name)}`;
             item.addEventListener('click', (ev) => {
                 ev.preventDefault();
                 // Replace marker

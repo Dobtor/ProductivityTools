@@ -6,6 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { router } from "@web/core/browser/router";
+import { escape } from "@web/core/utils/strings";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { usePopover } from "@web/core/popover/popover_hook";
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
@@ -43,6 +44,36 @@ import { MindmapSearch, MINDMAP_FILTERS } from "@dobtor_xmind/js/mindmap_search"
  * Style Mind Map Editor for Odoo 18
  * OWL Component with Command Pattern
  */
+/**
+ * 主題色清單（工具列下拉、主題管理、資源管理共用），與 xmind.sheet.theme
+ * 的選項一致。名稱經 _t 翻譯，狀態列與卡片都顯示名稱而不是代碼。
+ */
+export function getThemeChoices() {
+    return [
+        { id: 'default', name: _t('Default'), color: '#97cbff' },
+        { id: 'primary', name: _t('Primary Color'), color: '#428bca' },
+        { id: 'success', name: _t('Success'), color: '#5cb85c' },
+        { id: 'danger', name: _t('Danger'), color: '#d9534f' },
+        { id: 'warning', name: _t('Warning'), color: '#f0ad4e' },
+        { id: 'info', name: _t('Info'), color: '#5bc0de' },
+        { id: 'greensea', name: _t('Sea Green'), color: '#16a085' },
+        { id: 'nephrite', name: _t('Emerald'), color: '#27ae60' },
+        { id: 'belizehole', name: _t('Belize Blue'), color: '#2980b9' },
+        { id: 'wisteria', name: _t('Wisteria'), color: '#8e44ad' },
+        { id: 'asphalt', name: _t('Asphalt'), color: '#34495e' },
+        { id: 'orange', name: _t('Orange'), color: '#f39c12' },
+        { id: 'pumpkin', name: _t('Pumpkin'), color: '#d35400' },
+        { id: 'pomegranate', name: _t('Pomegranate'), color: '#c0392b' },
+        { id: 'clouds', name: _t('Clouds'), color: '#ecf0f1' },
+        { id: 'asbestos', name: _t('Asbestos'), color: '#7f8c8d' },
+    ];
+}
+
+function themeName(id) {
+    const t = getThemeChoices().find((c) => c.id === id);
+    return t ? t.name : id;
+}
+
 export class MindmapEditor extends Component {
     static template = "dobtor_xmind.MindmapEditor";
     static components = { MindmapProjectBar, MindmapPager, MindmapSearch, MindmapSheetTabs };
@@ -603,10 +634,10 @@ export class MindmapEditor extends Component {
         }
     }
 
-    /** Status bar「N 個指令」— CommandStack（可復原步數）計數。 */
+    /** Status bar「N commands」— CommandStack（可復原步數）計數。 */
     _updateCommandCount(count) {
         const el = this._el('.o_mindmap_command_count');
-        if (el) el.textContent = '  ·  ' + (count || 0) + ' 個指令';
+        if (el) el.textContent = '  ·  ' + _t('%s commands', count || 0);
     }
 
     // ===== Keyboard Shortcuts =====
@@ -2616,21 +2647,7 @@ export class MindmapEditor extends Component {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
-        const themes = [
-            { id: 'primary', name: 'Primary', color: '#428bca' },
-            { id: 'success', name: 'Success', color: '#5cb85c' },
-            { id: 'danger', name: 'Danger', color: '#d9534f' },
-            { id: 'warning', name: 'Warning', color: '#f0ad4e' },
-            { id: 'info', name: 'Info', color: '#5bc0de' },
-            { id: 'greensea', name: 'Green Sea', color: '#16a085' },
-            { id: 'nephrite', name: 'Nephrite', color: '#27ae60' },
-            { id: 'belizehole', name: 'Belize Hole', color: '#2980b9' },
-            { id: 'wisteria', name: 'Wisteria', color: '#8e44ad' },
-            { id: 'asphalt', name: 'Asphalt', color: '#34495e' },
-            { id: 'orange', name: 'Orange', color: '#f39c12' },
-            { id: 'pumpkin', name: 'Pumpkin', color: '#d35400' },
-            { id: 'pomegranate', name: 'Pomegranate', color: '#c0392b' },
-        ];
+        const themes = getThemeChoices();
 
         const dialog = document.createElement('div');
         dialog.style.cssText = 'background:white;border-radius:12px;padding:24px;max-width:500px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.3);';
@@ -2650,6 +2667,7 @@ export class MindmapEditor extends Component {
                 this.sheetSettings.theme = theme.id;
                 this.jm.set_theme(theme.id);
                 this._saveSettings();
+                this._syncSettingsSelects();
                 overlay.remove();
                 this._updateStatus(_t('Theme changed to: ') + theme.name);
             });
@@ -2831,8 +2849,8 @@ export class MindmapEditor extends Component {
                 const item = document.createElement('div');
                 item.style.cssText = 'padding:8px;border:1px solid #eee;border-radius:6px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;';
                 item.innerHTML = `
-                    <div style="font-size:12px;font-weight:600;">${rev.name}</div>
-                    <div style="font-size:11px;color:#888;">${rev.user} · ${rev.topic_count} topics</div>
+                    <div style="font-size:12px;font-weight:600;">${escape(rev.name)}</div>
+                    <div style="font-size:11px;color:#888;">${escape(rev.user)} · ${escape(_t('%s topics', rev.topic_count))}</div>
                     <div class="mt-1">
                         <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" style="font-size:11px;" data-action="restore">${_t('Restore')}</button>
                         <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:11px;" data-action="preview">${_t('Preview')}</button>
@@ -3491,21 +3509,7 @@ export class MindmapEditor extends Component {
         container.innerHTML = '';
 
         if (tabId === 'themes') {
-            const themes = [
-                { id: 'primary', name: 'Primary', color: '#428bca' },
-                { id: 'success', name: 'Success', color: '#5cb85c' },
-                { id: 'danger', name: 'Danger', color: '#d9534f' },
-                { id: 'warning', name: 'Warning', color: '#f0ad4e' },
-                { id: 'info', name: 'Info', color: '#5bc0de' },
-                { id: 'greensea', name: 'Green Sea', color: '#16a085' },
-                { id: 'nephrite', name: 'Nephrite', color: '#27ae60' },
-                { id: 'belizehole', name: 'Belize Hole', color: '#2980b9' },
-                { id: 'wisteria', name: 'Wisteria', color: '#8e44ad' },
-                { id: 'asphalt', name: 'Asphalt', color: '#34495e' },
-                { id: 'orange', name: 'Orange', color: '#f39c12' },
-                { id: 'pumpkin', name: 'Pumpkin', color: '#d35400' },
-                { id: 'pomegranate', name: 'Pomegranate', color: '#c0392b' },
-            ];
+            const themes = getThemeChoices();
             const grid = document.createElement('div');
             grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;';
             const current = this.sheetSettings.theme || 'primary';
@@ -3518,6 +3522,7 @@ export class MindmapEditor extends Component {
                     this.sheetSettings.theme = t.id;
                     this.jm.set_theme(t.id);
                     this._saveSettings();
+                    this._syncSettingsSelects();
                     this._renderResourceTab('themes', container);
                 });
                 grid.appendChild(card);
@@ -4031,7 +4036,8 @@ export class MindmapEditor extends Component {
         const layout = ev.target.value;
         this.sheetSettings.layout = layout;
         this._saveSettings();
-        this._updateStatus(_t('Layout changed to: ') + layout);
+        const opt = ev.target.selectedOptions && ev.target.selectedOptions[0];
+        this._updateStatus(_t('Layout changed to: ') + ((opt && opt.textContent.trim()) || layout));
 
         if (this.jm && this.jm.layout && this.jm.view) {
             this.jm.layout.setLayoutMode(layout);
@@ -4052,7 +4058,7 @@ export class MindmapEditor extends Component {
         this.sheetSettings.theme = theme;
         this.jm.set_theme(theme);
         this._saveSettings();
-        this._updateStatus(_t('Theme changed to: ') + theme);
+        this._updateStatus(_t('Theme changed to: ') + themeName(theme));
     }
 
     onTopicPropertyChange() {
@@ -4559,6 +4565,18 @@ export class MindmapEditor extends Component {
         });
     }
 
+    /** Insert → Label：打開側欄並把游標放進「標籤」欄位。 */
+    onInsertLabel(ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (!this.selectedNode) {
+            this._showWarning(_t('Please select a topic first'));
+            return;
+        }
+        this._openSidebar();
+        const labelsEl = this._el('.o_topic_labels');
+        if (labelsEl) labelsEl.focus();
+    }
+
     onInsertNote(ev) {
         ev.preventDefault();
         if (!this.selectedNode) {
@@ -4568,11 +4586,6 @@ export class MindmapEditor extends Component {
         this._openSidebar();
         const noteEl = this._el('.o_topic_note');
         if (noteEl) noteEl.focus();
-    }
-
-    onInsertComment(ev) {
-        if (ev && ev.preventDefault) ev.preventDefault();
-        this._showWarning(_t('Comments feature coming soon'));
     }
 
     onInsertAttachment(ev) {
@@ -5247,6 +5260,28 @@ export class MindmapEditor extends Component {
             labelBold: false, labelItalic: true, labelBackground: false,
         };
 
+        // 選項顯示翻譯過的名稱（以前直接把 curved / dashed / arrow 等代碼印出來）
+        const REL_SHAPES = [
+            ['curved', _t('Curve')], ['straight', _t('Straight')], ['angled', _t('Elbow')],
+            ['roundedElbow', _t('Rounded Elbow')], ['arrowedCurve', _t('Arrowed Curve')],
+            ['zigzag', _t('Zigzag')], ['arc', _t('Arc')],
+        ];
+        const REL_LINE_STYLES = [
+            ['solid', _t('Solid')], ['dashed', _t('Dashed')], ['dotted', _t('Dotted')],
+            ['dash-dot', _t('Dash-dot')],
+        ];
+        const REL_MARKERS = [
+            ['none', _t('None')], ['arrow', _t('Arrow')], ['arrow-open', _t('Open Arrow')],
+            ['diamond', _t('Diamond')], ['diamond-filled', _t('Filled Diamond')],
+            ['circle', _t('Circle')], ['circle-filled', _t('Filled Circle')], ['square', _t('Square')],
+        ];
+        const REL_MARKER_SIZES = [
+            // 用「… size」當原文：單獨的 "Medium" 會被別的模組（utm「媒介」）的譯文蓋掉
+            ['small', _t('Small size')], ['medium', _t('Medium size')], ['large', _t('Large size')],
+        ];
+        const opts = (choices, current) => choices.map(([v, label]) =>
+            `<option value="${v}" ${current === v ? 'selected' : ''}>${escape(label)}</option>`).join('');
+
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
@@ -5255,9 +5290,9 @@ export class MindmapEditor extends Component {
         dialog.innerHTML = `
             <h5 style="margin-bottom:16px;">${existing ? _t('Edit Relationship') : _t('Create Relationship')}</h5>
             <div class="mb-2"><label class="small fw-bold">${_t('Shape Type')}</label>
-                <select class="form-select form-select-sm o_dlg_shape">${['curved','straight','angled','roundedElbow','arrowedCurve','zigzag','arc'].map(v => `<option value="${v}" ${defaults.shapeType===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <select class="form-select form-select-sm o_dlg_shape">${opts(REL_SHAPES, defaults.shapeType)}</select></div>
             <div class="mb-2"><label class="small fw-bold">${_t('Line Style')}</label>
-                <select class="form-select form-select-sm o_dlg_linestyle">${['solid','dashed','dotted','dash-dot'].map(v => `<option value="${v}" ${defaults.lineStyle===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <select class="form-select form-select-sm o_dlg_linestyle">${opts(REL_LINE_STYLES, defaults.lineStyle)}</select></div>
             <div class="row mb-2">
                 <div class="col-6"><label class="small fw-bold">${_t('Width')}</label>
                     <input type="number" class="form-control form-control-sm o_dlg_width" min="1" max="8" value="${defaults.lineWidth}"/></div>
@@ -5266,15 +5301,15 @@ export class MindmapEditor extends Component {
             </div>
             <div class="row mb-2">
                 <div class="col-6"><label class="small fw-bold">${_t('Start Marker')}</label>
-                    <select class="form-select form-select-sm o_dlg_startmarker">${['none','arrow','arrow-open','diamond','diamond-filled','circle','circle-filled','square'].map(v => `<option value="${v}" ${defaults.startMarker===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                    <select class="form-select form-select-sm o_dlg_startmarker">${opts(REL_MARKERS, defaults.startMarker)}</select></div>
                 <div class="col-6"><label class="small fw-bold">${_t('End Marker')}</label>
-                    <select class="form-select form-select-sm o_dlg_endmarker">${['none','arrow','arrow-open','diamond','diamond-filled','circle','circle-filled','square'].map(v => `<option value="${v}" ${defaults.endMarker===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                    <select class="form-select form-select-sm o_dlg_endmarker">${opts(REL_MARKERS, defaults.endMarker)}</select></div>
             </div>
             <div class="mb-2"><label class="small fw-bold">${_t('Marker Size')}</label>
-                <select class="form-select form-select-sm o_dlg_markersize">${['small','medium','large'].map(v => `<option value="${v}" ${defaults.markerSize===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <select class="form-select form-select-sm o_dlg_markersize">${opts(REL_MARKER_SIZES, defaults.markerSize)}</select></div>
             <hr/>
             <div class="mb-2"><label class="small fw-bold">${_t('Label')}</label>
-                <input type="text" class="form-control form-control-sm o_dlg_label" value="${defaults.label || ''}" placeholder="${_t('Optional label')}"/></div>
+                <input type="text" class="form-control form-control-sm o_dlg_label" value="${escape(defaults.label || '')}" placeholder="${_t('Optional label')}"/></div>
             <div class="row mb-2">
                 <div class="col-4"><label class="small fw-bold">${_t('Font Size')}</label>
                     <input type="number" class="form-control form-control-sm o_dlg_labelfontsize" min="8" max="24" value="${defaults.labelFontSize || 12}"/></div>
@@ -5746,13 +5781,13 @@ export class MindmapEditor extends Component {
                 if (nd && nd.data && nd.data._isSummaryNode) continue;
                 n++;
             }
-            topicEl.textContent = n + ' 個主題';
+            topicEl.textContent = _t('%s topics', n);
         }
         const selEl = this._el('.o_mindmap_selection_count');
         if (selEl) {
             const selCount = (this.selectedNodes && this.selectedNodes.length)
                 || (this.selectedNode ? 1 : 0);
-            selEl.textContent = selCount > 1 ? ('  ·  已選 ' + selCount + ' 個') : '';
+            selEl.textContent = selCount > 1 ? ('  ·  ' + _t('%s selected', selCount)) : '';
         }
     }
 
@@ -5978,7 +6013,9 @@ export class MindmapEditor extends Component {
                 // reset=true → relationship connectors re-optimise for new layout
                 this._updateFeaturePositions(true);
             }, 100);
-            this._updateStatus(_t('Layout changed to: ') + layoutType);
+            const sel = this._el('.o_mindmap_layout_select');
+            const opt = sel && [...sel.options].find(o => o.value === layoutType);
+            this._updateStatus(_t('Layout changed to: ') + ((opt && opt.textContent.trim()) || layoutType));
         }
     }
 

@@ -7,10 +7,10 @@
         <field name="inherit_id" ref="project.edit_project"/>
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
-                <button name="action_create_mindmap" type="object" string="建立心智圖"
+                <button name="action_create_mindmap" type="object" string="Create Mind Map"
                         class="btn-secondary" invisible="xmind_workbook_count &gt; 0"
                         groups="base.group_user"/>
-                <button name="action_sync_mindmap" type="object" string="同步心智圖"
+                <button name="action_sync_mindmap" type="object" string="Sync Mind Map"
                         class="btn-secondary" invisible="xmind_workbook_count == 0"
                         groups="base.group_user"/>
             </xpath>
@@ -38,8 +38,8 @@
                 <a name="action_open_mindmaps" type="object" role="button"
                    class="btn btn-sm btn-link p-0 me-1 text-info align-self-center"
                    t-if="record.xmind_workbook_count.raw_value &gt; 0"
-                   title="開啟心智圖" aria-label="開啟心智圖">
-                    <i class="fa fa-share-alt me-1"/>心智圖
+                   title="Open mind map" aria-label="Open mind map">
+                    <i class="fa fa-share-alt me-1"/>Mind Map
                 </a>
             </xpath>
         </field>

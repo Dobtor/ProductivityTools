@@ -100,14 +100,11 @@
                         <a class="dropdown-item o_mindmap_insert_image" href="#" t-on-click="onInsertImage">
                             <i class="fa fa-image text-success"/> Image
                         </a>
-                        <a class="dropdown-item" href="#" t-on-click="onInsertComment">
-                            <i class="fa fa-comments text-muted"/> Comment
-                        </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item o_mindmap_insert_attachment" href="#" t-on-click="onInsertAttachment">
                             <i class="fa fa-paperclip text-secondary"/> Attachment
                         </a>
-                        <a class="dropdown-item" href="#" t-on-click="onInsertNote">
+                        <a class="dropdown-item" href="#" t-on-click="onInsertLabel">
                             <i class="fa fa-tag text-info"/> Label
                         </a>
                     </div>
@@ -276,7 +273,7 @@
                                     <option value="curved">Curve</option>
                                     <option value="straight">Straight</option>
                                     <option value="angular">Elbow</option>
-                                    <option value="rounded">Rounded Elbow</option>
+                                    <option value="roundedElbow">Rounded Elbow</option>
                                     <option value="none">None</option>
                                 </select>
                             </div>
@@ -504,6 +501,7 @@
 
                 <div class="o_mindmap_tb_group">
                     <select class="form-control form-control-sm o_mindmap_theme_select" title="Theme Color" t-on-change="onThemeChange">
+                        <option value="default">Default</option>
                         <option value="primary">Primary Color</option>
                         <option value="warning">Warning</option>
                         <option value="danger">Danger</option>
@@ -517,6 +515,8 @@
                         <option value="orange">Orange</option>
                         <option value="pumpkin">Pumpkin</option>
                         <option value="pomegranate">Pomegranate</option>
+                        <option value="clouds">Clouds</option>
+                        <option value="asbestos">Asbestos</option>
                     </select>
                 </div>
 
@@ -579,6 +579,8 @@
                             <option value="timeline_vertical">Timeline - Vertical</option>
                             <option value="fishbone_right">Fishbone (Head Left)</option>
                             <option value="fishbone_left">Fishbone (Head Right)</option>
+                            <!-- 不列表格圖：排版引擎沒有「單一主題下的子主題用表格」的實作
+                                 （_layoutChildrenWithStructure 只支援上面這些），列了也不會生效。 -->
                         </select>
                     </div>
 
