@@ -108,7 +108,7 @@ class MailActivityDoneWizard(models.TransientModel):
         return activity._continue_todo_action()
 
     def action_postpone(self):
-        """延至下週（開啟延期 wizard）"""
+        """延後：移回等待中（開啟延期 wizard）"""
         self.ensure_one()
         return self.activity_id.action_postpone_wizard()
 

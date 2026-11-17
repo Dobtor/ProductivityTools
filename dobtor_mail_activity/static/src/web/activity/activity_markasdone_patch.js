@@ -57,7 +57,7 @@ patch(ActivityMarkAsDone.prototype, {
         return this._openActivityWizard("done", _t("Log and Continue"));
     },
 
-    /** 延期至下週 */
+    /** 延後（移回等待中） */
     onClickPostpone() {
         return this._openActivityWizard("postpone");
     },

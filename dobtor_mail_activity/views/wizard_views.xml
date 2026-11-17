@@ -67,7 +67,7 @@
                     <!-- 「登錄後繼續」/「登錄工時」由 dobtor_mail_activity_project 插入 -->
                     <button string="Complete and Schedule Next" name="action_done_and_schedule_next" type="object"
                             class="btn-secondary"/>
-                    <button string="Postpone to Next Week" name="action_postpone" type="object" class="btn-secondary"/>
+                    <button string="Postpone (Back to Waiting)" name="action_postpone" type="object" class="btn-secondary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
@@ -152,7 +152,7 @@
         <field name="name">mail.activity.postpone.wizard.form</field>
         <field name="model">mail.activity.postpone.wizard</field>
         <field name="arch" type="xml">
-            <form string="Postpone to Next Week">
+            <form string="Postpone (Back to Waiting)">
                 <field name="activity_id" invisible="1"/>
                 <field name="activity_ids" invisible="1"/>
                 <field name="activity_count" invisible="1"/>
@@ -168,7 +168,7 @@
                 <!-- 批次橫幅 -->
                 <div class="alert alert-warning" role="alert" invisible="not is_batch">
                     <i class="fa fa-clock-o me-1"/>
-                    <span>The selected activities will be postponed to next week. Only scheduled and active activities will be affected.</span>
+                    <span>The selected activities will be unscheduled and moved back to Waiting. Only scheduled and active activities will be affected.</span>
                 </div>
 
                 <!-- 待辦資訊（統一區塊，單筆顯示）-->
@@ -213,7 +213,7 @@
     </record>
 
     <record id="action_mail_activity_postpone_wizard" model="ir.actions.act_window">
-        <field name="name">Postpone to Next Week</field>
+        <field name="name">Postpone (Back to Waiting)</field>
         <field name="res_model">mail.activity.postpone.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>

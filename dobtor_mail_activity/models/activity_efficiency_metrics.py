@@ -231,8 +231,18 @@ class ActivityEfficiencyMetrics(models.Model):
         - 每週一計算上週指標
         - 每月1號計算上月指標
         - 每季第一天計算上季指標
+        - 每次執行都重算「本週」與「本月」（進行中、upsert 冪等），
+          否則新庫或週間首次使用時儀表板要等到下週一/下月一號才有資料。
         """
         today = fields.Date.today()
+
+        current_week_start = today - timedelta(days=today.weekday())
+        self._compute_period_metrics(
+            current_week_start, current_week_start + timedelta(days=6), 'week')
+        month_start = today.replace(day=1)
+        next_month_start = (month_start + timedelta(days=32)).replace(day=1)
+        self._compute_period_metrics(
+            month_start, next_month_start - timedelta(days=1), 'month')
 
         # 週一計算上週指標
         if today.weekday() == 0:

@@ -110,7 +110,7 @@ class MailActivityPostponeWizard(models.TransientModel):
             raise UserError(_('This activity is not scheduled yet, no need to postpone.'))
 
     def action_postpone(self):
-        """延至下週（單筆或批次）。"""
+        """延後（單筆或批次）：清除計畫日期、移回等待中，由使用者之後再排入。"""
         self.ensure_one()
         activities = self.activity_ids if self.activity_ids else self.activity_id
 
