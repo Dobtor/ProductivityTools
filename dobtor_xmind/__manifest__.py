@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor Mind Map',
-    'version': '18.0.3.2.2',
+    'version': '18.0.4.0.0',
     'category': 'Productivity',
     'summary': 'Visual Mind Map Editor',
     'description': '''
@@ -27,6 +27,7 @@
         'views/xmind_workbook_views.xml',
         'views/project_views.xml',
         'views/menu_views.xml',
+        'wizard/xmind_project_lock_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

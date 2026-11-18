@@ -3312,6 +3312,13 @@ export class MindmapEditor extends Component {
                     const detail = _t('Created %s, updated %s, archived %s.')
                         .replace('%s', r.created || 0).replace('%s', r.updated || 0).replace('%s', r.removed || 0);
                     this.notification.add(_t('Project synced: ') + name + ' — ' + detail, { type: 'success' });
+                    if (r.relinked_foreign) {
+                        // 主題原本連到別專案的任務：那些任務沒被搬動，這次改建了新任務
+                        this.notification.add(
+                            _t('%s topic(s) were linked to tasks of another project; new tasks were created in this project and the original tasks were left untouched.')
+                                .replace('%s', r.relinked_foreign),
+                            { type: 'warning', sticky: true });
+                    }
                 }
                 // Refresh the current view so freshly linked tasks (activity
                 // clocks, task links) appear without a manual reload.

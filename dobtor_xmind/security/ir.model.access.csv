@@ -16,3 +16,6 @@ access_xmind_tag,xmind.tag,model_xmind_tag,base.group_user,1,1,1,1
 access_xmind_import_wizard,xmind.import.wizard,model_xmind_import_wizard,base.group_user,1,1,1,1
 access_xmind_import_line,xmind.import.line,model_xmind_import_line,base.group_user,1,1,1,1
 access_xmind_workbook_embed,xmind.workbook.embed,model_xmind_workbook_embed,base.group_user,1,1,1,1
+access_xmind_project_unlock_wizard,xmind.project.unlock.wizard,model_xmind_project_unlock_wizard,project.group_project_manager,1,1,1,1
+access_xmind_suspicious_link_report,xmind.suspicious.link.report,model_xmind_suspicious_link_report,base.group_user,1,1,1,1
+access_xmind_suspicious_link_line,xmind.suspicious.link.line,model_xmind_suspicious_link_line,base.group_user,1,1,1,1

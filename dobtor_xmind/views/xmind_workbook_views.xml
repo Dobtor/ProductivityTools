@@ -66,6 +66,9 @@
                     <button name="import_xmind_file" string="Import .xmind" type="object" class="btn-secondary" invisible="not active"/>
                     <button name="import_freemind_file" string="Import FreeMind" type="object" class="btn-secondary" invisible="not active"/>
                     <button name="import_mindmanager_file" string="Import MindManager" type="object" class="btn-secondary" invisible="not active"/>
+                    <button name="action_duplicate_workbook_unlinked" string="Duplicate without Project Links" type="object" class="btn-secondary"/>
+                    <button name="action_open_unlock_wizard" string="Unlock Project" type="object" class="btn-secondary"
+                            groups="project.group_project_manager" invisible="not project_locked"/>
                 </header>
                 <sheet>
                     <div class="alert alert-warning text-center" role="alert" invisible="active">
@@ -81,7 +84,12 @@
                         <group>
                             <field name="partner_id" readonly="project_id"
                                    help="有專案時客戶由專案帶入且不可編輯；無專案時可自由選填"/>
-                            <field name="project_id"/>
+                            <field name="project_locked" invisible="1"/>
+                            <field name="project_id" readonly="project_locked"/>
+                            <div class="text-muted small" colspan="2" invisible="not project_locked">
+                                <i class="fa fa-lock me-1" title="Project locked" role="img" aria-label="Project locked"/>
+                                The project is locked because the mind map is synced with its tasks.
+                            </div>
                             <field name="privacy_visibility" readonly="1"
                                    invisible="not project_id"/>
                             <field name="xmind_last_sync" readonly="1"

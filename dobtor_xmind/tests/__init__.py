@@ -6,3 +6,4 @@ from . import test_sheet_tour
 from . import test_diff_save
 from . import test_save_lock
 from . import test_project_link_conflict
+from . import test_project_lock

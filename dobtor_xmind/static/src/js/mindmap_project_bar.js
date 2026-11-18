@@ -41,6 +41,7 @@ export class MindmapProjectBar extends Component {
             partnerName: "",
             projectId: false,
             projectName: "",
+            projectLocked: false,
             embeds: [],
         });
         // Let the parent refresh us after it creates/syncs a project.
@@ -62,12 +63,13 @@ export class MindmapProjectBar extends Component {
             const [rec] = await this.orm.read(
                 "xmind.workbook",
                 [this.workbookId],
-                ["partner_id", "project_id"]
+                ["partner_id", "project_id", "project_locked"]
             );
             this.state.partnerId = (rec.partner_id && rec.partner_id[0]) || false;
             this.state.partnerName = (rec.partner_id && rec.partner_id[1]) || "";
             this.state.projectId = (rec.project_id && rec.project_id[0]) || false;
             this.state.projectName = (rec.project_id && rec.project_id[1]) || "";
+            this.state.projectLocked = Boolean(rec.project_locked);
         } catch (e) {
             // Non-fatal: leave the bar empty if the workbook can't be read.
         }
@@ -104,44 +106,10 @@ export class MindmapProjectBar extends Component {
                     }
                     // ★ 記錄 id 放在 resId：Odoo 18 AutoComplete.makeOption 會把 option.id 蓋成內部流水號，
                     //   讀 option.id 會寫入不相干的記錄（例：選 A 專案卻連到 id 恰好等於流水號的 B 專案）。
-                    let options = results.map(([id, name]) => ({ label: name, resId: id }));
-                    if (model === "project.project" && options.length) {
-                        options = await this._markLinkedProjects(options);
-                    }
-                    return options;
+                    return results.map(([id, name]) => ({ label: name, resId: id }));
                 },
             },
         ];
-    }
-
-    /**
-     * 一個專案只能連一張心智圖：已被其他心智圖連結的專案在下拉選單標出是哪一張，
-     * 使用者選之前就知道（選了仍會由後端擋下並說明原因）。
-     */
-    async _markLinkedProjects(options) {
-        let links = [];
-        try {
-            links = await this.orm.searchRead(
-                "xmind.workbook",
-                [
-                    ["project_id", "in", options.map((o) => o.resId)],
-                    ["id", "!=", this.workbookId],
-                ],
-                ["project_id", "name"],
-                { context: { active_test: false } }
-            );
-        } catch (e) {
-            return options;
-        }
-        const byProject = {};
-        for (const wb of links) {
-            byProject[wb.project_id[0]] = wb.name;
-        }
-        return options.map((o) =>
-            byProject[o.resId]
-                ? { ...o, label: _t("%(project)s (linked to mind map: %(map)s)", { project: o.label, map: byProject[o.resId] }) }
-                : o
-        );
     }
 
     /**
@@ -163,9 +131,13 @@ export class MindmapProjectBar extends Component {
 
     get projectSources() {
         // 有選客戶時再選專案 → 專案清單限縮為該客戶的專案。
-        const domain = this.state.partnerId
-            ? [["partner_id", "=", this.state.partnerId]]
-            : [];
+        // 一個專案只能連一張心智圖：已被其他心智圖（含已封存）連結的專案直接不列出
+        // （project.xmind_workbook_ids 欄位帶 active_test=False）；後端
+        // _check_project_link_free 仍是最後一道防線。
+        const domain = [["xmind_workbook_ids", "=", false]];
+        if (this.state.partnerId) {
+            domain.push(["partner_id", "=", this.state.partnerId]);
+        }
         return this._nameSearchSource("project.project", domain);
     }
 
@@ -200,7 +172,14 @@ export class MindmapProjectBar extends Component {
         await this._writeField("partner_id", false);
     }
 
+    get lockedTitle() {
+        return _t("Project locked (tasks already synced)");
+    }
+
     async onSelectProject(option) {
+        if (this.state.projectLocked) {
+            return;
+        }
         const prevId = this.state.projectId;
         const prevName = this.state.projectName;
         this.state.projectId = option.resId;
@@ -232,6 +211,9 @@ export class MindmapProjectBar extends Component {
     }
 
     async clearProject() {
+        if (this.state.projectLocked) {
+            return;
+        }
         // 清除專案不動客戶（保留現值，回到可自由編輯）。
         this.state.projectId = false;
         this.state.projectName = "";

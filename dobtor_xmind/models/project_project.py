@@ -10,8 +10,11 @@ class ProjectProject(models.Model):
 
     # Reverse of xmind.workbook.project_id (1:1 in practice — at most one mind map
     # per project). Used for navigation and the reverse create/sync.
+    # active_test=False：已封存的心智圖一樣佔用專案（UNIQUE 不分封存與否），
+    # 專案搜尋 ``xmind_workbook_ids = False`` 時才不會把被封存圖佔用的專案當成空的。
     xmind_workbook_ids = fields.One2many(
-        'xmind.workbook', 'project_id', string='Mind Maps')
+        'xmind.workbook', 'project_id', string='Mind Maps',
+        context={'active_test': False})
     xmind_workbook_count = fields.Integer(
         compute='_compute_xmind_workbook_count', string='Mind Map Count')
 
@@ -89,6 +92,7 @@ class ProjectProject(models.Model):
         elif root.title != self.name:
             root.title = self.name
 
+        # 只處理「這個專案」的任務：別專案的任務永遠不會被寫進這張圖，也不會被改動。
         tasks = self.env['project.task'].search(
             [('project_id', '=', self.id)], order='sequence, id')
 

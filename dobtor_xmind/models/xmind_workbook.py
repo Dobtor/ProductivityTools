@@ -10,7 +10,7 @@ import logging
 import pytz
 from datetime import datetime, time
 from odoo import models, fields, api, Command, _
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from .xmind_digest import XmindConflict
 
@@ -70,6 +70,19 @@ class XMindWorkbook(models.Model):
         ('to_mindmap', 'Project → Mind Map'),
     ], string='Last Sync Direction', readonly=True, copy=False)
 
+    # 專案鎖：一旦有主題連到任務（或同步過一次），專案就不能再被清除或更換 ——
+    # 否則下一次同步會把原專案的任務（含工時、活動、討論）整批搬到新專案。
+    # 只有專案管理員可透過「解除專案鎖」精靈解鎖（見 action_admin_unlock_project）。
+    project_locked = fields.Boolean(
+        'Project Locked', compute='_compute_project_locked', store=True,
+        help="Set once the mind map has been synced with its project (topics linked to "
+             "tasks). The project can then no longer be cleared or changed, except by a "
+             "project administrator through the unlock wizard.")
+    # 專案是由「建立專案」（_sync_to_project(create_if_missing=True)）從這張圖建立的。
+    # 只有這種專案會在同步時跟著中心主題改名；既有專案永遠不改名。
+    project_created_from_map = fields.Boolean(
+        'Project Created from Mind Map', readonly=True, copy=False)
+
     # Tags
     tag_ids = fields.Many2many('xmind.tag', string='Tags')
 
@@ -85,6 +98,24 @@ class XMindWorkbook(models.Model):
         for record in self:
             record.sheet_count = len(record.sheet_ids)
             record.topic_count = sum(len(sheet.topic_ids) for sheet in record.sheet_ids)
+
+    @api.depends('xmind_last_sync', 'sheet_ids.topic_ids.task_id')
+    def _compute_project_locked(self):
+        Topic = self.env['xmind.topic'].sudo()
+        for record in self:
+            record.project_locked = bool(record.xmind_last_sync) or bool(
+                record.id and Topic.search_count([
+                    ('sheet_id.workbook_id', '=', record.id), ('task_id', '!=', False),
+                ], limit=1))
+
+    def _get_main_sheet(self):
+        """同步專案、代表整本工作簿的那張分頁：sequence 最小者。"""
+        self.ensure_one()
+        return self.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]
+
+    @staticmethod
+    def _sheet_root(sheet):
+        return sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1] if sheet else sheet
 
     def action_archive(self):
         self.write({'active': False})
@@ -142,17 +173,40 @@ class XMindWorkbook(models.Model):
             self._enforce_project_partner(vals)
         return super().create(vals_list)
 
+    def _check_project_lock(self, vals):
+        """已鎖定的心智圖不可清除／更換專案（同一個專案重寫一次沒關係）。"""
+        if 'project_id' not in vals or self.env.context.get('xmind_admin_unlock'):
+            return
+        new_id = vals['project_id'] or False
+        for record in self:
+            # 沒有專案時沒有東西可「換」：允許設定（連到別專案的任務由
+            # _sync_topic_to_task 的守衛保護，不會被搬過來）。
+            if record.project_locked and record.project_id and record.project_id.id != new_id:
+                raise UserError(_(
+                    'The project of mind map "%(map)s" is locked because its topics are '
+                    'already synced with tasks of project "%(project)s". Changing or clearing '
+                    'it would move those tasks to another project. Duplicate the mind map '
+                    'without project links instead, or ask a project administrator to unlock it.',
+                    map=record.name, project=record.project_id.display_name))
+
     def write(self, vals):
+        self._check_project_lock(vals)
         if vals.get('project_id'):
             if len(self) > 1:
                 raise UserError(_('A project can be linked to only one mind map.'))
             self._check_project_link_free(vals['project_id'])
+        if 'project_id' in vals and 'project_created_from_map' not in vals:
+            # 換了專案，「這個專案是圖建的」就不再成立
+            for record in self:
+                if record.project_id.id != (vals['project_id'] or False):
+                    vals['project_created_from_map'] = False
+                    break
         self._enforce_project_partner(vals)
         res = super().write(vals)
         if 'name' in vals and not self.env.context.get('_syncing_name'):
             for record in self:
                 # 反向同步（工作簿名稱 → 中心主題）同樣只動第一張分頁
-                first_sheet = record.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]
+                first_sheet = record._get_main_sheet()
                 if first_sheet:
                     root_topic = first_sheet.topic_ids.filtered(
                         lambda t: not t.parent_id
@@ -557,7 +611,7 @@ class XMindWorkbook(models.Model):
             # 否則每切一次分頁存檔，工作簿名稱就被換成那張的中心主題。
             root_title = data['data'].get('topic', '')
             if (root_title and root_title != self.name
-                    and sheet == self.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]):
+                    and sheet == self._get_main_sheet()):
                 self.with_context(_syncing_name=True).write({'name': root_title})
 
         # Restore feature layers atomically in the SAME transaction as the tree
@@ -653,6 +707,38 @@ class XMindWorkbook(models.Model):
                 names.append(name)
         return names
 
+    def _iter_sync_topics(self):
+        """要同步成任務的主題，依「先父後子」順序回傳 [(topic, parent_topic, sequence), ...]。
+
+        從第一張分頁的中心主題往下走；parent_topic 為 None 代表頂層任務（中心主題
+        本身是專案，不是任務）。總結節點與浮動主題（含子樹）一律不走。
+        """
+        self.ensure_one()
+        sheet = self._get_main_sheet()
+        root = self._sheet_root(sheet)
+        if not root:
+            return []
+        # 總結節點（括弧總結的那顆文字）與浮動主題（含其子樹）是圖上的註解，
+        # 不是工作項目 —— 永遠不建成任務。
+        floating_cids = set(sheet.floating_topic_ids.mapped('component_id'))
+
+        def is_task_topic(topic):
+            return not topic.is_summary_node and not (
+                topic.component_id and topic.component_id in floating_cids)
+
+        result = []
+
+        def walk(topic, parent):
+            result.append((topic, parent, topic.sequence or 10))
+            for child in topic.child_ids.sorted('sequence'):
+                if is_task_topic(child):
+                    walk(child, topic)
+
+        for child in root.child_ids.sorted('sequence'):
+            if is_task_topic(child):
+                walk(child, None)
+        return result
+
     def _plan_project_orphans(self):
         """Tasks a forward sync would ARCHIVE (their source topic is gone) — used to
         ask the user for confirmation before any destructive change. Computed exactly
@@ -661,34 +747,30 @@ class XMindWorkbook(models.Model):
         self.ensure_one()
         if not self.project_id:
             return self.env['project.task']
-        sheet = self.sheet_ids[:1]
-        root = sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1] if sheet else None
         synced = set()
-        if root:
-            def collect(topic):
-                if topic.task_id:
-                    synced.add(topic.task_id.id)
-                for child in topic.child_ids:
-                    if not child.is_summary_node:
-                        collect(child)
-            for child in root.child_ids:
-                if not child.is_summary_node:
-                    collect(child)
+        for topic, _parent, _seq in self._iter_sync_topics():
+            # 連到別的專案的任務不算（同步時會改建新任務，見 _sync_topic_to_task）
+            if topic.task_id and topic.task_id.project_id == self.project_id:
+                synced.add(topic.task_id.id)
         tasks = self.env['project.task'].search([
             ('project_id', '=', self.project_id.id), ('xmind_managed', '=', True)])
         return tasks.filtered(lambda t: t.id not in synced)
-
 
     def _sync_to_project(self, create_if_missing=False):
         """Diff-sync the FIRST sheet's topic tree into a project:
         central topic → project; every topic below → task (hierarchy → parent_id).
         Links are kept via topic.task_id so re-sync updates instead of duplicating;
-        tasks whose source topic was removed are archived (not deleted)."""
+        tasks whose source topic was removed are archived (not deleted).
+
+        安全規則：
+        - 既有任務的 project_id 永遠不改（見 _sync_topic_to_task）。
+        - 只有由這張圖建立的專案（project_created_from_map）才跟著中心主題改名。
+        """
         self.ensure_one()
-        sheet = self.sheet_ids[:1]
+        sheet = self._get_main_sheet()
         if not sheet:
             raise UserError(_("This mind map has no sheet to sync."))
-        root = sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1]
+        root = self._sheet_root(sheet)
         if not root:
             raise UserError(_("This mind map has no central topic."))
 
@@ -699,32 +781,22 @@ class XMindWorkbook(models.Model):
             project = self.env['project.project'].create({
                 'name': root.title or self.name or _('Mind Map'),
             })
-            self.project_id = project.id
-        elif root.title and project.name != root.title:
+            self.write({'project_id': project.id, 'project_created_from_map': True})
+        elif self.project_created_from_map and root.title and project.name != root.title:
             project.name = root.title
 
         synced = set()
-        stats = {'created': 0, 'updated': 0, 'removed': 0}
+        stats = {'created': 0, 'updated': 0, 'removed': 0, 'relinked_foreign': 0}
         assignee_cache = {}
-        # 總結節點（括弧總結的那顆文字）與浮動主題（含其子樹）是圖上的註解，
-        # 不是工作項目 —— 永遠不建成任務。
-        floating_cids = set(sheet.floating_topic_ids.mapped('component_id'))
-
-        def is_task_topic(topic):
-            return not topic.is_summary_node and not (
-                topic.component_id and topic.component_id in floating_cids)
-
-        def walk(topic, parent_task):
-            task, created = self._sync_topic_to_task(topic, project, parent_task, assignee_cache)
+        task_of = {}
+        for topic, parent, sequence in self._iter_sync_topics():
+            parent_task = task_of.get(parent.id, False) if parent else False
+            task, created = self._sync_topic_to_task(
+                topic, project, parent_task, assignee_cache,
+                sequence=sequence, stats=stats)
+            task_of[topic.id] = task
             synced.add(task.id)
             stats['created' if created else 'updated'] += 1
-            for child in topic.child_ids.sorted('sequence'):
-                if is_task_topic(child):
-                    walk(child, task)
-
-        for child in root.child_ids.sorted('sequence'):
-            if is_task_topic(child):
-                walk(child, False)
 
         # Archive map-managed tasks whose source topic was removed (never hard-delete).
         # Uses xmind_managed (not xmind_topic_id) because deleting a topic nulls the
@@ -745,7 +817,8 @@ class XMindWorkbook(models.Model):
         stats.update({'project_id': project.id, 'project_name': project.name})
         return stats
 
-    def _sync_topic_to_task(self, topic, project, parent_task, assignee_cache=None):
+    def _sync_topic_to_task(self, topic, project, parent_task, assignee_cache=None,
+                            sequence=None, stats=None):
         """Create or update the project.task mirroring `topic`. Returns (task, created).
 
         任務資訊對應（與 project.project._sync_to_mindmap 反向一致）：
@@ -759,12 +832,22 @@ class XMindWorkbook(models.Model):
           '01_in_progress'，把專案端設好的狀態洗掉）。
         """
         task = topic.task_id if (topic.task_id and topic.task_id.exists()) else None
+        if task and task.project_id != project:
+            # 主題連到的是「別的專案」的任務（例如解鎖後改連另一個專案，或從別張圖
+            # 複製過來的連結）。絕不把那個任務搬過來 —— 改在目前專案建一個新任務，
+            # 原任務（工時、活動、討論都在它身上）原封不動留在原專案。
+            _logger.warning(
+                "xmind: topic %s linked to task %s of project %s, not %s — creating a new task",
+                topic.id, task.id, task.project_id.id, project.id)
+            if stats is not None:
+                stats['relinked_foreign'] = stats.get('relinked_foreign', 0) + 1
+            task = None
         progress = max(0, min(100, topic.task_progress or 0))
         vals = {
             'name': topic.title or _('Task'),
             'project_id': project.id,
             'parent_id': parent_task.id if parent_task else False,
-            'sequence': topic.sequence or 10,
+            'sequence': sequence if sequence is not None else (topic.sequence or 10),
             'xmind_managed': True,
         }
         if topic.note:
@@ -823,8 +906,9 @@ class XMindWorkbook(models.Model):
             for fname in ('name', 'sequence', 'xmind_managed', 'description'):
                 if fname in vals and task[fname] == vals[fname]:
                     del vals[fname]
-            if task.project_id.id == vals['project_id']:
-                del vals['project_id']
+            # 走到這裡的任務必定已在目前專案（別專案的任務在上面已改為新建），
+            # 所以 project_id 一律不寫 —— 寫入會觸發 stage／state 重算。
+            del vals['project_id']
             if task.parent_id.id == (vals['parent_id'] or False):
                 del vals['parent_id']
             if set(task.user_ids.ids) == set(users.ids):
@@ -3013,6 +3097,157 @@ class XMindWorkbook(models.Model):
             f'{body}\n'
             f'</svg>'
         )
+
+    # ------------------------------------------------------------------
+    # 專案鎖：複製（不帶連結）／管理員解鎖／可疑關聯報告
+    # ------------------------------------------------------------------
+    def _copy_without_project_links(self):
+        """完整複製這本工作簿（分頁、主題、關聯線、外框、總結、標註、浮動主題、
+        標記、附件），但**不帶專案**，所有主題的任務連結也清掉。"""
+        self.ensure_one()
+        new_wb = self.copy({
+            'name': '%s（副本）' % self.name,
+            'project_id': False,
+            'project_created_from_map': False,
+        })
+        Topic = self.env['xmind.topic']
+        topic_map = {}
+        for sheet in self.sheet_ids:
+            new_sheet = sheet.copy({'workbook_id': new_wb.id})
+            # parent_path 排序 → 父主題一定先於子主題建立
+            for topic in Topic.search([('sheet_id', '=', sheet.id)], order='parent_path, id'):
+                new_topic = topic.with_context(_syncing_name=True).copy({
+                    'sheet_id': new_sheet.id,
+                    'parent_id': topic_map[topic.parent_id.id].id if topic.parent_id else False,
+                    'component_id': topic.component_id,
+                    'task_id': False,
+                    'project_managed': False,
+                })
+                topic_map[topic.id] = new_topic
+                for marker in topic.marker_ids:
+                    marker.copy({'topic_id': new_topic.id})
+                for attachment in topic.attachment_ids:
+                    attachment.copy({'topic_id': new_topic.id})
+                for callout in self.env['xmind.callout'].search([('topic_id', '=', topic.id)]):
+                    callout.copy({'topic_id': new_topic.id})
+            for rel in sheet.relationship_ids:
+                if rel.source_topic_id.id in topic_map and rel.target_topic_id.id in topic_map:
+                    rel.copy({
+                        'sheet_id': new_sheet.id,
+                        'source_topic_id': topic_map[rel.source_topic_id.id].id,
+                        'target_topic_id': topic_map[rel.target_topic_id.id].id,
+                    })
+            for boundary in sheet.boundary_ids:
+                boundary.copy({
+                    'sheet_id': new_sheet.id,
+                    'topic_ids': [Command.set([topic_map[t.id].id for t in boundary.topic_ids
+                                               if t.id in topic_map])],
+                })
+            for summary in sheet.summary_ids:
+                summary.copy({
+                    'sheet_id': new_sheet.id,
+                    'topic_ids': [Command.set([topic_map[t.id].id for t in summary.topic_ids
+                                               if t.id in topic_map])],
+                    'summary_topic_id': topic_map[summary.summary_topic_id.id].id
+                    if summary.summary_topic_id.id in topic_map else False,
+                })
+            for floating in sheet.floating_topic_ids:
+                floating.copy({'sheet_id': new_sheet.id, 'component_id': floating.component_id})
+        return new_wb
+
+    def action_duplicate_workbook_unlinked(self):
+        """「複製（不帶專案連結）」：鎖定後想把這張圖拿去給另一個專案用的正規做法。"""
+        self.ensure_one()
+        return self._copy_without_project_links().action_open_editor()
+
+    def action_open_unlock_wizard(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Unlock Project'),
+            'res_model': 'xmind.project.unlock.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_workbook_id': self.id},
+        }
+
+    def action_admin_unlock_project(self, policy='keep'):
+        """專案管理員解除專案鎖。
+
+        :param policy: ``keep`` —— 只解除主題與任務的連結，任務留在原專案（仍標記
+            為心智圖產生）；``archive`` —— 先封存這個專案裡由心智圖產生的任務，再解除連結。
+        兩種都**不會**改任何任務的 project_id。完成後清除專案、解鎖並記一筆討論訊息。
+        """
+        self.ensure_one()
+        if not self.env.user.has_group('project.group_project_manager'):
+            raise AccessError(_('Only project administrators can unlock the project of a mind map.'))
+        if policy not in ('keep', 'archive'):
+            raise UserError(_('Unknown unlock policy: %s', policy))
+        project = self.project_id
+        Task = self.env['project.task']
+        topics = self.env['xmind.topic'].search([
+            ('sheet_id.workbook_id', '=', self.id), ('task_id', '!=', False)])
+        linked_tasks = topics.mapped('task_id')
+        archived = Task
+        if policy == 'archive' and project:
+            archived = Task.search([('project_id', '=', project.id), ('xmind_managed', '=', True)])
+            archived.write({'active': False})
+        topics.write({'task_id': False, 'project_managed': False})
+        back = Task.with_context(active_test=False).search([('xmind_topic_id', 'in', topics.ids)]) | linked_tasks
+        back.filtered(lambda t: t.xmind_topic_id).write({'xmind_topic_id': False})
+        self.with_context(xmind_admin_unlock=True).write({
+            'project_id': False,
+            'project_created_from_map': False,
+            'xmind_last_sync': False,
+            'xmind_last_sync_direction': False,
+        })
+        if policy == 'archive':
+            body = _('Project lock removed by %(user)s: unlinked from project "%(project)s"; '
+                     '%(count)s map-generated tasks archived.',
+                     user=self.env.user.name, project=project.display_name, count=len(archived))
+        else:
+            body = _('Project lock removed by %(user)s: unlinked from project "%(project)s"; '
+                     'its tasks were kept in that project.',
+                     user=self.env.user.name, project=project.display_name)
+        self.message_post(body=body)
+        return True
+
+    @api.model
+    def get_suspicious_links_report(self):
+        """唯讀檢查：列出看起來連錯的心智圖↔專案關聯（永不自動修正）。
+
+        回傳 [{'workbook_id', 'workbook_name', 'project_name', 'reason'}, ...]
+        """
+        def norm(text):
+            return re.sub(r'[\s\W_]+', '', (text or '').lower())
+
+        result = []
+        workbooks = self.with_context(active_test=False).search([('project_id', '!=', False)])
+        Topic = self.env['xmind.topic']
+        for wb in workbooks:
+            project = wb.project_id
+
+            def add(reason):
+                result.append({'workbook_id': wb.id, 'workbook_name': wb.name,
+                               'project_name': project.display_name, 'reason': reason})
+
+            foreign = Topic.search([
+                ('sheet_id.workbook_id', '=', wb.id), ('task_id', '!=', False),
+                ('task_id.project_id', '!=', project.id)])
+            if foreign:
+                add(_('%(count)s topic(s) linked to tasks of another project (%(projects)s).',
+                      count=len(foreign),
+                      projects=', '.join(foreign.mapped('task_id.project_id.display_name'))))
+            root = self._sheet_root(wb._get_main_sheet())
+            central = root.title if root else wb.name
+            a, b = norm(central), norm(project.name)
+            if a and b and a not in b and b not in a:
+                add(_('Project name "%(project)s" differs from the central topic "%(topic)s".',
+                      project=project.name, topic=central))
+            if wb.partner_id and project.partner_id and wb.partner_id != project.partner_id:
+                add(_('Customer "%(wb)s" differs from the project customer "%(project)s".',
+                      wb=wb.partner_id.display_name, project=project.partner_id.display_name))
+        return result
 
     def action_open_editor(self):
         """Open visual mindmap editor"""

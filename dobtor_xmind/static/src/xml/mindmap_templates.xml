@@ -879,7 +879,12 @@
             <div class="d-flex align-items-center gap-1">
                 <i class="fa fa-folder-open text-muted" title="Project"/>
                 <span class="small text-muted o_mindmap_pb_label">Project:</span>
-                <AutoComplete
+                <t t-if="state.projectLocked">
+                    <span class="small fw-bold text-truncate o_mindmap_pb_locked" t-esc="state.projectName"/>
+                    <i class="fa fa-lock text-muted o_mindmap_pb_lock" t-att-title="lockedTitle"
+                       role="img" t-att-aria-label="lockedTitle"/>
+                </t>
+                <AutoComplete t-else=""
                     value="state.projectName"
                     sources="projectSources"
                     onSelect.bind="onSelectProject"
@@ -889,7 +894,7 @@
                         title="Open project" t-on-click="onOpenProject">
                     <i class="fa fa-external-link"/>
                 </button>
-                <button t-if="state.projectId" class="btn btn-sm btn-link p-0 text-muted"
+                <button t-if="state.projectId and !state.projectLocked" class="btn btn-sm btn-link p-0 text-muted"
                         title="Clear project" t-on-click="() => this.clearProject()">
                     <i class="fa fa-times"/>
                 </button>

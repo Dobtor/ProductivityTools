@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- 解除專案鎖（專案管理員） -->
+    <record id="view_xmind_project_unlock_wizard_form" model="ir.ui.view">
+        <field name="name">xmind.project.unlock.wizard.form</field>
+        <field name="model">xmind.project.unlock.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <div class="alert alert-warning" role="alert">
+                    Unlocking removes the link between this mind map and its project.
+                    No task is ever moved to another project.
+                </div>
+                <group>
+                    <field name="workbook_id" readonly="1"/>
+                    <field name="project_id" readonly="1"/>
+                    <field name="policy" widget="radio"/>
+                    <field name="confirm_text" placeholder="Project name"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="Unlock" type="object" class="btn-danger"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 可疑關聯檢查（唯讀） -->
+    <record id="view_xmind_suspicious_link_report_form" model="ir.ui.view">
+        <field name="name">xmind.suspicious.link.report.form</field>
+        <field name="model">xmind.suspicious.link.report</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <sheet>
+                    <div class="alert alert-info" role="status">
+                        Read-only check of mind map ↔ project links. Nothing is changed automatically.
+                    </div>
+                    <div class="alert alert-success" role="status" invisible="line_count">
+                        No suspicious links found.
+                    </div>
+                    <field name="line_count" invisible="1"/>
+                    <field name="line_ids" invisible="not line_count">
+                        <list>
+                            <field name="workbook_id"/>
+                            <field name="project_name"/>
+                            <field name="reason"/>
+                            <button name="action_open_workbook" type="object" string="Open"
+                                    icon="fa-external-link" title="Open mind map"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_xmind_suspicious_link_report" model="ir.actions.server">
+        <field name="name">Suspicious Project Links</field>
+        <field name="model_id" ref="model_xmind_suspicious_link_report"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_generate()</field>
+    </record>
+
+    <menuitem id="menu_xmind_suspicious_links"
+        name="Suspicious Project Links"
+        parent="menu_xmind_config"
+        action="action_xmind_suspicious_link_report"
+        groups="dobtor_xmind.group_xmind_manager,project.group_project_manager"
+        sequence="40"/>
+</odoo>
