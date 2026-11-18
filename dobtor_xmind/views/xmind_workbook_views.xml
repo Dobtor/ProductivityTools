@@ -113,6 +113,7 @@
                                 <list>
                                     <field name="sequence" widget="handle"/>
                                     <field name="name"/>
+                                    <field name="sheet_role" readonly="1"/>
                                     <field name="layout_type"/>
                                     <field name="theme"/>
                                 </list>

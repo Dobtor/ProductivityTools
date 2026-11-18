@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
-from odoo import models, fields
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError, ValidationError
 
 from .xmind_digest import digest_payload
 
@@ -21,6 +22,152 @@ class XMindSheet(models.Model):
     boundary_ids = fields.One2many('xmind.boundary', 'sheet_id', string='Boundaries')
     summary_ids = fields.One2many('xmind.summary', 'sheet_id', string='Summaries')
     floating_topic_ids = fields.One2many('xmind.floating.topic', 'sheet_id', string='Floating Topics')
+
+    # ------------------------------------------------------------------
+    # 分頁角色（主圖／子圖／發想）
+    # ------------------------------------------------------------------
+    # main：唯一一張，從它的中心主題往下同步成專案任務；
+    # sub ：掛在某顆「錨點主題」底下的展開圖，同步時它的主題視為錨點的子任務；
+    # idea：純發想，永遠不同步。
+    sheet_role = fields.Selection([
+        ('main', 'Main Sheet'),
+        ('sub', 'Sub Sheet'),
+        ('idea', 'Idea Sheet'),
+    ], string='Sheet Role', default='idea', required=True)
+    # 子圖的錨點（在主圖或上一層子圖裡的一顆主題）。restrict：錨點不可被直接刪掉，
+    # 否則子圖會變成無主的孤兒 —— 要先刪子圖或解除錨點。
+    anchor_topic_id = fields.Many2one(
+        'xmind.topic', string='Anchor Topic', ondelete='restrict', index=True, copy=False)
+    parent_sheet_id = fields.Many2one(
+        'xmind.sheet', string='Parent Sheet', related='anchor_topic_id.sheet_id',
+        store=True, readonly=True)
+
+    _sql_constraints = [
+        # 一顆主題最多展開一張子圖（NULL 不受 UNIQUE 限制，一般分頁不受影響）
+        ('anchor_topic_uniq', 'unique(anchor_topic_id)',
+         'A topic can be expanded into at most one sub sheet.'),
+    ]
+
+    #: 子圖最多幾層（主圖 → 子圖 1 → 子圖 2 → 子圖 3）
+    _MAX_SUB_DEPTH = 3
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # 工作簿的第一張分頁（或還沒有主圖時新建的那張）自動成為主圖；
+        # 之後新增的分頁預設是發想頁。同一批建立多張時只給第一張。
+        claimed = set()
+        for vals in vals_list:
+            wb_id = vals.get('workbook_id')
+            if not wb_id or 'sheet_role' in vals or wb_id in claimed:
+                continue
+            has_main = self.with_context(active_test=False).search_count(
+                [('workbook_id', '=', wb_id), ('sheet_role', '=', 'main')], limit=1)
+            if not has_main:
+                vals['sheet_role'] = 'main'
+                claimed.add(wb_id)
+        return super().create(vals_list)
+
+    def unlink(self):
+        to_delete = set(self.ids)
+        # 1) 要刪的分頁裡若有主題是「別張（不在這次刪除範圍內）子圖」的錨點 → 擋下並說明
+        dependents = self.search([
+            ('anchor_topic_id.sheet_id', 'in', self.ids), ('id', 'not in', self.ids)])
+        if dependents:
+            raise UserError(_(
+                'Sheet "%(sheet)s" contains the anchor topic of sub sheet "%(sub)s". '
+                'Delete that sub sheet first.',
+                sheet=dependents[0].parent_sheet_id.name, sub=dependents[0].name))
+        # 2) 刪主圖：工作簿已同步過專案時不允許（主圖承載所有任務）；否則把下一張
+        #    發想頁升為主圖，維持「每本工作簿恰好一張主圖」。
+        promote = self.browse()
+        for sheet in self.filtered(lambda s: s.sheet_role == 'main'):
+            remaining = sheet.workbook_id.sheet_ids.filtered(lambda s: s.id not in to_delete)
+            if not remaining:
+                continue
+            if sheet.workbook_id.project_locked:
+                raise UserError(_(
+                    'The main sheet of mind map "%(map)s" cannot be deleted: its topics are '
+                    'synced with project tasks.', map=sheet.workbook_id.name))
+            candidate = remaining.filtered(lambda s: s.sheet_role == 'idea').sorted(
+                lambda s: (s.sequence, s.id))[:1]
+            promote |= candidate
+        # 3) 一起被刪的子圖：先清掉錨點（SQL，避開約束），否則 cascade 刪主題時
+        #    會撞到 restrict 外鍵（同一個 DELETE 內的刪除順序不保證）。
+        anchored = self.filtered('anchor_topic_id')
+        if anchored:
+            self.env.cr.execute(
+                "UPDATE xmind_sheet SET anchor_topic_id = NULL, parent_sheet_id = NULL "
+                "WHERE id IN %s", (tuple(anchored.ids),))
+            anchored.invalidate_recordset(['anchor_topic_id', 'parent_sheet_id'])
+        res = super().unlink()
+        if promote:
+            promote.with_context(_xmind_skip_role_check=True).write({'sheet_role': 'main'})
+        return res
+
+    @api.constrains('sheet_role', 'workbook_id', 'anchor_topic_id')
+    def _check_sheet_role(self):
+        if self.env.context.get('_xmind_skip_role_check'):
+            return
+        for workbook in self.mapped('workbook_id'):
+            mains = workbook.sheet_ids.filtered(lambda s: s.sheet_role == 'main')
+            if workbook.sheet_ids and len(mains) != 1:
+                raise ValidationError(_(
+                    'Mind map "%(map)s" must have exactly one main sheet.', map=workbook.name))
+        for sheet in self:
+            sheet._check_sheet_tree()
+
+    def _check_sheet_tree(self):
+        """子圖的錨點規則：同一本工作簿、不是中心主題、不成環、最多三層。"""
+        for sheet in self:
+            if sheet.sheet_role != 'sub':
+                if sheet.anchor_topic_id:
+                    raise ValidationError(_(
+                        'Only sub sheets can have an anchor topic (sheet "%s").', sheet.name))
+                continue
+            anchor = sheet.anchor_topic_id
+            if not anchor:
+                raise ValidationError(_('Sub sheet "%s" needs an anchor topic.', sheet.name))
+            if anchor.sheet_id.workbook_id != sheet.workbook_id:
+                raise ValidationError(_(
+                    'The anchor topic of sub sheet "%s" must belong to the same mind map.',
+                    sheet.name))
+            if not anchor.parent_id:
+                raise ValidationError(_(
+                    'A central topic cannot be expanded into a sub sheet (sheet "%s").',
+                    sheet.name))
+            depth = 0
+            current = anchor.sheet_id
+            seen = set()
+            while current:
+                if current == sheet or current.id in seen:
+                    raise ValidationError(_(
+                        'Sub sheet "%s" would create a cycle.', sheet.name))
+                seen.add(current.id)
+                depth += 1 if current.sheet_role == 'sub' else 0
+                current = current.anchor_topic_id.sheet_id if current.sheet_role == 'sub' else False
+            if depth + 1 > self._MAX_SUB_DEPTH:
+                raise ValidationError(_(
+                    'Sub sheets can be nested at most %(max)s levels (sheet "%(sheet)s").',
+                    max=self._MAX_SUB_DEPTH, sheet=sheet.name))
+
+    def _get_root_topic(self):
+        """這張分頁的中心主題（沒有父主題的那顆；有多顆時取 sequence/id 最小者）。"""
+        self.ensure_one()
+        return self.env['xmind.topic'].search(
+            [('sheet_id', '=', self.id), ('parent_id', '=', False)],
+            order='sequence, id', limit=1)
+
+    def _set_as_main(self):
+        """把這張設為主圖、原主圖改為發想頁（一次完成，不會短暫違反「恰好一張」）。"""
+        self.ensure_one()
+        if self.sheet_role == 'main':
+            return
+        if self.workbook_id.project_locked:
+            raise UserError(_(
+                'The main sheet cannot be changed after the mind map was synced with a project.'))
+        old = self.workbook_id.sheet_ids.filtered(lambda s: s.sheet_role == 'main')
+        old.with_context(_xmind_skip_role_check=True).write({'sheet_role': 'idea'})
+        self.write({'sheet_role': 'main', 'anchor_topic_id': False})
 
     # Layout settings
     layout_type = fields.Selection([

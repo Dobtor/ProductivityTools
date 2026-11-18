@@ -48,7 +48,11 @@ class MindMapController(http.Controller):
                 'id': workbook.project_id.id,
                 'name': workbook.project_id.name,
                 'last_sync_direction': workbook.xmind_last_sync_direction,
+                'locked': workbook.project_locked,
             } if workbook.project_id else False,
+            'project_locked': workbook.project_locked,
+            'main_sheet_id': workbook.main_sheet_id.id or False,
+            'sheet_meta': self._get_sheet_meta(first_sheet),
             'partner': {
                 'id': workbook.partner_id.id,
                 'name': workbook.partner_id.name,
@@ -60,6 +64,31 @@ class MindMapController(http.Controller):
             'sheet_id': first_sheet.id or False,
             'digest': first_sheet._content_digest() if first_sheet else '',
         }
+
+    def _get_sheet_meta(self, sheet):
+        """分頁角色資訊（主圖／子圖／發想頁），供編輯器分頁列使用。"""
+        if not sheet:
+            return {'sheet_role': 'main', 'anchor_topic_id': False, 'anchor_topic_title': '',
+                    'anchor_component_id': '', 'parent_sheet_id': False}
+        anchor = sheet.anchor_topic_id
+        return {
+            'sheet_role': sheet.sheet_role,
+            'anchor_topic_id': anchor.id or False,
+            'anchor_topic_title': anchor.title or '',
+            'anchor_component_id': anchor.component_id or '',
+            'parent_sheet_id': sheet.parent_sheet_id.id or False,
+        }
+
+    def _apply_proxy_root(self, sheet, data):
+        """子圖的中心主題是錨點的代理（見 xmind.topic._is_sub_sheet_proxy_root）：
+        載入時一律顯示錨點目前的標題，並標記為代理，前端不可把它當成任務。"""
+        if sheet and sheet.sheet_role == 'sub' and sheet.anchor_topic_id and isinstance(data, dict):
+            data['topic'] = sheet.anchor_topic_id.title or data.get('topic', '')
+            node_data = data.setdefault('data', {})
+            node_data['_subSheetProxy'] = True
+            node_data['anchorTopicId'] = sheet.anchor_topic_id.id
+            node_data.pop('taskId', None)
+        return data
 
     def _get_relationships(self, sheet):
         """Get relationship data for one sheet."""
@@ -397,11 +426,11 @@ class MindMapController(http.Controller):
         if not workbook:
             return {'sheets': []}
         return {
-            'sheets': [{
+            'sheets': [dict({
                 'id': s.id,
                 'name': s.name,
                 'sequence': s.sequence,
-            } for s in workbook.sheet_ids.sorted('sequence')]
+            }, **self._get_sheet_meta(s)) for s in workbook.sheet_ids.sorted('sequence')]
         }
 
     @http.route('/xmind/workbook/<int:workbook_id>/sheet/create', type='json', auth='user')
@@ -413,6 +442,8 @@ class MindMapController(http.Controller):
         # Derive the next sequence from the current max (not the count) so a
         # previously-deleted sheet can't cause a sequence collision.
         max_seq = max(workbook.sheet_ids.mapped('sequence') or [0])
+        # 新分頁一律是發想頁（xmind.sheet.sheet_role 預設）；只有工作簿還沒有
+        # 任何分頁時，第一張才會自動成為主圖（見 xmind.sheet.create）。
         sheet = request.env['xmind.sheet'].create({
             'workbook_id': workbook.id,
             'name': name,
@@ -439,7 +470,7 @@ class MindMapController(http.Controller):
             mindmap_data = {
                 'meta': {'name': sheet.name, 'author': '', 'version': '1.0'},
                 'format': 'node_tree',
-                'data': workbook._topic_to_jsmind(root),
+                'data': self._apply_proxy_root(sheet, workbook._topic_to_jsmind(root)),
             }
         else:
             mindmap_data = {
@@ -461,6 +492,7 @@ class MindMapController(http.Controller):
             'floating_topics': self._get_floating_topics(sheet),
             'sheet_id': sheet.id,
             'digest': sheet._content_digest(),
+            'sheet_meta': self._get_sheet_meta(sheet),
         }
 
     @http.route('/xmind/workbook/<int:workbook_id>/sheet/<int:sheet_id>/rename', type='json', auth='user')
@@ -482,5 +514,8 @@ class MindMapController(http.Controller):
             return {'error': 'Sheet not found or access denied'}
         if len(workbook.sheet_ids) <= 1:
             return {'error': 'Cannot delete the last sheet'}
-        sheet.unlink()
+        try:
+            sheet.unlink()
+        except UserError as e:
+            return {'error': e.args[0] if e.args else str(e)}
         return {'success': True}

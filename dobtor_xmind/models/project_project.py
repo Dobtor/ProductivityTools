@@ -78,7 +78,7 @@ class ProjectProject(models.Model):
                 'project_id': self.id,
             })
             created = True
-        sheet = workbook.sheet_ids[:1]
+        sheet = workbook._get_main_sheet()
         if not sheet:
             sheet = self.env['xmind.sheet'].create({
                 'workbook_id': workbook.id,
@@ -86,7 +86,7 @@ class ProjectProject(models.Model):
             })
 
         # Central topic mirrors the project name.
-        root = sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1]
+        root = sheet._get_root_topic()
         if not root:
             root = Topic.create({'sheet_id': sheet.id, 'title': self.name})
         elif root.title != self.name:
@@ -95,6 +95,41 @@ class ProjectProject(models.Model):
         # 只處理「這個專案」的任務：別專案的任務永遠不會被寫進這張圖，也不會被改動。
         tasks = self.env['project.task'].search(
             [('project_id', '=', self.id)], order='sequence, id')
+
+        # 會同步的分頁：主圖＋（遞迴）掛在它上面的子圖。發想頁不參與。
+        synced_sheets = sheet
+        frontier = sheet
+        while frontier:
+            subs = self.env['xmind.sheet'].search([
+                ('workbook_id', '=', workbook.id), ('sheet_role', '=', 'sub'),
+                ('anchor_topic_id.sheet_id', 'in', frontier.ids),
+                ('id', 'not in', synced_sheets.ids)])
+            synced_sheets |= subs
+            frontier = subs
+        roots = {s.id: (root if s == sheet else s._get_root_topic()) for s in synced_sheets}
+
+        def placement(parent_topic):
+            """新主題（或換了父任務的主題）應該放哪：(分頁, 父主題)。
+            父任務的主題展開了子圖 → 放進子圖、掛在子圖中心主題下；
+            否則放在父主題所在的分頁；沒有父任務 → 主圖中心主題下。"""
+            if not parent_topic:
+                return sheet, root
+            sub = parent_topic.sub_sheet_id
+            if sub and sub.sheet_role == 'sub' and sub.id in roots and roots[sub.id]:
+                return sub, roots[sub.id]
+            return parent_topic.sheet_id, parent_topic
+
+        def effective_parent(topic):
+            """主題在「任務樹」上的父主題：子圖中心主題（錨點代理）→ 錨點；
+            主圖中心主題 → None（頂層任務）。"""
+            parent = topic.parent_id
+            if not parent:
+                return None
+            if not parent.parent_id:
+                if parent.sheet_id.sheet_role == 'sub' and parent.sheet_id.anchor_topic_id:
+                    return parent.sheet_id.anchor_topic_id
+                return None
+            return parent
 
         task_topic = {}
         synced = set()
@@ -106,10 +141,8 @@ class ProjectProject(models.Model):
             if task.parent_id and task.parent_id.project_id.id == self.id:
                 parent_topic = topic_for(task.parent_id)
             else:
-                parent_topic = root
+                parent_topic = None
             vals = {
-                'sheet_id': sheet.id,
-                'parent_id': parent_topic.id,
                 'title': task.name or _('Task'),
                 'sequence': task.sequence or 0,
                 'project_managed': True,
@@ -132,10 +165,21 @@ class ProjectProject(models.Model):
             vals['task_end_date'] = (end or deadline).date() if (end or deadline) else False
             vals['task_deadline_time'] = deadline.strftime('%H:%M') if deadline else ''
             topic = task.xmind_topic_id
-            if topic and topic.exists() and topic.sheet_id.id == sheet.id:
+            if topic and topic.exists() and topic.sheet_id.id in roots:
+                # 既有主題留在原分頁；只有「父任務換了」才搬到新位置
+                if effective_parent(topic) != parent_topic:
+                    target_sheet, target_parent = placement(parent_topic)
+                    vals['parent_id'] = target_parent.id
+                    if topic.sheet_id != target_sheet:
+                        # 整棵子樹一起換分頁（子孫的 sheet_id 也要跟著改）
+                        subtree = Topic.search([('id', 'child_of', topic.id)])
+                        (subtree - topic).write({'sheet_id': target_sheet.id})
+                        vals['sheet_id'] = target_sheet.id
                 topic.write(vals)
                 stats['updated'] += 1
             else:
+                target_sheet, target_parent = placement(parent_topic)
+                vals.update({'sheet_id': target_sheet.id, 'parent_id': target_parent.id})
                 topic = Topic.create(vals)
                 task.xmind_topic_id = topic.id
                 stats['created'] += 1
@@ -152,18 +196,25 @@ class ProjectProject(models.Model):
         # content is preserved).
         # project-managed topics whose source task is gone (task deletion nulls
         # task_id, so we rely on the persistent project_managed flag, not task_id).
-        orphans = sheet.topic_ids.filtered(
+        all_topics = Topic.search([('sheet_id', 'in', synced_sheets.ids)])
+        orphans = all_topics.filtered(
             lambda t: t.project_managed and t.id not in synced)
+        # 錨點主題（展開了子圖）不刪：刪了子圖會變孤兒。改成保留為一般主題。
+        anchors = self.env['xmind.sheet'].search(
+            [('anchor_topic_id', 'in', orphans.ids)]).anchor_topic_id
+        if anchors:
+            anchors.write({'project_managed': False})
+            orphans -= anchors
         if orphans:
             stats['removed'] = len(orphans)
             # topic.parent_id is ondelete='cascade' — reparent any surviving
-            # (map-only) children of orphans up to the root BEFORE unlinking, so the
-            # cascade never deletes user-added content.
+            # (map-only) children of orphans up to their sheet's root BEFORE
+            # unlinking, so the cascade never deletes user-added content.
             orphan_ids = set(orphans.ids)
-            survivors = sheet.topic_ids.filtered(
+            survivors = all_topics.filtered(
                 lambda t: t.parent_id.id in orphan_ids and t.id not in orphan_ids)
-            if survivors:
-                survivors.write({'parent_id': root.id})
+            for survivor in survivors:
+                survivor.parent_id = roots[survivor.sheet_id.id].id
             orphans.unlink()
 
         workbook.write({

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import uuid
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 
 class XMindTopic(models.Model):
@@ -126,6 +127,11 @@ class XMindTopic(models.Model):
     task_deadline_time = fields.Char('Deadline Time')
     has_task = fields.Boolean('Has Task Info', compute='_compute_has_task', store=True)
 
+    # 這顆主題展開成的子圖（xmind.sheet.anchor_topic_id 的反向，一對一）。
+    sub_sheet_id = fields.Many2one(
+        'xmind.sheet', string='Sub Sheet', compute='_compute_sub_sheet_id',
+        inverse='_inverse_sub_sheet_id', search='_search_sub_sheet_id')
+
     # Computed fields
     level = fields.Integer('Level', compute='_compute_level', store=True)
     has_children = fields.Boolean('Has Children', compute='_compute_has_children', store=True)
@@ -138,21 +144,84 @@ class XMindTopic(models.Model):
                 or record.task_progress or record.task_assignee
             )
 
+    def _compute_sub_sheet_id(self):
+        subs = self.env['xmind.sheet'].search([('anchor_topic_id', 'in', self.ids)])
+        by_anchor = {s.anchor_topic_id.id: s for s in subs}
+        for record in self:
+            record.sub_sheet_id = by_anchor.get(record.id, False)
+
+    def _inverse_sub_sheet_id(self):
+        Sheet = self.env['xmind.sheet']
+        for record in self:
+            current = Sheet.search([('anchor_topic_id', '=', record.id)])
+            if current and current != record.sub_sheet_id:
+                current.write({'sheet_role': 'idea', 'anchor_topic_id': False})
+            if record.sub_sheet_id and record.sub_sheet_id.anchor_topic_id != record:
+                record.sub_sheet_id.write({'sheet_role': 'sub', 'anchor_topic_id': record.id})
+
+    def _search_sub_sheet_id(self, operator, value):
+        Sheet = self.env['xmind.sheet']
+        if operator in ('=', '!=') and not value:
+            anchors = Sheet.search([('anchor_topic_id', '!=', False)]).anchor_topic_id.ids
+            return [('id', 'not in' if operator == '=' else 'in', anchors)]
+        return [('id', 'in', Sheet.search([('id', operator, value)]).anchor_topic_id.ids)]
+
+    def _is_sub_sheet_proxy_root(self):
+        """子圖的中心主題只是錨點的「代理」：標題與錨點同步、永遠不變成任務。
+
+        設計取捨：每張分頁都有自己一列根主題（編輯器、摘要、存檔都以此為前提），
+        若讓子圖直接沒有根、或根就是錨點那一列，會牽動整條載入／存檔路徑。
+        所以保留這一列，但把它當成錨點的鏡像 —— 存子圖時根標題回寫錨點、
+        改錨點標題時同步到子圖根（見 write），同步專案時跳過它。
+        """
+        self.ensure_one()
+        return (not self.parent_id and self.sheet_id.sheet_role == 'sub'
+                and bool(self.sheet_id.anchor_topic_id))
+
     def write(self, vals):
         res = super().write(vals)
         if 'title' in vals and not self.env.context.get('_syncing_name'):
+            mirror = self.with_context(_syncing_name=True)
             for record in self:
-                if record.parent_id:
-                    continue
-                workbook = record.sheet_id.workbook_id
-                if not workbook:
-                    continue
-                first_sheet = workbook.sheet_ids[:1]
-                if first_sheet and record.sheet_id == first_sheet:
-                    workbook.with_context(_syncing_name=True).write(
-                        {'name': vals['title']}
-                    )
+                if not record.parent_id:
+                    sheet = record.sheet_id
+                    workbook = sheet.workbook_id
+                    if not workbook:
+                        continue
+                    if sheet.sheet_role == 'sub' and sheet.anchor_topic_id:
+                        # 子圖代理根 → 錨點
+                        if sheet.anchor_topic_id.title != vals['title']:
+                            sheet.anchor_topic_id.with_context(_syncing_name=True).write(
+                                {'title': vals['title']})
+                        continue
+                    main = workbook._get_main_sheet()
+                    if main and sheet == main:
+                        workbook.with_context(_syncing_name=True).write(
+                            {'name': vals['title']}
+                        )
+            # 錨點 → 子圖代理根
+            subs = self.env['xmind.sheet'].search([('anchor_topic_id', 'in', self.ids)])
+            for sub in subs:
+                root = sub._get_root_topic()
+                if root and root.title != sub.anchor_topic_id.title:
+                    mirror.browse(root.id).write({'title': sub.anchor_topic_id.title})
+        if 'sheet_id' in vals:
+            # 主題被搬到別張分頁：它若是子圖的錨點，重新檢查子圖規則（成環／層數）
+            subs = self.env['xmind.sheet'].search([('anchor_topic_id', 'in', self.ids)])
+            subs._check_sheet_tree()
         return res
+
+    def unlink(self):
+        # 錨點是 restrict：先給看得懂的訊息，而不是資料庫的外鍵錯誤。
+        # parent_id 是資料庫層 cascade，子孫不會經過這裡 —— 所以把整棵子樹一起查。
+        subtree = self.search([('id', 'child_of', self.ids)])
+        subs = self.env['xmind.sheet'].search([('anchor_topic_id', 'in', subtree.ids)])
+        if subs:
+            raise UserError(_(
+                'Topic "%(topic)s" is expanded into sub sheet "%(sheet)s". '
+                'Delete that sub sheet first.',
+                topic=subs[0].anchor_topic_id.title, sheet=subs[0].name))
+        return super().unlink()
 
     @api.depends('parent_path')
     def _compute_level(self):

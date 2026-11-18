@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-"""18.0.4.0.0：專案鎖的資料回填。
+"""18.0.4.0.0：分頁角色＋專案鎖的資料回填。
 
-全程只用 SQL 改 xmind_workbook —— **不碰任何 project.task / project.project**。
+全程只用 SQL 改 xmind_sheet / xmind_workbook —— **不碰任何 project.task / project.project**。
 
-1. 重算 project_locked：同步過（xmind_last_sync）或有主題連到任務。
-2. project_created_from_map：只在「看起來確實是由這張圖建立的專案」時為 True ——
+1. 每本工作簿的第一張分頁（sequence 最小，再比 id）→ 主圖；其餘 → 發想頁。
+   （舊版只同步第一張，所以這等同於升級前的行為。）
+2. 重算 project_locked：同步過（xmind_last_sync）或有主題連到任務。
+3. project_created_from_map：只在「看起來確實是由這張圖建立的專案」時為 True ——
    專案建立時間在工作簿第一次同步的 10 分鐘內、工作簿比專案早建立（排除由專案
-   反向建立的心智圖）、且專案名稱等於第一張分頁的中心主題。其餘一律 False（＝同步不再改專案
+   反向建立的心智圖）、且專案名稱等於主圖中心主題。其餘一律 False（＝同步不再改專案
    名稱，較保守）。
 """
 import logging
@@ -18,7 +20,31 @@ def migrate(cr, version):
     if not version:
         return
 
-    # 1. 專案鎖
+    # 1. 分頁角色
+    cr.execute("UPDATE xmind_sheet SET sheet_role = 'idea' WHERE sheet_role IS NULL OR sheet_role != 'idea'")
+    cr.execute("""
+        WITH first_sheet AS (
+            SELECT DISTINCT ON (workbook_id) id, workbook_id
+              FROM xmind_sheet
+             ORDER BY workbook_id, sequence NULLS LAST, id
+        )
+        UPDATE xmind_sheet s SET sheet_role = 'main'
+          FROM first_sheet f WHERE s.id = f.id
+    """)
+    cr.execute("UPDATE xmind_sheet SET anchor_topic_id = NULL, parent_sheet_id = NULL")
+    cr.execute("""
+        UPDATE xmind_workbook w
+           SET main_sheet_id = s.id
+          FROM xmind_sheet s
+         WHERE s.workbook_id = w.id AND s.sheet_role = 'main'
+    """)
+    # 沒有分頁的工作簿：main_sheet_id 保持 NULL
+    cr.execute("""
+        UPDATE xmind_workbook w SET main_sheet_id = NULL
+         WHERE NOT EXISTS (SELECT 1 FROM xmind_sheet s WHERE s.workbook_id = w.id)
+    """)
+
+    # 2. 專案鎖
     cr.execute("""
         UPDATE xmind_workbook w
            SET project_locked = (
@@ -29,7 +55,7 @@ def migrate(cr, version):
                      WHERE s.workbook_id = w.id AND t.task_id IS NOT NULL))
     """)
 
-    # 2. 專案是否由這張圖建立
+    # 3. 專案是否由這張圖建立
     cr.execute("UPDATE xmind_workbook SET project_created_from_map = FALSE")
     cr.execute("""
         WITH first_sync AS (
@@ -48,7 +74,8 @@ def migrate(cr, version):
             SELECT DISTINCT ON (s.workbook_id) s.workbook_id, t.title
               FROM xmind_sheet s
               JOIN xmind_topic t ON t.sheet_id = s.id AND t.parent_id IS NULL
-             ORDER BY s.workbook_id, s.sequence NULLS LAST, s.id, t.sequence, t.id
+             WHERE s.sheet_role = 'main'
+             ORDER BY s.workbook_id, t.sequence, t.id
         )
         UPDATE xmind_workbook w
            SET project_created_from_map = TRUE

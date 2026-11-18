@@ -82,6 +82,9 @@ class XMindWorkbook(models.Model):
     # 只有這種專案會在同步時跟著中心主題改名；既有專案永遠不改名。
     project_created_from_map = fields.Boolean(
         'Project Created from Mind Map', readonly=True, copy=False)
+    # 主圖（同步專案的那張分頁）。由 xmind.sheet.sheet_role 推導，唯一事實來源在分頁上。
+    main_sheet_id = fields.Many2one(
+        'xmind.sheet', string='Main Sheet', compute='_compute_main_sheet_id', store=True)
 
     # Tags
     tag_ids = fields.Many2many('xmind.tag', string='Tags')
@@ -99,6 +102,12 @@ class XMindWorkbook(models.Model):
             record.sheet_count = len(record.sheet_ids)
             record.topic_count = sum(len(sheet.topic_ids) for sheet in record.sheet_ids)
 
+    @api.depends('sheet_ids.sheet_role')
+    def _compute_main_sheet_id(self):
+        for record in self:
+            record.main_sheet_id = record.sheet_ids.filtered(
+                lambda s: s.sheet_role == 'main').sorted(lambda s: (s.sequence, s.id))[:1]
+
     @api.depends('xmind_last_sync', 'sheet_ids.topic_ids.task_id')
     def _compute_project_locked(self):
         Topic = self.env['xmind.topic'].sudo()
@@ -109,13 +118,10 @@ class XMindWorkbook(models.Model):
                 ], limit=1))
 
     def _get_main_sheet(self):
-        """同步專案、代表整本工作簿的那張分頁：sequence 最小者。"""
+        """主圖；舊資料（尚未遷移、沒有主圖）退回 sequence 最小的那張。"""
         self.ensure_one()
-        return self.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]
-
-    @staticmethod
-    def _sheet_root(sheet):
-        return sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1] if sheet else sheet
+        main = self.sheet_ids.filtered(lambda s: s.sheet_role == 'main')
+        return (main or self.sheet_ids).sorted(lambda s: (s.sequence, s.id))[:1]
 
     def action_archive(self):
         self.write({'active': False})
@@ -205,7 +211,7 @@ class XMindWorkbook(models.Model):
         res = super().write(vals)
         if 'name' in vals and not self.env.context.get('_syncing_name'):
             for record in self:
-                # 反向同步（工作簿名稱 → 中心主題）同樣只動第一張分頁
+                # 反向同步（工作簿名稱 → 中心主題）只動主圖
                 first_sheet = record._get_main_sheet()
                 if first_sheet:
                     root_topic = first_sheet.topic_ids.filtered(
@@ -710,33 +716,57 @@ class XMindWorkbook(models.Model):
     def _iter_sync_topics(self):
         """要同步成任務的主題，依「先父後子」順序回傳 [(topic, parent_topic, sequence), ...]。
 
-        從第一張分頁的中心主題往下走；parent_topic 為 None 代表頂層任務（中心主題
-        本身是專案，不是任務）。總結節點與浮動主題（含子樹）一律不走。
+        從主圖的中心主題往下走：
+        - parent_topic 為 None 代表頂層任務（中心主題本身是專案，不是任務）；
+        - 某顆主題展開了子圖（topic.sub_sheet_id）時，在它主圖上的子主題之後，
+          接著走子圖中心主題（錨點的代理，見 xmind.topic._is_sub_sheet_proxy_root）
+          底下的主題，它們的父任務就是錨點的任務；
+        - 總結節點、浮動主題（含子樹）、發想頁一律不走。
         """
         self.ensure_one()
         sheet = self._get_main_sheet()
-        root = self._sheet_root(sheet)
+        if not sheet:
+            return []
+        root = sheet._get_root_topic()
         if not root:
             return []
-        # 總結節點（括弧總結的那顆文字）與浮動主題（含其子樹）是圖上的註解，
-        # 不是工作項目 —— 永遠不建成任務。
-        floating_cids = set(sheet.floating_topic_ids.mapped('component_id'))
+        floating = {}
 
         def is_task_topic(topic):
+            sid = topic.sheet_id.id
+            if sid not in floating:
+                floating[sid] = set(topic.sheet_id.floating_topic_ids.mapped('component_id'))
             return not topic.is_summary_node and not (
-                topic.component_id and topic.component_id in floating_cids)
+                topic.component_id and topic.component_id in floating[sid])
 
         result = []
+        visited_sheets = {sheet.id}
 
-        def walk(topic, parent):
-            result.append((topic, parent, topic.sequence or 10))
-            for child in topic.child_ids.sorted('sequence'):
-                if is_task_topic(child):
-                    walk(child, topic)
+        def children_of(topic):
+            """[(child, task_sequence)]：主圖上的子主題沿用原本的 sequence；子圖的
+            主題排在它們之後（序號往後推），任務的排序才會跟圖一致。"""
+            kids = [(c, c.sequence or 10)
+                    for c in topic.child_ids.sorted(lambda t: (t.sequence, t.id))
+                    if is_task_topic(c)]
+            sub = topic.sub_sheet_id
+            if (sub and sub.sheet_role == 'sub' and sub.workbook_id == self
+                    and sub.id not in visited_sheets):
+                visited_sheets.add(sub.id)
+                sub_root = sub._get_root_topic()
+                if sub_root:
+                    base = max([seq for _c, seq in kids] or [0]) + 1
+                    kids += [(c, base + (c.sequence or 0))
+                             for c in sub_root.child_ids.sorted(lambda t: (t.sequence, t.id))
+                             if is_task_topic(c)]
+            return kids
 
-        for child in root.child_ids.sorted('sequence'):
-            if is_task_topic(child):
-                walk(child, None)
+        def walk(topic, parent, sequence):
+            result.append((topic, parent, sequence))
+            for child, seq in children_of(topic):
+                walk(child, topic, seq)
+
+        for child, seq in children_of(root):
+            walk(child, None, seq)
         return result
 
     def _plan_project_orphans(self):
@@ -757,7 +787,7 @@ class XMindWorkbook(models.Model):
         return tasks.filtered(lambda t: t.id not in synced)
 
     def _sync_to_project(self, create_if_missing=False):
-        """Diff-sync the FIRST sheet's topic tree into a project:
+        """Diff-sync the MAIN sheet's topic tree (plus its sub sheets) into a project:
         central topic → project; every topic below → task (hierarchy → parent_id).
         Links are kept via topic.task_id so re-sync updates instead of duplicating;
         tasks whose source topic was removed are archived (not deleted).
@@ -770,7 +800,7 @@ class XMindWorkbook(models.Model):
         sheet = self._get_main_sheet()
         if not sheet:
             raise UserError(_("This mind map has no sheet to sync."))
-        root = self._sheet_root(sheet)
+        root = sheet._get_root_topic()
         if not root:
             raise UserError(_("This mind map has no central topic."))
 
@@ -3103,7 +3133,7 @@ class XMindWorkbook(models.Model):
     # ------------------------------------------------------------------
     def _copy_without_project_links(self):
         """完整複製這本工作簿（分頁、主題、關聯線、外框、總結、標註、浮動主題、
-        標記、附件），但**不帶專案**，所有主題的任務連結也清掉。"""
+        標記、附件、子圖錨點），但**不帶專案**，所有主題的任務連結也清掉。"""
         self.ensure_one()
         new_wb = self.copy({
             'name': '%s（副本）' % self.name,
@@ -3112,8 +3142,17 @@ class XMindWorkbook(models.Model):
         })
         Topic = self.env['xmind.topic']
         topic_map = {}
-        for sheet in self.sheet_ids:
-            new_sheet = sheet.copy({'workbook_id': new_wb.id})
+        sheet_map = {}
+        # 主圖先複製，讓它在新工作簿也是主圖；子圖先以發想頁建立，錨點對應好後再改回子圖
+        main = self._get_main_sheet()
+        sheets = self.sheet_ids.sorted(lambda s: (s != main, s.sequence, s.id))
+        for sheet in sheets:
+            new_sheet = sheet.copy({
+                'workbook_id': new_wb.id,
+                'sheet_role': 'main' if sheet == main else 'idea',
+                'anchor_topic_id': False,
+            })
+            sheet_map[sheet.id] = new_sheet
             # parent_path 排序 → 父主題一定先於子主題建立
             for topic in Topic.search([('sheet_id', '=', sheet.id)], order='parent_path, id'):
                 new_topic = topic.with_context(_syncing_name=True).copy({
@@ -3153,6 +3192,12 @@ class XMindWorkbook(models.Model):
                 })
             for floating in sheet.floating_topic_ids:
                 floating.copy({'sheet_id': new_sheet.id, 'component_id': floating.component_id})
+        for sheet in sheets.filtered(lambda s: s.sheet_role == 'sub' and s.anchor_topic_id):
+            if sheet.anchor_topic_id.id in topic_map:
+                sheet_map[sheet.id].write({
+                    'sheet_role': 'sub',
+                    'anchor_topic_id': topic_map[sheet.anchor_topic_id.id].id,
+                })
         return new_wb
 
     def action_duplicate_workbook_unlinked(self):
@@ -3238,7 +3283,8 @@ class XMindWorkbook(models.Model):
                 add(_('%(count)s topic(s) linked to tasks of another project (%(projects)s).',
                       count=len(foreign),
                       projects=', '.join(foreign.mapped('task_id.project_id.display_name'))))
-            root = self._sheet_root(wb._get_main_sheet())
+            main = wb._get_main_sheet()
+            root = main._get_root_topic() if main else Topic
             central = root.title if root else wb.name
             a, b = norm(central), norm(project.name)
             if a and b and a not in b and b not in a:
