@@ -102,10 +102,44 @@ export class MindmapProjectBar extends Component {
                     } catch (e) {
                         results = [];
                     }
-                    return results.map(([id, name]) => ({ label: name, id }));
+                    let options = results.map(([id, name]) => ({ label: name, id }));
+                    if (model === "project.project" && options.length) {
+                        options = await this._markLinkedProjects(options);
+                    }
+                    return options;
                 },
             },
         ];
+    }
+
+    /**
+     * 一個專案只能連一張心智圖：已被其他心智圖連結的專案在下拉選單標出是哪一張，
+     * 使用者選之前就知道（選了仍會由後端擋下並說明原因）。
+     */
+    async _markLinkedProjects(options) {
+        let links = [];
+        try {
+            links = await this.orm.searchRead(
+                "xmind.workbook",
+                [
+                    ["project_id", "in", options.map((o) => o.id)],
+                    ["id", "!=", this.workbookId],
+                ],
+                ["project_id", "name"],
+                { context: { active_test: false } }
+            );
+        } catch (e) {
+            return options;
+        }
+        const byProject = {};
+        for (const wb of links) {
+            byProject[wb.project_id[0]] = wb.name;
+        }
+        return options.map((o) =>
+            byProject[o.id]
+                ? { ...o, label: _t("%(project)s (linked to mind map: %(map)s)", { project: o.label, map: byProject[o.id] }) }
+                : o
+        );
     }
 
     /**
@@ -136,8 +170,12 @@ export class MindmapProjectBar extends Component {
     async _writeField(field, value) {
         try {
             await this.orm.write("xmind.workbook", [this.workbookId], { [field]: value });
+            return true;
         } catch (e) {
-            this.notification.add(_t("Update failed: %s", e?.message || e), { type: "danger" });
+            // RPC 錯誤的 e.message 只是「Odoo Server Error」，真正的說明在 e.data.message。
+            const msg = (e && e.data && e.data.message) || (e && e.message) || String(e);
+            this.notification.add(_t("Update failed: %s", msg), { type: "danger" });
+            return false;
         }
     }
 
@@ -161,9 +199,20 @@ export class MindmapProjectBar extends Component {
     }
 
     async onSelectProject(option) {
+        const prevId = this.state.projectId;
+        const prevName = this.state.projectName;
         this.state.projectId = option.id;
         this.state.projectName = option.label;
-        await this._writeField("project_id", option.id);
+        if (!(await this._writeField("project_id", option.id))) {
+            // 寫入失敗（例如專案已連到別張心智圖）→ 畫面回到原本的專案，不要顯示成已連結。
+            this.state.projectId = prevId;
+            this.state.projectName = prevName;
+            return;
+        }
+        const [proj] = await this.orm.read("project.project", [option.id], ["display_name"]).catch(() => [null]);
+        if (proj) {
+            this.state.projectName = proj.display_name;
+        }
         // 有專案 → 客戶＝專案客戶（後端已強制），讀回反映到畫面（專案無客戶則清空）。
         await this._refreshPartnerFromProject(option.id);
         this._notifyParent();

@@ -7673,3 +7673,29 @@ msgstr "大"
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Filled Circle"
 msgstr "圓點"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid ""
+"Project \"%(project)s\" is already linked to the mind map \"%(map)s\" (#%(id)s). A project can be linked to only one mind map. Unlink it from that mind map first, or choose another project."
+msgstr "專案「%(project)s」已連結到心智圖「%(map)s」（#%(id)s）。一個專案只能連結一張心智圖；請先到那張心智圖取消連結專案，或改選其他專案。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid ""
+"Project \"%(project)s\" is already linked to the archived mind map \"%(map)s\" (#%(id)s). A project can be linked to only one mind map. Unarchive that mind map and unlink it, or choose another project."
+msgstr "專案「%(project)s」已連結到已封存的心智圖「%(map)s」（#%(id)s）。一個專案只能連結一張心智圖；請先取消封存那張心智圖並取消連結，或改選其他專案。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid "A project can be linked to only one mind map."
+msgstr "一個專案只能連結一張心智圖。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_project_bar.js:0
+msgid "%(project)s (linked to mind map: %(map)s)"
+msgstr "%(project)s（已連結心智圖：%(map)s）"

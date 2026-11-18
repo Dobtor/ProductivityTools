@@ -108,13 +108,45 @@ class XMindWorkbook(models.Model):
             vals['partner_id'] = proj.partner_id.id or False
         return vals
 
+    def _check_project_link_free(self, project_id):
+        """一個專案只能連一張心智圖（雙向同步靠 1:1）。
+
+        在寫入前先檢查，撞到時用看得懂的訊息說明是哪一張心智圖佔用，
+        而不是讓資料庫的 UNIQUE 約束丟出「Odoo Server Error」。
+        已封存的心智圖也會佔用，所以 active_test=False 一起查。
+        """
+        if not project_id:
+            return
+        other = self.with_context(active_test=False).sudo().search([
+            ('project_id', '=', project_id),
+            ('id', 'not in', self.ids),
+        ], limit=1)
+        if other:
+            project = self.env['project.project'].sudo().browse(project_id)
+            if other.active:
+                raise UserError(_(
+                    'Project "%(project)s" is already linked to the mind map "%(map)s" (#%(id)s). '
+                    'A project can be linked to only one mind map. Unlink it from that mind map first, '
+                    'or choose another project.',
+                    project=project.display_name, map=other.name, id=other.id))
+            raise UserError(_(
+                'Project "%(project)s" is already linked to the archived mind map "%(map)s" (#%(id)s). '
+                'A project can be linked to only one mind map. Unarchive that mind map and unlink it, '
+                'or choose another project.',
+                project=project.display_name, map=other.name, id=other.id))
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
+            self._check_project_link_free(vals.get('project_id'))
             self._enforce_project_partner(vals)
         return super().create(vals_list)
 
     def write(self, vals):
+        if vals.get('project_id'):
+            if len(self) > 1:
+                raise UserError(_('A project can be linked to only one mind map.'))
+            self._check_project_link_free(vals['project_id'])
         self._enforce_project_partner(vals)
         res = super().write(vals)
         if 'name' in vals and not self.env.context.get('_syncing_name'):
