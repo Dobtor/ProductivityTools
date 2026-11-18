@@ -681,6 +681,16 @@ class MailActivity(models.Model):
 
             # 需求七：不再自動關聯預設筆記；res 允許為空（獨立待辦）。
 
+            # 建立時帶 planned_date 但沒帶 schedule_status：與 write 相同，由日期
+            # 星期幾反推看板欄。否則停在 default 'waiting'，週看板（依星期分欄）
+            # 看不到這張卡。週次（schedule_week*）由 planned_date 自行 compute，
+            # 下週的日期自然落在下週。
+            if vals.get('planned_date') and 'schedule_status' not in vals:
+                self._derive_schedule_status_from_planned(
+                    vals,
+                    check_past=not self.env.su
+                    and not self.env.context.get('skip_schedule_check'))
+
             # 設定預設的 activity_type_id（如果未提供）
             if not vals.get('activity_type_id'):
                 activity_type = self.env.ref('mail.mail_activity_data_todo', raise_if_not_found=False)
@@ -772,6 +782,24 @@ class MailActivity(models.Model):
         activities.filtered(lambda a: not a.partner_id)._derive_partner_from_source()
 
         return activities
+
+    @api.model
+    def _derive_schedule_status_from_planned(self, vals, check_past=True):
+        """由 vals['planned_date'] 的星期幾推導 schedule_status（就地修改 vals）。
+
+        create 與 write（空值卡首次挑日期）共用。check_past 時擋早於今天的日期
+        （與 write 規則一致；su／skip_schedule_check 的內部流程不擋）。
+        尚未有來源標記者標為 'inserted'（週間插入）。
+        """
+        planned = fields.Date.to_date(vals['planned_date'])
+        if check_past and planned < fields.Date.today():
+            raise UserError(_('Planned date cannot be earlier than today.'))
+        vals['schedule_status'] = (
+            'monday', 'tuesday', 'wednesday', 'thursday',
+            'friday', 'saturday', 'sunday',
+        )[planned.weekday()]
+        if 'schedule_origin' not in vals:
+            vals['schedule_origin'] = 'inserted'
 
     @api.model
     def _group_expand_schedule_status(self, statuses, domain, order=None):
@@ -1080,18 +1108,8 @@ class MailActivity(models.Model):
                             'Use same-week drag-and-drop or the schedule bar to change the '
                             'day, or use "Postpone" to clear it first.'
                         ))
-                # 擋過去：直接挑的日期不可早於今天
-                new_planned_date = fields.Date.to_date(new_planned)
-                if new_planned_date < fields.Date.today():
-                    raise UserError(_('Planned date cannot be earlier than today.'))
-                # 空值首次設定：由日期星期幾反推 schedule_status
-                weekday_status_map = {
-                    0: 'monday', 1: 'tuesday', 2: 'wednesday', 3: 'thursday',
-                    4: 'friday', 5: 'saturday', 6: 'sunday',
-                }
-                vals['schedule_status'] = weekday_status_map[new_planned_date.weekday()]
-                if 'schedule_origin' not in vals:
-                    vals['schedule_origin'] = 'inserted'
+                # 擋過去＋空值首次設定：由日期星期幾反推 schedule_status
+                self._derive_schedule_status_from_planned(vals)
 
         # 驗證：user_id 建立後只能透過領取或變更指派操作修改
         # 豁免：calendar.event._sync_activities() 同步日曆事件時會連帶寫入 user_id
@@ -1523,7 +1541,7 @@ class MailActivity(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': _('Postpone to Next Week'),
+            'name': _('Postpone (Back to Waiting)'),
             'res_model': 'mail.activity.postpone.wizard',
             'view_mode': 'form',
             'views': [(False, 'form')],

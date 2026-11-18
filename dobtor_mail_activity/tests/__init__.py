@@ -8,3 +8,4 @@ from . import test_merge
 from . import test_schedule_week
 from . import test_tour
 from . import test_create_today
+from . import test_create_planned_status

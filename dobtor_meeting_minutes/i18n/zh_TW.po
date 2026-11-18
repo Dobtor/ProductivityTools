@@ -497,7 +497,7 @@ msgstr "所有簽名者皆已簽署本會議記錄。"
 
 #. module: dobtor_meeting_minutes
 #. odoo-python
-#: code:addons/dobtor_meeting_minutes/controllers/portal.py:0
+#: code:addons/dobtor_meeting_minutes/models/note_note.py:0
 msgid "All signers have signed. Final signed document attached."
 msgstr "所有簽名者皆已簽署。已附上最終簽署文件。"
 
@@ -1874,6 +1874,11 @@ msgstr "筆記階段"
 #: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__name
 msgid "Note Summary"
 msgstr "筆記摘要"
+
+#. module: dobtor_meeting_minutes
+#: model:ir.model.fields,field_description:dobtor_meeting_minutes.field_note_note__name_manual
+msgid "Manual Title"
+msgstr "手動標題"
 
 #. module: dobtor_meeting_minutes
 #: model:ir.model,name:dobtor_meeting_minutes.model_note_tag

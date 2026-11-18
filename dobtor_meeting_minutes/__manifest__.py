@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Meeting Minutes',
-    'version': '18.0.3.0.0',
+    'version': '18.0.3.0.1',
     'category': 'Productivity',
     'summary': 'Notes and meeting minutes: personal notes, recording, transcription and signatures',
     'description': """

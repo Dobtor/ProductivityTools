@@ -434,13 +434,37 @@ class NoteNote(models.Model):
             some_signed = any(signer in signed_partners for signer in note.signer_ids)
 
             if all_signed:
+                already_signed = note.state == 'signed'
                 note.write({'state': 'signed'})
-                note.message_post(
-                    body=_('All signers have signed the meeting minutes.'),
-                    message_type='notification',
-                )
+                if not already_signed:
+                    note._post_final_signed_pdf()
             elif some_signed and note.state == 'sent':
                 note.write({'state': 'partial'})
+
+    def _post_final_signed_pdf(self):
+        """全部簽完：產生最終簽名 PDF 並附在 chatter。
+
+        後台 note.signature.action_sign 與 portal 簽名路由都經由
+        _check_all_signed 走到這裡（原本只有 portal 路由會產生 PDF）。
+        PDF 產生失敗不擋簽名本身，只留訊息與 log。
+        """
+        self.ensure_one()
+        attachments = []
+        try:
+            with self.env.cr.savepoint():
+                pdf = self.env['ir.actions.report'].sudo()._render_qweb_pdf(
+                    'dobtor_meeting_minutes.action_report_meeting_minutes',
+                    [self.id],
+                )[0]
+            attachments = [(f'{self.name or self.id} - Signed.pdf', pdf)]
+        except Exception:
+            _logger.exception('Final signed PDF generation failed for note %s', self.id)
+        self.sudo().message_post(
+            body=_('All signers have signed. Final signed document attached.')
+            if attachments else _('All signers have signed the meeting minutes.'),
+            attachments=attachments,
+            message_type='notification',
+        )
 
     def _get_signature_for_partner(self, partner):
         """取得特定合作夥伴的簽名記錄"""

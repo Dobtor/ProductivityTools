@@ -155,17 +155,61 @@ class MessagingPartnerLink(models.TransientModel):
             messages.write({'author_id': target.id})
         return len(messages)
 
+    # 成員重建時要帶過去的個人狀態（摺疊、已讀位置、釘選／關注時間、通知設定）
+    _MEMBER_STATE_FIELDS = (
+        'custom_channel_name', 'fetched_message_id', 'seen_message_id',
+        'new_message_separator', 'fold_state', 'custom_notifications',
+        'mute_until_dt', 'unpin_dt', 'last_interest_dt', 'last_seen_dt',
+    )
+
+    def _member_state_vals(self, member):
+        Member = self.env['discuss.channel.member']
+        vals = {}
+        for fname in self._MEMBER_STATE_FIELDS:
+            if fname not in Member._fields:
+                continue
+            value = member[fname]
+            vals[fname] = value.id if isinstance(value, models.BaseModel) else value
+        return vals
+
     def _transfer_memberships(self, source, target):
+        """把來源聯絡人的對話成員資格轉給目標客戶。
+
+        Odoo 18 禁止改寫 ``discuss.channel.member.partner_id``（AccessError
+        「您不能在 partner_id 上書寫」），所以改為：目標尚非成員 → 以來源成員的
+        個人狀態替目標建一筆新成員；最後刪掉來源成員（與 dobtor_line_message
+        ``line.partner.link`` a0fd58c 相同做法）。
+
+        ``chat``（1 對 1）頻道的 create 只允許在「頻道尚無成員」時建立成員，
+        所以 chat 改成：整個頻道的成員刪掉後，以替換過的 vals 一次批次重建。
+        """
         Member = self.env['discuss.channel.member'].sudo()
         moved = 0
         for member in Member.search([('partner_id', '=', source.id)]):
-            other = Member.search([
-                ('channel_id', '=', member.channel_id.id),
+            channel = member.channel_id
+            target_member = Member.search([
+                ('channel_id', '=', channel.id),
                 ('partner_id', '=', target.id),
             ], limit=1)
-            if other:
+            if target_member:
                 member.unlink()
+            elif channel.channel_type == 'chat':
+                members = channel.channel_member_ids
+                vals_list = []
+                for m in members:
+                    vals = self._member_state_vals(m)
+                    vals.update({
+                        'channel_id': channel.id,
+                        'partner_id': target.id if m == member else m.partner_id.id,
+                        'guest_id': m.guest_id.id,
+                    })
+                    vals_list.append(vals)
+                members.unlink()
+                Member.create(vals_list)
             else:
-                member.partner_id = target.id
+                vals = self._member_state_vals(member)
+                vals.update({'channel_id': channel.id, 'partner_id': target.id})
+                Member.create(vals)
+                member.unlink()
             moved += 1
         return moved

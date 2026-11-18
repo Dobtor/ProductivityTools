@@ -154,10 +154,10 @@ msgstr "<i class=\"fa fa-check\"/> 已完成"
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
 msgid ""
 "<i class=\"fa fa-clock-o me-1\"/>\n"
-"                    <span>The selected activities will be postponed to next week. Only scheduled and active activities will be affected.</span>"
+"                    <span>The selected activities will be unscheduled and moved back to Waiting. Only scheduled and active activities will be affected.</span>"
 msgstr ""
 "<i class=\"fa fa-clock-o me-1\"/>\n"
-"                    <span>選取的待辦將延期至下週。僅排程中且作用中的待辦會被影響。</span>"
+"                    <span>選取的待辦將取消排程、移回等待中。僅排程中且作用中的待辦會被影響。</span>"
 
 #. module: dobtor_mail_activity
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_view_kanban_schedule
@@ -3110,8 +3110,8 @@ msgstr "延期原因"
 #: model:ir.actions.act_window,name:dobtor_mail_activity.action_mail_activity_postpone_wizard
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_done_wizard_view_form
 #: model_terms:ir.ui.view,arch_db:dobtor_mail_activity.mail_activity_postpone_wizard_view_form
-msgid "Postpone to Next Week"
-msgstr "延期至下週"
+msgid "Postpone (Back to Waiting)"
+msgstr "延後（移回等待中）"
 
 #. module: dobtor_mail_activity
 #: model:ir.model.fields.selection,name:dobtor_mail_activity.selection__mail_activity__schedule_origin__postponed

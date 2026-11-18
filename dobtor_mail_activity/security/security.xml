@@ -29,6 +29,12 @@
             <field name="comment">Can view all activities, weekly reports and efficiency analysis</field>
         </record>
 
+        <!-- 管理員（設定／存取權限）自動具備待辦管理者：否則新庫的 admin 看不到
+             效率分析、團隊週報等管理者選單，得手動到使用者頁勾選。 -->
+        <record id="base.group_erp_manager" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_activity_manager'))]"/>
+        </record>
+
         <!-- 週報管理功能開關群組（feature flag，供設定頁勾選啟停週報相關選單/視圖）
              隱藏分類，不在使用者群組清單顯示；由 res.config.settings 的
              group_weekly_report 以 implied_group 切換。 -->

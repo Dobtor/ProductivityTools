@@ -12,3 +12,4 @@ from . import test_note_merge
 from . import test_activity_note
 from . import test_calendar_minutes
 from . import test_note_tour
+from . import test_bugfix_title_tz_pdf

@@ -33,7 +33,7 @@ export const ACTIVITY_WIZARDS = {
  * @param {string}   [options.name]     覆寫視窗標題。僅在同一個 wizard 有多種
  *                                      情境、標題需要區分時使用（例如批次延期
  *                                      要顯示「Batch Postpone」而非 XML 上的
- *                                      「Postpone to Next Week」）；不傳則沿用
+ *                                      「Postpone (Back to Waiting)」）；不傳則沿用
  *                                      XML action 的名稱。
  * @returns {Promise}
  */

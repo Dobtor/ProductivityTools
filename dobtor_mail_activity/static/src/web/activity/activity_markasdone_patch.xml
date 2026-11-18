@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- 在 ActivityMarkAsDone 的按鈕區加入「登錄並繼續」和「延期至下週」 -->
+    <!-- 在 ActivityMarkAsDone 的按鈕區加入「登錄並繼續」和「延後（移回等待中）」 -->
     <t t-name="mail.ActivityMarkAsDone" t-inherit="mail.ActivityMarkAsDone" t-inherit-mode="extension">
         <!-- 將 "Done & Schedule Next" 改為 "完成，排程下一待辦" -->
         <xpath expr="//button[@t-on-click='onClickDoneAndScheduleNext']" position="replace">
@@ -20,9 +20,9 @@
                 Log and Continue
             </button>
             <button type="button" class="btn btn-sm btn-secondary mx-1"
-                    aria-label="Postpone to Next Week"
+                    aria-label="Postpone (Back to Waiting)"
                     t-on-click="onClickPostpone">
-                Postpone to Next Week
+                Postpone (Back to Waiting)
             </button>
             <button type="button" class="btn btn-sm btn-secondary mx-1"
                     aria-label="Transfer"

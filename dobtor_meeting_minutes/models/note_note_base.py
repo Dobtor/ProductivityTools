@@ -1,11 +1,29 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import re
 
 from odoo import api, fields, models, _, Command
 from odoo.tools import html2plaintext
 
 _logger = logging.getLogger(__name__)
+
+# 區塊元素結尾／<br> 後補換行：html2plaintext 對「中間沒有空白的相鄰區塊」
+# （<h2>標題</h2><p>出席…</p>）會黏成同一行，標題就變成「標題 出席：…」。
+_BLOCK_END_RE = re.compile(
+    r'(</(?:p|div|h[1-6]|li|ul|ol|blockquote|pre|tr|table|section|header|'
+    r'article|figure|figcaption)\s*>|<br\s*/?>)', re.IGNORECASE)
+
+
+def derive_note_name(memo):
+    """由筆記內容取標題：第一個非空的區塊元素文字。"""
+    if not memo:
+        return ''
+    text = html2plaintext(_BLOCK_END_RE.sub(r'\1\n', str(memo)))
+    for line in text.replace('*', '').split('\n'):
+        if line.strip():
+            return line.strip()
+    return ''
 
 
 class NoteNote(models.Model):
@@ -27,7 +45,10 @@ class NoteNote(models.Model):
         string='Note Summary',
         compute='_compute_name',
         store=True,
+        readonly=False,
     )
+    # 標題是使用者／API 明確給的（非由內容推導）→ 內容變更時不覆寫
+    name_manual = fields.Boolean(string='Manual Title', copy=False)
     user_id = fields.Many2one(
         'res.users',
         string='Owner',
@@ -124,12 +145,54 @@ class NoteNote(models.Model):
     )
 
     # ===== 計算方法 =====
-    @api.depends('memo')
+    @api.depends('memo', 'name_manual')
     def _compute_name(self):
-        """從筆記內容的第一行取得筆記名稱"""
+        """從筆記內容的第一個區塊元素取得筆記名稱（明確給定的標題不覆寫）"""
         for note in self:
-            text = html2plaintext(note.memo) if note.memo else ''
-            note.name = text.strip().replace('*', '').split("\n")[0]
+            if note.name_manual and note.name:
+                continue
+            note.name = derive_note_name(note.memo)
+
+    @api.onchange('name')
+    def _onchange_name_manual(self):
+        """表單裡手打標題 → 標記為手動，之後改內容（onchange 重算）不會蓋掉。"""
+        for note in self:
+            name = (note.name or '').strip()
+            note.name_manual = bool(name) and name != derive_note_name(note.memo)
+
+    @api.model
+    def _prepare_name_manual(self, vals, memo):
+        """vals 帶 name 時決定是否為「手動標題」。
+
+        表單 onchange 也會把推導出的 name 送回來；與內容推導結果相同者
+        不算手動，之後內容改了仍會跟著更新。清空 name → 回到自動推導。
+        """
+        if 'name' not in vals or 'name_manual' in vals:
+            return
+        name = (vals.get('name') or '').strip()
+        if not name:
+            # 拿掉 name，讓 compute（依 name_manual）重新由內容推導
+            vals.pop('name')
+            vals['name_manual'] = False
+            return
+        vals['name_manual'] = name != derive_note_name(memo)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            self._prepare_name_manual(vals, vals.get('memo'))
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if 'name' in vals and 'name_manual' not in vals:
+            # name_manual 依各筆內容判斷，可能不同 → 逐筆寫
+            if len(self) > 1:
+                for note in self:
+                    note.write(dict(vals))
+                return True
+            self._prepare_name_manual(
+                vals, vals['memo'] if 'memo' in vals else self.memo)
+        return super().write(vals)
 
     @api.depends('tag_ids')
     def _compute_main_tag_id(self):
