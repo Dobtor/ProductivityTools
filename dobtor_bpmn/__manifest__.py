@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor BPMN (流程設計圖庫)',
-    'version': '18.0.2.2.0',
+    'version': '18.0.2.2.1',
     'category': 'Productivity',
     'summary': 'BPMN/DMN 流程設計圖庫，疊在 dobtor_approval 編輯器核心之上，可將設計圖交給簽核引擎',
     'description': """

@@ -144,13 +144,14 @@ export class BpmnEditorAction extends Component {
                     } catch (e) {
                         results = [];
                     }
-                    const opts = results.map(([id, name]) => ({ label: name, id }));
+                    // ★ 記錄 id 放 resId：Odoo 18 AutoComplete 會把 option.id 蓋成內部流水號。
+                    const opts = results.map(([id, name]) => ({ label: name, resId: id }));
                     // 無完全相符 → 提供即時建立新標籤選項。
                     const exact = results.some(
                         ([, n]) => (n || "").toLowerCase() === term.toLowerCase()
                     );
                     if (term && !exact) {
-                        opts.push({ label: _t('建立「%s」', term), id: false, create: true, term });
+                        opts.push({ label: _t('建立「%s」', term), resId: false, create: true, term });
                     }
                     return opts;
                 },
@@ -160,7 +161,7 @@ export class BpmnEditorAction extends Component {
 
     async onSelectTag(option) {
         try {
-            let id = option.id;
+            let id = option.resId;
             if (option.create) {
                 const created = await this.orm.call("bpmn.diagram.tag", "name_create", [
                     option.term,
@@ -373,7 +374,7 @@ export class BpmnEditorAction extends Component {
                     } catch (e) {
                         results = [];
                     }
-                    return results.map(([id, name]) => ({ label: name, id }));
+                    return results.map(([id, name]) => ({ label: name, resId: id }));
                 },
             },
         ];
@@ -404,9 +405,9 @@ export class BpmnEditorAction extends Component {
         if (this.state.projectId) {
             return;
         }
-        this.state.partnerId = option.id;
+        this.state.partnerId = option.resId;
         this.state.partnerName = option.label;
-        await this._writeField("partner_id", option.id);
+        await this._writeField("partner_id", option.resId);
     }
 
     async clearPartner() {
@@ -419,11 +420,11 @@ export class BpmnEditorAction extends Component {
     }
 
     async onSelectProject(option) {
-        this.state.projectId = option.id;
+        this.state.projectId = option.resId;
         this.state.projectName = option.label;
-        await this._writeField("project_id", option.id);
+        await this._writeField("project_id", option.resId);
         // 有專案 → 客戶＝專案客戶（後端已強制），讀回反映到畫面（專案無客戶則清空）。
-        await this._refreshPartnerFromProject(option.id);
+        await this._refreshPartnerFromProject(option.resId);
     }
 
     /** 從專案帶出客戶到本地狀態（顯示用；資料庫值由後端 write 強制一致）。 */

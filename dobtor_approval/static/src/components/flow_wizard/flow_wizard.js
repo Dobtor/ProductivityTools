@@ -158,7 +158,8 @@ export class FlowWizardDialog extends Component {
             operator: "ilike",
             limit: 8,
         });
-        return pairs.map(([id, label]) => ({ id, label, cssClass: "" }));
+        // ★ 記錄 id 放 resId：Odoo 18 AutoComplete 會把 option.id 蓋成內部流水號。
+        return pairs.map(([id, label]) => ({ resId: id, label, cssClass: "" }));
     }
 
     get jobSources() {
@@ -172,18 +173,18 @@ export class FlowWizardDialog extends Component {
     }
 
     onPickJob(step, option) {
-        step.job = { id: option.id, name: option.label };
+        step.job = { id: option.resId, name: option.label };
     }
     onPickUser(step, option) {
-        if (!step.users.some((u) => u.id === option.id)) {
-            step.users.push({ id: option.id, name: option.label });
+        if (!step.users.some((u) => u.id === option.resId)) {
+            step.users.push({ id: option.resId, name: option.label });
         }
     }
     removeUser(step, id) {
         step.users = step.users.filter((u) => u.id !== id);
     }
     onPickApplicant(option) {
-        this.state.preview.applicant = { id: option.id, name: option.label };
+        this.state.preview.applicant = { id: option.resId, name: option.label };
     }
 
     // ==============================

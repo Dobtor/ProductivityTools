@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Approval (BPM 簽核引擎)',
-    'version': '18.0.1.4.0',
+    'version': '18.0.1.4.1',
     'category': 'Productivity',
     'summary': '台灣 BPM 簽核引擎：角色解析、Action 介入、token 執行、mail.activity 橋接、加簽/代理（T0–T6 能力開關）',
     'description': """

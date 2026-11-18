@@ -102,7 +102,9 @@ export class MindmapProjectBar extends Component {
                     } catch (e) {
                         results = [];
                     }
-                    let options = results.map(([id, name]) => ({ label: name, id }));
+                    // ★ 記錄 id 放在 resId：Odoo 18 AutoComplete.makeOption 會把 option.id 蓋成內部流水號，
+                    //   讀 option.id 會寫入不相干的記錄（例：選 A 專案卻連到 id 恰好等於流水號的 B 專案）。
+                    let options = results.map(([id, name]) => ({ label: name, resId: id }));
                     if (model === "project.project" && options.length) {
                         options = await this._markLinkedProjects(options);
                     }
@@ -122,7 +124,7 @@ export class MindmapProjectBar extends Component {
             links = await this.orm.searchRead(
                 "xmind.workbook",
                 [
-                    ["project_id", "in", options.map((o) => o.id)],
+                    ["project_id", "in", options.map((o) => o.resId)],
                     ["id", "!=", this.workbookId],
                 ],
                 ["project_id", "name"],
@@ -136,8 +138,8 @@ export class MindmapProjectBar extends Component {
             byProject[wb.project_id[0]] = wb.name;
         }
         return options.map((o) =>
-            byProject[o.id]
-                ? { ...o, label: _t("%(project)s (linked to mind map: %(map)s)", { project: o.label, map: byProject[o.id] }) }
+            byProject[o.resId]
+                ? { ...o, label: _t("%(project)s (linked to mind map: %(map)s)", { project: o.label, map: byProject[o.resId] }) }
                 : o
         );
     }
@@ -184,9 +186,9 @@ export class MindmapProjectBar extends Component {
         if (this.state.projectId) {
             return;
         }
-        this.state.partnerId = option.id;
+        this.state.partnerId = option.resId;
         this.state.partnerName = option.label;
-        await this._writeField("partner_id", option.id);
+        await this._writeField("partner_id", option.resId);
     }
 
     async clearPartner() {
@@ -201,20 +203,20 @@ export class MindmapProjectBar extends Component {
     async onSelectProject(option) {
         const prevId = this.state.projectId;
         const prevName = this.state.projectName;
-        this.state.projectId = option.id;
+        this.state.projectId = option.resId;
         this.state.projectName = option.label;
-        if (!(await this._writeField("project_id", option.id))) {
+        if (!(await this._writeField("project_id", option.resId))) {
             // 寫入失敗（例如專案已連到別張心智圖）→ 畫面回到原本的專案，不要顯示成已連結。
             this.state.projectId = prevId;
             this.state.projectName = prevName;
             return;
         }
-        const [proj] = await this.orm.read("project.project", [option.id], ["display_name"]).catch(() => [null]);
+        const [proj] = await this.orm.read("project.project", [option.resId], ["display_name"]).catch(() => [null]);
         if (proj) {
             this.state.projectName = proj.display_name;
         }
         // 有專案 → 客戶＝專案客戶（後端已強制），讀回反映到畫面（專案無客戶則清空）。
-        await this._refreshPartnerFromProject(option.id);
+        await this._refreshPartnerFromProject(option.resId);
         this._notifyParent();
     }
 

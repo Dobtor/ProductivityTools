@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor Mind Map',
-    'version': '18.0.3.2.1',
+    'version': '18.0.3.2.2',
     'category': 'Productivity',
     'summary': 'Visual Mind Map Editor',
     'description': '''
