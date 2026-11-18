@@ -413,15 +413,19 @@ class TestPortAndDbName(unittest.TestCase):
 class TestTomlAndSnapshot(Sandbox):
     def test_toml_subset_matches_files(self):
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        for f in ('targets.toml', 'prod_overrides.toml'):
-            data = pv.parse_toml_subset(open(os.path.join(here, f), encoding='utf-8').read())
-            self.assertTrue(data)
+        data = pv.parse_toml_subset(open(os.path.join(here, 'targets.toml'), encoding='utf-8').read())
+        self.assertTrue(data)
         t = pv.parse_toml_subset(open(os.path.join(here, 'targets.toml'), encoding='utf-8').read())
         names = [x['name'] for x in t['target']]
-        self.assertEqual(names, ['admin.corpaas.com', 'admin.dobtor.com', 'demo-accounting'])
+        # 目標會持續增加：只釘住前三個的順序，並要求名稱不重複
+        self.assertEqual(names[:3], ['admin.corpaas.com', 'admin.dobtor.com', 'demo-accounting'])
+        self.assertEqual(len(names), len(set(names)))
         self.assertEqual(t['target'][0]['pause_crons'][0], 'dobtor_infrastructure.ir_cron_queue')
+        # 替代清單可以是空的（推翻條件成立就刪）；有的話每筆都要寫齊必填欄位
         o = pv.parse_toml_subset(open(os.path.join(here, 'prod_overrides.toml'), encoding='utf-8').read())
-        self.assertEqual(o['override'][0]['repo'], 'website-user')
+        for ov in o.get('override', []):
+            for k in ('target', 'repo', 'replace_with', 'reason', 'registered', 'revoke_when'):
+                self.assertTrue(ov.get(k), (k, ov))
 
     def test_load_snapshot_dir_variants(self):
         d = os.path.join(self.tmp, 'snap')

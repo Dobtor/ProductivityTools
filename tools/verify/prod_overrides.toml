@@ -5,11 +5,5 @@
 #   replace_with 本機路徑
 #   branch       本機路徑應該在的分支（不符只警告）
 
-[[override]]
-target = "admin.corpaas.com"
-repo = "website-user"
-replace_with = "~/Documents/GitHub/website-user"
-branch = "dev-18.0"
-reason = "整套原碼全新安裝時 dobtor_topup_sale 的 wallet_btn_payment_topup 找不到 wallet_pay_form"
-registered = "2026-11-03"
-revoke_when = "正式機 website-user 更新後"
+# （目前沒有替代。2026-11-19 刪除 website-user：admin.corpaas.com 的 website-user 已更新到 dev-18.0，
+#   dobtor_topup_sale 2.2.0 改掛 wallet_pay_box，推翻條件成立。）
