@@ -4,6 +4,9 @@
 每個操作都要斷言：專案任務（id、專案、父任務、狀態、階段、名稱、啟用）一筆都沒變。
 """
 import base64
+import io
+import json
+import zipfile
 
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
@@ -216,7 +219,7 @@ class TestSubSheetOps(TransactionCase):
             d['wb'].move_topics_to_sheet([d['a'].id], sub.id, d['a1'].id)
         self.assertEqual(self._task_snapshot(d['wb']), before)
 
-    def test_badge(self):
+    def test_badge_and_open_from_task(self):
         d = self._make()
         sub = self.Sheet.browse(
             d['wb'].action_create_sub_sheets([d['a'].id], 'split')['created'][0])
@@ -232,3 +235,66 @@ class TestSubSheetOps(TransactionCase):
         self.assertEqual(badge['progress'], round(40 / 3))   # 三顆都連了任務，只有 A2 有進度
         node_a = next(c for c in data['data']['children'] if c['id'] == d['a'].component_id)
         self.assertEqual(node_a['data']['subSheet']['id'], sub.id)
+        action = d['a2a'].task_id.action_open_in_mindmap()
+        self.assertEqual(action['params'], {
+            'workbook_id': d['wb'].id, 'sheet_id': sub.id,
+            'topic_component_id': d['a2a'].component_id})
+
+    # ----- .xmind 往返 -----
+    def test_xmind_round_trip_keeps_sheet_roles(self):
+        d = self._make(sync=False)
+        d['a'].hyperlink = 'https://example.com/a'
+        sub = self.Sheet.browse(
+            d['wb'].action_create_sub_sheets([d['a'].id], 'split')['created'][0])
+        sub_child = d['a1']
+        sub2 = self.Sheet.browse(
+            d['wb'].action_create_sub_sheets([sub_child.id], 'extend')['created'][0])
+        self.Topic.create({'sheet_id': sub2.id, 'title': 'deep',
+                           'parent_id': sub2._get_root_topic().id})
+        idea = self.Sheet.create({'workbook_id': d['wb'].id, 'name': 'Idea', 'sequence': 99})
+        self.Topic.create({'sheet_id': idea.id, 'title': 'Idea root'})
+
+        content = d['wb']._generate_xmind_content()
+        by_title = {s['title']: s for s in content}
+        self.assertEqual(by_title['A']['dobtor:sheetRole'], 'sub')
+        node_a = next(c for c in by_title['Main']['rootTopic']['children']['attached']
+                      if c['title'] == 'A')
+        self.assertEqual(node_a['href'], 'xmind:#' + sub.component_id)
+        self.assertEqual(node_a['dobtor:hyperlink'], 'https://example.com/a')
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('content.json', json.dumps(content))
+        target = self.Workbook.create({'name': 'RT', 'xmind_file': base64.b64encode(buf.getvalue()),
+                                       'xmind_filename': 'rt.xmind'})
+        target.import_xmind_file()
+        roles = {s.name: s.sheet_role for s in target.sheet_ids}
+        self.assertEqual(roles, {'Main': 'main', 'A': 'sub', 'A1': 'sub', 'Idea': 'idea'})
+        t_sub = target.sheet_ids.filtered(lambda s: s.name == 'A')
+        self.assertEqual(t_sub.anchor_topic_id.title, 'A')
+        self.assertEqual(t_sub.anchor_topic_id.sheet_id.sheet_role, 'main')
+        self.assertEqual(t_sub.anchor_topic_id.hyperlink, 'https://example.com/a')
+        t_sub2 = target.sheet_ids.filtered(lambda s: s.name == 'A1')
+        self.assertEqual(t_sub2.parent_sheet_id, t_sub)
+        self.assertFalse(t_sub2.anchor_topic_id.hyperlink)
+
+    def test_xmind_import_without_roles_falls_back(self):
+        """一般 XMind 檔：分頁連結指到的分頁成為子圖，其餘發想頁；壞連結保留成超連結。"""
+        content = [
+            {'id': 's1', 'title': 'One', 'rootTopic': {'id': 'r1', 'title': 'R', 'children': {
+                'attached': [{'id': 't1', 'title': 'T', 'href': 'xmind:#s2'},
+                             {'id': 't2', 'title': 'U', 'href': 'xmind:#missing'}]}}},
+            {'id': 's2', 'title': 'Two', 'rootTopic': {'id': 'r2', 'title': 'T'}},
+            {'id': 's3', 'title': 'Three', 'rootTopic': {'id': 'r3', 'title': 'Z',
+                                                         'href': 'xmind:#s1'}},
+        ]
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('content.json', json.dumps(content))
+        wb = self.Workbook.create({'name': 'Plain', 'xmind_file': base64.b64encode(buf.getvalue())})
+        wb.import_xmind_file()
+        roles = {s.name: s.sheet_role for s in wb.sheet_ids}
+        # Three 的中心主題指向主圖 → 主圖不能變子圖，維持原狀
+        self.assertEqual(roles, {'One': 'main', 'Two': 'sub', 'Three': 'idea'})
+        u = wb.sheet_ids.topic_ids.filtered(lambda t: t.title == 'U')
+        self.assertEqual(u.hyperlink, 'xmind:#missing')

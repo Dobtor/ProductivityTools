@@ -1365,11 +1365,13 @@ class XMindWorkbook(models.Model):
                 continue
             ctx = self._build_export_context(sheet)
             sheet_data = {
-                'id': sheet.component_id or str(uuid.uuid4()),
+                'id': self._export_sheet_id(sheet),
                 'class': 'sheet',
                 'title': sheet.name,
                 'rootTopic': self._topic_to_xmind(root_topic[0], ctx),
                 'relationships': self._relationships_to_xmind(sheet),
+                # XMind 不認得的鍵會被忽略；本模組匯入時用它還原主圖／子圖／發想頁
+                self._XMIND_ROLE_KEY: sheet.sheet_role,
             }
             if sheet.theme:
                 sheet_data['theme'] = {'id': sheet.theme}
@@ -1398,7 +1400,12 @@ class XMindWorkbook(models.Model):
             summaries_by_parent.setdefault(parent.id, self.env['xmind.summary'])
             summaries_by_parent[parent.id] |= s
         floating = {ft.component_id: ft for ft in sheet.floating_topic_ids if ft.component_id}
+        # 錨點 → 子圖：匯出成 XMind 的分頁連結（topic href = xmind:#<分頁 id>）
+        anchors = {sub.anchor_topic_id.id: self._export_sheet_id(sub)
+                   for sub in self.env['xmind.sheet'].search([
+                       ('sheet_role', '=', 'sub'), ('anchor_topic_id.sheet_id', '=', sheet.id)])}
         return {
+            'anchors': anchors,
             'boundaries_by_parent': boundaries_by_parent,
             'summaries_by_parent': summaries_by_parent,
             'floating': floating,
@@ -1473,6 +1480,12 @@ class XMindWorkbook(models.Model):
             xmind_topic['href'] = topic.hyperlink
         if topic.hyperlink_title:
             xmind_topic['hrefTitle'] = topic.hyperlink_title
+        sub_link = ctx.get('anchors', {}).get(topic.id)
+        if sub_link:
+            # 一顆主題只有一個 href：子圖連結優先，原本的超連結另存在自訂鍵
+            if topic.hyperlink:
+                xmind_topic[self._XMIND_HREF_KEY] = topic.hyperlink
+            xmind_topic['href'] = 'xmind:#' + sub_link
         if topic.numbering and topic.numbering != 'none':
             xmind_topic['numbering'] = topic.numbering
         if topic.is_summary_node:
@@ -1637,8 +1650,10 @@ class XMindWorkbook(models.Model):
                     self.sheet_ids.unlink()
 
                     # Import sheets
+                    imported = []
                     for sheet_data in content:
-                        self._import_xmind_sheet(sheet_data)
+                        imported.append((sheet_data, self._import_xmind_sheet(sheet_data)))
+                    self._restore_sheet_roles(imported)
 
                 elif 'content.xml' in file_list:
                     # Old XMind XML format (XMind 7 and earlier)

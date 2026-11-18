@@ -3,6 +3,20 @@
 
     <t t-name="dobtor_xmind.PickerDialog">
         <Dialog title="title" size="'md'">
+            <div t-if="state.picked" class="o_xmind_picker_sheets">
+                <div class="fw-bold mb-2">
+                    <i class="fa fa-sitemap text-primary me-1"/><t t-esc="state.picked.name"/>
+                </div>
+                <label class="form-label" for="o_xmind_picker_sheet_select" t-esc="sheetStepLabel"/>
+                <select class="form-select" id="o_xmind_picker_sheet_select"
+                        t-on-change="onSheetSelect">
+                    <option t-foreach="state.sheets" t-as="sheet" t-key="sheet.id"
+                            t-att-value="sheet.id" t-att-selected="sheet.id === state.sheetId">
+                        <t t-esc="sheetLabel(sheet)"/>
+                    </option>
+                </select>
+            </div>
+            <t t-else="">
             <div class="mb-2">
                 <input type="text" class="form-control"
                        placeholder="Search mind map names…"
@@ -26,7 +40,15 @@
                           t-esc="subtitle(wb)"/>
                 </button>
             </div>
+            </t>
             <t t-set-slot="footer">
+                <button t-if="state.picked" class="btn btn-primary o_xmind_picker_insert"
+                        t-on-click="onInsertSheet">
+                    Insert
+                </button>
+                <button t-if="state.picked" class="btn btn-secondary" t-on-click="onBack">
+                    Back
+                </button>
                 <button class="btn btn-secondary" t-on-click="() => this.props.close()">
                     Cancel
                 </button>

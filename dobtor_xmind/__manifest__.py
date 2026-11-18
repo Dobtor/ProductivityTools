@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Dobtor Mind Map',
-    'version': '18.0.4.0.0',
+    'version': '18.0.4.1.0',
     'category': 'Productivity',
     'summary': 'Visual Mind Map Editor',
     'description': '''
@@ -64,6 +64,8 @@
             # Gantt toolbar integration (dobtor_project) — create/open mind map.
             'dobtor_xmind/static/src/js/gantt_mindmap_button.js',
             'dobtor_xmind/static/src/xml/gantt_mindmap_button.xml',
+            # Gantt task right-click "Open in Mind Map".
+            'dobtor_xmind/static/src/js/gantt_open_in_mindmap.js',
             # HTML editor "/" power-box — insert an existing mind map live into any
             # model's rich-text field.
             'dobtor_xmind/static/src/editor/xmind_picker_dialog.js',

@@ -11,8 +11,12 @@
 - 子圖規則（同一本、非中心主題、不成環、最多三層）由 xmind.sheet 的約束兜底；
   這裡先做一次預檢，給看得懂的訊息。
 """
+import logging
+
 from odoo import models, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class XMindWorkbookSubSheets(models.Model):
@@ -406,3 +410,79 @@ class XMindWorkbookSubSheets(models.Model):
                 'sheet or a sub sheet, and sub sheets can be nested at most %s levels.', max_depth))
         dropped = self._move_subtrees(tops, target_sheet, parent)
         return {'moved': len(subtree), 'target_sheet_id': target_sheet.id, 'dropped': dropped}
+
+    # ------------------------------------------------------------------
+    # .xmind 匯出／匯入：分頁角色與子圖連結
+    # ------------------------------------------------------------------
+    #: 分頁上的自訂鍵（XMind 會忽略）：main / sub / idea
+    _XMIND_ROLE_KEY = 'dobtor:sheetRole'
+    #: 錨點主題原本的超連結（href 被子圖連結佔用時另存）
+    _XMIND_HREF_KEY = 'dobtor:hyperlink'
+    _XMIND_SHEET_LINK = 'xmind:#'
+
+    def _export_sheet_id(self, sheet):
+        """分頁在 .xmind 裡的 id（子圖連結 xmind:#<id> 指向它，所以要穩定）。"""
+        return sheet.component_id or 'sheet-%d' % sheet.id
+
+    def _restore_sheet_roles(self, imported):
+        """匯入後依「主題 href = xmind:#<分頁 id>」把分頁還原成子圖。
+
+        :param imported: [(sheet_data, xmind.sheet)]，依檔案順序
+        規則：
+        - 主圖：自訂鍵標成 main 的那張，沒有就是第一張（建立時已自動成為主圖）；
+        - 子圖：被某顆（主圖或子圖上的）主題以分頁連結指到的分頁，由主圖往下逐層
+          還原；違反子圖規則（中心主題、超過三層、成環）就留作發想頁；
+        - 其他（沒被連到的）一律是發想頁。
+        錨點主題的超連結還原成匯出前的值（自訂鍵），沒有就清空。
+        """
+        if not imported:
+            return
+        Topic = self.env['xmind.topic']
+        by_cid = {}
+        for data, sheet in imported:
+            if data.get('id'):
+                by_cid.setdefault(data['id'], sheet)
+
+        links = []   # (source sheet, topic component_id, target sheet, original href)
+        for data, sheet in imported:
+            stack = [data.get('rootTopic') or {}]
+            while stack:
+                node = stack.pop()
+                href = node.get('href') or ''
+                if href.startswith(self._XMIND_SHEET_LINK):
+                    target = by_cid.get(href[len(self._XMIND_SHEET_LINK):])
+                    if target and target != sheet and node.get('id'):
+                        links.append((sheet, node['id'], target, node.get(self._XMIND_HREF_KEY) or ''))
+                children = node.get('children') or {}
+                for key in ('attached', 'detached'):
+                    stack.extend(children.get(key) or [])
+
+        declared_main = next((sheet for data, sheet in imported
+                              if data.get(self._XMIND_ROLE_KEY) == 'main'), None)
+        if declared_main and declared_main.sheet_role != 'main':
+            try:
+                with self.env.cr.savepoint():
+                    declared_main._set_as_main()
+            except (UserError, ValidationError):
+                _logger.info('xmind import: could not restore main sheet %s', declared_main.id)
+
+        anchors = {}   # target sheet id -> (anchor topic, original href)
+        for source, cid, target, original in links:
+            topic = Topic.search([('sheet_id', '=', source.id), ('component_id', '=', cid)], limit=1)
+            if topic:
+                anchors.setdefault(target.id, (topic, target, original))
+
+        progress = True
+        while progress and anchors:
+            progress = False
+            for target_id, (topic, target, original) in list(anchors.items()):
+                if topic.sheet_id.sheet_role not in ('main', 'sub') or target.sheet_role != 'idea':
+                    continue
+                del anchors[target_id]
+                progress = True
+                try:
+                    with self.env.cr.savepoint():
+                        target.write({'sheet_role': 'sub', 'anchor_topic_id': topic.id})
+                        topic.hyperlink = original or False
+                except (UserError, ValidationError) as e:
+                    _logger.info('xmind import: sheet %s kept as idea sheet: %s', target.name, e)

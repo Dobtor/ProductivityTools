@@ -54,11 +54,11 @@ export class XmindPowerboxPlugin extends Plugin {
         // Remember the cursor: opening the dialog moves focus away from the editor.
         const selection = this.dependencies.selection.getEditableSelection();
         this.services.dialog.add(XmindPickerDialog, {
-            onSelect: (workbookId) => this.insertMindmap(workbookId, selection),
+            onSelect: (workbookId, sheetId) => this.insertMindmap(workbookId, selection, sheetId),
         });
     }
 
-    insertMindmap(workbookId, selection) {
+    insertMindmap(workbookId, selection, sheetId = false) {
         try {
             this.dependencies.selection.setSelection(selection);
         } catch (e) {
@@ -71,6 +71,7 @@ export class XmindPowerboxPlugin extends Plugin {
         const block = renderToElement("dobtor_xmind.MindmapBlueprint", {
             embeddedProps: JSON.stringify({
                 workbookId,
+                sheetId: sheetId || false,
                 resModel: resModel || false,
                 resId: resIdNum,
             }),

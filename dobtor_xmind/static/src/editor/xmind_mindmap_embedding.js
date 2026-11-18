@@ -4,7 +4,8 @@
  * Live, read-only mind map embedded inside another model's HTML field.
  *
  * Inserted by the "/" power-box command "插入心智圖"; data-embedded="xmindMindmap".
- * The block persists only { workbookId, resModel, resId }. It mounts the FULL
+ * The block persists only { workbookId, sheetId, resModel, resId } (sheetId: the
+ * sheet to show; missing/false or a sheet that no longer exists → the main sheet). It mounts the FULL
  * MindmapEditor component in read-only mode, so the map is rendered through the
  * exact same pipeline as the real editor — faithful theme, layout, node styling,
  * markers, labels, images, floating topics, AND overlays (relationships,
@@ -27,6 +28,7 @@ export class EmbeddedXmindMindmap extends Component {
     static props = {
         host: { type: Object },
         workbookId: { type: [Number, Boolean], optional: true },
+        sheetId: { type: [Number, Boolean], optional: true },
         resModel: { type: [String, Boolean], optional: true },
         resId: { type: [Number, Boolean], optional: true },
     };
@@ -61,7 +63,7 @@ export class EmbeddedXmindMindmap extends Component {
 
     /** Props for the read-only MindmapEditor sub-component. */
     get editorProps() {
-        return { workbookId: this.workbookId, readonly: true };
+        return { workbookId: this.workbookId, sheetId: this.props.sheetId || false, readonly: true };
     }
 
     /** Register the whole-workbook ↔ host-record association (idempotent). */
@@ -94,7 +96,7 @@ export class EmbeddedXmindMindmap extends Component {
         this.action.doAction({
             type: "ir.actions.client",
             tag: "dobtor_xmind.mindmap_editor",
-            params: { workbook_id: this.workbookId },
+            params: { workbook_id: this.workbookId, sheet_id: this.props.sheetId || false },
             target: "current",
         });
     }
