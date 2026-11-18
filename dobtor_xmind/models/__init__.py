@@ -11,3 +11,4 @@ from . import xmind_boundary
 from . import xmind_revision
 from . import project_project
 from . import project_task
+from . import xmind_sub_sheet_ops

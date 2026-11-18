@@ -25,18 +25,29 @@ class MindMapController(http.Controller):
         return workbook
 
     @http.route('/xmind/workbook/<int:workbook_id>/data', type='json', auth='user')
-    def get_workbook_data(self, workbook_id, **kwargs):
-        """Get mindmap data for visual editor"""
+    def get_workbook_data(self, workbook_id, sheet_id=None, **kwargs):
+        """Get mindmap data for visual editor.
+
+        開啟時顯示的分頁：``sheet_id``（屬於這本才算）→ 主圖 → 第一張。
+        以前一律取 sequence 最小的那張；有了主圖／子圖之後，開圖應該落在主圖。
+        """
         workbook = self._check_workbook_access(workbook_id, 'read')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
-        first_sheet = workbook.sheet_ids[:1]
+        first_sheet = request.env['xmind.sheet']
+        if sheet_id:
+            first_sheet = workbook.sheet_ids.filtered(lambda s: s.id == int(sheet_id))[:1]
+        if not first_sheet and workbook.sheet_ids:
+            first_sheet = workbook._get_main_sheet()
+        if first_sheet:
+            mindmap_data = self._sheet_mindmap_data(workbook, first_sheet)
+        else:
+            mindmap_data = workbook.get_mindmap_data()
         return {
             'id': workbook.id,
             'name': workbook.name,
-            'mindmap_data': workbook.get_mindmap_data(),
-            # 編輯器開啟時顯示第一張分頁（get_mindmap_data 亦然），
+            'mindmap_data': mindmap_data,
             # 特徵層必須取同一張，否則畫面上的關聯線/外框會屬於別張。
             'sheet_settings': self._get_sheet_settings(first_sheet),
             'relationships': self._get_relationships(first_sheet),
@@ -64,6 +75,54 @@ class MindMapController(http.Controller):
             'sheet_id': first_sheet.id or False,
             'digest': first_sheet._content_digest() if first_sheet else '',
         }
+
+    def _sheet_mindmap_data(self, workbook, sheet):
+        """一張分頁的 jsMind 樹：子圖代理中心主題、錨點徽章都在這裡加上。"""
+        root = sheet._get_root_topic()
+        if root:
+            ft_cids = set(sheet.floating_topic_ids.mapped('component_id'))
+            data = self._apply_proxy_root(sheet, workbook._topic_to_jsmind(root, ft_cids=ft_cids))
+            self._annotate_sub_sheets(sheet, data)
+        else:
+            data = {'id': 'root', 'topic': sheet.name, 'expanded': True, 'children': [], 'data': {}}
+        return {
+            'meta': {'name': sheet.name, 'author': workbook.creator or '', 'version': '1.0'},
+            'format': 'node_tree',
+            'data': data,
+        }
+
+    def _sub_sheet_badge(self, sub):
+        """錨點徽章：子圖（含更深層子圖）的主題數與有任務資訊主題的平均進度。"""
+        Sheet = request.env['xmind.sheet']
+        sheets, frontier = sub, sub
+        while frontier:
+            frontier = Sheet.search([('sheet_role', '=', 'sub'),
+                                     ('anchor_topic_id.sheet_id', 'in', frontier.ids),
+                                     ('id', 'not in', sheets.ids)])
+            sheets |= frontier
+        topics = request.env['xmind.topic'].search([
+            ('sheet_id', 'in', sheets.ids), ('parent_id', '!=', False),
+            ('is_summary_node', '=', False)])
+        tracked = topics.filtered(lambda t: t.has_task or t.task_id)
+        progress = (round(sum(tracked.mapped('task_progress')) / len(tracked))
+                    if tracked else None)
+        return {'id': sub.id, 'name': sub.name, 'count': len(topics), 'progress': progress}
+
+    def _annotate_sub_sheets(self, sheet, root_node):
+        """在錨點節點的 data 加上 subSheet（徽章資料，前端點了就切到那張）。"""
+        subs = request.env['xmind.sheet'].search([
+            ('sheet_role', '=', 'sub'), ('anchor_topic_id.sheet_id', '=', sheet.id)])
+        if not subs or not isinstance(root_node, dict):
+            return root_node
+        info = {s.anchor_topic_id.component_id: self._sub_sheet_badge(s) for s in subs}
+        stack = [root_node]
+        while stack:
+            node = stack.pop()
+            badge = info.get(node.get('id'))
+            if badge:
+                node.setdefault('data', {})['subSheet'] = badge
+            stack.extend(node.get('children') or [])
+        return root_node
 
     def _get_sheet_meta(self, sheet):
         """分頁角色資訊（主圖／子圖／發想頁），供編輯器分頁列使用。"""
@@ -465,19 +524,7 @@ class MindMapController(http.Controller):
         if not workbook or not sheet.exists() or sheet.workbook_id.id != workbook_id:
             return {'error': 'Sheet not found or access denied'}
 
-        root = sheet.topic_ids.filtered(lambda t: not t.parent_id)[:1]
-        if root:
-            mindmap_data = {
-                'meta': {'name': sheet.name, 'author': '', 'version': '1.0'},
-                'format': 'node_tree',
-                'data': self._apply_proxy_root(sheet, workbook._topic_to_jsmind(root)),
-            }
-        else:
-            mindmap_data = {
-                'meta': {'name': sheet.name, 'author': '', 'version': '1.0'},
-                'format': 'node_tree',
-                'data': {'id': 'root', 'topic': sheet.name, 'expanded': True, 'children': [], 'data': {}},
-            }
+        mindmap_data = self._sheet_mindmap_data(workbook, sheet)
         # 特徵層必須跟著分頁一起回傳。少了它們，切換分頁後畫布換成新分頁的樹，
         # 但前端記憶體裡仍是「上一張」的關聯線／外框／總結／標註／浮動主題，
         # 會被重新畫上去，而且下一次存檔就寫進新分頁 —— 跨分頁污染。

@@ -63,6 +63,13 @@
                         <a class="dropdown-item o_mindmap_btn_callout" href="#" t-on-click="onAddCallout">
                             <i class="fa fa-comment text-warning"/> Callout
                         </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item o_mindmap_btn_sub_sheet" href="#" t-on-click.prevent="() => this.onCreateSubSheets()">
+                            <i class="fa fa-clone"/> Create Sub Mind Map
+                        </a>
+                        <a class="dropdown-item o_mindmap_btn_move_sheet" href="#" t-on-click.prevent="() => this.onMoveToSheet()">
+                            <i class="fa fa-share-square-o"/> Move to Sheet…
+                        </a>
                     </div>
                 </div>
 
@@ -475,6 +482,10 @@
                         <a class="dropdown-item" href="#" t-on-click.prevent="onAddSummary">
                             <i class="fa fa-indent text-primary"/> Summary
                         </a>
+                        <div class="dropdown-divider"></div>
+                        <a class="dropdown-item" href="#" t-on-click.prevent="() => this.onCreateSubSheets()">
+                            <i class="fa fa-clone text-primary"/> Create Sub Mind Map
+                        </a>
                     </div>
                 </div>
 
@@ -762,16 +773,29 @@
             <!-- Canvas -->
             <div class="o_mindmap_canvas" t-ref="canvas">
                 <div id="jsmind_container" t-ref="jsmindContainer" style="width:100%;height:100%;"/>
+                <!-- 子心智圖麵包屑：主分頁 › … › 本分頁（點上層＝切回並選取錨點） -->
+                <nav t-if="sheetBreadcrumb.length" class="o_xmind_sheet_breadcrumb">
+                    <t t-foreach="sheetBreadcrumb" t-as="crumb" t-key="crumb.id">
+                        <span t-if="!crumb_first" class="o_xmind_crumb_sep">›</span>
+                        <a t-if="!crumb_last" href="#" class="o_xmind_crumb"
+                           t-on-click.prevent="() => this.onBreadcrumbClick(crumb_index)"
+                           t-esc="crumb.name"/>
+                        <span t-else="" class="o_xmind_crumb o_xmind_crumb_current" t-esc="crumb.name"/>
+                    </t>
+                </nav>
             </div>
 
             <!-- 分頁列（讀寫模式才有；唯讀的內嵌心智圖不顯示分頁） -->
             <MindmapSheetTabs t-if="!readonly"
-                              sheets="sheetState.sheets"
+                              sheets="orderedSheets"
                               currentId="sheetState.currentId"
+                              projectLocked="sheetState.projectLocked"
                               onSwitch.bind="onSwitchSheet"
                               onRename.bind="onRenameSheet"
                               onDelete.bind="onDeleteSheet"
-                              onAdd.bind="onAddSheet"/>
+                              onAdd.bind="onAddSheet"
+                              onMerge.bind="onMergeSheet"
+                              onAttach.bind="onAttachSheet"/>
 
             <!-- Status Bar -->
             <div class="o_mindmap_statusbar" t-if="!readonly">

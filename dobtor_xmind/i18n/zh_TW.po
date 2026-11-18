@@ -562,7 +562,9 @@ msgid "Can see and manage all mind maps."
 msgstr "可檢視並管理所有心智圖。"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_xmind_import_wizard_form
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
 msgid "Cancel"
 msgstr "取消"
 
@@ -940,7 +942,9 @@ msgid "Default"
 msgstr "預設"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_xmind_workbook_kanban
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
 msgid "Delete"
 msgstr "刪除"
 
@@ -2558,11 +2562,13 @@ msgid "Shape Type"
 msgstr "形狀類型"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_boundary__sheet_id
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_floating_topic__sheet_id
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_relationship__sheet_id
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_summary__sheet_id
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_topic__sheet_id
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
 msgid "Sheet"
 msgstr "工作表"
 
@@ -2947,10 +2953,12 @@ msgid "Tools"
 msgstr "工具"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #. odoo-python
 #: code:addons/dobtor_xmind/models/xmind_workbook.py:0
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_attachment__topic_id
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_topic_marker__topic_id
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
 msgid "Topic"
 msgstr "主題"
 
@@ -7892,8 +7900,10 @@ msgid "Sheet Role"
 msgstr "分頁角色"
 
 #. module: dobtor_xmind
+#. odoo-python
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_topic__sub_sheet_id
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__sheet_role__sub
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
 msgid "Sub Sheet"
 msgstr "子圖"
 
@@ -8022,3 +8032,446 @@ msgid ""
 msgstr ""
 "解鎖會移除這張心智圖與專案的連結。\n"
 "                    任何任務都不會被搬到別的專案。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s items"
+msgstr "%s 項"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s relationship/boundary/summary item(s) crossing the sheet border were removed."
+msgstr "跨越分頁邊界的關聯線／外框／總結 %s 筆已移除。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s sub sheet(s) created — undo history cleared (this cannot be undone with Ctrl+Z)."
+msgstr "已建立 %s 張子心智圖 — 復原紀錄已清空（無法用 Ctrl+Z 復原）。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s topic(s) moved to sheet “%s” — undo history cleared."
+msgstr "已將 %s 個主題移到分頁「%s」— 復原紀錄已清空。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Attach “%s” to a topic"
+msgstr "把「%s」掛到主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Attach"
+msgstr "掛上"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Could not save the current sheet — the operation was cancelled."
+msgstr "無法儲存目前分頁 — 已取消操作。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Leave the revision preview first."
+msgstr "請先離開版本預覽。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Merge"
+msgstr "合併"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Mirror of the anchor topic in the parent sheet — renaming it renames the anchor"
+msgstr "上層分頁錨點主題的代理 — 改名會同步改錨點主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Move %s topic(s) to sheet"
+msgstr "將 %s 個主題移到分頁"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Move all topics of “%s” back under topic “%s” in the parent sheet and delete this sheet? Project tasks are not changed."
+msgstr "將「%s」的所有主題搬回上層分頁的主題「%s」底下，並刪除這張分頁？專案任務不會變動。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Move"
+msgstr "移動"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_context_menu.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+msgid "Move to Sheet…"
+msgstr "移到分頁…"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_context_menu.js:0
+msgid "Open Sub Mind Map"
+msgstr "開啟子心智圖"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_context_menu.js:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sub_sheet_dialogs.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+msgid "Create Sub Mind Map"
+msgstr "建立子心智圖"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Open sub sheet: %s"
+msgstr "開啟子心智圖：%s"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Open that sheet"
+msgstr "開啟該分頁"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Operation failed."
+msgstr "操作失敗。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Reload the mind map before changing sheets."
+msgstr "請先重新載入心智圖再變更分頁。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Select one or more topics (not the central topic) first."
+msgstr "請先選取一個或多個主題（中心主題除外）。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Sheet “%s” is now a sub sheet — undo history cleared."
+msgstr "分頁「%s」已成為子心智圖 — 復原紀錄已清空。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Sheet “%s” merged into its parent — undo history cleared."
+msgstr "分頁「%s」已合併回上層 — 復原紀錄已清空。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Skipped:"
+msgstr "已略過："
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Sub sheet: %s"
+msgstr "子心智圖：%s"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "The idea sheet becomes the sub sheet of the chosen topic; its central topic will show that topic's title."
+msgstr "發想頁會成為所選主題的子心智圖，中心主題改顯示該主題的標題。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "The topics move together with their subtopics, notes, markers, attachments and task links. Project tasks are not changed."
+msgstr "主題會連同子主題、備註、標記、附件與任務連結一起搬移，專案任務不會變動。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "There is no main sheet to attach to."
+msgstr "沒有可掛上的主圖。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Topic “%s” is expanded into the sub sheet “%s”. Merge or delete that sub sheet first."
+msgstr "主題「%s」已展開成子心智圖「%s」，請先合併或刪除該子心智圖。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Topics of an idea sheet cannot be expanded. Attach the idea sheet to a topic first."
+msgstr "發想頁的主題不能展開，請先把發想頁掛到主題上。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "Attach to topic…"
+msgstr "掛到主題…"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "Merge into parent sheet"
+msgstr "合併回上層"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "Idea sheet — never synced with the project"
+msgstr "發想頁 — 不會同步到專案"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "Main sheet — synced with the project"
+msgstr "主圖 — 同步到專案"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "Sheet Tree"
+msgstr "分頁樹"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "Sub sheet of topic “%s”"
+msgstr "主題「%s」的子心智圖"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sheet_tabs.js:0
+msgid "This mind map is synced with its project: the main sheet and the project link are locked."
+msgstr "這張心智圖已與專案同步：主圖與專案連結已鎖定。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_picker_dialog.js:0
+msgid "Sheet to show"
+msgstr "要顯示的分頁"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sub_sheet_dialogs.js:0
+msgid "Already has the sheet “%s”, it will be opened"
+msgstr "已有分頁「%s」，將開啟"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_sub_sheet_dialogs.js:0
+msgid "This sheet has no topic."
+msgstr "這張分頁沒有主題。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/gantt_open_in_mindmap.js:0
+msgid "Open in Mind Map"
+msgstr "在心智圖中開啟"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
+msgid "Mode"
+msgstr "模式"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
+msgid "Extend — a new empty sheet whose central topic mirrors the topic"
+msgstr "延伸 — 新的空白分頁，中心主題就是這個主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
+msgid "Split out — move the topic's existing subtopics into the new sheet"
+msgstr "拆出 — 把這個主題現有的子主題搬到新分頁"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
+msgid "Layout"
+msgstr "版面"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/editor/xmind_picker_dialog.xml:0
+msgid "Back"
+msgstr "上一步"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Sheet %s does not belong to this mind map."
+msgstr "分頁 %s 不屬於這張心智圖。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "(untitled)"
+msgstr "（未命名）"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "a central topic cannot be expanded into a sub sheet"
+msgstr "中心主題不能展開成子心智圖"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "topics of an idea sheet cannot be expanded; attach the idea sheet first"
+msgstr "發想頁的主題不能展開，請先把發想頁掛到主題上"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "a summary topic cannot be expanded"
+msgstr "總結主題不能展開"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "a floating topic cannot be expanded"
+msgstr "浮動主題不能展開"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "sub sheets can be nested at most %s levels"
+msgstr "子心智圖最多只能有 %s 層"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Unknown mode: %s"
+msgstr "未知的模式：%s"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "topic not found (save the mind map first)"
+msgstr "找不到主題（請先儲存心智圖）"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "No sub sheet could be created:\n%s"
+msgstr "無法建立任何子心智圖：\n%s"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "Only a sub sheet can be merged into its parent sheet."
+msgstr "只有子心智圖可以合併回上層分頁。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "The central topic of sub sheet \"%s\" is linked to a task; unlink it first."
+msgstr "子心智圖「%s」的中心主題連結了任務，請先解除連結。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "Only an idea sheet can be attached to a topic."
+msgstr "只有發想頁可以掛到主題上。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "Topic not found in this mind map."
+msgstr "這張心智圖裡找不到該主題。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "An idea sheet cannot be attached to one of its own topics."
+msgstr "發想頁不能掛到自己的主題上。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Topic \"%(topic)s\" already has the sub sheet \"%(sheet)s\"."
+msgstr "主題「%(topic)s」已經有子心智圖「%(sheet)s」。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Cannot attach to \"%(topic)s\": %(reason)s"
+msgstr "無法掛到「%(topic)s」：%(reason)s"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "The target topic is not on sheet \"%s\"."
+msgstr "目標主題不在分頁「%s」上。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Sheet \"%s\" has no central topic."
+msgstr "分頁「%s」沒有中心主題。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Topic %s not found (save the mind map first)."
+msgstr "找不到主題 %s（請先儲存心智圖）。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "The central topic \"%s\" cannot be moved."
+msgstr "中心主題「%s」不能搬移。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+msgid "A topic cannot be moved under itself."
+msgstr "主題不能搬到自己底下。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "Topic \"%(topic)s\" is expanded into sheet \"%(sheet)s\"; it cannot be moved into that sheet."
+msgstr "主題「%(topic)s」已展開成分頁「%(sheet)s」，不能搬進該分頁。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_sub_sheet_ops.py:0
+#, python-format
+msgid "The moved topics contain sub sheet anchors; the target sheet must be the main sheet or a sub sheet, and sub sheets can be nested at most %s levels."
+msgstr "要搬移的主題含有子心智圖的錨點：目標分頁必須是主圖或子心智圖，且子心智圖最多 %s 層。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/project_task.py:0
+#, python-format
+msgid "Task \"%s\" is not linked to a mind map topic."
+msgstr "任務「%s」沒有連結到心智圖主題。"

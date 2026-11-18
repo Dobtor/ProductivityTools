@@ -88,6 +88,11 @@ export class MindmapContextMenu {
         menu.style.cssText = `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 10000;`;
 
         const hasChildren = node.children && node.children.length > 0;
+        // 子心智圖：發想頁的主題不能展開（要先把發想頁掛到主題上）
+        const sheetMeta = this.editor._currentSheetMeta;
+        const onIdeaSheet = !!(sheetMeta && sheetMeta.sheet_role === 'idea');
+        const subSheet = node.data && node.data.subSheet;
+        const isFloating = !!(node.data && node.data._isFloatingTopic);
 
         const items = [
             // Edit group
@@ -99,6 +104,12 @@ export class MindmapContextMenu {
             { icon: 'fa-level-up', label: _t('Topic Before (Shift+Enter)'), action: 'addBefore', disabled: isRoot },
             { icon: 'fa-outdent', label: _t('Parent Topic (Ctrl+Enter)'), action: 'addParent', disabled: isRoot },
             { icon: 'fa-comment', label: _t('Callout'), action: 'callout', disabled: false },
+            { divider: true },
+            // Sub mind maps (sheet tree)
+            subSheet
+                ? { icon: 'fa-external-link-square', label: _t('Open Sub Mind Map'), action: 'openSubSheet', disabled: false }
+                : { icon: 'fa-clone', label: _t('Create Sub Mind Map'), action: 'createSubSheet', disabled: isRoot || onIdeaSheet || isFloating },
+            { icon: 'fa-share-square-o', label: _t('Move to Sheet…'), action: 'moveToSheet', disabled: isRoot },
             { divider: true },
             // Structure elements
             { icon: 'fa-link', label: _t('Relationship'), action: 'relationship', disabled: false },
@@ -509,6 +520,18 @@ export class MindmapContextMenu {
             case 'delete':
                 this.editor.selectedNode = nodeId;
                 this.editor.onDelete();
+                break;
+            case 'createSubSheet':
+                this.editor.onCreateSubSheets(nodeId);
+                break;
+            case 'openSubSheet': {
+                const target = this.editor.jm.get_node(nodeId);
+                const info = target && target.data && target.data.subSheet;
+                if (info) this.editor._switchSheet(info.id);
+                break;
+            }
+            case 'moveToSheet':
+                this.editor.onMoveToSheet(nodeId);
                 break;
             case 'floatingAt':
                 if (originalEvent) {

@@ -14,6 +14,8 @@ import { getMindmapTemplates } from "@dobtor_xmind/js/mindmap_templates_data";
 import { MindmapPromptDialog } from "@dobtor_xmind/js/mindmap_prompt_dialog";
 import { MindmapContextMenu } from "@dobtor_xmind/js/mindmap_context_menu";
 import { MindmapSheetTabs } from "@dobtor_xmind/js/mindmap_sheet_tabs";
+import { orderSheets, sheetPath, flattenTopics } from "@dobtor_xmind/js/mindmap_sheet_tree";
+import { SubSheetCreateDialog, SheetTopicPickerDialog } from "@dobtor_xmind/js/mindmap_sub_sheet_dialogs";
 import {
     CommandStack,
     AddNodeCommand,
@@ -110,6 +112,12 @@ export class MindmapEditor extends Component {
         if (this.workbookId) {
             this.workbookId = parseInt(this.workbookId, 10) || null;
         }
+        // 開啟時要顯示的分頁／要選取的主題（甘特圖「在心智圖中開啟」、嵌入指定分頁）。
+        // 沒有就由後端決定（主圖）。
+        const params = (this.props.action && this.props.action.params) || {};
+        this._initialSheetId = parseInt(
+            (this.props && this.props.sheetId) || params.sheet_id || 0, 10) || false;
+        this._initialTopicCid = params.topic_component_id || false;
         this.jm = null;
         this.projectInfo = null;   // 連結的專案 {id,name,last_sync_direction}
         this.partnerInfo = null;   // 客戶 {id,name}
@@ -163,7 +171,7 @@ export class MindmapEditor extends Component {
         // getter/setter 轉接到這份狀態上：任何一處指派都會自動同步，不會漏。
         // currentId 用 false 而不是 null 表示「未載入」—— props 宣告是
         // [Number, Boolean]，OWL 的型別檢查不接受 null。
-        this.sheetState = useState({ sheets: [], currentId: false });
+        this.sheetState = useState({ sheets: [], currentId: false, projectLocked: false });
 
         // Drag and Drop Manager
         this.dragDropManager = null;
@@ -235,6 +243,12 @@ export class MindmapEditor extends Component {
             this._copiedStyle = null;
             this._numberingEnabled = false;
             this._updateStatus(_t('Ready'));
+            if (this._initialTopicCid) {
+                // jm.show 的版面在下一個 frame 才定案，稍等再捲動過去
+                const cid = this._initialTopicCid;
+                this._initialTopicCid = false;
+                setTimeout(() => this._focusTopic(cid), 400);
+            }
             this._registerExternalBridge();
         });
 
@@ -276,6 +290,21 @@ export class MindmapEditor extends Component {
         return this.sheetState.currentId;
     }
 
+    /** 分頁列的順序：主圖 → 子圖（樹狀）→ 發想頁。 */
+    get orderedSheets() {
+        return orderSheets(this.sheetState.sheets);
+    }
+
+    /** 子圖的麵包屑（主圖 › … › 本分頁）；不是子圖時為空陣列。 */
+    get sheetBreadcrumb() {
+        const path = sheetPath(this.sheetState.sheets, this.sheetState.currentId);
+        return path.length > 1 ? path : [];
+    }
+
+    get _currentSheetMeta() {
+        return (this.sheetState.sheets || []).find((s) => s.id === this._currentSheetId) || null;
+    }
+
     set _currentSheetId(value) {
         this.sheetState.currentId = value || false;
     }
@@ -315,7 +344,11 @@ export class MindmapEditor extends Component {
         }
 
         try {
-            const result = await rpc('/xmind/workbook/' + this.workbookId + '/data', {});
+            // 重新載入時留在目前的分頁（例如同步專案後）；第一次開啟則用指定的分頁，
+            // 都沒有時後端給主圖。
+            const result = await rpc('/xmind/workbook/' + this.workbookId + '/data', {
+                sheet_id: this._currentSheetId || this._initialSheetId || false,
+            });
             if (result.error) {
                 this._showError(result.error);
                 this.mindmapData = this._getDefaultData();
@@ -324,6 +357,10 @@ export class MindmapEditor extends Component {
                 this._baseDigest = result.digest || null;
                 this._digestSheetId = result.sheet_id || false;
                 this._firstSheetId = result.sheet_id || false;
+                if (result.sheet_id) {
+                    this._currentSheetId = result.sheet_id;
+                }
+                this.sheetState.projectLocked = !!result.project_locked;
                 this._conflict = false;
                 this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
                 this._setRecordName(result.name);
@@ -1869,23 +1906,31 @@ export class MindmapEditor extends Component {
             }
         });
 
+        // 捕獲階段：排版引擎的節點 click 會 stopPropagation（見 jsmind.js），
+        // 冒泡階段的監聽器永遠收不到 —— Ctrl/Shift 多選因此從來沒生效過。
         canvas.addEventListener('click', (e) => {
             const nodeElement = e.target.closest('.xmind-node');
-            if (nodeElement) {
+            if (nodeElement && !e.target.closest('.xmind-subsheet-badge')) {
                 const nodeId = nodeElement.getAttribute('data-nodeid');
                 const node = this.jm.get_node(nodeId);
+                if (!node) return;
                 if (e.ctrlKey || e.metaKey || this.multiSelectMode) {
                     // Fix #2: Ctrl+Click toggles individual node in multi-selection
+                    // 第一次 Ctrl+點：把原本（單選）的那顆也納入多選
+                    const current = this.selectedNode && this.jm.get_node(this.selectedNode);
+                    if (!this.selectedNodes.length && current && current.id !== node.id) {
+                        this._addNodeToSelection(current);
+                    }
                     this._toggleNodeSelection(node);
                 } else if (e.shiftKey && this.selectedNode) {
                     // Fix #2: Shift+Click selects range of siblings
                     this._selectSiblingRange(this.selectedNode, nodeId);
                 } else {
+                    // 一般點選＝單選，不畫多選外框
                     this._clearMultiSelection();
-                    this._addNodeToSelection(node);
                 }
             }
-        });
+        }, true);
     }
 
     // ===== Ctrl+Scroll / Pinch Zoom — sync zoom level display =====
@@ -2195,6 +2240,16 @@ export class MindmapEditor extends Component {
         const node = this.jm.get_node(this.selectedNode);
         if (!node || !node.parent) {
             this._showWarning(_t('Cannot delete root node'));
+            return;
+        }
+        // 展開成子心智圖的主題（或子樹裡有這種主題）不能直接刪：伺服器也會擋，
+        // 但那時已經存檔失敗，畫面與資料不一致 —— 這裡先說清楚。
+        const anchorOf = (n) => (n.data && n.data.subSheet) ? n
+            : (n.children || []).map(anchorOf).find(Boolean) || null;
+        const anchor = anchorOf(node);
+        if (anchor) {
+            this._showWarning(_t('Topic “%s” is expanded into the sub sheet “%s”. Merge or delete that sub sheet first.',
+                anchor.topic || '', anchor.data.subSheet.name || ''));
             return;
         }
 
@@ -3921,35 +3976,372 @@ export class MindmapEditor extends Component {
     }
 
     onSwitchSheet(sheetId) {
-        if (!this.workbookId || this._currentSheetId === sheetId) return;
+        return this._switchSheet(sheetId);
+    }
+
+    /**
+     * 切換分頁（先存目前分頁；存不了就留在原地）。
+     * @param {Object} [opts]
+     * @param {string} [opts.focus] 切過去之後選取並置中這顆主題（component_id）
+     * @returns {Promise<boolean>}
+     */
+    async _switchSheet(sheetId, { focus = null } = {}) {
+        if (!this.workbookId || !sheetId) return false;
+        if (this._currentSheetId === sheetId) {
+            if (focus) this._focusTopic(focus);
+            return true;
+        }
         // Save current sheet first; abort the switch if it failed so the
         // current sheet's unsaved edits are not lost by the reload.
         // 版本預覽中不存檔（畫布是舊版本），直接結束預覽再切換。
-        let saving;
-        if (this._revisionPreview) {
-            this._exitRevisionPreviewState();
-            this.commandStack.clear();
-            saving = Promise.resolve(true);
-        } else {
-            saving = this._saveData();
-        }
-        saving.then((ok) => {
-            if (ok === false) {
-                this._showError(_t('Could not save the current sheet — staying here to avoid losing changes.'));
-                return;
+        let ok;
+        try {
+            if (this._revisionPreview) {
+                this._exitRevisionPreviewState();
+                this.commandStack.clear();
+                ok = true;
+            } else {
+                ok = await this._saveData();
             }
-            const prevSheetId = this._currentSheetId;
-            this._currentSheetId = sheetId;
-            this._loadSheetIntoCanvas(sheetId).then((result) => {
-                if (result) {
-                    this._updateStatus(_t('Switched to sheet: ') + result.name);
+        } catch {
+            this._showError(_t('Failed to switch sheet.'));
+            return false;
+        }
+        if (ok === false) {
+            this._showError(_t('Could not save the current sheet — staying here to avoid losing changes.'));
+            return false;
+        }
+        return this._loadSheetAfterSave(sheetId, focus);
+    }
+
+    /** 已經存過（或不需要存）時，直接換上另一張分頁。 */
+    async _loadSheetAfterSave(sheetId, focus = null) {
+        const prevSheetId = this._currentSheetId;
+        this._currentSheetId = sheetId;
+        try {
+            const result = await this._loadSheetIntoCanvas(sheetId);
+            if (!result) {
+                throw new Error('no data');
+            }
+            this._updateStatus(_t('Switched to sheet: ') + result.name);
+            if (focus) {
+                setTimeout(() => this._focusTopic(focus), 300);
+            }
+            return true;
+        } catch {
+            // Revert so the UI doesn't sit on a sheet whose data never loaded.
+            this._currentSheetId = prevSheetId;
+            this._showError(_t('Failed to load sheet.'));
+            return false;
+        }
+    }
+
+    /** 選取並捲到一顆主題（展開它的上層）。 */
+    _focusTopic(componentId) {
+        if (!this.jm || !componentId) return false;
+        const node = this.jm.get_node(componentId);
+        if (!node) return false;
+        let parent = node.parent;
+        let expanded = false;
+        while (parent) {
+            if (!parent.expanded) {
+                this.jm.expand_node(parent);
+                expanded = true;
+            }
+            parent = parent.parent;
+        }
+        const reveal = () => {
+            this.jm.select_node(componentId);
+            this.selectedNode = componentId;
+            const el = this.jm.view.get_node_element(componentId);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                el.classList.add('xmind-focus-flash');
+                setTimeout(() => el.classList.remove('xmind-focus-flash'), 1600);
+            }
+        };
+        if (expanded) {
+            setTimeout(reveal, 150);
+        } else {
+            reveal();
+        }
+        return true;
+    }
+
+    // ===== 子心智圖 =====
+
+    /** 錨點徽章：▣ 12 項・45%（點了切到子圖；唯讀嵌入時只顯示）。 */
+    _renderSubSheetBadge(element, info) {
+        let badge = element.querySelector(':scope > .xmind-subsheet-badge');
+        if (!info) {
+            if (badge) badge.remove();
+            return;
+        }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'xmind-subsheet-badge';
+            // 不讓點擊／拖曳落到節點本身（選取、拖放、行內編輯）
+            for (const evt of ['mousedown', 'dblclick', 'pointerdown']) {
+                badge.addEventListener(evt, (ev) => ev.stopPropagation());
+            }
+            badge.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                ev.preventDefault();
+                if (!this.readonly && badge._sheetId) {
+                    this._switchSheet(badge._sheetId);
                 }
-            }).catch(() => {
-                // Revert so the UI doesn't sit on a sheet whose data never loaded.
-                this._currentSheetId = prevSheetId;
-                this._showError(_t('Failed to load sheet.'));
             });
-        }).catch(() => this._showError(_t('Failed to switch sheet.')));
+            element.appendChild(badge);
+        }
+        badge._sheetId = info.id;
+        let text = '▣ ' + _t('%s items', info.count || 0);
+        if (info.progress !== null && info.progress !== undefined) {
+            text += '・' + info.progress + '%';
+        }
+        badge.textContent = text;
+        badge.title = this.readonly
+            ? _t('Sub sheet: %s', info.name || '')
+            : _t('Open sub sheet: %s', info.name || '');
+        badge.classList.toggle('o_readonly', !!this.readonly);
+    }
+
+    /** 右鍵／工具列要處理的主題：在多選裡就用整個多選，否則只有它自己。 */
+    _subSheetTargets(nodeId) {
+        const id = nodeId || this.selectedNode;
+        const multi = (this.selectedNodes || []).map((n) => n.id || n);
+        const ids = id && multi.includes(id) ? multi : (id ? [id] : multi);
+        const nodes = [];
+        for (const nid of ids) {
+            const node = this.jm && this.jm.get_node(nid);
+            if (node && !(node.data && node.data._aiPreview) && !nodes.includes(node)) {
+                nodes.push(node);
+            }
+        }
+        return nodes;
+    }
+
+    /** 伺服器端的分頁操作前：先存檔；存不了就不做（避免伺服器改了、畫布又蓋回去）。 */
+    async _flushBeforeSheetOp() {
+        if (this._conflict || this._loadFailed) {
+            this._showError(_t('Reload the mind map before changing sheets.'));
+            return false;
+        }
+        if (this._revisionPreview) {
+            this._showWarning(_t('Leave the revision preview first.'));
+            return false;
+        }
+        const ok = await this._saveData();
+        if (ok === false) {
+            this._showError(_t('Could not save the current sheet — the operation was cancelled.'));
+            return false;
+        }
+        this.commandStack.markSaved();
+        return true;
+    }
+
+    /**
+     * 伺服器端的分頁操作（建立／合併／掛上／搬移）。這些不是畫布上的命令，
+     * 無法復原 —— 成功後清空復原堆疊，並在狀態列說明。
+     * 操作期間禁止存檔：畫布上是操作前的內容，存下去會把搬走的主題寫回來。
+     */
+    async _runSheetOp(method, args, kwargs = {}) {
+        if (!(await this._flushBeforeSheetOp())) return null;
+        this._loadFailed = true;
+        try {
+            const result = await this.orm.call('xmind.workbook', method, [[this.workbookId], ...args], kwargs);
+            this.commandStack.clear();
+            this.selectedNode = null;
+            if (this._clearMultiSelection) this._clearMultiSelection();
+            return result || {};
+        } catch (e) {
+            this._loadFailed = false;
+            const message = (e && e.data && e.data.message) || (e && e.message) || _t('Operation failed.');
+            this._showError(message);
+            return null;
+        }
+    }
+
+    /** 操作完成後：重讀分頁列，換上指定分頁（不再存檔，畫布已過期）。 */
+    async _afterSheetOp(sheetId, focus = null) {
+        await this._loadSheets();
+        const target = (this._sheets || []).some((s) => s.id === sheetId)
+            ? sheetId : orderSheets(this._sheets)[0] && orderSheets(this._sheets)[0].id;
+        if (target) {
+            this._currentSheetId = false;
+            const ok = await this._loadSheetAfterSave(target, focus);
+            if (!ok) return false;
+        }
+        this._loadFailed = false;
+        return true;
+    }
+
+    _droppedText(dropped) {
+        const d = dropped || {};
+        const n = (d.relationships || 0) + (d.boundaries || 0) + (d.summaries || 0);
+        return n ? ' ' + _t('%s relationship/boundary/summary item(s) crossing the sheet border were removed.', n) : '';
+    }
+
+    onCreateSubSheets(nodeId = null) {
+        if (!this.workbookId || this.readonly) return;
+        const meta = this._currentSheetMeta;
+        if (meta && meta.sheet_role === 'idea') {
+            this._showWarning(_t('Topics of an idea sheet cannot be expanded. Attach the idea sheet to a topic first.'));
+            return;
+        }
+        const nodes = this._subSheetTargets(nodeId).filter(
+            (n) => !n.isroot && !(n.data && (n.data._isFloatingTopic || n.data._isSummaryNode)));
+        if (!nodes.length) {
+            this._showWarning(_t('Select one or more topics (not the central topic) first.'));
+            return;
+        }
+        this.dialog.add(SubSheetCreateDialog, {
+            topics: nodes.map((n) => ({
+                key: n.id,
+                title: n.topic || '',
+                hasChildren: (n.children || []).some((c) => !(c.data && c.data._isFloatingTopic)),
+                existing: n.data && n.data.subSheet
+                    ? { id: n.data.subSheet.id, name: n.data.subSheet.name } : null,
+            })),
+            onConfirm: (vals) => this._createSubSheets(vals),
+        });
+    }
+
+    async _createSubSheets({ mode, layout, rows }) {
+        const fresh = rows.filter((r) => !r.existing);
+        if (!fresh.length) {
+            // 全部都已有分頁 → 直接開第一張
+            return this._switchSheet(rows[0].existing.id);
+        }
+        const names = Object.fromEntries(fresh.map((r) => [r.key, r.name]));
+        const currentSheet = this._currentSheetId;
+        const result = await this._runSheetOp('action_create_sub_sheets',
+            [fresh.map((r) => r.key), mode, names, layout], { sheet_id: currentSheet || false });
+        if (!result) return false;
+        const target = (result.created && result.created[0])
+            || (result.existing && result.existing[0] && result.existing[0].sheet_id)
+            || currentSheet;
+        await this._afterSheetOp(target);
+        let msg = _t('%s sub sheet(s) created — undo history cleared (this cannot be undone with Ctrl+Z).',
+            (result.created || []).length);
+        msg += this._droppedText(result.dropped);
+        this._updateStatus(msg);
+        this.notification.add(msg, { type: 'success' });
+        if (result.skipped && result.skipped.length) {
+            this.notification.add(
+                _t('Skipped:') + '\n' + result.skipped.map((x) => '• ' + x.title + ': ' + x.reason).join('\n'),
+                { type: 'warning', sticky: true });
+        }
+        return true;
+    }
+
+    /** 選擇器用：一張分頁的主題（樹狀先序）。 */
+    async _loadTopicsForPicker(sheetId) {
+        const rows = await this.orm.searchRead('xmind.topic', [['sheet_id', '=', sheetId]],
+            ['id', 'title', 'parent_id', 'sequence', 'component_id', 'is_summary_node']);
+        return flattenTopics(rows.filter((r) => !r.is_summary_node));
+    }
+
+    onMoveToSheet(nodeId = null) {
+        if (!this.workbookId || this.readonly) return;
+        const nodes = this._subSheetTargets(nodeId).filter((n) => !n.isroot);
+        if (!nodes.length) {
+            this._showWarning(_t('Select one or more topics (not the central topic) first.'));
+            return;
+        }
+        const sheets = this.orderedSheets;
+        const other = sheets.find((s) => s.id !== this._currentSheetId);
+        // 被搬的子樹不能當新的父主題
+        const disabled = [];
+        const collect = (n) => { disabled.push(n.id); (n.children || []).forEach(collect); };
+        nodes.forEach(collect);
+        this.dialog.add(SheetTopicPickerDialog, {
+            title: _t('Move %s topic(s) to sheet', nodes.length),
+            sheets,
+            defaultSheetId: (other || sheets[0] || {}).id || false,
+            mode: 'move',
+            disabledKeys: disabled,
+            help: _t('The topics move together with their subtopics, notes, markers, attachments and task links. Project tasks are not changed.'),
+            confirmLabel: _t('Move'),
+            loadTopics: (sheetId) => this._loadTopicsForPicker(sheetId),
+            onConfirm: ({ sheetId, topicId }) => this._moveTopicsToSheet(nodes.map((n) => n.id), sheetId, topicId),
+        });
+    }
+
+    async _moveTopicsToSheet(keys, sheetId, parentTopicId) {
+        const source = this._currentSheetId;
+        const result = await this._runSheetOp('move_topics_to_sheet',
+            [keys, sheetId, parentTopicId || false], { sheet_id: source || false });
+        if (!result) return false;
+        await this._afterSheetOp(source);
+        const target = (this._sheets || []).find((s) => s.id === sheetId);
+        const msg = _t('%s topic(s) moved to sheet “%s” — undo history cleared.',
+            result.moved || 0, (target && target.name) || '') + this._droppedText(result.dropped);
+        this._updateStatus(msg);
+        this.notification.add(msg, {
+            type: 'success',
+            buttons: sheetId !== source ? [{
+                name: _t('Open that sheet'),
+                primary: true,
+                onClick: () => this._switchSheet(sheetId),
+            }] : [],
+        });
+        return true;
+    }
+
+    onMergeSheet(sheetId) {
+        const sheet = (this._sheets || []).find((s) => s.id === sheetId);
+        if (!sheet || sheet.sheet_role !== 'sub') return;
+        this.dialog.add(ConfirmationDialog, {
+            title: _t('Merge into parent sheet'),
+            body: _t('Move all topics of “%s” back under topic “%s” in the parent sheet and delete this sheet? Project tasks are not changed.',
+                sheet.name, sheet.anchor_topic_title || ''),
+            confirmLabel: _t('Merge'),
+            confirm: async () => {
+                const result = await this._runSheetOp('action_merge_sub_sheet', [sheetId]);
+                if (!result) return;
+                await this._afterSheetOp(result.target_sheet_id, result.anchor_component_id);
+                const msg = _t('Sheet “%s” merged into its parent — undo history cleared.', sheet.name)
+                    + this._droppedText(result.dropped);
+                this._updateStatus(msg);
+                this.notification.add(msg, { type: 'success' });
+            },
+            cancel: () => {},
+        });
+    }
+
+    onAttachSheet(sheetId) {
+        const sheet = (this._sheets || []).find((s) => s.id === sheetId);
+        if (!sheet || sheet.sheet_role !== 'idea') return;
+        const sheets = this.orderedSheets.filter((s) => s.sheet_role === 'main' || s.sheet_role === 'sub');
+        if (!sheets.length) {
+            this._showWarning(_t('There is no main sheet to attach to.'));
+            return;
+        }
+        this.dialog.add(SheetTopicPickerDialog, {
+            title: _t('Attach “%s” to a topic', sheet.name),
+            sheets,
+            defaultSheetId: sheets[0].id,
+            mode: 'attach',
+            help: _t('The idea sheet becomes the sub sheet of the chosen topic; its central topic will show that topic\'s title.'),
+            confirmLabel: _t('Attach'),
+            loadTopics: (sid) => this._loadTopicsForPicker(sid),
+            onConfirm: async ({ topicId }) => {
+                const result = await this._runSheetOp('action_attach_idea_sheet', [sheetId, topicId]);
+                if (!result) return;
+                await this._afterSheetOp(sheetId);
+                const msg = _t('Sheet “%s” is now a sub sheet — undo history cleared.', sheet.name);
+                this._updateStatus(msg);
+                this.notification.add(msg, { type: 'success' });
+            },
+        });
+    }
+
+    /** 麵包屑：點上層分頁 → 切過去並選取通往目前分頁的錨點。 */
+    onBreadcrumbClick(index) {
+        const path = this.sheetBreadcrumb;
+        if (!path[index] || index >= path.length - 1) return;
+        const anchor = path[index + 1].anchor_component_id || null;
+        this._switchSheet(path[index].id, { focus: anchor });
     }
 
     onRenameSheet(sheetId) {
@@ -4028,7 +4420,8 @@ export class MindmapEditor extends Component {
             const result = await rpc('/xmind/workbook/' + this.workbookId + '/sheets', {});
             this._sheets = result.sheets || [];
             if (!this._currentSheetId && this._sheets.length > 0) {
-                this._currentSheetId = this._sheets[0].id;
+                // 沒有目前分頁（例如剛刪掉它）→ 回到主圖
+                this._currentSheetId = orderSheets(this._sheets)[0].id;
             }
         } catch (e) {
             this._sheets = [];
@@ -6221,6 +6614,12 @@ export class MindmapEditor extends Component {
                     this._renderActivityClock(element, id, node.data.taskId, node.data.activity || {});
                     // Assignee avatar(s) after the clock (before the text).
                     this._renderAssignee(element, node.data.assignees || []);
+                }
+                // 子心智圖：錨點徽章；子圖的中心主題是錨點的代理（標題雙向同步、不可刪）
+                this._renderSubSheetBadge(element, node.data.subSheet || null);
+                if (node.data._subSheetProxy) {
+                    element.classList.add('xmind-subsheet-proxy');
+                    element.title = _t('Mirror of the anchor topic in the parent sheet — renaming it renames the anchor');
                 }
                 // 標籤列是主題框內的第二列：其他行內圖示（備註、任務…）是在它之後
                 // 才附加的，會跑到標籤下面自成一列 —— 把標籤列移回最後。

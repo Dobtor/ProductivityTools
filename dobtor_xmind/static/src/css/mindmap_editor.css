@@ -1156,3 +1156,83 @@
     color: #0c4a6e;
     border: 1px dashed #0369a1;
 }
+
+/* ===== 子心智圖（分頁樹）===== */
+/* 分頁角色：發想頁虛線框；子圖前綴「›」淡一點 */
+.o_xmind_sheet_tabs .o_xmind_sheet_role_idea {
+    border: 1px dashed #adb5bd;
+}
+.o_xmind_sheet_tabs .o_xmind_sheet_tab_prefix {
+    opacity: 0.6;
+    margin-right: 2px;
+}
+.o_xmind_sheet_tabs .o_xmind_sheet_tree_btn {
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-right: 6px;
+}
+.o_xmind_sheet_tree_menu,
+.o_xmind_sheet_menu {
+    position: fixed;
+    max-height: 60vh;
+    overflow-y: auto;
+    font-size: 13px;
+}
+
+/* 錨點徽章：▣ 12 項・45% */
+.xmind-node .xmind-subsheet-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 9px;
+    background: #e7f1ff;
+    color: #0b5ed7;
+    border: 1px solid #9ec5fe;
+    font-size: 11px;
+    font-weight: normal;
+    font-style: normal;
+    line-height: 16px;
+    white-space: nowrap;
+    vertical-align: middle;
+    cursor: pointer;
+}
+.xmind-node .xmind-subsheet-badge:hover {
+    background: #cfe2ff;
+}
+.xmind-node .xmind-subsheet-badge.o_readonly {
+    cursor: default;
+}
+/* 子圖中心主題＝錨點的代理 */
+.xmind-node.xmind-subsheet-proxy {
+    outline: 2px dashed rgba(13, 110, 253, 0.45);
+    outline-offset: 3px;
+}
+.xmind-node.xmind-focus-flash {
+    box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.85) !important;
+    transition: box-shadow 0.3s;
+}
+
+/* 子圖麵包屑（畫布左上） */
+.o_xmind_sheet_breadcrumb {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    z-index: 5;
+    padding: 3px 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #dee2e6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    font-size: 12px;
+    max-width: calc(100% - 24px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.o_xmind_sheet_breadcrumb .o_xmind_crumb_sep {
+    margin: 0 6px;
+    color: #adb5bd;
+}
+.o_xmind_sheet_breadcrumb .o_xmind_crumb_current {
+    font-weight: bold;
+}

@@ -3,18 +3,52 @@
 
     <t t-name="dobtor_xmind.MindmapSheetTabs">
         <div class="o_xmind_sheet_tabs">
+            <span class="o_xmind_sheet_tree_btn badge text-bg-light text-dark position-relative"
+                  t-att-title="treeLabel" t-on-click="toggleTree">
+                <i class="fa fa-sitemap me-1"/><t t-esc="treeLabel"/>
+                <i class="fa fa-caret-up ms-1"/>
+            </span>
             <span t-foreach="props.sheets" t-as="sheet" t-key="sheet.id"
                   t-att-class="tabClass(sheet)"
                   t-att-data-sheet-id="sheet.id"
+                  t-att-data-sheet-role="sheet.sheet_role"
+                  t-att-title="roleTitle(sheet)"
                   t-on-click="() => props.onSwitch(sheet.id)"
                   t-on-dblclick="() => props.onRename(sheet.id)"
                   t-on-contextmenu="(ev) => this.onContextMenu(ev, sheet)">
+                <span t-if="sheet.depth" class="o_xmind_sheet_tab_prefix" t-esc="prefix(sheet)"/>
+                <i t-if="sheet.sheet_role === 'main' and props.projectLocked"
+                   class="fa fa-lock me-1 o_xmind_sheet_tab_lock" t-att-title="lockTitle"/>
                 <t t-esc="sheet.name"/>
             </span>
             <span class="o_xmind_sheet_add badge text-bg-light text-dark"
                   t-att-title="addLabel" t-on-click="() => props.onAdd()">
                 <i class="fa fa-plus"/>
             </span>
+
+            <!-- 分頁樹（往上展開） -->
+            <div t-if="menu.tree" class="dropdown-menu show o_xmind_sheet_tree_menu"
+                 t-att-style="menuStyle()" t-on-click.stop="">
+                <a t-foreach="props.sheets" t-as="sheet" t-key="sheet.id" href="#"
+                   t-att-class="'dropdown-item d-flex align-items-center gap-1'
+                        + (sheet.id === props.currentId ? ' active' : '')"
+                   t-att-style="treeIndent(sheet)"
+                   t-on-click.prevent="() => this.onTreeClick(sheet)">
+                    <i t-att-class="roleIcon(sheet)"/>
+                    <span class="text-truncate" t-esc="sheet.name"/>
+                </a>
+            </div>
+
+            <!-- 分頁右鍵選單 -->
+            <div t-if="menu.open" class="dropdown-menu show o_xmind_sheet_menu"
+                 t-att-style="menuStyle()" t-on-click.stop="">
+                <a t-foreach="menuItems" t-as="item" t-key="item.id" href="#"
+                   t-att-class="'dropdown-item o_xmind_sheet_menu_' + item.id
+                        + (item.danger ? ' text-danger' : '')"
+                   t-on-click.prevent="() => this.onMenuClick(item)">
+                    <i t-att-class="'fa me-2 ' + item.icon"/><t t-esc="item.label"/>
+                </a>
+            </div>
         </div>
     </t>
 

@@ -65,7 +65,21 @@ class XMindSheet(models.Model):
             if not has_main:
                 vals['sheet_role'] = 'main'
                 claimed.add(wb_id)
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        if any(vals.get('anchor_topic_id') for vals in vals_list):
+            self._invalidate_sub_sheet_cache()
+        return records
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'anchor_topic_id' in vals:
+            self._invalidate_sub_sheet_cache()
+        return res
+
+    def _invalidate_sub_sheet_cache(self):
+        # xmind.topic.sub_sheet_id 是沒有 depends 的反向計算欄位：錨點一變就得
+        # 手動清快取，否則同一個交易裡（例如建子圖後馬上同步專案）讀到舊值。
+        self.env['xmind.topic'].invalidate_model(['sub_sheet_id'])
 
     def unlink(self):
         to_delete = set(self.ids)
@@ -100,6 +114,7 @@ class XMindSheet(models.Model):
                 "WHERE id IN %s", (tuple(anchored.ids),))
             anchored.invalidate_recordset(['anchor_topic_id', 'parent_sheet_id'])
         res = super().unlink()
+        self._invalidate_sub_sheet_cache()
         if promote:
             promote.with_context(_xmind_skip_role_check=True).write({'sheet_role': 'main'})
         return res
@@ -149,6 +164,26 @@ class XMindSheet(models.Model):
                 raise ValidationError(_(
                     'Sub sheets can be nested at most %(max)s levels (sheet "%(sheet)s").',
                     max=self._MAX_SUB_DEPTH, sheet=sheet.name))
+
+    def _sub_depth(self):
+        """主圖／發想頁 = 0，掛在主圖下的子圖 = 1，依此類推（防環）。"""
+        self.ensure_one()
+        depth, current, seen = 0, self, set()
+        while current.sheet_role == 'sub' and current.anchor_topic_id and current.id not in seen:
+            seen.add(current.id)
+            depth += 1
+            current = current.anchor_topic_id.sheet_id
+        return depth
+
+    def _sub_height(self, _seen=None):
+        """這張分頁底下還掛了幾層子圖（沒有 = 0）。"""
+        self.ensure_one()
+        seen = _seen if _seen is not None else set()
+        if self.id in seen:
+            return 0
+        seen.add(self.id)
+        subs = self.search([('sheet_role', '=', 'sub'), ('anchor_topic_id.sheet_id', '=', self.id)])
+        return max([1 + s._sub_height(seen) for s in subs] or [0])
 
     def _get_root_topic(self):
         """這張分頁的中心主題（沒有父主題的那顆；有多顆時取 sequence/id 最小者）。"""

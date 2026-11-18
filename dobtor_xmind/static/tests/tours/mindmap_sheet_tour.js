@@ -163,13 +163,28 @@ registry.category("web_tour.tours").add("dobtor_xmind_sheet_switch_tour", {
         },
         {
             // tour 的 run 沒有「右鍵」這個動作，自己派發 contextmenu 事件。
-            content: "右鍵分頁 → 觸發刪除",
+            content: "右鍵分頁 → 開出分頁選單",
             trigger: ".o_xmind_sheet_tabs .o_xmind_sheet_tab:contains('Sheet C')",
             run(helpers) {
                 helpers.anchor.dispatchEvent(
                     new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
                 );
             },
+        },
+        {
+            // 發想頁的選單有「掛到主題…」，沒有「合併回上層」（那是子圖才有的）
+            content: "發想頁的選單：有掛到主題、沒有合併",
+            trigger: ".o_xmind_sheet_menu .o_xmind_sheet_menu_attach",
+            run() {
+                if (document.querySelector(".o_xmind_sheet_menu .o_xmind_sheet_menu_merge")) {
+                    throw new Error("發想頁不應該出現「合併回上層」");
+                }
+            },
+        },
+        {
+            content: "選單 → 刪除",
+            trigger: ".o_xmind_sheet_menu .o_xmind_sheet_menu_delete",
+            run: "click",
         },
         {
             content: "確認刪除（Odoo 的 ConfirmationDialog）",
