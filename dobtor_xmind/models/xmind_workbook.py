@@ -119,7 +119,8 @@ class XMindWorkbook(models.Model):
         res = super().write(vals)
         if 'name' in vals and not self.env.context.get('_syncing_name'):
             for record in self:
-                first_sheet = record.sheet_ids[:1]
+                # 反向同步（工作簿名稱 → 中心主題）同樣只動第一張分頁
+                first_sheet = record.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]
                 if first_sheet:
                     root_topic = first_sheet.topic_ids.filtered(
                         lambda t: not t.parent_id
@@ -519,9 +520,12 @@ class XMindWorkbook(models.Model):
         # Import from jsMind format
         if 'data' in data:
             self._sync_jsmind_tree(data['data'], sheet)
-            # Sync root topic title → workbook name
+            # Sync root topic title → workbook name —— 只有第一張分頁（sequence
+            # 最小）的中心主題代表整本工作簿；存第二張以後的分頁不可改名，
+            # 否則每切一次分頁存檔，工作簿名稱就被換成那張的中心主題。
             root_title = data['data'].get('topic', '')
-            if root_title and root_title != self.name:
+            if (root_title and root_title != self.name
+                    and sheet == self.sheet_ids.sorted(lambda s: (s.sequence, s.id))[:1]):
                 self.with_context(_syncing_name=True).write({'name': root_title})
 
         # Restore feature layers atomically in the SAME transaction as the tree
@@ -670,20 +674,25 @@ class XMindWorkbook(models.Model):
         synced = set()
         stats = {'created': 0, 'updated': 0, 'removed': 0}
         assignee_cache = {}
+        # 總結節點（括弧總結的那顆文字）與浮動主題（含其子樹）是圖上的註解，
+        # 不是工作項目 —— 永遠不建成任務。
+        floating_cids = set(sheet.floating_topic_ids.mapped('component_id'))
+
+        def is_task_topic(topic):
+            return not topic.is_summary_node and not (
+                topic.component_id and topic.component_id in floating_cids)
 
         def walk(topic, parent_task):
             task, created = self._sync_topic_to_task(topic, project, parent_task, assignee_cache)
             synced.add(task.id)
             stats['created' if created else 'updated'] += 1
             for child in topic.child_ids.sorted('sequence'):
-                if child.is_summary_node:
-                    continue
-                walk(child, task)
+                if is_task_topic(child):
+                    walk(child, task)
 
         for child in root.child_ids.sorted('sequence'):
-            if child.is_summary_node:
-                continue
-            walk(child, False)
+            if is_task_topic(child):
+                walk(child, False)
 
         # Archive map-managed tasks whose source topic was removed (never hard-delete).
         # Uses xmind_managed (not xmind_topic_id) because deleting a topic nulls the
@@ -705,45 +714,91 @@ class XMindWorkbook(models.Model):
         return stats
 
     def _sync_topic_to_task(self, topic, project, parent_task, assignee_cache=None):
-        """Create or update the project.task mirroring `topic`. Returns (task, created)."""
+        """Create or update the project.task mirroring `topic`. Returns (task, created).
+
+        任務資訊對應（與 project.project._sync_to_mindmap 反向一致）：
+        - 開始／結束 → task.date_start / date_end（dobtor_project 的甘特排程欄位）。
+          日期在使用者時區，開始取 09:00、結束取 17:00；任務上已有同一天的日期
+          就保留原本的時間，不被重設。
+        - 結束日＋明確時間（task_deadline_time）→ date_deadline。
+        - 進度 → task.progress。
+        - 狀態：只在進度達 100% 時設為完成；**不會**把任務改回進行中，也不覆蓋
+          變更要求／已核准／等待／已取消等狀態（以前每次同步都強制寫
+          '01_in_progress'，把專案端設好的狀態洗掉）。
+        """
         task = topic.task_id if (topic.task_id and topic.task_id.exists()) else None
+        progress = max(0, min(100, topic.task_progress or 0))
         vals = {
             'name': topic.title or _('Task'),
             'project_id': project.id,
             'parent_id': parent_task.id if parent_task else False,
             'sequence': topic.sequence or 10,
             'xmind_managed': True,
-            # Map authoritative on a forward sync: derive state from progress.
-            'state': '1_done' if (topic.task_progress or 0) >= 100 else '01_in_progress',
         }
         if topic.note:
             vals['description'] = '<p>%s</p>' % html.escape(topic.note).replace('\n', '<br/>')
-        if topic.task_end_date:
-            # Preserve a manually-set time on re-sync: only rewrite the deadline when
-            # its DATE differs from the topic's; default new deadlines to 17:00 in the
-            # user's timezone (Datetime fields are UTC-naive).
-            # Use the topic's explicit time if set ("HH:MM"), else keep the task's
-            # existing time when the date is unchanged, else default to 17:00.
-            hh, mm = 17, 0
-            has_time = False
-            if topic.task_deadline_time and ':' in topic.task_deadline_time:
-                try:
-                    hh, mm = (int(x) for x in topic.task_deadline_time.split(':')[:2])
-                    has_time = True
-                except (ValueError, TypeError):
-                    hh, mm = 17, 0
-            keep = (task and task.date_deadline and not has_time
-                    and task.date_deadline.date() == topic.task_end_date)
-            if not keep:
-                tz = pytz.timezone(self.env.user.tz or 'UTC')
-                local_dt = tz.localize(datetime.combine(topic.task_end_date, time(hh, mm)))
-                vals['date_deadline'] = local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
+
+        tz = pytz.timezone(self.env.user.tz or 'UTC')
+
+        def to_utc(day, hh, mm):
+            local_dt = tz.localize(datetime.combine(day, time(hh, mm)))
+            return local_dt.astimezone(pytz.UTC).replace(tzinfo=None)
+
+        def local_date(dt):
+            return pytz.UTC.localize(dt).astimezone(tz).date() if dt else False
+
+        if topic.task_start_date and not (
+                task and local_date(task.date_start) == topic.task_start_date):
+            vals['date_start'] = to_utc(topic.task_start_date, 9, 0)
+        if topic.task_end_date and not (
+                task and local_date(task.date_end) == topic.task_end_date):
+            vals['date_end'] = to_utc(topic.task_end_date, 17, 0)
+        # 開始晚於結束（例如只改了開始日）→ 結束跟到開始當天 17:00
+        start = vals.get('date_start') or (task and task.date_start)
+        end = vals.get('date_end') or (task and task.date_end)
+        if start and end and start > end:
+            day = topic.task_start_date or local_date(start)
+            vals['date_end'] = max(to_utc(day, 17, 0), start)
+
+        # 截止時間：主題上只有一個「結束日」，它同時對應 date_end 與截止日的日期。
+        # 結束日與截止時間都沒變時不動 date_deadline，避免截止日被拉到結束日那天。
+        deadline_unchanged = bool(
+            task and task.date_deadline
+            and local_date(task.date_end) == topic.task_end_date
+            and pytz.UTC.localize(task.date_deadline).astimezone(tz).strftime('%H:%M')
+            == (topic.task_deadline_time or ''))
+        if (topic.task_end_date and topic.task_deadline_time and ':' in topic.task_deadline_time
+                and not deadline_unchanged):
+            try:
+                hh, mm = (int(x) for x in topic.task_deadline_time.split(':')[:2])
+                vals['date_deadline'] = to_utc(topic.task_end_date, hh, mm)
+            except (ValueError, TypeError):
+                pass
+
+        if not task or round(task.progress or 0) != progress:
+            vals['progress'] = progress
+        if progress >= 100 and (not task or task.state not in ('1_done', '1_canceled')):
+            vals['state'] = '1_done'
+
         users = self._resolve_assignee(topic.task_assignee, assignee_cache)
         vals['user_ids'] = [Command.set(users.ids)]   # also clears when emptied
 
         created = False
         if task:
-            task.write(vals)
+            # 只寫有變的欄位：即使值相同，寫入 project_id 也會觸發 stage_id 重算，
+            # 進而重算 state（原生 _compute_state 會把非關閉狀態一律改回
+            # 「進行中」）—— 專案端設好的「已核准／變更要求」就被同步洗掉。
+            for fname in ('name', 'sequence', 'xmind_managed', 'description'):
+                if fname in vals and task[fname] == vals[fname]:
+                    del vals[fname]
+            if task.project_id.id == vals['project_id']:
+                del vals['project_id']
+            if task.parent_id.id == (vals['parent_id'] or False):
+                del vals['parent_id']
+            if set(task.user_ids.ids) == set(users.ids):
+                del vals['user_ids']
+            if vals:
+                task.write(vals)
         else:
             task = self.env['project.task'].create(vals)
             topic.task_id = task.id
@@ -2632,7 +2687,6 @@ class XMindWorkbook(models.Model):
         The archive is written to a fresh ``ir.attachment`` rather than into
         ``xmind_file`` — that field is the *import source*, and overwriting it
         would make the uploaded file unrecoverable and a re-import impossible.
-        (``export_svg`` above does overwrite it; kept as-is, but not copied.)
         """
         self.ensure_one()
         content = self._generate_xmind_content()
@@ -2641,13 +2695,21 @@ class XMindWorkbook(models.Model):
                 "There is nothing to export: this mind map has no sheet with a "
                 "root topic yet."
             ))
-        # 重複使用同一筆附件而不是每次新建：附件掛在本工作簿上（會出現在附件區），
-        # 每按一次匯出就多一份的話，檔案區很快就被同名檔塞滿，儲存空間也一直長。
-        # 固定一個名稱 → 永遠只有「最新一次匯出」這一份。
+        return self._export_download(
+            f'{self.name}.xmind', self._generate_xmind_archive(content),
+            'application/vnd.xmind.workbook')
+
+    def _export_download(self, filename, content, mimetype):
+        """把匯出檔存成掛在本工作簿上的附件並回傳下載動作。
+
+        重複使用同名附件而不是每次新建：附件會出現在附件區，每按一次匯出就多
+        一份的話，檔案區很快就被同名檔塞滿。固定名稱 → 永遠只有最新一份。
+        """
+        self.ensure_one()
         vals = {
-            'name': f'{self.name}.xmind',
-            'datas': base64.b64encode(self._generate_xmind_archive(content)),
-            'mimetype': 'application/vnd.xmind.workbook',
+            'name': filename,
+            'datas': base64.b64encode(content),
+            'mimetype': mimetype,
             'res_model': self._name,
             'res_id': self.id,
         }
@@ -2692,16 +2754,14 @@ class XMindWorkbook(models.Model):
         return buf.getvalue()
 
     def export_svg(self):
-        """Export workbook as SVG file"""
+        """Export workbook as SVG file.
+
+        存成附件下載 —— 以前寫進 ``xmind_file``，那是匯入來源檔，匯出一次
+        SVG 就把原本上傳的 .xmind 蓋掉，之後無法重新匯入。
+        """
         self.ensure_one()
-        svg_content = self._generate_svg()
-        self.xmind_file = base64.b64encode(svg_content.encode('utf-8'))
-        self.xmind_filename = f'{self.name}.svg'
-        return {
-            'type': 'ir.actions.act_url',
-            'url': f'/web/content?model=xmind.workbook&id={self.id}&field=xmind_file&filename_field=xmind_filename&download=true',
-            'target': 'self',
-        }
+        return self._export_download(
+            f'{self.name}.svg', self._generate_svg().encode('utf-8'), 'image/svg+xml')
 
     def _update_svg_thumbnail(self):
         """Render a server-side SVG preview of the first sheet into ``thumbnail``.

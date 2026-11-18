@@ -17,17 +17,22 @@ class TestSheetSwitchTour(HttpCase):
     def test_sheet_switch_tour(self):
         # xmind.workbook.create() 不會自動帶分頁，兩張都在這裡明確建立，
         # 順序由 sequence 決定（xmind.sheet._order = 'sequence, id'）。
-        workbook = self.env['xmind.workbook'].create({'name': 'Tour Workbook'})
-        sheet_a = self.env['xmind.sheet'].create({
+        # 以 admin 建立：記錄規則讓「建立者」看得到沒有客戶的心智圖，用
+        # superuser 建的話 tour 一開表單就是 Access Error（tour 卡在第一步）。
+        env = self.env(user=self.env.ref('base.user_admin'))
+        workbook = env['xmind.workbook'].create({'name': 'Tour Workbook'})
+        sheet_a = env['xmind.sheet'].create({
             'name': 'Sheet A', 'workbook_id': workbook.id, 'sequence': 1,
         })
-        self.env['xmind.topic'].create({
+        env['xmind.topic'].create({
             'title': 'Alpha Root', 'sheet_id': sheet_a.id,
         })
-        sheet_b = self.env['xmind.sheet'].create({
+        # 第二張分頁用不同的版面／主題：切過去時編輯器必須套用它自己的設定
+        sheet_b = env['xmind.sheet'].create({
             'name': 'Sheet B', 'workbook_id': workbook.id, 'sequence': 2,
+            'layout_type': 'logic_right', 'theme': 'pomegranate',
         })
-        self.env['xmind.topic'].create({
+        env['xmind.topic'].create({
             'title': 'Beta Root', 'sheet_id': sheet_b.id,
         })
 
@@ -60,3 +65,11 @@ class TestSheetSwitchTour(HttpCase):
             sheet_b.topic_ids.filtered(lambda t: t.name == 'Alpha Root'),
             "分頁 A 的主題跑到分頁 B 了",
         )
+        # tour 在分頁 B 把版面改成 tree_right：只能寫進分頁 B
+        self.assertEqual(sheet_b.layout_type, 'tree_right',
+                         "在分頁 B 改版面沒有寫進分頁 B")
+        self.assertEqual(sheet_a.layout_type, 'map',
+                         "在分頁 B 改版面卻改到了分頁 A")
+        # 存分頁 B 不可以把工作簿改名成分頁 B 的中心主題
+        self.assertNotEqual(workbook.name, 'Beta Root',
+                            "存第二張分頁時把工作簿改名了")

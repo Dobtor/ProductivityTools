@@ -66,9 +66,10 @@
                     </div>
                 </div>
 
-                <!-- Group 3: Relationship / Boundary / Summary (Mind map: mindmap toolbar group) -->
-                <div class="o_mindmap_tb_sep"/>
-                <div class="o_mindmap_tb_group">
+                <!-- Group 3: Relationship / Boundary / Summary (Mind map: mindmap toolbar group)
+                     窄螢幕時收進下方的「更多」選單（o_mindmap_tb_more）。 -->
+                <div class="o_mindmap_tb_sep o_mindmap_tb_collapsible"/>
+                <div class="o_mindmap_tb_group o_mindmap_tb_collapsible">
                     <button class="o_mindmap_tb_btn o_mindmap_btn_relationship" title="Relationship: click the source, then the target" t-on-click="onAddRelationship">
                         <i class="fa fa-share-alt"/>
                     </button>
@@ -99,14 +100,11 @@
                         <a class="dropdown-item o_mindmap_insert_image" href="#" t-on-click="onInsertImage">
                             <i class="fa fa-image text-success"/> Image
                         </a>
-                        <a class="dropdown-item" href="#" t-on-click="onInsertComment">
-                            <i class="fa fa-comments text-muted"/> Comment
-                        </a>
                         <div class="dropdown-divider"></div>
                         <a class="dropdown-item o_mindmap_insert_attachment" href="#" t-on-click="onInsertAttachment">
                             <i class="fa fa-paperclip text-secondary"/> Attachment
                         </a>
-                        <a class="dropdown-item" href="#" t-on-click="onInsertNote">
+                        <a class="dropdown-item" href="#" t-on-click="onInsertLabel">
                             <i class="fa fa-tag text-info"/> Label
                         </a>
                     </div>
@@ -275,7 +273,7 @@
                                     <option value="curved">Curve</option>
                                     <option value="straight">Straight</option>
                                     <option value="angular">Elbow</option>
-                                    <option value="rounded">Rounded Elbow</option>
+                                    <option value="roundedElbow">Rounded Elbow</option>
                                     <option value="none">None</option>
                                 </select>
                             </div>
@@ -461,6 +459,25 @@
 
                 <!-- Group 7b: 專案整合按鈕已移到工具列下方的 o_mindmap_project_bar -->
 
+                <!-- 「更多」：只在窄螢幕顯示（CSS media query），收納被隱藏的群組 3 -->
+                <div class="o_mindmap_tb_sep o_mindmap_tb_more"/>
+                <div class="o_mindmap_tb_group o_mindmap_tb_more">
+                    <button class="o_mindmap_tb_btn o_mindmap_tb_has_menu dropdown-toggle" data-bs-toggle="dropdown" title="More">
+                        <i class="fa fa-ellipsis-h"/>
+                    </button>
+                    <div class="dropdown-menu">
+                        <a class="dropdown-item" href="#" t-on-click.prevent="onAddRelationship">
+                            <i class="fa fa-share-alt text-primary"/> Relationship
+                        </a>
+                        <a class="dropdown-item" href="#" t-on-click.prevent="onAddBoundary">
+                            <i class="fa fa-square-o text-primary"/> Boundary
+                        </a>
+                        <a class="dropdown-item" href="#" t-on-click.prevent="onAddSummary">
+                            <i class="fa fa-indent text-primary"/> Summary
+                        </a>
+                    </div>
+                </div>
+
                 <!-- Group 8: Structure / Theme selectors (Mind map: Window > Properties panels) -->
                 <div class="o_mindmap_tb_sep"/>
                 <div class="o_mindmap_tb_group">
@@ -484,6 +501,7 @@
 
                 <div class="o_mindmap_tb_group">
                     <select class="form-control form-control-sm o_mindmap_theme_select" title="Theme Color" t-on-change="onThemeChange">
+                        <option value="default">Default</option>
                         <option value="primary">Primary Color</option>
                         <option value="warning">Warning</option>
                         <option value="danger">Danger</option>
@@ -497,6 +515,8 @@
                         <option value="orange">Orange</option>
                         <option value="pumpkin">Pumpkin</option>
                         <option value="pomegranate">Pomegranate</option>
+                        <option value="clouds">Clouds</option>
+                        <option value="asbestos">Asbestos</option>
                     </select>
                 </div>
 
@@ -559,6 +579,8 @@
                             <option value="timeline_vertical">Timeline - Vertical</option>
                             <option value="fishbone_right">Fishbone (Head Left)</option>
                             <option value="fishbone_left">Fishbone (Head Right)</option>
+                            <!-- 不列表格圖：排版引擎沒有「單一主題下的子主題用表格」的實作
+                                 （_layoutChildrenWithStructure 只支援上面這些），列了也不會生效。 -->
                         </select>
                     </div>
 
@@ -833,12 +855,12 @@
     <t t-name="dobtor_xmind.MindmapProjectBar">
         <div class="o_mindmap_project_bar_inner d-flex align-items-center flex-wrap gap-3">
             <!-- 客戶：有專案 → 由專案帶入，唯讀顯示；無專案 → 可搜尋選填。 -->
-            <div class="d-flex align-items-center gap-1">
-                <i class="fa fa-building text-muted"/>
-                <span class="small text-muted">Customer:</span>
+            <div class="d-flex align-items-center gap-1 o_mindmap_pb_partner">
+                <i class="fa fa-building text-muted" title="Customer"/>
+                <span class="small text-muted o_mindmap_pb_label">Customer:</span>
                 <t t-if="state.projectId">
-                    <span class="small fw-bold" t-esc="state.partnerName or '—'"/>
-                    <span class="small text-muted">(from the project)</span>
+                    <span class="small fw-bold text-truncate" t-esc="state.partnerName or '—'"/>
+                    <span class="small text-muted o_mindmap_pb_hint">(from the project)</span>
                 </t>
                 <t t-else="">
                     <AutoComplete
@@ -855,8 +877,8 @@
             </div>
             <!-- 專案：可搜尋選填（依已選客戶過濾）；已選可開啟或清除。 -->
             <div class="d-flex align-items-center gap-1">
-                <i class="fa fa-folder-open text-muted"/>
-                <span class="small text-muted">Project:</span>
+                <i class="fa fa-folder-open text-muted" title="Project"/>
+                <span class="small text-muted o_mindmap_pb_label">Project:</span>
                 <AutoComplete
                     value="state.projectName"
                     sources="projectSources"
@@ -873,7 +895,7 @@
                 </button>
             </div>
             <!-- 關聯物件：嵌入此圖的記錄名稱。 -->
-            <span t-if="embedsLabel" class="small text-muted">
+            <span t-if="embedsLabel" class="small text-muted text-truncate o_mindmap_pb_hint">
                 Linked records:<span t-esc="embedsLabel"/>
             </span>
         </div>

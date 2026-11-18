@@ -364,9 +364,11 @@ msgid "Arial, sans-serif"
 msgstr "Arial, sans-serif"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_marker__category__arrow
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_begin__arrow
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_end__arrow
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Arrow"
 msgstr "箭頭"
 
@@ -382,13 +384,18 @@ msgid "Arrow Size"
 msgstr "箭頭大小"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__line_type__arrowedcurve
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__branch_line_class__arrowedcurve
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Arrowed Curve"
 msgstr "帶箭頭曲線"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__asbestos
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Asbestos"
 msgstr "石棉灰"
 
@@ -396,6 +403,7 @@ msgstr "石棉灰"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__asphalt
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Asphalt"
 msgstr "瀝青黑"
 
@@ -623,6 +631,7 @@ msgstr "子項目已排序"
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_begin__circle
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_end__circle
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_topic__shape__circle
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Circle"
 msgstr "圓形"
 
@@ -664,7 +673,10 @@ msgid "Cloud"
 msgstr "雲朵"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__clouds
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Clouds"
 msgstr "雲灰"
 
@@ -866,6 +878,7 @@ msgstr "建立者"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__branch_line_class__curve
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Curve"
 msgstr "曲線"
 
@@ -883,8 +896,10 @@ msgid "Curved"
 msgstr "曲線"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_workbook__partner_id
 #: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_xmind_workbook_search
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Customer"
 msgstr "客戶"
 
@@ -898,6 +913,7 @@ msgstr "剪下 (Ctrl+X)"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__danger
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Danger"
 msgstr "危險"
 
@@ -911,6 +927,7 @@ msgstr "點劃線"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_boundary__border_style__dashed
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__line_style__dashed
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Dashed"
 msgstr "虛線"
 
@@ -918,6 +935,7 @@ msgstr "虛線"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__default
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Default"
 msgstr "預設"
 
@@ -949,6 +967,7 @@ msgstr "說明"
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_begin__diamond
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_end__diamond
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_topic__shape__diamond
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Diamond"
 msgstr "菱形"
 
@@ -983,6 +1002,7 @@ msgstr "顯示名稱"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_boundary__border_style__dotted
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__line_style__dotted
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Dotted"
 msgstr "點線"
 
@@ -1149,7 +1169,9 @@ msgstr "心智圖初始化失敗："
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
-msgid "Failed to load mind map. Editing is disabled to protect your data — please reload."
+msgid ""
+"Failed to load mind map. Editing is disabled to protect your data — please "
+"reload."
 msgstr "心智圖載入失敗。為保護您的資料已停用編輯功能，請重新載入。"
 
 #. module: dobtor_xmind
@@ -1378,7 +1400,8 @@ msgstr "隱藏"
 
 #. module: dobtor_xmind
 #: model:ir.model.fields,help:dobtor_xmind.field_xmind_marker__hidden
-msgid "Hidden markers are not shown in the picker but can be applied via import"
+msgid ""
+"Hidden markers are not shown in the picker but can be applied via import"
 msgstr "隱藏的標記不會顯示在選擇器中，但可透過匯入套用"
 
 #. module: dobtor_xmind
@@ -1520,6 +1543,7 @@ msgstr "已匯入"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__info
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Info"
 msgstr "資訊"
 
@@ -1989,6 +2013,7 @@ msgstr "未附加圖片"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_begin__none
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_end__none
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "None"
 msgstr "無"
 
@@ -2088,6 +2113,7 @@ msgstr "選填標籤"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__orange
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Orange"
 msgstr "橙色"
 
@@ -2188,6 +2214,7 @@ msgstr "請至少選擇一個要匯入的檔案。"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__pomegranate
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Pomegranate"
 msgstr "石榴紅"
 
@@ -2247,6 +2274,7 @@ msgstr "進度："
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__pumpkin
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Pumpkin"
 msgstr "南瓜橙"
 
@@ -2379,6 +2407,7 @@ msgstr "圓角"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__line_type__roundedelbow
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__branch_line_class__roundedelbow
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Rounded Elbow"
 msgstr "圓角直角"
 
@@ -2462,12 +2491,18 @@ msgstr "選擇檔案（可多選）"
 
 #. module: dobtor_xmind
 #: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_xmind_import_wizard_form
-msgid "Select one or more .xmind, .mm (FreeMind), or .mmap (MindManager) files.\\\\n                        Each file will be created as a separate Mind Map workbook with a preview thumbnail."
-msgstr "選擇一個或多個 .xmind、.mm（FreeMind）或 .mmap（MindManager）檔案。\\\\n                        每個檔案會建立為獨立的心智圖活頁簿並附預覽縮圖。"
+msgid ""
+"Select one or more .xmind, .mm (FreeMind), or .mmap (MindManager) "
+"files.\\\\n                        Each file will be created as a separate "
+"Mind Map workbook with a preview thumbnail."
+msgstr ""
+"選擇一個或多個 .xmind、.mm（FreeMind）或 .mmap（MindManager）檔案。\\\\n"
+"                        每個檔案會建立為獨立的心智圖活頁簿並附預覽縮圖。"
 
 #. module: dobtor_xmind
 #: model:ir.model.fields,help:dobtor_xmind.field_xmind_import_wizard__files_json
-msgid "Select one or more .xmind, .mm, or .mmap files (multi-select supported)"
+msgid ""
+"Select one or more .xmind, .mm, or .mmap files (multi-select supported)"
 msgstr "選擇一個或多個 .xmind、.mm 或 .mmap 檔案（支援多選）"
 
 #. module: dobtor_xmind
@@ -2586,6 +2621,7 @@ msgstr "快照（JSON）"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_boundary__border_style__solid
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__line_style__solid
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Solid"
 msgstr "實線"
 
@@ -2619,8 +2655,10 @@ msgid "Source Topic"
 msgstr "起點主題"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_begin__square
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__arrow_end__square
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Square"
 msgstr "方形"
 
@@ -2655,6 +2693,7 @@ msgstr "貼紙"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_relationship__line_type__straight
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__branch_line_class__straight
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Straight"
 msgstr "直線"
 
@@ -2710,6 +2749,7 @@ msgstr "子主題 (Tab)"
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_import_line__status__success
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__success
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Success"
 msgstr "成功"
 
@@ -2732,6 +2772,9 @@ msgstr "總結的主題"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_context_menu.js:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_templates_data.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Summary"
 msgstr "括弧總結"
 
@@ -3078,6 +3121,7 @@ msgstr "可見性"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__warning
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Warning"
 msgstr "警告"
 
@@ -3092,7 +3136,9 @@ msgid "Weekday"
 msgstr "星期"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_attachment__width
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Width"
 msgstr "寬度"
 
@@ -3100,6 +3146,7 @@ msgstr "寬度"
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 #: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_sheet__theme__wisteria
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Wisteria"
 msgstr "紫藤"
 
@@ -3702,13 +3749,18 @@ msgid "Deadline Time"
 msgstr "截止時間"
 
 #. module: dobtor_xmind
+#. odoo-javascript
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_workbook__project_id
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+#: model:ir.model,name:dobtor_xmind.model_project_project
 msgid "Project"
 msgstr "專案"
 
 #. module: dobtor_xmind
 #: model:ir.model.fields,help:dobtor_xmind.field_xmind_workbook__project_id
-msgid "Project this mind map belongs to. When set, the mind map is visible to exactly the people who can access the project."
+msgid ""
+"Project this mind map belongs to. When set, the mind map is visible to "
+"exactly the people who can access the project."
 msgstr "此心智圖所屬的專案。設定後，心智圖的可見對象與可存取該專案的人員完全一致。"
 
 #. module: dobtor_xmind
@@ -3840,6 +3892,7 @@ msgstr "返回清單"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Belize Blue"
 msgstr "貝里斯藍"
 
@@ -3906,12 +3959,14 @@ msgstr "顯示"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Elbow"
 msgstr "直角折線"
 
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Emerald"
 msgstr "翡翠綠"
 
@@ -4056,6 +4111,7 @@ msgstr "開啟連結"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/gantt_mindmap_button.xml:0
+#: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_project_kanban_xmind
 msgid "Open mind map"
 msgstr "開啟心智圖"
 
@@ -4068,7 +4124,8 @@ msgstr "開啟專案"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
-msgid "Open the record form (customer / project / visibility / creation info…)"
+msgid ""
+"Open the record form (customer / project / visibility / creation info…)"
 msgstr "開啟資料表單（客戶／專案／可見性／建立資訊…）"
 
 #. module: dobtor_xmind
@@ -4098,6 +4155,7 @@ msgstr "請先選擇專案。"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Primary Color"
 msgstr "主色"
 
@@ -4122,6 +4180,7 @@ msgstr "更換圖片"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
 msgid "Sea Green"
 msgstr "碧海綠"
 
@@ -4530,6 +4589,8 @@ msgstr "下身"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_context_menu.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Boundary"
 msgstr "外框"
 
@@ -4896,7 +4957,8 @@ msgstr "同步專案前存檔失敗。"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
-msgid "Could not save the current sheet — staying here to avoid losing changes."
+msgid ""
+"Could not save the current sheet — staying here to avoid losing changes."
 msgstr "目前分頁存檔失敗——為避免遺失變更，維持在這張分頁。"
 
 #. module: dobtor_xmind
@@ -6468,6 +6530,8 @@ msgstr "參考文獻"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+#: code:addons/dobtor_xmind/static/src/js/mindmap_context_menu.js:0
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
 msgid "Relationship"
 msgstr "關連線"
 
@@ -7062,7 +7126,9 @@ msgstr "教科書"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
-msgid "The last sync was Project → Mind Map. Syncing now overwrites the project with this mind map."
+msgid ""
+"The last sync was Project → Mind Map. Syncing now overwrites the project "
+"with this mind map."
 msgstr "上次同步的方向是「專案 → 心智圖」。現在同步會用這份心智圖覆蓋專案。"
 
 #. module: dobtor_xmind
@@ -7224,7 +7290,9 @@ msgstr "已更新樣式"
 #. module: dobtor_xmind
 #. odoo-javascript
 #: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
-msgid "Use Format menu to customize styles per topic. Copy Style / Paste Style to reuse."
+msgid ""
+"Use Format menu to customize styles per topic. Copy Style / Paste Style to "
+"reuse."
 msgstr "用「格式」選單可逐一設定主題樣式；用「複製樣式／貼上樣式」重複套用。"
 
 #. module: dobtor_xmind
@@ -7328,3 +7396,280 @@ msgstr "縮小"
 #: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
 msgid "children"
 msgstr " 個子主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid ""
+"You are previewing a revision. Exit the preview (or restore it) before "
+"saving."
+msgstr "正在預覽歷史版本。請先結束預覽（或還原此版本）再儲存。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Failed to restore revision."
+msgstr "還原版本失敗。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid ""
+"Could not save the current sheet — preview cancelled to avoid losing "
+"changes."
+msgstr "無法儲存目前分頁，已取消預覽以免變更遺失。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Failed to load revision."
+msgstr "載入版本失敗。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Previewing revision \"%s\". Saving is disabled until you exit the preview."
+msgstr "正在預覽版本「%s」。結束預覽前無法儲存。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Exit preview"
+msgstr "結束預覽"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Restore this revision"
+msgstr "還原此版本"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Preview closed"
+msgstr "已結束預覽"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Delete Callout"
+msgstr "刪除標註"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Callout deleted"
+msgstr "已刪除標註"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s commands"
+msgstr "%s 個指令"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s topics"
+msgstr "%s 個主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "%s selected"
+msgstr "已選 %s 個"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Zigzag"
+msgstr "鋸齒線"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Arc"
+msgstr "弧線"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Dash-dot"
+msgstr "點劃線"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Open Arrow"
+msgstr "空心箭頭"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Filled Diamond"
+msgstr "實心菱形"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Add Node"
+msgstr "新增主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Remove Node"
+msgstr "刪除主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Update Node"
+msgstr "更新主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Update Style"
+msgstr "更新樣式"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Expand Node"
+msgstr "展開主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Collapse Node"
+msgstr "收合主題"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/command_stack.js:0
+msgid "Command"
+msgstr "指令"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/xml/mindmap_templates.xml:0
+msgid "More"
+msgstr "更多"
+
+#. module: dobtor_xmind
+#: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_project_form_xmind
+msgid "Create Mind Map"
+msgstr "建立心智圖"
+
+#. module: dobtor_xmind
+#: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_project_form_xmind
+msgid "Sync Mind Map"
+msgstr "同步心智圖"
+
+#. module: dobtor_xmind
+#: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_project_kanban_xmind
+msgid "<i class=\"fa fa-share-alt me-1\"/>Mind Map"
+msgstr "<i class=\"fa fa-share-alt me-1\"/>心智圖"
+
+#. module: dobtor_xmind
+#: model:ir.actions.server,name:dobtor_xmind.action_new_xmind_editor
+msgid "New Mind Map"
+msgstr "新增心智圖"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/project_project.py:0
+msgid "Mind map synced"
+msgstr "心智圖已同步"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/project_project.py:0
+msgid "Created %(c)s, updated %(u)s, removed %(a)s."
+msgstr "新增 %(c)s、更新 %(u)s、移除 %(a)s。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/project_project.py:0
+msgid "This project has no linked mind map yet."
+msgstr "此專案尚未連結心智圖。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid "This mind map has no sheet to sync."
+msgstr "此心智圖沒有可同步的分頁。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid "This mind map has no central topic."
+msgstr "此心智圖沒有中心主題。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid "Sheet %(sheet)s does not belong to mind map %(book)s."
+msgstr "分頁 %(sheet)s 不屬於心智圖 %(book)s。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid ""
+"There is nothing to export: this mind map has no sheet with a root topic "
+"yet."
+msgstr "沒有可匯出的內容：此心智圖還沒有含中心主題的分頁。"
+
+#. module: dobtor_xmind
+#. odoo-python
+#: code:addons/dobtor_xmind/models/xmind_workbook.py:0
+msgid ""
+"This sheet was changed by someone else (or by an assistant) after you opened"
+" it. Your copy was NOT saved so their changes are not overwritten. Reload "
+"the mind map to continue from the latest version."
+msgstr "在您開啟後，此分頁已被其他人（或助理）修改。為避免覆蓋對方的變更，您這份內容「沒有」儲存。請重新載入心智圖，從最新版本繼續編輯。"
+
+#. module: dobtor_xmind
+#: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_workbook__xmind_last_sync_direction__to_project
+msgid "Mind Map → Project"
+msgstr "心智圖 → 專案"
+
+#. module: dobtor_xmind
+#: model:ir.model.fields.selection,name:dobtor_xmind.selection__xmind_workbook__xmind_last_sync_direction__to_mindmap
+msgid "Project → Mind Map"
+msgstr "專案 → 心智圖"
+
+#. module: dobtor_xmind
+#: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_xmind_workbook_form
+msgid "Export .xmind"
+msgstr "匯出 .xmind"
+
+#. module: dobtor_xmind
+#: model:ir.model.constraint,message:dobtor_xmind.constraint_xmind_workbook_project_id_uniq
+msgid "A project can have at most one mind map."
+msgstr "一個專案最多只能有一張心智圖。"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Small size"
+msgstr "小"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Medium size"
+msgstr "中"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Large size"
+msgstr "大"
+
+#. module: dobtor_xmind
+#. odoo-javascript
+#: code:addons/dobtor_xmind/static/src/js/mindmap_editor.js:0
+msgid "Filled Circle"
+msgstr "圓點"

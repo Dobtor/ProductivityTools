@@ -133,7 +133,10 @@ class TestDiffSave(TransactionCase):
             self._node('c', 'C'), self._node('b', 'B'), self._node('a', 'A'),
         ]))
         root = self._by_cid()['root']
-        self.assertEqual(root.child_ids.mapped('component_id'), ['c', 'b', 'a'])
+        # child_ids 的資料庫順序是 xmind.topic._order（parent_path 在前），兄弟
+        # 的 parent_path 各自不同 → 等於 id 順序。順序的真相是 sequence。
+        ordered = root.child_ids.sorted(lambda t: (t.sequence, t.id))
+        self.assertEqual(ordered.mapped('component_id'), ['c', 'b', 'a'])
 
     def test_markers_do_not_accumulate(self):
         """標記是「整組取代」：連存兩次不可以疊加。"""

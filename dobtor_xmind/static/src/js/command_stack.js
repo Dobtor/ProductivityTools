@@ -1,5 +1,7 @@
 /** @odoo-module **/
 
+import { _t } from "@web/core/l10n/translation";
+
 /**
  * Command Pattern Implementation for Style Undo/Redo
  * Based on 's org.xmind.gef.command.CommandStack
@@ -10,7 +12,7 @@
  */
 export class Command {
     constructor(label) {
-        this.label = label || 'Command';
+        this.label = label || _t('Command');
         this.canUndo = true;
     }
 
@@ -36,7 +38,7 @@ export class Command {
  */
 export class AddNodeCommand extends Command {
     constructor(jm, parentId, nodeId, topic, data) {
-        super('Add Node');
+        super(_t('Add Node'));
         this.jm = jm;
         this.parentId = parentId;
         this.nodeId = nodeId;
@@ -58,7 +60,7 @@ export class AddNodeCommand extends Command {
  */
 export class RemoveNodeCommand extends Command {
     constructor(jm, nodeId) {
-        super('Remove Node');
+        super(_t('Remove Node'));
         this.jm = jm;
         this.nodeId = nodeId;
         this.nodeData = null;
@@ -123,7 +125,7 @@ export class RemoveNodeCommand extends Command {
  */
 export class UpdateNodeCommand extends Command {
     constructor(jm, nodeId, newTopic, oldTopic) {
-        super('Update Node');
+        super(_t('Update Node'));
         this.jm = jm;
         this.nodeId = nodeId;
         this.newTopic = newTopic;
@@ -144,7 +146,7 @@ export class UpdateNodeCommand extends Command {
  */
 export class UpdateNodeStyleCommand extends Command {
     constructor(jm, nodeId, newStyle, oldStyle) {
-        super('Update Style');
+        super(_t('Update Style'));
         this.jm = jm;
         this.nodeId = nodeId;
         this.newStyle = newStyle;
@@ -200,7 +202,7 @@ export class UpdateNodeStyleCommand extends Command {
  */
 export class ToggleExpandCommand extends Command {
     constructor(jm, nodeId, expand) {
-        super(expand ? 'Expand Node' : 'Collapse Node');
+        super(expand ? _t('Expand Node') : _t('Collapse Node'));
         this.jm = jm;
         this.nodeId = nodeId;
         this.expand = expand;

@@ -72,6 +72,27 @@ registry.category("web_tour.tours").add("dobtor_xmind_sheet_switch_tour", {
             trigger: topicVisible(SHEET_B_TOPIC),
         },
         {
+            // 分頁 B 的版面是 logic_right（見 test_sheet_tour.py）：
+            // 切過去時工具列與排版引擎都要換成它，不能停在分頁 A 的 map。
+            content: "第二張分頁套用自己的版面設定",
+            trigger: ".o_mindmap_layout_select",
+            run() {
+                const sel = document.querySelector(".o_mindmap_layout_select");
+                if (sel.value !== "logic_right") {
+                    throw new Error(`切到分頁 B 後版面應為 logic_right，實際是 ${sel.value}`);
+                }
+                const theme = document.querySelector(".o_mindmap_theme_select");
+                if (theme && theme.value !== "pomegranate") {
+                    throw new Error(`切到分頁 B 後主題應為 pomegranate，實際是 ${theme.value}`);
+                }
+            },
+        },
+        {
+            content: "在第二張分頁把版面改成樹狀圖（只能寫進分頁 B）",
+            trigger: ".o_mindmap_layout_select",
+            run: "select tree_right",
+        },
+        {
             // 舊 bug 的直接症狀：切過去之後仍看得到上一張的節點。
             content: "上一張分頁的節點不可以殘留在畫布上",
             trigger: topicVisible(SHEET_B_TOPIC),
@@ -96,6 +117,16 @@ registry.category("web_tour.tours").add("dobtor_xmind_sheet_switch_tour", {
         {
             content: "分頁列的高亮跟著回到第一張",
             trigger: ".o_xmind_sheet_tabs .o_xmind_sheet_tab.active:contains('Sheet A')",
+        },
+        {
+            content: "切回第一張分頁時版面也換回它自己的 map",
+            trigger: ".o_mindmap_layout_select",
+            run() {
+                const sel = document.querySelector(".o_mindmap_layout_select");
+                if (sel.value !== "map") {
+                    throw new Error(`切回分頁 A 後版面應為 map，實際是 ${sel.value}`);
+                }
+            },
         },
         // ── 以下為新增／刪除分頁：改用 Odoo Dialog 之後才測得到 ──
         {
@@ -126,7 +157,8 @@ registry.category("web_tour.tours").add("dobtor_xmind_sheet_switch_tour", {
             // 新分頁的根主題用分頁名建立（見 controllers/main.py create_sheet）；
             // 前兩張分頁的節點都不可以跟著過來。
             content: "新分頁上看不到別張分頁的節點",
-            trigger: ".o_xmind_sheet_tabs .o_xmind_sheet_tab.active:contains('Sheet C')",
+            // 等新分頁的根主題畫出來（分頁高亮在載入完成前就會切換，用它當觸發會搶在畫布換掉之前）
+            trigger: topicVisible("Sheet C"),
             run: expectTopicGone(SHEET_A_TOPIC),
         },
         {

@@ -6,6 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
 import { router } from "@web/core/browser/router";
+import { escape } from "@web/core/utils/strings";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { usePopover } from "@web/core/popover/popover_hook";
 import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
@@ -43,6 +44,36 @@ import { MindmapSearch, MINDMAP_FILTERS } from "@dobtor_xmind/js/mindmap_search"
  * Style Mind Map Editor for Odoo 18
  * OWL Component with Command Pattern
  */
+/**
+ * 主題色清單（工具列下拉、主題管理、資源管理共用），與 xmind.sheet.theme
+ * 的選項一致。名稱經 _t 翻譯，狀態列與卡片都顯示名稱而不是代碼。
+ */
+export function getThemeChoices() {
+    return [
+        { id: 'default', name: _t('Default'), color: '#97cbff' },
+        { id: 'primary', name: _t('Primary Color'), color: '#428bca' },
+        { id: 'success', name: _t('Success'), color: '#5cb85c' },
+        { id: 'danger', name: _t('Danger'), color: '#d9534f' },
+        { id: 'warning', name: _t('Warning'), color: '#f0ad4e' },
+        { id: 'info', name: _t('Info'), color: '#5bc0de' },
+        { id: 'greensea', name: _t('Sea Green'), color: '#16a085' },
+        { id: 'nephrite', name: _t('Emerald'), color: '#27ae60' },
+        { id: 'belizehole', name: _t('Belize Blue'), color: '#2980b9' },
+        { id: 'wisteria', name: _t('Wisteria'), color: '#8e44ad' },
+        { id: 'asphalt', name: _t('Asphalt'), color: '#34495e' },
+        { id: 'orange', name: _t('Orange'), color: '#f39c12' },
+        { id: 'pumpkin', name: _t('Pumpkin'), color: '#d35400' },
+        { id: 'pomegranate', name: _t('Pomegranate'), color: '#c0392b' },
+        { id: 'clouds', name: _t('Clouds'), color: '#ecf0f1' },
+        { id: 'asbestos', name: _t('Asbestos'), color: '#7f8c8d' },
+    ];
+}
+
+function themeName(id) {
+    const t = getThemeChoices().find((c) => c.id === id);
+    return t ? t.name : id;
+}
+
 export class MindmapEditor extends Component {
     static template = "dobtor_xmind.MindmapEditor";
     static components = { MindmapProjectBar, MindmapPager, MindmapSearch, MindmapSheetTabs };
@@ -215,7 +246,8 @@ export class MindmapEditor extends Component {
             clearTimeout(this._featureRelayoutTimer);
             // Auto-save + thumbnail on exit if dirty. Never persist from a read-only
             // embed — inline navigation (expand/collapse) must not write to the DB.
-            if (!this.readonly && this.commandStack && this.commandStack.isDirty && this.workbookId) {
+            if (!this.readonly && this.commandStack && this.commandStack.isDirty && this.workbookId
+                    && !this._revisionPreview) {
                 this._saveData().then(() => this._saveThumbnail()).catch(() => {});
             }
             if (this.dragDropManager) {
@@ -352,6 +384,7 @@ export class MindmapEditor extends Component {
         }));
 
         this.callouts = (result.callouts || []).map(c => ({
+            id: 'co_' + Date.now() + '_' + rnd(),
             parentNodeId: c.parentNodeId,
             options: c.options || {},
         }));
@@ -480,6 +513,13 @@ export class MindmapEditor extends Component {
                 // control points for the current layout (matches layout-switch behaviour),
                 // so a page refresh also lands the green connectors at optimal positions.
                 this._renderAllFeatures(true);
+                if (this.readonly) {
+                    // 嵌入的唯讀心智圖框只有 460px 高：整張圖縮放置中，
+                    // 不然只看得到中心主題附近一小塊。不放大超過 100%。
+                    this._fitToView({ maxZoom: 1, padding: 20 });
+                    // 圖片等非同步內容載入後可能重新排版，再對齊一次
+                    setTimeout(() => this._fitToView({ maxZoom: 1, padding: 20 }), 300);
+                }
             });
         } catch (error) {
             console.error('[MindmapEditor] Failed to initialize render-engine:', error);
@@ -493,12 +533,50 @@ export class MindmapEditor extends Component {
         });
 
         // Update theme/layout selectors
+        this._syncSettingsSelects();
+
+        return true;
+    }
+
+    /** 工具列的版面／主題下拉跟著目前分頁的設定走。 */
+    _syncSettingsSelects() {
         const themeSelect = this._el('.o_mindmap_theme_select');
         if (themeSelect) themeSelect.value = this.sheetSettings.theme || 'primary';
         const layoutSelect = this._el('.o_mindmap_layout_select');
         if (layoutSelect) layoutSelect.value = this.sheetSettings.layout || 'map';
+    }
 
-        return true;
+    /**
+     * 把 this.sheetSettings（版面、主題、間距）套到「已建立」的排版引擎上。
+     * 初始化時這些值是在建構 OdooMindMap 時傳入；切換分頁不會重建引擎，
+     * 所以必須在 jm.show() 之前逐項寫回，否則沿用上一張分頁的設定。
+     */
+    _applySheetSettingsToEngine() {
+        if (!this.jm) return;
+        const layout = this.sheetSettings.layout || 'map';
+        const theme = this.sheetSettings.theme || 'primary';
+        if (this.jm.layout && this.jm.layout.setLayoutMode) {
+            this.jm.layout.setLayoutMode(layout);
+        }
+        // jm.show() 建立中心主題時讀 options.theme（與 view.options 同一物件）
+        if (this.jm.options) this.jm.options.theme = theme;
+        const opts = {
+            layout: {
+                hspace: this.sheetSettings.spacing_major || 30,
+                vspace: this.sheetSettings.spacing_minor || 8,
+            },
+        };
+        this._applyLayoutSettings(opts);
+        if (this.jm.options && this.jm.options.layout) {
+            this.jm.options.layout.hspace = opts.layout.hspace;
+            this.jm.options.layout.vspace = opts.layout.vspace;
+        }
+        const engine = this.jm.view && this.jm.view.layout;
+        if (engine) {
+            engine.hgap = opts.layout.hspace;
+            engine.vgap = opts.layout.vspace;
+        }
+        this._syncSettingsSelects();
     }
 
     _applyLayoutSettings(options) {
@@ -556,10 +634,10 @@ export class MindmapEditor extends Component {
         }
     }
 
-    /** Status bar「N 個指令」— CommandStack（可復原步數）計數。 */
+    /** Status bar「N commands」— CommandStack（可復原步數）計數。 */
     _updateCommandCount(count) {
         const el = this._el('.o_mindmap_command_count');
-        if (el) el.textContent = '  ·  ' + (count || 0) + ' 個指令';
+        if (el) el.textContent = '  ·  ' + _t('%s commands', count || 0);
     }
 
     // ===== Keyboard Shortcuts =====
@@ -623,10 +701,12 @@ export class MindmapEditor extends Component {
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
             e.preventDefault();
             this.onAddParentTopic();
-        } else if (e.altKey && e.key === 'ArrowUp') {
+        } else if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'ArrowUp') {
+            // Ctrl/Cmd+Alt+Arrow 是捲動畫布（見下方），這裡要排除，否則
+            // Ctrl+Alt+↑/↓ 會先被「上移／下移主題」吃掉。
             e.preventDefault();
             this.onMoveUp();
-        } else if (e.altKey && e.key === 'ArrowDown') {
+        } else if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === 'ArrowDown') {
             e.preventDefault();
             this.onMoveDown();
         } else if ((e.ctrlKey || e.metaKey) && e.key === 'x' && this.selectedNode) {
@@ -729,7 +809,8 @@ export class MindmapEditor extends Component {
     _setupAutoSave() {
         this.autoSaveTimer = setInterval(() => {
             // 衝突後不再自動重試：每分鐘跳一次同樣的錯誤只會干擾；等使用者重新載入。
-            if (this.commandStack.isDirty && this.workbookId && !this._conflict) {
+            if (this.commandStack.isDirty && this.workbookId && !this._conflict
+                    && !this._revisionPreview) {
                 this._autoSave();
             }
         }, 60000);
@@ -834,6 +915,54 @@ export class MindmapEditor extends Component {
 
         // 4. Rebuild relationships (not just refresh — re-create if source/target now available)
         this._rebuildRelationships(resetRelationshipCp);
+
+        // 5. Callouts follow their topics
+        this._rebuildCallouts();
+    }
+
+    /** 依 this.callouts 重畫所有標註（主題移動、重新載入、切換分頁後都要）。 */
+    _rebuildCallouts() {
+        if (!this.calloutRenderer || !this.jm || !this.jm.view) return;
+        this.calloutRenderer.clear();
+        for (const c of this.callouts) {
+            const el = this.jm.view.get_node_element(c.parentNodeId);
+            // 收合中的主題不顯示它的標註
+            if (el && el.style.display !== 'none') {
+                this.calloutRenderer.addCallout(el, c.options || {}, c.id);
+            }
+        }
+    }
+
+    _showCalloutContextMenu(event, calloutId) {
+        document.querySelectorAll('.o_xmind_callout_menu').forEach(el => el.remove());
+        const menu = document.createElement('div');
+        menu.className = 'o_xmind_callout_menu dropdown-menu show';
+        menu.style.cssText = `position: fixed; left: ${event.clientX}px; top: ${event.clientY}px; z-index: 10000;`;
+        const item = document.createElement('a');
+        item.className = 'dropdown-item';
+        item.href = '#';
+        item.innerHTML = '<i class="fa fa-trash me-1"></i>';
+        item.appendChild(document.createTextNode(_t('Delete Callout')));
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            menu.remove();
+            this._deleteCallout(calloutId);
+        });
+        menu.appendChild(item);
+        document.body.appendChild(menu);
+        setTimeout(() => {
+            document.addEventListener('click', () => menu.remove(), { once: true });
+        }, 10);
+    }
+
+    _deleteCallout(calloutId) {
+        const idx = this.callouts.findIndex(c => c.id === calloutId);
+        if (idx === -1) return;
+        this.callouts.splice(idx, 1);
+        this._rebuildCallouts();
+        this.commandStack.isDirty = true;
+        this.commandStack._notifyListeners();
+        this._updateStatus(_t('Callout deleted'));
     }
 
     // resetControlPoints: discard saved (absolute) control points and let each
@@ -1469,7 +1598,7 @@ export class MindmapEditor extends Component {
         // Hook relationship click → show control points; double-click → edit dialog
         this._setupRelationshipInteraction();
 
-        // Drag-to-connect: Alt+drag from topic to topic creates relationship
+        // Drag-to-connect: Ctrl/Cmd+drag from topic to topic creates relationship
         this._setupDragToConnect();
 
         // Relationship button mode: click source → preview → click target
@@ -1538,7 +1667,7 @@ export class MindmapEditor extends Component {
     }
 
     _setupDragToConnect() {
-        // Alt+drag from a topic draws a preview line; release on another topic creates relationship
+        // Ctrl/Cmd+drag from a topic draws a preview line; release on another topic creates relationship
         const world = this.jm.view.world;
         if (!world) return;
 
@@ -2518,21 +2647,7 @@ export class MindmapEditor extends Component {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
-        const themes = [
-            { id: 'primary', name: 'Primary', color: '#428bca' },
-            { id: 'success', name: 'Success', color: '#5cb85c' },
-            { id: 'danger', name: 'Danger', color: '#d9534f' },
-            { id: 'warning', name: 'Warning', color: '#f0ad4e' },
-            { id: 'info', name: 'Info', color: '#5bc0de' },
-            { id: 'greensea', name: 'Green Sea', color: '#16a085' },
-            { id: 'nephrite', name: 'Nephrite', color: '#27ae60' },
-            { id: 'belizehole', name: 'Belize Hole', color: '#2980b9' },
-            { id: 'wisteria', name: 'Wisteria', color: '#8e44ad' },
-            { id: 'asphalt', name: 'Asphalt', color: '#34495e' },
-            { id: 'orange', name: 'Orange', color: '#f39c12' },
-            { id: 'pumpkin', name: 'Pumpkin', color: '#d35400' },
-            { id: 'pomegranate', name: 'Pomegranate', color: '#c0392b' },
-        ];
+        const themes = getThemeChoices();
 
         const dialog = document.createElement('div');
         dialog.style.cssText = 'background:white;border-radius:12px;padding:24px;max-width:500px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.3);';
@@ -2552,6 +2667,7 @@ export class MindmapEditor extends Component {
                 this.sheetSettings.theme = theme.id;
                 this.jm.set_theme(theme.id);
                 this._saveSettings();
+                this._syncSettingsSelects();
                 overlay.remove();
                 this._updateStatus(_t('Theme changed to: ') + theme.name);
             });
@@ -2733,8 +2849,8 @@ export class MindmapEditor extends Component {
                 const item = document.createElement('div');
                 item.style.cssText = 'padding:8px;border:1px solid #eee;border-radius:6px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;';
                 item.innerHTML = `
-                    <div style="font-size:12px;font-weight:600;">${rev.name}</div>
-                    <div style="font-size:11px;color:#888;">${rev.user} · ${rev.topic_count} topics</div>
+                    <div style="font-size:12px;font-weight:600;">${escape(rev.name)}</div>
+                    <div style="font-size:11px;color:#888;">${escape(rev.user)} · ${escape(_t('%s topics', rev.topic_count))}</div>
                     <div class="mt-1">
                         <button class="btn btn-outline-primary btn-sm py-0 px-2 me-1" style="font-size:11px;" data-action="restore">${_t('Restore')}</button>
                         <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:11px;" data-action="preview">${_t('Preview')}</button>
@@ -2748,10 +2864,12 @@ export class MindmapEditor extends Component {
                     this.dialog.add(ConfirmationDialog, {
                         body: _t('Restore this revision? Current changes will be lost.'),
                         confirm: async () => {
-                            await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
-                            // Reload mindmap
-                            await this._loadWorkbookData();
-                            this.jm.show(this.mindmapData, () => this._renderAllFeatures());
+                            const res = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
+                            if (!res || res.error) {
+                                this._showError((res && res.error) || _t('Failed to restore revision.'));
+                                return;
+                            }
+                            await this._reloadAfterRevision(res.sheet_id);
                             this._updateStatus(_t('Revision restored: ') + rev.name);
                         },
                     });
@@ -2759,12 +2877,7 @@ export class MindmapEditor extends Component {
 
                 item.querySelector('[data-action="preview"]').addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    const result = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/preview', {});
-                    if (result && result.data) {
-                        // Temporarily show the revision data
-                        this.jm.show(result.data, () => this._renderAllFeatures());
-                        this._updateStatus(_t('Previewing: ') + rev.name + _t(' (not saved)'));
-                    }
+                    await this._enterRevisionPreview(rev);
                 });
 
                 list.appendChild(item);
@@ -2772,6 +2885,105 @@ export class MindmapEditor extends Component {
         } catch (e) {
             list.innerHTML = `<div class="text-danger small">${_t('Error loading revisions')}</div>`;
         }
+    }
+
+    /**
+     * 還原（或結束預覽）後重新載入「被還原的那張」分頁。
+     *
+     * 以前還原後一律重讀 /data（＝第一張分頁），但 _currentSheetId 仍指著
+     * 原本那張 —— 在第二張還原時，畫布換成第一張的樹，下一次存檔就把第一張
+     * 的內容寫進第二張。還原前的復原堆疊也一併清掉：那些指令指向的節點已不存在。
+     */
+    async _reloadAfterRevision(sheetId) {
+        this._exitRevisionPreviewState();
+        const target = sheetId || this._currentSheetId || this._firstSheetId;
+        if (target && target !== this._currentSheetId) {
+            this._currentSheetId = target;
+        }
+        if (target) {
+            await this._loadSheetIntoCanvas(target);
+        } else {
+            await this._loadWorkbookData();
+            this.jm.show(this.mindmapData, () => this._renderAllFeatures(true));
+        }
+        this.commandStack.clear();
+        this.selectedNode = null;
+    }
+
+    /** 進入版本預覽：唯讀地顯示快照，期間禁止（自動）存檔。 */
+    async _enterRevisionPreview(rev) {
+        // 預覽會把畫布換掉 —— 先把目前未存的編輯存起來，存不了就不預覽。
+        if (!this._revisionPreview && this.commandStack.isDirty) {
+            const ok = await this._saveData(false);
+            if (ok === false) {
+                this._showError(_t('Could not save the current sheet — preview cancelled to avoid losing changes.'));
+                return;
+            }
+            this.commandStack.markSaved();
+        }
+        const result = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/preview', {});
+        if (!result || !result.data) {
+            this._showError((result && result.error) || _t('Failed to load revision.'));
+            return;
+        }
+        this._revisionPreview = rev;
+        const payload = result.data;
+        // 快照也帶著特徵層（關聯線／外框…）：一起換，畫面才是那個版本的樣子
+        this._applyFeaturePayload({
+            relationships: (payload.relationships || []).map(r => ({
+                sourceId: r.source_id || r.sourceId,
+                targetId: r.target_id || r.targetId,
+                options: r.options || {},
+                controlPoints: r.controlPoints || [],
+            })),
+            summaries: payload.summaries || [],
+            boundaries: payload.boundaries || [],
+            callouts: payload.callouts || [],
+            floating_topics: [],
+        });
+        this.jm.show(payload, () => this._renderAllFeatures(true));
+        this.commandStack.clear();
+        this._updateStatus(_t('Previewing: ') + rev.name + _t(' (not saved)'));
+        if (this._previewNotificationClose) this._previewNotificationClose();
+        this._previewNotificationClose = this.notification.add(
+            _t('Previewing revision "%s". Saving is disabled until you exit the preview.', rev.name), {
+                type: 'warning',
+                sticky: true,
+                buttons: [
+                    {
+                        name: _t('Exit preview'),
+                        primary: true,
+                        onClick: () => this._exitRevisionPreview(),
+                    },
+                    {
+                        name: _t('Restore this revision'),
+                        onClick: async () => {
+                            const res = await rpc('/xmind/workbook/' + this.workbookId + '/revisions/' + rev.id + '/restore', {});
+                            if (!res || res.error) {
+                                this._showError((res && res.error) || _t('Failed to restore revision.'));
+                                return;
+                            }
+                            await this._reloadAfterRevision(res.sheet_id);
+                            this._updateStatus(_t('Revision restored: ') + rev.name);
+                        },
+                    },
+                ],
+            });
+    }
+
+    _exitRevisionPreviewState() {
+        this._revisionPreview = null;
+        if (this._previewNotificationClose) {
+            this._previewNotificationClose();
+            this._previewNotificationClose = null;
+        }
+    }
+
+    /** 結束預覽：丟掉畫布上的快照，重新載入目前分頁在伺服器上的內容。 */
+    async _exitRevisionPreview() {
+        if (!this._revisionPreview) return;
+        await this._reloadAfterRevision(this._currentSheetId || this._firstSheetId);
+        this._updateStatus(_t('Preview closed'));
     }
 
     onOpenNote() {
@@ -3297,21 +3509,7 @@ export class MindmapEditor extends Component {
         container.innerHTML = '';
 
         if (tabId === 'themes') {
-            const themes = [
-                { id: 'primary', name: 'Primary', color: '#428bca' },
-                { id: 'success', name: 'Success', color: '#5cb85c' },
-                { id: 'danger', name: 'Danger', color: '#d9534f' },
-                { id: 'warning', name: 'Warning', color: '#f0ad4e' },
-                { id: 'info', name: 'Info', color: '#5bc0de' },
-                { id: 'greensea', name: 'Green Sea', color: '#16a085' },
-                { id: 'nephrite', name: 'Nephrite', color: '#27ae60' },
-                { id: 'belizehole', name: 'Belize Hole', color: '#2980b9' },
-                { id: 'wisteria', name: 'Wisteria', color: '#8e44ad' },
-                { id: 'asphalt', name: 'Asphalt', color: '#34495e' },
-                { id: 'orange', name: 'Orange', color: '#f39c12' },
-                { id: 'pumpkin', name: 'Pumpkin', color: '#d35400' },
-                { id: 'pomegranate', name: 'Pomegranate', color: '#c0392b' },
-            ];
+            const themes = getThemeChoices();
             const grid = document.createElement('div');
             grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;';
             const current = this.sheetSettings.theme || 'primary';
@@ -3324,6 +3522,7 @@ export class MindmapEditor extends Component {
                     this.sheetSettings.theme = t.id;
                     this.jm.set_theme(t.id);
                     this._saveSettings();
+                    this._syncSettingsSelects();
                     this._renderResourceTab('themes', container);
                 });
                 grid.appendChild(card);
@@ -3704,10 +3903,11 @@ export class MindmapEditor extends Component {
         // 特徵層必須跟著換 —— 不換的話畫布是新分頁的樹、關聯線卻是
         // 上一張的，且下一次存檔會把它們寫進新分頁。
         this._applyFeaturePayload(result);
-        if (result.sheet_settings) {
-            this.sheetSettings = result.sheet_settings;
-        }
-        this.jm.show(this.mindmapData, () => this._renderAllFeatures());
+        // 每張分頁有自己的版面／主題／間距。以前只換了 this.sheetSettings，
+        // 排版引擎與工具列下拉仍停在上一張的設定 —— 切到魚骨圖分頁卻畫成心智圖。
+        this.sheetSettings = result.sheet_settings || { layout: 'map', theme: 'primary' };
+        this._applySheetSettingsToEngine();
+        this.jm.show(this.mindmapData, () => this._renderAllFeatures(true));
         // 分頁列的高亮跟著 sheetState.currentId 走，OWL 自己會重繪，
         // 不再需要手動叫它重畫。
         return result;
@@ -3717,7 +3917,16 @@ export class MindmapEditor extends Component {
         if (!this.workbookId || this._currentSheetId === sheetId) return;
         // Save current sheet first; abort the switch if it failed so the
         // current sheet's unsaved edits are not lost by the reload.
-        this._saveData().then((ok) => {
+        // 版本預覽中不存檔（畫布是舊版本），直接結束預覽再切換。
+        let saving;
+        if (this._revisionPreview) {
+            this._exitRevisionPreviewState();
+            this.commandStack.clear();
+            saving = Promise.resolve(true);
+        } else {
+            saving = this._saveData();
+        }
+        saving.then((ok) => {
             if (ok === false) {
                 this._showError(_t('Could not save the current sheet — staying here to avoid losing changes.'));
                 return;
@@ -3827,7 +4036,8 @@ export class MindmapEditor extends Component {
         const layout = ev.target.value;
         this.sheetSettings.layout = layout;
         this._saveSettings();
-        this._updateStatus(_t('Layout changed to: ') + layout);
+        const opt = ev.target.selectedOptions && ev.target.selectedOptions[0];
+        this._updateStatus(_t('Layout changed to: ') + ((opt && opt.textContent.trim()) || layout));
 
         if (this.jm && this.jm.layout && this.jm.view) {
             this.jm.layout.setLayoutMode(layout);
@@ -3848,7 +4058,7 @@ export class MindmapEditor extends Component {
         this.sheetSettings.theme = theme;
         this.jm.set_theme(theme);
         this._saveSettings();
-        this._updateStatus(_t('Theme changed to: ') + theme);
+        this._updateStatus(_t('Theme changed to: ') + themeName(theme));
     }
 
     onTopicPropertyChange() {
@@ -4355,6 +4565,18 @@ export class MindmapEditor extends Component {
         });
     }
 
+    /** Insert → Label：打開側欄並把游標放進「標籤」欄位。 */
+    onInsertLabel(ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (!this.selectedNode) {
+            this._showWarning(_t('Please select a topic first'));
+            return;
+        }
+        this._openSidebar();
+        const labelsEl = this._el('.o_topic_labels');
+        if (labelsEl) labelsEl.focus();
+    }
+
     onInsertNote(ev) {
         ev.preventDefault();
         if (!this.selectedNode) {
@@ -4364,11 +4586,6 @@ export class MindmapEditor extends Component {
         this._openSidebar();
         const noteEl = this._el('.o_topic_note');
         if (noteEl) noteEl.focus();
-    }
-
-    onInsertComment(ev) {
-        if (ev && ev.preventDefault) ev.preventDefault();
-        this._showWarning(_t('Comments feature coming soon'));
     }
 
     onInsertAttachment(ev) {
@@ -4668,8 +4885,9 @@ export class MindmapEditor extends Component {
 
         const parentElement = this.jm.view.get_node_element(this.selectedNode);
         if (parentElement) {
-            this.calloutRenderer.addCallout(parentElement, options);
-            this.callouts.push({ parentNodeId: this.selectedNode, options });
+            const id = 'co_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            this.callouts.push({ id, parentNodeId: this.selectedNode, options });
+            this.calloutRenderer.addCallout(parentElement, options, id);
             this.commandStack.isDirty = true;
             this.commandStack._notifyListeners();
             this._updateStatus(_t('Callout added'));
@@ -5042,6 +5260,28 @@ export class MindmapEditor extends Component {
             labelBold: false, labelItalic: true, labelBackground: false,
         };
 
+        // 選項顯示翻譯過的名稱（以前直接把 curved / dashed / arrow 等代碼印出來）
+        const REL_SHAPES = [
+            ['curved', _t('Curve')], ['straight', _t('Straight')], ['angled', _t('Elbow')],
+            ['roundedElbow', _t('Rounded Elbow')], ['arrowedCurve', _t('Arrowed Curve')],
+            ['zigzag', _t('Zigzag')], ['arc', _t('Arc')],
+        ];
+        const REL_LINE_STYLES = [
+            ['solid', _t('Solid')], ['dashed', _t('Dashed')], ['dotted', _t('Dotted')],
+            ['dash-dot', _t('Dash-dot')],
+        ];
+        const REL_MARKERS = [
+            ['none', _t('None')], ['arrow', _t('Arrow')], ['arrow-open', _t('Open Arrow')],
+            ['diamond', _t('Diamond')], ['diamond-filled', _t('Filled Diamond')],
+            ['circle', _t('Circle')], ['circle-filled', _t('Filled Circle')], ['square', _t('Square')],
+        ];
+        const REL_MARKER_SIZES = [
+            // 用「… size」當原文：單獨的 "Medium" 會被別的模組（utm「媒介」）的譯文蓋掉
+            ['small', _t('Small size')], ['medium', _t('Medium size')], ['large', _t('Large size')],
+        ];
+        const opts = (choices, current) => choices.map(([v, label]) =>
+            `<option value="${v}" ${current === v ? 'selected' : ''}>${escape(label)}</option>`).join('');
+
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
 
@@ -5050,9 +5290,9 @@ export class MindmapEditor extends Component {
         dialog.innerHTML = `
             <h5 style="margin-bottom:16px;">${existing ? _t('Edit Relationship') : _t('Create Relationship')}</h5>
             <div class="mb-2"><label class="small fw-bold">${_t('Shape Type')}</label>
-                <select class="form-select form-select-sm o_dlg_shape">${['curved','straight','angled','roundedElbow','arrowedCurve','zigzag','arc'].map(v => `<option value="${v}" ${defaults.shapeType===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <select class="form-select form-select-sm o_dlg_shape">${opts(REL_SHAPES, defaults.shapeType)}</select></div>
             <div class="mb-2"><label class="small fw-bold">${_t('Line Style')}</label>
-                <select class="form-select form-select-sm o_dlg_linestyle">${['solid','dashed','dotted','dash-dot'].map(v => `<option value="${v}" ${defaults.lineStyle===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <select class="form-select form-select-sm o_dlg_linestyle">${opts(REL_LINE_STYLES, defaults.lineStyle)}</select></div>
             <div class="row mb-2">
                 <div class="col-6"><label class="small fw-bold">${_t('Width')}</label>
                     <input type="number" class="form-control form-control-sm o_dlg_width" min="1" max="8" value="${defaults.lineWidth}"/></div>
@@ -5061,15 +5301,15 @@ export class MindmapEditor extends Component {
             </div>
             <div class="row mb-2">
                 <div class="col-6"><label class="small fw-bold">${_t('Start Marker')}</label>
-                    <select class="form-select form-select-sm o_dlg_startmarker">${['none','arrow','arrow-open','diamond','diamond-filled','circle','circle-filled','square'].map(v => `<option value="${v}" ${defaults.startMarker===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                    <select class="form-select form-select-sm o_dlg_startmarker">${opts(REL_MARKERS, defaults.startMarker)}</select></div>
                 <div class="col-6"><label class="small fw-bold">${_t('End Marker')}</label>
-                    <select class="form-select form-select-sm o_dlg_endmarker">${['none','arrow','arrow-open','diamond','diamond-filled','circle','circle-filled','square'].map(v => `<option value="${v}" ${defaults.endMarker===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                    <select class="form-select form-select-sm o_dlg_endmarker">${opts(REL_MARKERS, defaults.endMarker)}</select></div>
             </div>
             <div class="mb-2"><label class="small fw-bold">${_t('Marker Size')}</label>
-                <select class="form-select form-select-sm o_dlg_markersize">${['small','medium','large'].map(v => `<option value="${v}" ${defaults.markerSize===v?'selected':''}>${v}</option>`).join('')}</select></div>
+                <select class="form-select form-select-sm o_dlg_markersize">${opts(REL_MARKER_SIZES, defaults.markerSize)}</select></div>
             <hr/>
             <div class="mb-2"><label class="small fw-bold">${_t('Label')}</label>
-                <input type="text" class="form-control form-control-sm o_dlg_label" value="${defaults.label || ''}" placeholder="${_t('Optional label')}"/></div>
+                <input type="text" class="form-control form-control-sm o_dlg_label" value="${escape(defaults.label || '')}" placeholder="${_t('Optional label')}"/></div>
             <div class="row mb-2">
                 <div class="col-4"><label class="small fw-bold">${_t('Font Size')}</label>
                     <input type="number" class="form-control form-control-sm o_dlg_labelfontsize" min="8" max="24" value="${defaults.labelFontSize || 12}"/></div>
@@ -5228,6 +5468,14 @@ export class MindmapEditor extends Component {
             console.warn('[MindmapEditor] Save blocked: initial load failed.');
             return false;
         }
+        // 版本預覽中畫布是舊版本的樹：存下去等於不經確認就還原（而且還會覆蓋
+        // 目前的內容）。要保留它請按「還原」，否則先結束預覽。
+        if (this._revisionPreview) {
+            if (!isAuto) {
+                this._showWarning(_t('You are previewing a revision. Exit the preview (or restore it) before saving.'));
+            }
+            return false;
+        }
 
         // Build the full payload: tree + every feature layer in ONE request so
         // the backend writes them in a single transaction. This removes the
@@ -5341,6 +5589,7 @@ export class MindmapEditor extends Component {
         if (this._aiPreview && this._aiPreview.active) {
             this._aiPreview.exit();
         }
+        this._exitRevisionPreviewState();
         const sheetId = this._currentSheetId || this._firstSheetId;
         let ok = false;
         if (sheetId) {
@@ -5427,7 +5676,11 @@ export class MindmapEditor extends Component {
 
     async _saveSettings() {
         if (!this.workbookId) return;
-        await rpc('/xmind/workbook/' + this.workbookId + '/settings', { settings: this.sheetSettings });
+        // 帶上目前分頁：不帶的話後端只能寫第一張（在第二張換版面會改到第一張）。
+        await rpc('/xmind/workbook/' + this.workbookId + '/settings', {
+            settings: this.sheetSettings,
+            sheet_id: this._currentSheetId || this._firstSheetId || false,
+        });
     }
 
     /** Capture a thumbnail of the current mind map and save to backend */
@@ -5528,13 +5781,13 @@ export class MindmapEditor extends Component {
                 if (nd && nd.data && nd.data._isSummaryNode) continue;
                 n++;
             }
-            topicEl.textContent = n + ' 個主題';
+            topicEl.textContent = _t('%s topics', n);
         }
         const selEl = this._el('.o_mindmap_selection_count');
         if (selEl) {
             const selCount = (this.selectedNodes && this.selectedNodes.length)
                 || (this.selectedNode ? 1 : 0);
-            selEl.textContent = selCount > 1 ? ('  ·  已選 ' + selCount + ' 個') : '';
+            selEl.textContent = selCount > 1 ? ('  ·  ' + _t('%s selected', selCount)) : '';
         }
     }
 
@@ -5760,7 +6013,9 @@ export class MindmapEditor extends Component {
                 // reset=true → relationship connectors re-optimise for new layout
                 this._updateFeaturePositions(true);
             }, 100);
-            this._updateStatus(_t('Layout changed to: ') + layoutType);
+            const sel = this._el('.o_mindmap_layout_select');
+            const opt = sel && [...sel.options].find(o => o.value === layoutType);
+            this._updateStatus(_t('Layout changed to: ') + ((opt && opt.textContent.trim()) || layoutType));
         }
     }
 
@@ -5960,6 +6215,12 @@ export class MindmapEditor extends Component {
                     // Assignee avatar(s) after the clock (before the text).
                     this._renderAssignee(element, node.data.assignees || []);
                 }
+                // 標籤列是主題框內的第二列：其他行內圖示（備註、任務…）是在它之後
+                // 才附加的，會跑到標籤下面自成一列 —— 把標籤列移回最後。
+                const labelRow = element.querySelector(':scope > .xmind-labels');
+                if (labelRow && labelRow !== element.lastElementChild) {
+                    element.appendChild(labelRow);
+                }
             }
         }
 
@@ -5993,6 +6254,9 @@ export class MindmapEditor extends Component {
         this._rebuildBoundaries();
 
         this._rebuildSummaries();
+
+        // 標註：資料庫裡的標註以前只有新增當下畫過一次，重新開啟就看不見
+        this._rebuildCallouts();
 
         // Redraw branch lines after summary positioning (hide parent→summary lines)
         if (this.jm && this.jm.view) {
@@ -6047,42 +6311,52 @@ export class MindmapEditor extends Component {
     }
 
     onZoomFit() {
-        if (!this.jm || !this.jm.view) return;
-        const container = this.containerRef.el;
-        if (!container) return;
+        if (this._fitToView({ maxZoom: 2 })) {
+            this._updateStatus(_t('Fit to view: ') + Math.round(this._zoomLevel * 100) + '%');
+        }
+    }
 
-        const panel = this.jm.view.e_panel;
-        if (!panel) return;
-
-        // Get the bounding box of all nodes
+    /**
+     * 縮放並平移，讓整張圖（所有可見主題）置中落在畫布可視範圍內。
+     *
+     * 用主題在「世界座標」的 offsetLeft/Top（不受 transform 影響）算外框，
+     * 再依 jsMind 的轉換 `translate(pan + 畫布中心) scale(zoom)`、
+     * transform-origin 0 0，反推讓外框中心落在畫布中心的 pan。
+     * 以前只改縮放不改平移，圖若不在原點附近就會縮了還是跑出畫面外 ——
+     * 嵌入在 HTML 欄位裡（460px 高）的唯讀心智圖尤其明顯。
+     *
+     * @returns {boolean} 有沒有成功套用
+     */
+    _fitToView({ maxZoom = 2, padding = 40 } = {}) {
+        if (!this.jm || !this.jm.view) return false;
+        const view = this.jm.view;
+        const container = view.container;
+        const panel = view.e_panel || view.nodesLayer;
+        if (!container || !panel) return false;
         const nodes = panel.querySelectorAll('.xmind-node');
-        if (nodes.length === 0) return;
-
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        const panelRect = panel.getBoundingClientRect();
-
-        nodes.forEach(node => {
-            const rect = node.getBoundingClientRect();
-            const x = rect.left - panelRect.left;
-            const y = rect.top - panelRect.top;
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x + rect.width);
-            maxY = Math.max(maxY, y + rect.height);
+        nodes.forEach(n => {
+            if (n.style.display === 'none' || !n.offsetWidth) return;
+            minX = Math.min(minX, n.offsetLeft);
+            minY = Math.min(minY, n.offsetTop);
+            maxX = Math.max(maxX, n.offsetLeft + n.offsetWidth);
+            maxY = Math.max(maxY, n.offsetTop + n.offsetHeight);
         });
-
-        const contentW = maxX - minX + 100;
-        const contentH = maxY - minY + 100;
-        const containerW = container.parentElement.offsetWidth;
-        const containerH = container.parentElement.offsetHeight - 60;
-
-        const scaleX = containerW / contentW;
-        const scaleY = containerH / contentH;
-        this._zoomLevel = Math.min(scaleX, scaleY, 2);
-        this._zoomLevel = Math.max(this._zoomLevel, 0.3);
-
+        if (minX === Infinity) return false;
+        const cw = container.clientWidth;
+        const ch = container.clientHeight;
+        if (!cw || !ch) return false;
+        const contentW = (maxX - minX) + padding * 2;
+        const contentH = (maxY - minY) + padding * 2;
+        let zoom = Math.min(cw / contentW, ch / contentH, maxZoom);
+        zoom = Math.max(zoom, 0.3);
+        this._zoomLevel = zoom;
+        const midX = (minX + maxX) / 2;
+        const midY = (minY + maxY) / 2;
+        view._panX = -midX * zoom;
+        view._panY = -midY * zoom;
         this._applyZoom();
-        this._updateStatus(_t('Fit to view: ') + Math.round(this._zoomLevel * 100) + '%');
+        return true;
     }
 
     onZoomReset() {

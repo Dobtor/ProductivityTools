@@ -9,6 +9,19 @@ import { _t } from "@web/core/l10n/translation";
 /**
  * Boundary Renderer - Draws enclosing shapes around groups of topics
  */
+/**
+ * 讓掛在主題上的絕對定位小圖示有定位參考。主題本身由排版引擎設成
+ * position:absolute —— 以前這裡無條件改成 relative，等於把主題從絕對座標
+ * 拉回文件流，帶有標籤／連結／附件的主題就會偏離排版位置而互相重疊。
+ * 只有在元素尚未定位時才補 relative。
+ */
+function ensurePositioned(el) {
+    const pos = el.style.position;
+    if (!pos || pos === 'static') {
+        el.style.position = 'relative';
+    }
+}
+
 export class BoundaryRenderer {
     constructor(container) {
         this.container = container;
@@ -721,22 +734,25 @@ export class LabelRenderer {
 
         if (!labels || labels.length === 0) return;
 
+        // 標籤列放在主題框「裡面」的第二列（一般文件流），不再用
+        // position:absolute 掛在框外下方：框外的東西不算進 offsetHeight，
+        // 版面量高度時看不到它，結果標籤壓到下一個兄弟主題上。
         const labelContainer = document.createElement('div');
         labelContainer.className = 'xmind-labels';
-        labelContainer.style.position = 'absolute';
-        labelContainer.style.bottom = '-22px';
-        labelContainer.style.left = '50%';
-        labelContainer.style.transform = 'translateX(-50%)';
         labelContainer.style.display = 'flex';
+        labelContainer.style.justifyContent = 'center';
+        labelContainer.style.flexWrap = 'nowrap';
         labelContainer.style.gap = '4px';
+        labelContainer.style.marginTop = '3px';
         labelContainer.style.whiteSpace = 'nowrap';
+        labelContainer.style.lineHeight = '1.4';
 
         for (let label of labels) {
             const badge = document.createElement('span');
             badge.className = 'xmind-label';
             badge.style.background = '#ffc107';
             badge.style.color = '#000';
-            badge.style.padding = '1px 8px';
+            badge.style.padding = '0 8px';
             badge.style.borderRadius = '12px';
             badge.style.fontSize = '11px';
             badge.style.fontWeight = '500';
@@ -744,7 +760,6 @@ export class LabelRenderer {
             labelContainer.appendChild(badge);
         }
 
-        nodeElement.style.position = 'relative';
         nodeElement.appendChild(labelContainer);
     }
 }
@@ -793,12 +808,10 @@ export class CalloutRenderer {
         this.callouts = [];
     }
 
-    addCallout(parentElement, options = {}) {
-        // Use local coords
-        const _ = 0; // placeholder
-
+    addCallout(parentElement, options = {}, calloutId = null) {
         const calloutDiv = document.createElement('div');
         calloutDiv.className = 'xmind-callout';
+        if (calloutId) calloutDiv.dataset.calloutId = calloutId;
         calloutDiv.style.position = 'absolute';
         calloutDiv.style.left = (parentElement.offsetLeft + parentElement.offsetWidth + (options.offsetX || 10)) + 'px';
         calloutDiv.style.top = (parentElement.offsetTop + (options.offsetY || -30)) + 'px';
@@ -812,9 +825,9 @@ export class CalloutRenderer {
         calloutDiv.style.zIndex = '10';
         calloutDiv.style.maxWidth = '200px';
 
-        // Callout pointer
+        // Callout pointer（標註框本身維持 absolute —— 以前這裡改成 relative，
+        // 標註就被推回文件流，不在主題旁邊）
         if (options.shape === 'callout') {
-            calloutDiv.style.position = 'relative';
             const pointer = document.createElement('div');
             pointer.style.position = 'absolute';
             pointer.style.bottom = '-10px';
@@ -943,7 +956,7 @@ export class HyperlinkIndicator {
             e.stopPropagation();
         });
 
-        nodeElement.style.position = 'relative';
+        ensurePositioned(nodeElement);
         nodeElement.appendChild(indicator);
     }
 
@@ -978,7 +991,7 @@ export class AttachmentIndicator {
         indicator.innerHTML = `<i class="fa fa-paperclip"></i> ${count}`;
         indicator.title = count + ' attachment(s)';
 
-        nodeElement.style.position = 'relative';
+        ensurePositioned(nodeElement);
         nodeElement.appendChild(indicator);
     }
 }

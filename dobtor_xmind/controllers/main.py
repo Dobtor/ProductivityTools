@@ -287,24 +287,31 @@ class MindMapController(http.Controller):
         return {'success': True}
 
     @http.route('/xmind/workbook/<int:workbook_id>/settings', type='json', auth='user')
-    def save_sheet_settings(self, workbook_id, settings, **kwargs):
-        """Save sheet layout and theme settings"""
+    def save_sheet_settings(self, workbook_id, settings, sheet_id=None, **kwargs):
+        """Save layout and theme settings of one sheet.
+
+        ``sheet_id`` 是編輯器目前顯示的分頁。以前一律寫 ``sheet_ids[0]``，
+        於是在第二張分頁換版面／主題，實際改到的是第一張。
+        沒帶 ``sheet_id``（舊呼叫端）才退回第一張；帶了但不屬於這本工作簿則拒絕。
+        """
         workbook = self._check_workbook_access(workbook_id, 'write')
         if not workbook:
             return {'error': 'Workbook not found or access denied'}
 
-        if not workbook.sheet_ids:
-            request.env['xmind.sheet'].create({
-                'workbook_id': workbook.id,
-                'name': workbook.name,
-                'layout_type': settings.get('layout', 'map'),
-                'theme': settings.get('theme', 'primary'),
-            })
+        vals = {
+            'layout_type': settings.get('layout', 'map'),
+            'theme': settings.get('theme', 'primary'),
+        }
+        if sheet_id:
+            sheet = workbook.sheet_ids.filtered(lambda s: s.id == int(sheet_id))[:1]
+            if not sheet:
+                return {'error': 'Sheet not found or access denied'}
+            sheet.write(vals)
+        elif not workbook.sheet_ids:
+            request.env['xmind.sheet'].create(dict(
+                vals, workbook_id=workbook.id, name=workbook.name))
         else:
-            workbook.sheet_ids[0].write({
-                'layout_type': settings.get('layout', 'map'),
-                'theme': settings.get('theme', 'primary'),
-            })
+            workbook.sheet_ids[0].write(vals)
 
         return {'success': True}
 
@@ -362,7 +369,10 @@ class MindMapController(http.Controller):
             return {'error': 'Revision not found'}
 
         revision.action_restore()
-        return {'success': True}
+        # 告訴編輯器還原的是哪一張分頁（舊版本沒有 sheet_id＝第一張），
+        # 讓它重新載入那一張，而不是一律載入第一張。
+        restored_sheet = revision.sheet_id or workbook.sheet_ids[:1]
+        return {'success': True, 'sheet_id': restored_sheet.id or False}
 
     @http.route('/xmind/workbook/<int:workbook_id>/revisions/<int:revision_id>/preview', type='json', auth='user')
     def preview_revision(self, workbook_id, revision_id, **kwargs):
