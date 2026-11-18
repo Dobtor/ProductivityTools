@@ -2570,17 +2570,17 @@ msgstr "形狀類型"
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_topic__sheet_id
 #: code:addons/dobtor_xmind/static/src/xml/mindmap_sub_sheet_dialogs.xml:0
 msgid "Sheet"
-msgstr "工作表"
+msgstr "分頁"
 
 #. module: dobtor_xmind
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_workbook__sheet_count
 msgid "Sheet Count"
-msgstr "工作表數量"
+msgstr "分頁數量"
 
 #. module: dobtor_xmind
 #: model:ir.model.fields,field_description:dobtor_xmind.field_xmind_sheet__name
 msgid "Sheet Name"
-msgstr "工作表名稱"
+msgstr "分頁名稱"
 
 #. module: dobtor_xmind
 #: model:ir.actions.act_window,name:dobtor_xmind.action_xmind_sheet
@@ -2588,7 +2588,7 @@ msgstr "工作表名稱"
 #: model:ir.ui.menu,name:dobtor_xmind.menu_xmind_sheets
 #: model_terms:ir.ui.view,arch_db:dobtor_xmind.view_xmind_workbook_form
 msgid "Sheets"
-msgstr "工作表"
+msgstr "分頁"
 
 #. module: dobtor_xmind
 #. odoo-javascript
@@ -3212,7 +3212,7 @@ msgstr "心智圖關連線"
 #. module: dobtor_xmind
 #: model:ir.model,name:dobtor_xmind.model_xmind_sheet
 msgid "Mind Map Sheet"
-msgstr "心智圖工作表"
+msgstr "心智圖分頁"
 
 #. module: dobtor_xmind
 #: model:ir.model,name:dobtor_xmind.model_xmind_summary
