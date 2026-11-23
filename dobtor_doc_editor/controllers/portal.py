@@ -43,7 +43,14 @@ class DobtorDocPortal(CustomerPortal):
         return [('active', '=', True)] if 'active' in request.env['doc.document']._fields else []
 
     def _get_documents_domain_count(self):
-        return request.env['doc.document'].search_count(self._get_documents_domain())
+        # ☠️ /my 首頁的計數是一次 JSON 請求（/my/counters）算全部磁貼：只要這裡丟
+        # AccessError，整個請求失敗 → 首頁一直轉圈、其他模組的磁貼也不出現。
+        # 一般 portal 使用者（沒有 group_doc_portal）對 doc.document 沒有 ACL，
+        # 所以沒有讀取權限時直接回 0（磁貼不顯示），不要去 search_count。
+        DocDocument = request.env['doc.document']
+        if not DocDocument.has_access('read'):
+            return 0
+        return DocDocument.search_count(self._get_documents_domain())
 
     # ── /my/documents 列表 ────────────────────────────────────────────
 

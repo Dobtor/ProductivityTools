@@ -37,3 +37,4 @@ from . import test_route_i18n  # i18n 5 條路由（優化 3 第三批）
 from . import test_route_remaining  # 最後 10 條路由（優化 3 第四批）
 from . import test_view_a11y  # 視圖無障礙警告 = 0（由 Odoo 自己的驗證器判定）
 from . import test_converter_layout  # 轉換器版面：並排欄位、地址區塊、巢狀寬度
+from . import test_portal_home_counters  # /my 首頁計數：無文件權限的 portal 使用者不可拖垮整個計數請求
