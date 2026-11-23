@@ -170,3 +170,40 @@ class TestAssetBundleClosure(TransactionCase):
             missing,
             'bundle 不閉合（Odoo 18 沒有跨 bundle 相依，少一支整條就載不起來）：\n  %s'
             % '\n  '.join(missing))
+
+
+_EXTERNAL_IMPORT_RE = re.compile(
+    r'''^\s*import\s[^;]*?from\s+["']@(?!odoo/|dobtor_doc_editor/)([A-Za-z0-9_]+)/([^"']+)["']''',
+    re.M)
+
+
+@tagged('post_install', '-at_install', 'dobtor_doc_editor')
+class TestFrontendExternalImports(TransactionCase):
+    """前台 bundle 的 JS 不可以靜態 import 不在 web.assets_frontend 的別模組 JS。
+
+    2026-11 qytech 正式站：doc_editor_pills.js 靜態 import 了
+    @web/views/view_dialogs/select_create_dialog（只在後台 bundle），整串 doc_editor
+    前台模組 unmet dependencies。上面的閉包檢查只看本模組自己的 import，看不到這種。
+    以 Odoo 實際組出的 web.assets_frontend 檔案清單為準。
+    """
+
+    def test_frontend_imports_resolve_in_frontend_bundle(self):
+        paths = {p[0] for p in self.env['ir.asset']._get_asset_paths(
+            'web.assets_frontend', {})}
+        self.assertTrue([p for p in paths if p.startswith('/web/static/src/')],
+                        '抽不到 web.assets_frontend 的檔案清單——這則會空轉過關')
+        own = [p for p in paths if p.startswith('/%s/' % MODULE_NAME) and p.endswith('.js')]
+        self.assertTrue(own, '本模組在前台 bundle 一支 JS 都沒有？')
+        missing = []
+        for path in sorted(own):
+            with open(os.path.join(MODULE_ROOT, path.split('/', 2)[2]), encoding='utf-8') as fh:
+                src = fh.read()
+            for mod, rest in _EXTERNAL_IMPORT_RE.findall(src):
+                target = '/%s/static/src/%s' % (mod, rest)
+                target = target if target.endswith('.js') else target + '.js'
+                if target not in paths and target[:-3] + '/index.js' not in paths:
+                    missing.append('%s import 了 @%s/%s' % (path, mod, rest))
+        self.assertFalse(
+            missing,
+            '前台 bundle 沒有這些模組，靜態 import 會讓整串前台模組載不起來'
+            '（改成用到時從 odoo.loader.modules 取）：\n  %s' % '\n  '.join(missing))

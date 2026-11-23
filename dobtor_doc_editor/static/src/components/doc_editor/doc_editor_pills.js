@@ -20,7 +20,6 @@ import { Component, useState, onMounted, onWillUnmount, useRef } from "@odoo/owl
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { AutoSaveManager } from "../../core/auto_save_manager";
 import { LeaderElection } from "../../core/leader_election";
 import { OfflineManager } from "../../core/offline_manager";
@@ -2680,6 +2679,16 @@ export const DocEditorPills = (Base) => class extends Base {
                 "這張範本沒有設定適用模型，沒有記錄可以拿來顯示實際值。",
                 { type: "warning" }
             );
+            return;
+        }
+        // ☠️ 不可以在檔頭靜態 import SelectCreateDialog：這支也在 web.assets_frontend
+        //    （portal 協作者的編輯器），而 select_create_dialog 只在後台 bundle——
+        //    靜態 import 會讓整串 doc_editor 前台模組 unmet dependencies、載不起來。
+        //    用到時才從 loader 取；前台取不到就告訴使用者這是後台功能。
+        const SelectCreateDialog = odoo.loader.modules.get(
+            "@web/views/view_dialogs/select_create_dialog")?.SelectCreateDialog;
+        if (!SelectCreateDialog) {
+            this.notification.add("此操作只在後台可用。", { type: "warning" });
             return;
         }
         this.dialog.add(SelectCreateDialog, {
